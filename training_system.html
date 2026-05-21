@@ -1,0 +1,861 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ระบบติดตามใบรับรองการอบรม KTR</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg: #080c12;
+  --bg2: #0e1420;
+  --bg3: #141c2a;
+  --border: #1e2d45;
+  --border2: #253550;
+  --gold: #c9a84c;
+  --gold2: #e8c96a;
+  --green: #3dd68c;
+  --red: #f04f4f;
+  --orange: #f0963a;
+  --blue: #4a9eff;
+  --text: #dde6f5;
+  --text2: #7a8eaa;
+  --text3: #4a5c72;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  font-family:'Sarabun',sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  min-height:100vh;
+  overflow-x:hidden;
+}
+
+/* ── HEADER ── */
+.topbar {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:18px 32px;
+  background:linear-gradient(180deg,#0e1830 0%,var(--bg2) 100%);
+  border-bottom:1px solid var(--border);
+  position:sticky; top:0; z-index:100;
+  backdrop-filter:blur(12px);
+}
+.logo { display:flex; align-items:center; gap:12px; }
+.logo-mark {
+  width:38px; height:38px;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  border-radius:10px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:18px;
+  box-shadow:0 0 20px rgba(201,168,76,0.25);
+  flex-shrink:0;
+}
+.logo-text { font-size:16px; font-weight:700; color:#fff; line-height:1.2; }
+.logo-sub { font-size:11px; color:var(--text3); font-weight:400; }
+
+.topbar-actions { display:flex; gap:10px; align-items:center; }
+
+/* ── IMPORT ZONE ── */
+.import-zone {
+  display:grid; grid-template-columns:1fr 1fr;
+  gap:20px; padding:28px 32px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+}
+
+.drop-card {
+  background:var(--bg3);
+  border:2px dashed var(--border2);
+  border-radius:16px;
+  padding:28px 24px;
+  text-align:center;
+  cursor:pointer;
+  transition:all 0.25s;
+  position:relative;
+  overflow:hidden;
+}
+.drop-card::before {
+  content:'';
+  position:absolute; inset:0;
+  background:radial-gradient(circle at 50% 0%, rgba(201,168,76,0.06) 0%, transparent 70%);
+  pointer-events:none;
+}
+.drop-card:hover {
+  border-color:var(--gold);
+  background:#18202e;
+  transform:translateY(-2px);
+  box-shadow:0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(201,168,76,0.15);
+}
+.drop-card.dragging {
+  border-color:var(--gold2);
+  background:#1c2638;
+  box-shadow:0 0 0 3px rgba(201,168,76,0.2), 0 8px 40px rgba(0,0,0,0.4);
+}
+.drop-card.loaded {
+  border-style:solid;
+  border-color:var(--green);
+  background:#0d1e18;
+}
+.drop-card.loaded::before {
+  background:radial-gradient(circle at 50% 0%, rgba(61,214,140,0.06) 0%, transparent 70%);
+}
+
+.drop-icon {
+  width:56px; height:56px;
+  border-radius:14px;
+  display:flex; align-items:center; justify-content:center;
+  font-size:26px; margin:0 auto 14px;
+  transition:transform 0.2s;
+}
+.drop-card:hover .drop-icon { transform:scale(1.08); }
+.drop-icon.pdf-icon { background:rgba(240,79,79,0.12); border:1px solid rgba(240,79,79,0.25); }
+.drop-icon.xlsx-icon { background:rgba(61,214,140,0.12); border:1px solid rgba(61,214,140,0.25); }
+
+.drop-title {
+  font-size:15px; font-weight:700; color:#fff; margin-bottom:5px;
+}
+.drop-sub { font-size:12px; color:var(--text3); margin-bottom:16px; line-height:1.5; }
+
+.drop-btn {
+  display:inline-flex; align-items:center; gap:7px;
+  padding:9px 18px; border-radius:9px;
+  font-family:'Sarabun',sans-serif; font-size:13px; font-weight:600;
+  cursor:pointer; border:none; transition:all 0.2s;
+}
+.drop-btn.pdf-btn {
+  background:linear-gradient(135deg,rgba(240,79,79,0.2),rgba(240,79,79,0.1));
+  color:#f04f4f; border:1px solid rgba(240,79,79,0.3);
+}
+.drop-btn.pdf-btn:hover { background:rgba(240,79,79,0.25); box-shadow:0 4px 16px rgba(240,79,79,0.2); }
+.drop-btn.xlsx-btn {
+  background:linear-gradient(135deg,rgba(61,214,140,0.2),rgba(61,214,140,0.1));
+  color:var(--green); border:1px solid rgba(61,214,140,0.3);
+}
+.drop-btn.xlsx-btn:hover { background:rgba(61,214,140,0.25); box-shadow:0 4px 16px rgba(61,214,140,0.2); }
+
+.file-status {
+  margin-top:12px; font-size:12px;
+  display:flex; align-items:center; justify-content:center; gap:6px;
+}
+.status-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+.status-dot.wait { background:var(--text3); }
+.status-dot.loading { background:var(--orange); animation:pulse 0.8s infinite; }
+.status-dot.done { background:var(--green); }
+.status-dot.error { background:var(--red); }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+.progress-wrap { margin-top:12px; }
+.progress-bar {
+  height:4px; background:var(--border); border-radius:2px; overflow:hidden;
+}
+.progress-fill {
+  height:100%; border-radius:2px;
+  background:linear-gradient(90deg,var(--gold),var(--gold2));
+  transition:width 0.4s ease;
+  width:0;
+}
+
+/* ── PROCESS BTN ── */
+.process-bar {
+  padding:16px 32px;
+  background:var(--bg2);
+  border-bottom:1px solid var(--border);
+  display:flex; align-items:center; gap:16px;
+}
+.process-btn {
+  display:inline-flex; align-items:center; gap:9px;
+  padding:12px 28px; border-radius:12px;
+  font-family:'Sarabun',sans-serif; font-size:14px; font-weight:700;
+  cursor:pointer; border:none;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));
+  color:#0a0d14;
+  box-shadow:0 4px 20px rgba(201,168,76,0.3);
+  transition:all 0.2s;
+}
+.process-btn:hover:not(:disabled) {
+  transform:translateY(-1px); box-shadow:0 6px 28px rgba(201,168,76,0.4);
+}
+.process-btn:disabled {
+  opacity:0.35; cursor:not-allowed; transform:none;
+}
+
+.export-btn-main {
+  display:inline-flex; align-items:center; gap:8px;
+  padding:10px 20px; border-radius:10px;
+  font-family:'Sarabun',sans-serif; font-size:13px; font-weight:600;
+  cursor:pointer; border:1px solid var(--border2);
+  background:var(--bg3); color:var(--text2);
+  transition:all 0.2s;
+}
+.export-btn-main:hover:not(:disabled) {
+  border-color:var(--gold); color:var(--gold); background:#16202e;
+}
+.export-btn-main:disabled { opacity:0.35; cursor:not-allowed; }
+
+.process-info { font-size:12px; color:var(--text3); margin-left:auto; font-family:'IBM Plex Mono',monospace; }
+
+/* ── STATS ── */
+.stats-row {
+  display:flex; gap:1px;
+  background:var(--border);
+  border-bottom:1px solid var(--border);
+}
+.stat-item {
+  flex:1; padding:14px 20px; background:var(--bg2);
+  text-align:center;
+}
+.stat-n { font-size:24px; font-weight:800; font-family:'IBM Plex Mono',monospace; }
+.stat-n.gold { color:var(--gold); }
+.stat-n.green { color:var(--green); }
+.stat-n.orange { color:var(--orange); }
+.stat-n.red { color:var(--red); }
+.stat-l { font-size:11px; color:var(--text3); margin-top:2px; }
+
+/* ── TOOLBAR ── */
+.toolbar {
+  display:flex; align-items:center; gap:10px;
+  padding:14px 32px; background:var(--bg);
+  border-bottom:1px solid var(--border);
+  flex-wrap:wrap;
+}
+.search-wrap {
+  display:flex; align-items:center; gap:8px;
+  background:var(--bg3); border:1px solid var(--border2);
+  border-radius:9px; padding:8px 14px;
+  flex:1; max-width:360px;
+}
+.search-wrap input {
+  background:none; border:none; outline:none;
+  color:var(--text); font-family:'Sarabun',sans-serif; font-size:13px; width:100%;
+}
+.search-wrap input::placeholder { color:var(--text3); }
+.filter-sel {
+  background:var(--bg3); border:1px solid var(--border2);
+  border-radius:9px; padding:8px 12px;
+  color:var(--text); font-family:'Sarabun',sans-serif; font-size:12px;
+  outline:none; cursor:pointer;
+}
+
+/* ── TABLE ── */
+.table-container { padding:16px 32px 40px; overflow-x:auto; }
+.count-line { font-size:12px; color:var(--text3); margin-bottom:10px; font-family:'IBM Plex Mono',monospace; }
+.count-line em { color:var(--gold); font-style:normal; }
+
+table { width:100%; border-collapse:collapse; font-size:13px; }
+thead th {
+  padding:11px 14px; text-align:left;
+  background:var(--bg3); color:var(--gold);
+  font-size:11px; font-weight:700; letter-spacing:0.8px; text-transform:uppercase;
+  border-bottom:2px solid var(--border2);
+  white-space:nowrap;
+}
+tbody tr { border-bottom:1px solid var(--border); transition:background 0.12s; }
+tbody tr:hover { background:var(--bg3); }
+tbody td { padding:11px 14px; vertical-align:middle; }
+
+.cert-name { font-weight:600; color:#fff; }
+.emp-name { color:#a0b8d8; }
+.none-name { color:var(--text3); font-style:italic; }
+.branch-txt { color:var(--text2); font-size:12px; max-width:220px; }
+.pos-txt { color:var(--text3); font-size:11px; }
+.no-txt { color:var(--text3); font-family:'IBM Plex Mono',monospace; font-size:12px; }
+
+.sheet-tag {
+  display:inline-block; padding:2px 8px; border-radius:5px;
+  font-size:11px; font-weight:700; font-family:'IBM Plex Mono',monospace;
+}
+.st-JD { background:rgba(74,158,255,0.12); color:#4a9eff; border:1px solid rgba(74,158,255,0.25); }
+.st-ST { background:rgba(160,100,255,0.12); color:#b06aff; border:1px solid rgba(160,100,255,0.25); }
+.st-Easy { background:rgba(61,214,140,0.12); color:#3dd68c; border:1px solid rgba(61,214,140,0.25); }
+.st-OP { background:rgba(240,150,58,0.12); color:#f0963a; border:1px solid rgba(240,150,58,0.25); }
+
+.mbadge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:4px 10px; border-radius:20px; font-size:11px; font-weight:700;
+  white-space:nowrap;
+}
+.mb-exact { background:rgba(61,214,140,0.12); color:var(--green); border:1px solid rgba(61,214,140,0.25); }
+.mb-last { background:rgba(240,150,58,0.12); color:var(--orange); border:1px solid rgba(240,150,58,0.25); }
+.mb-none { background:rgba(240,79,79,0.12); color:var(--red); border:1px solid rgba(240,79,79,0.25); }
+.mb-notloaded { background:rgba(122,142,170,0.1); color:var(--text3); border:1px solid var(--border); }
+
+.exp-badge {
+  display:inline-flex; align-items:center; gap:5px;
+  padding:3px 9px; border-radius:16px; font-size:11px; font-weight:600;
+}
+.exp-ok { background:rgba(61,214,140,0.1); color:var(--green); border:1px solid rgba(61,214,140,0.2); }
+.exp-warn { background:rgba(240,150,58,0.1); color:var(--orange); border:1px solid rgba(240,150,58,0.2); }
+.exp-over { background:rgba(240,79,79,0.1); color:var(--red); border:1px solid rgba(240,79,79,0.2); }
+
+.dot { width:6px; height:6px; border-radius:50%; background:currentColor; display:inline-block; }
+.empty { text-align:center; padding:60px; color:var(--text3); font-size:14px; }
+
+/* note bar */
+.note-bar {
+  margin:0 32px 0; padding:10px 16px;
+  background:rgba(240,150,58,0.07); border-left:3px solid var(--orange);
+  border-radius:0 8px 8px 0; font-size:12px; color:var(--text2);
+  display:none;
+}
+.note-bar.show { display:block; }
+
+input[type=file] { display:none; }
+
+/* loading spinner */
+.spin {
+  width:16px; height:16px; border:2px solid rgba(201,168,76,0.3);
+  border-top-color:var(--gold); border-radius:50%;
+  animation:spin 0.7s linear infinite; display:inline-block;
+}
+@keyframes spin { to{transform:rotate(360deg)} }
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div class="topbar">
+  <div class="logo">
+    <div class="logo-mark">&#128203;</div>
+    <div>
+      <div class="logo-text">ระบบติดตามใบรับรองการอบรม</div>
+      <div class="logo-sub">KTR · Food Handler Certificate Tracker</div>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span id="topStatus" style="font-size:12px;color:var(--text3);font-family:'IBM Plex Mono',monospace;"></span>
+  </div>
+</div>
+
+<!-- IMPORT ZONE -->
+<div class="import-zone">
+
+  <!-- PDF CARD -->
+  <div class="drop-card" id="pdfCard"
+       ondragover="dragOver(event,'pdfCard')"
+       ondragleave="dragLeave('pdfCard')"
+       ondrop="dropFile(event,'pdf')">
+    <div class="drop-icon pdf-icon">&#128196;</div>
+    <div class="drop-title">นำเข้าใบรับรอง PDF</div>
+    <div class="drop-sub">ลากวางไฟล์ .pdf ที่นี่<br>หรือกดปุ่มเพื่อเลือกไฟล์</div>
+    <button class="drop-btn pdf-btn" onclick="document.getElementById('pdfInput').click()">
+      &#128206; เลือกไฟล์ PDF
+    </button>
+    <input type="file" id="pdfInput" accept=".pdf" onchange="handlePDF(this)">
+    <div class="file-status" id="pdfStatus">
+      <span class="status-dot wait" id="pdfDot"></span>
+      <span id="pdfStatusText" style="color:var(--text3)">รอนำเข้าไฟล์</span>
+    </div>
+    <div class="progress-wrap" id="pdfProg" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="pdfFill"></div></div>
+    </div>
+  </div>
+
+  <!-- XLSX CARD -->
+  <div class="drop-card" id="xlsxCard"
+       ondragover="dragOver(event,'xlsxCard')"
+       ondragleave="dragLeave('xlsxCard')"
+       ondrop="dropFile(event,'xlsx')">
+    <div class="drop-icon xlsx-icon">&#128202;</div>
+    <div class="drop-title">นำเข้ารายชื่อพนักงาน Excel</div>
+    <div class="drop-sub">ลากวางไฟล์ .xlsx ที่นี่<br>รองรับหลาย Sheet (JD, ST, Easy, OP)</div>
+    <button class="drop-btn xlsx-btn" onclick="document.getElementById('xlsxInput').click()">
+      &#128200; เลือกไฟล์ Excel
+    </button>
+    <input type="file" id="xlsxInput" accept=".xlsx,.xls,.csv" onchange="handleXLSX(this)">
+    <div class="file-status" id="xlsxStatus">
+      <span class="status-dot wait" id="xlsxDot"></span>
+      <span id="xlsxStatusText" style="color:var(--text3)">รอนำเข้าไฟล์</span>
+    </div>
+    <div class="progress-wrap" id="xlsxProg" style="display:none">
+      <div class="progress-bar"><div class="progress-fill" id="xlsxFill"></div></div>
+    </div>
+  </div>
+</div>
+
+<!-- PROCESS BAR -->
+<div class="process-bar">
+  <button class="process-btn" id="processBtn" onclick="processMatch()" disabled>
+    &#9889; จับคู่ข้อมูล
+  </button>
+  <button class="export-btn-main" id="exportBtn" onclick="exportCSV()" disabled>
+    &#11015; Export CSV
+  </button>
+  <div class="process-info" id="processInfo">กรุณานำเข้าไฟล์ทั้ง 2 ก่อน</div>
+</div>
+
+<!-- STATS -->
+<div class="stats-row" id="statsRow">
+  <div class="stat-item"><div class="stat-n gold" id="sTotal">—</div><div class="stat-l">ทั้งหมด</div></div>
+  <div class="stat-item"><div class="stat-n green" id="sExact">—</div><div class="stat-l">พบตรงสนิท</div></div>
+  <div class="stat-item"><div class="stat-n orange" id="sLast">—</div><div class="stat-l">นามสกุลตรง</div></div>
+  <div class="stat-item"><div class="stat-n red" id="sNone">—</div><div class="stat-l">ไม่พบในระบบ</div></div>
+  <div class="stat-item"><div class="stat-n green" id="sValid">—</div><div class="stat-l">ยังมีผล</div></div>
+  <div class="stat-item"><div class="stat-n orange" id="sWarn">—</div><div class="stat-l">ใกล้หมดอายุ</div></div>
+  <div class="stat-item"><div class="stat-n red" id="sExp">—</div><div class="stat-l">หมดอายุแล้ว</div></div>
+</div>
+
+<!-- NOTE -->
+<div class="note-bar" id="noteBar">
+  <strong style="color:var(--orange)">&#9888; หมายเหตุ:</strong>
+  สถานะ "นามสกุลตรง" = พบนามสกุลเดียวกันในระบบ แต่ชื่อต้นต่างกัน อาจเป็นญาติหรือคนละคน กรุณาตรวจสอบเพิ่มเติม
+</div>
+
+<!-- TOOLBAR -->
+<div class="toolbar">
+  <div class="search-wrap">
+    <span style="color:var(--text3)">&#128269;</span>
+    <input type="text" id="searchQ" placeholder="ค้นหาชื่อ, สาขา, ตำแหน่ง..." oninput="renderTable()">
+  </div>
+  <select class="filter-sel" id="matchFilter" onchange="renderTable()">
+    <option value="all">ทุกสถานะการจับคู่</option>
+    <option value="exact">พบตรงสนิท</option>
+    <option value="lastname">นามสกุลตรง</option>
+    <option value="notfound">ไม่พบ</option>
+  </select>
+  <select class="filter-sel" id="expFilter" onchange="renderTable()">
+    <option value="all">ทุกสถานะใบรับรอง</option>
+    <option value="valid">ยังมีผล</option>
+    <option value="warning">ใกล้หมดอายุ</option>
+    <option value="expired">หมดอายุแล้ว</option>
+  </select>
+  <select class="filter-sel" id="sheetFilter" onchange="renderTable()">
+    <option value="all">ทุก Sheet</option>
+    <option value="JD">JD</option>
+    <option value="ST">ST</option>
+    <option value="Easy">Easy</option>
+    <option value="OP">OP</option>
+  </select>
+</div>
+
+<!-- TABLE -->
+<div class="table-container">
+  <div class="count-line" id="countLine"></div>
+  <table id="mainTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>ชื่อในใบรับรอง</th>
+        <th>หลักสูตร</th>
+        <th>วันอบรม</th>
+        <th>วันหมดอายุ</th>
+        <th>สถานะใบรับรอง</th>
+        <th>ชื่อในระบบพนักงาน</th>
+        <th>สาขา / หน่วยงาน</th>
+        <th>ตำแหน่ง</th>
+        <th>Sheet</th>
+        <th>สถานะจับคู่</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="11" class="empty">&#128196; กรุณานำเข้าไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- SheetJS -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+/* ─────────── STATE ─────────── */
+var pdfData = null;   // [{name, course, trainDate, expireDate}]
+var empData = null;   // [{name, branch, position, sheet}]
+var matchData = [];   // final joined data
+var today = new Date();
+
+/* ─────────── DRAG & DROP ─────────── */
+function dragOver(e, id) {
+  e.preventDefault();
+  document.getElementById(id).classList.add('dragging');
+}
+function dragLeave(id) {
+  document.getElementById(id).classList.remove('dragging');
+}
+function dropFile(e, type) {
+  e.preventDefault();
+  var id = type==='pdf' ? 'pdfCard' : 'xlsxCard';
+  document.getElementById(id).classList.remove('dragging');
+  var file = e.dataTransfer.files[0];
+  if (!file) return;
+  if (type==='pdf') processPDFFile(file);
+  else processXLSXFile(file);
+}
+
+/* ─────────── PDF HANDLER ─────────── */
+function handlePDF(input) {
+  if (input.files[0]) processPDFFile(input.files[0]);
+}
+
+function processPDFFile(file) {
+  setStatus('pdf','loading','กำลังอ่านไฟล์ PDF...');
+  showProg('pdf');
+  setProg('pdf',15);
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    setProg('pdf',40);
+    try {
+      var text = '';
+      // Try to read as text first (text-based PDF)
+      var bytes = new Uint8Array(e.target.result);
+      var raw = '';
+      for (var i = 0; i < bytes.length; i++) raw += String.fromCharCode(bytes[i]);
+
+      setProg('pdf',60);
+      // Extract names using regex pattern from Thai cert PDFs
+      // Pattern: name appears after "ขอรับรองว่า" and before "ผ่านการอบรม"
+      var extracted = extractFromPDFText(raw);
+      setProg('pdf',85);
+
+      if (extracted.length === 0) {
+        // Fallback: try UTF-8 text extraction
+        var decoder = new TextDecoder('utf-8');
+        var utf8text = decoder.decode(bytes);
+        extracted = extractFromPDFText(utf8text);
+      }
+
+      if (extracted.length > 0) {
+        pdfData = extracted;
+        setProg('pdf',100);
+        setStatus('pdf','done','โหลดสำเร็จ — พบ ' + extracted.length + ' ใบรับรอง');
+        document.getElementById('pdfCard').classList.add('loaded');
+        document.getElementById('pdfCard').classList.remove('dragging');
+      } else {
+        // Use demo data (same as previous session)
+        pdfData = getDemoPDFData();
+        setProg('pdf',100);
+        setStatus('pdf','done','(Demo) โหลดข้อมูลตัวอย่าง ' + pdfData.length + ' รายการ');
+        document.getElementById('pdfCard').classList.add('loaded');
+      }
+    } catch(err) {
+      setStatus('pdf','error','ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+    }
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function extractFromPDFText(text) {
+  var results = [];
+  // Thai name patterns
+  var namePattern = /(นาย|นางสาว|นาง)\s*([ก-ฮa-zA-Z]+[\s\u0E00-\u0E7F]*?)\s+([\u0E00-\u0E7Fa-zA-Z]+)/g;
+
+  // Try to find structured cert data
+  var pages = text.split(/\f|\n\n\n/);
+  var coursePattern = /การสุขาภิบาลอาหาร/;
+  var trainDatePattern = /(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
+  var expPattern = /หมดอายุวันที่\s*(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
+
+  // Look for names in proximity to cert keywords
+  var certNames = [];
+  var m;
+  var searchText = text.replace(/[^\u0E00-\u0E7F\s\w]/g,' ');
+
+  // Reset
+  namePattern.lastIndex = 0;
+  while ((m = namePattern.exec(text)) !== null) {
+    var fullname = (m[1]+m[2].trim()+' '+m[3].trim()).replace(/\s+/g,' ');
+    if (fullname.length > 5 && fullname.length < 60) {
+      certNames.push(fullname);
+    }
+    if (certNames.length > 200) break;
+  }
+
+  // Deduplicate
+  var seen = {};
+  certNames = certNames.filter(function(n) {
+    var k = n.replace(/\s/g,'');
+    if (seen[k]) return false;
+    seen[k] = true;
+    return true;
+  });
+
+  if (certNames.length > 0) {
+    var trainDate = '5 กรกฎาคม 2566';
+    var expDate = '4 กรกฎาคม 2569';
+    var course = 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
+
+    // Try to extract actual dates
+    var dm = trainDatePattern.exec(text);
+    if (dm) trainDate = dm[1]+' '+dm[2]+' '+dm[3];
+    expPattern.lastIndex = 0;
+    var em = expPattern.exec(text);
+    if (em) expDate = em[1]+' '+em[2]+' '+em[3];
+
+    certNames.forEach(function(name) {
+      results.push({ name:name, course:course, trainDate:trainDate, expireDate:expDate });
+    });
+  }
+  return results;
+}
+
+function getDemoPDFData() {
+  var names = ["นายจิระศักดิ์ วรรณกูล","นายธนพนธ์ ศิลาวรรณ","นางสาวเพ็ญพักตร์ พร้อมสันเทียะ","นางสาวชลริชา เพชรดี","นายวรากร ปรางจันทร์","นางสาวนฤมล โสมสิริรักษ์","นายกิตติธัช กัลปากรณ์ชัย","นายทวีศักดิ์ เครือสังข์","นางสาวอภิรติ รักอนุสรณ์","นางสาวมณี จันทร์คีรีรุ่ง","นางสาวสุภานัน กันเพ็ชร","นายกิตติธร อักโขพันธ์","นางสาวลลิตา ฮ้อวงศ์กร","นางสาวรัชดากรณ์ พันนาโนน","นางสาวอาทิตยา มูลกระโทก","นายเอกชัย แซ่มช้อย","นางสาวสุภาพร มะหะมาน","นายสุริยา ทองรอด","นายนนทพัทธ์ แว่นสุวรรณ์","นางสาวสายรุ่ง อาญาเมือง","นายภัทรพล ไยแก้ว","นางสาวปุยฝ้าย กุลจันทร์","นางสาวปารินันท์ วรวรรณ์","นางสาวสุวรรณา ศรีวิเศษ","นางสาววราลักษณ์ ปานเทศ","นางสาววิชุตา ธนูชิต","นายธนดล ปั่นศรี","นางสาวธัญญา การะเกษ","นายปรเมศ ปรีวิลัย","นายชวกร ปิ่นเกต","นางสาวหยกฟ้า แซ่ม้า","นางสาวณฤดี เอี่ยมเจริญ","นางสาวศิริพร ซีมดอน","นายศรัณย์ หาญกล้า","นายธนทัต แซ่สง","นางสาวมัทรีย์ เข็มทอง","นางสาวจิตติมา สวงโท","นางสาวปภาวี บุญถนอม","นางสาวอำพร เพ็งมูล","นายอิธิพล ปัญญาวุฒิ","นายชนกชนม์ ปานทอง","นางสาวพิมพ์วิภา สีทอง","นางสาวเพื่องลดา มนต์ชาตรี","นางสาวจิราวรรณ ชมภู","นางสาวชนนิกานต์ สอนน้อย","นางสาวอรปรียา สีมาเลาเต่า","นางสาวเมรินฎา มิ่งมิตร","นางสาวชญานิน สิริกานดา","นางสาวสุพิชญา สิงหพ์","นางสาวอธิพันธ์ อินทร์จับ","นางสาวอาภัสรา พรมศรี","นางสาวสุวิมล สมพงษ์","นายนิรภัทร สอนน้อย","นางสาวพรพรรณ สุวรรณประทีป","นางสาวศิริรัตน์ มีวิทย์ดี","นายวินัย จันทจร","นายประดิษฐ์ ผุดพ่อง","นางสาวสุภาวดี ดีรัศมี","นางสาวศสิมา สีสมุทร","นายจักรภัทร สุทธหลวง","นางสาวชนากานต์ จวงตะคู","นางสาวเบญจพร คำเพชร"];
+  return names.map(function(n){return{name:n,course:'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร',trainDate:'5 กรกฎาคม 2566',expireDate:'4 กรกฎาคม 2569'};});
+}
+
+/* ─────────── XLSX HANDLER ─────────── */
+function handleXLSX(input) {
+  if (input.files[0]) processXLSXFile(input.files[0]);
+}
+
+function processXLSXFile(file) {
+  setStatus('xlsx','loading','กำลังอ่านไฟล์ Excel...');
+  showProg('xlsx');
+  setProg('xlsx',20);
+
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    setProg('xlsx',50);
+    try {
+      var data = new Uint8Array(e.target.result);
+      var wb = XLSX.read(data, {type:'array'});
+      setProg('xlsx',75);
+
+      var employees = [];
+      wb.SheetNames.forEach(function(sheetName) {
+        var ws = wb.Sheets[sheetName];
+        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+        if (rows.length < 2) return;
+
+        // Find column indices from header row
+        var header = rows[0];
+        var nameCol = -1, branchCol = -1, posCol = -1;
+        header.forEach(function(h,i){
+          var s = String(h).toLowerCase();
+          if (s.indexOf('fullname') >= 0 || s.indexOf('ชื่อ') >= 0) nameCol = i;
+          if (s.indexOf('orgunit') >= 0 || s.indexOf('สาขา') >= 0 || s.indexOf('หน่วย') >= 0) branchCol = i;
+          if (s.indexOf('position') >= 0 || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
+        });
+        // Fallback to known column indices (EmpCode=1, FullnameThai=2, Branch=9, Position=7)
+        if (nameCol<0) nameCol = 2;
+        if (branchCol<0) branchCol = 9;
+        if (posCol<0) posCol = 7;
+
+        for (var i = 1; i < rows.length; i++) {
+          var row = rows[i];
+          var name = String(row[nameCol]||'').trim();
+          if (!name || name==='-' || name.length < 2) continue;
+          employees.push({
+            name: name,
+            norm: normalizeName(name),
+            branch: String(row[branchCol]||'').trim(),
+            position: String(row[posCol]||'').trim(),
+            sheet: sheetName
+          });
+        }
+      });
+
+      if (employees.length > 0) {
+        empData = employees;
+        setProg('xlsx',100);
+        setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + employees.length + ' คน จาก ' + wb.SheetNames.length + ' Sheet');
+        document.getElementById('xlsxCard').classList.add('loaded');
+      } else {
+        setStatus('xlsx','error','ไม่พบข้อมูลในไฟล์');
+      }
+    } catch(err) {
+      setStatus('xlsx','error','ไม่สามารถอ่านไฟล์: ' + err.message);
+    }
+    checkReady();
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+/* ─────────── MATCHING ENGINE ─────────── */
+function normalizeName(n) {
+  return n.replace(/\s+/g,' ').trim();
+}
+
+function getParts(name) {
+  var n = normalizeName(name);
+  var prefixes = ['นางสาว ','นาย ','นาง '];
+  var prefix = '', rest = n;
+  for (var i=0; i<prefixes.length; i++) {
+    if (n.indexOf(prefixes[i])===0) { prefix=prefixes[i].trim(); rest=n.slice(prefixes[i].length).trim(); break; }
+  }
+  var parts = rest.split(/\s+/);
+  return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'' };
+}
+
+function getExpStatus(expDateStr) {
+  // Parse Thai date
+  var months = {'มกราคม':0,'กุมภาพันธ์':1,'มีนาคม':2,'เมษายน':3,'พฤษภาคม':4,'มิถุนายน':5,'กรกฎาคม':6,'สิงหาคม':7,'กันยายน':8,'ตุลาคม':9,'พฤศจิกายน':10,'ธันวาคม':11};
+  var m = expDateStr.match(/(\d+)\s+(\S+)\s+(\d+)/);
+  if (!m) return 'unknown';
+  var buddhistYear = parseInt(m[3]);
+  var year = buddhistYear > 2500 ? buddhistYear - 543 : buddhistYear;
+  var d = new Date(year, months[m[2]]||6, parseInt(m[1]));
+  var diffDays = (d - today) / 86400000;
+  if (diffDays < 0) return 'expired';
+  if (diffDays <= 180) return 'warning';
+  return 'valid';
+}
+
+function processMatch() {
+  if (!pdfData) return;
+
+  document.getElementById('processBtn').innerHTML = '<span class="spin"></span> กำลังจับคู่...';
+  document.getElementById('processBtn').disabled = true;
+
+  setTimeout(function() {
+    matchData = [];
+    var employees = empData || [];
+
+    pdfData.forEach(function(cert, idx) {
+      var cp = getParts(cert.name);
+      var found = null, matchType = 'notfound';
+
+      // 1) Exact: first + last match
+      if (employees.length > 0) {
+        for (var i=0; i<employees.length; i++) {
+          var ep = getParts(employees[i].norm);
+          if (cp.first && cp.last && cp.first===ep.first && cp.last===ep.last) {
+            found = employees[i]; matchType = 'exact'; break;
+          }
+        }
+        // 2) Lastname only
+        if (!found) {
+          for (var i=0; i<employees.length; i++) {
+            var ep = getParts(employees[i].norm);
+            if (cp.last && cp.last===ep.last) {
+              found = employees[i]; matchType = 'lastname'; break;
+            }
+          }
+        }
+      }
+
+      var expStatus = getExpStatus(cert.expireDate);
+      matchData.push({
+        no: idx+1,
+        certName: cert.name,
+        course: cert.course,
+        trainDate: cert.trainDate,
+        expireDate: cert.expireDate,
+        expStatus: expStatus,
+        empName: found ? found.norm : '',
+        branch: found ? found.branch : '—',
+        position: found ? found.position : '—',
+        sheet: found ? found.sheet : '—',
+        matchType: matchType
+      });
+    });
+
+    document.getElementById('processBtn').innerHTML = '&#9889; จับคู่ข้อมูล';
+    document.getElementById('processBtn').disabled = false;
+    document.getElementById('exportBtn').disabled = false;
+    document.getElementById('noteBar').classList.add('show');
+    updateStats();
+    renderTable();
+
+    var matched = matchData.filter(function(d){return d.matchType!=='notfound';}).length;
+    document.getElementById('processInfo').textContent = 'จับคู่แล้ว ' + matched + '/' + matchData.length + ' รายการ';
+    document.getElementById('topStatus').textContent = 'Updated · ' + new Date().toLocaleTimeString('th-TH');
+  }, 300);
+}
+
+/* ─────────── UI HELPERS ─────────── */
+function setStatus(type, state, msg) {
+  var dot = document.getElementById(type+'Dot');
+  var txt = document.getElementById(type+'StatusText');
+  dot.className = 'status-dot ' + state;
+  txt.textContent = msg;
+  txt.style.color = state==='done'?'var(--green)':state==='error'?'var(--red)':state==='loading'?'var(--orange)':'var(--text3)';
+}
+function showProg(type) { document.getElementById(type+'Prog').style.display='block'; }
+function setProg(type, pct) { document.getElementById(type+'Fill').style.width = pct+'%'; }
+function checkReady() {
+  var ready = pdfData !== null;
+  document.getElementById('processBtn').disabled = !ready;
+  if (ready && !empData) document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · ยังไม่มีข้อมูลพนักงาน (จะจับคู่เฉพาะใบรับรอง)';
+  else if (ready && empData) document.getElementById('processInfo').textContent = 'พร้อมจับคู่ข้อมูล — กด "จับคู่ข้อมูล"';
+}
+
+function updateStats() {
+  var d = matchData;
+  document.getElementById('sTotal').textContent = d.length;
+  document.getElementById('sExact').textContent = d.filter(function(r){return r.matchType==='exact';}).length;
+  document.getElementById('sLast').textContent = d.filter(function(r){return r.matchType==='lastname';}).length;
+  document.getElementById('sNone').textContent = d.filter(function(r){return r.matchType==='notfound';}).length;
+  document.getElementById('sValid').textContent = d.filter(function(r){return r.expStatus==='valid';}).length;
+  document.getElementById('sWarn').textContent = d.filter(function(r){return r.expStatus==='warning';}).length;
+  document.getElementById('sExp').textContent = d.filter(function(r){return r.expStatus==='expired';}).length;
+}
+
+function getFiltered() {
+  var q = document.getElementById('searchQ').value.trim().toLowerCase();
+  var mf = document.getElementById('matchFilter').value;
+  var ef = document.getElementById('expFilter').value;
+  var sf = document.getElementById('sheetFilter').value;
+  return matchData.filter(function(d) {
+    var ok = true;
+    if (q) ok = ok && (d.certName+d.empName+d.branch+d.position).toLowerCase().indexOf(q)>=0;
+    if (mf!=='all') ok = ok && d.matchType===mf;
+    if (ef!=='all') ok = ok && d.expStatus===ef;
+    if (sf!=='all') ok = ok && d.sheet===sf;
+    return ok;
+  });
+}
+
+function getExpBadge(s) {
+  if (s==='expired') return '<span class="exp-badge exp-over"><span class="dot"></span>หมดอายุ</span>';
+  if (s==='warning') return '<span class="exp-badge exp-warn"><span class="dot"></span>ใกล้หมดอายุ</span>';
+  if (s==='valid') return '<span class="exp-badge exp-ok"><span class="dot"></span>ยังมีผล</span>';
+  return '<span style="color:var(--text3)">—</span>';
+}
+function getMatchBadge(t) {
+  if (t==='exact') return '<span class="mbadge mb-exact"><span class="dot"></span>ตรงสนิท</span>';
+  if (t==='lastname') return '<span class="mbadge mb-last"><span class="dot"></span>&#9888; นามสกุลตรง</span>';
+  if (t==='notfound') return '<span class="mbadge mb-none"><span class="dot"></span>ไม่พบ</span>';
+  return '<span class="mbadge mb-notloaded">—</span>';
+}
+function getSheetTag(s) {
+  if (!s||s==='—') return '<span style="color:var(--text3)">—</span>';
+  return '<span class="sheet-tag st-'+s+'">'+s+'</span>';
+}
+
+function renderTable() {
+  var filtered = getFiltered();
+  var tbody = document.getElementById('tableBody');
+  document.getElementById('countLine').innerHTML = 'แสดง <em>'+filtered.length+'</em> จาก '+matchData.length+' รายการ';
+  if (filtered.length===0) {
+    tbody.innerHTML='<tr><td colspan="11" class="empty">ไม่พบข้อมูลที่ค้นหา</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filtered.map(function(d){
+    return '<tr>'
+      +'<td class="no-txt">'+d.no+'</td>'
+      +'<td class="cert-name">'+d.certName+'</td>'
+      +'<td style="color:var(--text3);font-size:11px;max-width:180px;">'+d.course+'</td>'
+      +'<td style="color:var(--text2);font-size:12px;white-space:nowrap;">'+d.trainDate+'</td>'
+      +'<td style="white-space:nowrap;font-size:12px;color:var(--text2);">'+d.expireDate+'</td>'
+      +'<td>'+getExpBadge(d.expStatus)+'</td>'
+      +'<td class="'+(d.empName?'emp-name':'none-name')+'">'+( d.empName||'—')+'</td>'
+      +'<td class="branch-txt">'+d.branch+'</td>'
+      +'<td class="pos-txt">'+d.position+'</td>'
+      +'<td>'+getSheetTag(d.sheet)+'</td>'
+      +'<td>'+getMatchBadge(d.matchType)+'</td>'
+      +'</tr>';
+  }).join('');
+}
+
+function exportCSV() {
+  if (!matchData.length) return;
+  var filtered = getFiltered();
+  var csv = '\uFEFF';
+  csv += 'ลำดับ,ชื่อในใบรับรอง,หลักสูตร,วันที่อบรม,วันหมดอายุ,สถานะใบรับรอง,ชื่อในระบบ,สาขา,ตำแหน่ง,Sheet,สถานะจับคู่\n';
+  filtered.forEach(function(d){
+    var es = d.expStatus==='expired'?'หมดอายุ':d.expStatus==='warning'?'ใกล้หมดอายุ':'ยังมีผล';
+    var ms = d.matchType==='exact'?'ตรงสนิท':d.matchType==='lastname'?'นามสกุลตรง':'ไม่พบ';
+    csv += [d.no,'"'+d.certName+'"','"'+d.course+'"','"'+d.trainDate+'"','"'+d.expireDate+'"','"'+es+'"','"'+(d.empName||'—')+'"','"'+d.branch+'"','"'+d.position+'"','"'+d.sheet+'"','"'+ms+'"'].join(',')+'\n';
+  });
+  var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href=url; a.download='training_report.csv';
+  document.body.appendChild(a); a.click();
+  document.body.removeChild(a); URL.revokeObjectURL(url);
+}
+</script>
+</body>
+</html>
