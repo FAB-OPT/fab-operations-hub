@@ -568,6 +568,42 @@ body.is-admin .adm-only { display: flex; }
   background: rgba(148,163,184,0.15); color: var(--text3);
 }
 
+/* Coming-soon preview cards (admin-added announcements) */
+.menu-card-preview { background: #fffdf7; }
+.menu-card-preview .menu-card-arrow {
+  background: rgba(217,119,6,0.1);
+  color: #b45309;
+}
+.menu-card-preview:hover .menu-card-arrow {
+  background: rgba(217,119,6,0.18);
+  color: #92400e;
+  transform: none;
+}
+.coming-soon-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  background: linear-gradient(135deg, #fef3c7, #fde68a);
+  color: #92400e;
+  border: 1px solid rgba(217,119,6,0.3);
+  padding: 5px 11px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  font-family: 'Sarabun', sans-serif;
+}
+.coming-soon-badge::before {
+  content: '';
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: #d97706;
+  box-shadow: 0 0 0 3px rgba(217,119,6,0.2);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.15); }
+}
+
 .btn-menu {
   background: rgba(37,99,235,0.08) !important;
   border-color: rgba(37,99,235,0.3) !important;
@@ -2395,10 +2431,14 @@ function renderMenuCards() {
     var visible = isAdminMode || isSystemVisibleToBranch(s, branchPin);
     if (!visible) return;
     var notStarted = s.startDate && todayIso() < s.startDate;
+    var isComingSoon = !s.builtIn;  // admin-added systems = announcements only
     var iconHtml = s.icon
       ? '<div class="menu-card-icon"><img src="'+s.icon+'" alt=""></div>'
       : '<div class="menu-card-icon menu-card-icon-emoji">'+(s.emoji||'📋')+'</div>';
-    html += '<div class="menu-card" role="button" tabindex="0" onclick="openSystem(\''+s.id+'\')">';
+    var clickHandler = isComingSoon
+      ? 'event.stopPropagation();showComingSoon(\''+s.id+'\')'
+      : 'openSystem(\''+s.id+'\')';
+    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+'" role="button" tabindex="0" onclick="'+clickHandler+'">';
     html += '<div class="menu-card-head">';
     html += iconHtml;
     if (isAdminMode) {
@@ -2410,14 +2450,16 @@ function renderMenuCards() {
     html += '<div class="menu-card-desc">'+escapeHtml(s.desc)+'</div>';
     html += '</div>';
     html += '<div class="menu-card-foot">';
-    if (s.endDate) {
+    if (isComingSoon) {
+      html += '<span class="coming-soon-badge">เร็วๆ นี้</span>';
+    } else if (s.endDate) {
       html += '<span class="menu-card-expire"><svg><use href="#i-calendar"/></svg>หมดเวลา '+formatThaiDate(s.endDate)+'</span>';
     } else if (s.startDate && notStarted) {
       html += '<span class="menu-card-expire"><svg><use href="#i-calendar"/></svg>เริ่ม '+formatThaiDate(s.startDate)+'</span>';
     } else {
       html += '<span></span>';
     }
-    html += '<span class="menu-card-arrow"><svg><use href="#i-arrow-right"/></svg></span>';
+    html += '<span class="menu-card-arrow"><svg><use href="#'+(isComingSoon?'i-calendar':'i-arrow-right')+'"/></svg></span>';
     html += '</div>';
     html += '</div>';
   });
@@ -2425,14 +2467,20 @@ function renderMenuCards() {
     html += '<div class="menu-card menu-card-add" role="button" tabindex="0" onclick="openAddSystemModal()">'
       + '<div class="menu-card-head"><div class="menu-card-icon menu-card-icon-add"><svg><use href="#i-plus"/></svg></div></div>'
       + '<div class="menu-card-body">'
-      + '<div class="menu-card-title">เพิ่มระบบใหม่</div>'
-      + '<div class="menu-card-desc">เพิ่มลิงก์ระบบใหม่เข้าสู่ Hub</div>'
+      + '<div class="menu-card-title">ประกาศระบบใหม่</div>'
+      + '<div class="menu-card-desc">สร้างการ์ด "เร็วๆ นี้" ให้สาขาเห็นว่ามีระบบใหม่กำลังจะมา</div>'
       + '</div>'
       + '<div class="menu-card-foot"><span></span><span class="menu-card-arrow"><svg><use href="#i-plus"/></svg></span></div>'
       + '</div>';
   }
   if (!html) html = '<div class="empty-state" style="grid-column:1/-1;background:rgba(255,255,255,0.7);border-radius:18px;padding:60px 20px;">ยังไม่มีระบบที่ใช้งานได้สำหรับสาขานี้</div>';
   grid.innerHTML = html;
+}
+
+function showComingSoon(systemId) {
+  var s = SYSTEMS.find(function(x){ return x.id === systemId; });
+  if (!s) return;
+  alert('"' + s.name + '"\nระบบนี้กำลังจะเปิดให้ใช้งานในเร็วๆ นี้ — โปรดติดตาม');
 }
 
 function openSystem(systemId) {
@@ -2461,7 +2509,7 @@ function selectEmoji(btn, e) {
 function openSystemModal(mode, systemId) {
   currentEditingSystem = systemId || null;
   var isEdit = mode === 'edit';
-  document.getElementById('systemModalTitle').textContent = isEdit ? 'ตั้งค่าระบบ' : 'เพิ่มระบบใหม่';
+  document.getElementById('systemModalTitle').textContent = isEdit ? 'ตั้งค่าประกาศระบบ' : 'ประกาศระบบใหม่ (เร็วๆ นี้)';
   document.querySelectorAll('.adm-edit-only').forEach(function(el){ el.style.display = isEdit ? '' : 'none'; });
 
   var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
