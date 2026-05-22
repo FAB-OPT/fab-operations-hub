@@ -472,7 +472,7 @@ body {
 .menu-heading {
   font-size: 26px; font-weight: 800;
   color: var(--text); text-align: center;
-  margin-bottom: 8px; letter-spacing: -0.4px;
+  margin-bottom: 14px; letter-spacing: -0.4px;
 }
 .menu-sub {
   font-size: 14px; color: var(--text2);
@@ -1600,6 +1600,20 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- ═════════════════════ INFO MODAL (custom alert) ═════════════════════ -->
+<div class="adm-modal" id="infoModal">
+  <div class="adm-modal-box" style="max-width:400px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title" id="infoModalTitle">แจ้งเตือน</div>
+      <button class="adm-modal-close" onclick="closeInfoModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body" id="infoModalBody"></div>
+    <div class="adm-modal-footer" style="justify-content:center;">
+      <button class="adm-btn-primary" onclick="closeInfoModal()" style="min-width:120px;">ตกลง</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ WELCOME POPUP ═════════════════════ -->
 <div class="welcome-overlay" id="welcomeModal">
   <div class="welcome-box">
@@ -1627,10 +1641,10 @@ input[type=file] { display:none; }
   </div>
   <div class="menu-shell">
     <div class="menu-heading">เลือกเมนูด้านล่างเพื่อเข้าใช้งาน</div>
-    <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:16px;"></div>
-    <div class="adm-only-block" style="text-align:center;margin-bottom:24px;">
+    <div class="adm-only-block" style="text-align:center;margin-bottom:20px;">
       <button class="admin-announce-btn" onclick="openManageAnnouncementsModal()"><span class="emoji-3d">📢</span> จัดการประกาศสำหรับสาขา</button>
     </div>
+    <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:0;"></div>
     <div class="menu-grid" id="menuGrid"></div>
   </div>
 </div>
@@ -2613,10 +2627,27 @@ function renderMenuCards() {
   grid.innerHTML = html;
 }
 
+function showInfo(title, htmlMessage) {
+  document.getElementById('infoModalTitle').innerHTML = title;
+  document.getElementById('infoModalBody').innerHTML = htmlMessage;
+  document.getElementById('infoModal').classList.add('show');
+}
+function closeInfoModal() {
+  document.getElementById('infoModal').classList.remove('show');
+}
 function showComingSoon(systemId) {
   var s = SYSTEMS.find(function(x){ return x.id === systemId; });
   if (!s) return;
-  alert('"' + s.name + '"\nระบบนี้กำลังจะเปิดให้ใช้งานในเร็วๆ นี้ — โปรดติดตาม');
+  var iconHtml = s.icon
+    ? '<img src="'+s.icon+'" style="width:76px;height:76px;object-fit:contain;filter:drop-shadow(0 4px 10px rgba(0,0,0,0.15));">'
+    : '<span style="font-size:60px;">⏰</span>';
+  var html = '<div style="text-align:center;padding:8px 0 4px;">'
+    + '<div style="margin-bottom:14px;">'+iconHtml+'</div>'
+    + '<div style="font-weight:800;color:var(--text);font-size:17px;margin-bottom:8px;letter-spacing:-0.2px;">'+escapeHtml(s.name)+'</div>'
+    + '<div style="color:var(--text2);font-size:14px;line-height:1.6;">ระบบนี้กำลังจะเปิดให้ใช้งานเร็วๆ นี้</div>'
+    + '<div style="color:var(--text3);font-size:13px;margin-top:6px;">โปรดติดตามข้อมูลจากสำนักงาน</div>'
+    + '</div>';
+  showInfo('<span class="emoji-3d">🚀</span> เร็วๆ นี้', html);
 }
 
 function openSystem(systemId) {
