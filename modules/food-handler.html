@@ -1181,6 +1181,89 @@ input[type=file] { display:none; }
 .req-row { display:grid; grid-template-columns:2fr 2fr 1.5fr 1.5fr auto; gap:10px; margin-bottom:10px; align-items:center; }
 .req-row input { padding:9px 12px; border:1px solid var(--border2); border-radius:8px; background:var(--bg2); font-family:'Sarabun',sans-serif; font-size:13px; color:var(--text); outline:none; transition:border-color 0.2s; }
 .req-row input:focus { border-color:var(--gold); }
+
+/* Request cards (new design) */
+.req-card {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 14px;
+  transition: border-color 0.2s;
+}
+.req-card:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,122,26,0.08); }
+.req-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.req-card-num {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+  color: var(--gold);
+  font-size: 13px;
+  background: rgba(255,122,26,0.08);
+  padding: 5px 10px;
+  border-radius: 999px;
+}
+.req-card-num::before { content: '#'; opacity: 0.7; }
+.req-grid {
+  display: grid;
+  grid-template-columns: 2fr 1.5fr 1.2fr 1.2fr;
+  gap: 12px;
+}
+.req-field { display: flex; flex-direction: column; gap: 5px; }
+.req-field label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text2);
+  letter-spacing: 0.3px;
+}
+.req-mark { color: var(--red); }
+.req-field input {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border2);
+  border-radius: 10px;
+  background: #fff;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  transition: all 0.15s;
+  width: 100%;
+}
+.req-field input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(255,122,26,0.1); }
+.req-field input.invalid { border-color: var(--red); background: rgba(239,68,68,0.04); }
+.req-hint {
+  font-size: 11px;
+  min-height: 14px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.req-hint.ok { color: var(--green); }
+.req-hint.warn { color: var(--orange); }
+.req-hint.err { color: var(--red); }
+.req-hint.neutral { color: var(--text3); font-weight: 500; }
+.btn-rm-card {
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: var(--red);
+  border-radius: 8px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: 'Sarabun', sans-serif;
+  cursor: pointer;
+}
+.btn-rm-card:hover { background: rgba(239,68,68,0.15); }
+@media (max-width: 768px) {
+  .req-grid { grid-template-columns: 1fr; }
+}
 .btn-rm { background:rgba(220,38,38,0.1); border:1px solid rgba(220,38,38,0.25); color:var(--red); border-radius:8px; padding:8px 12px; cursor:pointer; font-size:12px; font-family:'Sarabun',sans-serif; font-weight:600; }
 .btn-rm:hover { background:rgba(220,38,38,0.18); }
 
@@ -2917,20 +3000,99 @@ function branchSearch() {
 }
 
 function addRequestRow() {
-  requestRows.push({name:'', branch: currentBranchName || '', position:'', note:''});
+  requestRows.push({name:'', idCard:'', branch: currentBranchName || '', position:'', note:''});
   rerenderRequestList();
 }
 
 function rerenderRequestList() {
-  document.getElementById('requestList').innerHTML = requestRows.map(function(r, i){
-    return '<div class="req-row">'
-      +'<input placeholder="ชื่อ-นามสกุล" value="'+escapeAttr(r.name)+'" oninput="updateReqRow('+i+',\'name\',this.value)">'
-      +'<input placeholder="สาขา / หน่วยงาน" value="'+escapeAttr(r.branch)+'" oninput="updateReqRow('+i+',\'branch\',this.value)">'
-      +'<input placeholder="ตำแหน่ง" value="'+escapeAttr(r.position)+'" oninput="updateReqRow('+i+',\'position\',this.value)">'
-      +'<input placeholder="หมายเหตุ" value="'+escapeAttr(r.note)+'" oninput="updateReqRow('+i+',\'note\',this.value)">'
-      +'<button class="btn-rm" onclick="removeReqRow('+i+')">ลบ</button>'
-      +'</div>';
-  }).join('');
+  var list = document.getElementById('requestList');
+  var datalist = '<datalist id="empAutocomplete">' + buildEmpDatalist() + '</datalist>';
+  list.innerHTML = requestRows.map(function(r, i){
+    return '<div class="req-card">'
+      + '<div class="req-card-head">'
+      +   '<span class="req-card-num">'+(i+1)+'</span>'
+      +   (requestRows.length > 1 ? '<button class="btn-rm-card" onclick="removeReqRow('+i+')">ลบรายการนี้</button>' : '')
+      + '</div>'
+      + '<div class="req-grid">'
+      +   '<div class="req-field">'
+      +     '<label>ชื่อ-นามสกุล <span class="req-mark">*</span></label>'
+      +     '<input list="empAutocomplete" value="'+escapeAttr(r.name)+'" placeholder="พิมพ์ชื่อหรือเลือก" oninput="updateReqRow('+i+',\'name\',this.value);onReqNameChange('+i+')" onchange="updateReqRow('+i+',\'name\',this.value);onReqNameChange('+i+')">'
+      +     '<div class="req-hint neutral" id="reqHint-'+i+'"></div>'
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>เลขบัตรประชาชน <span class="req-mark">*</span></label>'
+      +     '<input type="text" maxlength="13" inputmode="numeric" value="'+escapeAttr(r.idCard||'')+'" placeholder="13 หลัก" oninput="updateIdCard(this,'+i+')">'
+      +     '<div class="req-hint neutral" id="reqIdHint-'+i+'"></div>'
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>ตำแหน่ง</label>'
+      +     '<input value="'+escapeAttr(r.position)+'" placeholder="(ถ้ามี)" oninput="updateReqRow('+i+',\'position\',this.value)">'
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>หมายเหตุ</label>'
+      +     '<input value="'+escapeAttr(r.note)+'" placeholder="(ถ้ามี)" oninput="updateReqRow('+i+',\'note\',this.value)">'
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }).join('') + datalist;
+  // Re-run cert check for existing rows on render
+  requestRows.forEach(function(r, i){ if (r.name) onReqNameChange(i); });
+}
+
+function buildEmpDatalist() {
+  var seen = {};
+  var html = '';
+  (allRecords || []).forEach(function(r){
+    var n = (r['ชื่อในระบบ'] || r['ชื่อในใบรับรอง'] || '').trim();
+    if (n && !seen[n]) { seen[n] = true; html += '<option value="'+escapeAttr(n)+'">'; }
+  });
+  return html;
+}
+
+function updateIdCard(input, i) {
+  var v = input.value.replace(/\D/g, '').slice(0, 13);
+  input.value = v;
+  requestRows[i].idCard = v;
+  var hintEl = document.getElementById('reqIdHint-'+i);
+  if (!hintEl) return;
+  if (!v) { hintEl.className = 'req-hint neutral'; hintEl.textContent = ''; }
+  else if (v.length < 13) { hintEl.className = 'req-hint warn'; hintEl.textContent = 'ยังไม่ครบ 13 หลัก'; }
+  else { hintEl.className = 'req-hint ok'; hintEl.textContent = '✓ ครบ 13 หลัก'; }
+}
+
+function onReqNameChange(i) {
+  var name = (requestRows[i].name || '').trim();
+  var hintEl = document.getElementById('reqHint-'+i);
+  if (!hintEl) return;
+  if (!name) { hintEl.className = 'req-hint neutral'; hintEl.textContent = ''; return; }
+  var found = (allRecords || []).find(function(r){
+    return (r['ชื่อในระบบ'] || r['ชื่อในใบรับรอง']) === name;
+  });
+  if (!found) {
+    hintEl.className = 'req-hint neutral';
+    hintEl.innerHTML = '◯ ไม่พบในระบบ — กรอกข้อมูลด้วยตนเอง';
+    return;
+  }
+  // Autofill position if empty
+  if (!requestRows[i].position && found['ตำแหน่ง'] && found['ตำแหน่ง'] !== '—') {
+    requestRows[i].position = found['ตำแหน่ง'];
+    var posInput = document.querySelectorAll('.req-card')[i].querySelectorAll('input')[2];
+    if (posInput) posInput.value = found['ตำแหน่ง'];
+  }
+  var status = found['สถานะใบรับรอง'];
+  if (status === 'valid' || status === 'ยังมีผล') {
+    hintEl.className = 'req-hint warn';
+    hintEl.innerHTML = '⚠️ มีใบรับรองที่ยังไม่หมดอายุ (' + (found['วันหมดอายุ']||'') + ')';
+  } else if (status === 'warning' || status === 'ใกล้หมดอายุ') {
+    hintEl.className = 'req-hint warn';
+    hintEl.innerHTML = '⏳ ใบรับรองใกล้หมดอายุ';
+  } else if (status === 'expired' || status === 'หมดอายุ') {
+    hintEl.className = 'req-hint err';
+    hintEl.innerHTML = '❌ ใบรับรองหมดอายุแล้ว — ต้องอบรมใหม่';
+  } else {
+    hintEl.className = 'req-hint ok';
+    hintEl.innerHTML = '✓ พบในระบบ';
+  }
 }
 
 function updateReqRow(i, key, val) {
@@ -2951,37 +3113,116 @@ function escapeAttr(s) {
 }
 
 function submitRequests() {
-  var valid = requestRows.filter(function(r){ return r.name.trim() && r.branch.trim(); });
   var statusEl = document.getElementById('reqStatus');
-  if (valid.length === 0) {
-    statusEl.innerHTML = '<span style="color:var(--red)">✗ กรุณากรอกชื่อและสาขาอย่างน้อย 1 รายการ</span>';
+  var errors = [];
+  var warnings = [];
+  var valid = [];
+  requestRows.forEach(function(r, i){
+    var name = (r.name || '').trim();
+    var idCard = (r.idCard || '').trim();
+    if (!name && !idCard) return; // skip empty
+    if (!name) { errors.push('แถวที่ '+(i+1)+': ไม่ได้กรอกชื่อ'); return; }
+    if (!idCard) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกเลขบัตรประชาชน'); return; }
+    if (idCard.length !== 13) { errors.push('แถว <b>'+name+'</b>: เลขบัตรประชาชนไม่ครบ 13 หลัก'); return; }
+    valid.push({
+      name: name,
+      idCard: idCard,
+      branch: r.branch || currentBranchName,
+      position: r.position || '',
+      note: r.note || ''
+    });
+    // Check if has valid cert
+    var found = (allRecords || []).find(function(x){
+      return (x['ชื่อในระบบ'] || x['ชื่อในใบรับรอง']) === name;
+    });
+    if (found && (found['สถานะใบรับรอง'] === 'valid' || found['สถานะใบรับรอง'] === 'ยังมีผล')) {
+      warnings.push('<b>'+name+'</b> มีใบรับรองที่ยังไม่หมดอายุ (ถึง '+(found['วันหมดอายุ']||'')+')');
+    }
+  });
+
+  if (errors.length) {
+    if (typeof showInfo === 'function') {
+      showInfo('⚠️ กรุณาตรวจสอบข้อมูล', errors.join('<br>'));
+    } else {
+      statusEl.innerHTML = '<span style="color:var(--red)">' + errors.join(' · ') + '</span>';
+    }
     return;
   }
-  var btn = document.getElementById('submitReqBtn');
-  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังส่ง...';
-  statusEl.innerHTML = '<span style="color:var(--text2)">กำลังส่งรายชื่อ '+valid.length+' รายการ...</span>';
+  if (valid.length === 0) {
+    statusEl.innerHTML = '<span style="color:var(--red)">✗ ยังไม่มีข้อมูลกรอกครบ</span>';
+    return;
+  }
 
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'request', records: valid })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(res){
-    btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
-    if (res.ok) {
-      statusEl.innerHTML = '<span style="color:var(--green)">✓ ส่งรายชื่อ '+res.saved+' รายการเรียบร้อย</span>';
-      requestRows = [];
-      addRequestRow();
-    } else {
-      statusEl.innerHTML = '<span style="color:var(--red)">✗ ส่งไม่สำเร็จ: '+(res.error||'unknown')+'</span>';
-    }
-  })
-  .catch(function(err){
-    btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
-    statusEl.innerHTML = '<span style="color:var(--red)">✗ เชื่อมต่อไม่ได้: '+err.message+'</span>';
-  });
+  function doSubmit() {
+    var btn = document.getElementById('submitReqBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังส่ง...';
+    statusEl.innerHTML = '<span style="color:var(--text2)">กำลังส่งรายชื่อ '+valid.length+' รายการ...</span>';
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'request', records: valid })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
+      if (res.ok) {
+        statusEl.innerHTML = '<span style="color:var(--green)">✓ ส่งรายชื่อ '+res.saved+' รายการเรียบร้อย</span>';
+        requestRows = [];
+        addRequestRow();
+      } else {
+        statusEl.innerHTML = '<span style="color:var(--red)">✗ ส่งไม่สำเร็จ: '+(res.error||'unknown')+'</span>';
+      }
+    })
+    .catch(function(err){
+      btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
+      statusEl.innerHTML = '<span style="color:var(--red)">✗ เชื่อมต่อไม่ได้: '+err.message+'</span>';
+    });
+  }
+
+  if (warnings.length) {
+    var msg = '<div style="text-align:left;padding:6px 0;">'
+      + '<div style="color:var(--orange);font-weight:700;margin-bottom:10px;">⚠️ พบรายชื่อที่มีใบรับรองยังไม่หมดอายุ:</div>'
+      + '<ul style="margin-left:18px;color:var(--text2);font-size:13px;line-height:1.8;">'
+      + warnings.map(function(w){ return '<li>'+w+'</li>'; }).join('')
+      + '</ul>'
+      + '<div style="margin-top:12px;color:var(--text2);font-size:13px;">ต้องการส่งรายชื่อต่อไปหรือไม่?</div>'
+      + '</div>';
+    showConfirm('แจ้งเตือน', msg, 'ยังคงส่ง', 'ยกเลิก', doSubmit);
+  } else {
+    doSubmit();
+  }
+}
+
+function showInfo(title, htmlMessage) {
+  if (!document.getElementById('infoModal')) buildInfoModal();
+  document.getElementById('infoModalTitle').innerHTML = title;
+  document.getElementById('infoModalBody').innerHTML = htmlMessage;
+  document.getElementById('infoModalFooter').innerHTML = '<button class="adm-btn-primary" onclick="closeInfoModal()" style="min-width:120px;">ตกลง</button>';
+  document.getElementById('infoModal').classList.add('show');
+}
+function showConfirm(title, htmlMessage, okText, cancelText, onOk) {
+  if (!document.getElementById('infoModal')) buildInfoModal();
+  document.getElementById('infoModalTitle').innerHTML = title;
+  document.getElementById('infoModalBody').innerHTML = htmlMessage;
+  document.getElementById('infoModalFooter').innerHTML =
+    '<button class="adm-btn-secondary" onclick="closeInfoModal()">'+(cancelText||'ยกเลิก')+'</button>'
+    + '<button class="adm-btn-primary" id="infoModalOk" style="min-width:120px;">'+(okText||'ตกลง')+'</button>';
+  document.getElementById('infoModalOk').onclick = function(){ closeInfoModal(); if (onOk) onOk(); };
+  document.getElementById('infoModal').classList.add('show');
+}
+function closeInfoModal() {
+  var m = document.getElementById('infoModal');
+  if (m) m.classList.remove('show');
+}
+function buildInfoModal() {
+  var html = '<div class="adm-modal" id="infoModal">'
+    + '<div class="adm-modal-box" style="max-width:440px;">'
+    + '<div class="adm-modal-header"><div class="adm-modal-title" id="infoModalTitle">แจ้งเตือน</div>'
+    + '<button class="adm-modal-close" onclick="closeInfoModal()"><svg class="ico"><use href="#i-x"/></svg></button></div>'
+    + '<div class="adm-modal-body" id="infoModalBody"></div>'
+    + '<div class="adm-modal-footer" style="justify-content:center;gap:10px;" id="infoModalFooter"></div>'
+    + '</div></div>';
+  document.body.insertAdjacentHTML('beforeend', html);
 }
 
 </script>
