@@ -898,7 +898,7 @@ body.is-admin .adm-only-block { display: block; }
   background:var(--bg3);
   border:2px dashed var(--border2);
   border-radius:16px;
-  padding:28px 24px;
+  padding:18px 16px;
   text-align:center;
   cursor:pointer;
   transition:all 0.25s;
@@ -932,10 +932,10 @@ body.is-admin .adm-only-block { display: block; }
 }
 
 .drop-icon {
-  width:56px; height:56px;
-  border-radius:14px;
+  width:46px; height:46px;
+  border-radius:12px;
   display:flex; align-items:center; justify-content:center;
-  font-size:26px; margin:0 auto 14px;
+  font-size:22px; margin:0 auto 10px;
   transition:transform 0.2s;
 }
 .drop-card:hover .drop-icon { transform:scale(1.08); }
@@ -943,9 +943,9 @@ body.is-admin .adm-only-block { display: block; }
 .drop-icon.xlsx-icon { background:rgba(5,150,105,0.1); border:1px solid rgba(5,150,105,0.25); }
 
 .drop-title {
-  font-size:15px; font-weight:700; color:var(--text); margin-bottom:5px;
+  font-size:14px; font-weight:700; color:var(--text); margin-bottom:4px;
 }
-.drop-sub { font-size:12px; color:var(--text2); margin-bottom:16px; line-height:1.5; }
+.drop-sub { font-size:11px; color:var(--text2); margin-bottom:10px; line-height:1.5; }
 
 .drop-btn {
   display:inline-flex; align-items:center; gap:7px;
@@ -1303,6 +1303,33 @@ input[type=file] { display:none; }
 .rc-badge { margin-top:8px; }
 .empty-state { padding:40px 20px; text-align:center; color:var(--text3); font-size:13px; grid-column:1/-1; }
 
+/* Branch quick stats */
+.branch-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+.bs-item {
+  background: rgba(255,255,255,0.94);
+  border: 1px solid rgba(255,255,255,0.7);
+  border-radius: 14px;
+  padding: 16px 18px;
+  box-shadow: var(--shadow-sm);
+  backdrop-filter: blur(20px);
+  display: flex; flex-direction: column; gap: 4px;
+}
+.bs-n { font-family: 'IBM Plex Mono', monospace; font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+.bs-l { font-size: 11px; color: var(--text2); font-weight: 600; }
+.bs-item.bs-green { border-color: rgba(16,185,129,0.25); }
+.bs-item.bs-green .bs-n { color: var(--green); }
+.bs-item.bs-orange { border-color: rgba(234,88,12,0.25); }
+.bs-item.bs-orange .bs-n { color: var(--orange); }
+.bs-item.bs-red { border-color: rgba(220,38,38,0.25); }
+.bs-item.bs-red .bs-n { color: var(--red); }
+@media (max-width: 640px) {
+  .branch-stats { grid-template-columns: repeat(2, 1fr); }
+}
+
 /* Modal */
 .modal-overlay { position:fixed; inset:0; background:rgba(15,23,42,0.5); display:none; align-items:center; justify-content:center; z-index:1000; backdrop-filter:blur(4px); }
 .modal-overlay.show { display:flex; }
@@ -1421,6 +1448,16 @@ input[type=file] { display:none; }
     </div>
   </div>
 
+  <!-- BRANCH QUICK STATS -->
+  <div class="section">
+    <div class="branch-stats" id="branchStats" style="display:none">
+      <div class="bs-item"><div class="bs-n" id="bsTotal">0</div><div class="bs-l">ข้อมูลในระบบ</div></div>
+      <div class="bs-item bs-green"><div class="bs-n" id="bsValid">0</div><div class="bs-l">ยังมีผล</div></div>
+      <div class="bs-item bs-orange"><div class="bs-n" id="bsWarn">0</div><div class="bs-l">ใกล้หมดอายุ</div></div>
+      <div class="bs-item bs-red"><div class="bs-n" id="bsExp">0</div><div class="bs-l">หมดอายุแล้ว</div></div>
+    </div>
+  </div>
+
   <!-- SEARCH SECTION -->
   <div class="section">
     <div class="section-title"><span class="section-title-icon" style="font-size:22px;background:transparent;">🔍</span> ค้นหาข้อมูลใบรับรอง</div>
@@ -1531,8 +1568,8 @@ input[type=file] { display:none; }
   <div class="process-info" id="processInfo">กรุณานำเข้าไฟล์ทั้ง 2 ก่อน</div>
 </div>
 
-<!-- STATS -->
-<div class="stats-row" id="statsRow">
+<!-- STATS (hidden until match done) -->
+<div class="stats-row" id="statsRow" style="display:none">
   <div class="stat-item"><div class="stat-n gold" id="sTotal">—</div><div class="stat-l">ทั้งหมด</div></div>
   <div class="stat-item"><div class="stat-n green" id="sExact">—</div><div class="stat-l">พบตรงสนิท</div></div>
   <div class="stat-item"><div class="stat-n orange" id="sLast">—</div><div class="stat-l">นามสกุลตรง</div></div>
@@ -1595,7 +1632,11 @@ input[type=file] { display:none; }
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="11" class="empty">&#128196; กรุณานำเข้าไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</td></tr>
+      <tr><td colspan="11" class="empty">
+        <div style="font-size:48px;margin-bottom:10px;">📂</div>
+        <div style="font-weight:700;color:var(--text2);margin-bottom:4px;">ยังไม่มีข้อมูลให้แสดง</div>
+        <div style="font-size:12px;color:var(--text3);">กรุณาอัปโหลดไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</div>
+      </td></tr>
     </tbody>
   </table>
 </div>
@@ -1952,6 +1993,7 @@ function checkReady() {
 
 function updateStats() {
   var d = matchData;
+  document.getElementById('statsRow').style.display = d.length ? 'grid' : 'none';
   document.getElementById('sTotal').textContent = d.length;
   document.getElementById('sExact').textContent = d.filter(function(r){return r.matchType==='exact';}).length;
   document.getElementById('sLast').textContent = d.filter(function(r){return r.matchType==='lastname';}).length;
@@ -2987,7 +3029,8 @@ function loadRecordsForSearch() {
     .then(function(res){
       if (res.ok) {
         allRecords = res.records || [];
-        document.getElementById('branchSearchInfo').textContent = 'ข้อมูลในระบบทั้งหมด ' + allRecords.length + ' รายการ';
+        document.getElementById('branchSearchInfo').textContent = 'พบข้อมูลในระบบ ' + allRecords.length + ' รายการ — พิมพ์เพื่อค้นหา';
+        updateBranchStats();
         branchSearch();
       } else {
         document.getElementById('branchSearchInfo').innerHTML = '<span style="color:var(--red)">โหลดข้อมูลไม่ได้: '+(res.error||'unknown')+'</span>';
@@ -2996,6 +3039,24 @@ function loadRecordsForSearch() {
     .catch(function(err){
       document.getElementById('branchSearchInfo').innerHTML = '<span style="color:var(--red)">เชื่อมต่อ Cloud ไม่ได้: '+err.message+'</span>';
     });
+}
+
+function updateBranchStats() {
+  var statsEl = document.getElementById('branchStats');
+  if (!statsEl) return;
+  if (!allRecords.length) { statsEl.style.display = 'none'; return; }
+  var valid = 0, warn = 0, exp = 0;
+  allRecords.forEach(function(r){
+    var s = r['สถานะใบรับรอง'];
+    if (s === 'valid' || s === 'ยังมีผล') valid++;
+    else if (s === 'warning' || s === 'ใกล้หมดอายุ') warn++;
+    else if (s === 'expired' || s === 'หมดอายุ') exp++;
+  });
+  document.getElementById('bsTotal').textContent = allRecords.length;
+  document.getElementById('bsValid').textContent = valid;
+  document.getElementById('bsWarn').textContent = warn;
+  document.getElementById('bsExp').textContent = exp;
+  statsEl.style.display = 'grid';
 }
 
 function branchSearch() {
