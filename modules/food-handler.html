@@ -1725,23 +1725,24 @@ function processPDFFiles(fileList) {
       var ab = e.target.result;
       pdfjsLib.getDocument({ data: ab, disableFontFace: true, useSystemFonts: false }).promise
         .then(function(pdf){
-          var pages = [];
-          for (var p = 1; p <= pdf.numPages; p++) pages.push(p);
-          return pages.reduce(function(prev, p){
-            return prev.then(function(textSoFar){
-              return pdf.getPage(p).then(function(page){
-                return page.getTextContent().then(function(content){
-                  var pageText = content.items.map(function(it){ return it.str; }).join(' ');
-                  return textSoFar + ' ' + pageText;
-                });
+          // Extract each page separately so we can detect course type per page
+          var allPageCerts = [];
+          function processPage(p) {
+            if (p > pdf.numPages) return Promise.resolve(allPageCerts);
+            return pdf.getPage(p).then(function(page){
+              return page.getTextContent().then(function(content){
+                var pageText = content.items.map(function(it){ return it.str; }).join(' ');
+                var pageCerts = extractFromPDFText(pageText);
+                allPageCerts = allPageCerts.concat(pageCerts);
+                return processPage(p + 1);
               });
             });
-          }, Promise.resolve(''));
+          }
+          return processPage(1);
         })
-        .then(function(text){
-          var extracted = extractFromPDFText(text);
-          if (extracted.length > 0) {
-            allExtracted = allExtracted.concat(extracted);
+        .then(function(certs){
+          if (certs.length > 0) {
+            allExtracted = allExtracted.concat(certs);
           } else {
             failed++;
           }
@@ -1769,55 +1770,51 @@ function processPDFFile(file) { processPDFFiles([file]); }
 
 function extractFromPDFText(text) {
   var results = [];
-  // Thai name patterns
-  var namePattern = /(นาย|นางสาว|นาง)\s*([ก-ฮa-zA-Z]+[\s\u0E00-\u0E7F]*?)\s+([\u0E00-\u0E7Fa-zA-Z]+)/g;
 
-  // Try to find structured cert data
-  var pages = text.split(/\f|\n\n\n/);
-  var coursePattern = /การสุขาภิบาลอาหาร/;
-  var trainDatePattern = /(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
-  var expPattern = /หมดอายุวันที่\s*(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
-
-  // Look for names in proximity to cert keywords
-  var certNames = [];
-  var m;
-  var searchText = text.replace(/[^\u0E00-\u0E7F\s\w]/g,' ');
-
-  // Reset
-  namePattern.lastIndex = 0;
-  while ((m = namePattern.exec(text)) !== null) {
-    var fullname = (m[1]+m[2].trim()+' '+m[3].trim()).replace(/\s+/g,' ');
-    if (fullname.length > 5 && fullname.length < 60) {
-      certNames.push(fullname);
-    }
-    if (certNames.length > 200) break;
+  // Detect course type per page
+  var course = '';
+  if (/ผู้ประกอบกิจการอาหาร/.test(text) || /ผู้ประกอบกิจการ/.test(text) || /ผู้ประกอบอาหาร/.test(text)) {
+    course = 'การสุขาภิบาลอาหาร สำหรับผู้ประกอบกิจการอาหาร';
+  } else if (/ผู้สัมผัสอาหาร/.test(text) || /ผู้สัมผัส/.test(text)) {
+    course = 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
+  } else if (/สุขาภิบาลอาหาร/.test(text)) {
+    course = 'การสุขาภิบาลอาหาร';
+  } else {
+    return results;
   }
 
-  // Deduplicate
+  var trainDatePattern = /(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
+  var expPattern = /(หมดอายุ(?:วันที่)?|สิ้นสุด|ถึงวันที่)\s*(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
+
+  var trainDate = '', expDate = '';
+  var em = expPattern.exec(text);
+  if (em) expDate = em[2]+' '+em[3]+' '+em[4];
+  var dm;
+  trainDatePattern.lastIndex = 0;
+  while ((dm = trainDatePattern.exec(text)) !== null) {
+    var d = dm[1]+' '+dm[2]+' '+dm[3];
+    if (d !== expDate) { trainDate = d; break; }
+  }
+
+  var namePattern = /(นาย|นางสาว|นาง)\s*([ก-ฮa-zA-Z]+[\s฀-๿]*?)\s+([฀-๿a-zA-Z]+)/g;
+  var certNames = [];
+  var m;
+  while ((m = namePattern.exec(text)) !== null) {
+    var fullname = (m[1]+m[2].trim()+' '+m[3].trim()).replace(/\s+/g,' ');
+    if (fullname.length > 5 && fullname.length < 60) certNames.push(fullname);
+    if (certNames.length > 200) break;
+  }
   var seen = {};
-  certNames = certNames.filter(function(n) {
+  certNames = certNames.filter(function(n){
     var k = n.replace(/\s/g,'');
     if (seen[k]) return false;
     seen[k] = true;
     return true;
   });
 
-  if (certNames.length > 0) {
-    var trainDate = '5 กรกฎาคม 2566';
-    var expDate = '4 กรกฎาคม 2569';
-    var course = 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
-
-    // Try to extract actual dates
-    var dm = trainDatePattern.exec(text);
-    if (dm) trainDate = dm[1]+' '+dm[2]+' '+dm[3];
-    expPattern.lastIndex = 0;
-    var em = expPattern.exec(text);
-    if (em) expDate = em[1]+' '+em[2]+' '+em[3];
-
-    certNames.forEach(function(name) {
-      results.push({ name:name, course:course, trainDate:trainDate, expireDate:expDate });
-    });
-  }
+  certNames.forEach(function(name){
+    results.push({ name:name, course:course, trainDate:trainDate, expireDate:expDate });
+  });
   return results;
 }
 
