@@ -469,13 +469,40 @@ body {
 }
 .menu-card:not(.placeholder):hover::before { opacity: 1; }
 .menu-card-icon {
-  width: 54px; height: 54px;
+  width: 56px; height: 56px;
   border-radius: 14px;
   background: linear-gradient(135deg, rgba(255,122,26,0.16), rgba(255,154,60,0.08));
   display: flex; align-items: center; justify-content: center;
   color: var(--gold);
 }
 .menu-card-icon svg { width: 26px; height: 26px; }
+.menu-card-icon-emoji { font-size: 30px; background: linear-gradient(135deg, #fff4ea, #ffeede); }
+.menu-card-icon-add { background: rgba(255,122,26,0.08); border: 1.5px dashed rgba(255,122,26,0.35); }
+
+.menu-card-settings {
+  position: absolute; top: 16px; right: 64px;
+  width: 30px; height: 30px;
+  border-radius: 50%;
+  background: rgba(15,23,42,0.05);
+  color: var(--text2);
+  border: none;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  z-index: 5;
+  transition: all 0.2s;
+}
+.menu-card-settings:hover {
+  background: rgba(255,122,26,0.15);
+  color: var(--gold);
+  transform: rotate(60deg);
+}
+.menu-card-settings svg { width:14px; height:14px; }
+
+/* hide admin-only elements by default; JS reveals when admin */
+.adm-only { display: none; }
+body.is-admin .adm-only { display: flex; }
+.menu-card-add { gap: 12px; }
+.menu-card-add .menu-card-title { color: var(--gold); }
 .menu-card-title {
   font-size: 16px; font-weight: 800;
   color: var(--text); line-height: 1.3;
@@ -670,6 +697,43 @@ body {
   width: 80px; height: 60px; text-align: center; font-size: 28px;
   padding: 8px; border: 1px solid var(--border2); border-radius: 10px;
 }
+
+/* Emoji picker */
+.emoji-preview {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 64px; height: 64px;
+  font-size: 36px;
+  background: var(--bg3);
+  border: 1.5px solid var(--border);
+  border-radius: 14px;
+}
+.emoji-picker {
+  display: grid;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 4px;
+  padding: 10px;
+  background: var(--bg3);
+  border-radius: 12px;
+  max-height: 200px;
+  overflow-y: auto;
+  margin-top: 8px;
+}
+.emoji-btn {
+  width: 100%; aspect-ratio: 1;
+  border: none;
+  background: transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 22px;
+  transition: all 0.15s;
+  display: flex; align-items: center; justify-content: center;
+}
+.emoji-btn:hover { background: rgba(255,122,26,0.12); transform: scale(1.12); }
+.emoji-btn.selected { background: linear-gradient(135deg, var(--gold), var(--gold2)); box-shadow: 0 4px 12px rgba(255,122,26,0.35); }
+@media (max-width: 640px) {
+  .emoji-picker { grid-template-columns: repeat(7, 1fr); }
+}
+
 .coming-soon-tag {
   display: inline-block;
   font-size: 10px; font-weight: 700;
@@ -687,13 +751,12 @@ body {
 /* ── HEADER ── */
 .topbar {
   display:flex; align-items:center; justify-content:space-between;
-  padding:14px 24px;
+  padding:16px 26px;
   margin:16px 20px 0;
-  background:rgba(255,255,255,0.85);
-  border:1px solid rgba(255,255,255,0.7);
+  background:#ffffff;
+  border:1px solid rgba(15,23,42,0.06);
   border-radius:var(--radius-lg);
   position:sticky; top:16px; z-index:100;
-  backdrop-filter:blur(20px);
   box-shadow:var(--shadow);
   flex-wrap:wrap; gap:12px;
 }
@@ -706,16 +769,16 @@ body {
 }
 .ico-lg { width:20px; height:20px; vertical-align:-4px; }
 .ico-xl { width:28px; height:28px; }
-.logo { display:flex; align-items:center; gap:16px; }
+.logo { display:flex; align-items:center; gap:18px; }
 .logo-mark {
-  width:60px; height:60px;
+  width:78px; height:78px;
   display:flex; align-items:center; justify-content:center;
   flex-shrink:0;
 }
 .logo-mark img { width:100%; height:100%; object-fit:contain; display:block; mix-blend-mode:multiply; }
 .logo-info { display:flex; flex-direction:column; gap:4px; }
-.logo-text { font-size:17px; font-weight:800; color:var(--text); line-height:1.2; letter-spacing:-0.1px; }
-.logo-sub { font-size:11px; color:var(--text3); font-weight:600; letter-spacing:1.4px; }
+.logo-text { font-size:20px; font-weight:800; color:var(--text); line-height:1.2; letter-spacing:-0.2px; }
+.logo-sub { font-size:12px; color:var(--text3); font-weight:600; letter-spacing:1.6px; }
 
 .topbar-actions { display:flex; gap:10px; align-items:center; }
 
@@ -1169,31 +1232,63 @@ input[type=file] { display:none; }
   </div>
 </div>
 
-<!-- ═════════════════════ SETTINGS MODAL (Admin) ═════════════════════ -->
-<div class="adm-modal" id="settingsModal">
+<!-- ═════════════════════ SYSTEM MODAL (Add / Edit) — Admin ═════════════════════ -->
+<div class="adm-modal" id="systemModal">
   <div class="adm-modal-box">
     <div class="adm-modal-header">
-      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-settings"/></svg> ตั้งค่าระบบ <span class="coming-soon-tag">DEMO</span></div>
-      <button class="adm-modal-close" onclick="closeSettingsModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-settings"/></svg> <span id="systemModalTitle">ตั้งค่าระบบ</span> <span class="coming-soon-tag">DEMO</span></div>
+      <button class="adm-modal-close" onclick="closeSystemModal()"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="adm-modal-body">
 
       <div class="adm-section">
+        <div class="adm-section-title"><svg><use href="#i-edit"/></svg> ข้อมูลระบบ</div>
+
+        <div style="display:flex;gap:16px;align-items:center;margin-bottom:14px;">
+          <div>
+            <label class="adm-label">อิโมจิ</label>
+            <div class="emoji-preview" id="sysEmojiPreview">📋</div>
+          </div>
+          <div style="flex:1;">
+            <label class="adm-label">ชื่อระบบ</label>
+            <input type="text" class="adm-input" id="sysName" placeholder="เช่น ระบบรายงานยอดขาย">
+          </div>
+        </div>
+
+        <label class="adm-label">เลือกอิโมจิ</label>
+        <div class="emoji-picker" id="emojiPicker"></div>
+
+        <div style="margin-top:14px;margin-bottom:14px;">
+          <label class="adm-label">คำบรรยาย</label>
+          <textarea class="adm-textarea" rows="2" id="sysDesc" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
+        </div>
+
+        <div>
+          <label class="adm-label">URL / ลิงก์ของระบบ (ไม่จำเป็น)</label>
+          <input type="url" class="adm-input" id="sysUrl" placeholder="https://...">
+        </div>
+      </div>
+
+      <div class="adm-section adm-edit-only">
         <div class="adm-section-title"><svg><use href="#i-shield"/></svg> กำหนดสิทธิ์การเข้าถึงรายสาขา</div>
-        <div class="adm-section-desc">เลือกว่าสาขาใดเห็นระบบใดบ้าง (ติ๊กถูก = เห็น / ไม่ติ๊ก = ซ่อน)</div>
-        <div style="max-height:280px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+        <div class="adm-section-desc">เลือกว่าสาขาใดเห็นระบบนี้ (ติ๊กถูก = เห็น / ไม่ติ๊ก = ซ่อน)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllBranches(true)">เลือกทั้งหมด</button>
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllBranches(false)">ยกเลิกทั้งหมด</button>
+        </div>
+        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
           <table class="adm-table">
             <thead>
-              <tr><th style="position:sticky;top:0;background:var(--bg3);">รหัส</th><th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th><th style="position:sticky;top:0;background:var(--bg3);text-align:center;">ฐานข้อมูลผู้สัมผัส</th></tr>
+              <tr><th style="position:sticky;top:0;background:var(--bg3);">รหัส</th><th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th><th style="position:sticky;top:0;background:var(--bg3);text-align:center;">เห็น</th></tr>
             </thead>
             <tbody id="settingsBranchTbody"></tbody>
           </table>
         </div>
       </div>
 
-      <div class="adm-section">
+      <div class="adm-section adm-edit-only">
         <div class="adm-section-title"><svg><use href="#i-calendar"/></svg> ระยะเวลาในการแสดงระบบ</div>
-        <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดงให้สาขาเห็น</div>
+        <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดงให้สาขาเห็น (เว้นว่าง = แสดงตลอด)</div>
         <div class="adm-input-group">
           <div>
             <label class="adm-label">วันที่เริ่ม</label>
@@ -1208,50 +1303,9 @@ input[type=file] { display:none; }
 
     </div>
     <div class="adm-modal-footer">
-      <button class="adm-btn-secondary" onclick="closeSettingsModal()">ยกเลิก</button>
-      <button class="adm-btn-primary" onclick="alert('ฟีเจอร์นี้ยังเป็น DEMO — ยังไม่บันทึกข้อมูลจริง');closeSettingsModal()">บันทึก</button>
-    </div>
-  </div>
-</div>
-
-<!-- ═════════════════════ ADD NEW SYSTEM MODAL (Admin) ═════════════════════ -->
-<div class="adm-modal" id="addSystemModal">
-  <div class="adm-modal-box">
-    <div class="adm-modal-header">
-      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-plus"/></svg> เพิ่มระบบใหม่ <span class="coming-soon-tag">DEMO</span></div>
-      <button class="adm-modal-close" onclick="closeAddSystemModal()"><svg class="ico"><use href="#i-x"/></svg></button>
-    </div>
-    <div class="adm-modal-body">
-
-      <div class="adm-section">
-        <div class="adm-section-desc">กรอกข้อมูลระบบใหม่ที่ต้องการเพิ่มเข้าใน Hub</div>
-
-        <div style="display:grid;grid-template-columns:auto 1fr;gap:14px;align-items:start;margin-bottom:14px;">
-          <div>
-            <label class="adm-label">อิโมจิ</label>
-            <input type="text" class="adm-input emoji-input" maxlength="2" placeholder="📊" value="📋">
-          </div>
-          <div>
-            <label class="adm-label">ชื่อระบบ</label>
-            <input type="text" class="adm-input" placeholder="เช่น ระบบรายงานยอดขาย">
-          </div>
-        </div>
-
-        <div style="margin-bottom:14px;">
-          <label class="adm-label">คำบรรยาย</label>
-          <textarea class="adm-textarea" rows="2" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
-        </div>
-
-        <div>
-          <label class="adm-label">URL / ลิงก์ของระบบ</label>
-          <input type="url" class="adm-input" placeholder="https://...">
-        </div>
-      </div>
-
-    </div>
-    <div class="adm-modal-footer">
-      <button class="adm-btn-secondary" onclick="closeAddSystemModal()">ยกเลิก</button>
-      <button class="adm-btn-primary" onclick="alert('ฟีเจอร์นี้ยังเป็น DEMO — ยังไม่บันทึกข้อมูลจริง');closeAddSystemModal()">บันทึก</button>
+      <button class="adm-btn-secondary adm-edit-only" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="alert('ฟีเจอร์ลบยังเป็น DEMO — ยังไม่ลบจริง');closeSystemModal()">ลบระบบนี้</button>
+      <button class="adm-btn-secondary" onclick="closeSystemModal()">ยกเลิก</button>
+      <button class="adm-btn-primary" onclick="alert('ฟีเจอร์บันทึกยังเป็น DEMO — ยังไม่บันทึกจริง');closeSystemModal()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -1272,7 +1326,7 @@ input[type=file] { display:none; }
     <div class="logo">
       <div class="logo-mark"><img src="logo.png" alt="FAB"></div>
       <div class="logo-info">
-        <div class="logo-text">FAB Operations Hub</div>
+        <div class="logo-text">FAB Training &amp; Operations Hub</div>
         <div class="logo-sub">ระบบงานปฏิบัติการ</div>
       </div>
     </div>
@@ -1284,22 +1338,18 @@ input[type=file] { display:none; }
   <div class="menu-shell">
     <div class="menu-heading">เลือกระบบที่ต้องการใช้งาน</div>
     <div class="menu-sub">เลือกเมนูด้านล่างเพื่อเข้าสู่ระบบที่ต้องการ</div>
-    <div class="admin-actions" id="adminActions" style="display:none">
-      <button class="admin-action-btn" onclick="openSettingsModal()"><svg><use href="#i-settings"/></svg> ตั้งค่าระบบ</button>
-      <button class="admin-action-btn" onclick="openAddSystemModal()"><svg><use href="#i-plus"/></svg> เพิ่มระบบใหม่</button>
-    </div>
     <div class="menu-grid">
-      <button class="menu-card" onclick="goToBranchApp()">
-        <div class="menu-card-icon"><svg><use href="#i-clipboard"/></svg></div>
+      <div class="menu-card" role="button" tabindex="0" onclick="goToBranchApp()">
+        <button class="menu-card-settings adm-only" onclick="event.stopPropagation();openEditSystemModal('food-handler')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>
+        <div class="menu-card-icon menu-card-icon-emoji">📋</div>
         <div class="menu-card-title">ฐานข้อมูล<br>ผู้สัมผัสและผู้ประกอบอาหาร</div>
         <div class="menu-card-desc">ค้นหาข้อมูลใบรับรอง + ส่งรายชื่อขออบรม</div>
         <span class="menu-card-arrow"><svg class="ico"><use href="#i-arrow-right"/></svg></span>
-      </button>
-      <div class="menu-card placeholder">
-        <div class="menu-card-icon"><svg><use href="#i-plus"/></svg></div>
+      </div>
+      <div class="menu-card menu-card-add adm-only" role="button" tabindex="0" onclick="openAddSystemModal()">
+        <div class="menu-card-icon menu-card-icon-add"><svg><use href="#i-plus"/></svg></div>
         <div class="menu-card-title">เพิ่มระบบใหม่</div>
-        <div class="menu-card-desc">เร็วๆ นี้ — ระบบเพิ่มเติมจะถูกเพิ่มที่นี่</div>
-        <span class="menu-card-arrow"><svg class="ico"><use href="#i-plus"/></svg></span>
+        <div class="menu-card-desc">เพิ่มลิงก์ระบบใหม่เข้าสู่ Hub</div>
       </div>
     </div>
   </div>
@@ -2168,8 +2218,7 @@ function showMenuView() {
       tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-code">' + branchPin + '</span><span class="branch-chip-name">' + currentBranchName + '</span></span>';
     }
   }
-  var adminActions = document.getElementById('adminActions');
-  if (adminActions) adminActions.style.display = isAdminMode ? 'flex' : 'none';
+  document.body.classList.toggle('is-admin', isAdminMode);
   window.scrollTo(0,0);
 }
 
@@ -2208,21 +2257,88 @@ function goToMenu() {
 }
 
 /* ═════════════════════ ADMIN MODALS (STUB) ═════════════════════ */
-function openSettingsModal() {
-  // populate branches table
-  var tbody = document.getElementById('settingsBranchTbody');
-  if (tbody && !tbody.innerHTML) {
-    var html = '';
-    Object.keys(BRANCHES).forEach(function(code){
-      html += '<tr><td style="font-weight:700;color:var(--gold);font-family:Sarabun;font-size:12px;">'+code+'</td><td>'+BRANCHES[code]+'</td><td style="text-align:center;"><input type="checkbox" class="adm-checkbox" checked></td></tr>';
-    });
-    tbody.innerHTML = html;
+var EMOJI_LIST = [
+  '📋','📊','📁','📄','📑','📈','📉','🗂️','📌','📎','🔖','📔','📓','📕','📗','📘','📙','📒',
+  '🍱','🍔','🍕','🥗','🍝','🍜','🍣','☕','🍰','🍩','🥖','🥐','🍚','🍞','🥟','🍡',
+  '👥','👤','🤝','💼','👨‍💼','👩‍💼','🧑‍🍳','👮','👷',
+  '🏢','🏪','🏬','🏨','🏦','🏠','🏛️','🏗️',
+  '🛒','💰','💳','💵','💎','📦','🚚','🛍️','💴',
+  '⚙️','🔧','🔨','🛠️','📐','📏','🔬','🔭','🧰',
+  '⏰','📅','🗓️','📆','⏳','⌛',
+  '🔔','📢','📣','📞','📧','✉️','💬',
+  '✅','❌','⚠️','ℹ️','❓','❗','⭐','🎯',
+  '🎓','🏆','🎖️','🥇','🏅','🎁','🎉',
+  '🔑','🗝️','🔒','🔓','🛡️','🔐',
+  '📱','💻','🖥️','🖨️','💾','💿','📺','📷'
+];
+var currentEditingSystem = null;
+var SYSTEMS = {
+  'food-handler': {
+    emoji: '📋',
+    name: 'ฐานข้อมูล ผู้สัมผัสและผู้ประกอบอาหาร',
+    desc: 'ค้นหาข้อมูลใบรับรอง + ส่งรายชื่อขออบรม',
+    url: ''
   }
-  document.getElementById('settingsModal').classList.add('show');
+};
+
+function renderEmojiPicker() {
+  var picker = document.getElementById('emojiPicker');
+  if (!picker) return;
+  picker.innerHTML = EMOJI_LIST.map(function(e){
+    return '<button type="button" class="emoji-btn" onclick="selectEmoji(this,\''+e+'\')">'+e+'</button>';
+  }).join('');
 }
-function closeSettingsModal() { document.getElementById('settingsModal').classList.remove('show'); }
-function openAddSystemModal() { document.getElementById('addSystemModal').classList.add('show'); }
-function closeAddSystemModal() { document.getElementById('addSystemModal').classList.remove('show'); }
+function selectEmoji(btn, e) {
+  document.querySelectorAll('#emojiPicker .emoji-btn').forEach(function(b){ b.classList.remove('selected'); });
+  btn.classList.add('selected');
+  document.getElementById('sysEmojiPreview').textContent = e;
+}
+
+function openSystemModal(mode, systemId) {
+  renderEmojiPicker();
+  currentEditingSystem = systemId || null;
+  var isEdit = mode === 'edit';
+  document.getElementById('systemModalTitle').textContent = isEdit ? 'ตั้งค่าระบบ' : 'เพิ่มระบบใหม่';
+  document.querySelectorAll('.adm-edit-only').forEach(function(el){ el.style.display = isEdit ? '' : 'none'; });
+
+  if (isEdit && SYSTEMS[systemId]) {
+    var s = SYSTEMS[systemId];
+    document.getElementById('sysEmojiPreview').textContent = s.emoji;
+    document.getElementById('sysName').value = s.name;
+    document.getElementById('sysDesc').value = s.desc;
+    document.getElementById('sysUrl').value = s.url;
+    // highlight current emoji in picker
+    setTimeout(function(){
+      document.querySelectorAll('#emojiPicker .emoji-btn').forEach(function(b){
+        if (b.textContent === s.emoji) b.classList.add('selected');
+      });
+    }, 50);
+    populateBranchVisibility();
+  } else {
+    document.getElementById('sysEmojiPreview').textContent = '📋';
+    document.getElementById('sysName').value = '';
+    document.getElementById('sysDesc').value = '';
+    document.getElementById('sysUrl').value = '';
+  }
+  document.getElementById('systemModal').classList.add('show');
+}
+
+function populateBranchVisibility() {
+  var tbody = document.getElementById('settingsBranchTbody');
+  if (!tbody) return;
+  var html = '';
+  Object.keys(BRANCHES).forEach(function(code){
+    html += '<tr><td style="font-weight:700;color:var(--gold);font-size:12px;">'+code+'</td><td>'+BRANCHES[code]+'</td><td style="text-align:center;"><input type="checkbox" class="adm-checkbox branch-vis-chk" checked></td></tr>';
+  });
+  tbody.innerHTML = html;
+}
+function toggleAllBranches(checked) {
+  document.querySelectorAll('.branch-vis-chk').forEach(function(c){ c.checked = checked; });
+}
+
+function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
+function openAddSystemModal() { openSystemModal('add'); }
+function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
 
 function showWelcome(name) {
   document.getElementById('welcomeBranch').textContent = name;
@@ -2240,6 +2356,7 @@ function logout() {
   allRecords = [];
   requestRows = [];
   isAdminMode = false;
+  document.body.classList.remove('is-admin');
   clearPin();
   hideError();
   window.scrollTo(0,0);
