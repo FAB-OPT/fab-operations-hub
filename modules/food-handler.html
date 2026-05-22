@@ -1478,11 +1478,11 @@ input[type=file] { display:none; }
        ondrop="dropFile(event,'pdf')">
     <div class="drop-icon pdf-icon">&#128196;</div>
     <div class="drop-title">นำเข้าใบรับรอง PDF</div>
-    <div class="drop-sub">ลากวางไฟล์ .pdf ที่นี่<br>หรือกดปุ่มเพื่อเลือกไฟล์</div>
+    <div class="drop-sub">ลากวางได้พร้อมกันสูงสุด 20 ไฟล์<br>หรือกดปุ่มเพื่อเลือก</div>
     <button class="drop-btn pdf-btn" onclick="document.getElementById('pdfInput').click()">
-      &#128206; เลือกไฟล์ PDF
+      &#128206; เลือกไฟล์ PDF (สูงสุด 20)
     </button>
-    <input type="file" id="pdfInput" accept=".pdf" onchange="handlePDF(this)">
+    <input type="file" id="pdfInput" accept=".pdf" multiple onchange="handlePDF(this)">
     <div class="file-status" id="pdfStatus">
       <span class="status-dot wait" id="pdfDot"></span>
       <span id="pdfStatusText" style="color:var(--text3)">รอนำเข้าไฟล์</span>
@@ -1627,65 +1627,91 @@ function dropFile(e, type) {
   e.preventDefault();
   var id = type==='pdf' ? 'pdfCard' : 'xlsxCard';
   document.getElementById(id).classList.remove('dragging');
-  var file = e.dataTransfer.files[0];
-  if (!file) return;
-  if (type==='pdf') processPDFFile(file);
-  else processXLSXFile(file);
+  var files = e.dataTransfer.files;
+  if (!files || !files.length) return;
+  if (type==='pdf') processPDFFiles(files);
+  else processXLSXFile(files[0]);
 }
 
-/* ─────────── PDF HANDLER ─────────── */
+/* ─────────── PDF HANDLER (multi-file up to 20) ─────────── */
 function handlePDF(input) {
-  if (input.files[0]) processPDFFile(input.files[0]);
+  if (input.files && input.files.length) processPDFFiles(input.files);
 }
 
-function processPDFFile(file) {
-  setStatus('pdf','loading','กำลังอ่านไฟล์ PDF...');
+function processPDFFiles(fileList) {
+  var files = Array.from(fileList).filter(function(f){ return /\.pdf$/i.test(f.name); });
+  if (files.length === 0) {
+    setStatus('pdf','error','ไม่พบไฟล์ .pdf');
+    return;
+  }
+  if (files.length > 20) {
+    setStatus('pdf','error','เกิน 20 ไฟล์ (จำกัด 20) — เลือกใหม่');
+    return;
+  }
+  setStatus('pdf','loading','กำลังอ่าน 0/'+files.length+' ไฟล์...');
   showProg('pdf');
-  setProg('pdf',15);
+  setProg('pdf', 5);
+  var allExtracted = [];
+  var done = 0;
+  var failed = 0;
 
-  var reader = new FileReader();
-  reader.onload = function(e) {
-    setProg('pdf',40);
-    try {
-      var text = '';
-      // Try to read as text first (text-based PDF)
-      var bytes = new Uint8Array(e.target.result);
-      var raw = '';
-      for (var i = 0; i < bytes.length; i++) raw += String.fromCharCode(bytes[i]);
-
-      setProg('pdf',60);
-      // Extract names using regex pattern from Thai cert PDFs
-      // Pattern: name appears after "ขอรับรองว่า" and before "ผ่านการอบรม"
-      var extracted = extractFromPDFText(raw);
-      setProg('pdf',85);
-
-      if (extracted.length === 0) {
-        // Fallback: try UTF-8 text extraction
-        var decoder = new TextDecoder('utf-8');
-        var utf8text = decoder.decode(bytes);
-        extracted = extractFromPDFText(utf8text);
-      }
-
-      if (extracted.length > 0) {
-        pdfData = extracted;
-        setProg('pdf',100);
-        setStatus('pdf','done','โหลดสำเร็จ — พบ ' + extracted.length + ' ใบรับรอง');
-        document.getElementById('pdfCard').classList.add('loaded');
-        document.getElementById('pdfCard').classList.remove('dragging');
-      } else {
-        // Use demo data (same as previous session)
-        pdfData = getDemoPDFData();
-        setProg('pdf',100);
-        setStatus('pdf','done','(Demo) โหลดข้อมูลตัวอย่าง ' + pdfData.length + ' รายการ');
-        document.getElementById('pdfCard').classList.add('loaded');
-      }
-    } catch(err) {
-      setStatus('pdf','error','ไม่สามารถอ่านไฟล์ได้: ' + err.message);
+  function processOne(idx) {
+    if (idx >= files.length) {
+      // All done
+      // Deduplicate by name+expireDate
+      var seen = {};
+      var uniq = [];
+      allExtracted.forEach(function(item){
+        var k = item.name + '|' + item.expireDate;
+        if (!seen[k]) { seen[k] = true; uniq.push(item); }
+      });
+      pdfData = uniq;
+      setProg('pdf', 100);
+      var msg = 'โหลดสำเร็จ — ' + files.length + ' ไฟล์, พบ ' + uniq.length + ' ใบรับรอง';
+      if (failed > 0) msg += ' (อ่านไม่ได้ ' + failed + ' ไฟล์)';
+      setStatus('pdf','done', msg);
+      document.getElementById('pdfCard').classList.add('loaded');
+      document.getElementById('pdfCard').classList.remove('dragging');
+      checkReady();
+      return;
     }
-    checkReady();
-  };
-  reader.readAsArrayBuffer(file);
+    var file = files[idx];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      try {
+        var bytes = new Uint8Array(e.target.result);
+        var raw = '';
+        for (var i = 0; i < bytes.length; i++) raw += String.fromCharCode(bytes[i]);
+        var extracted = extractFromPDFText(raw);
+        if (extracted.length === 0) {
+          var decoder = new TextDecoder('utf-8');
+          var utf8text = decoder.decode(bytes);
+          extracted = extractFromPDFText(utf8text);
+        }
+        if (extracted.length > 0) {
+          allExtracted = allExtracted.concat(extracted);
+        } else {
+          failed++;
+        }
+      } catch(err) {
+        failed++;
+      }
+      done++;
+      setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+      setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+      processOne(idx + 1);
+    };
+    reader.onerror = function(){
+      failed++; done++;
+      processOne(idx + 1);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+  processOne(0);
 }
+
+// Backwards-compat single-file (kept for safety)
+function processPDFFile(file) { processPDFFiles([file]); }
 
 function extractFromPDFText(text) {
   var results = [];
