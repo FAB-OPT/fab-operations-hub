@@ -568,6 +568,46 @@ body.is-admin .adm-only { display: flex; }
   background: rgba(148,163,184,0.15); color: var(--text3);
 }
 
+/* Announcements (branch popup) */
+.ann-item {
+  background: linear-gradient(135deg, #fff8f1, #fffdf7);
+  border: 1px solid rgba(255,122,26,0.22);
+  border-left: 4px solid var(--gold);
+  border-radius: 14px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+.ann-item:last-child { margin-bottom: 0; }
+.ann-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+.ann-icon-emoji { font-size: 28px; flex-shrink: 0; }
+.ann-icon-img { width: 36px; height: 36px; border-radius: 8px; object-fit: contain; flex-shrink: 0; }
+.ann-title { font-size: 15px; font-weight: 800; color: var(--text); }
+.ann-msg { font-size: 13px; color: var(--text2); line-height: 1.6; margin-bottom: 10px; white-space: pre-wrap; }
+.ann-expire { font-size: 11px; color: var(--orange); font-weight: 700; margin-bottom: 10px; }
+.ann-dismiss {
+  font-size: 12px; color: var(--text3);
+  background: none; border: none;
+  cursor: pointer; padding: 4px 0;
+  text-decoration: underline;
+  font-family: 'Sarabun', sans-serif;
+}
+.ann-dismiss:hover { color: var(--red); }
+
+/* Admin announcements manager */
+.ann-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  background: var(--bg3);
+  border-radius: 12px;
+  margin-bottom: 10px;
+  border: 1px solid var(--border);
+}
+.ann-row:last-child { margin-bottom: 0; }
+
+.adm-only-block { display: none; }
+body.is-admin .adm-only-block { display: block; }
+
 /* Coming-soon preview cards (admin-added announcements) */
 .menu-card-preview { background: #fffdf7; }
 .menu-card-preview .menu-card-arrow {
@@ -1357,6 +1397,89 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- ═════════════════════ BRANCH ANNOUNCEMENTS POPUP ═════════════════════ -->
+<div class="adm-modal" id="branchAnnouncementsModal">
+  <div class="adm-modal-box" style="max-width:480px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-clipboard"/></svg> ประกาศจากสำนักงาน</div>
+      <button class="adm-modal-close" onclick="closeBranchAnnouncementsModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body" id="branchAnnouncementsList"></div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-primary" onclick="closeBranchAnnouncementsModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ ADMIN: MANAGE ANNOUNCEMENTS ═════════════════════ -->
+<div class="adm-modal" id="manageAnnouncementsModal">
+  <div class="adm-modal-box" style="max-width:680px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-clipboard"/></svg> จัดการประกาศสำหรับสาขา</div>
+      <button class="adm-modal-close" onclick="closeManageAnnouncementsModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body" id="adminAnnouncementsList"></div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeManageAnnouncementsModal()">ปิด</button>
+      <button class="adm-btn-primary" onclick="openAnnouncementEditor()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มประกาศใหม่</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ ADMIN: ANNOUNCEMENT EDITOR ═════════════════════ -->
+<div class="adm-modal" id="announcementEditorModal">
+  <div class="adm-modal-box" style="max-width:600px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title" id="annEditorTitle">เพิ่มประกาศใหม่</div>
+      <button class="adm-modal-close" onclick="closeAnnouncementEditor()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div class="adm-section">
+        <div style="display:flex;gap:14px;align-items:flex-start;">
+          <div>
+            <label class="adm-label">อิโมจิ</label>
+            <input type="text" class="adm-input" id="annEmoji" value="📢" maxlength="2" style="width:80px;text-align:center;font-size:24px;">
+          </div>
+          <div style="flex:1;">
+            <label class="adm-label">หัวเรื่อง</label>
+            <input type="text" class="adm-input" id="annTitle" placeholder="เช่น แจ้งวันหยุดประจำปี">
+          </div>
+        </div>
+        <label class="adm-label" style="margin-top:14px;">รายละเอียด</label>
+        <textarea class="adm-textarea" rows="4" id="annMessage" placeholder="ข้อความที่ต้องการแจ้งสาขา..."></textarea>
+        <div class="adm-input-group" style="margin-top:14px;">
+          <div>
+            <label class="adm-label">วันที่เริ่มแสดง</label>
+            <input type="date" class="adm-input" id="annStartDate">
+          </div>
+          <div>
+            <label class="adm-label">วันที่สิ้นสุด</label>
+            <input type="date" class="adm-input" id="annEndDate">
+          </div>
+        </div>
+      </div>
+      <div class="adm-section">
+        <div class="adm-section-title"><svg><use href="#i-shield"/></svg> สาขาที่จะเห็นประกาศนี้</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllAnnBranches(true)">เลือกทั้งหมด</button>
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllAnnBranches(false)">ยกเลิกทั้งหมด</button>
+        </div>
+        <div style="max-height:240px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+          <table class="adm-table">
+            <thead><tr><th style="position:sticky;top:0;background:var(--bg3);">รหัส</th><th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th><th style="position:sticky;top:0;background:var(--bg3);text-align:center;">เห็น</th></tr></thead>
+            <tbody id="annBranchTbody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" id="annDeleteBtn" style="margin-right:auto;display:none;background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);" onclick="deleteAnnouncement()">ลบประกาศ</button>
+      <button class="adm-btn-secondary" onclick="closeAnnouncementEditor()">ยกเลิก</button>
+      <button class="adm-btn-primary" onclick="saveAnnouncement()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ WELCOME POPUP ═════════════════════ -->
 <div class="welcome-overlay" id="welcomeModal">
   <div class="welcome-box">
@@ -1386,6 +1509,9 @@ input[type=file] { display:none; }
     <div class="menu-heading">เลือกระบบที่ต้องการใช้งาน</div>
     <div class="menu-sub">เลือกเมนูด้านล่างเพื่อเข้าสู่ระบบที่ต้องการ</div>
     <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:16px;"></div>
+    <div class="adm-only-block" style="text-align:center;margin-bottom:22px;">
+      <button class="admin-action-btn" onclick="openManageAnnouncementsModal()"><svg class="ico"><use href="#i-clipboard"/></svg> จัดการประกาศสำหรับสาขา</button>
+    </div>
     <div class="menu-grid" id="menuGrid"></div>
   </div>
 </div>
@@ -2114,7 +2240,9 @@ var requestRows = [];
 
 window.addEventListener('DOMContentLoaded', function() {
   loadSystemsLocal();
+  loadAnnouncementsLocal();
   loadSystemsFromCloud().then(function(){ renderMenuCards(); });
+  loadAnnouncementsFromCloud();
   addRequestRow();
   selectRole('branch');
 });
@@ -2313,6 +2441,8 @@ var EMOJI_LIST = [
 ];
 var currentEditingSystem = null;
 var SYSTEMS = [];
+var ANNOUNCEMENTS = [];
+var currentEditingAnnouncement = null;
 var DEFAULT_SYSTEMS = [{
   id: 'food-handler',
   emoji: '📋',
@@ -2373,6 +2503,66 @@ function saveSystemsToCloud() {
   .then(function(res){
     if (!res.ok) throw new Error(res.error || 'save failed');
     return res;
+  });
+}
+
+function normalizeAnnouncement(a) {
+  a.startDate = toIsoString(a.startDate);
+  a.endDate = toIsoString(a.endDate);
+  if (!a.visibleBranches) a.visibleBranches = [];
+  return a;
+}
+function loadAnnouncementsLocal() {
+  try {
+    var saved = localStorage.getItem('fab_announcements_v1');
+    if (saved) ANNOUNCEMENTS = JSON.parse(saved);
+  } catch(e) {}
+  if (!ANNOUNCEMENTS) ANNOUNCEMENTS = [];
+  ANNOUNCEMENTS.forEach(normalizeAnnouncement);
+}
+function saveAnnouncementsLocal() {
+  try { localStorage.setItem('fab_announcements_v1', JSON.stringify(ANNOUNCEMENTS)); } catch(e) {}
+}
+function loadAnnouncementsFromCloud() {
+  return fetch(SCRIPT_URL + '?action=announcements', { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.ok && res.announcements) {
+        ANNOUNCEMENTS = res.announcements;
+        ANNOUNCEMENTS.forEach(normalizeAnnouncement);
+        saveAnnouncementsLocal();
+      }
+      return ANNOUNCEMENTS;
+    })
+    .catch(function(err){ console.warn('Cloud load announcements failed', err); return ANNOUNCEMENTS; });
+}
+function saveAnnouncementsToCloud() {
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'announcements-save', announcements: ANNOUNCEMENTS })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+}
+function getDismissedToday() {
+  try { return JSON.parse(localStorage.getItem('fab_ann_dismissed') || '{}'); }
+  catch(e) { return {}; }
+}
+function dismissAnnouncementToday(id) {
+  var d = getDismissedToday();
+  d[id] = todayIso();
+  try { localStorage.setItem('fab_ann_dismissed', JSON.stringify(d)); } catch(e) {}
+}
+function getActiveAnnouncementsForBranch(branchCode) {
+  var today = todayIso();
+  var dismissed = getDismissedToday();
+  return ANNOUNCEMENTS.filter(function(a){
+    if (dismissed[a.id] === today) return false;
+    if (a.visibleBranches && a.visibleBranches.length > 0 && a.visibleBranches.indexOf(branchCode) < 0) return false;
+    if (a.startDate && today < a.startDate) return false;
+    if (a.endDate && today > a.endDate) return false;
+    return true;
   });
 }
 
@@ -2672,6 +2862,176 @@ function showWelcome(name) {
 }
 function closeWelcome() {
   document.getElementById('welcomeModal').classList.remove('show');
+  if (!isAdminMode) {
+    setTimeout(function(){ showBranchAnnouncementsModal(); }, 200);
+  }
+}
+
+function showBranchAnnouncementsModal() {
+  var list = getActiveAnnouncementsForBranch(branchPin);
+  if (list.length === 0) return false;
+  var listEl = document.getElementById('branchAnnouncementsList');
+  var html = list.map(function(a){
+    var iconHtml = a.icon
+      ? '<img class="ann-icon-img" src="'+a.icon+'" alt="">'
+      : '<span class="ann-icon-emoji">'+escapeHtml(a.emoji||'📢')+'</span>';
+    return '<div class="ann-item" data-id="'+a.id+'">'
+      + '<div class="ann-head">'+iconHtml+'<div class="ann-title">'+escapeHtml(a.title)+'</div></div>'
+      + '<div class="ann-msg">'+escapeHtml(a.message)+'</div>'
+      + (a.endDate ? '<div class="ann-expire">⏰ ถึง '+formatThaiDate(a.endDate)+'</div>' : '')
+      + '<button class="ann-dismiss" onclick="dismissAnnClick(\''+a.id+'\', this)">ไม่แสดงในวันนี้อีก</button>'
+      + '</div>';
+  }).join('');
+  listEl.innerHTML = html;
+  document.getElementById('branchAnnouncementsModal').classList.add('show');
+  return true;
+}
+function closeBranchAnnouncementsModal() {
+  document.getElementById('branchAnnouncementsModal').classList.remove('show');
+}
+function dismissAnnClick(id, btn) {
+  dismissAnnouncementToday(id);
+  var item = btn.closest('.ann-item');
+  if (item) {
+    item.style.transition = 'opacity 0.3s, max-height 0.3s, padding 0.3s, margin 0.3s';
+    item.style.opacity = '0';
+    item.style.maxHeight = '0';
+    item.style.padding = '0 16px';
+    item.style.margin = '0';
+    item.style.overflow = 'hidden';
+    setTimeout(function(){
+      item.remove();
+      if (document.querySelectorAll('#branchAnnouncementsList .ann-item').length === 0) {
+        closeBranchAnnouncementsModal();
+      }
+    }, 320);
+  }
+}
+
+/* Admin manager */
+function openManageAnnouncementsModal() {
+  renderAnnouncementsList();
+  document.getElementById('manageAnnouncementsModal').classList.add('show');
+}
+function closeManageAnnouncementsModal() {
+  document.getElementById('manageAnnouncementsModal').classList.remove('show');
+}
+function renderAnnouncementsList() {
+  var listEl = document.getElementById('adminAnnouncementsList');
+  if (!ANNOUNCEMENTS.length) {
+    listEl.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text3);">ยังไม่มีประกาศ — กด "+ เพิ่มประกาศใหม่" ด้านล่างเพื่อสร้าง</div>';
+    return;
+  }
+  listEl.innerHTML = ANNOUNCEMENTS.map(function(a){
+    var iconHtml = a.icon
+      ? '<img src="'+a.icon+'" style="width:36px;height:36px;border-radius:8px;object-fit:contain;">'
+      : '<span style="font-size:24px;">'+escapeHtml(a.emoji||'📢')+'</span>';
+    var period = (a.startDate||a.endDate)
+      ? (a.startDate?formatThaiDate(a.startDate):'-')+' → '+(a.endDate?formatThaiDate(a.endDate):'-')
+      : 'แสดงตลอด';
+    var branchCount = a.visibleBranches && a.visibleBranches.length > 0 ? a.visibleBranches.length+' สาขา' : 'ทุกสาขา';
+    var preview = (a.message||'').replace(/\n/g,' ').slice(0,80) + (a.message && a.message.length>80?'...':'');
+    return '<div class="ann-row">'
+      + '<div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">'+iconHtml
+      + '<div style="flex:1;min-width:0;"><div style="font-weight:700;color:var(--text);">'+escapeHtml(a.title)+'</div>'
+      + '<div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(preview)+'</div>'
+      + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">📅 '+period+' · 🏪 '+branchCount+'</div></div></div>'
+      + '<button class="adm-btn-secondary" style="padding:7px 14px;font-size:12px;flex-shrink:0;" onclick="openAnnouncementEditor(\''+a.id+'\')">แก้ไข</button>'
+      + '</div>';
+  }).join('');
+}
+
+function openAnnouncementEditor(id) {
+  currentEditingAnnouncement = id || null;
+  var a = id ? ANNOUNCEMENTS.find(function(x){return x.id===id;}) : null;
+  document.getElementById('annEditorTitle').textContent = a ? 'แก้ไขประกาศ' : 'เพิ่มประกาศใหม่';
+  document.getElementById('annEmoji').value = a ? (a.emoji||'📢') : '📢';
+  document.getElementById('annTitle').value = a ? a.title : '';
+  document.getElementById('annMessage').value = a ? a.message : '';
+  document.getElementById('annStartDate').value = a ? (a.startDate||'') : '';
+  document.getElementById('annEndDate').value = a ? (a.endDate||'') : '';
+  document.getElementById('annDeleteBtn').style.display = a ? '' : 'none';
+  populateAnnBranchVisibility(a ? a.visibleBranches : []);
+  document.getElementById('announcementEditorModal').classList.add('show');
+}
+function closeAnnouncementEditor() {
+  document.getElementById('announcementEditorModal').classList.remove('show');
+}
+function populateAnnBranchVisibility(selected) {
+  selected = selected || [];
+  var tbody = document.getElementById('annBranchTbody');
+  if (!tbody) return;
+  var allChecked = selected.length === 0;
+  tbody.innerHTML = Object.keys(BRANCHES).map(function(code){
+    var checked = allChecked || selected.indexOf(code) >= 0;
+    return '<tr><td style="font-weight:700;color:var(--gold);font-size:12px;">'+code+'</td><td>'+BRANCHES[code]+'</td><td style="text-align:center;"><input type="checkbox" class="ann-vis-chk" data-code="'+code+'"'+(checked?' checked':'')+'></td></tr>';
+  }).join('');
+}
+function toggleAllAnnBranches(checked) {
+  document.querySelectorAll('.ann-vis-chk').forEach(function(c){ c.checked = checked; });
+}
+
+function saveAnnouncement() {
+  var emoji = document.getElementById('annEmoji').value.trim() || '📢';
+  var title = document.getElementById('annTitle').value.trim();
+  var message = document.getElementById('annMessage').value.trim();
+  var startDate = document.getElementById('annStartDate').value;
+  var endDate = document.getElementById('annEndDate').value;
+  if (!title) { alert('กรุณากรอกหัวเรื่อง'); return; }
+  if (!message) { alert('กรุณากรอกรายละเอียด'); return; }
+  if (startDate && endDate && startDate > endDate) { alert('วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด'); return; }
+
+  var visibleBranches = [];
+  var allChecked = true;
+  var chks = document.querySelectorAll('.ann-vis-chk');
+  chks.forEach(function(c){
+    if (c.checked) visibleBranches.push(c.getAttribute('data-code'));
+    else allChecked = false;
+  });
+  if (chks.length > 0 && allChecked) visibleBranches = [];
+
+  if (currentEditingAnnouncement) {
+    var idx = ANNOUNCEMENTS.findIndex(function(x){return x.id===currentEditingAnnouncement;});
+    if (idx >= 0) {
+      ANNOUNCEMENTS[idx] = {
+        id: ANNOUNCEMENTS[idx].id,
+        emoji: emoji,
+        icon: ANNOUNCEMENTS[idx].icon || '',
+        title: title, message: message,
+        startDate: startDate, endDate: endDate,
+        visibleBranches: visibleBranches
+      };
+    }
+  } else {
+    ANNOUNCEMENTS.push({
+      id: 'ann-'+Date.now(),
+      emoji: emoji, icon: '',
+      title: title, message: message,
+      startDate: startDate, endDate: endDate,
+      visibleBranches: visibleBranches
+    });
+  }
+  saveAnnouncementsLocal();
+  closeAnnouncementEditor();
+  renderAnnouncementsList();
+  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveAnnouncementsToCloud()
+    .then(function(){ setSyncStatus('✓ บันทึกประกาศและซิงค์สำเร็จ', 'var(--green)'); })
+    .catch(function(err){ setSyncStatus('✗ Cloud ไม่ติด: '+err.message+' (บันทึกในเครื่อง)', 'var(--red)'); });
+}
+
+function deleteAnnouncement() {
+  if (!currentEditingAnnouncement) return;
+  var a = ANNOUNCEMENTS.find(function(x){return x.id===currentEditingAnnouncement;});
+  if (!confirm('ลบประกาศ "'+(a?a.title:'')+'" ใช่หรือไม่?')) return;
+  ANNOUNCEMENTS = ANNOUNCEMENTS.filter(function(x){return x.id!==currentEditingAnnouncement;});
+  saveAnnouncementsLocal();
+  closeAnnouncementEditor();
+  renderAnnouncementsList();
+  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveAnnouncementsToCloud()
+    .then(function(){ setSyncStatus('✓ ลบและซิงค์สำเร็จ', 'var(--green)'); })
+    .catch(function(err){ setSyncStatus('✗ Cloud ไม่ติด: '+err.message, 'var(--red)'); });
 }
 
 function logout() {
