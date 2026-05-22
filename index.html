@@ -2532,12 +2532,21 @@ function formatThaiDate(v) {
   var p = iso.split('-');
   return parseInt(p[2]) + ' ' + months[parseInt(p[1])-1] + ' ' + (parseInt(p[0]) + 543);
 }
+function guessIconFromName(name) {
+  if (!name) return 'icons/training.png';
+  var n = name.toLowerCase();
+  if (/training|อบรม|สอน|เรียน|record management/i.test(n)) return 'icons/training.png';
+  if (/checklist|ตรวจ|มาตรฐาน|skill|standard/i.test(n)) return 'icons/checklist.png';
+  if (/เบิก|invoice|บัญชี|เงิน|จ่าย|billing|ประชุมร้าน/i.test(n)) return 'icons/billing.png';
+  if (/ฐานข้อมูล|storage|เก็บ|database|ข้อมูล|ผู้สัมผัส|ผู้ประกอบ/i.test(n)) return 'icons/storage.png';
+  return 'icons/training.png';
+}
 function normalizeSystem(s) {
   s.startDate = toIsoString(s.startDate);
   s.endDate = toIsoString(s.endDate);
   if (!s.visibleBranches) s.visibleBranches = [];
-  // Restore default icon for built-in food-handler if missing
-  if (s.id === 'food-handler' && !s.icon) s.icon = 'icons/training.png';
+  // Auto-assign icon based on name if missing (cross-device fallback)
+  if (!s.icon) s.icon = guessIconFromName(s.name);
   return s;
 }
 
