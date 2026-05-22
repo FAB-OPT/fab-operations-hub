@@ -1731,7 +1731,9 @@ function processPDFFiles(fileList) {
             if (p > pdf.numPages) return Promise.resolve(allPageCerts);
             return pdf.getPage(p).then(function(page){
               return page.getTextContent().then(function(content){
-                var pageText = content.items.map(function(it){ return it.str; }).join(' ');
+                var pageText = content.items.map(function(it){ return it.str; }).join('');
+                var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
+                pageText = pageText + '\n' + pageTextSpace;
                 var pageCerts = extractFromPDFText(pageText);
                 allPageCerts = allPageCerts.concat(pageCerts);
                 return processPage(p + 1);
@@ -1770,50 +1772,67 @@ function processPDFFile(file) { processPDFFiles([file]); }
 
 function extractFromPDFText(text) {
   var results = [];
+  if (!text || text.length < 20) return results;
 
-  // Detect course type per page
-  var course = '';
-  if (/ผู้ประกอบกิจการอาหาร/.test(text) || /ผู้ประกอบกิจการ/.test(text) || /ผู้ประกอบอาหาร/.test(text)) {
+  // Detect course type (default = generic)
+  var course = 'การสุขาภิบาลอาหาร';
+  if (/ผู้ประกอบ/.test(text)) {
     course = 'การสุขาภิบาลอาหาร สำหรับผู้ประกอบกิจการอาหาร';
-  } else if (/ผู้สัมผัสอาหาร/.test(text) || /ผู้สัมผัส/.test(text)) {
+  } else if (/ผู้สัมผัส/.test(text)) {
     course = 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
-  } else if (/สุขาภิบาลอาหาร/.test(text)) {
-    course = 'การสุขาภิบาลอาหาร';
-  } else {
-    return results;
   }
 
-  var trainDatePattern = /(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
-  var expPattern = /(หมดอายุ(?:วันที่)?|สิ้นสุด|ถึงวันที่)\s*(\d{1,2})\s*(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)\s*(\d{4})/g;
+  // Date patterns — lenient
+  var months = '(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)';
+  var anyDateRe = new RegExp('(\\d{1,2})\\s*' + months + '\\s*(\\d{4})', 'g');
+  // Expire keyword followed by date within ~50 chars
+  var expRe = new RegExp('(หมดอายุ|สิ้นสุด|ถึง(?:วันที่)?|สิ้นอายุ|expire)[^]{0,50}?(\\d{1,2})\\s*' + months + '\\s*(\\d{4})', 'i');
 
   var trainDate = '', expDate = '';
-  var em = expPattern.exec(text);
-  if (em) expDate = em[2]+' '+em[3]+' '+em[4];
+  var em = text.match(expRe);
+  if (em) expDate = em[2] + ' ' + em[3] + ' ' + em[4];
+  // First date not equal to expire = train date
   var dm;
-  trainDatePattern.lastIndex = 0;
-  while ((dm = trainDatePattern.exec(text)) !== null) {
-    var d = dm[1]+' '+dm[2]+' '+dm[3];
+  anyDateRe.lastIndex = 0;
+  while ((dm = anyDateRe.exec(text)) !== null) {
+    var d = dm[1] + ' ' + dm[2] + ' ' + dm[3];
     if (d !== expDate) { trainDate = d; break; }
   }
+  // Fallback: if no expire found but multiple dates, last date is expire
+  if (!expDate) {
+    var allDates = [];
+    anyDateRe.lastIndex = 0;
+    while ((dm = anyDateRe.exec(text)) !== null) {
+      allDates.push(dm[1] + ' ' + dm[2] + ' ' + dm[3]);
+    }
+    if (allDates.length >= 2) expDate = allDates[allDates.length - 1];
+  }
 
+  // Name pattern
   var namePattern = /(นาย|นางสาว|นาง)\s*([ก-ฮa-zA-Z]+[\s฀-๿]*?)\s+([฀-๿a-zA-Z]+)/g;
   var certNames = [];
   var m;
   while ((m = namePattern.exec(text)) !== null) {
-    var fullname = (m[1]+m[2].trim()+' '+m[3].trim()).replace(/\s+/g,' ');
+    var fullname = (m[1] + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ');
     if (fullname.length > 5 && fullname.length < 60) certNames.push(fullname);
     if (certNames.length > 200) break;
   }
   var seen = {};
-  certNames = certNames.filter(function(n){
-    var k = n.replace(/\s/g,'');
+  certNames = certNames.filter(function(n) {
+    var k = n.replace(/\s/g, '');
     if (seen[k]) return false;
     seen[k] = true;
     return true;
   });
 
-  certNames.forEach(function(name){
-    results.push({ name:name, course:course, trainDate:trainDate, expireDate:expDate });
+  // Debug log first call so we can troubleshoot
+  if (window._pdfDebug !== false && certNames.length === 0) {
+    window._pdfDebug = false;
+    console.log('[PDF DEBUG] No names found in this page. First 500 chars of text:', text.slice(0, 500));
+  }
+
+  certNames.forEach(function(name) {
+    results.push({ name: name, course: course, trainDate: trainDate, expireDate: expDate });
   });
   return results;
 }
