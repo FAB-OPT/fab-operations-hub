@@ -1813,7 +1813,7 @@ function extractFromPDFText(text) {
   var certNames = [];
   var m;
   while ((m = namePattern.exec(text)) !== null) {
-    var fullname = (m[1] + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ');
+    var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
     if (fullname.length > 5 && fullname.length < 60) certNames.push(fullname);
     if (certNames.length > 200) break;
   }
@@ -1917,6 +1917,8 @@ function normalizeName(n) {
 
 function getParts(name) {
   var n = normalizeName(name);
+  // Normalize: ensure space after title (handle "นายอธิศ" → "นาย อธิศ")
+  n = n.replace(/^(นางสาว|นาย|นาง)/, '$1 ').replace(/\s+/g, ' ').trim();
   var prefixes = ['นางสาว ','นาย ','นาง '];
   var prefix = '', rest = n;
   for (var i=0; i<prefixes.length; i++) {
