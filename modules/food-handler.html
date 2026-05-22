@@ -1919,14 +1919,13 @@ function processMatch() {
   document.getElementById('processBtn').disabled = true;
 
   setTimeout(function() {
-    matchData = [];
+    var raw = [];
     var employees = empData || [];
 
     pdfData.forEach(function(cert, idx) {
       var cp = getParts(cert.name);
       var found = null, matchType = 'notfound';
 
-      // 1) Exact: first + last match
       if (employees.length > 0) {
         for (var i=0; i<employees.length; i++) {
           var ep = getParts(employees[i].norm);
@@ -1934,7 +1933,6 @@ function processMatch() {
             found = employees[i]; matchType = 'exact'; break;
           }
         }
-        // 2) Lastname only
         if (!found) {
           for (var i=0; i<employees.length; i++) {
             var ep = getParts(employees[i].norm);
@@ -1946,7 +1944,7 @@ function processMatch() {
       }
 
       var expStatus = getExpStatus(cert.expireDate);
-      matchData.push({
+      raw.push({
         no: idx+1,
         certName: cert.name,
         course: cert.course,
@@ -1961,6 +1959,12 @@ function processMatch() {
       });
     });
 
+    // Filter: keep ONLY records that match an employee in registry (drop notfound)
+    var totalPdf = raw.length;
+    matchData = raw.filter(function(d){ return d.matchType !== 'notfound'; });
+    // Renumber after filter
+    matchData.forEach(function(d, i){ d.no = i + 1; });
+
     document.getElementById('processBtn').innerHTML = '&#9889; จับคู่ข้อมูล';
     document.getElementById('processBtn').disabled = false;
     document.getElementById('exportBtn').disabled = false;
@@ -1969,9 +1973,12 @@ function processMatch() {
     updateStats();
     renderTable();
 
-    var matched = matchData.filter(function(d){return d.matchType!=='notfound';}).length;
-    document.getElementById('processInfo').textContent = 'จับคู่แล้ว ' + matched + '/' + matchData.length + ' รายการ';
-    document.getElementById('topStatus').textContent = 'Updated · ' + new Date().toLocaleTimeString('th-TH');
+    document.getElementById('processInfo').textContent = 'จับคู่สำเร็จ ' + matchData.length + ' รายการ (ตัดออก ' + (totalPdf - matchData.length) + ' ที่ไม่มีในทะเบียน) — กำลังบันทึก Cloud...';
+    document.getElementById('topStatus').textContent = 'Matched · ' + new Date().toLocaleTimeString('th-TH');
+    // Auto-save to cloud
+    setTimeout(function(){
+      if (matchData.length > 0) saveToCloud();
+    }, 400);
   }, 300);
 }
 
@@ -1988,8 +1995,12 @@ function setProg(type, pct) { document.getElementById(type+'Fill').style.width =
 function checkReady() {
   var ready = pdfData !== null;
   document.getElementById('processBtn').disabled = !ready;
-  if (ready && !empData) document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · ยังไม่มีข้อมูลพนักงาน (จะจับคู่เฉพาะใบรับรอง)';
-  else if (ready && empData) document.getElementById('processInfo').textContent = 'พร้อมจับคู่ข้อมูล — กด "จับคู่ข้อมูล"';
+  if (ready && empData) {
+    document.getElementById('processInfo').textContent = 'จับคู่อัตโนมัติ...';
+    setTimeout(processMatch, 200);  // auto-match when both loaded
+  } else if (ready && !empData) {
+    document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · รออัปโหลดรายชื่อพนักงาน Excel';
+  }
 }
 
 function updateStats() {
@@ -2220,6 +2231,8 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('branchView').style.display = 'none';
     var adminTag = document.getElementById('adminTag');
     if (adminTag) adminTag.innerHTML = '<span class="branch-chip"><span class="branch-chip-code" style="color:var(--red)">601183</span><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
+    // Auto-load existing records from cloud
+    setTimeout(loadFromCloud, 100);
   } else {
     document.getElementById('branchView').style.display = 'block';
     document.getElementById('adminView').style.display = 'none';
