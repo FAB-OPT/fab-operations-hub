@@ -1645,8 +1645,15 @@ input[type=file] { display:none; }
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
 
-<!-- SheetJS -->
+<!-- SheetJS for Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- PDF.js for proper PDF text extraction -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script>
+  if (typeof pdfjsLib !== 'undefined') {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  }
+</script>
 <script>
 /* ─────────── CONFIG ─────────── */
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
@@ -1682,71 +1689,76 @@ function handlePDF(input) {
 
 function processPDFFiles(fileList) {
   var files = Array.from(fileList).filter(function(f){ return /\.pdf$/i.test(f.name); });
-  if (files.length === 0) {
-    setStatus('pdf','error','ไม่พบไฟล์ .pdf');
-    return;
-  }
-  if (files.length > 20) {
-    setStatus('pdf','error','เกิน 20 ไฟล์ (จำกัด 20) — เลือกใหม่');
+  if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ .pdf'); return; }
+  if (files.length > 20) { setStatus('pdf','error','เกิน 20 ไฟล์ (จำกัด 20)'); return; }
+  if (typeof pdfjsLib === 'undefined') {
+    setStatus('pdf','error','PDF.js ยังโหลดไม่เสร็จ — รอ 2-3 วินาทีแล้วลองใหม่');
     return;
   }
   setStatus('pdf','loading','กำลังอ่าน 0/'+files.length+' ไฟล์...');
-  showProg('pdf');
-  setProg('pdf', 5);
+  showProg('pdf'); setProg('pdf', 5);
   var allExtracted = [];
-  var done = 0;
-  var failed = 0;
+  var done = 0, failed = 0;
+
+  function finish() {
+    var seen = {};
+    var uniq = [];
+    allExtracted.forEach(function(item){
+      var k = item.name + '|' + item.expireDate;
+      if (!seen[k]) { seen[k] = true; uniq.push(item); }
+    });
+    pdfData = uniq;
+    setProg('pdf', 100);
+    var msg = 'โหลดสำเร็จ — ' + files.length + ' ไฟล์, พบ ' + uniq.length + ' ใบรับรอง';
+    if (failed > 0) msg += ' (อ่านไม่ได้ ' + failed + ')';
+    setStatus('pdf','done', msg);
+    document.getElementById('pdfCard').classList.add('loaded');
+    document.getElementById('pdfCard').classList.remove('dragging');
+    checkReady();
+  }
 
   function processOne(idx) {
-    if (idx >= files.length) {
-      // All done
-      // Deduplicate by name+expireDate
-      var seen = {};
-      var uniq = [];
-      allExtracted.forEach(function(item){
-        var k = item.name + '|' + item.expireDate;
-        if (!seen[k]) { seen[k] = true; uniq.push(item); }
-      });
-      pdfData = uniq;
-      setProg('pdf', 100);
-      var msg = 'โหลดสำเร็จ — ' + files.length + ' ไฟล์, พบ ' + uniq.length + ' ใบรับรอง';
-      if (failed > 0) msg += ' (อ่านไม่ได้ ' + failed + ' ไฟล์)';
-      setStatus('pdf','done', msg);
-      document.getElementById('pdfCard').classList.add('loaded');
-      document.getElementById('pdfCard').classList.remove('dragging');
-      checkReady();
-      return;
-    }
+    if (idx >= files.length) { finish(); return; }
     var file = files[idx];
     var reader = new FileReader();
     reader.onload = function(e) {
-      try {
-        var bytes = new Uint8Array(e.target.result);
-        var raw = '';
-        for (var i = 0; i < bytes.length; i++) raw += String.fromCharCode(bytes[i]);
-        var extracted = extractFromPDFText(raw);
-        if (extracted.length === 0) {
-          var decoder = new TextDecoder('utf-8');
-          var utf8text = decoder.decode(bytes);
-          extracted = extractFromPDFText(utf8text);
-        }
-        if (extracted.length > 0) {
-          allExtracted = allExtracted.concat(extracted);
-        } else {
-          failed++;
-        }
-      } catch(err) {
-        failed++;
-      }
-      done++;
-      setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-      setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-      processOne(idx + 1);
+      var ab = e.target.result;
+      pdfjsLib.getDocument({ data: ab, disableFontFace: true, useSystemFonts: false }).promise
+        .then(function(pdf){
+          var pages = [];
+          for (var p = 1; p <= pdf.numPages; p++) pages.push(p);
+          return pages.reduce(function(prev, p){
+            return prev.then(function(textSoFar){
+              return pdf.getPage(p).then(function(page){
+                return page.getTextContent().then(function(content){
+                  var pageText = content.items.map(function(it){ return it.str; }).join(' ');
+                  return textSoFar + ' ' + pageText;
+                });
+              });
+            });
+          }, Promise.resolve(''));
+        })
+        .then(function(text){
+          var extracted = extractFromPDFText(text);
+          if (extracted.length > 0) {
+            allExtracted = allExtracted.concat(extracted);
+          } else {
+            failed++;
+          }
+          done++;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+          processOne(idx + 1);
+        })
+        .catch(function(err){
+          console.warn('PDF parse error', file.name, err);
+          failed++; done++;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+          processOne(idx + 1);
+        });
     };
-    reader.onerror = function(){
-      failed++; done++;
-      processOne(idx + 1);
-    };
+    reader.onerror = function(){ failed++; done++; processOne(idx + 1); };
     reader.readAsArrayBuffer(file);
   }
   processOne(0);
