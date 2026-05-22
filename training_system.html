@@ -1355,6 +1355,7 @@ input[type=file] { display:none; }
   <div class="menu-shell">
     <div class="menu-heading">เลือกระบบที่ต้องการใช้งาน</div>
     <div class="menu-sub">เลือกเมนูด้านล่างเพื่อเข้าสู่ระบบที่ต้องการ</div>
+    <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:16px;"></div>
     <div class="menu-grid" id="menuGrid"></div>
   </div>
 </div>
@@ -2082,7 +2083,8 @@ var allRecords = [];
 var requestRows = [];
 
 window.addEventListener('DOMContentLoaded', function() {
-  loadSystems();
+  loadSystemsLocal();
+  loadSystemsFromCloud().then(function(){ renderMenuCards(); });
   addRequestRow();
   selectRole('branch');
 });
@@ -2225,6 +2227,8 @@ function showMenuView() {
   }
   document.body.classList.toggle('is-admin', isAdminMode);
   renderMenuCards();
+  // Refresh from cloud on view enter
+  loadSystemsFromCloud().then(function(){ renderMenuCards(); });
   window.scrollTo(0,0);
 }
 
@@ -2291,12 +2295,11 @@ var DEFAULT_SYSTEMS = [{
   builtIn: true
 }];
 
-function loadSystems() {
+function loadSystemsLocal() {
   try {
     var saved = localStorage.getItem('fab_systems_v1');
     if (saved) {
       SYSTEMS = JSON.parse(saved);
-      // Ensure built-in system always exists
       if (!SYSTEMS.find(function(s){ return s.id === 'food-handler'; })) {
         SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
       }
@@ -2304,8 +2307,52 @@ function loadSystems() {
   } catch(e) {}
   if (!SYSTEMS || !SYSTEMS.length) SYSTEMS = DEFAULT_SYSTEMS.slice();
 }
-function saveSystems() {
+function saveSystemsLocal() {
   try { localStorage.setItem('fab_systems_v1', JSON.stringify(SYSTEMS)); } catch(e) {}
+}
+
+function loadSystemsFromCloud() {
+  return fetch(SCRIPT_URL + '?action=systems', { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.ok && res.systems) {
+        var hasBuiltIn = res.systems.some(function(s){ return s.id === 'food-handler'; });
+        SYSTEMS = res.systems;
+        if (!hasBuiltIn) SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
+        // Ensure built-in stays at top
+        SYSTEMS.sort(function(a,b){ return (b.builtIn?1:0) - (a.builtIn?1:0); });
+        saveSystemsLocal();  // cache
+      }
+      return SYSTEMS;
+    })
+    .catch(function(err){
+      console.warn('Cloud load systems failed, using local cache', err);
+      return SYSTEMS;
+    });
+}
+
+function saveSystemsToCloud() {
+  return fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'systems-save', systems: SYSTEMS })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (!res.ok) throw new Error(res.error || 'save failed');
+    return res;
+  });
+}
+
+function setSyncStatus(text, color) {
+  var el = document.getElementById('syncStatus');
+  if (!el) return;
+  el.textContent = text || '';
+  el.style.color = color || 'var(--text3)';
+  if (text && color && /green/.test(color)) {
+    setTimeout(function(){ if (el.textContent === text) el.textContent = ''; }, 4000);
+  }
 }
 
 function todayIso() { return new Date().toISOString().slice(0,10); }
@@ -2486,9 +2533,13 @@ function saveSystemConfig() {
       endDate: ''
     });
   }
-  saveSystems();
+  saveSystemsLocal();
   renderMenuCards();
   closeSystemModal();
+  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveSystemsToCloud()
+    .then(function(){ setSyncStatus('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
+    .catch(function(err){ setSyncStatus('✗ ซิงค์ Cloud ไม่ได้: ' + err.message + ' (บันทึกในเครื่องแล้ว)', 'var(--red)'); });
 }
 
 function deleteSystem() {
@@ -2497,9 +2548,13 @@ function deleteSystem() {
   if (s && s.builtIn) { alert('ไม่สามารถลบระบบหลักของ Hub ได้'); return; }
   if (!confirm('ลบระบบ "'+(s?s.name:'')+'" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)')) return;
   SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== currentEditingSystem; });
-  saveSystems();
+  saveSystemsLocal();
   renderMenuCards();
   closeSystemModal();
+  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveSystemsToCloud()
+    .then(function(){ setSyncStatus('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
+    .catch(function(err){ setSyncStatus('✗ ซิงค์ Cloud ไม่ได้: ' + err.message, 'var(--red)'); });
 }
 
 function showWelcome(name) {
