@@ -850,22 +850,53 @@ body.is-admin .adm-only-block { display: block; }
   padding: 8px; border: 1px solid var(--border2); border-radius: 10px;
 }
 
-/* Icon upload */
-.icon-upload {
-  width: 110px; height: 110px;
-  border: 2px dashed var(--border2);
-  border-radius: 18px;
+/* Icon picker library */
+.icon-picker {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 10px;
+  margin-top: 8px;
+}
+.icon-option {
+  aspect-ratio: 1;
+  border: 2px solid var(--border);
+  border-radius: 14px;
+  background: #fff;
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  background: var(--bg3);
   transition: all 0.2s;
   overflow: hidden;
+  padding: 8px;
   position: relative;
 }
-.icon-upload:hover { border-color: var(--gold); background: rgba(255,122,26,0.05); }
-.icon-upload img { width: 86%; height: 86%; object-fit: contain; border-radius: 12px; }
-.icon-upload > div { text-align: center; padding: 8px; color: var(--text3); font-size: 11px; font-weight: 600; line-height: 1.4; }
-.icon-upload svg { width: 28px; height: 28px; margin: 0 auto 4px; display: block; color: var(--text3); }
+.icon-option img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.08)); }
+.icon-option:hover { border-color: var(--gold); transform: translateY(-2px); }
+.icon-option.selected {
+  border-color: var(--gold);
+  background: linear-gradient(135deg, #fff4ea, #fff);
+  box-shadow: 0 6px 16px rgba(255,122,26,0.25);
+}
+.icon-option.selected::after {
+  content: '✓';
+  position: absolute;
+  top: -8px; right: -8px;
+  width: 22px; height: 22px;
+  background: var(--gold);
+  color: #fff;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 800;
+  box-shadow: 0 2px 6px rgba(255,122,26,0.4);
+}
+.icon-option-upload {
+  border-style: dashed;
+  color: var(--text3);
+  background: var(--bg3);
+}
+.icon-option-upload svg { width: 24px; height: 24px; }
+@media (max-width: 640px) {
+  .icon-picker { grid-template-columns: repeat(3, 1fr); }
+}
 
 .coming-soon-tag {
   display: inline-block;
@@ -1393,25 +1424,25 @@ input[type=file] { display:none; }
       <div class="adm-section">
         <div class="adm-section-title"><svg><use href="#i-edit"/></svg> ข้อมูลระบบ</div>
 
-        <div style="display:flex;gap:18px;align-items:flex-start;">
-          <div>
-            <label class="adm-label">ไอคอนระบบ</label>
-            <label class="icon-upload" for="sysIconFile">
-              <img id="sysIconPreview" src="" alt="" style="display:none;">
-              <div id="sysIconPlaceholder">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="m21 15-5-5L5 21"/></svg>
-                <span>เลือกรูปไอคอน</span>
-              </div>
+        <div>
+          <label class="adm-label">ชื่อระบบ</label>
+          <input type="text" class="adm-input" id="sysName" placeholder="เช่น ระบบรายงานยอดขาย">
+          <label class="adm-label" style="margin-top:12px;">คำบรรยาย</label>
+          <textarea class="adm-textarea" rows="2" id="sysDesc" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
+        </div>
+        <div style="margin-top:14px;">
+          <label class="adm-label">เลือกไอคอน</label>
+          <div class="icon-picker" id="iconPicker">
+            <div class="icon-option" data-icon="icons/training.png" onclick="selectPresetIcon(this,'icons/training.png')"><img src="icons/training.png" alt="training"></div>
+            <div class="icon-option" data-icon="icons/checklist.png" onclick="selectPresetIcon(this,'icons/checklist.png')"><img src="icons/checklist.png" alt="checklist"></div>
+            <div class="icon-option" data-icon="icons/storage.png" onclick="selectPresetIcon(this,'icons/storage.png')"><img src="icons/storage.png" alt="storage"></div>
+            <div class="icon-option" data-icon="icons/billing.png" onclick="selectPresetIcon(this,'icons/billing.png')"><img src="icons/billing.png" alt="billing"></div>
+            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (เฉพาะเครื่องนี้)">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
             </label>
-            <input type="file" id="sysIconFile" accept="image/*" style="display:none" onchange="handleIconUpload(this.files[0])">
-            <button type="button" class="adm-btn-secondary" id="sysIconRemove" style="font-size:11px;padding:5px 10px;margin-top:6px;display:none;" onclick="removeIcon()">ลบรูป</button>
           </div>
-          <div style="flex:1;">
-            <label class="adm-label">ชื่อระบบ</label>
-            <input type="text" class="adm-input" id="sysName" placeholder="เช่น ระบบรายงานยอดขาย">
-            <label class="adm-label" style="margin-top:12px;">คำบรรยาย</label>
-            <textarea class="adm-textarea" rows="2" id="sysDesc" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
-          </div>
+          <input type="file" id="sysIconFile" accept="image/*" style="display:none" onchange="handleIconUpload(this.files[0])">
+          <input type="hidden" id="sysIconValue">
         </div>
       </div>
 
@@ -2524,7 +2555,8 @@ function renderMenuCards() {
     } else {
       html += '<span></span>';
     }
-    html += '<span class="menu-card-arrow">'+(isComingSoon?'<span class="emoji-3d">⏰</span>':'<span class="emoji-3d">➡️</span>')+'</span>';
+    if (!isComingSoon) html += '<span class="menu-card-arrow"><span class="emoji-3d">➡️</span></span>';
+    else html += '<span></span>';
     html += '</div>';
     html += '</div>';
   });
@@ -2580,12 +2612,28 @@ function openSystemModal(mode, systemId) {
   document.querySelectorAll('.adm-edit-only').forEach(function(el){ el.style.display = isEdit ? '' : 'none'; });
 
   var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
+  // Reset icon selection
+  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
+  document.getElementById('sysIconValue').value = '';
+  document.getElementById('sysIconFile').value = '';
   if (s) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
     document.getElementById('sysStartDate').value = s.startDate || '';
     document.getElementById('sysEndDate').value = s.endDate || '';
-    if (s.icon) showIconPreview(s.icon); else removeIcon();
+    if (s.icon) {
+      document.getElementById('sysIconValue').value = s.icon;
+      // Highlight matching preset (if any)
+      var matched = false;
+      document.querySelectorAll('#iconPicker .icon-option[data-icon]').forEach(function(o){
+        if (o.getAttribute('data-icon') === s.icon) { o.classList.add('selected'); matched = true; }
+      });
+      // If custom upload (data URL), mark upload option
+      if (!matched && /^data:/.test(s.icon)) {
+        var u = document.querySelector('#iconPicker .icon-option-upload');
+        if (u) u.classList.add('selected');
+      }
+    }
     populateBranchVisibility(s.visibleBranches || []);
     var delBtn = document.getElementById('deleteSystemBtn');
     if (delBtn) delBtn.style.display = s.builtIn ? 'none' : '';
@@ -2594,11 +2642,15 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysDesc').value = '';
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
-    removeIcon();
   }
   document.getElementById('systemModal').classList.add('show');
 }
 
+function selectPresetIcon(el, path) {
+  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
+  el.classList.add('selected');
+  document.getElementById('sysIconValue').value = path;
+}
 function handleIconUpload(file) {
   if (!file || !/^image\//.test(file.type)) { alert('กรุณาเลือกไฟล์รูปภาพ'); return; }
   if (file.size > 2 * 1024 * 1024) { alert('ไฟล์ใหญ่เกินไป (จำกัด 2 MB)'); return; }
@@ -2615,27 +2667,16 @@ function handleIconUpload(file) {
       ctx.clearRect(0, 0, size, size);
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
       var dataUrl = canvas.toDataURL('image/png');
-      showIconPreview(dataUrl);
+      document.getElementById('sysIconValue').value = dataUrl;
+      // Mark upload option as selected
+      document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
+      var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
+      if (uploadOpt) uploadOpt.classList.add('selected');
+      alert('อัปโหลดสำเร็จ — รูปนี้จะแสดงเฉพาะเครื่องนี้ (cross-device แนะนำใช้ไอคอนสำเร็จรูป)');
     };
     img.src = e.target.result;
   };
   reader.readAsDataURL(file);
-}
-function showIconPreview(dataUrl) {
-  var p = document.getElementById('sysIconPreview');
-  p.src = dataUrl; p.style.display = 'block';
-  document.getElementById('sysIconPlaceholder').style.display = 'none';
-  document.getElementById('sysIconRemove').style.display = 'inline-block';
-}
-function removeIcon() {
-  var p = document.getElementById('sysIconPreview');
-  if (p) { p.src = ''; p.style.display = 'none'; }
-  var ph = document.getElementById('sysIconPlaceholder');
-  if (ph) ph.style.display = '';
-  var rm = document.getElementById('sysIconRemove');
-  if (rm) rm.style.display = 'none';
-  var f = document.getElementById('sysIconFile');
-  if (f) f.value = '';
 }
 
 function populateBranchVisibility(selectedBranches) {
@@ -2663,8 +2704,7 @@ function saveSystemConfig() {
   var desc = document.getElementById('sysDesc').value.trim();
   var startDate = document.getElementById('sysStartDate').value;
   var endDate = document.getElementById('sysEndDate').value;
-  var iconEl = document.getElementById('sysIconPreview');
-  var icon = (iconEl && iconEl.style.display !== 'none' && iconEl.src) ? iconEl.src : '';
+  var icon = (document.getElementById('sysIconValue').value || '').trim();
 
   if (!name) { alert('กรุณากรอกชื่อระบบ'); return; }
   if (startDate && endDate && startDate > endDate) { alert('วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด'); return; }
