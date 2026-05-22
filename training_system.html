@@ -381,6 +381,12 @@ input[type=file] { display:none; }
   <button class="process-btn" id="processBtn" onclick="processMatch()" disabled>
     &#9889; จับคู่ข้อมูล
   </button>
+  <button class="export-btn-main" id="saveBtn" onclick="saveToCloud()" disabled>
+    &#128190; บันทึกขึ้น Cloud
+  </button>
+  <button class="export-btn-main" id="loadBtn" onclick="loadFromCloud()">
+    &#9729; โหลดจาก Cloud
+  </button>
   <button class="export-btn-main" id="exportBtn" onclick="exportCSV()" disabled>
     &#11015; Export CSV
   </button>
@@ -459,6 +465,9 @@ input[type=file] { display:none; }
 <!-- SheetJS -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
+/* ─────────── CONFIG ─────────── */
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
+
 /* ─────────── STATE ─────────── */
 var pdfData = null;   // [{name, course, trainDate, expireDate}]
 var empData = null;   // [{name, branch, position, sheet}]
@@ -746,6 +755,7 @@ function processMatch() {
     document.getElementById('processBtn').innerHTML = '&#9889; จับคู่ข้อมูล';
     document.getElementById('processBtn').disabled = false;
     document.getElementById('exportBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = false;
     document.getElementById('noteBar').classList.add('show');
     updateStats();
     renderTable();
@@ -839,6 +849,87 @@ function renderTable() {
       +'<td>'+getMatchBadge(d.matchType)+'</td>'
       +'</tr>';
   }).join('');
+}
+
+/* ─────────── CLOUD SYNC ─────────── */
+function saveToCloud() {
+  if (!matchData.length) { alert('ยังไม่มีข้อมูลให้บันทึก กรุณาจับคู่ข้อมูลก่อน'); return; }
+  var btn = document.getElementById('saveBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...';
+  document.getElementById('processInfo').textContent = 'กำลังบันทึก ' + matchData.length + ' รายการขึ้น Google Sheet...';
+
+  fetch(SCRIPT_URL, {
+    method: 'POST',
+    mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ records: matchData })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    btn.disabled = false;
+    btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';
+    if (res.ok) {
+      document.getElementById('processInfo').textContent = '✓ บันทึก ' + res.saved + ' รายการลง Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH');
+    } else {
+      document.getElementById('processInfo').textContent = '✗ บันทึกล้มเหลว: ' + (res.error || 'unknown');
+    }
+  })
+  .catch(function(err){
+    btn.disabled = false;
+    btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';
+    document.getElementById('processInfo').textContent = '✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message;
+  });
+}
+
+function loadFromCloud() {
+  var btn = document.getElementById('loadBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
+  document.getElementById('processInfo').textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+
+  fetch(SCRIPT_URL, { method: 'GET' })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    btn.disabled = false;
+    btn.innerHTML = '&#9729; โหลดจาก Cloud';
+    if (!res.ok) {
+      document.getElementById('processInfo').textContent = '✗ โหลดล้มเหลว: ' + (res.error || 'unknown');
+      return;
+    }
+    var records = res.records || [];
+    if (records.length === 0) {
+      document.getElementById('processInfo').textContent = 'ยังไม่มีข้อมูลใน Cloud';
+      return;
+    }
+    matchData = records.map(function(r, idx) {
+      return {
+        no: idx + 1,
+        certName: r['ชื่อในใบรับรอง'] || '',
+        course: r['หลักสูตร'] || '',
+        trainDate: r['วันอบรม'] || '',
+        expireDate: r['วันหมดอายุ'] || '',
+        expStatus: r['สถานะใบรับรอง'] || 'unknown',
+        empName: r['ชื่อในระบบ'] || '',
+        branch: r['สาขา'] || '—',
+        position: r['ตำแหน่ง'] || '—',
+        sheet: r['Sheet'] || '—',
+        matchType: r['สถานะจับคู่'] || 'notfound'
+      };
+    });
+    document.getElementById('exportBtn').disabled = false;
+    document.getElementById('saveBtn').disabled = false;
+    document.getElementById('noteBar').classList.add('show');
+    updateStats();
+    renderTable();
+    document.getElementById('processInfo').textContent = '✓ โหลด ' + records.length + ' รายการจาก Cloud · ' + new Date().toLocaleTimeString('th-TH');
+    document.getElementById('topStatus').textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
+  })
+  .catch(function(err){
+    btn.disabled = false;
+    btn.innerHTML = '&#9729; โหลดจาก Cloud';
+    document.getElementById('processInfo').textContent = '✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message;
+  });
 }
 
 function exportCSV() {
