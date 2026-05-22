@@ -476,27 +476,44 @@ body {
   color: var(--gold);
 }
 .menu-card-icon svg { width: 26px; height: 26px; }
-.menu-card-icon-emoji { font-size: 30px; background: linear-gradient(135deg, #fff4ea, #ffeede); }
+.menu-card-icon-emoji { font-size: 36px; background: transparent; width: 60px; height: 60px; }
 .menu-card-icon-add { background: rgba(255,122,26,0.08); border: 1.5px dashed rgba(255,122,26,0.35); }
+
+.menu-card-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.menu-card-expire {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 11px; font-weight: 700;
+  color: var(--orange);
+  background: rgba(245,158,11,0.12);
+  border: 1px solid rgba(245,158,11,0.25);
+  padding: 4px 10px;
+  border-radius: 999px;
+  margin-top: 4px;
+  width: fit-content;
+  font-family: 'Sarabun', sans-serif;
+}
+.menu-card-expire svg { width: 12px; height: 12px; }
 
 .menu-card-settings {
   position: absolute; top: 16px; right: 64px;
-  width: 30px; height: 30px;
-  border-radius: 50%;
-  background: rgba(15,23,42,0.05);
-  color: var(--text2);
-  border: none;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(255,122,26,0.1);
+  color: var(--gold);
+  border: 1px solid rgba(255,122,26,0.2);
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
   z-index: 5;
   transition: all 0.2s;
 }
 .menu-card-settings:hover {
-  background: rgba(255,122,26,0.15);
-  color: var(--gold);
-  transform: rotate(60deg);
+  background: var(--gold);
+  color: #fff;
+  border-color: var(--gold);
+  transform: rotate(45deg);
+  box-shadow: 0 4px 12px rgba(255,122,26,0.4);
 }
-.menu-card-settings svg { width:14px; height:14px; }
+.menu-card-settings svg { width:16px; height:16px; }
 
 /* hide admin-only elements by default; JS reveals when admin */
 .adm-only { display: none; }
@@ -1236,7 +1253,7 @@ input[type=file] { display:none; }
 <div class="adm-modal" id="systemModal">
   <div class="adm-modal-box">
     <div class="adm-modal-header">
-      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-settings"/></svg> <span id="systemModalTitle">ตั้งค่าระบบ</span> <span class="coming-soon-tag">DEMO</span></div>
+      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-settings"/></svg> <span id="systemModalTitle">ตั้งค่าระบบ</span></div>
       <button class="adm-modal-close" onclick="closeSystemModal()"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="adm-modal-body">
@@ -1292,20 +1309,20 @@ input[type=file] { display:none; }
         <div class="adm-input-group">
           <div>
             <label class="adm-label">วันที่เริ่ม</label>
-            <input type="date" class="adm-input">
+            <input type="date" class="adm-input" id="sysStartDate">
           </div>
           <div>
             <label class="adm-label">วันที่สิ้นสุด</label>
-            <input type="date" class="adm-input">
+            <input type="date" class="adm-input" id="sysEndDate">
           </div>
         </div>
       </div>
 
     </div>
     <div class="adm-modal-footer">
-      <button class="adm-btn-secondary adm-edit-only" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="alert('ฟีเจอร์ลบยังเป็น DEMO — ยังไม่ลบจริง');closeSystemModal()">ลบระบบนี้</button>
+      <button class="adm-btn-secondary adm-edit-only" id="deleteSystemBtn" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="deleteSystem()">ลบระบบนี้</button>
       <button class="adm-btn-secondary" onclick="closeSystemModal()">ยกเลิก</button>
-      <button class="adm-btn-primary" onclick="alert('ฟีเจอร์บันทึกยังเป็น DEMO — ยังไม่บันทึกจริง');closeSystemModal()">บันทึก</button>
+      <button class="adm-btn-primary" onclick="saveSystemConfig()">บันทึก</button>
     </div>
   </div>
 </div>
@@ -1338,20 +1355,7 @@ input[type=file] { display:none; }
   <div class="menu-shell">
     <div class="menu-heading">เลือกระบบที่ต้องการใช้งาน</div>
     <div class="menu-sub">เลือกเมนูด้านล่างเพื่อเข้าสู่ระบบที่ต้องการ</div>
-    <div class="menu-grid">
-      <div class="menu-card" role="button" tabindex="0" onclick="goToBranchApp()">
-        <button class="menu-card-settings adm-only" onclick="event.stopPropagation();openEditSystemModal('food-handler')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>
-        <div class="menu-card-icon menu-card-icon-emoji">📋</div>
-        <div class="menu-card-title">ฐานข้อมูล<br>ผู้สัมผัสและผู้ประกอบอาหาร</div>
-        <div class="menu-card-desc">ค้นหาข้อมูลใบรับรอง + ส่งรายชื่อขออบรม</div>
-        <span class="menu-card-arrow"><svg class="ico"><use href="#i-arrow-right"/></svg></span>
-      </div>
-      <div class="menu-card menu-card-add adm-only" role="button" tabindex="0" onclick="openAddSystemModal()">
-        <div class="menu-card-icon menu-card-icon-add"><svg><use href="#i-plus"/></svg></div>
-        <div class="menu-card-title">เพิ่มระบบใหม่</div>
-        <div class="menu-card-desc">เพิ่มลิงก์ระบบใหม่เข้าสู่ Hub</div>
-      </div>
-    </div>
+    <div class="menu-grid" id="menuGrid"></div>
   </div>
 </div>
 
@@ -2078,6 +2082,7 @@ var allRecords = [];
 var requestRows = [];
 
 window.addEventListener('DOMContentLoaded', function() {
+  loadSystems();
   addRequestRow();
   selectRole('branch');
 });
@@ -2219,6 +2224,7 @@ function showMenuView() {
     }
   }
   document.body.classList.toggle('is-admin', isAdminMode);
+  renderMenuCards();
   window.scrollTo(0,0);
 }
 
@@ -2272,14 +2278,97 @@ var EMOJI_LIST = [
   '📱','💻','🖥️','🖨️','💾','💿','📺','📷'
 ];
 var currentEditingSystem = null;
-var SYSTEMS = {
-  'food-handler': {
-    emoji: '📋',
-    name: 'ฐานข้อมูล ผู้สัมผัสและผู้ประกอบอาหาร',
-    desc: 'ค้นหาข้อมูลใบรับรอง + ส่งรายชื่อขออบรม',
-    url: ''
+var SYSTEMS = [];
+var DEFAULT_SYSTEMS = [{
+  id: 'food-handler',
+  emoji: '📋',
+  name: 'ฐานข้อมูล ผู้สัมผัสและผู้ประกอบอาหาร',
+  desc: 'ค้นหาข้อมูลใบรับรอง + ส่งรายชื่อขออบรม',
+  url: '',
+  visibleBranches: [],  // [] = visible to all
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}];
+
+function loadSystems() {
+  try {
+    var saved = localStorage.getItem('fab_systems_v1');
+    if (saved) {
+      SYSTEMS = JSON.parse(saved);
+      // Ensure built-in system always exists
+      if (!SYSTEMS.find(function(s){ return s.id === 'food-handler'; })) {
+        SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
+      }
+    }
+  } catch(e) {}
+  if (!SYSTEMS || !SYSTEMS.length) SYSTEMS = DEFAULT_SYSTEMS.slice();
+}
+function saveSystems() {
+  try { localStorage.setItem('fab_systems_v1', JSON.stringify(SYSTEMS)); } catch(e) {}
+}
+
+function todayIso() { return new Date().toISOString().slice(0,10); }
+function formatThaiDate(iso) {
+  if (!iso) return '';
+  var months = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+  var p = iso.split('-');
+  if (p.length !== 3) return iso;
+  return parseInt(p[2]) + ' ' + months[parseInt(p[1])-1] + ' ' + (parseInt(p[0]) + 543);
+}
+
+function isSystemVisibleToBranch(s, branchCode) {
+  if (s.visibleBranches && s.visibleBranches.length > 0 && s.visibleBranches.indexOf(branchCode) < 0) return false;
+  var today = todayIso();
+  if (s.startDate && today < s.startDate) return false;
+  if (s.endDate && today > s.endDate) return false;
+  return true;
+}
+
+function renderMenuCards() {
+  var grid = document.getElementById('menuGrid');
+  if (!grid) return;
+  var html = '';
+  SYSTEMS.forEach(function(s){
+    var visible = isAdminMode || isSystemVisibleToBranch(s, branchPin);
+    if (!visible) return;
+    var expired = s.endDate && todayIso() > s.endDate;
+    var notStarted = s.startDate && todayIso() < s.startDate;
+    html += '<div class="menu-card" role="button" tabindex="0" onclick="openSystem(\''+s.id+'\')">';
+    if (isAdminMode) {
+      html += '<button class="menu-card-settings" onclick="event.stopPropagation();openEditSystemModal(\''+s.id+'\')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>';
+    }
+    html += '<div class="menu-card-icon menu-card-icon-emoji">'+s.emoji+'</div>';
+    html += '<div class="menu-card-title">'+escapeHtml(s.name)+'</div>';
+    html += '<div class="menu-card-desc">'+escapeHtml(s.desc)+'</div>';
+    if (s.endDate) {
+      html += '<div class="menu-card-expire"><svg><use href="#i-calendar"/></svg>หมดเวลา '+formatThaiDate(s.endDate)+'</div>';
+    } else if (s.startDate && notStarted) {
+      html += '<div class="menu-card-expire"><svg><use href="#i-calendar"/></svg>เริ่ม '+formatThaiDate(s.startDate)+'</div>';
+    }
+    html += '<span class="menu-card-arrow"><svg class="ico"><use href="#i-arrow-right"/></svg></span>';
+    html += '</div>';
+  });
+  if (isAdminMode) {
+    html += '<div class="menu-card menu-card-add" role="button" tabindex="0" onclick="openAddSystemModal()">'
+      + '<div class="menu-card-icon menu-card-icon-add"><svg><use href="#i-plus"/></svg></div>'
+      + '<div class="menu-card-title">เพิ่มระบบใหม่</div>'
+      + '<div class="menu-card-desc">เพิ่มลิงก์ระบบใหม่เข้าสู่ Hub</div>'
+      + '</div>';
   }
-};
+  if (!html) html = '<div class="empty-state" style="grid-column:1/-1;background:rgba(255,255,255,0.7);border-radius:18px;padding:60px 20px;">ยังไม่มีระบบที่ใช้งานได้สำหรับสาขานี้</div>';
+  grid.innerHTML = html;
+}
+
+function openSystem(systemId) {
+  var s = SYSTEMS.find(function(x){ return x.id === systemId; });
+  if (!s) return;
+  if (s.url) { window.open(s.url, '_blank'); return; }
+  // Internal route
+  if (systemId === 'food-handler') {
+    goToBranchApp();
+  }
+}
 
 function renderEmojiPicker() {
   var picker = document.getElementById('emojiPicker');
@@ -2301,19 +2390,22 @@ function openSystemModal(mode, systemId) {
   document.getElementById('systemModalTitle').textContent = isEdit ? 'ตั้งค่าระบบ' : 'เพิ่มระบบใหม่';
   document.querySelectorAll('.adm-edit-only').forEach(function(el){ el.style.display = isEdit ? '' : 'none'; });
 
-  if (isEdit && SYSTEMS[systemId]) {
-    var s = SYSTEMS[systemId];
+  var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
+  if (s) {
     document.getElementById('sysEmojiPreview').textContent = s.emoji;
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
-    document.getElementById('sysUrl').value = s.url;
-    // highlight current emoji in picker
+    document.getElementById('sysUrl').value = s.url || '';
+    document.getElementById('sysStartDate').value = s.startDate || '';
+    document.getElementById('sysEndDate').value = s.endDate || '';
     setTimeout(function(){
       document.querySelectorAll('#emojiPicker .emoji-btn').forEach(function(b){
         if (b.textContent === s.emoji) b.classList.add('selected');
       });
     }, 50);
-    populateBranchVisibility();
+    populateBranchVisibility(s.visibleBranches || []);
+    var delBtn = document.getElementById('deleteSystemBtn');
+    if (delBtn) delBtn.style.display = s.builtIn ? 'none' : '';
   } else {
     document.getElementById('sysEmojiPreview').textContent = '📋';
     document.getElementById('sysName').value = '';
@@ -2323,12 +2415,15 @@ function openSystemModal(mode, systemId) {
   document.getElementById('systemModal').classList.add('show');
 }
 
-function populateBranchVisibility() {
+function populateBranchVisibility(selectedBranches) {
+  selectedBranches = selectedBranches || [];
   var tbody = document.getElementById('settingsBranchTbody');
   if (!tbody) return;
+  var allChecked = selectedBranches.length === 0;
   var html = '';
   Object.keys(BRANCHES).forEach(function(code){
-    html += '<tr><td style="font-weight:700;color:var(--gold);font-size:12px;">'+code+'</td><td>'+BRANCHES[code]+'</td><td style="text-align:center;"><input type="checkbox" class="adm-checkbox branch-vis-chk" checked></td></tr>';
+    var checked = allChecked || selectedBranches.indexOf(code) >= 0;
+    html += '<tr><td style="font-weight:700;color:var(--gold);font-size:12px;">'+code+'</td><td>'+BRANCHES[code]+'</td><td style="text-align:center;"><input type="checkbox" class="adm-checkbox branch-vis-chk" data-code="'+code+'"'+(checked?' checked':'')+'></td></tr>';
   });
   tbody.innerHTML = html;
 }
@@ -2339,6 +2434,73 @@ function toggleAllBranches(checked) {
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
+
+function saveSystemConfig() {
+  var emoji = document.getElementById('sysEmojiPreview').textContent.trim() || '📋';
+  var name = document.getElementById('sysName').value.trim();
+  var desc = document.getElementById('sysDesc').value.trim();
+  var url = document.getElementById('sysUrl').value.trim();
+  var startDate = document.getElementById('sysStartDate').value;
+  var endDate = document.getElementById('sysEndDate').value;
+
+  if (!name) { alert('กรุณากรอกชื่อระบบ'); return; }
+  if (startDate && endDate && startDate > endDate) { alert('วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด'); return; }
+
+  var visibleBranches = [];
+  var anyChecked = false, allChecked = true;
+  var chks = document.querySelectorAll('.branch-vis-chk');
+  chks.forEach(function(c){
+    if (c.checked) { visibleBranches.push(c.getAttribute('data-code')); anyChecked = true; }
+    else allChecked = false;
+  });
+  if (chks.length > 0 && allChecked) visibleBranches = [];  // [] = visible to all
+  if (chks.length > 0 && !anyChecked && currentEditingSystem) {
+    if (!confirm('ยังไม่ได้เลือกสาขาใดเลย จะไม่มีสาขาเห็นระบบนี้ ยืนยัน?')) return;
+  }
+
+  if (currentEditingSystem) {
+    var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
+    if (idx >= 0) {
+      var existing = SYSTEMS[idx];
+      SYSTEMS[idx] = {
+        id: existing.id,
+        emoji: emoji,
+        name: name,
+        desc: desc,
+        url: url,
+        visibleBranches: visibleBranches,
+        startDate: startDate,
+        endDate: endDate,
+        builtIn: existing.builtIn || false
+      };
+    }
+  } else {
+    SYSTEMS.push({
+      id: 'sys-' + Date.now(),
+      emoji: emoji,
+      name: name,
+      desc: desc,
+      url: url,
+      visibleBranches: [],
+      startDate: '',
+      endDate: ''
+    });
+  }
+  saveSystems();
+  renderMenuCards();
+  closeSystemModal();
+}
+
+function deleteSystem() {
+  if (!currentEditingSystem) return;
+  var s = SYSTEMS.find(function(x){ return x.id === currentEditingSystem; });
+  if (s && s.builtIn) { alert('ไม่สามารถลบระบบหลักของ Hub ได้'); return; }
+  if (!confirm('ลบระบบ "'+(s?s.name:'')+'" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)')) return;
+  SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== currentEditingSystem; });
+  saveSystems();
+  renderMenuCards();
+  closeSystemModal();
+}
 
 function showWelcome(name) {
   document.getElementById('welcomeBranch').textContent = name;
