@@ -514,6 +514,30 @@ body {
 }
 .menu-card:hover::before { opacity: 1; }
 
+/* ─── Featured card (food-handler) — minimal, no animation ─── */
+.menu-card-featured {
+  border-color: rgba(16,185,129,0.4) !important;
+}
+
+/* "เปิดใช้งาน" badge — bottom-right of footer (no overlap) */
+.menu-card-badge {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 11px 4px 9px;
+  background: rgba(16,185,129,0.08);
+  color: var(--green);
+  font-size: 11.5px;
+  font-weight: 700;
+  font-family: 'Sarabun', sans-serif;
+  border: 1px solid rgba(16,185,129,0.35);
+  border-radius: 999px;
+  letter-spacing: 0.2px;
+}
+.mcb-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+}
+
 .menu-card-top { display: flex; align-items: flex-start; gap: 14px; flex: 1; }
 .menu-card-icon {
   width: 64px; height: 64px;
@@ -2588,7 +2612,8 @@ function renderMenuCards() {
     var clickHandler = isComingSoon
       ? 'event.stopPropagation();showComingSoon(\''+s.id+'\')'
       : 'openSystem(\''+s.id+'\')';
-    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+'" role="button" tabindex="0" onclick="'+clickHandler+'">';
+    var featuredClass = (s.id === 'food-handler' && !isComingSoon) ? ' menu-card-featured' : '';
+    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+'" role="button" tabindex="0" onclick="'+clickHandler+'">';
     html += '<div class="menu-card-top">';
     html += iconHtml;
     html += '<div class="menu-card-body">';
@@ -2600,16 +2625,22 @@ function renderMenuCards() {
     }
     html += '</div>';
     html += '<div class="menu-card-foot">';
+    // LEFT: status badge (food-handler only) or coming-soon
     if (isComingSoon) {
       html += '<span class="coming-soon-badge">เร็วๆ นี้</span>';
-    } else if (s.endDate) {
+    } else if (s.id === 'food-handler') {
+      html += '<span class="menu-card-badge"><span class="mcb-dot"></span> เปิดใช้งาน</span>';
+    } else {
+      html += '<span></span>';
+    }
+    // RIGHT: date
+    if (!isComingSoon && s.endDate) {
       html += '<span class="menu-card-expire"><span class="emoji-3d">📅</span> ปิดรับคำตอบ '+formatThaiDate(s.endDate)+'</span>';
-    } else if (s.startDate && notStarted) {
+    } else if (!isComingSoon && s.startDate && notStarted) {
       html += '<span class="menu-card-expire"><span class="emoji-3d">📅</span> เริ่ม '+formatThaiDate(s.startDate)+'</span>';
     } else {
       html += '<span></span>';
     }
-    html += '<span></span>';
     html += '</div>';
     html += '</div>';
   });
