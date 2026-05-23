@@ -2553,15 +2553,16 @@ function loadSystemsFromCloud() {
   return fetch(SCRIPT_URL + '?action=systems&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
-      if (res.ok && res.systems) {
-        // Cloud is authoritative — use as-is, no local preservation
-        var hasBuiltIn = res.systems.some(function(s){ return s.id === 'food-handler'; });
-        SYSTEMS = res.systems.slice();
+      // Accept both: array directly, OR { ok, systems }
+      var systems = Array.isArray(res) ? res : (res && res.ok && res.systems ? res.systems : null);
+      if (systems) {
+        var hasBuiltIn = systems.some(function(s){ return s.id === 'food-handler'; });
+        SYSTEMS = systems.slice();
         if (!hasBuiltIn) SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
         SYSTEMS.sort(function(a,b){ return (b.builtIn?1:0) - (a.builtIn?1:0); });
         SYSTEMS.forEach(normalizeSystem);
         saveSystemsLocal();
-        renderMenuCards(); // force re-render with fresh cloud data
+        renderMenuCards();
       }
       return SYSTEMS;
     })
@@ -2606,12 +2607,13 @@ function loadAnnouncementsFromCloud() {
   return fetch(SCRIPT_URL + '?action=announcements&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
-      if (res.ok && res.announcements) {
-        ANNOUNCEMENTS = res.announcements;
+      // Accept both: array directly, OR { ok, announcements }
+      var anns = Array.isArray(res) ? res : (res && res.ok && res.announcements ? res.announcements : null);
+      if (anns) {
+        ANNOUNCEMENTS = anns;
         ANNOUNCEMENTS.forEach(normalizeAnnouncement);
         saveAnnouncementsLocal();
       }
-      // Always update the "ดูประกาศ" button visibility
       updateAnnounceBtnVisibility();
       return ANNOUNCEMENTS;
     })

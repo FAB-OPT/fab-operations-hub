@@ -5148,106 +5148,109 @@ function exportTrainingForm() {
       });
     }
 
-    // Process groups sequentially (async ExcelJS load)
+    // Build ONE Excel file with multiple sheets (one sheet per session-page)
     var keys = Object.keys(groups);
-    var fileCount = 0;
+    var outWb = new ExcelJS.Workbook();
+    var firstLoad = true;
 
-    function processGroup(gIdx) {
-      if (gIdx >= keys.length) {
-        if (btn) {
-          btn.disabled = false;
-          btn.innerHTML = '✓ ส่งออก ' + fileCount + ' ไฟล์';
-          setTimeout(function(){ if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }, 2500);
-        }
-        return;
-      }
-      var g = groups[keys[gIdx]];
-      var sch = COURSE_SCHEDULES[g.course];
-      var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
-      var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
-      var totalPages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
-
-      // Build ONE workbook per session. Load template, fill page 1.
-      // For additional pages, load fresh template, copy sheet into our workbook.
-      var outWb = new ExcelJS.Workbook();
-      outWb.xlsx.load(ab).then(function(){
-        var tplSheet = outWb.worksheets[0];
-        var origName = tplSheet.name;
-
-        // Fill page 1
-        var chunk1 = g.rows.slice(0, ROWS_PER_PAGE);
-        fillWorksheet(tplSheet, g, roundNum, fullDate, chunk1);
-        if (totalPages > 1) tplSheet.name = 'หน้า 1';
-
-        // For pages 2+, load template fresh and duplicate
-        var pagePromises = [];
-        for (var p = 1; p < totalPages; p++) {
-          (function(pageIdx){
-            var freshWb = new ExcelJS.Workbook();
-            pagePromises.push(freshWb.xlsx.load(ab).then(function(){
-              var freshSheet = freshWb.worksheets[0];
-              var chunk = g.rows.slice(pageIdx * ROWS_PER_PAGE, (pageIdx + 1) * ROWS_PER_PAGE);
-              fillWorksheet(freshSheet, g, roundNum, fullDate, chunk);
-              // Add the filled sheet to outWb by copying via model
-              var modelJson = freshSheet.model;
-              modelJson.name = 'หน้า ' + (pageIdx + 1);
-              var newSheet = outWb.addWorksheet(modelJson.name);
-              // Copy properties, columns, merges, rows, cells (with styles, images)
-              if (freshSheet._merges) {
-                Object.keys(freshSheet._merges).forEach(function(rng){
-                  try { newSheet.mergeCells(rng); } catch(e){}
-                });
-              }
-              // Copy columns widths
-              freshSheet.columns.forEach(function(col, ci){
-                if (col && col.width) newSheet.getColumn(ci+1).width = col.width;
-              });
-              // Copy rows + cells with styles
-              freshSheet.eachRow({ includeEmpty: true }, function(row, rn){
-                var nr = newSheet.getRow(rn);
-                if (row.height) nr.height = row.height;
-                row.eachCell({ includeEmpty: true }, function(cell, cn){
-                  var nc = nr.getCell(cn);
-                  nc.value = cell.value;
-                  if (cell.style) nc.style = JSON.parse(JSON.stringify(cell.style));
-                });
-              });
-              // Copy images (logo)
-              try {
-                var imgs = freshSheet.getImages();
-                imgs.forEach(function(img){
-                  var imgData = freshWb.getImage(img.imageId);
-                  if (imgData) {
-                    var newImgId = outWb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
-                    newSheet.addImage(newImgId, img.range);
-                  }
-                });
-              } catch(e){ /* images may not be present */ }
-            }));
-          })(p);
-        }
-
-        Promise.all(pagePromises).then(function(){
-          outWb.xlsx.writeBuffer().then(function(buf){
-            var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
-            var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + '.xlsx';
-            var a = document.createElement('a');
-            a.href = URL.createObjectURL(blob);
-            a.download = filename;
-            document.body.appendChild(a); a.click(); document.body.removeChild(a);
-            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
-            fileCount++;
-            processGroup(gIdx + 1);
+    function copyTemplateSheetInto(targetWb, sheetName) {
+      // Load template fresh into a temp workbook, then copy the only sheet into targetWb
+      var tmpWb = new ExcelJS.Workbook();
+      return tmpWb.xlsx.load(ab).then(function(){
+        var src = tmpWb.worksheets[0];
+        var dst = targetWb.addWorksheet(sheetName, {
+          properties: src.properties,
+          pageSetup: src.pageSetup
+        });
+        // Columns
+        if (src.columns) src.columns.forEach(function(col, ci){
+          if (col && col.width) dst.getColumn(ci+1).width = col.width;
+        });
+        // Rows + cells with styles
+        src.eachRow({ includeEmpty: true }, function(row, rn){
+          var dr = dst.getRow(rn);
+          if (row.height) dr.height = row.height;
+          row.eachCell({ includeEmpty: true }, function(cell, cn){
+            var dc = dr.getCell(cn);
+            dc.value = cell.value;
+            if (cell.style) dc.style = JSON.parse(JSON.stringify(cell.style));
           });
         });
+        // Merges
+        if (src.model && src.model.merges) {
+          src.model.merges.forEach(function(rng){
+            try { dst.mergeCells(rng); } catch(e){}
+          });
+        }
+        // Images (logo)
+        try {
+          var imgs = src.getImages();
+          imgs.forEach(function(img){
+            var imgData = tmpWb.getImage(img.imageId);
+            if (imgData) {
+              var newImgId = targetWb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
+              dst.addImage(newImgId, img.range);
+            }
+          });
+        } catch(e){}
+        return dst;
+      });
+    }
+
+    function safeSheetName(s){
+      return String(s).replace(/[\\\/:\*\?\[\]]/g, '').slice(0, 31);
+    }
+
+    function processSheet(idx) {
+      // idx points to a flat list of (group, page) tuples
+      var tuples = [];
+      keys.forEach(function(k){
+        var g = groups[k];
+        var pages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
+        for (var p = 0; p < pages; p++) tuples.push({ g: g, page: p, pages: pages });
+      });
+      if (idx >= tuples.length) {
+        // All sheets added — write file
+        outWb.xlsx.writeBuffer().then(function(buf){
+          var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          var filename = 'ฟอร์มอบรม_' + new Date().toISOString().slice(0,10) + '.xlsx';
+          var a = document.createElement('a');
+          a.href = URL.createObjectURL(blob);
+          a.download = filename;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+          if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = '✓ ส่งออกสำเร็จ';
+            setTimeout(function(){ if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }, 2500);
+          }
+        });
+        return;
+      }
+      var t = tuples[idx];
+      var g = t.g;
+      var sch = COURSE_SCHEDULES[g.course];
+      // Use group index for round
+      var gIdx = keys.indexOf(Object.keys(groups).find(function(k){ return groups[k] === g; }));
+      var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
+      var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
+      var chunk = g.rows.slice(t.page * ROWS_PER_PAGE, (t.page + 1) * ROWS_PER_PAGE);
+
+      var courseShort = (g.course.indexOf('ผู้สัมผัส') >= 0) ? 'ผู้สัมผัส'
+                      : (g.course.indexOf('ผู้ประกอบ') >= 0) ? 'ผู้ประกอบ'
+                      : g.course.slice(0, 10);
+      var sheetName = safeSheetName(courseShort + ' ' + g.slot + (t.pages > 1 ? ' หน้า' + (t.page + 1) : ''));
+
+      copyTemplateSheetInto(outWb, sheetName).then(function(ws){
+        fillWorksheet(ws, g, roundNum, fullDate, chunk);
+        processSheet(idx + 1);
       }).catch(function(err){
-        alert('Export ผิดพลาด (group '+(gIdx+1)+'): ' + err.message);
+        alert('Export ผิดพลาด: ' + err.message);
         if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
       });
     }
 
-    processGroup(0);
+    processSheet(0);
   })
   .catch(function(err){
     alert('Export ผิดพลาด: ' + err.message);
