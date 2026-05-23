@@ -2523,6 +2523,26 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   body { padding-bottom: 72px; }
 }
 
+/* ─── Delete request button (admin) ─── */
+.btn-del-req {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(239,68,68,0.08);
+  border: 1px solid rgba(239,68,68,0.25);
+  color: var(--red);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.btn-del-req:hover {
+  background: var(--red);
+  color: #fff;
+  border-color: var(--red);
+  box-shadow: 0 4px 12px rgba(239,68,68,0.3);
+  transform: scale(1.08);
+}
+
 /* ─── Delete row button (admin table) ─── */
 .btn-del-row {
   width: 32px; height: 32px;
@@ -3187,6 +3207,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <div class="subsection-title" style="margin-bottom:0">คำขออบรม (ทุกสาขา)</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn-export-form btn-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄</button>
+    <button class="btn-export-form btn-refresh" onclick="clearServerCache()" title="ล้าง cache Apps Script (กรณีข้อมูลค้าง)" style="color:var(--red)!important;border-color:rgba(239,68,68,0.3)!important;">🗑 Cache</button>
     <button class="btn-export-form" onclick="exportTrainingForm()">📥 .xlsx</button>
     <button class="btn-export-form btn-export-pdf" onclick="exportTrainingPDF()">📄 PDF</button>
   </div>
@@ -3207,6 +3228,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
           <th>รอบ</th>
           <th>วันที่ส่ง</th>
           <th>หมายเหตุ</th>
+          <th>ลบ</th>
         </tr>
       </thead>
       <tbody id="adminReqBody"></tbody>
@@ -4930,7 +4952,7 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
       if (rows.length === 0) {
         info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
         if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
-        body.innerHTML = '<tr><td colspan="'+(isAdmin?10:7)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
+        body.innerHTML = '<tr><td colspan="'+(isAdmin?11:7)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
         return;
       }
       info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
@@ -4954,6 +4976,9 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var tsFmt = ts ? formatThaiDateTime(ts) : '—';
         if (isAdmin) {
           var empId = r.empId || r['รหัสพนักงาน'] || '';
+          var rowIdx = r._rowIndex || r.rowIndex || '';
+          var tsRaw = r.timestamp || r['วันที่ส่ง'] || '';
+          var keyData = encodeURIComponent(JSON.stringify({ rowIndex: rowIdx, timestamp: String(tsRaw), name: name, idCard: idCard }));
           return '<tr>'
             +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(name)+'</td>'
             +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(empId)+'</td>'
@@ -4965,6 +4990,7 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
             +'<td data-label="รอบ" data-icon="🕐">'+escapeHtml(slot)+'</td>'
             +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(tsFmt)+'</td>'
             +'<td data-label="หมายเหตุ" data-icon="📝">'+escapeHtml(note||'-')+'</td>'
+            +'<td data-label="ลบ" data-icon="🗑"><button class="btn-del-req" onclick="deleteRequest(\''+keyData+'\')" title="ลบรายการนี้">🗑</button></td>'
             +'</tr>';
         }
         var empIdS = r.empId || r['รหัสพนักงาน'] || '';
@@ -4989,6 +5015,61 @@ function loadMyRequests() {
 }
 function loadAdminRequests() {
   loadRequests('', 'adminReqInfo', 'adminReqBody', true);
+}
+
+/* Delete a single request (admin only) — row hides immediately on success */
+function deleteRequest(keyDataStr) {
+  var keyData;
+  try { keyData = JSON.parse(decodeURIComponent(keyDataStr)); } catch(e) { return; }
+  if (!confirm('ลบรายการของ "'+(keyData.name||'')+'" ใช่หรือไม่?')) return;
+  // Find the button + its parent <tr> for instant hide on success
+  var btn = event && event.target;
+  var tr = btn && btn.closest ? btn.closest('tr') : null;
+  if (btn) btn.disabled = true;
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'delete-request', key: keyData })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res.ok) {
+        // Hide row immediately with fade-out
+        if (tr) {
+          tr.style.transition = 'opacity 0.25s, transform 0.25s';
+          tr.style.opacity = '0';
+          tr.style.transform = 'translateX(-20px)';
+          setTimeout(function(){ if (tr.parentNode) tr.parentNode.removeChild(tr); }, 250);
+        }
+        // Background refresh from server (no loading overlay)
+        setTimeout(loadAdminRequests, 600);
+      } else {
+        if (btn) btn.disabled = false;
+        alert('ลบไม่สำเร็จ: ' + (res.error || 'unknown'));
+      }
+    })
+    .catch(function(err){
+      if (btn) btn.disabled = false;
+      alert('ลบไม่สำเร็จ: ' + err.message);
+    });
+}
+
+/* Admin: force clear server-side cache */
+function clearServerCache() {
+  if (!confirm('ล้าง cache ของ Apps Script? (จะดึงข้อมูลใหม่จาก Sheet)')) return;
+  showLoadingOverlay('กำลังล้าง cache...', '');
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'clear-cache' })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(){
+      hideLoadingOverlay();
+      loadAdminRequests();
+      loadFromCloud();
+    })
+    .catch(function(err){ hideLoadingOverlay(); alert('ล้างไม่สำเร็จ: ' + err.message); });
 }
 
 /* ─── Realtime auto-refresh
