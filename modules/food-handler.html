@@ -5108,67 +5108,97 @@ function exportTrainingForm() {
 
     var ROWS_PER_FILE = 25;
     var fileCount = 0;
+
+    function fillSheet(ws, g, roundNum, fullDate, chunkRows) {
+      function setCell(addr, val) {
+        if (ws[addr]) ws[addr].v = val;
+        else ws[addr] = { v: val, t: 's' };
+      }
+      function fillDots(addr, values) {
+        if (!ws[addr] || !ws[addr].v) return;
+        var i = 0;
+        ws[addr].v = String(ws[addr].v).replace(/\.{4,}/g, function(match){
+          var v = (values[i++] || '');
+          var s = String(v);
+          if (s.length < match.length) s = s + ' '.repeat(Math.max(0, match.length - s.length));
+          return s;
+        });
+      }
+      fillDots('A4', [g.course, roundNum]);
+      fillDots('A5', [fullDate, fullDate, '']);
+      fillDots('A6', [g.slot + ' น.']);
+      chunkRows.forEach(function(r, idx){
+        var rowNum = 9 + idx;
+        if (rowNum > 33) return;
+        var name = r.name || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
+        var pos = r.position || r['ตำแหน่ง'] || '';
+        var idCard = r.idCard || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
+        var branch = r.branch || r['สาขา'] || '';
+        var empId = r.empId || r['รหัสพนักงาน'] || '';
+        setCell('B' + rowNum, String(empId));
+        if (ws['B' + rowNum]) ws['B' + rowNum].t = 's';
+        setCell('C' + rowNum, name);
+        setCell('D' + rowNum, pos);
+        setCell('E' + rowNum, String(idCard));
+        if (ws['E' + rowNum]) ws['E' + rowNum].t = 's';
+        setCell('F' + rowNum, branch);
+      });
+    }
+
     Object.keys(groups).forEach(function(key, gIdx){
       var g = groups[key];
       var sch = COURSE_SCHEDULES[g.course];
       var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
       var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
 
-      // Split rows into chunks of 25 (one xlsx file per chunk)
       var totalPages = Math.ceil(g.rows.length / ROWS_PER_FILE) || 1;
+
+      // ★ Build ONE workbook with multiple sheets (one sheet per 25 rows)
+      var outWb = null;
       for (var page = 0; page < totalPages; page++) {
         var chunkRows = g.rows.slice(page * ROWS_PER_FILE, (page + 1) * ROWS_PER_FILE);
-        var wb = XLSX.read(ab, { type: 'array', cellStyles: true });
-        var sn = wb.SheetNames[0];
-        var ws = wb.Sheets[sn];
+        // Load template fresh
+        var tplWb = XLSX.read(ab, { type: 'array', cellStyles: true });
+        var tplSheetName = tplWb.SheetNames[0];
+        var ws = tplWb.Sheets[tplSheetName];
 
-        function setCell(addr, val) {
-          if (ws[addr]) ws[addr].v = val;
-          else ws[addr] = { v: val, t: 's' };
+        fillSheet(ws, g, roundNum, fullDate, chunkRows);
+
+        if (page === 0) {
+          // Use the first workbook as the base
+          outWb = tplWb;
+          var newName = totalPages > 1 ? 'หน้า 1' : tplSheetName;
+          if (totalPages > 1) {
+            // Rename first sheet to "หน้า 1"
+            outWb.Sheets[newName] = ws;
+            delete outWb.Sheets[tplSheetName];
+            outWb.SheetNames[0] = newName;
+          }
+        } else {
+          // Append additional sheet (with template formatting)
+          var sheetName = 'หน้า ' + (page + 1);
+          outWb.Sheets[sheetName] = ws;
+          outWb.SheetNames.push(sheetName);
+          // Copy column widths and merged cells from template (per-sheet props)
+          if (tplWb.Sheets[tplSheetName] && tplWb.Sheets[tplSheetName]['!cols']) {
+            outWb.Sheets[sheetName]['!cols'] = tplWb.Sheets[tplSheetName]['!cols'];
+          }
+          if (tplWb.Sheets[tplSheetName] && tplWb.Sheets[tplSheetName]['!merges']) {
+            outWb.Sheets[sheetName]['!merges'] = tplWb.Sheets[tplSheetName]['!merges'];
+          }
         }
-        function fillDots(addr, values) {
-          if (!ws[addr] || !ws[addr].v) return;
-          var i = 0;
-          ws[addr].v = String(ws[addr].v).replace(/\.{4,}/g, function(match){
-            var v = (values[i++] || '');
-            var s = String(v);
-            if (s.length < match.length) s = s + ' '.repeat(Math.max(0, match.length - s.length));
-            return s;
-          });
-        }
-        fillDots('A4', [g.course, roundNum]);
-        fillDots('A5', [fullDate, fullDate, '']);
-        fillDots('A6', [g.slot + ' น.']);
-
-        chunkRows.forEach(function(r, idx){
-          var rowNum = 9 + idx;
-          if (rowNum > 33) return;
-          var name = r.name || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
-          var pos = r.position || r['ตำแหน่ง'] || '';
-          var idCard = r.idCard || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
-          var branch = r.branch || r['สาขา'] || '';
-          var empId = r.empId || r['รหัสพนักงาน'] || '';
-          setCell('B' + rowNum, String(empId));
-          if (ws['B' + rowNum]) ws['B' + rowNum].t = 's';
-          setCell('C' + rowNum, name);
-          setCell('D' + rowNum, pos);
-          setCell('E' + rowNum, String(idCard));
-          if (ws['E' + rowNum]) ws['E' + rowNum].t = 's';
-          setCell('F' + rowNum, branch);
-        });
-
-        var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-        var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
-        var pageSuffix = totalPages > 1 ? '_หน้า' + (page + 1) + '_จาก' + totalPages : '';
-        var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + pageSuffix + '.xlsx';
-        var a = document.createElement('a');
-        a.href = URL.createObjectURL(blob);
-        a.download = filename;
-        document.body.appendChild(a); a.click(); document.body.removeChild(a);
-        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
-        fileCount++;
       }
+
+      var out = XLSX.write(outWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+      var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
+      var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + '.xlsx';
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+      fileCount++;
     });
 
     if (btn) {
