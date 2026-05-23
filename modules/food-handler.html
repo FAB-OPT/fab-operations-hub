@@ -2295,6 +2295,97 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   transform: rotate(15deg);
 }
 
+/* ─── Edit Request Modal ─── */
+.edit-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 2500;
+  padding: 20px;
+}
+.edit-overlay.show { display: flex; animation: fadeIn 0.2s; }
+.edit-box {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 720px;
+  max-height: 90vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 30px 80px rgba(15,23,42,0.3);
+  animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.edit-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+}
+.edit-title { font-size: 18px; font-weight: 800; color: var(--text); }
+.edit-close {
+  width: 32px; height: 32px;
+  border-radius: 10px; border: none;
+  background: var(--bg3); color: var(--text2);
+  cursor: pointer; font-size: 16px;
+}
+.edit-close:hover { background: rgba(239,68,68,0.1); color: var(--red); }
+.edit-body { padding: 18px 22px; overflow-y: auto; flex: 1; }
+.edit-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+.edit-field { display: flex; flex-direction: column; gap: 5px; }
+.edit-field.edit-field-full { grid-column: span 2; }
+.edit-field label {
+  font-size: 12.5px; font-weight: 700; color: var(--text);
+  display: flex; align-items: center; gap: 4px;
+}
+.edit-field input, .edit-field select {
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  background: #fff;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  color: var(--text);
+  outline: none;
+  transition: all 0.15s;
+}
+.edit-field input:focus, .edit-field select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(234,88,12,0.1);
+}
+.edit-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 22px;
+  border-top: 1px solid rgba(15,23,42,0.08);
+}
+@media (max-width: 700px) {
+  .edit-grid { grid-template-columns: 1fr; }
+  .edit-field.edit-field-full { grid-column: span 1; }
+  .edit-overlay { padding: 0; align-items: flex-end; }
+  .edit-box { border-radius: 20px 20px 0 0; max-height: 92vh; }
+}
+
+/* ─── Edit/Delete combo cell ─── */
+.td-actions { white-space: nowrap; text-align: center; }
+.td-actions button { margin: 0 2px; }
+.btn-edit-req {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: rgba(234,88,12,0.08);
+  border: 1px solid rgba(234,88,12,0.25);
+  color: var(--gold);
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.15s;
+}
+.btn-edit-req:hover {
+  background: var(--gold);
+  color: #fff;
+  border-color: var(--gold);
+  box-shadow: 0 4px 12px rgba(234,88,12,0.3);
+  transform: scale(1.08);
+}
+
 /* ─── Custom Confirm Dialog ─── */
 .confirm-overlay {
   position: fixed; inset: 0;
@@ -3316,7 +3407,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
           <th>รอบ</th>
           <th>วันที่ส่ง</th>
           <th>หมายเหตุ</th>
-          <th>ลบ</th>
+          <th>จัดการ</th>
         </tr>
       </thead>
       <tbody id="adminReqBody"></tbody>
@@ -3356,6 +3447,37 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
+
+<!-- ═════════════════════ EDIT REQUEST MODAL ═════════════════════ -->
+<div class="edit-overlay" id="editRequestModal">
+  <div class="edit-box">
+    <div class="edit-header">
+      <div class="edit-title">✏️ แก้ไขรายการ</div>
+      <button class="edit-close" onclick="closeEditRequest()">✕</button>
+    </div>
+    <div class="edit-body">
+      <div class="edit-grid">
+        <div class="edit-field"><label>ชื่อ-นามสกุล <span class="req-mark">*</span></label><input id="edt-name" type="text"></div>
+        <div class="edit-field"><label>รหัสพนักงาน</label><input id="edt-empId" type="text"></div>
+        <div class="edit-field"><label>เลขบัตรประชาชน <span class="req-mark">*</span></label><input id="edt-idCard" type="text" maxlength="13"></div>
+        <div class="edit-field"><label>ตำแหน่ง</label><input id="edt-position" type="text"></div>
+        <div class="edit-field"><label>สาขา</label><input id="edt-branch" type="text"></div>
+        <div class="edit-field"><label>หลักสูตร</label>
+          <select id="edt-course"><option value="">-- เลือก --</option></select>
+        </div>
+        <div class="edit-field"><label>วันอบรม</label><input id="edt-trainDate" type="text" readonly style="background:#f1f5f9;color:var(--text2)"></div>
+        <div class="edit-field"><label>รอบ</label>
+          <select id="edt-timeSlot"><option value="">-- เลือก --</option></select>
+        </div>
+        <div class="edit-field edit-field-full"><label>หมายเหตุ</label><input id="edt-note" type="text"></div>
+      </div>
+    </div>
+    <div class="edit-footer">
+      <button class="summary-btn-cancel" onclick="closeEditRequest()">ยกเลิก</button>
+      <button class="summary-btn-confirm" onclick="saveEditRequest()">💾 บันทึก</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═════════════════════ CUSTOM CONFIRM DIALOG ═════════════════════ -->
 <div class="confirm-overlay" id="confirmModal">
@@ -5064,11 +5186,13 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
       if (rows.length === 0) {
         info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
         if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
+        if (isAdmin) _adminRowCache = [];
         body.innerHTML = '<tr><td colspan="'+(isAdmin?11:7)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
         return;
       }
       info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
       if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
+      if (isAdmin) _adminRowCache = rows;
       // Sort newest first
       rows.sort(function(a,b){
         var ta = a['timestamp'] || a['วันที่ส่ง'] || '';
@@ -5102,7 +5226,10 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
             +'<td data-label="รอบ" data-icon="🕐">'+escapeHtml(slot)+'</td>'
             +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(tsFmt)+'</td>'
             +'<td data-label="หมายเหตุ" data-icon="📝">'+escapeHtml(note||'-')+'</td>'
-            +'<td data-label="ลบ" data-icon="🗑"><button class="btn-del-req" onclick="deleteRequest(\''+keyData+'\')" title="ลบรายการนี้">🗑</button></td>'
+            +'<td data-label="แก้ไข" data-icon="✏️" class="td-actions">'
+            +   '<button class="btn-edit-req" onclick="openEditRequest(\''+keyData+'\', '+rowIdx+')" title="แก้ไข">✏️</button>'
+            +   '<button class="btn-del-req" onclick="deleteRequest(\''+keyData+'\')" title="ลบ">🗑</button>'
+            +'</td>'
             +'</tr>';
         }
         var empIdS = r.empId || r['รหัสพนักงาน'] || '';
@@ -5127,6 +5254,103 @@ function loadMyRequests() {
 }
 function loadAdminRequests() {
   loadRequests('', 'adminReqInfo', 'adminReqBody', true);
+}
+
+/* ─── Edit request (admin only) ─── */
+var _editingKey = null;
+var _adminRowCache = []; // last loaded admin requests for lookup
+function openEditRequest(keyDataStr, rowIdx) {
+  var keyData;
+  try { keyData = JSON.parse(decodeURIComponent(keyDataStr)); } catch(e) { return; }
+  _editingKey = keyData;
+  // Find full row from cache
+  var rec = _adminRowCache.find(function(r){
+    return (r._rowIndex == rowIdx) || (
+      String(r.name) === String(keyData.name) &&
+      String(r.idCard) === String(keyData.idCard)
+    );
+  }) || {};
+
+  // Populate form
+  document.getElementById('edt-name').value = rec.name || keyData.name || '';
+  document.getElementById('edt-empId').value = rec.empId || '';
+  document.getElementById('edt-idCard').value = rec.idCard || keyData.idCard || '';
+  document.getElementById('edt-position').value = rec.position || '';
+  document.getElementById('edt-branch').value = rec.branch || '';
+  document.getElementById('edt-note').value = rec.note || '';
+
+  // Populate course dropdown
+  var courseSel = document.getElementById('edt-course');
+  courseSel.innerHTML = '<option value="">-- เลือก --</option>' + COURSE_OPTIONS.map(function(c){
+    return '<option value="'+escapeAttr(c)+'"'+(c === rec.course ? ' selected':'')+'>'+escapeHtml(c)+'</option>';
+  }).join('');
+
+  // Populate slot dropdown based on selected course
+  function updateSlots() {
+    var sel = courseSel.value;
+    var sch = COURSE_SCHEDULES[sel];
+    var slotSel = document.getElementById('edt-timeSlot');
+    document.getElementById('edt-trainDate').value = sch ? sch.date : (rec.trainDate || '');
+    if (sch) {
+      slotSel.innerHTML = '<option value="">-- เลือก --</option>' + sch.slots.map(function(t){
+        return '<option value="'+t+'"'+(t === rec.timeSlot ? ' selected':'')+'>'+t+' น.</option>';
+      }).join('');
+    } else {
+      slotSel.innerHTML = '<option value="">เลือกหลักสูตรก่อน</option>';
+    }
+  }
+  courseSel.onchange = function(){
+    // Reset selected slot when course changes
+    rec.timeSlot = '';
+    updateSlots();
+  };
+  updateSlots();
+
+  document.getElementById('editRequestModal').classList.add('show');
+}
+function closeEditRequest() {
+  document.getElementById('editRequestModal').classList.remove('show');
+  _editingKey = null;
+}
+function saveEditRequest() {
+  if (!_editingKey) return;
+  var record = {
+    name: document.getElementById('edt-name').value.trim(),
+    empId: document.getElementById('edt-empId').value.trim(),
+    idCard: document.getElementById('edt-idCard').value.trim(),
+    position: document.getElementById('edt-position').value.trim(),
+    branch: document.getElementById('edt-branch').value.trim(),
+    course: document.getElementById('edt-course').value,
+    timeSlot: document.getElementById('edt-timeSlot').value,
+    note: document.getElementById('edt-note').value.trim()
+  };
+  var sch = COURSE_SCHEDULES[record.course];
+  record.trainDate = sch ? sch.date : '';
+
+  if (!record.name || !record.idCard) {
+    customConfirm({ icon:'⚠️', title:'ข้อมูลไม่ครบ', desc:'ชื่อและเลขบัตรเป็นจำเป็น', okText:'ปิด', okIsPrimary:true, hideCancel:true });
+    return;
+  }
+  showLoadingOverlay('กำลังบันทึก...', '');
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'update-request', key: _editingKey, record: record })
+  })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      hideLoadingOverlay();
+      if (res.ok) {
+        closeEditRequest();
+        loadAdminRequests();
+      } else {
+        customConfirm({ icon:'⚠️', title:'บันทึกไม่สำเร็จ', desc:escapeHtml(res.error || 'unknown')+'<br><br>อาจเป็นเพราะ Apps Script ยังไม่ได้ deploy เวอร์ชั่นใหม่', okText:'ปิด', okIsPrimary:true, hideCancel:true });
+      }
+    })
+    .catch(function(err){
+      hideLoadingOverlay();
+      customConfirm({ icon:'🌐', title:'เชื่อมต่อ Cloud ไม่ได้', desc:escapeHtml(err.message||String(err)), okText:'ปิด', okIsPrimary:true, hideCancel:true });
+    });
 }
 
 /* Delete a single request (admin only) — row hides immediately on success */
@@ -5276,13 +5500,13 @@ function exportTrainingPDF() {
         + 'body { font-family: "Sarabun", "Tahoma", sans-serif; color:#111; margin:0; font-size: 13.5px; }'
         + '.form-page { page-break-after: always; padding: 0 4mm; }'
         + '.form-page:last-child { page-break-after: auto; }'
-        + '.form-head { text-align:center; margin-bottom: 14px; }'
-        + '.form-logo { width: 140px; margin: 0 auto 4px; display:block; mix-blend-mode: multiply; }'
-        + '.form-title-co { font-size: 20px; font-weight: 800; margin-top: 8px; }'
-        + '.form-title-sub { font-size: 17px; font-weight: 700; margin-top: 8px; }'
+        + '.form-head { text-align:center; margin-bottom: 8px; }'
+        + '.form-logo { width: 120px; margin: 0 auto -10px; display:block; mix-blend-mode: multiply; }'
+        + '.form-title-co { font-size: 19px; font-weight: 800; margin-top: 0; }'
+        + '.form-title-sub { font-size: 16px; font-weight: 700; margin-top: 2px; }'
         + '.form-meta-row {'
         +   ' display: flex; align-items: baseline; justify-content: center; gap: 18px;'
-        +   ' font-size: 14.5px; line-height: 1.9; margin: 2px 0;'
+        +   ' font-size: 14.5px; line-height: 1.7; margin: 0;'
         +   ' flex-wrap: wrap;'
         + ' }'
         + '.form-meta-row .lbl { font-weight: 800; }'
@@ -5294,7 +5518,7 @@ function exportTrainingPDF() {
         + 'table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; table-layout: fixed; }'
         + 'th, td { border: 1px solid #555; padding: 6px 8px; text-align: left; vertical-align: middle; }'
         + 'th { background: #d9d9d9; font-weight: 800; text-align: center; font-size: 13.5px; }'
-        + 'td.num { text-align: center; color: #1d4ed8; width: 36px; font-weight: 600; }'
+        + 'td.num { text-align: center; color: #1d4ed8; width: 36px; font-weight: 600; vertical-align: middle; line-height: 1.2; }'
         + 'td.empid { text-align: center; }'
         + 'td.idcard { text-align: center; }'
         + 'td.empty { height: 28px; }'
@@ -5480,8 +5704,7 @@ function exportTrainingForm() {
         ws.getColumn(5).width = 22;  // เลขบัตร
         ws.getColumn(6).width = 26;  // สาขา
       } catch(e) {}
-      // Note: ไม่ resize image programmatically — ExcelJS unstable, ทำให้ write fail
-      // ถ้า logo ใหญ่เกิน ให้แก้ใน template โดยตรง (เปิด ฟอร์ม.xlsx ใน Excel ลด size logo)
+      // (logo size: แก้ที่ template โดยตรง — ExcelJS image resize ไม่เสถียร)
 
       // Fill data rows
       chunkRows.forEach(function(r, idx){
