@@ -2295,6 +2295,94 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   transform: rotate(15deg);
 }
 
+/* ─── Custom Confirm Dialog ─── */
+.confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 3500;
+  padding: 20px;
+}
+.confirm-overlay.show { display: flex; animation: fadeIn 0.2s; }
+.confirm-box {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 30px 32px 22px;
+  max-width: 380px;
+  width: 100%;
+  box-shadow: 0 30px 80px rgba(15,23,42,0.3);
+  text-align: center;
+  animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.confirm-icon {
+  font-size: 44px;
+  line-height: 1;
+  margin-bottom: 14px;
+}
+.confirm-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: var(--text);
+  margin-bottom: 8px;
+  letter-spacing: -0.2px;
+}
+.confirm-desc {
+  font-size: 14px;
+  color: var(--text2);
+  line-height: 1.55;
+  margin-bottom: 22px;
+}
+.confirm-desc strong { color: var(--text); font-weight: 800; }
+.confirm-actions {
+  display: flex; gap: 10px;
+}
+.confirm-btn-cancel, .confirm-btn-ok {
+  flex: 1;
+  padding: 12px 20px;
+  border-radius: 11px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14.5px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: all 0.18s;
+}
+.confirm-btn-cancel {
+  background: #ffffff;
+  border: 1.5px solid var(--border2);
+  color: var(--text2);
+}
+.confirm-btn-cancel:hover {
+  border-color: var(--text2);
+  background: var(--bg3);
+}
+.confirm-btn-ok {
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  border: none;
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(239,68,68,0.35);
+}
+.confirm-btn-ok:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(239,68,68,0.5);
+}
+.confirm-overlay.success .confirm-btn-ok {
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  box-shadow: 0 6px 16px rgba(234,88,12,0.35);
+}
+.confirm-overlay.success .confirm-btn-ok:hover {
+  box-shadow: 0 10px 22px rgba(234,88,12,0.5);
+}
+@media (max-width: 768px) {
+  .confirm-overlay { padding: 0; align-items: flex-end; }
+  .confirm-box {
+    border-radius: 20px 20px 0 0;
+    max-width: 100%;
+    padding: 26px 24px 22px;
+  }
+}
+
 /* ─── Loading Overlay (sending data) ─── */
 .loading-overlay {
   position: fixed; inset: 0;
@@ -3269,6 +3357,19 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
 
+<!-- ═════════════════════ CUSTOM CONFIRM DIALOG ═════════════════════ -->
+<div class="confirm-overlay" id="confirmModal">
+  <div class="confirm-box">
+    <div class="confirm-icon" id="confirmIcon">⚠️</div>
+    <div class="confirm-title" id="confirmTitle">ยืนยัน?</div>
+    <div class="confirm-desc" id="confirmDesc"></div>
+    <div class="confirm-actions">
+      <button class="confirm-btn-cancel" onclick="resolveConfirm(false)">ยกเลิก</button>
+      <button class="confirm-btn-ok" id="confirmBtnOk" onclick="resolveConfirm(true)">ลบ</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ LOADING OVERLAY (sending data) ═════════════════════ -->
 <div class="loading-overlay" id="loadingOverlay">
   <div class="loading-box">
@@ -3862,7 +3963,10 @@ function renderTable() {
 }
 
 function deleteMatchRow(no) {
-  if (!confirm('ลบรายการนี้ออกจากระบบ?')) return;
+  customConfirm({ icon:'🗑', title:'ลบรายการนี้?', desc:'จะลบออกจากตารางและ Cloud', okText:'ลบเลย' })
+    .then(function(ok){ if (ok) doDeleteMatchRow(no); });
+}
+function doDeleteMatchRow(no) {
   var idx = matchData.findIndex(function(d){ return d.no === no; });
   if (idx < 0) return;
   matchData.splice(idx, 1);
@@ -4667,7 +4771,11 @@ function deleteSystem() {
   if (!currentEditingSystem) return;
   var s = SYSTEMS.find(function(x){ return x.id === currentEditingSystem; });
   if (s && s.builtIn) { alert('ไม่สามารถลบระบบหลักของ Hub ได้'); return; }
-  if (!confirm('ลบระบบ "'+(s?s.name:'')+'" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)')) return;
+  customConfirm({ icon:'🗑', title:'ลบระบบ?', desc:'ลบ <strong>"'+(s?escapeHtml(s.name):'')+'"</strong> — ไม่สามารถกู้คืน', okText:'ลบเลย' })
+    .then(function(ok){ if (ok) doDeleteSystem(); });
+}
+function doDeleteSystem() {
+  var s = SYSTEMS.find(function(x){ return x.id === currentEditingSystem; });
   SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== currentEditingSystem; });
   saveSystemsLocal();
   renderMenuCards();
@@ -4845,7 +4953,11 @@ function saveAnnouncement() {
 function deleteAnnouncement() {
   if (!currentEditingAnnouncement) return;
   var a = ANNOUNCEMENTS.find(function(x){return x.id===currentEditingAnnouncement;});
-  if (!confirm('ลบประกาศ "'+(a?a.title:'')+'" ใช่หรือไม่?')) return;
+  customConfirm({ icon:'🗑', title:'ลบประกาศ?', desc:'ลบ <strong>"'+(a?escapeHtml(a.title):'')+'"</strong> — ไม่สามารถกู้คืน', okText:'ลบเลย' })
+    .then(function(ok){ if (ok) doDeleteAnnouncement(); });
+}
+function doDeleteAnnouncement() {
+  var a = ANNOUNCEMENTS.find(function(x){ return x.id === currentEditingAnnouncement; });
   ANNOUNCEMENTS = ANNOUNCEMENTS.filter(function(x){return x.id!==currentEditingAnnouncement;});
   saveAnnouncementsLocal();
   closeAnnouncementEditor();
@@ -5021,10 +5133,19 @@ function loadAdminRequests() {
 function deleteRequest(keyDataStr) {
   var keyData;
   try { keyData = JSON.parse(decodeURIComponent(keyDataStr)); } catch(e) { return; }
-  if (!confirm('ลบรายการของ "'+(keyData.name||'')+'" ใช่หรือไม่?')) return;
-  // Find the button + its parent <tr> for instant hide on success
   var btn = event && event.target;
   var tr = btn && btn.closest ? btn.closest('tr') : null;
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบรายการนี้?',
+    desc: 'จะลบข้อมูลของ <strong>'+escapeHtml(keyData.name||'')+'</strong> ออกจากระบบถาวร — ไม่สามารถกู้คืนได้',
+    okText: 'ลบเลย'
+  }).then(function(ok){
+    if (!ok) return;
+    doDeleteRequest(keyData, btn, tr);
+  });
+}
+function doDeleteRequest(keyData, btn, tr) {
   if (btn) btn.disabled = true;
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
@@ -5056,20 +5177,28 @@ function deleteRequest(keyDataStr) {
 
 /* Admin: force clear server-side cache */
 function clearServerCache() {
-  if (!confirm('ล้าง cache ของ Apps Script? (จะดึงข้อมูลใหม่จาก Sheet)')) return;
-  showLoadingOverlay('กำลังล้าง cache...', '');
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'clear-cache' })
-  })
-    .then(function(r){ return r.json(); })
-    .then(function(){
-      hideLoadingOverlay();
-      loadAdminRequests();
-      loadFromCloud();
+  customConfirm({
+    icon: '🗑',
+    title: 'ล้าง Cache?',
+    desc: 'จะ clear cache ของ Apps Script — ดึงข้อมูลใหม่จาก Sheet ทันที',
+    okText: 'ล้างเลย',
+    okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    showLoadingOverlay('กำลังล้าง cache...', '');
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'clear-cache' })
     })
-    .catch(function(err){ hideLoadingOverlay(); alert('ล้างไม่สำเร็จ: ' + err.message); });
+      .then(function(r){ return r.json(); })
+      .then(function(){
+        hideLoadingOverlay();
+        loadAdminRequests();
+        loadFromCloud();
+      })
+      .catch(function(err){ hideLoadingOverlay(); alert('ล้างไม่สำเร็จ: ' + err.message); });
+  });
 }
 
 /* ─── Realtime auto-refresh
@@ -5816,6 +5945,26 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+/* ─── Custom confirm dialog (Promise-based, replaces window.confirm) ─── */
+var _confirmResolve = null;
+function customConfirm(opts) {
+  opts = opts || {};
+  var ov = document.getElementById('confirmModal');
+  if (!ov) return Promise.resolve(false);
+  document.getElementById('confirmIcon').textContent = opts.icon || '⚠️';
+  document.getElementById('confirmTitle').textContent = opts.title || 'ยืนยัน?';
+  document.getElementById('confirmDesc').innerHTML = opts.desc || '';
+  document.getElementById('confirmBtnOk').textContent = opts.okText || 'ยืนยัน';
+  ov.classList.toggle('success', !!opts.okIsPrimary);
+  ov.classList.add('show');
+  return new Promise(function(resolve){ _confirmResolve = resolve; });
+}
+function resolveConfirm(val) {
+  var ov = document.getElementById('confirmModal');
+  if (ov) ov.classList.remove('show');
+  if (_confirmResolve) { _confirmResolve(val); _confirmResolve = null; }
 }
 
 /* ─── Loading overlay helpers ─── */
