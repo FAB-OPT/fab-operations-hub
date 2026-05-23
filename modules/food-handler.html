@@ -3258,6 +3258,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 <!-- SheetJS for Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ExcelJS for template-preserving export (admin form export) -->
+<script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <!-- PDF.js for proper PDF text extraction -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <script>
@@ -5068,12 +5070,10 @@ function exportTrainingPDF() {
 
 /* ─── Export training form: fill ฟอร์ม.xlsx with grouped requests ─── */
 function exportTrainingForm() {
-  if (typeof XLSX === 'undefined') { alert('SheetJS ยังโหลดไม่เสร็จ ลองอีกครั้ง'); return; }
+  if (typeof ExcelJS === 'undefined') { alert('ExcelJS ยังโหลดไม่เสร็จ ลองอีกครั้ง'); return; }
   var btn = event && event.target ? event.target : null;
   if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> กำลังเตรียม...'; }
 
-  // 1) Fetch template + requests separately (better error messages)
-  // Try multiple URL variants for the template (relative path vs encoded)
   var tplCandidates = [
     new URL('../' + encodeURIComponent('ฟอร์ม.xlsx'), location.href).href,
     new URL('../ฟอร์ม.xlsx', location.href).href,
@@ -5086,6 +5086,7 @@ function exportTrainingForm() {
       });
     }, Promise.reject(new Error('init')));
   }
+
   Promise.all([
     fetchTemplate().catch(function(err){ throw new Error('โหลด template ฟอร์ม.xlsx ไม่ได้: ' + err.message); }),
     fetch(SCRIPT_URL + '?action=requests').then(function(r){ return r.json(); }).catch(function(err){ throw new Error('โหลดรายชื่อจาก Cloud ไม่ได้: ' + err.message); })
@@ -5095,7 +5096,7 @@ function exportTrainingForm() {
     var reqs = (results[1] && results[1].records) || [];
     if (reqs.length === 0) throw new Error('ยังไม่มีรายชื่อให้ส่งออก');
 
-    // 2) Group by course + timeSlot (one file per training session)
+    // Group by course + timeSlot
     var groups = {};
     reqs.forEach(function(r){
       var course = r.course || r['หลักสูตร'] || '';
@@ -5106,20 +5107,22 @@ function exportTrainingForm() {
       groups[key].rows.push(r);
     });
 
-    var ROWS_PER_FILE = 25;
-    var fileCount = 0;
+    var ROWS_PER_PAGE = 25;
+    var DATA_START_ROW = 9; // template data rows: 9..33
 
-    function fillSheet(ws, g, roundNum, fullDate, chunkRows) {
-      function setCell(addr, val) {
-        if (ws[addr]) ws[addr].v = val;
-        else ws[addr] = { v: val, t: 's' };
-      }
+    // Fill a single worksheet with header + 25 rows
+    function fillWorksheet(ws, g, roundNum, fullDate, chunkRows) {
+      // Replace dot-placeholders in header rows (A4, A5, A6) preserving cell styles
       function fillDots(addr, values) {
-        if (!ws[addr] || !ws[addr].v) return;
+        var cell = ws.getCell(addr);
+        if (!cell || cell.value == null) return;
         var i = 0;
-        ws[addr].v = String(ws[addr].v).replace(/\.{4,}/g, function(match){
-          var v = (values[i++] || '');
-          var s = String(v);
+        var v = (typeof cell.value === 'object' && cell.value.richText)
+          ? cell.value.richText.map(function(rt){ return rt.text; }).join('')
+          : String(cell.value);
+        cell.value = v.replace(/\.{4,}/g, function(match){
+          var val = (values[i++] || '');
+          var s = String(val);
           if (s.length < match.length) s = s + ' '.repeat(Math.max(0, match.length - s.length));
           return s;
         });
@@ -5127,85 +5130,124 @@ function exportTrainingForm() {
       fillDots('A4', [g.course, roundNum]);
       fillDots('A5', [fullDate, fullDate, '']);
       fillDots('A6', [g.slot + ' น.']);
+
+      // Fill data rows
       chunkRows.forEach(function(r, idx){
-        var rowNum = 9 + idx;
-        if (rowNum > 33) return;
+        var rowNum = DATA_START_ROW + idx;
+        if (rowNum > DATA_START_ROW + ROWS_PER_PAGE - 1) return;
         var name = r.name || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
         var pos = r.position || r['ตำแหน่ง'] || '';
         var idCard = r.idCard || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
         var branch = r.branch || r['สาขา'] || '';
         var empId = r.empId || r['รหัสพนักงาน'] || '';
-        setCell('B' + rowNum, String(empId));
-        if (ws['B' + rowNum]) ws['B' + rowNum].t = 's';
-        setCell('C' + rowNum, name);
-        setCell('D' + rowNum, pos);
-        setCell('E' + rowNum, String(idCard));
-        if (ws['E' + rowNum]) ws['E' + rowNum].t = 's';
-        setCell('F' + rowNum, branch);
+        ws.getCell('B' + rowNum).value = String(empId);
+        ws.getCell('C' + rowNum).value = name;
+        ws.getCell('D' + rowNum).value = pos;
+        ws.getCell('E' + rowNum).value = String(idCard);
+        ws.getCell('F' + rowNum).value = branch;
       });
     }
 
-    Object.keys(groups).forEach(function(key, gIdx){
-      var g = groups[key];
+    // Process groups sequentially (async ExcelJS load)
+    var keys = Object.keys(groups);
+    var fileCount = 0;
+
+    function processGroup(gIdx) {
+      if (gIdx >= keys.length) {
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = '✓ ส่งออก ' + fileCount + ' ไฟล์';
+          setTimeout(function(){ if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }, 2500);
+        }
+        return;
+      }
+      var g = groups[keys[gIdx]];
       var sch = COURSE_SCHEDULES[g.course];
       var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
       var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
+      var totalPages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
 
-      var totalPages = Math.ceil(g.rows.length / ROWS_PER_FILE) || 1;
+      // Build ONE workbook per session. Load template, fill page 1.
+      // For additional pages, load fresh template, copy sheet into our workbook.
+      var outWb = new ExcelJS.Workbook();
+      outWb.xlsx.load(ab).then(function(){
+        var tplSheet = outWb.worksheets[0];
+        var origName = tplSheet.name;
 
-      // ★ Build ONE workbook with multiple sheets (one sheet per 25 rows)
-      var outWb = null;
-      for (var page = 0; page < totalPages; page++) {
-        var chunkRows = g.rows.slice(page * ROWS_PER_FILE, (page + 1) * ROWS_PER_FILE);
-        // Load template fresh
-        var tplWb = XLSX.read(ab, { type: 'array', cellStyles: true });
-        var tplSheetName = tplWb.SheetNames[0];
-        var ws = tplWb.Sheets[tplSheetName];
+        // Fill page 1
+        var chunk1 = g.rows.slice(0, ROWS_PER_PAGE);
+        fillWorksheet(tplSheet, g, roundNum, fullDate, chunk1);
+        if (totalPages > 1) tplSheet.name = 'หน้า 1';
 
-        fillSheet(ws, g, roundNum, fullDate, chunkRows);
-
-        if (page === 0) {
-          // Use the first workbook as the base
-          outWb = tplWb;
-          var newName = totalPages > 1 ? 'หน้า 1' : tplSheetName;
-          if (totalPages > 1) {
-            // Rename first sheet to "หน้า 1"
-            outWb.Sheets[newName] = ws;
-            delete outWb.Sheets[tplSheetName];
-            outWb.SheetNames[0] = newName;
-          }
-        } else {
-          // Append additional sheet (with template formatting)
-          var sheetName = 'หน้า ' + (page + 1);
-          outWb.Sheets[sheetName] = ws;
-          outWb.SheetNames.push(sheetName);
-          // Copy column widths and merged cells from template (per-sheet props)
-          if (tplWb.Sheets[tplSheetName] && tplWb.Sheets[tplSheetName]['!cols']) {
-            outWb.Sheets[sheetName]['!cols'] = tplWb.Sheets[tplSheetName]['!cols'];
-          }
-          if (tplWb.Sheets[tplSheetName] && tplWb.Sheets[tplSheetName]['!merges']) {
-            outWb.Sheets[sheetName]['!merges'] = tplWb.Sheets[tplSheetName]['!merges'];
-          }
+        // For pages 2+, load template fresh and duplicate
+        var pagePromises = [];
+        for (var p = 1; p < totalPages; p++) {
+          (function(pageIdx){
+            var freshWb = new ExcelJS.Workbook();
+            pagePromises.push(freshWb.xlsx.load(ab).then(function(){
+              var freshSheet = freshWb.worksheets[0];
+              var chunk = g.rows.slice(pageIdx * ROWS_PER_PAGE, (pageIdx + 1) * ROWS_PER_PAGE);
+              fillWorksheet(freshSheet, g, roundNum, fullDate, chunk);
+              // Add the filled sheet to outWb by copying via model
+              var modelJson = freshSheet.model;
+              modelJson.name = 'หน้า ' + (pageIdx + 1);
+              var newSheet = outWb.addWorksheet(modelJson.name);
+              // Copy properties, columns, merges, rows, cells (with styles, images)
+              if (freshSheet._merges) {
+                Object.keys(freshSheet._merges).forEach(function(rng){
+                  try { newSheet.mergeCells(rng); } catch(e){}
+                });
+              }
+              // Copy columns widths
+              freshSheet.columns.forEach(function(col, ci){
+                if (col && col.width) newSheet.getColumn(ci+1).width = col.width;
+              });
+              // Copy rows + cells with styles
+              freshSheet.eachRow({ includeEmpty: true }, function(row, rn){
+                var nr = newSheet.getRow(rn);
+                if (row.height) nr.height = row.height;
+                row.eachCell({ includeEmpty: true }, function(cell, cn){
+                  var nc = nr.getCell(cn);
+                  nc.value = cell.value;
+                  if (cell.style) nc.style = JSON.parse(JSON.stringify(cell.style));
+                });
+              });
+              // Copy images (logo)
+              try {
+                var imgs = freshSheet.getImages();
+                imgs.forEach(function(img){
+                  var imgData = freshWb.getImage(img.imageId);
+                  if (imgData) {
+                    var newImgId = outWb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
+                    newSheet.addImage(newImgId, img.range);
+                  }
+                });
+              } catch(e){ /* images may not be present */ }
+            }));
+          })(p);
         }
-      }
 
-      var out = XLSX.write(outWb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-      var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
-      var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + '.xlsx';
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
-      fileCount++;
-    });
-
-    if (btn) {
-      btn.disabled = false;
-      btn.innerHTML = '✓ ส่งออก ' + fileCount + ' ไฟล์';
-      setTimeout(function(){ if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }, 2500);
+        Promise.all(pagePromises).then(function(){
+          outWb.xlsx.writeBuffer().then(function(buf){
+            var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
+            var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + '.xlsx';
+            var a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = filename;
+            document.body.appendChild(a); a.click(); document.body.removeChild(a);
+            setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+            fileCount++;
+            processGroup(gIdx + 1);
+          });
+        });
+      }).catch(function(err){
+        alert('Export ผิดพลาด (group '+(gIdx+1)+'): ' + err.message);
+        if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
+      });
     }
+
+    processGroup(0);
   })
   .catch(function(err){
     alert('Export ผิดพลาด: ' + err.message);
