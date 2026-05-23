@@ -817,6 +817,22 @@ body.is-admin .adm-only-block { display: block; }
 }
 .admin-action-btn svg { width:18px; height:18px; }
 
+.view-announce-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 18px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #ffffff;
+  border: none;
+  border-radius: 999px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(234,88,12,0.25);
+  transition: all 0.2s;
+}
+.view-announce-btn:hover { transform: translateY(-1px); box-shadow: 0 8px 18px rgba(234,88,12,0.4); }
+
 .admin-announce-btn {
   display: inline-flex; align-items: center; gap: 10px;
   padding: 14px 28px;
@@ -1723,6 +1739,9 @@ input[type=file] { display:none; }
   </div>
   <div class="menu-shell">
     <div class="menu-heading">เลือกเมนูด้านล่างเพื่อเข้าใช้งาน</div>
+    <div style="text-align:center;margin-bottom:14px;">
+      <button class="view-announce-btn" id="viewAnnounceBtn" onclick="showBranchAnnouncementsModal(0,true)" style="display:none">📢 ดูประกาศ</button>
+    </div>
     <div class="adm-only-block" style="text-align:center;margin-bottom:20px;">
       <button class="admin-announce-btn" onclick="openManageAnnouncementsModal()"><span class="emoji-3d">📢</span> จัดการประกาศสำหรับสาขา</button>
     </div>
@@ -2539,22 +2558,19 @@ function saveSystemsLocal() {
 }
 
 function loadSystemsFromCloud() {
-  return fetch(SCRIPT_URL + '?action=systems', { method: 'GET' })
+  // cache-bust on each load so mobile doesn't get stale browser cache
+  return fetch(SCRIPT_URL + '?action=systems&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.ok && res.systems) {
-        var localById = {};
-        SYSTEMS.forEach(function(s){ localById[s.id] = s; });
+        // Cloud is authoritative — use as-is, no local preservation
         var hasBuiltIn = res.systems.some(function(s){ return s.id === 'food-handler'; });
-        SYSTEMS = res.systems.map(function(s){
-          // Preserve local icon if cloud version doesn't have one (handles old Apps Script without icon column)
-          if (!s.icon && localById[s.id] && localById[s.id].icon) s.icon = localById[s.id].icon;
-          return s;
-        });
+        SYSTEMS = res.systems.slice();
         if (!hasBuiltIn) SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
         SYSTEMS.sort(function(a,b){ return (b.builtIn?1:0) - (a.builtIn?1:0); });
         SYSTEMS.forEach(normalizeSystem);
         saveSystemsLocal();
+        renderMenuCards(); // force re-render with fresh cloud data
       }
       return SYSTEMS;
     })
@@ -2637,6 +2653,16 @@ function getActiveAnnouncementsForBranch(branchCode) {
     return true;
   });
 }
+/* Get all (ignore dismissed) — for "ดูประกาศ" button */
+function getAllAnnouncementsForBranch(branchCode) {
+  var today = todayIso();
+  return ANNOUNCEMENTS.filter(function(a){
+    if (a.visibleBranches && a.visibleBranches.length > 0 && a.visibleBranches.indexOf(branchCode) < 0) return false;
+    if (a.startDate && today < a.startDate) return false;
+    if (a.endDate && today > a.endDate) return false;
+    return true;
+  });
+}
 
 function setSyncStatus(text, color) {
   var el = document.getElementById('syncStatus');
@@ -2705,8 +2731,13 @@ function renderMenuCards() {
     if (!visible) return;
     var notStarted = s.startDate && todayIso() < s.startDate;
     var isComingSoon = !s.builtIn;  // admin-added systems = announcements only
+    // Cache-bust icon if it's a remote URL (data: URLs unchanged)
+    var iconSrc = s.icon || '';
+    if (iconSrc && iconSrc.indexOf('data:') !== 0 && iconSrc.indexOf('http') === 0) {
+      iconSrc += (iconSrc.indexOf('?') > 0 ? '&' : '?') + '_v=' + (s.updatedAt || 1);
+    }
     var iconHtml = s.icon
-      ? '<div class="menu-card-icon"><img src="'+s.icon+'" alt=""></div>'
+      ? '<div class="menu-card-icon"><img src="'+iconSrc+'" alt=""></div>'
       : '<div class="menu-card-icon menu-card-icon-emoji">'+(s.emoji||'📋')+'</div>';
     var clickHandler = isComingSoon
       ? 'event.stopPropagation();showComingSoon(\''+s.id+'\')'
@@ -2983,12 +3014,17 @@ function closeWelcome() {
   }
 }
 
-function showBranchAnnouncementsModal(retry) {
+function showBranchAnnouncementsModal(retry, forceShow) {
   retry = retry || 0;
-  var list = getActiveAnnouncementsForBranch(branchPin);
+  // In "forceShow" mode (from "ดูประกาศ" button) — ignore dismissed flag
+  var list = forceShow ? getAllAnnouncementsForBranch(branchPin) : getActiveAnnouncementsForBranch(branchPin);
+  // Show the "ดูประกาศ" button if any announcements exist for this branch
+  var anyForBranch = getAllAnnouncementsForBranch(branchPin);
+  var viewBtn = document.getElementById('viewAnnounceBtn');
+  if (viewBtn) viewBtn.style.display = (anyForBranch.length > 0 && !isAdminMode) ? '' : 'none';
   if (list.length === 0) {
     // Retry up to 4 times every 2 seconds (total ~8s) for slow mobile networks
-    if (retry < 4) {
+    if (retry < 4 && !forceShow) {
       setTimeout(function(){ showBranchAnnouncementsModal(retry + 1); }, 2000);
     }
     return false;
