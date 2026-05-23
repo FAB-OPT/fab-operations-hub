@@ -2280,6 +2280,20 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .btn-export-form.btn-export-pdf:hover:not(:disabled) {
   box-shadow: 0 10px 24px rgba(239,68,68,0.45) !important;
 }
+.btn-export-form.btn-refresh {
+  background: #ffffff !important;
+  color: var(--text2) !important;
+  border: 1.5px solid rgba(15,23,42,0.12) !important;
+  box-shadow: 0 2px 6px rgba(15,23,42,0.04) !important;
+  padding: 10px 14px !important;
+}
+.btn-export-form.btn-refresh:hover:not(:disabled) {
+  background: #fff7ed !important;
+  color: var(--gold) !important;
+  border-color: var(--gold) !important;
+  box-shadow: 0 6px 14px rgba(234,88,12,0.15) !important;
+  transform: rotate(15deg);
+}
 
 /* ─── Loading Overlay (sending data) ─── */
 .loading-overlay {
@@ -3156,6 +3170,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 <div style="padding:0 20px;margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
   <div class="subsection-title" style="margin-bottom:0">คำขออบรม (ทุกสาขา)</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn-export-form btn-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄</button>
     <button class="btn-export-form" onclick="exportTrainingForm()">📥 .xlsx</button>
     <button class="btn-export-form btn-export-pdf" onclick="exportTrainingPDF()">📄 PDF</button>
   </div>
@@ -3980,6 +3995,7 @@ window.addEventListener('DOMContentLoaded', function() {
     // Auto-load existing records from cloud
     setTimeout(loadFromCloud, 100);
     setTimeout(loadAdminRequests, 200);
+    startRequestsPolling();
   } else {
     document.getElementById('branchView').style.display = 'block';
     document.getElementById('adminView').style.display = 'none';
@@ -3996,6 +4012,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var s1 = document.getElementById('step1Section'); if (s1) s1.style.display = 'block';
     loadRecordsForSearch();
     setTimeout(loadMyRequests, 200);
+    startRequestsPolling();
   }
   setTimeout(function(){ if (typeof updateStepper === 'function') updateStepper(); }, 50);
 });
@@ -4944,6 +4961,44 @@ function loadMyRequests() {
 function loadAdminRequests() {
   loadRequests('', 'adminReqInfo', 'adminReqBody', true);
 }
+
+/* ─── Realtime auto-refresh
+   Admin: 5s (sees all branches real-time)
+   Saha:  30s (only own data — saves Apps Script quota for 25 branches)
+   Tab hidden → pause | Tab focus → fetch immediately
+   ─── */
+var requestsPollTimer = null;
+function startRequestsPolling() {
+  stopRequestsPolling();
+  var adminView = document.getElementById('adminView');
+  var branchView = document.getElementById('branchView');
+  var isAdminPolling = adminView && adminView.style.display !== 'none';
+  var interval = isAdminPolling ? 5000 : 30000;
+  // Stagger start (0-3s random offset) to avoid 25 branches hitting at the same second
+  var stagger = Math.floor(Math.random() * 3000);
+  setTimeout(function(){
+    requestsPollTimer = setInterval(function(){
+      if (document.hidden) return;
+      var av = document.getElementById('adminView');
+      var bv = document.getElementById('branchView');
+      if (av && av.style.display !== 'none') loadAdminRequests();
+      else if (bv && bv.style.display !== 'none') loadMyRequests();
+    }, interval);
+  }, stagger);
+}
+function stopRequestsPolling() {
+  if (requestsPollTimer) { clearInterval(requestsPollTimer); requestsPollTimer = null; }
+}
+// Pause when tab loses focus, resume when back
+document.addEventListener('visibilitychange', function(){
+  if (!document.hidden) {
+    // Tab back in focus — fetch immediately
+    var adminView = document.getElementById('adminView');
+    var branchView = document.getElementById('branchView');
+    if (adminView && adminView.style.display !== 'none') loadAdminRequests();
+    else if (branchView && branchView.style.display !== 'none') loadMyRequests();
+  }
+});
 
 /* ─── Export training form PDF (printable HTML view) ─── */
 function exportTrainingPDF() {
