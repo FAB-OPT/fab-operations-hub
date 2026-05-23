@@ -634,19 +634,12 @@ body.is-admin .adm-only { display: flex; }
 .ann-item {
   background: #ffffff;
   border: 1px solid rgba(15,23,42,0.10);
-  border-radius: 18px;
-  padding: 20px 22px;
+  border-radius: 16px;
+  padding: 18px 20px;
   margin-bottom: 14px;
   box-shadow: 0 4px 14px rgba(15,23,42,0.04);
-  position: relative;
-  overflow: hidden;
 }
 .ann-item:last-child { margin-bottom: 0; }
-.ann-item::before {
-  content: '';
-  position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
-  background: linear-gradient(180deg, var(--gold), var(--gold2));
-}
 .ann-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
 .ann-icon-emoji {
   font-size: 28px; flex-shrink: 0;
@@ -1609,7 +1602,7 @@ input[type=file] { display:none; }
 <div class="adm-modal" id="branchAnnouncementsModal">
   <div class="adm-modal-box" style="max-width:480px;">
     <div class="adm-modal-header">
-      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-clipboard"/></svg> ประกาศจากสำนักงาน</div>
+      <div class="adm-modal-title"><svg class="ico ico-lg" style="color:var(--gold)"><use href="#i-clipboard"/></svg> ประกาศ</div>
       <button class="adm-modal-close" onclick="closeBranchAnnouncementsModal()"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="adm-modal-body" id="branchAnnouncementsList"></div>
@@ -2288,7 +2281,15 @@ window.addEventListener('DOMContentLoaded', function() {
   try { loadSystemsLocal(); } catch(e) { console.error('loadSystemsLocal', e); }
   try { loadAnnouncementsLocal(); } catch(e) { console.error('loadAnnouncementsLocal', e); }
   try { loadSystemsFromCloud().then(function(){ renderMenuCards(); }); } catch(e) { console.error('loadSystemsFromCloud', e); }
-  try { loadAnnouncementsFromCloud(); } catch(e) { console.error('loadAnnouncementsFromCloud', e); }
+  try {
+    loadAnnouncementsFromCloud().then(function(){
+      // Once cloud loads, try to show announcements (only if menuView is visible and not admin)
+      var mv = document.getElementById('menuView');
+      if (mv && mv.style.display !== 'none' && !isAdminMode) {
+        setTimeout(function(){ showBranchAnnouncementsModal(); }, 300);
+      }
+    });
+  } catch(e) { console.error('loadAnnouncementsFromCloud', e); }
   try {
     var role = sessionStorage.getItem('fab_role');
     if (role) {
