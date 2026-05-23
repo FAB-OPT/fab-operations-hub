@@ -2471,9 +2471,9 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     font-size: 12.5px;
     word-break: break-word;
     overflow-wrap: anywhere;
+    line-height: 1.5;
+    margin-bottom: 2px;
   }
-  .summary-meta span { display: block; margin-bottom: 2px; }
-  .summary-meta span + span::before { content: ''; }
 }
 
 /* ─── Mobile Tab Bar (fixed bottom) ─── */
@@ -5874,9 +5874,12 @@ function showSubmitSummary() {
       + '<div class="summary-row-num">#'+(idx+1)+'</div>'
       + '<div class="summary-row-body">'
       +   '<div class="summary-name">'+escapeHtml(r.name)+'</div>'
-      +   '<div class="summary-meta"><span><strong>รหัสพนง:</strong> '+escapeHtml(r.empId||'-')+'</span> · <span><strong>เลขบัตร:</strong> '+escapeHtml(r.idCard)+'</span> · <span><strong>ตำแหน่ง:</strong> '+escapeHtml(r.position)+'</span></div>'
+      +   '<div class="summary-meta"><strong>รหัสพนง:</strong> '+escapeHtml(r.empId||'-')+'</div>'
+      +   '<div class="summary-meta"><strong>เลขบัตร:</strong> '+escapeHtml(r.idCard)+'</div>'
+      +   '<div class="summary-meta"><strong>ตำแหน่ง:</strong> '+escapeHtml(r.position)+'</div>'
       +   '<div class="summary-meta"><strong>หลักสูตร:</strong> '+escapeHtml(r.course)+'</div>'
-      +   '<div class="summary-meta"><strong>📅 วันอบรม:</strong> '+escapeHtml(formatThaiDate(r.trainDate))+' · <strong>🕐 รอบ:</strong> '+escapeHtml(r.timeSlot)+' น.</div>'
+      +   '<div class="summary-meta"><strong>📅 วันอบรม:</strong> '+escapeHtml(formatThaiDate(r.trainDate))+'</div>'
+      +   '<div class="summary-meta"><strong>🕐 รอบ:</strong> '+escapeHtml(r.timeSlot)+' น.</div>'
       +   (r.note ? '<div class="summary-meta"><strong>หมายเหตุ:</strong> '+escapeHtml(r.note)+'</div>' : '')
       + '</div></div>';
   });
@@ -5973,7 +5976,13 @@ function submitRequests() {
     .catch(function(err){
       hideLoadingOverlay();
       btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
-      statusEl.innerHTML = '<span style="color:var(--red)">✗ เชื่อมต่อไม่ได้: '+err.message+'</span>';
+      var msg = err && err.message ? err.message : String(err);
+      // Common errors: "Failed to fetch" / "Load failed" → network/CORS issue
+      if (msg.indexOf('fetch') >= 0 || msg.indexOf('Load failed') >= 0 || msg.indexOf('Network') >= 0) {
+        msg = 'เชื่อมต่อ Cloud ไม่ได้ — ตรวจสอบอินเทอร์เน็ตหรือ Apps Script (URL: ' + SCRIPT_URL.slice(0,50) + '...)';
+      }
+      statusEl.innerHTML = '<span style="color:var(--red);font-weight:700;">✗ ส่งไม่สำเร็จ: '+msg+'</span>';
+      alert('ส่งไม่สำเร็จ: ' + msg + '\n\nลองอีกครั้ง หรือเช็คว่า Apps Script ถูก deploy แล้ว');
     });
   }
 
