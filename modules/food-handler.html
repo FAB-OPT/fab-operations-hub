@@ -5495,14 +5495,14 @@ function exportTrainingPDF() {
       var html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ทะเบียนรายชื่อผู้เข้าอบรม</title>';
       html += '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
       html += '<style>'
-        + '@page { size: A4; margin: 12mm 12mm; }'
+        + '@page { size: A4; margin: 6mm 12mm 10mm; }'
         + '* { box-sizing: border-box; }'
         + 'body { font-family: "Sarabun", "Tahoma", sans-serif; color:#111; margin:0; font-size: 13.5px; }'
         + '.form-page { page-break-after: always; padding: 0 4mm; }'
         + '.form-page:last-child { page-break-after: auto; }'
-        + '.form-head { text-align:center; margin-bottom: 8px; }'
-        + '.form-logo { width: 120px; margin: 0 auto -10px; display:block; mix-blend-mode: multiply; }'
-        + '.form-title-co { font-size: 19px; font-weight: 800; margin-top: 0; }'
+        + '.form-head { text-align:center; margin-bottom: 6px; position: relative; min-height: 70px; }'
+        + '.form-logo { width: 86px; position: absolute; left: 0; top: -2px; mix-blend-mode: multiply; }'
+        + '.form-title-co { font-size: 19px; font-weight: 800; margin: 0; padding-top: 2px; }'
         + '.form-title-sub { font-size: 16px; font-weight: 700; margin-top: 2px; }'
         + '.form-meta-row {'
         +   ' display: flex; align-items: baseline; justify-content: center; gap: 18px;'
@@ -5515,10 +5515,10 @@ function exportTrainingPDF() {
         +   ' border-bottom: 1px dotted #444; padding: 0 6px; font-weight: 500;'
         +   ' text-align: center;'
         + ' }'
-        + 'table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; table-layout: fixed; }'
-        + 'th, td { border: 1px solid #555; padding: 6px 8px; text-align: left; vertical-align: middle; }'
-        + 'th { background: #d9d9d9; font-weight: 800; text-align: center; font-size: 13.5px; }'
-        + 'td.num { text-align: center; color: #1d4ed8; width: 36px; font-weight: 600; vertical-align: middle; line-height: 1.2; }'
+        + 'table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 6px; table-layout: fixed; }'
+        + 'th, td { border: 1px solid #555; padding: 5px 6px; text-align: left; vertical-align: middle; }'
+        + 'th { background: #d9d9d9; font-weight: 800; text-align: center; font-size: 13.5px; padding: 6px 4px; }'
+        + 'td.num { text-align: center; color: #1d4ed8; width: 44px; font-weight: 700; vertical-align: middle; line-height: 1.2; padding: 5px 2px; }'
         + 'td.empid { text-align: center; }'
         + 'td.idcard { text-align: center; }'
         + 'td.empty { height: 28px; }'
@@ -5568,8 +5568,8 @@ function exportTrainingPDF() {
             + '</div>'
             + '<table>'
             + '<thead><tr>'
-            +   '<th style="width:36px;">ลำดับ</th>'
-            +   '<th style="width:75px;">รหัสพนักงาน</th>'
+            +   '<th style="width:44px;">ลำดับ</th>'
+            +   '<th style="width:80px;">รหัสพนักงาน</th>'
             +   '<th style="width:200px;">ชื่อ - นามสกุล</th>'
             +   '<th style="width:150px;">ตำแหน่ง</th>'
             +   '<th style="width:130px;">เลขบัตรประจำตัวประชาชน</th>'
@@ -5705,6 +5705,16 @@ function exportTrainingForm() {
         ws.getColumn(6).width = 26;  // สาขา
       } catch(e) {}
       // (logo size: แก้ที่ template โดยตรง — ExcelJS image resize ไม่เสถียร)
+
+      // Fill ALL 25 ลำดับ rows (column A) — keep template style, just ensure value is set + centered
+      for (var i = 0; i < ROWS_PER_PAGE; i++) {
+        var rn = DATA_START_ROW + i;
+        var aCell = ws.getCell('A' + rn);
+        aCell.value = i + 1;
+        try {
+          aCell.alignment = Object.assign({}, aCell.alignment || {}, { horizontal: 'center', vertical: 'middle', wrapText: false });
+        } catch(e) {}
+      }
 
       // Fill data rows
       chunkRows.forEach(function(r, idx){
