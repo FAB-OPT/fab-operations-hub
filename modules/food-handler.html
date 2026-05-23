@@ -881,6 +881,11 @@ body.is-admin .adm-only-block { display: block; }
 .logo-text { font-size:22px; font-weight:800; color:var(--text); line-height:1.25; letter-spacing:-0.2px; }
 .logo-sub { font-size:13px; color:var(--text3); font-weight:600; letter-spacing:1.6px; }
 .logo-sub-inline { font-size:22px; color:var(--text); font-weight:800; margin-left:0; letter-spacing:-0.2px; }
+.branch-tag-inline { display: none; font-size: 13px; font-weight: 700; color: var(--green); margin-top: 2px; }
+@media (max-width: 768px) {
+  .branch-tag-inline { display: block; font-size: 13px; }
+  .branch-tag-inline .branch-chip-name { font-size: 13px !important; }
+}
 
 .topbar-actions { display:flex; gap:10px; align-items:center; }
 
@@ -1426,28 +1431,41 @@ input[type=file] { display:none; }
 @media (max-width: 768px) {
   .topbar {
     margin:12px; padding:14px 16px;
-    border-radius:var(--radius); top:12px;
-    flex-direction:column; align-items:stretch; gap:10px;
+    border-radius:var(--radius);
+    position: static;
+    flex-direction:row; align-items:center; gap:12px;
+    flex-wrap: nowrap;
   }
-  .logo { gap:10px; align-items:center; }
-  .logo-text { font-size:15px; font-weight:800; }
+  .logo { gap:12px; align-items:center; flex: 1; min-width: 0; }
+  .logo-info {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 2px;
+    min-width: 0; flex: 1;
+  }
+  .logo-text {
+    font-size:15px; font-weight:800;
+    white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
+    max-width: 100%;
+  }
   .logo-sub-inline { font-size:15px; font-weight:800; margin-left:0; color:var(--text); }
   .logo-sub { font-size:10px; }
-  .logo-mark { width:46px; height:46px; }
-  .logo-info-inline { flex-direction:row; flex-wrap:wrap; align-items:baseline; }
+  .logo-mark { width:64px; height:64px; flex-shrink: 0; margin:-8px 0; }
+  .logo-info-inline { flex-direction:row; flex-wrap:nowrap; align-items:baseline; }
   .topbar-actions {
-    width:100%; justify-content:center;
-    padding-top:10px; gap:8px;
-    border-top:1px solid rgba(15,23,42,0.06);
+    /* hidden on mobile — moved to tab bar */
+    display: none;
   }
-  .branch-chip { padding:0; gap:8px; justify-content:center; }
-  .branch-chip-code { font-size:14px; }
-  .branch-chip-name { font-size:14px; font-weight:700; }
+  .branch-chip { padding:0; gap:6px; justify-content:flex-start; }
+  .branch-chip-code { font-size:12px; }
+  .branch-chip-name { font-size:12px; font-weight:700; color: var(--green); }
   #branchTag, #menuBranchTag {
-    flex:1; min-width:0; overflow:hidden;
-    text-align:center;
-    display:flex; justify-content:center; align-items:center;
+    overflow:hidden; min-width:0;
   }
+  /* Show branch chip INSIDE logo-info under title */
+  .topbar .logo-info::after {
+    content: '';
+  }
+  /* Move #branchTag inline to logo-info via JS injection (handled at render) */
   .section { padding:10px 12px 0; }
   .section:last-child { padding-bottom:16px; }
   .section-card { padding:16px; border-radius:var(--radius); }
@@ -1728,6 +1746,14 @@ input[type=file] { display:none; }
 }
 .hint-banner strong { color: var(--gold); font-weight: 800; }
 .hint-banner-text { flex: 1; }
+.hint-line-1 { display: inline; }
+.hint-line-2 { display: inline; }
+.hint-line-2::before { content: ' · '; }
+@media (max-width: 768px) {
+  .hint-line-1, .hint-line-2 { display: block; }
+  .hint-line-2 { margin-top: 4px; }
+  .hint-line-2::before { content: ''; }
+}
 
 /* ─── Font size bumps across the page ─── */
 .section-title { font-size: 20px !important; }
@@ -2076,26 +2102,29 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .req-history-table tbody tr:hover { background: #fff7ed; }
 .req-history-table tbody td { padding: 11px 14px; vertical-align: middle; }
 
-/* Mobile: convert table → card list */
+/* Mobile: convert table → card list (polished) */
 @media (max-width: 768px) {
   .req-history-table thead { display: none; }
   .req-history-table, .req-history-table tbody, .req-history-table tr { display: block; }
   .req-history-table tbody tr {
-    background: #ffffff;
+    background: linear-gradient(135deg, #ffffff, #fff7ed 200%);
     border: 1px solid rgba(15,23,42,0.10);
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 10px;
-    box-shadow: 0 2px 8px rgba(15,23,42,0.04);
+    border-left: 4px solid var(--gold);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 14px rgba(15,23,42,0.05);
   }
   .req-history-table tbody td {
-    display: flex; justify-content: space-between; align-items: center; gap: 12px;
-    padding: 6px 0;
-    border-bottom: 1px dashed rgba(15,23,42,0.06);
-    font-size: 13px;
+    display: flex; justify-content: space-between; align-items: flex-start; gap: 14px;
+    padding: 8px 0;
+    border-bottom: 1px dashed rgba(15,23,42,0.08);
+    font-size: 13.5px;
     text-align: right;
+    line-height: 1.5;
   }
-  .req-history-table tbody td:last-child { border-bottom: none; }
+  .req-history-table tbody td:first-child { padding-top: 0; }
+  .req-history-table tbody td:last-child { border-bottom: none; padding-bottom: 0; }
   .req-history-table tbody td::before {
     content: attr(data-label);
     color: var(--text3);
@@ -2103,7 +2132,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     font-weight: 700;
     text-align: left;
     flex-shrink: 0;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
   }
+  .req-history-table tbody td.cert-name { font-weight: 800; color: var(--text); font-size: 15px; }
   .req-history-wrap { overflow-x: visible; border: none; background: transparent; padding: 0; }
 }
 
@@ -2555,6 +2587,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
       <div class="logo-mark"><img src="../logo.png" alt="FAB"></div>
       <div class="logo-info logo-info-inline">
         <div class="logo-text">ฐานข้อมูล<span class="logo-sub-inline">ผู้สัมผัสและผู้ประกอบอาหาร</span></div>
+        <span id="branchTagInline" class="branch-tag-inline"></span>
       </div>
     </div>
     <div class="topbar-actions">
@@ -2592,7 +2625,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     <div class="section-card">
       <div class="hint-banner">
         <span class="hint-banner-ico">💡</span>
-        <div class="hint-banner-text">พิมพ์ชื่อพนักงานเพื่อเช็คใบรับรอง · ถ้า<strong>ไม่พบ</strong>หรือ<strong>หมดอายุ</strong> กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม</div>
+        <div class="hint-banner-text">
+          <div class="hint-line-1">พิมพ์ชื่อพนักงานเพื่อเช็คใบรับรอง</div>
+          <div class="hint-line-2">ถ้า<strong>ไม่พบ</strong>หรือ<strong>หมดอายุ</strong> กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม</div>
+        </div>
       </div>
       <div class="search-big">
         <svg class="ico ico-lg" style="color:var(--text3)"><use href="#i-search"/></svg>
@@ -2660,6 +2696,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     <div class="logo-mark"><img src="../logo.png" alt="FAB"></div>
     <div class="logo-info logo-info-inline">
       <div class="logo-text">ฐานข้อมูล<span class="logo-sub-inline">ผู้สัมผัสและผู้ประกอบอาหาร</span></div>
+      <span id="adminTagInline" class="branch-tag-inline"></span>
     </div>
   </div>
   <div class="topbar-actions">
@@ -3589,7 +3626,10 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('adminView').style.display = 'block';
     document.getElementById('branchView').style.display = 'none';
     var adminTag = document.getElementById('adminTag');
-    if (adminTag) adminTag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
+    var adminTagHtml = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
+    if (adminTag) adminTag.innerHTML = adminTagHtml;
+    var adminTagInline = document.getElementById('adminTagInline');
+    if (adminTagInline) adminTagInline.innerHTML = adminTagHtml;
     var mtbLabel = document.getElementById('mtbBranchLabel');
     if (mtbLabel) mtbLabel.textContent = 'Admin';
     // Auto-load existing records from cloud
@@ -3599,7 +3639,10 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('branchView').style.display = 'block';
     document.getElementById('adminView').style.display = 'none';
     var tag = document.getElementById('branchTag');
-    if (tag) tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
+    var tagHtml = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
+    if (tag) tag.innerHTML = tagHtml;
+    var branchTagInline = document.getElementById('branchTagInline');
+    if (branchTagInline) branchTagInline.innerHTML = tagHtml;
     var mtbLabel2 = document.getElementById('mtbBranchLabel');
     if (mtbLabel2) mtbLabel2.textContent = currentBranchName || 'สาขา';
     requestRows = [];
