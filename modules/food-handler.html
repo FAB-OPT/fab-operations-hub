@@ -5052,7 +5052,7 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   if (!info || !body) return;
   info.textContent = 'กำลังโหลด...';
   if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...';
-  var url = SCRIPT_URL + '?action=requests' + (branchFilter ? '&branch=' + encodeURIComponent(branchFilter) : '');
+  var url = SCRIPT_URL + '?action=requests' + (branchFilter ? '&branch=' + encodeURIComponent(branchFilter) : '') + '&_=' + Date.now();
   fetch(url, { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
@@ -5386,9 +5386,30 @@ function exportTrainingPDF() {
 
 /* ─── Export training form: fill ฟอร์ม.xlsx with grouped requests ─── */
 function exportTrainingForm() {
-  if (typeof ExcelJS === 'undefined') { alert('ExcelJS ยังโหลดไม่เสร็จ ลองอีกครั้ง'); return; }
+  if (typeof ExcelJS === 'undefined') {
+    customConfirm({
+      icon:'⚠️', title:'ExcelJS ยังโหลดไม่เสร็จ',
+      desc:'รอ 2-3 วินาทีแล้วลองอีกครั้ง — หรือ refresh หน้านี้',
+      okText:'ปิด', okIsPrimary:true, hideCancel:true
+    });
+    return;
+  }
   var btn = event && event.target ? event.target : null;
   if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> กำลังเตรียม...'; }
+  // Safety timeout — re-enable button if stuck >60s
+  var safetyTimer = setTimeout(function(){
+    if (btn && btn.disabled) {
+      btn.disabled = false;
+      if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig;
+      customConfirm({
+        icon:'⏱', title:'ใช้เวลานานเกินไป',
+        desc:'การสร้างไฟล์ Excel ใช้เวลานานเกิน 60 วินาที — อาจเป็นปัญหาเครือข่ายหรือ Apps Script ตอบช้า ลองอีกครั้ง',
+        okText:'ปิด', okIsPrimary:true, hideCancel:true
+      });
+    }
+  }, 60000);
+  // Patch onwards: clear safetyTimer in all done/error paths
+  window._exportSafetyTimer = safetyTimer;
 
   var tplCandidates = [
     new URL('../' + encodeURIComponent('ฟอร์ม.xlsx'), location.href).href,
@@ -5555,6 +5576,7 @@ function exportTrainingForm() {
       if (idx >= tuples.length) {
         // All sheets added — write file
         outWb.xlsx.writeBuffer().then(function(buf){
+          if (window._exportSafetyTimer) { clearTimeout(window._exportSafetyTimer); window._exportSafetyTimer = null; }
           var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
           var filename = 'ฟอร์มอบรม_' + new Date().toISOString().slice(0,10) + '.xlsx';
           var a = document.createElement('a');
@@ -5567,6 +5589,10 @@ function exportTrainingForm() {
             btn.innerHTML = '✓ ส่งออกสำเร็จ';
             setTimeout(function(){ if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }, 2500);
           }
+        }).catch(function(err){
+          if (window._exportSafetyTimer) { clearTimeout(window._exportSafetyTimer); window._exportSafetyTimer = null; }
+          if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
+          customConfirm({ icon:'⚠️', title:'เขียนไฟล์ Excel ไม่สำเร็จ', desc:escapeHtml(String(err.message||err)), okText:'ปิด', okIsPrimary:true, hideCancel:true });
         });
         return;
       }
@@ -5588,16 +5614,18 @@ function exportTrainingForm() {
         fillWorksheet(ws, g, roundNum, fullDate, chunk);
         processSheet(idx + 1);
       }).catch(function(err){
-        alert('Export ผิดพลาด: ' + err.message);
+        if (window._exportSafetyTimer) { clearTimeout(window._exportSafetyTimer); window._exportSafetyTimer = null; }
         if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
+        customConfirm({ icon:'⚠️', title:'สร้าง sheet ไม่สำเร็จ', desc:escapeHtml(String(err.message||err)), okText:'ปิด', okIsPrimary:true, hideCancel:true });
       });
     }
 
     processSheet(0);
   })
   .catch(function(err){
-    alert('Export ผิดพลาด: ' + err.message);
+    if (window._exportSafetyTimer) { clearTimeout(window._exportSafetyTimer); window._exportSafetyTimer = null; }
     if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
+    customConfirm({ icon:'⚠️', title:'Export ผิดพลาด', desc:escapeHtml(String(err.message||err)), okText:'ปิด', okIsPrimary:true, hideCancel:true });
   });
 }
 
