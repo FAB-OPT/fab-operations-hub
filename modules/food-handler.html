@@ -5155,23 +5155,35 @@ function doDeleteRequest(keyData, btn, tr) {
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.ok) {
-        // Hide row immediately with fade-out
         if (tr) {
           tr.style.transition = 'opacity 0.25s, transform 0.25s';
           tr.style.opacity = '0';
           tr.style.transform = 'translateX(-20px)';
           setTimeout(function(){ if (tr.parentNode) tr.parentNode.removeChild(tr); }, 250);
         }
-        // Background refresh from server (no loading overlay)
         setTimeout(loadAdminRequests, 600);
       } else {
         if (btn) btn.disabled = false;
-        alert('ลบไม่สำเร็จ: ' + (res.error || 'unknown'));
+        customConfirm({
+          icon: '⚠️',
+          title: 'ลบไม่สำเร็จ',
+          desc: '<strong>'+escapeHtml(res.error || 'unknown')+'</strong><br><br>อาจเป็นเพราะ Apps Script ยังไม่ได้ deploy เวอร์ชั่นใหม่ — ลองอัปเดต Code.gs แล้ว Deploy → New version',
+          okText: 'รับทราบ',
+          okIsPrimary: true,
+          hideCancel: true
+        });
       }
     })
     .catch(function(err){
       if (btn) btn.disabled = false;
-      alert('ลบไม่สำเร็จ: ' + err.message);
+      customConfirm({
+        icon: '🌐',
+        title: 'เชื่อมต่อ Cloud ไม่ได้',
+        desc: escapeHtml(err.message || String(err)),
+        okText: 'ปิด',
+        okIsPrimary: true,
+        hideCancel: true
+      });
     });
 }
 
@@ -5957,6 +5969,9 @@ function customConfirm(opts) {
   document.getElementById('confirmTitle').textContent = opts.title || 'ยืนยัน?';
   document.getElementById('confirmDesc').innerHTML = opts.desc || '';
   document.getElementById('confirmBtnOk').textContent = opts.okText || 'ยืนยัน';
+  // Hide cancel button for info-only dialogs
+  var cancelBtn = ov.querySelector('.confirm-btn-cancel');
+  if (cancelBtn) cancelBtn.style.display = opts.hideCancel ? 'none' : '';
   ov.classList.toggle('success', !!opts.okIsPrimary);
   ov.classList.add('show');
   return new Promise(function(resolve){ _confirmResolve = resolve; });
