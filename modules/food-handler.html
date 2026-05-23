@@ -2069,6 +2069,53 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .req-history-table tbody tr:hover { background: #fff7ed; }
 .req-history-table tbody td { padding: 11px 14px; vertical-align: middle; }
 
+/* ─── Mobile Tab Bar (fixed bottom) ─── */
+.mobile-tabbar { display: none; }
+@media (max-width: 768px) {
+  .mobile-tabbar {
+    display: flex;
+    position: fixed;
+    left: 0; right: 0; bottom: 0;
+    background: #ffffff;
+    border-top: 1px solid rgba(15,23,42,0.10);
+    box-shadow: 0 -6px 24px rgba(15,23,42,0.08);
+    z-index: 200;
+    padding: 6px 4px max(8px, env(safe-area-inset-bottom)) 4px;
+    justify-content: space-around;
+    align-items: center;
+  }
+  .mtb-item {
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 8px 4px;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    color: var(--text2);
+    font-family: 'Sarabun', sans-serif;
+    font-size: 11px;
+    font-weight: 700;
+    cursor: pointer;
+    border-radius: 10px;
+    transition: all 0.15s;
+  }
+  .mtb-item:active { transform: scale(0.95); }
+  .mtb-item:hover { background: rgba(234,88,12,0.06); color: var(--gold); }
+  .mtb-icon { font-size: 18px; display: inline-flex; align-items: center; justify-content: center; height: 22px; }
+  .mtb-icon svg { width: 20px; height: 20px; stroke-width: 2.2; }
+  .mtb-label { white-space: nowrap; }
+  .mtb-logout { color: var(--red); }
+  .mtb-logout:hover { background: rgba(239,68,68,0.06); color: var(--red); }
+  #mtbBranch { color: var(--text); pointer-events: none; }
+  #mtbBranch .mtb-label { max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+
+  /* Hide top buttons on mobile (replaced by tab bar) */
+  .topbar-actions .back-btn { display: none !important; }
+  .topbar-actions { padding-top: 0 !important; border-top: none !important; }
+
+  /* Add bottom padding so content doesn't hide under tab bar */
+  body { padding-bottom: 72px; }
+}
+
 /* ─── Delete row button (admin table) ─── */
 .btn-del-row {
   width: 32px; height: 32px;
@@ -2746,6 +2793,22 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
+
+<!-- ═════════════════════ MOBILE TAB BAR ═════════════════════ -->
+<nav class="mobile-tabbar" id="mobileTabbar">
+  <button class="mtb-item" onclick="goToMenu()">
+    <span class="mtb-icon"><svg class="ico"><use href="#i-arrow-left"/></svg></span>
+    <span class="mtb-label">เมนูหลัก</span>
+  </button>
+  <button class="mtb-item" id="mtbBranch">
+    <span class="mtb-icon">🏬</span>
+    <span class="mtb-label" id="mtbBranchLabel">สาขา</span>
+  </button>
+  <button class="mtb-item mtb-logout" onclick="logout()">
+    <span class="mtb-icon"><svg class="ico"><use href="#i-logout"/></svg></span>
+    <span class="mtb-label">ออกจากระบบ</span>
+  </button>
+</nav>
 
 <!-- SheetJS for Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
@@ -3461,6 +3524,8 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('branchView').style.display = 'none';
     var adminTag = document.getElementById('adminTag');
     if (adminTag) adminTag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
+    var mtbLabel = document.getElementById('mtbBranchLabel');
+    if (mtbLabel) mtbLabel.textContent = 'Admin';
     // Auto-load existing records from cloud
     setTimeout(loadFromCloud, 100);
     setTimeout(loadAdminRequests, 200);
@@ -3469,6 +3534,8 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('adminView').style.display = 'none';
     var tag = document.getElementById('branchTag');
     if (tag) tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
+    var mtbLabel2 = document.getElementById('mtbBranchLabel');
+    if (mtbLabel2) mtbLabel2.textContent = currentBranchName || 'สาขา';
     requestRows = [];
     // Hide step 2 initially; user clicks CTA in step 1 to reveal
     var s2 = document.getElementById('step2Section'); if (s2) s2.style.display = 'none';
