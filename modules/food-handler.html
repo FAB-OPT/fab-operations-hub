@@ -5475,25 +5475,13 @@ function exportTrainingForm() {
       try {
         ws.getColumn(1).width = 8;   // ลำดับ
         ws.getColumn(2).width = 14;  // รหัสพนักงาน
-        ws.getColumn(3).width = 28;  // ชื่อ-นามสกุล (wider)
-        ws.getColumn(4).width = 22;  // ตำแหน่ง (wider)
+        ws.getColumn(3).width = 28;  // ชื่อ-นามสกุล
+        ws.getColumn(4).width = 22;  // ตำแหน่ง
         ws.getColumn(5).width = 22;  // เลขบัตร
-        ws.getColumn(6).width = 26;  // สาขา (wider)
+        ws.getColumn(6).width = 26;  // สาขา
       } catch(e) {}
-
-      // Resize logo image to smaller (re-anchor to A1:A3 area instead of original)
-      try {
-        var imgs = ws.getImages();
-        imgs.forEach(function(img){
-          // Make image smaller by changing extents
-          if (img.range && img.range.tl) {
-            img.range = {
-              tl: { col: 0.2, row: 0.2 },
-              ext: { width: 90, height: 90 }  // ~90 pixels
-            };
-          }
-        });
-      } catch(e) {}
+      // Note: ไม่ resize image programmatically — ExcelJS unstable, ทำให้ write fail
+      // ถ้า logo ใหญ่เกิน ให้แก้ใน template โดยตรง (เปิด ฟอร์ม.xlsx ใน Excel ลด size logo)
 
       // Fill data rows
       chunkRows.forEach(function(r, idx){
@@ -5546,17 +5534,26 @@ function exportTrainingForm() {
             try { dst.mergeCells(rng); } catch(e){}
           });
         }
-        // Images (logo)
+        // Images (logo) — safer: catch individual image errors
         try {
           var imgs = src.getImages();
           imgs.forEach(function(img){
-            var imgData = tmpWb.getImage(img.imageId);
-            if (imgData) {
-              var newImgId = targetWb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
-              dst.addImage(newImgId, img.range);
-            }
+            try {
+              var imgData = tmpWb.getImage(img.imageId);
+              if (imgData && img.range) {
+                var newImgId = targetWb.addImage({ buffer: imgData.buffer, extension: imgData.extension });
+                // Use string range if possible (more reliable)
+                var rng = img.range;
+                if (typeof rng === 'object' && rng.tl && rng.br) {
+                  // Convert {tl, br} to {tl, br} format ExcelJS expects (col/row 0-based)
+                  dst.addImage(newImgId, { tl: rng.tl, br: rng.br });
+                } else {
+                  dst.addImage(newImgId, rng);
+                }
+              }
+            } catch(imgErr) { console.warn('Skip image:', imgErr); }
           });
-        } catch(e){}
+        } catch(e){ console.warn('Images copy failed:', e); }
         return dst;
       });
     }
