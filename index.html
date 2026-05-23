@@ -1519,12 +1519,8 @@ input[type=file] { display:none; }
     <div class="login-title">FAB Training &amp; Operations Hub<br><span class="login-title-sub">ระบบงานปฏิบัติการ</span></div>
 
     <div class="role-tabs">
-      <button class="role-tab active" data-role="branch" onclick="selectRole('branch')">
-        <svg class="ico"><use href="#i-store"/></svg> สาขา
-      </button>
-      <button class="role-tab" data-role="admin" onclick="selectRole('admin')">
-        <svg class="ico"><use href="#i-users"/></svg> Team Management
-      </button>
+      <button class="role-tab active" data-role="branch" onclick="selectRole('branch')">สาขา</button>
+      <button class="role-tab" data-role="admin" onclick="selectRole('admin')">Team Management</button>
     </div>
 
     <div class="pin-hint">กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ</div>
@@ -1618,6 +1614,7 @@ input[type=file] { display:none; }
     </div>
     <div class="adm-modal-body" id="branchAnnouncementsList"></div>
     <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="dismissAllAnnouncementsToday()">ไม่แสดงในวันนี้อีก</button>
       <button class="adm-btn-primary" onclick="closeBranchAnnouncementsModal()">ปิด</button>
     </div>
   </div>
@@ -2275,21 +2272,44 @@ var currentBranchName = '';
 var allRecords = [];
 var requestRows = [];
 
+/* Early init — render PIN boxes immediately (don't wait for DOMContentLoaded
+   so a JS error in loaders below can never block the login UI) */
+(function earlyInit() {
+  try {
+    if (sessionStorage.getItem('fab_role')) return; // returning from module
+    var pinBoxes = document.getElementById('pinBoxes');
+    if (pinBoxes && pinBoxes.children.length === 0) {
+      selectRole('branch');
+    }
+  } catch(e) { console.error('earlyInit failed:', e); }
+})();
+
 window.addEventListener('DOMContentLoaded', function() {
-  loadSystemsLocal();
-  loadAnnouncementsLocal();
-  loadSystemsFromCloud().then(function(){ renderMenuCards(); });
-  loadAnnouncementsFromCloud();
-  var role = sessionStorage.getItem('fab_role');
-  if (role) {
-    // Returning from module — skip login, go directly to menu
-    branchPin = sessionStorage.getItem('fab_branch_pin') || '';
-    currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
-    isAdminMode = (role === 'admin');
-    document.getElementById('loginView').style.display = 'none';
-    showMenuView();
-  } else {
-    selectRole('branch');
+  try { loadSystemsLocal(); } catch(e) { console.error('loadSystemsLocal', e); }
+  try { loadAnnouncementsLocal(); } catch(e) { console.error('loadAnnouncementsLocal', e); }
+  try { loadSystemsFromCloud().then(function(){ renderMenuCards(); }); } catch(e) { console.error('loadSystemsFromCloud', e); }
+  try { loadAnnouncementsFromCloud(); } catch(e) { console.error('loadAnnouncementsFromCloud', e); }
+  try {
+    var role = sessionStorage.getItem('fab_role');
+    if (role) {
+      // Returning from module — skip login, go directly to menu
+      branchPin = sessionStorage.getItem('fab_branch_pin') || '';
+      currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
+      isAdminMode = (role === 'admin');
+      document.getElementById('loginView').style.display = 'none';
+      showMenuView();
+      // Show announcements (wait for cloud announcements to load first)
+      if (!isAdminMode) {
+        setTimeout(function(){ showBranchAnnouncementsModal(); }, 1200);
+      }
+    } else {
+      // Ensure PIN boxes rendered (in case earlyInit missed)
+      var pinBoxes = document.getElementById('pinBoxes');
+      if (pinBoxes && pinBoxes.children.length === 0) selectRole('branch');
+    }
+  } catch(e) {
+    console.error('DOMContentLoaded handler error:', e);
+    try { selectRole('branch'); } catch(e2) {}
   }
 });
 
@@ -2958,13 +2978,19 @@ function showWelcome(name) {
 function closeWelcome() {
   document.getElementById('welcomeModal').classList.remove('show');
   if (!isAdminMode) {
-    setTimeout(function(){ showBranchAnnouncementsModal(); }, 200);
+    setTimeout(function(){ showBranchAnnouncementsModal(); }, 600);
   }
 }
 
-function showBranchAnnouncementsModal() {
+function showBranchAnnouncementsModal(retry) {
   var list = getActiveAnnouncementsForBranch(branchPin);
-  if (list.length === 0) return false;
+  if (list.length === 0) {
+    // Retry once after cloud load finishes (mobile/slow network)
+    if (!retry) {
+      setTimeout(function(){ showBranchAnnouncementsModal(true); }, 1500);
+    }
+    return false;
+  }
   var listEl = document.getElementById('branchAnnouncementsList');
   var html = list.map(function(a){
     var iconHtml = a.icon
@@ -2973,8 +2999,6 @@ function showBranchAnnouncementsModal() {
     return '<div class="ann-item" data-id="'+a.id+'">'
       + '<div class="ann-head">'+iconHtml+'<div class="ann-title">'+escapeHtml(a.title)+'</div></div>'
       + '<div class="ann-msg">'+escapeHtml(a.message)+'</div>'
-      + (a.endDate ? '<div class="ann-expire">⏰ ถึง '+formatThaiDate(a.endDate)+'</div>' : '')
-      + '<button class="ann-dismiss" onclick="dismissAnnClick(\''+a.id+'\', this)">ไม่แสดงในวันนี้อีก</button>'
       + '</div>';
   }).join('');
   listEl.innerHTML = html;
@@ -2983,6 +3007,18 @@ function showBranchAnnouncementsModal() {
 }
 function closeBranchAnnouncementsModal() {
   document.getElementById('branchAnnouncementsModal').classList.remove('show');
+}
+
+function dismissAllAnnouncementsToday() {
+  var today = todayIso();
+  var dismissed = getDismissedToday();
+  var items = document.querySelectorAll('#branchAnnouncementsList .ann-item');
+  items.forEach(function(el){
+    var id = el.getAttribute('data-id');
+    if (id) dismissed[id] = today;
+  });
+  setDismissedToday(dismissed);
+  closeBranchAnnouncementsModal();
 }
 function dismissAnnClick(id, btn) {
   dismissAnnouncementToday(id);
