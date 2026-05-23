@@ -2243,6 +2243,16 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   .req-history-wrap { overflow-x: visible; border: none; background: transparent; padding: 0; }
 }
 
+/* ─── Admin toolbar 2-row layout ─── */
+.toolbar-2row {
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 10px !important;
+}
+.toolbar-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar-row-search .search-wrap { flex: 1; max-width: none; }
+.toolbar-row-filters .filter-sel { flex: 1; min-width: 0; }
+
 /* ─── Export training form button (admin) ─── */
 .btn-export-form {
   display: inline-flex; align-items: center; gap: 8px;
@@ -2263,6 +2273,57 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   box-shadow: 0 10px 24px rgba(16,185,129,0.45);
 }
 .btn-export-form:disabled { opacity: 0.6; cursor: not-allowed; }
+.btn-export-form.btn-export-pdf {
+  background: linear-gradient(135deg, #ef4444, #f87171) !important;
+  box-shadow: 0 6px 16px rgba(239,68,68,0.3) !important;
+}
+.btn-export-form.btn-export-pdf:hover:not(:disabled) {
+  box-shadow: 0 10px 24px rgba(239,68,68,0.45) !important;
+}
+
+/* ─── Loading Overlay (sending data) ─── */
+.loading-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 3000;
+}
+.loading-overlay.show { display: flex; animation: fadeIn 0.2s; }
+.loading-box {
+  background: #ffffff;
+  border-radius: 18px;
+  padding: 36px 44px;
+  box-shadow: 0 30px 80px rgba(15,23,42,0.3);
+  text-align: center;
+  min-width: 280px;
+  animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes popIn { from { transform: scale(0.92); opacity:0; } to { transform: scale(1); opacity:1; } }
+.loading-spin {
+  width: 52px; height: 52px;
+  margin: 0 auto 18px;
+  border: 5px solid rgba(234,88,12,0.15);
+  border-top-color: var(--gold);
+  border-radius: 50%;
+  animation: loadSpin 0.9s linear infinite;
+}
+@keyframes loadSpin { to { transform: rotate(360deg); } }
+.loading-title { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.loading-desc { font-size: 13.5px; color: var(--text2); }
+.loading-overlay.success .loading-spin {
+  border-color: var(--green);
+  border-top-color: var(--green);
+  animation: none;
+  position: relative;
+}
+.loading-overlay.success .loading-spin::after {
+  content: '✓';
+  position: absolute; inset: 0;
+  display: flex; align-items: center; justify-content: center;
+  color: var(--green); font-size: 30px; font-weight: 900;
+}
 
 /* ─── Submit Summary Modal ─── */
 .summary-overlay {
@@ -2892,20 +2953,24 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   </div>
 
   <!-- SUBMITTED REQUESTS HISTORY (view-only) -->
-  <div class="section" id="myRequestsSection">
-    <div class="section-title"><span class="section-title-icon" style="font-size:22px;background:transparent;">📂</span> รายชื่อที่ส่งไปแล้ว</div>
+  <div class="section" id="myRequestsSection" style="padding-top:24px;">
+    <div class="section-title" style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+      <span style="display:flex;align-items:center;gap:10px;"><span class="section-title-icon" style="font-size:22px;background:transparent;">📂</span> รายชื่อที่ส่งไปแล้ว</span>
+      <span id="myRequestsInfoInline" style="font-size:13.5px;color:var(--text2);font-weight:600;"></span>
+    </div>
     <div class="section-card">
-      <div id="myRequestsInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px;">กำลังโหลด...</div>
+      <div id="myRequestsInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px;display:none;">กำลังโหลด...</div>
       <div class="req-history-wrap">
         <table class="req-history-table" id="myRequestsTable">
           <thead>
             <tr>
-              <th>วันที่ส่ง</th>
               <th>ชื่อ-นามสกุล</th>
+              <th>รหัสพนักงาน</th>
               <th>ตำแหน่ง</th>
               <th>หลักสูตร</th>
               <th>วันอบรม</th>
               <th>รอบ</th>
+              <th>วันที่ส่ง</th>
             </tr>
           </thead>
           <tbody id="myRequestsBody"></tbody>
@@ -3056,37 +3121,44 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   สถานะ "นามสกุลตรง" = พบนามสกุลเดียวกันในระบบ แต่ชื่อต้นต่างกัน อาจเป็นญาติหรือคนละคน กรุณาตรวจสอบเพิ่มเติม
 </div>
 
-<!-- TOOLBAR -->
-<div class="toolbar">
-  <div class="search-wrap">
-    <span style="color:var(--text3)">&#128269;</span>
-    <input type="text" id="searchQ" placeholder="ค้นหาชื่อ, สาขา, ตำแหน่ง..." oninput="renderTable()">
+<!-- TOOLBAR — row 1: search · row 2: filters -->
+<div class="toolbar toolbar-2row">
+  <div class="toolbar-row toolbar-row-search">
+    <div class="search-wrap">
+      <span style="color:var(--text3)">&#128269;</span>
+      <input type="text" id="searchQ" placeholder="ค้นหาชื่อ, สาขา, ตำแหน่ง..." oninput="renderTable()">
+    </div>
   </div>
-  <select class="filter-sel" id="matchFilter" onchange="renderTable()">
-    <option value="all">ทุกสถานะการจับคู่</option>
-    <option value="exact">พบตรงสนิท</option>
-    <option value="lastname">นามสกุลตรง</option>
-    <option value="notfound">ไม่พบ</option>
-  </select>
-  <select class="filter-sel" id="expFilter" onchange="renderTable()">
-    <option value="all">ทุกสถานะใบรับรอง</option>
-    <option value="valid">ยังมีผล</option>
-    <option value="warning">ใกล้หมดอายุ</option>
-    <option value="expired">หมดอายุแล้ว</option>
-  </select>
-  <select class="filter-sel" id="sheetFilter" onchange="renderTable()">
-    <option value="all">ทุก Sheet</option>
-    <option value="JD">JD</option>
-    <option value="ST">ST</option>
-    <option value="Easy">Easy</option>
-    <option value="OP">OP</option>
-  </select>
+  <div class="toolbar-row toolbar-row-filters">
+    <select class="filter-sel" id="matchFilter" onchange="renderTable()">
+      <option value="all">ทุกสถานะการจับคู่</option>
+      <option value="exact">พบตรงสนิท</option>
+      <option value="lastname">นามสกุลตรง</option>
+      <option value="notfound">ไม่พบ</option>
+    </select>
+    <select class="filter-sel" id="expFilter" onchange="renderTable()">
+      <option value="all">ทุกสถานะใบรับรอง</option>
+      <option value="valid">ยังมีผล</option>
+      <option value="warning">ใกล้หมดอายุ</option>
+      <option value="expired">หมดอายุแล้ว</option>
+    </select>
+    <select class="filter-sel" id="sheetFilter" onchange="renderTable()">
+      <option value="all">ทุก Sheet</option>
+      <option value="JD">JD</option>
+      <option value="ST">ST</option>
+      <option value="Easy">Easy</option>
+      <option value="OP">OP</option>
+    </select>
+  </div>
 </div>
 
 <!-- REQUESTS FROM BRANCHES -->
 <div style="padding:0 20px;margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
   <div class="subsection-title" style="margin-bottom:0">คำขออบรม (ทุกสาขา)</div>
-  <button class="btn-export-form" onclick="exportTrainingForm()">📥 ส่งออกฟอร์มอบรม (.xlsx)</button>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <button class="btn-export-form" onclick="exportTrainingForm()">📥 .xlsx</button>
+    <button class="btn-export-form btn-export-pdf" onclick="exportTrainingPDF()">📄 PDF</button>
+  </div>
 </div>
 <div class="table-container" style="margin-bottom:14px;">
   <div id="adminReqInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px;">กำลังโหลด...</div>
@@ -3094,14 +3166,15 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     <table class="req-history-table" id="adminReqTable">
       <thead>
         <tr>
-          <th>วันที่ส่ง</th>
-          <th>สาขา</th>
           <th>ชื่อ-นามสกุล</th>
+          <th>รหัสพนักงาน</th>
+          <th>สาขา</th>
           <th>เลขบัตร</th>
           <th>ตำแหน่ง</th>
           <th>หลักสูตร</th>
           <th>วันอบรม</th>
           <th>รอบ</th>
+          <th>วันที่ส่ง</th>
           <th>หมายเหตุ</th>
         </tr>
       </thead>
@@ -3142,6 +3215,15 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
+
+<!-- ═════════════════════ LOADING OVERLAY (sending data) ═════════════════════ -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="loading-box">
+    <div class="loading-spin"></div>
+    <div class="loading-title" id="loadingTitle">กำลังส่งข้อมูล...</div>
+    <div class="loading-desc" id="loadingDesc">กรุณารอสักครู่</div>
+  </div>
+</div>
 
 <!-- ═════════════════════ SUBMIT SUMMARY MODAL ═════════════════════ -->
 <div class="summary-overlay" id="summaryModal">
@@ -4776,7 +4858,7 @@ function branchSearch() {
 }
 
 function addRequestRow() {
-  requestRows.push({name:'', idCard:'', branch: currentBranchName || '', position:'', course:'', trainDate:'', timeSlot:'', note:''});
+  requestRows.push({name:'', empId:'', idCard:'', branch: currentBranchName || '', position:'', course:'', trainDate:'', timeSlot:'', note:''});
   rerenderRequestList();
 }
 
@@ -4784,8 +4866,10 @@ function addRequestRow() {
 function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   var info = document.getElementById(infoElId);
   var body = document.getElementById(bodyElId);
+  var inlineInfo = !isAdmin ? document.getElementById('myRequestsInfoInline') : null;
   if (!info || !body) return;
   info.textContent = 'กำลังโหลด...';
+  if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...';
   var url = SCRIPT_URL + '?action=requests' + (branchFilter ? '&branch=' + encodeURIComponent(branchFilter) : '');
   fetch(url, { method: 'GET' })
     .then(function(r){ return r.json(); })
@@ -4797,10 +4881,12 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
       var rows = res.records || [];
       if (rows.length === 0) {
         info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
-        body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
+        if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
+        body.innerHTML = '<tr><td colspan="'+(isAdmin?10:7)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
         return;
       }
       info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
+      if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
       // Sort newest first
       rows.sort(function(a,b){
         var ta = a['timestamp'] || a['วันที่ส่ง'] || '';
@@ -4819,20 +4905,24 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var note = r['note'] || r['หมายเหตุ'] || '';
         var tsFmt = ts ? formatThaiDate(ts) : '—';
         if (isAdmin) {
+          var empId = r.empId || r['รหัสพนักงาน'] || '';
           return '<tr>'
             +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(name)+'</td>'
+            +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(empId)+'</td>'
             +'<td data-label="สาขา" data-icon="🏬">'+escapeHtml(branch)+'</td>'
-            +'<td data-label="เลขบัตร" data-icon="🆔">'+escapeHtml(idCard)+'</td>'
+            +'<td data-label="เลขบัตร" data-icon="🪪">'+escapeHtml(idCard)+'</td>'
             +'<td data-label="ตำแหน่ง" data-icon="💼">'+escapeHtml(pos)+'</td>'
             +'<td data-label="หลักสูตร" data-icon="📚" style="font-size:12.5px;">'+escapeHtml(course)+'</td>'
             +'<td data-label="วันอบรม" data-icon="📅">'+escapeHtml(formatThaiDate(trainDate))+'</td>'
             +'<td data-label="รอบ" data-icon="🕐">'+escapeHtml(slot)+'</td>'
             +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(tsFmt)+'</td>'
-            +(note?'<td data-label="หมายเหตุ" data-icon="📝">'+escapeHtml(note)+'</td>':'')
+            +'<td data-label="หมายเหตุ" data-icon="📝">'+escapeHtml(note||'-')+'</td>'
             +'</tr>';
         }
+        var empIdS = r.empId || r['รหัสพนักงาน'] || '';
         return '<tr>'
           +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(name)+'</td>'
+          +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(empIdS)+'</td>'
           +'<td data-label="ตำแหน่ง" data-icon="💼">'+escapeHtml(pos)+'</td>'
           +'<td data-label="หลักสูตร" data-icon="📚" style="font-size:12.5px;">'+escapeHtml(course)+'</td>'
           +'<td data-label="วันอบรม" data-icon="📅">'+escapeHtml(formatThaiDate(trainDate))+'</td>'
@@ -4853,17 +4943,152 @@ function loadAdminRequests() {
   loadRequests('', 'adminReqInfo', 'adminReqBody', true);
 }
 
+/* ─── Export training form PDF (printable HTML view) ─── */
+function exportTrainingPDF() {
+  fetch(SCRIPT_URL + '?action=requests')
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var reqs = (res && res.records) || [];
+      if (reqs.length === 0) { alert('ยังไม่มีรายชื่อให้ส่งออก'); return; }
+      var groups = {};
+      reqs.forEach(function(r){
+        var c = r.course || r['หลักสูตร'] || '';
+        var s = r.timeSlot || r['รอบ'] || '';
+        var k = c + '|' + s;
+        if (!groups[k]) groups[k] = { course: c, slot: s, trainDate: r.trainDate || r['วันอบรม'] || '', rows: [] };
+        groups[k].rows.push(r);
+      });
+
+      // Build printable HTML
+      var html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ทะเบียนรายชื่อผู้เข้าอบรม</title>';
+      html += '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
+      html += '<style>'
+        + '@page { size: A4; margin: 12mm 12mm; }'
+        + '* { box-sizing: border-box; }'
+        + 'body { font-family: "Sarabun", "Tahoma", sans-serif; color:#111; margin:0; font-size: 13.5px; }'
+        + '.form-page { page-break-after: always; padding: 0 4mm; }'
+        + '.form-page:last-child { page-break-after: auto; }'
+        + '.form-head { text-align:center; margin-bottom: 14px; }'
+        + '.form-logo { width: 140px; margin: 0 auto -8px; display:block; mix-blend-mode: multiply; }'
+        + '.form-title-co { font-size: 20px; font-weight: 800; margin-top: 0; }'
+        + '.form-title-sub { font-size: 17px; font-weight: 700; margin-top: 4px; }'
+        + '.form-meta-row {'
+        +   ' display: flex; align-items: baseline; justify-content: center; gap: 18px;'
+        +   ' font-size: 14.5px; line-height: 1.9; margin: 2px 0;'
+        +   ' flex-wrap: wrap;'
+        + ' }'
+        + '.form-meta-row .lbl { font-weight: 800; }'
+        + '.form-meta-row .val {'
+        +   ' display: inline-block; min-width: 160px;'
+        +   ' border-bottom: 1px dotted #444; padding: 0 6px; font-weight: 500;'
+        + ' }'
+        + 'table { width: 100%; border-collapse: collapse; font-size: 13.5px; margin-top: 10px; }'
+        + 'th, td { border: 1px solid #555; padding: 6px 8px; text-align: left; vertical-align: middle; }'
+        + 'th { background: #d9d9d9; font-weight: 800; text-align: center; font-size: 13.5px; }'
+        + 'td.num { text-align: center; color: #1d4ed8; width: 36px; font-weight: 600; }'
+        + 'td.empty { height: 28px; }'
+        + '.print-bar { position:fixed; top: 10px; right: 10px; z-index:9999; }'
+        + '.print-bar button {'
+        +   ' padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer;'
+        +   ' border-radius: 10px; border: 1px solid #ccc;'
+        +   ' background: linear-gradient(135deg, #ef4444, #f87171); color: #fff;'
+        +   ' box-shadow: 0 4px 12px rgba(239,68,68,0.3);'
+        + ' }'
+        + '@media print { .print-bar { display: none; } body { font-family: "Sarabun","Tahoma",sans-serif; } }'
+        + '</style></head><body>';
+      html += '<div class="print-bar"><button onclick="window.print()">🖨 พิมพ์ / Save PDF</button></div>';
+
+      // Logo absolute URL
+      var logoUrl = new URL('../logo.png', location.href).href;
+
+      var ROWS_PER_PAGE = 25;
+      var pageIdx = 0;
+      Object.keys(groups).forEach(function(key){
+        var g = groups[key];
+        var sch = COURSE_SCHEDULES[g.course];
+        var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(++pageIdx);
+        var fullDate = (sch && sch.date) || formatThaiDate(g.trainDate);
+
+        var totalPages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
+        for (var p = 0; p < totalPages; p++) {
+          var chunkRows = g.rows.slice(p * ROWS_PER_PAGE, (p + 1) * ROWS_PER_PAGE);
+          var pageLabel = totalPages > 1 ? ' (หน้า ' + (p + 1) + '/' + totalPages + ')' : '';
+
+          html += '<div class="form-page">'
+            + '<div class="form-head">'
+            +   '<img class="form-logo" src="' + logoUrl + '" onerror="this.style.display=\'none\'">'
+            +   '<div class="form-title-co">บริษัท เอฟเอบี ฟู้ดโฮลดิ้ง จำกัด</div>'
+            +   '<div class="form-title-sub">ทะเบียนรายชื่อผู้เข้าอบรม' + pageLabel + '</div>'
+            + '</div>'
+            + '<div class="form-meta-row">'
+            +   '<span><span class="lbl">หลักสูตร :</span> <span class="val">' + escapeHtml(g.course) + '</span></span>'
+            +   '<span><span class="lbl">รุ่นที่ :</span> <span class="val" style="min-width:80px;">' + escapeHtml(roundNum) + '</span></span>'
+            + '</div>'
+            + '<div class="form-meta-row">'
+            +   '<span><span class="lbl">ระหว่างวันที่ :</span> <span class="val">' + escapeHtml(fullDate) + '</span></span>'
+            +   '<span><span class="lbl">ถึงวันที่ :</span> <span class="val">' + escapeHtml(fullDate) + '</span></span>'
+            + '</div>'
+            + '<div class="form-meta-row">'
+            +   '<span><span class="lbl">ตั้งแต่เวลา :</span> <span class="val" style="min-width:140px;">' + escapeHtml(g.slot) + ' น.</span></span>'
+            + '</div>'
+            + '<table>'
+            + '<thead><tr><th style="width:36px;">ลำดับ</th><th style="width:90px;">รหัสพนักงาน</th><th>ชื่อ - นามสกุล</th><th>ตำแหน่ง</th><th>เลขบัตรประจำตัวประชาชน</th><th>สาขา/หน่วยงาน</th></tr></thead><tbody>';
+          // Always render 25 rows (fill blank if fewer)
+          for (var i = 0; i < ROWS_PER_PAGE; i++) {
+            var r = chunkRows[i];
+            var globalIdx = p * ROWS_PER_PAGE + i + 1;
+            if (r) {
+              html += '<tr>'
+                + '<td class="num">' + globalIdx + '</td>'
+                + '<td>' + escapeHtml(r.empId || r['รหัสพนักงาน'] || '') + '</td>'
+                + '<td>' + escapeHtml(r.name || '') + '</td>'
+                + '<td>' + escapeHtml(r.position || '') + '</td>'
+                + '<td>' + escapeHtml(r.idCard || '') + '</td>'
+                + '<td>' + escapeHtml(r.branch || '') + '</td>'
+                + '</tr>';
+            } else {
+              html += '<tr><td class="num">' + globalIdx + '</td><td class="empty"></td><td></td><td></td><td></td><td></td></tr>';
+            }
+          }
+          html += '</tbody></table></div>';
+        }
+      });
+      html += '</body></html>';
+
+      var w = window.open('', '_blank');
+      if (!w) { alert('Popup ถูกบล็อก — อนุญาตให้เปิด popup เพื่อ export PDF'); return; }
+      w.document.open();
+      w.document.write(html);
+      w.document.close();
+      // Auto-trigger print after load
+      setTimeout(function(){ try { w.focus(); w.print(); } catch(e){} }, 600);
+    })
+    .catch(function(err){ alert('PDF export ผิดพลาด: ' + err.message); });
+}
+
 /* ─── Export training form: fill ฟอร์ม.xlsx with grouped requests ─── */
 function exportTrainingForm() {
   if (typeof XLSX === 'undefined') { alert('SheetJS ยังโหลดไม่เสร็จ ลองอีกครั้ง'); return; }
   var btn = event && event.target ? event.target : null;
   if (btn) { btn.disabled = true; btn.dataset.orig = btn.innerHTML; btn.innerHTML = '<span class="spin"></span> กำลังเตรียม...'; }
 
-  // 1) Fetch template + requests in parallel
-  var tplUrl = '../' + encodeURIComponent('ฟอร์ม.xlsx');
+  // 1) Fetch template + requests separately (better error messages)
+  // Try multiple URL variants for the template (relative path vs encoded)
+  var tplCandidates = [
+    new URL('../' + encodeURIComponent('ฟอร์ม.xlsx'), location.href).href,
+    new URL('../ฟอร์ม.xlsx', location.href).href,
+    new URL('../form.xlsx', location.href).href
+  ];
+  function fetchTemplate() {
+    return tplCandidates.reduce(function(p, url){
+      return p.catch(function(){
+        return fetch(url).then(function(r){ if (!r.ok) throw new Error(r.status+' @ '+url); return r.arrayBuffer(); });
+      });
+    }, Promise.reject(new Error('init')));
+  }
   Promise.all([
-    fetch(tplUrl).then(function(r){ if (!r.ok) throw new Error('โหลด template ไม่ได้ ('+r.status+')'); return r.arrayBuffer(); }),
-    fetch(SCRIPT_URL + '?action=requests').then(function(r){ return r.json(); })
+    fetchTemplate().catch(function(err){ throw new Error('โหลด template ฟอร์ม.xlsx ไม่ได้: ' + err.message); }),
+    fetch(SCRIPT_URL + '?action=requests').then(function(r){ return r.json(); }).catch(function(err){ throw new Error('โหลดรายชื่อจาก Cloud ไม่ได้: ' + err.message); })
   ])
   .then(function(results){
     var ab = results[0];
@@ -4881,49 +5106,69 @@ function exportTrainingForm() {
       groups[key].rows.push(r);
     });
 
+    var ROWS_PER_FILE = 25;
     var fileCount = 0;
     Object.keys(groups).forEach(function(key, gIdx){
       var g = groups[key];
-      var wb = XLSX.read(ab, { type: 'array', cellStyles: true });
-      var sn = wb.SheetNames[0];
-      var ws = wb.Sheets[sn];
+      var sch = COURSE_SCHEDULES[g.course];
+      var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
+      var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
 
-      // Helper to update value while preserving cell style
-      function setCell(addr, val) {
-        if (ws[addr]) ws[addr].v = val;
-        else ws[addr] = { v: val, t: 's' };
+      // Split rows into chunks of 25 (one xlsx file per chunk)
+      var totalPages = Math.ceil(g.rows.length / ROWS_PER_FILE) || 1;
+      for (var page = 0; page < totalPages; page++) {
+        var chunkRows = g.rows.slice(page * ROWS_PER_FILE, (page + 1) * ROWS_PER_FILE);
+        var wb = XLSX.read(ab, { type: 'array', cellStyles: true });
+        var sn = wb.SheetNames[0];
+        var ws = wb.Sheets[sn];
+
+        function setCell(addr, val) {
+          if (ws[addr]) ws[addr].v = val;
+          else ws[addr] = { v: val, t: 's' };
+        }
+        function fillDots(addr, values) {
+          if (!ws[addr] || !ws[addr].v) return;
+          var i = 0;
+          ws[addr].v = String(ws[addr].v).replace(/\.{4,}/g, function(match){
+            var v = (values[i++] || '');
+            var s = String(v);
+            if (s.length < match.length) s = s + ' '.repeat(Math.max(0, match.length - s.length));
+            return s;
+          });
+        }
+        fillDots('A4', [g.course, roundNum]);
+        fillDots('A5', [fullDate, fullDate, '']);
+        fillDots('A6', [g.slot + ' น.']);
+
+        chunkRows.forEach(function(r, idx){
+          var rowNum = 9 + idx;
+          if (rowNum > 33) return;
+          var name = r.name || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
+          var pos = r.position || r['ตำแหน่ง'] || '';
+          var idCard = r.idCard || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
+          var branch = r.branch || r['สาขา'] || '';
+          var empId = r.empId || r['รหัสพนักงาน'] || '';
+          setCell('B' + rowNum, String(empId));
+          if (ws['B' + rowNum]) ws['B' + rowNum].t = 's';
+          setCell('C' + rowNum, name);
+          setCell('D' + rowNum, pos);
+          setCell('E' + rowNum, String(idCard));
+          if (ws['E' + rowNum]) ws['E' + rowNum].t = 's';
+          setCell('F' + rowNum, branch);
+        });
+
+        var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
+        var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
+        var pageSuffix = totalPages > 1 ? '_หน้า' + (page + 1) + '_จาก' + totalPages : '';
+        var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + pageSuffix + '.xlsx';
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
+        fileCount++;
       }
-      setCell('A4', 'หลักสูตร :  ' + g.course + '                                  รุ่นที่ : ' + (gIdx + 1));
-      setCell('A5', 'ระหว่างวันที่ : ' + formatThaiDate(g.trainDate) + '    ถึงวันที่ : ' + formatThaiDate(g.trainDate));
-      setCell('A6', 'เวลา : ' + g.slot + ' น.');
-
-      // Data rows start at row 9
-      g.rows.forEach(function(r, idx){
-        var rowNum = 9 + idx;
-        if (rowNum > 33) return;
-        var name = r.name || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
-        var pos = r.position || r['ตำแหน่ง'] || '';
-        var idCard = r.idCard || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
-        var branch = r.branch || r['สาขา'] || '';
-        setCell('C' + rowNum, name);
-        setCell('D' + rowNum, pos);
-        setCell('E' + rowNum, String(idCard));
-        // Force E to text type (preserve leading 0)
-        if (ws['E' + rowNum]) ws['E' + rowNum].t = 's';
-        setCell('F' + rowNum, branch);
-      });
-
-      // 3) Write file
-      var out = XLSX.write(wb, { bookType: 'xlsx', type: 'array', cellStyles: true });
-      var blob = new Blob([out], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      var safe = function(s){ return String(s).replace(/[\\\/:*?"<>|]/g, '').replace(/\s+/g, '_'); };
-      var filename = 'ฟอร์มอบรม_' + safe(g.course).slice(0, 30) + '_' + safe(g.slot) + '.xlsx';
-      var a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      document.body.appendChild(a); a.click(); document.body.removeChild(a);
-      setTimeout(function(){ URL.revokeObjectURL(a.href); }, 2000);
-      fileCount++;
     });
 
     if (btn) {
@@ -4968,17 +5213,19 @@ function backToStep1() {
   if (typeof updateStepper === 'function') updateStepper();
 }
 
-/* Course schedules — date + time slots tied to each course */
+/* Course schedules — date + time slots + รุ่นที่ tied to each session */
 var COURSE_SCHEDULES = {
   'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร': {
     date: '10 มิถุนายน 2569',
     dateShort: '10 มิ.ย. 2569',
-    slots: ['08.30-12.30', '13.30-17.30']
+    slots: ['08.30-12.30', '13.30-17.30'],
+    rounds: { '08.30-12.30': '2/2569', '13.30-17.30': '3/2569' }
   },
   'การสุขาภิบาลอาหาร สำหรับผู้ประกอบกิจการ': {
     date: '12 มิถุนายน 2569',
     dateShort: '12 มิ.ย. 2569',
-    slots: ['12.30-16.30']
+    slots: ['12.30-16.30'],
+    rounds: { '12.30-16.30': '2/2569' }
   }
 };
 var COURSE_OPTIONS = Object.keys(COURSE_SCHEDULES);
@@ -5006,7 +5253,7 @@ function rerenderRequestList() {
     if (sch) {
       slotDdHtml = '<div class="dd-wrap" id="ddSlot-'+i+'">'
         + '<button type="button" class="dd-trigger" onclick="toggleDd(\'ddSlot-'+i+'\', event)">'
-        + '<span class="dd-value">'+(r.timeSlot ? '🕐 '+r.timeSlot+' น.' : '<span class="dd-placeholder">เลือกรอบอบรม...</span>')+'</span>'
+        + '<span class="dd-value">'+(r.timeSlot ? '🕐 '+r.timeSlot+' น.' : '<span class="dd-placeholder">เลือกรอบ...</span>')+'</span>'
         + '<span class="dd-caret">▾</span>'
         + '</button>'
         + '<div class="dd-list">'
@@ -5017,17 +5264,13 @@ function rerenderRequestList() {
               + '</div>';
           }).join('')
         + '</div></div>';
+    } else {
+      slotDdHtml = '<div class="picker-date-box" style="color:var(--text3);font-weight:500;">เลือกหลักสูตรก่อน</div>';
     }
 
-    var scheduleHtml = '<div class="picker-grid">'
-      + '<div class="picker-field"><label class="picker-label">หลักสูตร <span class="req-mark">*</span></label>'+courseDdHtml+'</div>'
-      + '<div class="picker-field"><label class="picker-label">วันอบรม</label>'
-      +   '<div class="picker-date-box">'+(sch ? '📅 '+escapeHtml(sch.dateShort) : '<span style="color:var(--text3)">เลือกหลักสูตรก่อน</span>')+'</div>'
-      + '</div>'
-      + '<div class="picker-field"><label class="picker-label">รอบอบรม <span class="req-mark">*</span></label>'
-      +   (sch ? slotDdHtml : '<div class="picker-date-box" style="color:var(--text3);">เลือกหลักสูตรก่อน</div>')
-      + '</div>'
-      + '</div>';
+    var dateBoxHtml = sch
+      ? '<div class="picker-date-box">📅 '+escapeHtml(sch.dateShort)+'</div>'
+      : '<div class="picker-date-box" style="color:var(--text3);font-weight:500;">เลือกหลักสูตรก่อน</div>';
     return '<div class="req-card">'
       + '<div class="req-card-head">'
       +   '<span class="req-card-num">พนักงานคนที่ '+(i+1)+'</span>'
@@ -5047,20 +5290,33 @@ function rerenderRequestList() {
       +     '<div class="req-hint neutral" id="reqHint-'+i+'"></div>'
       +   '</div>'
       +   '<div class="req-field">'
+      +     '<label>รหัสพนักงาน <span class="req-mark">*</span></label>'
+      +     '<input type="text" value="'+escapeAttr(r.empId||'')+'" placeholder="ใส่รหัสพนักงาน" oninput="updateReqRow('+i+',\'empId\',this.value)">'
+      +   '</div>'
+      +   '<div class="req-field">'
       +     '<label>เลขบัตรประชาชน <span class="req-mark">*</span></label>'
       +     '<input type="text" maxlength="13" inputmode="numeric" value="'+escapeAttr(r.idCard||'')+'" placeholder="13 หลัก" oninput="updateIdCard(this,'+i+')">'
       +     '<div class="req-hint neutral" id="reqIdHint-'+i+'"></div>'
       +   '</div>'
       +   '<div class="req-field">'
       +     '<label>ตำแหน่ง <span class="req-mark">*</span></label>'
-      +     '<input value="'+escapeAttr(r.position)+'" placeholder="เช่น พนักงานครัว / บริการ" oninput="updateReqRow('+i+',\'position\',this.value)">'
+      +     '<input value="'+escapeAttr(r.position)+'" placeholder="เช่น พนักงานครัว" oninput="updateReqRow('+i+',\'position\',this.value)">'
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>หลักสูตร <span class="req-mark">*</span></label>'
+      +     courseDdHtml
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>วันอบรม</label>'
+      +     dateBoxHtml
+      +   '</div>'
+      +   '<div class="req-field">'
+      +     '<label>รอบอบรม <span class="req-mark">*</span></label>'
+      +     slotDdHtml
       +   '</div>'
       +   '<div class="req-field">'
       +     '<label>หมายเหตุ</label>'
       +     '<input value="'+escapeAttr(r.note)+'" placeholder="(ถ้ามี)" oninput="updateReqRow('+i+',\'note\',this.value)">'
-      +   '</div>'
-      +   '<div class="req-field req-field-full">'
-      +     scheduleHtml
       +   '</div>'
       + '</div>'
       + '</div>';
@@ -5285,6 +5541,22 @@ function escapeAttr(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
 }
 
+/* ─── Loading overlay helpers ─── */
+function showLoadingOverlay(title, desc, success) {
+  var ov = document.getElementById('loadingOverlay');
+  if (!ov) return;
+  ov.classList.toggle('success', !!success);
+  var t = document.getElementById('loadingTitle');
+  var d = document.getElementById('loadingDesc');
+  if (t) t.textContent = title || 'กำลังส่งข้อมูล...';
+  if (d) d.textContent = desc || 'กรุณารอสักครู่';
+  ov.classList.add('show');
+}
+function hideLoadingOverlay() {
+  var ov = document.getElementById('loadingOverlay');
+  if (ov) { ov.classList.remove('show'); ov.classList.remove('success'); }
+}
+
 /* Show summary modal before actual submit */
 function showSubmitSummary() {
   // Validate first (re-use logic)
@@ -5292,18 +5564,20 @@ function showSubmitSummary() {
   var rows = [];
   requestRows.forEach(function(r, i){
     var name = (r.name || '').trim();
+    var empId = (r.empId || '').trim();
     var idCard = (r.idCard || '').trim();
     var position = (r.position || '').trim();
     var course = (r.course || '').trim();
     var timeSlot = (r.timeSlot || '').trim();
-    if (!name && !idCard && !position && !course) return;
+    if (!name && !empId && !idCard && !position && !course) return;
     if (!name) { errors.push('แถวที่ '+(i+1)+': ไม่ได้กรอกชื่อ'); return; }
+    if (!empId) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกรหัสพนักงาน'); return; }
     if (!idCard) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกเลขบัตรประชาชน'); return; }
     if (idCard.length !== 13) { errors.push('แถว <b>'+name+'</b>: เลขบัตรประชาชนไม่ครบ 13 หลัก'); return; }
     if (!position) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกตำแหน่ง'); return; }
     if (!course) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกหลักสูตร'); return; }
     if (!timeSlot) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกรอบอบรม'); return; }
-    rows.push({ name: name, idCard: idCard, position: position, course: course, trainDate: r.trainDate || '', timeSlot: timeSlot, note: r.note || '' });
+    rows.push({ name: name, empId: empId, idCard: idCard, position: position, course: course, trainDate: r.trainDate || '', timeSlot: timeSlot, note: r.note || '' });
   });
 
   if (errors.length) {
@@ -5323,7 +5597,7 @@ function showSubmitSummary() {
       + '<div class="summary-row-num">#'+(idx+1)+'</div>'
       + '<div class="summary-row-body">'
       +   '<div class="summary-name">'+escapeHtml(r.name)+'</div>'
-      +   '<div class="summary-meta"><span><strong>เลขบัตร:</strong> '+escapeHtml(r.idCard)+'</span> · <span><strong>ตำแหน่ง:</strong> '+escapeHtml(r.position)+'</span></div>'
+      +   '<div class="summary-meta"><span><strong>รหัสพนง:</strong> '+escapeHtml(r.empId||'-')+'</span> · <span><strong>เลขบัตร:</strong> '+escapeHtml(r.idCard)+'</span> · <span><strong>ตำแหน่ง:</strong> '+escapeHtml(r.position)+'</span></div>'
       +   '<div class="summary-meta"><strong>หลักสูตร:</strong> '+escapeHtml(r.course)+'</div>'
       +   '<div class="summary-meta"><strong>📅 วันอบรม:</strong> '+escapeHtml(formatThaiDate(r.trainDate))+' · <strong>🕐 รอบ:</strong> '+escapeHtml(r.timeSlot)+' น.</div>'
       +   (r.note ? '<div class="summary-meta"><strong>หมายเหตุ:</strong> '+escapeHtml(r.note)+'</div>' : '')
@@ -5347,20 +5621,23 @@ function submitRequests() {
   var valid = [];
   requestRows.forEach(function(r, i){
     var name = (r.name || '').trim();
+    var empId = (r.empId || '').trim();
     var idCard = (r.idCard || '').trim();
     var position = (r.position || '').trim();
     var course = (r.course || '').trim();
     var trainDate = (r.trainDate || '').trim();
     var timeSlot = (r.timeSlot || '').trim();
-    if (!name && !idCard && !position && !course) return; // skip empty
+    if (!name && !empId && !idCard && !position && !course) return; // skip empty
     if (!name) { errors.push('แถวที่ '+(i+1)+': ไม่ได้กรอกชื่อ'); return; }
+    if (!empId) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกรหัสพนักงาน'); return; }
     if (!idCard) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกเลขบัตรประชาชน'); return; }
     if (idCard.length !== 13) { errors.push('แถว <b>'+name+'</b>: เลขบัตรประชาชนไม่ครบ 13 หลัก'); return; }
     if (!position) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกตำแหน่ง'); return; }
-    if (!course) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกหลักสูตรที่จะอบรม'); return; }
+    if (!course) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกหลักสูตร'); return; }
     if (!timeSlot) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกรอบอบรม'); return; }
     valid.push({
       name: name,
+      empId: empId,
       idCard: idCard,
       branch: r.branch || currentBranchName,
       position: position,
@@ -5394,7 +5671,8 @@ function submitRequests() {
   function doSubmit() {
     var btn = document.getElementById('submitReqBtn');
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังส่ง...';
-    statusEl.innerHTML = '<span style="color:var(--text2)">กำลังส่งรายชื่อ '+valid.length+' รายการ...</span>';
+    statusEl.innerHTML = '';
+    showLoadingOverlay('กำลังส่งข้อมูล...', 'กำลังส่งรายชื่อ '+valid.length+' รายการ — กรุณารอสักครู่');
     fetch(SCRIPT_URL, {
       method: 'POST', mode: 'cors',
       headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -5404,18 +5682,19 @@ function submitRequests() {
     .then(function(res){
       btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
       if (res.ok) {
+        showLoadingOverlay('✓ ส่งรายชื่อสำเร็จ', 'บันทึก '+res.saved+' รายการเรียบร้อยแล้ว', true);
         statusEl.innerHTML = '<span style="color:var(--green)">✓ ส่งรายชื่อ '+res.saved+' รายการเรียบร้อย</span>';
         requestRows = [];
         rerenderRequestList();
-        // Refresh submitted list
         setTimeout(loadMyRequests, 600);
-        // Reset to step 1
-        setTimeout(function(){ backToStep1(); }, 1500);
+        setTimeout(function(){ hideLoadingOverlay(); backToStep1(); }, 1500);
       } else {
+        hideLoadingOverlay();
         statusEl.innerHTML = '<span style="color:var(--red)">✗ ส่งไม่สำเร็จ: '+(res.error||'unknown')+'</span>';
       }
     })
     .catch(function(err){
+      hideLoadingOverlay();
       btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
       statusEl.innerHTML = '<span style="color:var(--red)">✗ เชื่อมต่อไม่ได้: '+err.message+'</span>';
     });

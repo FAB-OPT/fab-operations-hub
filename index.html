@@ -640,37 +640,27 @@ body.is-admin .adm-only { display: flex; }
   border-bottom: 1px dashed rgba(15,23,42,0.10);
 }
 .ann-item:last-child { margin-bottom: 0; border-bottom: none; padding-bottom: 0; }
-.ann-head { display: flex; align-items: center; gap: 14px; margin-bottom: 12px; }
-.ann-icon-emoji {
-  font-size: 28px; flex-shrink: 0;
-  width: 52px; height: 52px;
-  display: inline-flex; align-items: center; justify-content: center;
-  background: linear-gradient(135deg, #fff7ed, #ffedd5);
-  border-radius: 14px;
-  border: 1px solid rgba(255,122,26,0.18);
-}
-.ann-icon-img {
-  width: 52px; height: 52px;
-  border-radius: 14px;
-  object-fit: cover;
+.ann-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.ann-warn-mark {
+  font-size: 22px;
+  color: var(--red);
   flex-shrink: 0;
-  border: 1px solid rgba(15,23,42,0.08);
-  background: #fff;
+  line-height: 1;
 }
 .ann-title {
   font-size: 17px;
   font-weight: 800;
-  color: var(--text);
+  color: var(--red);
   line-height: 1.3;
   letter-spacing: -0.2px;
 }
 .ann-msg {
   font-size: 14.5px;
-  color: var(--text);
+  color: var(--red);
   line-height: 1.65;
   margin-bottom: 14px;
   white-space: pre-wrap;
-  font-weight: 500;
+  font-weight: 600;
 }
 .ann-expire {
   font-size: 12.5px;
@@ -2473,6 +2463,7 @@ function showMenuView() {
   var mv = document.getElementById('menuView');
   if (!mv) return;
   mv.style.display = 'block';
+  setTimeout(updateAnnounceBtnVisibility, 100);
   mv.classList.add('view-active');
   setTimeout(function(){ mv.classList.remove('view-active'); }, 600);
   var tag = document.getElementById('menuBranchTag');
@@ -2612,7 +2603,7 @@ function saveAnnouncementsLocal() {
   try { localStorage.setItem('fab_announcements_v1', JSON.stringify(ANNOUNCEMENTS)); } catch(e) {}
 }
 function loadAnnouncementsFromCloud() {
-  return fetch(SCRIPT_URL + '?action=announcements', { method: 'GET' })
+  return fetch(SCRIPT_URL + '?action=announcements&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.ok && res.announcements) {
@@ -2620,9 +2611,25 @@ function loadAnnouncementsFromCloud() {
         ANNOUNCEMENTS.forEach(normalizeAnnouncement);
         saveAnnouncementsLocal();
       }
+      // Always update the "ดูประกาศ" button visibility
+      updateAnnounceBtnVisibility();
       return ANNOUNCEMENTS;
     })
-    .catch(function(err){ console.warn('Cloud load announcements failed', err); return ANNOUNCEMENTS; });
+    .catch(function(err){
+      console.warn('Cloud load announcements failed', err);
+      updateAnnounceBtnVisibility();
+      return ANNOUNCEMENTS;
+    });
+}
+function updateAnnounceBtnVisibility() {
+  var viewBtn = document.getElementById('viewAnnounceBtn');
+  if (!viewBtn) return;
+  if (isAdminMode) { viewBtn.style.display = 'none'; return; }
+  var list = getAllAnnouncementsForBranch(branchPin);
+  viewBtn.style.display = list.length > 0 ? '' : 'none';
+  // Show count on button if more than one
+  if (list.length > 1) viewBtn.innerHTML = '📢 ดูประกาศ (' + list.length + ')';
+  else viewBtn.innerHTML = '📢 ดูประกาศ';
 }
 function saveAnnouncementsToCloud() {
   return fetch(SCRIPT_URL, {
@@ -3031,11 +3038,8 @@ function showBranchAnnouncementsModal(retry, forceShow) {
   }
   var listEl = document.getElementById('branchAnnouncementsList');
   var html = list.map(function(a){
-    var iconHtml = a.icon
-      ? '<img class="ann-icon-img" src="'+a.icon+'" alt="">'
-      : '<span class="ann-icon-emoji">'+escapeHtml(a.emoji||'📢')+'</span>';
     return '<div class="ann-item" data-id="'+a.id+'">'
-      + '<div class="ann-head">'+iconHtml+'<div class="ann-title">'+escapeHtml(a.title)+'</div></div>'
+      + '<div class="ann-head"><span class="ann-warn-mark">⚠</span><div class="ann-title">'+escapeHtml(a.title)+'</div></div>'
       + '<div class="ann-msg">'+escapeHtml(a.message)+'</div>'
       + '</div>';
   }).join('');
