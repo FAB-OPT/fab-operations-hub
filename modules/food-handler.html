@@ -1884,6 +1884,95 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 /* Search wrap focus */
 .search-wrap:focus-within { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(234,88,12,0.12); }
 
+/* ─── Course + Slot Picker (3-col grid: course | date | slot) ─── */
+.picker-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+}
+@media (max-width: 768px) {
+  .picker-grid { grid-template-columns: 1fr; }
+}
+.picker-field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+.picker-label {
+  font-size: 15px; font-weight: 800; color: var(--text);
+  display: flex; align-items: center; gap: 6px;
+}
+.picker-date-box {
+  padding: 12px 14px;
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: 11px;
+  font-size: 14px; font-weight: 700;
+  color: var(--gold);
+  display: flex; align-items: center;
+  min-height: 44px;
+}
+
+/* Custom dropdown */
+.dd-wrap { position: relative; }
+.dd-trigger {
+  width: 100%;
+  padding: 12px 38px 12px 14px;
+  background: #f8fafc;
+  border: 1.5px solid var(--border);
+  border-radius: 11px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  transition: all 0.15s;
+  min-height: 44px;
+  position: relative;
+}
+.dd-trigger:hover { background: #ffffff; border-color: var(--border2); }
+.dd-wrap.open .dd-trigger {
+  background: #ffffff;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 4px rgba(234,88,12,0.12);
+}
+.dd-value { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.dd-placeholder { color: var(--text3); font-weight: 500; }
+.dd-caret {
+  color: var(--text2);
+  transition: transform 0.2s;
+  font-size: 14px;
+}
+.dd-wrap.open .dd-caret { transform: rotate(180deg); color: var(--gold); }
+
+.dd-list {
+  display: none;
+  position: absolute;
+  top: calc(100% + 6px); left: 0; right: 0;
+  background: #ffffff;
+  border: 1px solid rgba(15,23,42,0.12);
+  border-radius: 12px;
+  box-shadow: 0 16px 36px rgba(15,23,42,0.12), 0 4px 10px rgba(15,23,42,0.06);
+  z-index: 100;
+  padding: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+.dd-wrap.open .dd-list { display: block; }
+.dd-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.dd-item:hover { background: #fff7ed; }
+.dd-item.selected { background: rgba(234,88,12,0.08); }
+.dd-item.selected::after {
+  content: '✓';
+  float: right;
+  color: var(--gold);
+  font-weight: 900;
+}
+.dd-item-title { font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.3; }
+.dd-item-meta { font-size: 12px; color: var(--text3); margin-top: 2px; font-weight: 600; }
+
 /* ─── Schedule cards v2 (compact, cleaner) ─── */
 .sched-options {
   display: grid;
@@ -2137,6 +2226,126 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   }
   .req-history-table tbody td.cert-name { font-weight: 800; color: var(--text); font-size: 15px; }
   .req-history-wrap { overflow-x: visible; border: none; background: transparent; padding: 0; }
+}
+
+/* ─── Submit Summary Modal ─── */
+.summary-overlay {
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.55);
+  backdrop-filter: blur(6px);
+  display: none;
+  align-items: center; justify-content: center;
+  z-index: 2000;
+  padding: 20px;
+}
+.summary-overlay.show { display: flex; animation: fadeIn 0.25s; }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.summary-box {
+  background: #ffffff;
+  border-radius: 20px;
+  width: 100%;
+  max-width: 560px;
+  max-height: 88vh;
+  display: flex; flex-direction: column;
+  box-shadow: 0 30px 80px rgba(15,23,42,0.3);
+  animation: scaleIn 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes scaleIn { from { transform: scale(0.94); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+.summary-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 22px;
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+}
+.summary-title { font-size: 18px; font-weight: 800; color: var(--text); }
+.summary-close {
+  width: 32px; height: 32px;
+  border-radius: 10px;
+  border: none;
+  background: var(--bg3);
+  color: var(--text2);
+  cursor: pointer;
+  font-size: 16px;
+}
+.summary-close:hover { background: rgba(239,68,68,0.1); color: var(--red); }
+.summary-body {
+  padding: 18px 22px;
+  overflow-y: auto;
+  flex: 1;
+}
+.summary-intro {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #fff7ed, #ffedd5);
+  border: 1px solid rgba(234,88,12,0.25);
+  border-left: 4px solid var(--gold);
+  border-radius: 12px;
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 16px;
+  line-height: 1.55;
+}
+.summary-intro strong { color: var(--gold); font-weight: 800; }
+.summary-row {
+  display: flex; gap: 12px;
+  padding: 14px 0;
+  border-bottom: 1px dashed rgba(15,23,42,0.08);
+}
+.summary-row:last-child { border-bottom: none; }
+.summary-row-num {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  border-radius: 50%;
+  box-shadow: 0 3px 8px rgba(234,88,12,0.3);
+}
+.summary-row-body { flex: 1; min-width: 0; }
+.summary-name { font-size: 16px; font-weight: 800; color: var(--text); margin-bottom: 6px; }
+.summary-meta { font-size: 13px; color: var(--text2); line-height: 1.55; margin-bottom: 3px; }
+.summary-meta strong { color: var(--text); font-weight: 700; }
+.summary-footer {
+  display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 22px;
+  border-top: 1px solid rgba(15,23,42,0.08);
+}
+.summary-btn-cancel {
+  padding: 11px 22px;
+  background: #ffffff;
+  border: 1.5px solid var(--border2);
+  border-radius: 11px;
+  color: var(--text2);
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.summary-btn-cancel:hover { border-color: var(--red); color: var(--red); background: rgba(239,68,68,0.06); }
+.summary-btn-confirm {
+  padding: 11px 28px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  border: none;
+  border-radius: 11px;
+  color: #fff;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 18px rgba(234,88,12,0.35);
+  transition: all 0.18s;
+}
+.summary-btn-confirm:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px rgba(234,88,12,0.5);
+}
+@media (max-width: 768px) {
+  .summary-overlay { padding: 0; align-items: flex-end; }
+  .summary-box { border-radius: 20px 20px 0 0; max-height: 92vh; }
+  .summary-header { padding: 16px 18px; }
+  .summary-body { padding: 16px 18px; }
+  .summary-footer { padding: 14px 18px; }
 }
 
 /* ─── Mobile Tab Bar (fixed bottom) ─── */
@@ -2679,7 +2888,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
         <div id="requestList"></div>
         <div class="req-actions">
           <button class="btn-add" onclick="addRequestRow()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรายชื่อ</button>
-          <button class="btn-submit" id="submitReqBtn" onclick="submitRequests()"><svg class="ico"><use href="#i-send"/></svg> ส่งรายชื่อทั้งหมด</button>
+          <button class="btn-submit" id="submitReqBtn" onclick="showSubmitSummary()"><svg class="ico"><use href="#i-send"/></svg> ส่งรายชื่อทั้งหมด</button>
         </div>
       </div>
       <div id="reqStatus" style="margin-top:14px;font-size:13px;"></div>
@@ -2896,6 +3105,21 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 </div>
 <!-- ═════════════════════ end ADMIN VIEW ═════════════════════ -->
+
+<!-- ═════════════════════ SUBMIT SUMMARY MODAL ═════════════════════ -->
+<div class="summary-overlay" id="summaryModal">
+  <div class="summary-box">
+    <div class="summary-header">
+      <div class="summary-title">📋 ยืนยันการส่งรายชื่อ</div>
+      <button class="summary-close" onclick="closeSubmitSummary()">✕</button>
+    </div>
+    <div class="summary-body" id="summaryBody"></div>
+    <div class="summary-footer">
+      <button class="summary-btn-cancel" onclick="closeSubmitSummary()">ยกเลิก</button>
+      <button class="summary-btn-confirm" onclick="confirmSubmit()">✓ ยืนยันส่ง</button>
+    </div>
+  </div>
+</div>
 
 <!-- ═════════════════════ MOBILE TAB BAR ═════════════════════ -->
 <nav class="mobile-tabbar" id="mobileTabbar">
@@ -4640,28 +4864,50 @@ var COURSE_OPTIONS = Object.keys(COURSE_SCHEDULES);
 function rerenderRequestList() {
   var list = document.getElementById('requestList');
   list.innerHTML = requestRows.map(function(r, i){
-    // Combined schedule cards — each shows course + date + slot buttons
-    var scheduleHtml = '';
-    COURSE_OPTIONS.forEach(function(c){
-      var s = COURSE_SCHEDULES[c];
-      var isSelected = c === r.course;
-      scheduleHtml += '<div class="sched-card'+(isSelected?' selected':'')+'">'
-        + '<div class="sched-head">'
-        +   '<div class="sched-title">'+escapeHtml(c)+'</div>'
-        +   '<div class="sched-date">📅 '+s.dateShort+'</div>'
-        + '</div>'
-        + '<div class="sched-slots">'
-        + s.slots.map(function(t){
-            var sel = isSelected && t === r.timeSlot;
-            return '<button type="button" class="sched-slot'+(sel?' selected':'')+'" onclick="pickSchedule('+i+',\''+escapeAttr(c)+'\',\''+t+'\')">'
-              + '<span class="ss-time">🕐 '+t+'</span>'
-              + '<span class="ss-suffix">น.</span>'
-              + (sel ? '<span class="ss-check">✓</span>' : '')
-              + '</button>';
+    // Custom dropdowns: course + slot
+    var sch = COURSE_SCHEDULES[r.course] || null;
+    var courseDdHtml = '<div class="dd-wrap" id="ddCourse-'+i+'">'
+      + '<button type="button" class="dd-trigger" onclick="toggleDd(\'ddCourse-'+i+'\', event)">'
+      + '<span class="dd-value">'+(r.course ? escapeHtml(r.course) : '<span class="dd-placeholder">เลือกหลักสูตร...</span>')+'</span>'
+      + '<span class="dd-caret">▾</span>'
+      + '</button>'
+      + '<div class="dd-list">'
+      + COURSE_OPTIONS.map(function(c){
+          var s = COURSE_SCHEDULES[c];
+          var sel = c === r.course;
+          return '<div class="dd-item'+(sel?' selected':'')+'" onmousedown="pickCourse('+i+',\''+escapeAttr(c)+'\')">'
+            + '<div class="dd-item-title">'+escapeHtml(c)+'</div>'
+            + '<div class="dd-item-meta">📅 '+s.dateShort+' · '+s.slots.length+' รอบ</div>'
+            + '</div>';
+        }).join('')
+      + '</div></div>';
+
+    var slotDdHtml = '';
+    if (sch) {
+      slotDdHtml = '<div class="dd-wrap" id="ddSlot-'+i+'">'
+        + '<button type="button" class="dd-trigger" onclick="toggleDd(\'ddSlot-'+i+'\', event)">'
+        + '<span class="dd-value">'+(r.timeSlot ? '🕐 '+r.timeSlot+' น.' : '<span class="dd-placeholder">เลือกรอบอบรม...</span>')+'</span>'
+        + '<span class="dd-caret">▾</span>'
+        + '</button>'
+        + '<div class="dd-list">'
+        + sch.slots.map(function(t){
+            var sel = t === r.timeSlot;
+            return '<div class="dd-item'+(sel?' selected':'')+'" onmousedown="pickSlot('+i+',\''+t+'\')">'
+              + '<div class="dd-item-title">🕐 '+t+' น.</div>'
+              + '</div>';
           }).join('')
-        + '</div>'
-        + '</div>';
-    });
+        + '</div></div>';
+    }
+
+    var scheduleHtml = '<div class="picker-grid">'
+      + '<div class="picker-field"><label class="picker-label">หลักสูตร <span class="req-mark">*</span></label>'+courseDdHtml+'</div>'
+      + '<div class="picker-field"><label class="picker-label">วันอบรม</label>'
+      +   '<div class="picker-date-box">'+(sch ? '📅 '+escapeHtml(sch.dateShort) : '<span style="color:var(--text3)">เลือกหลักสูตรก่อน</span>')+'</div>'
+      + '</div>'
+      + '<div class="picker-field"><label class="picker-label">รอบอบรม <span class="req-mark">*</span></label>'
+      +   (sch ? slotDdHtml : '<div class="picker-date-box" style="color:var(--text3);">เลือกหลักสูตรก่อน</div>')
+      + '</div>'
+      + '</div>';
     return '<div class="req-card">'
       + '<div class="req-card-head">'
       +   '<span class="req-card-num">พนักงานคนที่ '+(i+1)+'</span>'
@@ -4693,9 +4939,8 @@ function rerenderRequestList() {
       +     '<label>หมายเหตุ</label>'
       +     '<input value="'+escapeAttr(r.note)+'" placeholder="(ถ้ามี)" oninput="updateReqRow('+i+',\'note\',this.value)">'
       +   '</div>'
-      +   '<div class="req-field req-field-full course-picker">'
-      +     '<label>เลือกหลักสูตร &amp; รอบอบรม <span class="req-mark">*</span></label>'
-      +     '<div class="sched-options">' + scheduleHtml + '</div>'
+      +   '<div class="req-field req-field-full">'
+      +     scheduleHtml
       +   '</div>'
       + '</div>'
       + '</div>';
@@ -4779,6 +5024,39 @@ function selectComboItem(i, name, position) {
 document.addEventListener('mousedown', function(ev){
   if (ev.target.closest && (ev.target.closest('.combo-wrap'))) return;
   document.querySelectorAll('.combo-list').forEach(function(el){ el.style.display = 'none'; });
+});
+
+/* ─── Dropdown handlers ─── */
+function toggleDd(ddId, ev) {
+  if (ev) ev.stopPropagation();
+  // Close other dropdowns
+  document.querySelectorAll('.dd-wrap').forEach(function(el){
+    if (el.id !== ddId) el.classList.remove('open');
+  });
+  var el = document.getElementById(ddId);
+  if (el) el.classList.toggle('open');
+}
+function pickCourse(i, course) {
+  if (!requestRows[i]) return;
+  var sch = COURSE_SCHEDULES[course];
+  requestRows[i].course = course;
+  requestRows[i].trainDate = sch ? sch.date : '';
+  if (sch && sch.slots.length === 1) requestRows[i].timeSlot = sch.slots[0];
+  else if (sch && requestRows[i].timeSlot && sch.slots.indexOf(requestRows[i].timeSlot) < 0) requestRows[i].timeSlot = '';
+  rerenderRequestList();
+  if (typeof updateStepper === 'function') updateStepper();
+}
+function pickSlot(i, slot) {
+  if (!requestRows[i]) return;
+  requestRows[i].timeSlot = slot;
+  rerenderRequestList();
+  if (typeof updateStepper === 'function') updateStepper();
+}
+// Close dropdowns on outside click
+document.addEventListener('mousedown', function(ev){
+  if (!ev.target.closest || !ev.target.closest('.dd-wrap')) {
+    document.querySelectorAll('.dd-wrap.open').forEach(function(el){ el.classList.remove('open'); });
+  }
 });
 
 /* Combined picker — clicking a slot inside a card sets both course + slot at once */
@@ -4885,6 +5163,61 @@ function escapeHtml(s) {
 }
 function escapeAttr(s) {
   return String(s==null?'':s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;');
+}
+
+/* Show summary modal before actual submit */
+function showSubmitSummary() {
+  // Validate first (re-use logic)
+  var errors = [];
+  var rows = [];
+  requestRows.forEach(function(r, i){
+    var name = (r.name || '').trim();
+    var idCard = (r.idCard || '').trim();
+    var position = (r.position || '').trim();
+    var course = (r.course || '').trim();
+    var timeSlot = (r.timeSlot || '').trim();
+    if (!name && !idCard && !position && !course) return;
+    if (!name) { errors.push('แถวที่ '+(i+1)+': ไม่ได้กรอกชื่อ'); return; }
+    if (!idCard) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกเลขบัตรประชาชน'); return; }
+    if (idCard.length !== 13) { errors.push('แถว <b>'+name+'</b>: เลขบัตรประชาชนไม่ครบ 13 หลัก'); return; }
+    if (!position) { errors.push('แถว <b>'+name+'</b>: ไม่ได้กรอกตำแหน่ง'); return; }
+    if (!course) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกหลักสูตร'); return; }
+    if (!timeSlot) { errors.push('แถว <b>'+name+'</b>: ไม่ได้เลือกรอบอบรม'); return; }
+    rows.push({ name: name, idCard: idCard, position: position, course: course, trainDate: r.trainDate || '', timeSlot: timeSlot, note: r.note || '' });
+  });
+
+  if (errors.length) {
+    if (typeof showInfo === 'function') showInfo('⚠️ กรุณาตรวจสอบข้อมูล', errors.join('<br>'));
+    else alert(errors.join('\n').replace(/<[^>]*>/g, ''));
+    return;
+  }
+  if (rows.length === 0) {
+    alert('ยังไม่มีข้อมูลกรอกครบ');
+    return;
+  }
+
+  // Build summary HTML
+  var html = '<div class="summary-intro">คุณกำลังจะส่งรายชื่อ <strong>'+rows.length+' คน</strong> เพื่อเข้าอบรม กรุณาตรวจสอบความถูกต้องก่อนยืนยัน</div>';
+  rows.forEach(function(r, idx){
+    html += '<div class="summary-row">'
+      + '<div class="summary-row-num">#'+(idx+1)+'</div>'
+      + '<div class="summary-row-body">'
+      +   '<div class="summary-name">'+escapeHtml(r.name)+'</div>'
+      +   '<div class="summary-meta"><span><strong>เลขบัตร:</strong> '+escapeHtml(r.idCard)+'</span> · <span><strong>ตำแหน่ง:</strong> '+escapeHtml(r.position)+'</span></div>'
+      +   '<div class="summary-meta"><strong>หลักสูตร:</strong> '+escapeHtml(r.course)+'</div>'
+      +   '<div class="summary-meta"><strong>📅 วันอบรม:</strong> '+escapeHtml(formatThaiDate(r.trainDate))+' · <strong>🕐 รอบ:</strong> '+escapeHtml(r.timeSlot)+' น.</div>'
+      +   (r.note ? '<div class="summary-meta"><strong>หมายเหตุ:</strong> '+escapeHtml(r.note)+'</div>' : '')
+      + '</div></div>';
+  });
+  document.getElementById('summaryBody').innerHTML = html;
+  document.getElementById('summaryModal').classList.add('show');
+}
+function closeSubmitSummary() {
+  document.getElementById('summaryModal').classList.remove('show');
+}
+function confirmSubmit() {
+  closeSubmitSummary();
+  submitRequests();
 }
 
 function submitRequests() {
