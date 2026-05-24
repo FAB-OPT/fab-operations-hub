@@ -3747,9 +3747,14 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
             })
             .then(function(r){ return r.json(); })
             .then(function(res){
-              if (res && res.ok) allText += '\n' + (res.text || '');
+              if (res && res.ok) {
+                allText += '\n' + (res.text || '');
+                console.log('[OCR] ✓ page', page.pageNum, '→', (res.text||'').length, 'chars');
+              } else {
+                console.warn('[OCR] ✗ page', page.pageNum, '— Apps Script returned:', res);
+              }
             })
-            .catch(function(err){ console.warn('OCR page failed:', err); })
+            .catch(function(err){ console.warn('[OCR] ✗ page', page.pageNum, '— fetch error:', err); })
             .then(function(){
               active--;
               if (idx >= pages.length && active === 0) resolve(allText);
