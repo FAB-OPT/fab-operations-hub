@@ -3616,7 +3616,9 @@ function processPDFFiles(fileList) {
     var reader = new FileReader();
     reader.onload = function(e) {
       var ab = e.target.result;
-      pdfjsLib.getDocument({ data: ab, disableFontFace: true, useSystemFonts: false }).promise
+      // Clone for PDF.js (it detaches the original buffer) — keep `ab` for potential OCR fallback
+      var abForPdfJs = ab.slice(0);
+      pdfjsLib.getDocument({ data: abForPdfJs, disableFontFace: true, useSystemFonts: false }).promise
         .then(function(pdf){
           // Extract each page separately so we can detect course type per page
           var allPageCerts = [];
