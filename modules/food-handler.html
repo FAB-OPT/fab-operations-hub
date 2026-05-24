@@ -3614,102 +3614,73 @@ function processPDFFiles(fileList) {
     checkReady();
   }
 
-  function processOne(idx) {
-    if (idx >= files.length) { finish(); return; }
-    var file = files[idx];
+  // Process one file → returns Promise<certs[]>
+  function processFile(file) {
     var isImage = /\.(jpe?g|png|webp)$/i.test(file.name) || /^image\//.test(file.type || '');
+    if (isImage) return ocrImageFileViaAppsScript(file);
 
-    // IMAGE PATH — send directly to Vision API via Apps Script
-    if (isImage) {
-      setStatus('pdf','loading','OCR รูป ' + (done+1) + '/' + files.length + ' (Vision API)...');
-      ocrImageFileViaAppsScript(file)
+    // PDF flow
+    return new Promise(function(resolve, reject){
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        var ab = e.target.result;
+        var abForPdfJs = ab.slice(0);
+        pdfjsLib.getDocument({ data: abForPdfJs, disableFontFace: true, useSystemFonts: false }).promise
+          .then(function(pdf){
+            var allPageCerts = [];
+            function processPage(p) {
+              if (p > pdf.numPages) return Promise.resolve(allPageCerts);
+              return pdf.getPage(p).then(function(page){
+                return page.getTextContent().then(function(content){
+                  var pageText = content.items.map(function(it){ return it.str; }).join('');
+                  var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
+                  pageText = pageText + '\n' + pageTextSpace;
+                  var pageCerts = extractFromPDFText(pageText);
+                  allPageCerts = allPageCerts.concat(pageCerts);
+                  return processPage(p + 1);
+                });
+              });
+            }
+            return processPage(1).then(function(certs){
+              if (certs.length > 0) resolve(certs);
+              else ocrPdfViaAppsScript(ab, file.name).then(resolve).catch(reject);
+            });
+          })
+          .catch(reject);
+      };
+      reader.onerror = function(){ reject(new Error('อ่านไฟล์ไม่ได้')); };
+      reader.readAsArrayBuffer(file);
+    });
+  }
+
+  // Parallel pool — fire up to MAX_CONCURRENT at once
+  var MAX_CONCURRENT = 6;
+  var inFlight = 0;
+  var nextIdx = 0;
+  function pumpNext() {
+    while (inFlight < MAX_CONCURRENT && nextIdx < files.length) {
+      var file = files[nextIdx++];
+      inFlight++;
+      processFile(file)
         .then(function(certs){
-          if (certs && certs.length > 0) {
-            allExtracted = allExtracted.concat(certs);
-          } else {
-            failed++;
-          }
+          if (certs && certs.length > 0) allExtracted = allExtracted.concat(certs);
+          else failed++;
         })
         .catch(function(err){
-          console.warn('Image OCR failed', file.name, err);
+          console.warn('OCR failed', file.name, err.message || err);
           failed++;
         })
         .then(function(){
           done++;
-          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+          inFlight--;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์... ('+inFlight+' ขนาน)');
           setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-          processOne(idx + 1);
+          if (done >= files.length) finish();
+          else pumpNext();
         });
-      return;
     }
-
-    // PDF PATH (original)
-    var reader = new FileReader();
-    reader.onload = function(e) {
-      var ab = e.target.result;
-      // Clone for PDF.js (it detaches the original buffer) — keep `ab` for potential OCR fallback
-      var abForPdfJs = ab.slice(0);
-      pdfjsLib.getDocument({ data: abForPdfJs, disableFontFace: true, useSystemFonts: false }).promise
-        .then(function(pdf){
-          // Extract each page separately so we can detect course type per page
-          var allPageCerts = [];
-          function processPage(p) {
-            if (p > pdf.numPages) return Promise.resolve(allPageCerts);
-            return pdf.getPage(p).then(function(page){
-              return page.getTextContent().then(function(content){
-                var pageText = content.items.map(function(it){ return it.str; }).join('');
-                var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
-                pageText = pageText + '\n' + pageTextSpace;
-                var pageCerts = extractFromPDFText(pageText);
-                allPageCerts = allPageCerts.concat(pageCerts);
-                return processPage(p + 1);
-              });
-            });
-          }
-          return processPage(1);
-        })
-        .then(function(certs){
-          if (certs.length > 0) {
-            allExtracted = allExtracted.concat(certs);
-            done++;
-            setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-            setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-            processOne(idx + 1);
-          } else {
-            // Fallback: ask Apps Script to OCR via Google Drive
-            setStatus('pdf','loading','OCR ผ่าน Cloud — กำลังอ่าน '+(done+1)+'/'+files.length+' (อาจใช้เวลา 5-10 วิ)...');
-            ocrPdfViaAppsScript(ab, file.name)
-              .then(function(ocrCerts){
-                if (ocrCerts && ocrCerts.length > 0) {
-                  allExtracted = allExtracted.concat(ocrCerts);
-                } else {
-                  failed++;
-                }
-              })
-              .catch(function(err){
-                console.warn('OCR fallback failed', file.name, err);
-                failed++;
-              })
-              .then(function(){
-                done++;
-                setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-                setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-                processOne(idx + 1);
-              });
-          }
-        })
-        .catch(function(err){
-          console.warn('PDF parse error', file.name, err);
-          failed++; done++;
-          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-          processOne(idx + 1);
-        });
-    };
-    reader.onerror = function(){ failed++; done++; processOne(idx + 1); };
-    reader.readAsArrayBuffer(file);
   }
-  processOne(0);
+  pumpNext();
 }
 
 // Render each PDF page → PNG → send to Apps Script OCR (bypasses PDF layer/font issues)
