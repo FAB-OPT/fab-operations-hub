@@ -3283,13 +3283,13 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
        ondragover="dragOver(event,'pdfCard')"
        ondragleave="dragLeave('pdfCard')"
        ondrop="dropFile(event,'pdf')">
-    <div class="drop-icon pdf-icon">&#128196;</div>
-    <div class="drop-title">นำเข้าใบรับรอง PDF</div>
-    <div class="drop-sub">ลากวางได้พร้อมกันสูงสุด 20 ไฟล์<br>หรือกดปุ่มเพื่อเลือก</div>
+    <div class="drop-icon pdf-icon">&#128247;</div>
+    <div class="drop-title">นำเข้าใบรับรอง (รูปภาพ JPG/PNG)</div>
+    <div class="drop-sub">ลาก-วางรูปหรือ PDF ได้พร้อมกันสูงสุด 20 ไฟล์<br>หรือกดปุ่มเพื่อเลือก</div>
     <button class="drop-btn pdf-btn" onclick="document.getElementById('pdfInput').click()">
-      &#128206; เลือกไฟล์ PDF (สูงสุด 20)
+      &#128206; เลือกไฟล์ (JPG/PNG/PDF, สูงสุด 20)
     </button>
-    <input type="file" id="pdfInput" accept=".pdf" multiple onchange="handlePDF(this)">
+    <input type="file" id="pdfInput" accept=".pdf,.jpg,.jpeg,.png,image/*" multiple onchange="handlePDF(this)">
     <div class="file-status" id="pdfStatus">
       <span class="status-dot wait" id="pdfDot"></span>
       <span id="pdfStatusText" style="color:var(--text3)">รอนำเข้าไฟล์</span>
@@ -3581,10 +3581,14 @@ function handlePDF(input) {
 }
 
 function processPDFFiles(fileList) {
-  var files = Array.from(fileList).filter(function(f){ return /\.pdf$/i.test(f.name); });
-  if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ .pdf'); return; }
+  var files = Array.from(fileList).filter(function(f){
+    return /\.(pdf|jpe?g|png|webp)$/i.test(f.name) || /^image\//.test(f.type || '');
+  });
+  if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ที่รองรับ (PDF, JPG, PNG)'); return; }
   if (files.length > 20) { setStatus('pdf','error','เกิน 20 ไฟล์ (จำกัด 20)'); return; }
-  if (typeof pdfjsLib === 'undefined') {
+  // PDF.js is only needed for .pdf — images bypass it
+  var hasPdf = files.some(function(f){ return /\.pdf$/i.test(f.name); });
+  if (hasPdf && typeof pdfjsLib === 'undefined') {
     setStatus('pdf','error','PDF.js ยังโหลดไม่เสร็จ — รอ 2-3 วินาทีแล้วลองใหม่');
     return;
   }
@@ -3613,6 +3617,33 @@ function processPDFFiles(fileList) {
   function processOne(idx) {
     if (idx >= files.length) { finish(); return; }
     var file = files[idx];
+    var isImage = /\.(jpe?g|png|webp)$/i.test(file.name) || /^image\//.test(file.type || '');
+
+    // IMAGE PATH — send directly to Vision API via Apps Script
+    if (isImage) {
+      setStatus('pdf','loading','OCR รูป ' + (done+1) + '/' + files.length + ' (Vision API)...');
+      ocrImageFileViaAppsScript(file)
+        .then(function(certs){
+          if (certs && certs.length > 0) {
+            allExtracted = allExtracted.concat(certs);
+          } else {
+            failed++;
+          }
+        })
+        .catch(function(err){
+          console.warn('Image OCR failed', file.name, err);
+          failed++;
+        })
+        .then(function(){
+          done++;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+          processOne(idx + 1);
+        });
+      return;
+    }
+
+    // PDF PATH (original)
     var reader = new FileReader();
     reader.onload = function(e) {
       var ab = e.target.result;
@@ -3771,6 +3802,38 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
       console.log('[OCR] Total text from rendered pages:', text.length, 'chars');
       return extractFromPDFText(text);
     });
+}
+
+// OCR a single image file (JPG/PNG) via Apps Script → Vision API
+function ocrImageFileViaAppsScript(file) {
+  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
+  return new Promise(function(resolve, reject){
+    var fr = new FileReader();
+    fr.onload = function(){
+      var b64 = String(fr.result).split(',')[1];
+      var mime = file.type || 'image/jpeg';
+      fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          type: 'ocr-image',
+          filename: file.name,
+          imageBase64: b64,
+          mimeType: mime
+        })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (!res || !res.ok) throw new Error((res && res.error) || 'OCR ตอบกลับผิดพลาด');
+        var text = res.text || '';
+        console.log('[OCR-IMG]', file.name, 'got', text.length, 'chars');
+        resolve(extractFromPDFText(text));
+      })
+      .catch(reject);
+    };
+    fr.onerror = function(){ reject(new Error('อ่านไฟล์ไม่ได้')); };
+    fr.readAsDataURL(file);
+  });
 }
 
 // Backwards-compat single-file (kept for safety)
