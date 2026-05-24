@@ -3329,6 +3329,12 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <button class="export-btn-main" id="exportBtn" onclick="exportCSV()" disabled>
     <svg class="ico"><use href="#i-download"/></svg> Export CSV
   </button>
+  <button class="export-btn-main" onclick="dedupEmployeeRegistry()" style="background:#fff3cd;color:#856404;border:1px solid #ffeaa7" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">
+    <svg class="ico"><use href="#i-trash"/></svg> ลบทะเบียนซ้ำ
+  </button>
+  <button class="export-btn-main" onclick="dedupCertificateRegistry()" style="background:#f8d7da;color:#721c24;border:1px solid #f5c6cb" title="ลบใบรับรองที่ซ้ำใน Cloud">
+    <svg class="ico"><use href="#i-trash"/></svg> ลบใบรับรองซ้ำ
+  </button>
   <!-- hidden controls (kept for JS compatibility) -->
   <button id="processBtn" onclick="processMatch()" style="display:none" disabled></button>
   <button id="saveBtn" onclick="saveToCloud()" style="display:none" disabled></button>
@@ -3799,8 +3805,17 @@ function processXLSXFile(file) {
       if (employees.length > 0) {
         empData = employees;
         setProg('xlsx',100);
-        setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + employees.length + ' คน จาก ' + wb.SheetNames.length + ' Sheet');
+        setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + employees.length + ' คน จาก ' + wb.SheetNames.length + ' Sheet · กำลังบันทึกลง Cloud...');
         document.getElementById('xlsxCard').classList.add('loaded');
+        // Persist to cloud (replace all)
+        saveEmployeeRegistryToCloud(employees, true)
+          .then(function(res){
+            setStatus('xlsx','done','✓ บันทึกทะเบียน ' + employees.length + ' คนลง Cloud แล้ว (ครั้งต่อไปไม่ต้อง upload ซ้ำ)');
+          })
+          .catch(function(err){
+            console.warn('Save employees to cloud failed:', err);
+            setStatus('xlsx','done','พบ ' + employees.length + ' คน · ⚠ บันทึก Cloud ไม่สำเร็จ: ' + (err.message||err));
+          });
       } else {
         setStatus('xlsx','error','ไม่พบข้อมูลในไฟล์');
       }
@@ -4130,6 +4145,94 @@ function doDeleteMatchRow(no) {
   }
 }
 
+/* ─────────── EMPLOYEE REGISTRY CLOUD ─────────── */
+function saveEmployeeRegistryToCloud(employees, replaceAll) {
+  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'save-employees', records: employees, replaceAll: !!replaceAll })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (!res || !res.ok) throw new Error((res && res.error) || 'save-employees failed');
+    return res;
+  });
+}
+
+function loadEmployeeRegistryFromCloud() {
+  if (!SCRIPT_URL) return;
+  setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
+  fetch(SCRIPT_URL + '?action=employees', { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (!res || !res.ok) {
+        setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
+        return;
+      }
+      var records = res.records || [];
+      if (records.length === 0) {
+        setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
+        return;
+      }
+      // Re-build empData with proper structure
+      empData = records.map(function(r){
+        return {
+          name: r.name || '',
+          norm: normalizeName(r.name || ''),
+          branch: r.branch || '',
+          position: r.position || '',
+          sheet: r.sheet || ''
+        };
+      });
+      setStatus('xlsx','done','✓ ใช้ทะเบียนในระบบ — ' + empData.length + ' คน (อัพโหลด Excel ใหม่เพื่ออัพเดต)');
+      document.getElementById('xlsxCard').classList.add('loaded');
+      checkReady();
+    })
+    .catch(function(err){
+      console.warn('Load employees from cloud failed:', err);
+      setStatus('xlsx','wait','โหลดทะเบียนไม่ได้ — กรุณา upload Excel');
+    });
+}
+
+function dedupEmployeeRegistry() {
+  if (!confirm('ลบรายชื่อพนักงานที่ซ้ำกัน (เทียบจากชื่อ+สาขา)?\n\nระบบจะเก็บไว้ 1 แถวต่อชื่อที่ซ้ำ')) return;
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'dedup-employees' })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (res && res.ok) {
+      alert('✓ ลบรายชื่อซ้ำสำเร็จ — เหลือ ' + (res.kept || 0) + ' รายชื่อ (ลบ ' + (res.removed || 0) + ')');
+      loadEmployeeRegistryFromCloud();
+    } else {
+      alert('✗ ลบไม่สำเร็จ: ' + (res && res.error));
+    }
+  })
+  .catch(function(err){ alert('✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
+}
+
+function dedupCertificateRegistry() {
+  if (!confirm('ลบใบรับรองที่ซ้ำกัน (เทียบจากชื่อ+วันหมดอายุ)?\n\nระบบจะเก็บไว้ 1 แถวต่อใบที่ซ้ำ')) return;
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'dedup-certificates' })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (res && res.ok) {
+      alert('✓ ลบใบรับรองซ้ำสำเร็จ — เหลือ ' + (res.kept || 0) + ' ใบ (ลบ ' + (res.removed || 0) + ')');
+      loadFromCloud();
+    } else {
+      alert('✗ ลบไม่สำเร็จ: ' + (res && res.error));
+    }
+  })
+  .catch(function(err){ alert('✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
+}
+
 /* ─────────── CLOUD SYNC ─────────── */
 function saveToCloud() {
   if (!matchData.length) { alert('ยังไม่มีข้อมูลให้บันทึก กรุณาจับคู่ข้อมูลก่อน'); return; }
@@ -4142,7 +4245,7 @@ function saveToCloud() {
     method: 'POST',
     mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ records: matchData })
+    body: JSON.stringify({ type: 'save-certificates', records: matchData })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
@@ -4297,6 +4400,7 @@ window.addEventListener('DOMContentLoaded', function() {
     // Auto-load existing records from cloud
     setTimeout(loadFromCloud, 100);
     setTimeout(loadAdminRequests, 200);
+    setTimeout(loadEmployeeRegistryFromCloud, 300);
     startRequestsPolling();
   } else {
     document.getElementById('branchView').style.display = 'block';
