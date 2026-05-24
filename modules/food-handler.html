@@ -3940,12 +3940,24 @@ function processMatch() {
       var found = null, matchType = 'notfound';
 
       if (employees.length > 0) {
+        // 1) Exact first+last
         for (var i=0; i<employees.length; i++) {
           var ep = getParts(employees[i].norm);
           if (cp.first && cp.last && cp.first===ep.first && cp.last===ep.last) {
             found = employees[i]; matchType = 'exact'; break;
           }
         }
+        // 2) Whitespace-stripped full-name compare (กัน zero-width/NBSP/อักขระเพี้ยน)
+        if (!found) {
+          var certStripped = String(cert.name).replace(/[\s ​-‏]/g,'');
+          for (var i=0; i<employees.length; i++) {
+            var empStripped = String(employees[i].norm).replace(/[\s ​-‏]/g,'');
+            if (certStripped && certStripped === empStripped) {
+              found = employees[i]; matchType = 'exact'; break;
+            }
+          }
+        }
+        // 3) Last-name only fallback
         if (!found) {
           for (var i=0; i<employees.length; i++) {
             var ep = getParts(employees[i].norm);
