@@ -3721,31 +3721,49 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
       return chain.then(function(){ return pages; });
     })
     .then(function(pages){
-      // Send each page PNG to Apps Script OCR sequentially (or in parallel for speed)
       console.log('[OCR] Rendered', pages.length, 'pages from', filename, '— sending for OCR');
       var allText = '';
-      function sendOne(i) {
-        if (i >= pages.length) return Promise.resolve(allText);
+      var OCR_DELAY = 1500;       // delay ระหว่าง request กัน rate limit
+      var MAX_RETRIES = 4;        // retry กี่ครั้งต่อหน้า
+      function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+      function sendOneWithRetry(idx, attempt) {
+        attempt = attempt || 0;
         return fetch(SCRIPT_URL, {
           method: 'POST', mode: 'cors',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             type: 'ocr-image',
-            filename: filename + '_page' + pages[i].pageNum + '.png',
-            imageBase64: pages[i].b64,
+            filename: filename + '_page' + pages[idx].pageNum + '.png',
+            imageBase64: pages[idx].b64,
             mimeType: 'image/png'
           })
         })
         .then(function(r){ return r.json(); })
         .then(function(res){
-          if (res && res.ok) {
+          if (res && res.ok) return res;
+          var err = (res && res.error) || '';
+          // Retry on rate-limit / 429 / 500 / 503
+          if (attempt < MAX_RETRIES && /rate|limit|429|500|503|exceeded/i.test(err)) {
+            var backoff = 3000 * Math.pow(2, attempt); // 3, 6, 12, 24s
+            console.warn('[OCR] Page', pages[idx].pageNum, 'rate-limited, retry in', backoff, 'ms');
+            return delay(backoff).then(function(){ return sendOneWithRetry(idx, attempt + 1); });
+          }
+          throw new Error(err || 'OCR ตอบกลับผิดพลาด');
+        });
+      }
+      function sendOne(i) {
+        if (i >= pages.length) return Promise.resolve(allText);
+        setStatus('pdf','loading','OCR ' + (i+1) + '/' + pages.length + ' หน้า (ระวัง rate limit — ใช้เวลาสักครู่)...');
+        return sendOneWithRetry(i)
+          .then(function(res){
             allText += '\n' + (res.text || '');
             console.log('[OCR] Page', pages[i].pageNum, 'got', (res.text||'').length, 'chars');
-          } else {
-            console.warn('[OCR] Page', pages[i].pageNum, 'failed:', res && res.error);
-          }
-          return sendOne(i + 1);
-        });
+            return delay(OCR_DELAY).then(function(){ return sendOne(i + 1); });
+          })
+          .catch(function(err){
+            console.warn('[OCR] Page', pages[i].pageNum, 'failed after retries:', err.message);
+            return delay(OCR_DELAY).then(function(){ return sendOne(i + 1); });
+          });
       }
       return sendOne(0);
     })
