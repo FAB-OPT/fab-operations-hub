@@ -3701,14 +3701,23 @@ function extractFromPDFText(text) {
     if (allDates.length >= 2) expDate = allDates[allDates.length - 1];
   }
 
-  // Name pattern
-  var namePattern = /(นาย|นางสาว|นาง)\s*([ก-ฮa-zA-Z]+[\s฀-๿]*?)\s+([฀-๿a-zA-Z]+)/g;
+  // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
-  var m;
-  while ((m = namePattern.exec(text)) !== null) {
-    var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
-    if (fullname.length > 5 && fullname.length < 60) certNames.push(fullname);
-    if (certNames.length > 200) break;
+  var nameRegexes = [
+    // 1) Strict: title + first(Thai) + space + last(Thai) — handles "นายอนุรักษ์ ไสว" or "นาย อนุรักษ์ ไสว"
+    /(นาย|นางสาว|นาง)\s*([฀-๿]+?)\s+([฀-๿]{2,})/g,
+    // 2) Even more lenient: any title chunk + any Thai chunk (no length minimum)
+    /(นาย|นางสาว|นาง)\s*([฀-๿]+)\s+([฀-๿]+)/g
+  ];
+  for (var ri = 0; ri < nameRegexes.length && certNames.length === 0; ri++) {
+    var re = nameRegexes[ri];
+    re.lastIndex = 0;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
+      if (fullname.length > 5 && fullname.length < 80) certNames.push(fullname);
+      if (certNames.length > 200) break;
+    }
   }
   var seen = {};
   certNames = certNames.filter(function(n) {
@@ -3718,10 +3727,10 @@ function extractFromPDFText(text) {
     return true;
   });
 
-  // Debug log first call so we can troubleshoot
-  if (window._pdfDebug !== false && certNames.length === 0) {
-    window._pdfDebug = false;
-    console.log('[PDF DEBUG] No names found in this page. First 500 chars of text:', text.slice(0, 500));
+  // Always log when no names found, to help diagnose tricky PDFs
+  if (certNames.length === 0) {
+    console.log('[PDF DEBUG] No names found. Course:', course, '| trainDate:', trainDate, '| expDate:', expDate);
+    console.log('[PDF DEBUG] Text length:', text.length, '| First 800 chars:', text.slice(0, 800));
   }
 
   certNames.forEach(function(name) {
