@@ -3638,13 +3638,32 @@ function processPDFFiles(fileList) {
         .then(function(certs){
           if (certs.length > 0) {
             allExtracted = allExtracted.concat(certs);
+            done++;
+            setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+            setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+            processOne(idx + 1);
           } else {
-            failed++;
+            // Fallback: ask Apps Script to OCR via Google Drive
+            setStatus('pdf','loading','OCR ผ่าน Cloud — กำลังอ่าน '+(done+1)+'/'+files.length+' (อาจใช้เวลา 5-10 วิ)...');
+            ocrPdfViaAppsScript(ab, file.name)
+              .then(function(ocrCerts){
+                if (ocrCerts && ocrCerts.length > 0) {
+                  allExtracted = allExtracted.concat(ocrCerts);
+                } else {
+                  failed++;
+                }
+              })
+              .catch(function(err){
+                console.warn('OCR fallback failed', file.name, err);
+                failed++;
+              })
+              .then(function(){
+                done++;
+                setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+                setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+                processOne(idx + 1);
+              });
           }
-          done++;
-          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-          processOne(idx + 1);
         })
         .catch(function(err){
           console.warn('PDF parse error', file.name, err);
@@ -3658,6 +3677,28 @@ function processPDFFiles(fileList) {
     reader.readAsArrayBuffer(file);
   }
   processOne(0);
+}
+
+// Send PDF (ArrayBuffer) to Apps Script for Google Drive OCR; returns extracted certs
+function ocrPdfViaAppsScript(arrayBuffer, filename) {
+  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
+  // Convert ArrayBuffer → base64
+  var bytes = new Uint8Array(arrayBuffer);
+  var binary = '';
+  for (var i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  var b64 = btoa(binary);
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'ocr-pdf', filename: filename, pdfBase64: b64 })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    if (!res || !res.ok) throw new Error((res && res.error) || 'OCR ตอบกลับผิดพลาด');
+    var text = res.text || '';
+    console.log('[OCR] Got', text.length, 'chars from Drive OCR for', filename);
+    return extractFromPDFText(text);
+  });
 }
 
 // Backwards-compat single-file (kept for safety)
