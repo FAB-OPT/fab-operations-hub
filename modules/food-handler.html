@@ -3283,13 +3283,13 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
        ondragover="dragOver(event,'pdfCard')"
        ondragleave="dragLeave('pdfCard')"
        ondrop="dropFile(event,'pdf')">
-    <div class="drop-icon pdf-icon">&#128247;</div>
-    <div class="drop-title">นำเข้าใบรับรอง (รูปภาพ JPG/PNG)</div>
-    <div class="drop-sub">ลาก-วางรูปหรือ PDF ได้พร้อมกันสูงสุด 100 ไฟล์<br>หรือกดปุ่มเพื่อเลือก</div>
+    <div class="drop-icon pdf-icon">&#128196;</div>
+    <div class="drop-title">นำเข้าใบรับรอง PDF</div>
+    <div class="drop-sub">ลากวางได้พร้อมกันสูงสุด 20 ไฟล์<br>หรือกดปุ่มเพื่อเลือก</div>
     <button class="drop-btn pdf-btn" onclick="document.getElementById('pdfInput').click()">
-      &#128206; เลือกไฟล์ (JPG/PNG/PDF, สูงสุด 100)
+      &#128206; เลือกไฟล์ PDF (สูงสุด 20)
     </button>
-    <input type="file" id="pdfInput" accept=".pdf,.jpg,.jpeg,.png,image/*" multiple onchange="handlePDF(this)">
+    <input type="file" id="pdfInput" accept=".pdf" multiple onchange="handlePDF(this)">
     <div class="file-status" id="pdfStatus">
       <span class="status-dot wait" id="pdfDot"></span>
       <span id="pdfStatusText" style="color:var(--text3)">รอนำเข้าไฟล์</span>
@@ -3581,14 +3581,10 @@ function handlePDF(input) {
 }
 
 function processPDFFiles(fileList) {
-  var files = Array.from(fileList).filter(function(f){
-    return /\.(pdf|jpe?g|png|webp)$/i.test(f.name) || /^image\//.test(f.type || '');
-  });
-  if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ที่รองรับ (PDF, JPG, PNG)'); return; }
-  if (files.length > 100) { setStatus('pdf','error','เกิน 100 ไฟล์ (จำกัด 100)'); return; }
-  // PDF.js is only needed for .pdf — images bypass it
-  var hasPdf = files.some(function(f){ return /\.pdf$/i.test(f.name); });
-  if (hasPdf && typeof pdfjsLib === 'undefined') {
+  var files = Array.from(fileList).filter(function(f){ return /\.pdf$/i.test(f.name); });
+  if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ .pdf'); return; }
+  if (files.length > 20) { setStatus('pdf','error','เกิน 20 ไฟล์ (จำกัด 20)'); return; }
+  if (typeof pdfjsLib === 'undefined') {
     setStatus('pdf','error','PDF.js ยังโหลดไม่เสร็จ — รอ 2-3 วินาทีแล้วลองใหม่');
     return;
   }
@@ -3614,197 +3610,54 @@ function processPDFFiles(fileList) {
     checkReady();
   }
 
-  // Process one file → returns Promise<certs[]>
-  function processFile(file) {
-    var isImage = /\.(jpe?g|png|webp)$/i.test(file.name) || /^image\//.test(file.type || '');
-    if (isImage) return ocrImageFileViaAppsScript(file);
-
-    // PDF flow
-    return new Promise(function(resolve, reject){
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        var ab = e.target.result;
-        var abForPdfJs = ab.slice(0);
-        pdfjsLib.getDocument({ data: abForPdfJs, disableFontFace: true, useSystemFonts: false }).promise
-          .then(function(pdf){
-            var allPageCerts = [];
-            function processPage(p) {
-              if (p > pdf.numPages) return Promise.resolve(allPageCerts);
-              return pdf.getPage(p).then(function(page){
-                return page.getTextContent().then(function(content){
-                  var pageText = content.items.map(function(it){ return it.str; }).join('');
-                  var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
-                  pageText = pageText + '\n' + pageTextSpace;
-                  var pageCerts = extractFromPDFText(pageText);
-                  allPageCerts = allPageCerts.concat(pageCerts);
-                  return processPage(p + 1);
-                });
+  function processOne(idx) {
+    if (idx >= files.length) { finish(); return; }
+    var file = files[idx];
+    var reader = new FileReader();
+    reader.onload = function(e) {
+      var ab = e.target.result;
+      pdfjsLib.getDocument({ data: ab, disableFontFace: true, useSystemFonts: false }).promise
+        .then(function(pdf){
+          // Extract each page separately so we can detect course type per page
+          var allPageCerts = [];
+          function processPage(p) {
+            if (p > pdf.numPages) return Promise.resolve(allPageCerts);
+            return pdf.getPage(p).then(function(page){
+              return page.getTextContent().then(function(content){
+                var pageText = content.items.map(function(it){ return it.str; }).join('');
+                var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
+                pageText = pageText + '\n' + pageTextSpace;
+                var pageCerts = extractFromPDFText(pageText);
+                allPageCerts = allPageCerts.concat(pageCerts);
+                return processPage(p + 1);
               });
-            }
-            return processPage(1).then(function(certs){
-              if (certs.length > 0) resolve(certs);
-              else ocrPdfViaAppsScript(ab, file.name).then(resolve).catch(reject);
             });
-          })
-          .catch(reject);
-      };
-      reader.onerror = function(){ reject(new Error('อ่านไฟล์ไม่ได้')); };
-      reader.readAsArrayBuffer(file);
-    });
-  }
-
-  // Parallel pool — fire up to MAX_CONCURRENT at once
-  var MAX_CONCURRENT = 6;
-  var inFlight = 0;
-  var nextIdx = 0;
-  function pumpNext() {
-    while (inFlight < MAX_CONCURRENT && nextIdx < files.length) {
-      var file = files[nextIdx++];
-      inFlight++;
-      processFile(file)
+          }
+          return processPage(1);
+        })
         .then(function(certs){
-          if (certs && certs.length > 0) allExtracted = allExtracted.concat(certs);
-          else failed++;
+          if (certs.length > 0) {
+            allExtracted = allExtracted.concat(certs);
+          } else {
+            failed++;
+          }
+          done++;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+          processOne(idx + 1);
         })
         .catch(function(err){
-          console.warn('OCR failed', file.name, err.message || err);
-          failed++;
-        })
-        .then(function(){
-          done++;
-          inFlight--;
-          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์... ('+inFlight+' ขนาน)');
+          console.warn('PDF parse error', file.name, err);
+          failed++; done++;
+          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
           setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-          if (done >= files.length) finish();
-          else pumpNext();
+          processOne(idx + 1);
         });
-    }
-  }
-  pumpNext();
-}
-
-// Render each PDF page → PNG → send to Apps Script OCR (bypasses PDF layer/font issues)
-function ocrPdfViaAppsScript(arrayBuffer, filename) {
-  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
-  // Re-load PDF for rendering (separate from text-extract pass)
-  var abForRender = arrayBuffer.slice(0);
-  return pdfjsLib.getDocument({ data: abForRender, disableFontFace: true, useSystemFonts: false }).promise
-    .then(function(pdf){
-      var pages = [];
-      var chain = Promise.resolve();
-      for (var p = 1; p <= pdf.numPages; p++) {
-        (function(pageNum){
-          chain = chain.then(function(){
-            return pdf.getPage(pageNum).then(function(page){
-              var scale = 2.0; // ~150 DPI — balance quality vs size
-              var viewport = page.getViewport({ scale: scale });
-              var canvas = document.createElement('canvas');
-              canvas.width = viewport.width;
-              canvas.height = viewport.height;
-              var ctx = canvas.getContext('2d');
-              return page.render({ canvasContext: ctx, viewport: viewport }).promise
-                .then(function(){
-                  return new Promise(function(resolve){
-                    canvas.toBlob(function(blob){
-                      var fr = new FileReader();
-                      fr.onload = function(){
-                        var b64 = String(fr.result).split(',')[1]; // strip data:...;base64,
-                        pages.push({ pageNum: pageNum, b64: b64 });
-                        resolve();
-                      };
-                      fr.readAsDataURL(blob);
-                    }, 'image/png');
-                  });
-                });
-            });
-          });
-        })(p);
-      }
-      return chain.then(function(){ return pages; });
-    })
-    .then(function(pages){
-      console.log('[OCR] Rendered', pages.length, 'pages from', filename, '— sending for OCR');
-      var allText = '';
-      var OCR_DELAY = 1500;       // delay ระหว่าง request กัน rate limit
-      var MAX_RETRIES = 4;        // retry กี่ครั้งต่อหน้า
-      function delay(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
-      function sendOneWithRetry(idx, attempt) {
-        attempt = attempt || 0;
-        return fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            type: 'ocr-image',
-            filename: filename + '_page' + pages[idx].pageNum + '.png',
-            imageBase64: pages[idx].b64,
-            mimeType: 'image/png'
-          })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          if (res && res.ok) return res;
-          var err = (res && res.error) || '';
-          // Retry on rate-limit / 429 / 500 / 503
-          if (attempt < MAX_RETRIES && /rate|limit|429|500|503|exceeded/i.test(err)) {
-            var backoff = 3000 * Math.pow(2, attempt); // 3, 6, 12, 24s
-            console.warn('[OCR] Page', pages[idx].pageNum, 'rate-limited, retry in', backoff, 'ms');
-            return delay(backoff).then(function(){ return sendOneWithRetry(idx, attempt + 1); });
-          }
-          throw new Error(err || 'OCR ตอบกลับผิดพลาด');
-        });
-      }
-      function sendOne(i) {
-        if (i >= pages.length) return Promise.resolve(allText);
-        setStatus('pdf','loading','OCR ' + (i+1) + '/' + pages.length + ' หน้า (ระวัง rate limit — ใช้เวลาสักครู่)...');
-        return sendOneWithRetry(i)
-          .then(function(res){
-            allText += '\n' + (res.text || '');
-            console.log('[OCR] Page', pages[i].pageNum, 'got', (res.text||'').length, 'chars');
-            return delay(OCR_DELAY).then(function(){ return sendOne(i + 1); });
-          })
-          .catch(function(err){
-            console.warn('[OCR] Page', pages[i].pageNum, 'failed after retries:', err.message);
-            return delay(OCR_DELAY).then(function(){ return sendOne(i + 1); });
-          });
-      }
-      return sendOne(0);
-    })
-    .then(function(text){
-      console.log('[OCR] Total text from rendered pages:', text.length, 'chars');
-      return extractFromPDFText(text);
-    });
-}
-
-// OCR a single image file (JPG/PNG) via Apps Script → Vision API
-function ocrImageFileViaAppsScript(file) {
-  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
-  return new Promise(function(resolve, reject){
-    var fr = new FileReader();
-    fr.onload = function(){
-      var b64 = String(fr.result).split(',')[1];
-      var mime = file.type || 'image/jpeg';
-      fetch(SCRIPT_URL, {
-        method: 'POST', mode: 'cors',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({
-          type: 'ocr-image',
-          filename: file.name,
-          imageBase64: b64,
-          mimeType: mime
-        })
-      })
-      .then(function(r){ return r.json(); })
-      .then(function(res){
-        if (!res || !res.ok) throw new Error((res && res.error) || 'OCR ตอบกลับผิดพลาด');
-        var text = res.text || '';
-        console.log('[OCR-IMG]', file.name, 'got', text.length, 'chars');
-        resolve(extractFromPDFText(text));
-      })
-      .catch(reject);
     };
-    fr.onerror = function(){ reject(new Error('อ่านไฟล์ไม่ได้')); };
-    fr.readAsDataURL(file);
-  });
+    reader.onerror = function(){ failed++; done++; processOne(idx + 1); };
+    reader.readAsArrayBuffer(file);
+  }
+  processOne(0);
 }
 
 // Backwards-compat single-file (kept for safety)
