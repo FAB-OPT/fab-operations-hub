@@ -3622,9 +3622,10 @@ function processPDFFiles(fileList) {
     var reader = new FileReader();
     reader.onload = function(e) {
       var ab = e.target.result;
-      pdfjsLib.getDocument({ data: ab, disableFontFace: true, useSystemFonts: false }).promise
+      // Clone for PDF.js (it detaches the original buffer) — keep `ab` for OCR fallback
+      var abForPdfJs = ab.slice(0);
+      pdfjsLib.getDocument({ data: abForPdfJs, disableFontFace: true, useSystemFonts: false }).promise
         .then(function(pdf){
-          // Extract each page separately so we can detect course type per page
           var allPageCerts = [];
           function processPage(p) {
             if (p > pdf.numPages) return Promise.resolve(allPageCerts);
@@ -3644,13 +3645,34 @@ function processPDFFiles(fileList) {
         .then(function(certs){
           if (certs.length > 0) {
             allExtracted = allExtracted.concat(certs);
+            done++;
+            setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+            setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+            processOne(idx + 1);
           } else {
-            failed++;
+            // Fallback: OCR via Apps Script (Vision API)
+            setStatus('pdf','loading','OCR ผ่าน Cloud — กำลังอ่าน '+(done+1)+'/'+files.length+' (ใบเป็นรูป ใช้เวลาสักครู่)...');
+            ocrPdfViaAppsScript(ab, file.name)
+              .then(function(ocrCerts){
+                if (ocrCerts && ocrCerts.length > 0) {
+                  allExtracted = allExtracted.concat(ocrCerts);
+                  console.log('[OCR] ✓', file.name, '→', ocrCerts.length, 'certs');
+                } else {
+                  failed++;
+                  console.warn('[OCR] ✗', file.name, '— 0 names found even after OCR');
+                }
+              })
+              .catch(function(err){
+                console.warn('OCR fallback failed', file.name, err.message || err);
+                failed++;
+              })
+              .then(function(){
+                done++;
+                setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
+                setProg('pdf', 5 + Math.floor((done / files.length) * 90));
+                processOne(idx + 1);
+              });
           }
-          done++;
-          setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
-          setProg('pdf', 5 + Math.floor((done / files.length) * 90));
-          processOne(idx + 1);
         })
         .catch(function(err){
           console.warn('PDF parse error', file.name, err);
@@ -3664,6 +3686,85 @@ function processPDFFiles(fileList) {
     reader.readAsArrayBuffer(file);
   }
   processOne(0);
+}
+
+// Render PDF pages → PNG → send each to Apps Script Vision API OCR
+function ocrPdfViaAppsScript(arrayBuffer, filename) {
+  if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
+  var abForRender = arrayBuffer.slice(0);
+  return pdfjsLib.getDocument({ data: abForRender, disableFontFace: true, useSystemFonts: false }).promise
+    .then(function(pdf){
+      console.log('[OCR] Rendering', pdf.numPages, 'pages of', filename);
+      var pages = [];
+      var chain = Promise.resolve();
+      for (var p = 1; p <= pdf.numPages; p++) {
+        (function(pageNum){
+          chain = chain.then(function(){
+            return pdf.getPage(pageNum).then(function(page){
+              var viewport = page.getViewport({ scale: 2.0 });
+              var canvas = document.createElement('canvas');
+              canvas.width = viewport.width; canvas.height = viewport.height;
+              var ctx = canvas.getContext('2d');
+              return page.render({ canvasContext: ctx, viewport: viewport }).promise
+                .then(function(){
+                  return new Promise(function(resolve){
+                    canvas.toBlob(function(blob){
+                      var fr = new FileReader();
+                      fr.onload = function(){
+                        pages.push({ pageNum: pageNum, b64: String(fr.result).split(',')[1] });
+                        resolve();
+                      };
+                      fr.readAsDataURL(blob);
+                    }, 'image/png');
+                  });
+                });
+            });
+          });
+        })(p);
+      }
+      return chain.then(function(){ return pages; });
+    })
+    .then(function(pages){
+      // Send pages in parallel (max 4 concurrent) — Vision API rate limit is high
+      var allText = '';
+      var idx = 0;
+      var active = 0;
+      var MAX_PARALLEL = 4;
+      return new Promise(function(resolve){
+        function pumpNext() {
+          while (active < MAX_PARALLEL && idx < pages.length) {
+            var page = pages[idx++];
+            active++;
+            fetch(SCRIPT_URL, {
+              method: 'POST', mode: 'cors',
+              headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+              body: JSON.stringify({
+                type: 'ocr-image',
+                filename: filename + '_p' + page.pageNum + '.png',
+                imageBase64: page.b64,
+                mimeType: 'image/png'
+              })
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(res){
+              if (res && res.ok) allText += '\n' + (res.text || '');
+            })
+            .catch(function(err){ console.warn('OCR page failed:', err); })
+            .then(function(){
+              active--;
+              if (idx >= pages.length && active === 0) resolve(allText);
+              else pumpNext();
+            });
+          }
+        }
+        if (pages.length === 0) resolve('');
+        else pumpNext();
+      });
+    })
+    .then(function(text){
+      console.log('[OCR]', filename, 'total OCR text:', text.length, 'chars');
+      return extractFromPDFText(text);
+    });
 }
 
 // Backwards-compat single-file (kept for safety)
