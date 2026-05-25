@@ -2604,11 +2604,14 @@ function saveAnnouncementsLocal() {
   try { localStorage.setItem('fab_announcements_v1', JSON.stringify(ANNOUNCEMENTS)); } catch(e) {}
 }
 function loadAnnouncementsFromCloud() {
-  return fetch(SCRIPT_URL + '?action=announcements&_=' + Date.now(), { method: 'GET' })
+  // ใช้ ?action=config endpoint (Apps Script รองรับ) — คืน { ok, systems, announcements }
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
-      // Accept both: array directly, OR { ok, announcements }
-      var anns = Array.isArray(res) ? res : (res && res.ok && res.announcements ? res.announcements : null);
+      // Accept: { ok, announcements } | array | { ok, announcements:[] }
+      var anns = null;
+      if (Array.isArray(res)) anns = res;
+      else if (res && res.ok && Array.isArray(res.announcements)) anns = res.announcements;
       if (anns) {
         ANNOUNCEMENTS = anns;
         ANNOUNCEMENTS.forEach(normalizeAnnouncement);
@@ -2634,10 +2637,11 @@ function updateAnnounceBtnVisibility() {
   else viewBtn.innerHTML = '📢 ดูประกาศ';
 }
 function saveAnnouncementsToCloud() {
+  // ใช้ set-config endpoint ของ Apps Script (รองรับอยู่แล้ว) — เก็บลง Config sheet
   return fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'announcements-save', announcements: ANNOUNCEMENTS })
+    body: JSON.stringify({ type: 'set-config', key: 'announcements', value: ANNOUNCEMENTS })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
