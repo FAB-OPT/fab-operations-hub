@@ -4468,27 +4468,37 @@ function parseAnyDate(s) {
   if (!s) return null;
   if (s instanceof Date) {
     if (isNaN(s)) return null;
-    // Normalize: if year is Buddhist, shift down to Gregorian
+    // Normalize: if year is Buddhist, shift down to Gregorian — preserve time
     var yr = s.getFullYear();
     while (yr > 2400) yr -= 543;
-    return new Date(yr, s.getMonth(), s.getDate());
+    return new Date(yr, s.getMonth(), s.getDate(), s.getHours(), s.getMinutes(), s.getSeconds());
   }
   s = String(s).trim();
   if (!s || s === '—') return null;
-  // ISO: 2570-07-21T17:00:00.000Z or 2026-07-21
-  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  // ISO: "2570-07-21T17:00:00.000Z" or "2026-07-21" or "2026-05-25 14:32:15"
+  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (iso) {
     var y = parseInt(iso[1]);
     if (y > 2500) y -= 543;
-    return new Date(y, parseInt(iso[2]) - 1, parseInt(iso[3]));
+    return new Date(
+      y, parseInt(iso[2]) - 1, parseInt(iso[3]),
+      iso[4] ? parseInt(iso[4]) : 0,
+      iso[5] ? parseInt(iso[5]) : 0,
+      iso[6] ? parseInt(iso[6]) : 0
+    );
   }
-  // DD/MM/YYYY
-  var dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  // DD/MM/YYYY [HH:mm[:ss]]
+  var dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{2}):(\d{2})(?::(\d{2}))?)?/);
   if (dmy) {
     var dy = parseInt(dmy[3]);
     if (dy > 2500) dy -= 543;
     else if (dy < 100) dy += 2000;
-    return new Date(dy, parseInt(dmy[2]) - 1, parseInt(dmy[1]));
+    return new Date(
+      dy, parseInt(dmy[2]) - 1, parseInt(dmy[1]),
+      dmy[4] ? parseInt(dmy[4]) : 0,
+      dmy[5] ? parseInt(dmy[5]) : 0,
+      dmy[6] ? parseInt(dmy[6]) : 0
+    );
   }
   // Thai full: "4 กรกฎาคม 2569"
   var thMonths = {'มกราคม':0,'กุมภาพันธ์':1,'มีนาคม':2,'เมษายน':3,'พฤษภาคม':4,'มิถุนายน':5,'กรกฎาคม':6,'สิงหาคม':7,'กันยายน':8,'ตุลาคม':9,'พฤศจิกายน':10,'ธันวาคม':11};
