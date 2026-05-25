@@ -597,31 +597,40 @@ body {
 }
 .menu-card-settings svg { width:17px; height:17px; }
 
-/* Admin tool group on each card — reorder + settings */
+/* Admin tool group on each card — drag handle + settings */
 .menu-card-admin-tools {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
   flex-shrink: 0;
-}
-.menu-card-reorder {
-  width: 28px;
-  height: 18px;
-  border-radius: 6px;
-  background: rgba(15,23,42,0.04);
-  color: var(--text2);
-  border: 1px solid rgba(15,23,42,0.06);
-  cursor: pointer;
-  font-size: 10px;
-  line-height: 1;
-  padding: 0;
-  display: flex;
   align-items: center;
-  justify-content: center;
-  transition: all 0.18s;
 }
-.menu-card-reorder:hover { background: var(--gold); color: #fff; border-color: var(--gold); }
 .menu-card-admin-tools .menu-card-settings { width: 32px; height: 32px; border-radius: 9px; }
+
+/* Drag handle (⠿) — แสดงสัญลักษณ์ลาก */
+.menu-card-drag-handle {
+  cursor: grab;
+  font-size: 18px;
+  color: var(--text3);
+  user-select: none;
+  padding: 4px;
+  border-radius: 6px;
+  transition: all 0.15s;
+}
+.menu-card-drag-handle:hover { color: var(--gold); background: rgba(255,122,26,0.08); }
+.menu-card-drag-handle:active { cursor: grabbing; }
+
+/* Card draggable state */
+.menu-card-draggable { cursor: grab; }
+.menu-card-draggable.dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+  transform: scale(0.98);
+}
+.menu-card-draggable.drag-over {
+  box-shadow: 0 0 0 3px var(--gold), 0 14px 30px rgba(255,122,26,0.25) !important;
+  transform: translateY(-3px);
+}
 
 /* hide admin-only elements by default; JS reveals when admin */
 .adm-only { display: none; }
@@ -2890,7 +2899,15 @@ function renderMenuCards() {
       ? 'event.stopPropagation();showComingSoon(\''+s.id+'\')'
       : 'openSystem(\''+s.id+'\')';
     var featuredClass = (s.id === 'food-handler' && !isComingSoon) ? ' menu-card-featured' : '';
-    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+'" role="button" tabindex="0" onclick="'+clickHandler+'">';
+    var dragAttrs = isAdminMode
+      ? ' draggable="true" data-sys-id="'+escapeAttr(s.id)+'"'
+        + ' ondragstart="_sysDragStart(event,\''+s.id+'\')"'
+        + ' ondragover="_sysDragOver(event)"'
+        + ' ondragleave="_sysDragLeave(event)"'
+        + ' ondrop="_sysDrop(event,\''+s.id+'\')"'
+        + ' ondragend="_sysDragEnd(event)"'
+      : '';
+    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+(isAdminMode?' menu-card-draggable':'')+'" role="button" tabindex="0"'+dragAttrs+' onclick="'+clickHandler+'">';
     html += '<div class="menu-card-top">';
     html += iconHtml;
     html += '<div class="menu-card-body">';
@@ -2899,8 +2916,7 @@ function renderMenuCards() {
     html += '</div>';
     if (isAdminMode) {
       html += '<div class="menu-card-admin-tools">';
-      html += '<button class="menu-card-reorder" onclick="event.stopPropagation();moveSystemUp(\''+s.id+'\')" title="เลื่อนขึ้น">▲</button>';
-      html += '<button class="menu-card-reorder" onclick="event.stopPropagation();moveSystemDown(\''+s.id+'\')" title="เลื่อนลง">▼</button>';
+      html += '<span class="menu-card-drag-handle" title="ลากเพื่อจัดลำดับ" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();">⠿</span>';
       html += '<button class="menu-card-settings" onclick="event.stopPropagation();openEditSystemModal(\''+s.id+'\')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>';
       html += '</div>';
     }
@@ -2985,19 +3001,47 @@ function showComingSoon(systemId) {
   showInfo('<span class="emoji-3d">🚀</span> เร็วๆ นี้', html);
 }
 
-/* ─── Reorder system cards (admin) ─── */
-function moveSystemUp(systemId) {
-  var idx = SYSTEMS.findIndex(function(x){ return x.id === systemId; });
-  if (idx <= 0) return;
-  var tmp = SYSTEMS[idx-1]; SYSTEMS[idx-1] = SYSTEMS[idx]; SYSTEMS[idx] = tmp;
+/* ─── Drag-and-drop reorder (admin) ─── */
+var _draggedSysId = null;
+
+function _sysDragStart(ev, id) {
+  _draggedSysId = id;
+  var card = ev.currentTarget;
+  if (card) card.classList.add('dragging');
+  // Required for Firefox
+  try { ev.dataTransfer.effectAllowed = 'move'; ev.dataTransfer.setData('text/plain', id); } catch(e) {}
+}
+function _sysDragOver(ev) {
+  ev.preventDefault();
+  try { ev.dataTransfer.dropEffect = 'move'; } catch(e) {}
+  var card = ev.currentTarget;
+  if (card && !card.classList.contains('dragging')) card.classList.add('drag-over');
+}
+function _sysDragLeave(ev) {
+  var card = ev.currentTarget;
+  if (card) card.classList.remove('drag-over');
+}
+function _sysDrop(ev, targetId) {
+  ev.preventDefault();
+  var card = ev.currentTarget;
+  if (card) card.classList.remove('drag-over');
+  if (!_draggedSysId || _draggedSysId === targetId) return;
+  var fromIdx = SYSTEMS.findIndex(function(x){ return x.id === _draggedSysId; });
+  var toIdx   = SYSTEMS.findIndex(function(x){ return x.id === targetId; });
+  if (fromIdx < 0 || toIdx < 0) return;
+  // Move dragged item before target
+  var moved = SYSTEMS.splice(fromIdx, 1)[0];
+  SYSTEMS.splice(toIdx, 0, moved);
   _persistSystemsOrder_();
 }
-function moveSystemDown(systemId) {
-  var idx = SYSTEMS.findIndex(function(x){ return x.id === systemId; });
-  if (idx < 0 || idx >= SYSTEMS.length - 1) return;
-  var tmp = SYSTEMS[idx+1]; SYSTEMS[idx+1] = SYSTEMS[idx]; SYSTEMS[idx] = tmp;
-  _persistSystemsOrder_();
+function _sysDragEnd(ev) {
+  _draggedSysId = null;
+  document.querySelectorAll('.menu-card-draggable').forEach(function(el){
+    el.classList.remove('dragging');
+    el.classList.remove('drag-over');
+  });
 }
+
 function _persistSystemsOrder_() {
   saveSystemsLocal();
   renderMenuCards();
