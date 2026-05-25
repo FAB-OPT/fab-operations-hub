@@ -2414,13 +2414,14 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     font-size: 12.5px;
     padding: 9px 12px;
   }
-  /* cleanup ลงบรรทัด 3 จัดกลาง */
+  /* cleanup ลงบรรทัด 3 จัดกลางจริงๆ */
   .filter-row-chips .filter-cleanup {
-    margin-left: 0;
-    margin-right: auto;
-    margin-top: 0;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    margin-top: 4px;
+    justify-content: center;
   }
-  .cleanup-group { justify-content: center; }
+  .cleanup-group { justify-content: center; flex-wrap: wrap; }
 }
 
 /* ─── Table pagination ─── */
@@ -2511,6 +2512,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     font-weight: 800;
     color: var(--text);
     font-size: 15px;
+    padding-right: 44px !important;  /* เว้นที่ให้ปุ่มลบ */
     padding-bottom: 10px !important;
     border-bottom: 2px solid rgba(234,88,12,0.18) !important;
     margin-bottom: 4px;
@@ -2519,11 +2521,17 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   /* ปุ่มลบ ลอยอยู่มุมขวาบนของ card */
   #mainTable td[data-label="ลบ"] {
     position: absolute;
-    top: 10px; right: 10px;
+    top: 12px; right: 12px;
     padding: 0; border: none; background: none;
     display: block;
+    width: 32px;
+    z-index: 2;
   }
   #mainTable td[data-label="ลบ"]::before { display: none; }
+  #mainTable td[data-label="ลบ"] .btn-del-row {
+    font-size: 14px;
+    padding: 6px 8px;
+  }
   #mainTable td > * { flex: 1; }
   .table-pagination { padding: 12px 6px; gap: 4px; }
   .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; font-size: 12px; }
@@ -3434,28 +3442,67 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     0 2px 6px rgba(15,23,42,0.04) !important;
 }
 
-/* ─── HARD LOCK topbar (use fixed — sticky พังเพราะ body มี overflow-x:hidden บน iOS Safari) ─── */
-#adminView > .topbar,
-#branchView > .topbar {
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  margin: 0 !important;
-  border-radius: 0 0 18px 18px !important;
-  z-index: 1000 !important;
+/* ─── HARD LOCK topbar — JS relocates to body level + inline styles เพื่อกัน ancestor transform/overflow ─── */
+body > .topbar.topbar-locked {
+  /* inline styles ใน JS เป็นตัวบังคับ — CSS นี้แค่ fallback */
+  background: #ffffff !important;
 }
 /* ดันเนื้อหาด้านล่างลงให้พ้น topbar */
 #adminView { padding-top: 110px; }
 #branchView { padding-top: 110px; }
 @media (max-width: 768px) {
-  #adminView, #branchView { padding-top: 96px; }
-  #adminView > .topbar, #branchView > .topbar {
-    padding: 12px 16px !important;
+  #adminView, #branchView { padding-top: 90px; }
+  body > .topbar.topbar-locked {
+    padding: 10px 14px !important;
   }
-  #adminView > .topbar .logo-mark, #branchView > .topbar .logo-mark {
+  body > .topbar.topbar-locked .logo-mark {
     width: 44px !important; height: 44px !important; margin: 0 !important;
   }
+}
+
+/* ─── Mobile: หัวข้อ subsection ใหญ่ขึ้น ─── */
+@media (max-width: 768px) {
+  .subsection-title {
+    font-size: 17px !important;
+    font-weight: 800 !important;
+  }
+}
+
+/* ─── คำขออบรม header row ─── */
+.req-header-row {
+  padding: 0 20px;
+  margin-top: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.req-action-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+@media (max-width: 768px) {
+  .req-header-row {
+    padding: 0 12px;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .req-action-buttons {
+    width: 100%;
+    flex-wrap: nowrap;
+    justify-content: space-between;
+    gap: 6px;
+  }
+  .req-action-buttons .btn-export-form {
+    flex: 1 1 0;
+    padding: 9px 10px !important;
+    font-size: 12.5px !important;
+    min-width: 0;
+    white-space: nowrap;
+  }
+  .req-action-buttons .btn-refresh { flex: 0 0 auto; min-width: 42px; }
 }
 
 </style>
@@ -3769,12 +3816,11 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 </div>
 
 <!-- REQUESTS FROM BRANCHES (moved to bottom per UX redesign) -->
-<div style="padding:0 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+<div class="req-header-row">
   <div class="subsection-title" style="margin-bottom:0">📋 คำขออบรม (ทุกสาขา)</div>
-  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+  <div class="req-action-buttons">
     <button class="btn-export-form btn-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄</button>
-    <button class="btn-export-form btn-refresh" onclick="clearServerCache()" title="ล้าง cache Apps Script (กรณีข้อมูลค้าง)" style="color:var(--red)!important;border-color:rgba(239,68,68,0.3)!important;">🗑 Cache</button>
-    <button class="btn-export-form" onclick="openImportRequestsModal()" title="นำเข้ารายชื่ออบรมจาก Excel (แบรนด์อื่นๆ)" style="background:linear-gradient(135deg,#3b82f6,#60a5fa);">📤 นำเข้า Excel</button>
+    <button class="btn-export-form" onclick="openImportRequestsModal()" title="นำเข้ารายชื่ออบรมจาก Excel (แบรนด์อื่นๆ)" style="background:linear-gradient(135deg,#3b82f6,#60a5fa);">📤 นำเข้า</button>
     <button class="btn-export-form" onclick="exportTrainingForm()">📥 .xlsx</button>
     <button class="btn-export-form btn-export-pdf" onclick="openExportPDFModal()">📄 PDF</button>
     <input type="file" id="importReqXlsxInput" accept=".xlsx,.xls" style="display:none" onchange="handleImportRequestsXLSX(this)">
@@ -5054,7 +5100,40 @@ var currentBranchName = '';
 var allRecords = [];
 var requestRows = [];
 
+// HARD-FIX: relocate topbar to body level so it's not affected by parent transforms/overflow
+function _lockTopbarToBody() {
+  ['adminView', 'branchView'].forEach(function(id){
+    var view = document.getElementById(id);
+    if (!view) return;
+    var bar = view.querySelector(':scope > .topbar');
+    if (!bar || bar.dataset._locked) return;
+    bar.dataset._locked = '1';
+    bar.dataset._view = id;
+    bar.classList.add('topbar-locked');
+    // Apply inline styles with !important (highest specificity)
+    bar.style.setProperty('position', 'fixed', 'important');
+    bar.style.setProperty('top', '0', 'important');
+    bar.style.setProperty('left', '0', 'important');
+    bar.style.setProperty('right', '0', 'important');
+    bar.style.setProperty('margin', '0', 'important');
+    bar.style.setProperty('border-radius', '0 0 18px 18px', 'important');
+    bar.style.setProperty('z-index', '10000', 'important');
+    bar.style.setProperty('display', 'none', 'important');  // hidden by default — toggled below
+    document.body.insertBefore(bar, document.body.firstChild);
+  });
+}
+function _updateTopbarVisibility() {
+  ['adminView', 'branchView'].forEach(function(id){
+    var bar = document.querySelector('body > .topbar.topbar-locked[data-_view="'+id+'"]');
+    if (!bar) return;
+    var view = document.getElementById(id);
+    var visible = view && getComputedStyle(view).display !== 'none';
+    bar.style.setProperty('display', visible ? 'flex' : 'none', 'important');
+  });
+}
+
 window.addEventListener('DOMContentLoaded', function() {
+  _lockTopbarToBody();
   // Session handoff from Hub (../index.html)
   var role = sessionStorage.getItem('fab_role');
   if (!role) { window.location.href = '../index.html'; return; }
@@ -5096,6 +5175,7 @@ window.addEventListener('DOMContentLoaded', function() {
     startRequestsPolling();
   }
   setTimeout(function(){ if (typeof updateStepper === 'function') updateStepper(); }, 50);
+  _updateTopbarVisibility();
 });
 
 function selectRole(role) {
