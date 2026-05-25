@@ -4520,7 +4520,7 @@ function loadFromCloud() {
       document.getElementById('processInfo').textContent = 'ยังไม่มีข้อมูลใน Cloud';
       return;
     }
-    matchData = records.map(function(r, idx) {
+    matchData = records.map(function(r) {
       var expireDate = r['วันหมดอายุ'] || '';
       // คำนวณสถานะใหม่จากวันหมดอายุ (source of truth) — กัน Cloud คืนค่าเป็นไทย/ว่าง แล้ว badge หาย
       var expStatus = expireDate ? getExpStatus(expireDate) : 'unknown';
@@ -4532,7 +4532,6 @@ function loadFromCloud() {
         else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
       }
       return {
-        no: idx + 1,
         certName: r['ชื่อในใบรับรอง'] || '',
         course: r['หลักสูตร'] || '',
         trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
@@ -4544,7 +4543,11 @@ function loadFromCloud() {
         sheet: r['Sheet'] || '—',
         matchType: r['สถานะจับคู่'] || 'notfound'
       };
-    });
+    })
+    // กรอง row เก่าที่เป็น lastname-only match ออก (เก็บใน Cloud แต่ไม่โชว์) — match ใหม่ต้อง exact เท่านั้น
+    .filter(function(d){ return d.matchType !== 'lastname' && d.matchType !== 'notfound'; });
+    // Renumber
+    matchData.forEach(function(d, i){ d.no = i + 1; });
     document.getElementById('exportBtn').disabled = false;
     document.getElementById('saveBtn').disabled = false;
     document.getElementById('noteBar').classList.add('show');
