@@ -3961,11 +3961,16 @@ function processXLSXFile(file) {
         var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1;
         header.forEach(function(h,i){
           var s = String(h).toLowerCase();
-          if (s.indexOf('fullname') >= 0 || s.indexOf('ชื่อ') >= 0) nameCol = i;
+          // ชื่อ: FullnameThai (กัน NicknameThai / ชื่อเล่น)
+          if (s.indexOf('fullname') >= 0 || (s.indexOf('ชื่อ') >= 0 && s.indexOf('เล่น') < 0 && s.indexOf('nick') < 0)) nameCol = i;
+          // สาขา: OrgUnitName
           if (s.indexOf('orgunit') >= 0 || s.indexOf('สาขา') >= 0 || s.indexOf('หน่วย') >= 0) branchCol = i;
-          if (s.indexOf('position') >= 0 || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
+          // ตำแหน่ง: PositionName เท่านั้น (กัน PositionNameEng)
+          if ((s.indexOf('position') >= 0 && s.indexOf('eng') < 0) || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
+          // รหัสพนักงาน: EmpCode / EmpID
           if (s.indexOf('empcode') >= 0 || s.indexOf('empid') >= 0 || s.indexOf('รหัสพนักงาน') >= 0 || s.indexOf('รหัสพนง') >= 0) empIdCol = i;
-          if (s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
+          // เลขบัตรประชาชน: IdentityCard
+          if (s.indexOf('identity') >= 0 || s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
         });
         // Fallback to known column indices (EmpCode=1, FullnameThai=2, Branch=9, Position=7)
         if (nameCol<0) nameCol = 2;
