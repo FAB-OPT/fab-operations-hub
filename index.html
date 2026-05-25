@@ -1702,6 +1702,21 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- ═════════════════════ CONFIRM MODAL (custom confirm) ═════════════════════ -->
+<div class="adm-modal" id="confirmModal">
+  <div class="adm-modal-box" style="max-width:420px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title"><span id="confirmModalIcon" style="font-size:22px;">⚠️</span> <span id="confirmModalTitle">ยืนยัน</span></div>
+      <button class="adm-modal-close" onclick="_resolveConfirm(false)"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body" id="confirmModalBody" style="font-size:14px;color:var(--text2);line-height:1.6;"></div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" id="confirmModalCancel" onclick="_resolveConfirm(false)">ยกเลิก</button>
+      <button class="adm-btn-primary" id="confirmModalOk" onclick="_resolveConfirm(true)" style="min-width:100px;">ตกลง</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ WELCOME POPUP ═════════════════════ -->
 <div class="welcome-overlay" id="welcomeModal">
   <div class="welcome-box">
@@ -2810,6 +2825,28 @@ function showInfo(title, htmlMessage) {
 function closeInfoModal() {
   document.getElementById('infoModal').classList.remove('show');
 }
+
+/* ─── customConfirm — Promise-based replacement for browser confirm() ─── */
+var _confirmResolver = null;
+function customConfirm(opts) {
+  opts = opts || {};
+  var icon  = opts.icon  || '⚠️';
+  var title = opts.title || 'ยืนยัน';
+  var desc  = opts.desc  || '';
+  var okText     = opts.okText     || 'ตกลง';
+  var cancelText = opts.cancelText || 'ยกเลิก';
+  document.getElementById('confirmModalIcon').textContent = icon;
+  document.getElementById('confirmModalTitle').textContent = title;
+  document.getElementById('confirmModalBody').innerHTML = desc;
+  document.getElementById('confirmModalOk').textContent = okText;
+  document.getElementById('confirmModalCancel').textContent = cancelText;
+  document.getElementById('confirmModal').classList.add('show');
+  return new Promise(function(resolve){ _confirmResolver = resolve; });
+}
+function _resolveConfirm(val) {
+  document.getElementById('confirmModal').classList.remove('show');
+  if (_confirmResolver) { _confirmResolver(val); _confirmResolver = null; }
+}
 function showComingSoon(systemId) {
   var s = SYSTEMS.find(function(x){ return x.id === systemId; });
   if (!s) return;
@@ -2915,7 +2952,7 @@ function handleIconUpload(file) {
       document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
       var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
       if (uploadOpt) uploadOpt.classList.add('selected');
-      alert('อัปโหลดสำเร็จ — รูปนี้จะแสดงเฉพาะเครื่องนี้ (cross-device แนะนำใช้ไอคอนสำเร็จรูป)');
+      showInfo('✓ อัปโหลดสำเร็จ', 'รูปนี้จะแสดงเฉพาะเครื่องนี้<br><small>(cross-device แนะนำใช้ไอคอนสำเร็จรูป)</small>');
     };
     img.src = e.target.result;
   };
@@ -2949,8 +2986,8 @@ function saveSystemConfig() {
   var endDate = document.getElementById('sysEndDate').value;
   var icon = (document.getElementById('sysIconValue').value || '').trim();
 
-  if (!name) { alert('กรุณากรอกชื่อระบบ'); return; }
-  if (startDate && endDate && startDate > endDate) { alert('วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด'); return; }
+  if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อระบบ'); return; }
+  if (startDate && endDate && startDate > endDate) { showInfo('⚠️ ช่วงวันที่ผิด', 'วันที่เริ่มต้องไม่หลังวันที่สิ้นสุด'); return; }
 
   var visibleBranches = [];
   var anyChecked = false, allChecked = true;
@@ -2960,10 +2997,20 @@ function saveSystemConfig() {
     else allChecked = false;
   });
   if (chks.length > 0 && allChecked) visibleBranches = [];  // [] = visible to all
-  if (chks.length > 0 && !anyChecked && currentEditingSystem) {
-    if (!confirm('ยังไม่ได้เลือกสาขาใดเลย จะไม่มีสาขาเห็นระบบนี้ ยืนยัน?')) return;
-  }
 
+  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches); };
+  if (chks.length > 0 && !anyChecked && currentEditingSystem) {
+    customConfirm({
+      icon: '⚠️', title: 'ไม่มีสาขาที่เห็น',
+      desc: 'ยังไม่ได้เลือกสาขาใดเลย จะไม่มีสาขาเห็นระบบนี้ — ยืนยัน?',
+      okText: 'ยืนยัน'
+    }).then(function(ok){ if (ok) proceed(); });
+    return;
+  }
+  proceed();
+}
+
+function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches) {
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
     if (idx >= 0) {
@@ -3004,16 +3051,23 @@ function saveSystemConfig() {
 function deleteSystem() {
   if (!currentEditingSystem) return;
   var s = SYSTEMS.find(function(x){ return x.id === currentEditingSystem; });
-  if (s && s.builtIn) { alert('ไม่สามารถลบระบบหลักของ Hub ได้'); return; }
-  if (!confirm('ลบระบบ "'+(s?s.name:'')+'" ใช่หรือไม่? (ไม่สามารถกู้คืนได้)')) return;
-  SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== currentEditingSystem; });
-  saveSystemsLocal();
-  renderMenuCards();
-  closeSystemModal();
-  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
-  saveSystemsToCloud()
-    .then(function(){ setSyncStatus('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
-    .catch(function(err){ setSyncStatus('✗ ซิงค์ Cloud ไม่ได้: ' + err.message, 'var(--red)'); });
+  if (s && s.builtIn) { showInfo('⚠️ ไม่สามารถลบ', 'ไม่สามารถลบระบบหลักของ Hub ได้'); return; }
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบระบบนี้?',
+    desc: 'จะลบ <b>'+(s?s.name:'')+'</b> ออกถาวร — ไม่สามารถกู้คืนได้',
+    okText: 'ลบเลย'
+  }).then(function(ok){
+    if (!ok) return;
+    SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== currentEditingSystem; });
+    saveSystemsLocal();
+    renderMenuCards();
+    closeSystemModal();
+    setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+    saveSystemsToCloud()
+      .then(function(){ setSyncStatus('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
+      .catch(function(err){ setSyncStatus('✗ ซิงค์ Cloud ไม่ได้: ' + err.message, 'var(--red)'); });
+  });
 }
 
 function showWelcome(name) {
@@ -3203,15 +3257,22 @@ function saveAnnouncement() {
 function deleteAnnouncement() {
   if (!currentEditingAnnouncement) return;
   var a = ANNOUNCEMENTS.find(function(x){return x.id===currentEditingAnnouncement;});
-  if (!confirm('ลบประกาศ "'+(a?a.title:'')+'" ใช่หรือไม่?')) return;
-  ANNOUNCEMENTS = ANNOUNCEMENTS.filter(function(x){return x.id!==currentEditingAnnouncement;});
-  saveAnnouncementsLocal();
-  closeAnnouncementEditor();
-  renderAnnouncementsList();
-  setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
-  saveAnnouncementsToCloud()
-    .then(function(){ setSyncStatus('✓ ลบและซิงค์สำเร็จ', 'var(--green)'); })
-    .catch(function(err){ setSyncStatus('✗ Cloud ไม่ติด: '+err.message, 'var(--red)'); });
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบประกาศ?',
+    desc: 'จะลบ <b>"'+(a?a.title:'')+'"</b> ออกถาวร',
+    okText: 'ลบเลย'
+  }).then(function(ok){
+    if (!ok) return;
+    ANNOUNCEMENTS = ANNOUNCEMENTS.filter(function(x){return x.id!==currentEditingAnnouncement;});
+    saveAnnouncementsLocal();
+    closeAnnouncementEditor();
+    renderAnnouncementsList();
+    setSyncStatus('กำลังซิงค์ Cloud...', 'var(--text2)');
+    saveAnnouncementsToCloud()
+      .then(function(){ setSyncStatus('✓ ลบและซิงค์สำเร็จ', 'var(--green)'); })
+      .catch(function(err){ setSyncStatus('✗ Cloud ไม่ติด: '+err.message, 'var(--red)'); });
+  });
 }
 
 function logout() {
