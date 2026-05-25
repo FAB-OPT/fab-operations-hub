@@ -3970,9 +3970,15 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
         <div style="font-weight:700;margin-bottom:8px;font-size:13px;">📚 เลือกหลักสูตร</div>
         <div id="expFilterCourses" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div>
-      <div style="margin-bottom:6px;">
+      <div style="margin-bottom:14px;">
         <div style="font-weight:700;margin-bottom:8px;font-size:13px;">🕐 เลือกรอบ</div>
         <div id="expFilterSlots" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div style="margin-bottom:6px;padding:10px 12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);">
+        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);">
+          <input type="checkbox" id="expHideIdCard" style="width:18px;height:18px;cursor:pointer;">
+          <span>🔒 ซ่อนคอลัมน์เลขบัตรประชาชนใน PDF</span>
+        </label>
       </div>
       <div id="exportPDFCount" style="margin-top:14px;padding:12px;background:#fff7ed;border-radius:10px;border-left:4px solid var(--gold);font-weight:600;text-align:center;color:var(--text);">— รายการ</div>
     </div>
@@ -5147,8 +5153,18 @@ function _updateTopbarVisibility() {
   var bView = document.getElementById('branchView');
   var aVisible = aView && getComputedStyle(aView).display !== 'none';
   var bVisible = bView && getComputedStyle(bView).display !== 'none';
-  if (aBar) aBar.style.display = aVisible ? 'flex' : 'none';
-  if (bBar) bBar.style.display = bVisible ? 'flex' : 'none';
+  [aBar, bBar].forEach(function(bar){
+    if (!bar) return;
+    // Force inline styles ทุกครั้ง (กัน CSS specificity issue บน iOS)
+    bar.style.setProperty('position', 'fixed', 'important');
+    bar.style.setProperty('top', '0', 'important');
+    bar.style.setProperty('left', '0', 'important');
+    bar.style.setProperty('right', '0', 'important');
+    bar.style.setProperty('z-index', '10000', 'important');
+    bar.style.setProperty('margin', '0', 'important');
+  });
+  if (aBar) aBar.style.setProperty('display', aVisible ? 'flex' : 'none', 'important');
+  if (bBar) bBar.style.setProperty('display', bVisible ? 'flex' : 'none', 'important');
 }
 
 window.addEventListener('DOMContentLoaded', function() {
@@ -6225,7 +6241,8 @@ function saveEditRequest() {
   var record = {
     name: document.getElementById('edt-name').value.trim(),
     empId: document.getElementById('edt-empId').value.trim(),
-    idCard: document.getElementById('edt-idCard').value.trim(),
+    // Strip non-digits from idCard
+    idCard: document.getElementById('edt-idCard').value.replace(/\D/g, ''),
     position: document.getElementById('edt-position').value.trim(),
     branch: document.getElementById('edt-branch').value.trim(),
     course: document.getElementById('edt-course').value,
@@ -6235,8 +6252,22 @@ function saveEditRequest() {
   var sch = COURSE_SCHEDULES[record.course];
   record.trainDate = sch ? sch.date : '';
 
-  if (!record.name || !record.idCard) {
-    customConfirm({ icon:'⚠️', title:'ข้อมูลไม่ครบ', desc:'ชื่อและเลขบัตรเป็นจำเป็น', okText:'ปิด', okIsPrimary:true, hideCancel:true });
+  // บังคับกรอกทุกช่อง ยกเว้น 'หมายเหตุ'
+  var missing = [];
+  if (!record.name)     missing.push('ชื่อ-นามสกุล');
+  if (!record.empId)    missing.push('รหัสพนักงาน');
+  if (!record.idCard)   missing.push('เลขบัตรประชาชน');
+  else if (record.idCard.length !== 13) missing.push('เลขบัตรประชาชน (ต้อง 13 หลัก)');
+  if (!record.position) missing.push('ตำแหน่ง');
+  if (!record.branch)   missing.push('สาขา');
+  if (!record.course)   missing.push('หลักสูตร');
+  if (!record.timeSlot) missing.push('รอบอบรม');
+  if (missing.length) {
+    customConfirm({
+      icon:'⚠️', title:'ข้อมูลไม่ครบ',
+      desc:'กรุณากรอก:<br>• ' + missing.join('<br>• '),
+      okText:'ปิด', okIsPrimary:true, hideCancel:true
+    });
     return;
   }
   showLoadingOverlay('กำลังบันทึก...', '');
@@ -6456,11 +6487,14 @@ function confirmExportPDF() {
     showInfo('ไม่มีรายการตรงเงื่อนไข', 'กรุณาเลือก filter อย่างน้อย 1 อย่างที่มีข้อมูล');
     return;
   }
+  var hideIdCard = !!(document.getElementById('expHideIdCard') && document.getElementById('expHideIdCard').checked);
   closeExportPDFModal();
-  exportTrainingPDF(filtered);
+  exportTrainingPDF(filtered, { hideIdCard: hideIdCard });
 }
 
-function exportTrainingPDF(preloadedReqs) {
+function exportTrainingPDF(preloadedReqs, opts) {
+  opts = opts || {};
+  var hideIdCard = !!opts.hideIdCard;
   var run = function(reqs){
       if (!reqs || reqs.length === 0) { showInfo('ยังไม่มีรายชื่อ', 'ยังไม่มีคำขออบรมในระบบ'); return; }
       var groups = {};
@@ -6554,7 +6588,7 @@ function exportTrainingPDF(preloadedReqs) {
             +   '<th style="width:60px;">รหัสพนักงาน</th>'
             +   '<th style="width:160px;">ชื่อ - นามสกุล</th>'
             +   '<th style="width:120px;">ตำแหน่ง</th>'
-            +   '<th style="width:110px;">เลขบัตรประจำตัวประชาชน</th>'
+            +   (hideIdCard ? '' : '<th style="width:110px;">เลขบัตรประจำตัวประชาชน</th>')
             +   '<th style="width:140px;">สาขา/หน่วยงาน</th>'
             + '</tr></thead><tbody>';
           // Always render 25 rows (fill blank if fewer)
@@ -6567,11 +6601,11 @@ function exportTrainingPDF(preloadedReqs) {
                 + '<td class="empid">' + escapeHtml(r.empId || r['รหัสพนักงาน'] || '') + '</td>'
                 + '<td>' + escapeHtml(r.name || '') + '</td>'
                 + '<td>' + escapeHtml(r.position || '') + '</td>'
-                + '<td class="idcard">' + escapeHtml(r.idCard || '') + '</td>'
+                + (hideIdCard ? '' : '<td class="idcard">' + escapeHtml(r.idCard || '') + '</td>')
                 + '<td>' + escapeHtml(r.branch || '') + '</td>'
                 + '</tr>';
             } else {
-              html += '<tr><td class="num">' + globalIdx + '</td><td class="empid empty"></td><td></td><td></td><td class="idcard"></td><td></td></tr>';
+              html += '<tr><td class="num">' + globalIdx + '</td><td class="empid empty"></td><td></td><td></td>' + (hideIdCard ? '' : '<td class="idcard"></td>') + '<td></td></tr>';
             }
           }
           html += '</tbody></table></div>';
