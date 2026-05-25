@@ -2262,8 +2262,18 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  padding: 0 20px;
+  padding: 10px 20px;
   margin: 6px 0 12px;
+}
+/* sticky-top — chips ติดบนเมื่อ scroll ตารางยาว */
+.match-chips.sticky-top {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.92) 100%);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(15,23,42,0.05);
 }
 .match-chip {
   display: inline-flex;
@@ -3438,62 +3448,54 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <span id="sNone" style="display:none">0</span>
 </div>
 
-<!-- NOTE -->
-<div class="note-bar" id="noteBar">
-  <strong style="color:var(--orange)">&#9888; หมายเหตุ:</strong>
-  สถานะ "นามสกุลตรง" = พบนามสกุลเดียวกันในระบบ แต่ชื่อต้นต่างกัน อาจเป็นญาติหรือคนละคน กรุณาตรวจสอบเพิ่มเติม
-</div>
-
-<!-- MATCH-STATUS CHIPS (hidden until match done) -->
-<div class="match-chips" id="matchChips" style="display:none">
+<!-- MATCH-STATUS CHIPS (sticky on top while scrolling) -->
+<div class="match-chips sticky-top" id="matchChips" style="display:none">
   <button type="button" class="match-chip active" data-mf="all" onclick="setMatchFilter('all')">
     <span class="mc-icon">🗂</span><span class="mc-label">ทั้งหมด</span><span class="mc-count" id="mcAll">0</span>
   </button>
   <button type="button" class="match-chip mc-exact" data-mf="exact" onclick="setMatchFilter('exact')">
     <span class="mc-icon">✓</span><span class="mc-label">พบตรงสนิท</span><span class="mc-count" id="mcExact">0</span>
   </button>
-  <button type="button" class="match-chip mc-last" data-mf="lastname" onclick="setMatchFilter('lastname')">
-    <span class="mc-icon">⚠</span><span class="mc-label">นามสกุลตรง</span><span class="mc-count" id="mcLast">0</span>
-  </button>
-  <button type="button" class="match-chip mc-none" data-mf="notfound" onclick="setMatchFilter('notfound')">
-    <span class="mc-icon">✗</span><span class="mc-label">ไม่พบ</span><span class="mc-count" id="mcNone">0</span>
-  </button>
+  <!-- hidden state holders (kept for JS compatibility — getFiltered reads matchFilter) -->
+  <select id="matchFilter" style="display:none" onchange="renderTable()"><option value="all">all</option><option value="exact">exact</option></select>
+  <select id="expFilter" style="display:none"><option value="all">all</option></select>
+  <select id="sheetFilter" style="display:none"><option value="all">all</option></select>
+  <input type="text" id="searchQ" style="display:none">
 </div>
 
-<!-- TOOLBAR — row 1: search · row 2: filters -->
-<div class="toolbar toolbar-2row">
-  <div class="toolbar-row toolbar-row-search">
-    <div class="search-wrap">
-      <span style="color:var(--text3)">&#128269;</span>
-      <input type="text" id="searchQ" placeholder="ค้นหาชื่อ, สาขา, ตำแหน่ง..." oninput="renderTable()">
-    </div>
-  </div>
-  <div class="toolbar-row toolbar-row-filters">
-    <select class="filter-sel" id="matchFilter" onchange="syncMatchChips();renderTable()" style="display:none">
-      <option value="all">ทุกสถานะการจับคู่</option>
-      <option value="exact">พบตรงสนิท</option>
-      <option value="lastname">นามสกุลตรง</option>
-      <option value="notfound">ไม่พบ</option>
-    </select>
-    <select class="filter-sel" id="expFilter" onchange="renderTable()">
-      <option value="all">ทุกสถานะใบรับรอง</option>
-      <option value="valid">ยังมีผล</option>
-      <option value="warning">ใกล้หมดอายุ</option>
-      <option value="expired">หมดอายุแล้ว</option>
-    </select>
-    <select class="filter-sel" id="sheetFilter" onchange="renderTable()">
-      <option value="all">ทุก Sheet</option>
-      <option value="JD">JD</option>
-      <option value="ST">ST</option>
-      <option value="Easy">Easy</option>
-      <option value="OP">OP</option>
-    </select>
-  </div>
+<!-- CERT TABLE -->
+<div class="table-container">
+  <div class="count-line" id="countLine"></div>
+  <table id="mainTable">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>ชื่อในใบรับรอง</th>
+        <th>หลักสูตร</th>
+        <th>วันอบรม</th>
+        <th>วันหมดอายุ</th>
+        <th>สถานะใบรับรอง</th>
+        <th>ชื่อในระบบพนักงาน</th>
+        <th>สาขา / หน่วยงาน</th>
+        <th>ตำแหน่ง</th>
+        <th>Sheet</th>
+        <th>สถานะจับคู่</th>
+        <th>ลบ</th>
+      </tr>
+    </thead>
+    <tbody id="tableBody">
+      <tr><td colspan="12" class="empty">
+        <div style="font-size:48px;margin-bottom:10px;">📂</div>
+        <div style="font-weight:700;color:var(--text2);margin-bottom:4px;">ยังไม่มีข้อมูลให้แสดง</div>
+        <div style="font-size:12px;color:var(--text3);">กรุณาอัปโหลดไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</div>
+      </td></tr>
+    </tbody>
+  </table>
 </div>
 
-<!-- REQUESTS FROM BRANCHES -->
-<div style="padding:0 20px;margin-top:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-  <div class="subsection-title" style="margin-bottom:0">คำขออบรม (ทุกสาขา)</div>
+<!-- REQUESTS FROM BRANCHES (moved to bottom per UX redesign) -->
+<div style="padding:0 20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+  <div class="subsection-title" style="margin-bottom:0">📋 คำขออบรม (ทุกสาขา)</div>
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn-export-form btn-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄</button>
     <button class="btn-export-form btn-refresh" onclick="clearServerCache()" title="ล้าง cache Apps Script (กรณีข้อมูลค้าง)" style="color:var(--red)!important;border-color:rgba(239,68,68,0.3)!important;">🗑 Cache</button>
@@ -3525,36 +3527,6 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
       <tbody id="adminReqBody"></tbody>
     </table>
   </div>
-</div>
-
-<!-- TABLE -->
-<div class="table-container">
-  <div class="count-line" id="countLine"></div>
-  <table id="mainTable">
-    <thead>
-      <tr>
-        <th>#</th>
-        <th>ชื่อในใบรับรอง</th>
-        <th>หลักสูตร</th>
-        <th>วันอบรม</th>
-        <th>วันหมดอายุ</th>
-        <th>สถานะใบรับรอง</th>
-        <th>ชื่อในระบบพนักงาน</th>
-        <th>สาขา / หน่วยงาน</th>
-        <th>ตำแหน่ง</th>
-        <th>Sheet</th>
-        <th>สถานะจับคู่</th>
-        <th>ลบ</th>
-      </tr>
-    </thead>
-    <tbody id="tableBody">
-      <tr><td colspan="12" class="empty">
-        <div style="font-size:48px;margin-bottom:10px;">📂</div>
-        <div style="font-weight:700;color:var(--text2);margin-bottom:4px;">ยังไม่มีข้อมูลให้แสดง</div>
-        <div style="font-size:12px;color:var(--text3);">กรุณาอัปโหลดไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</div>
-      </td></tr>
-    </tbody>
-  </table>
 </div>
 
 </div>
@@ -4306,7 +4278,7 @@ function processMatch() {
     document.getElementById('processBtn').disabled = false;
     document.getElementById('exportBtn').disabled = false;
     document.getElementById('saveBtn').disabled = false;
-    document.getElementById('noteBar').classList.add('show');
+    (document.getElementById('noteBar')||{classList:{add:function(){}}}).classList.add('show');
     updateStats();
     renderTable();
 
@@ -4654,7 +4626,7 @@ function loadFromCloud() {
     matchData.forEach(function(d, i){ d.no = i + 1; });
     document.getElementById('exportBtn').disabled = false;
     document.getElementById('saveBtn').disabled = false;
-    document.getElementById('noteBar').classList.add('show');
+    (document.getElementById('noteBar')||{classList:{add:function(){}}}).classList.add('show');
     updateStats();
     renderTable();
     document.getElementById('processInfo').textContent = '✓ โหลด ' + records.length + ' รายการจาก Cloud · ' + new Date().toLocaleTimeString('th-TH');
