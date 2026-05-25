@@ -2396,10 +2396,23 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 @media (max-width: 640px) {
   .filter-bar { padding: 10px 12px; gap: 8px; }
   .filter-row-chips { gap: 6px; }
-  .exp-status-chip { padding: 8px 12px; font-size: 12.5px; gap: 6px; }
+  .exp-status-chip { padding: 8px 10px; font-size: 12px; gap: 5px; }
   .exp-status-chip .esc-label { display: none; }
   .exp-status-chip[data-ef="all"] .esc-label { display: inline; }
-  .filter-sel-pretty { flex: 1; min-width: 0; font-size: 12px; padding: 8px 10px; }
+  /* dropdown สาขา/หลักสูตร อ่านได้ — กว้างพอสมควร แต่ wrap ลงล่างได้ */
+  .filter-sel-pretty {
+    flex: 1 1 140px;
+    min-width: 140px;
+    font-size: 12.5px;
+    padding: 9px 12px;
+  }
+  /* cleanup-group ดันลงบรรทัดใหม่บนมือถือ ครบเต็มแถว */
+  .filter-row-chips .filter-cleanup {
+    margin-left: 0;
+    flex: 1 1 100%;
+    justify-content: center;
+    margin-top: 4px;
+  }
 }
 
 /* ─── Table pagination ─── */
@@ -2438,6 +2451,64 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 /* ─── Table header — static (ไม่เลื่อนตาม) ─── */
 #mainTable thead th {
   background: var(--bg3);
+}
+
+/* ─── Mobile: cert table → card layout (เหมือน req-history-table) ─── */
+@media (max-width: 768px) {
+  #mainTable thead { display: none; }
+  #mainTable, #mainTable tbody, #mainTable tr, #mainTable td { display: block; width: 100%; }
+  #mainTable tr {
+    background: #fff;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+  }
+  #mainTable tbody td {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 0;
+    border: none;
+    border-bottom: 1px dashed rgba(15,23,42,0.06);
+    font-size: 13px;
+    line-height: 1.5;
+    color: var(--text);
+    text-align: left !important;
+    white-space: normal !important;
+    max-width: none !important;
+  }
+  #mainTable tbody td:last-child { border-bottom: none; padding-bottom: 0; }
+  #mainTable tbody td::before {
+    content: attr(data-icon) ' ' attr(data-label);
+    color: var(--text3);
+    font-size: 11.5px;
+    font-weight: 700;
+    flex-shrink: 0;
+    min-width: 105px;
+  }
+  /* ซ่อน # row บนมือถือ (ใช้ลำดับใน card) */
+  #mainTable tbody td.no-txt {
+    padding: 0 0 8px 0;
+    border-bottom: 2px solid rgba(234,88,12,0.18);
+    margin-bottom: 4px;
+  }
+  #mainTable tbody td.no-txt::before {
+    content: '#';
+    min-width: auto;
+    color: var(--gold);
+    font-weight: 800;
+  }
+  #mainTable tbody td.cert-name {
+    font-weight: 700;
+    color: var(--text);
+    font-size: 14.5px;
+  }
+  #mainTable tbody td.cert-name::before { color: var(--gold); }
+  #mainTable tbody td > * { flex: 1; }
+  .table-pagination { padding: 12px 6px; gap: 4px; }
+  .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; font-size: 12px; }
+  /* ลำดับ row ใน count line */
+  .count-line { font-size: 12px; padding: 0 8px 8px; }
 }
 .match-chip {
   display: inline-flex;
@@ -3342,6 +3413,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   box-shadow:
     0 10px 26px rgba(15,23,42,0.08),
     0 2px 6px rgba(15,23,42,0.04) !important;
+  /* lock at top */
+  position: sticky !important;
+  top: 0 !important;
+  z-index: 100 !important;
 }
 
 </style>
@@ -3508,27 +3583,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <span id="topStatus" style="display:none;font-size:12px;color:var(--text3);font-family:'Sarabun',sans-serif;"></span>
 </div>
 
-<!-- STEPPER (2 steps — match + save are automatic) -->
-<div class="page-hero">
-  <div class="page-hero-row">
-    <div class="stepper" aria-label="ขั้นตอนการใช้งาน">
-      <div class="step step-1 active">
-        <div class="step-num">1</div>
-        <div class="step-body">
-          <div class="step-title">นำเข้าไฟล์</div>
-          <div class="step-desc">PDF ใบรับรอง + Excel พนักงาน</div>
-        </div>
-      </div>
-      <div class="step step-2">
-        <div class="step-num">2</div>
-        <div class="step-body">
-          <div class="step-title">ตรวจสอบ &amp; ส่งออก</div>
-          <div class="step-desc">ระบบจับคู่/บันทึกอัตโนมัติ · Export CSV ได้</div>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+<!-- STEPPER ถูกนำออก (admin view) -->
+
 
 <!-- IMPORT ZONE -->
 <div style="padding:0 20px;margin-top:16px">
@@ -4622,18 +4678,18 @@ function renderTable() {
   }
   tbody.innerHTML = pageRows.map(function(d){
     return '<tr>'
-      +'<td class="no-txt">'+d.no+'</td>'
-      +'<td class="cert-name">'+d.certName+'</td>'
-      +'<td style="color:var(--text3);font-size:11px;max-width:180px;">'+d.course+'</td>'
-      +'<td style="color:var(--text2);font-size:12px;white-space:nowrap;">'+formatThaiDate(d.trainDate)+'</td>'
-      +'<td style="white-space:nowrap;font-size:12px;color:var(--text2);">'+formatThaiDate(d.expireDate)+'</td>'
-      +'<td>'+getExpBadge(d.expStatus)+'</td>'
-      +'<td class="'+(d.empName?'emp-name':'none-name')+'">'+( d.empName||'—')+'</td>'
-      +'<td class="branch-txt">'+d.branch+'</td>'
-      +'<td class="pos-txt">'+d.position+'</td>'
-      +'<td>'+getSheetTag(d.sheet)+'</td>'
-      +'<td>'+getMatchBadge(d.matchType)+'</td>'
-      +'<td><button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button></td>'
+      +'<td class="no-txt" data-label="#" data-icon="🔢">'+d.no+'</td>'
+      +'<td class="cert-name" data-label="ชื่อในใบรับรอง" data-icon="📜">'+d.certName+'</td>'
+      +'<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">'+d.course+'</td>'
+      +'<td data-label="วันอบรม" data-icon="📅" style="color:var(--text2);font-size:12px;white-space:nowrap;">'+formatThaiDate(d.trainDate)+'</td>'
+      +'<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">'+formatThaiDate(d.expireDate)+'</td>'
+      +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus)+'</td>'
+      +'<td data-label="ชื่อในระบบ" data-icon="👤" class="'+(d.empName?'emp-name':'none-name')+'">'+( d.empName||'—')+'</td>'
+      +'<td data-label="สาขา" data-icon="🏢" class="branch-txt">'+d.branch+'</td>'
+      +'<td data-label="ตำแหน่ง" data-icon="💼" class="pos-txt">'+d.position+'</td>'
+      +'<td data-label="Sheet" data-icon="📑">'+getSheetTag(d.sheet)+'</td>'
+      +'<td data-label="จับคู่" data-icon="🔗">'+getMatchBadge(d.matchType)+'</td>'
+      +'<td data-label="ลบ" data-icon="🗑"><button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button></td>'
       +'</tr>';
   }).join('');
   renderTablePagination_(totalPages);
