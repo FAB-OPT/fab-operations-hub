@@ -3476,6 +3476,24 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   }
 }
 
+/* ─── iOS Safari prevent auto-zoom on tap input (font-size ต้อง ≥16px) ─── */
+@media (max-width: 768px) {
+  .combo-input,
+  .req-field input,
+  .req-field select,
+  .dd-trigger,
+  input[type="text"],
+  input[type="number"],
+  input[type="tel"],
+  input[type="email"],
+  input[type="search"],
+  input[type="date"],
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
 /* ─── คำขออบรม header row ─── */
 .req-header-row {
   padding: 0 20px;
@@ -7170,7 +7188,8 @@ function selectComboItem(i, name, position, empId, idCard) {
   requestRows[i].name = name;
   if (position && !requestRows[i].position) requestRows[i].position = position;
   if (empId   && !requestRows[i].empId)    requestRows[i].empId    = empId;
-  if (idCard  && !requestRows[i].idCard)   requestRows[i].idCard   = idCard;
+  // Strip ทุกอักขระที่ไม่ใช่ตัวเลข (-, space, etc.) ก่อนเก็บ
+  if (idCard  && !requestRows[i].idCard)   requestRows[i].idCard   = String(idCard).replace(/\D/g, '').slice(0, 13);
   closeCombo(i);
   rerenderRequestList();
   onReqNameChange(i);
@@ -7368,7 +7387,8 @@ function showSubmitSummary() {
   requestRows.forEach(function(r, i){
     var name = (r.name || '').trim();
     var empId = (r.empId || '').trim();
-    var idCard = (r.idCard || '').trim();
+    // Strip non-digits (e.g. 1-1003-00226-47-8 → 1100300226478)
+    var idCard = String(r.idCard || '').replace(/\D/g, '');
     var position = (r.position || '').trim();
     var course = (r.course || '').trim();
     var timeSlot = (r.timeSlot || '').trim();
@@ -7428,7 +7448,8 @@ function submitRequests() {
   requestRows.forEach(function(r, i){
     var name = (r.name || '').trim();
     var empId = (r.empId || '').trim();
-    var idCard = (r.idCard || '').trim();
+    // Strip non-digits จากเลขบัตร (เช่น 1-1003-00226-47-8 → 1100300226478)
+    var idCard = String(r.idCard || '').replace(/\D/g, '');
     var position = (r.position || '').trim();
     var course = (r.course || '').trim();
     var trainDate = (r.trainDate || '').trim();
