@@ -6156,10 +6156,22 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var trainDate = r['trainDate'] || r['วันอบรม'] || '';
         var slot = r['timeSlot'] || r['รอบ'] || '';
         var note = r['note'] || r['หมายเหตุ'] || '';
-        // ── Fallback: ถ้า trainDate/slot ว่าง — extract จาก course string (รองรับหลายรูปแบบ)
+        // ── Override: ถ้า course ตรงกับ key ใน COURSE_SCHEDULES → ใช้ date จาก schedule dict
+        //    (เพราะ schedule dict = source of truth · กัน record เก่าเก็บวันที่ผิด)
+        if (course && course !== '—' && typeof COURSE_SCHEDULES !== 'undefined') {
+          var courseLookup = String(course).replace(/\s*รุ่นที่\s*[:：].*$/, '').trim();
+          var sch = COURSE_SCHEDULES[courseLookup];
+          if (sch) {
+            // Override trainDate ถ้าตรงกับ key
+            trainDate = sch.date || trainDate;
+            // Slot: ถ้า saved slot ไม่อยู่ใน schedule slots — ใช้ slot แรก
+            if (!slot && sch.slots && sch.slots.length === 1) slot = sch.slots[0];
+          }
+        }
+
+        // ── Fallback: ถ้ายังว่าง — extract จาก course string (รองรับหลายรูปแบบ)
         if ((!trainDate || !slot) && course && course !== '—') {
           if (!trainDate) {
-            // ลอง 'วันที่ X เดือน YYYY' หรือ '10 มิ.ย. 2569' / '10 มิถุนายน 2569'
             var dm = String(course).match(/วันที่\s*(\d{1,2}\s+\S+\s+\d{4})/);
             if (!dm) dm = String(course).match(/(\d{1,2}\s+(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s+\d{4})/);
             if (dm) trainDate = dm[1];
@@ -6168,15 +6180,6 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
             var tm = String(course).match(/เวลา\s*(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
             if (!tm) tm = String(course).match(/(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
             if (tm) slot = tm[1];
-          }
-          // Fallback 2: match COURSE_SCHEDULES (ลบ 'รุ่นที่...' suffix ออกก่อน lookup)
-          if (!trainDate || !slot) {
-            var courseLookup = String(course).replace(/\s*รุ่นที่\s*[:：].*$/, '').trim();
-            var sch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES[courseLookup] : null;
-            if (sch) {
-              if (!trainDate) trainDate = sch.date || '';
-              if (!slot && sch.slots && sch.slots.length === 1) slot = sch.slots[0];
-            }
           }
         }
         var tsFmt = ts ? formatThaiDateTime(ts) : '—';
