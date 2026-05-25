@@ -4644,6 +4644,7 @@ window.addEventListener('DOMContentLoaded', function() {
     var s1 = document.getElementById('step1Section'); if (s1) s1.style.display = 'block';
     loadRecordsForSearch();
     setTimeout(loadMyRequests, 200);
+    setTimeout(loadEmployeeRegistryFromCloud, 300);  // โหลด Employees registry มาเป็น source ของ dropdown ชื่อ-นามสกุล
     startRequestsPolling();
   }
   setTimeout(function(){ if (typeof updateStepper === 'function') updateStepper(); }, 50);
@@ -6358,10 +6359,18 @@ function rerenderRequestList() {
   if (typeof updateStepper === 'function') updateStepper();
 }
 
-/* ─── Custom combobox for name ─── */
+/* ─── Custom combobox for name ───
+   Source priority: Employees registry (empData) > Certificates (allRecords)
+   ใช้ Employees เป็นหลัก เพราะเป็น master list ที่ clean กว่า + ครอบคลุมพนักงานทุกคน */
 function getEmpNamesList() {
   var seen = {};
   var arr = [];
+  // 1) จาก Employees registry (preferred)
+  (empData || []).forEach(function(e){
+    var n = (e.name || e.norm || '').trim();
+    if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: e.position||'', branch: e.branch||'' }); }
+  });
+  // 2) Fallback: จาก Certificates (เผื่อมีคนที่อยู่ใน cert แต่ไม่อยู่ใน Employees)
   (allRecords || []).forEach(function(r){
     var n = (r['ชื่อในระบบ'] || r['ชื่อในใบรับรอง'] || '').trim();
     if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: r['ตำแหน่ง']||'', branch: r['สาขา']||'' }); }
