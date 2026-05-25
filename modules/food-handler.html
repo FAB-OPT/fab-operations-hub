@@ -4173,15 +4173,7 @@ function processMatch() {
             }
           }
         }
-        // 3) Last-name only fallback
-        if (!found) {
-          for (var i=0; i<employees.length; i++) {
-            var ep = getParts(employees[i].norm);
-            if (cp.last && cp.last===ep.last) {
-              found = employees[i]; matchType = 'lastname'; break;
-            }
-          }
-        }
+        // ❌ ตัด lastname-only fallback ออก — ต้องตรงทั้ง first+last เท่านั้น
       }
 
       var expStatus = getExpStatus(cert.expireDate);
@@ -4421,41 +4413,57 @@ function loadEmployeeRegistryFromCloud() {
 }
 
 function dedupEmployeeRegistry() {
-  if (!confirm('ลบรายชื่อพนักงานที่ซ้ำกัน (เทียบจากชื่อ+สาขา)?\n\nระบบจะเก็บไว้ 1 แถวต่อชื่อที่ซ้ำ')) return;
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'dedup-employees' })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(res){
-    if (res && res.ok) {
-      alert('✓ ลบรายชื่อซ้ำสำเร็จ — เหลือ ' + (res.kept || 0) + ' รายชื่อ (ลบ ' + (res.removed || 0) + ')');
-      loadEmployeeRegistryFromCloud();
-    } else {
-      alert('✗ ลบไม่สำเร็จ: ' + (res && res.error));
-    }
-  })
-  .catch(function(err){ alert('✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบรายชื่อพนักงานที่ซ้ำกัน?',
+    desc: 'เทียบจาก <b>ชื่อ + สาขา</b> · ระบบจะเก็บไว้ 1 แถวต่อชื่อที่ซ้ำ',
+    okText: 'ลบเลย',
+    okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'dedup-employees' })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok) {
+        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>'+(res.kept||0)+'</b> รายชื่อ (ลบ '+(res.removed||0)+' รายการซ้ำ)');
+        loadEmployeeRegistryFromCloud();
+      } else {
+        showInfo('✗ ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err){ showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message||String(err))); });
+  });
 }
 
 function dedupCertificateRegistry() {
-  if (!confirm('ลบใบรับรองที่ซ้ำกัน (เทียบจากชื่อ+วันหมดอายุ)?\n\nระบบจะเก็บไว้ 1 แถวต่อใบที่ซ้ำ')) return;
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'dedup-certificates' })
-  })
-  .then(function(r){ return r.json(); })
-  .then(function(res){
-    if (res && res.ok) {
-      alert('✓ ลบใบรับรองซ้ำสำเร็จ — เหลือ ' + (res.kept || 0) + ' ใบ (ลบ ' + (res.removed || 0) + ')');
-      loadFromCloud();
-    } else {
-      alert('✗ ลบไม่สำเร็จ: ' + (res && res.error));
-    }
-  })
-  .catch(function(err){ alert('✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบใบรับรองที่ซ้ำกัน?',
+    desc: 'เทียบจาก <b>ชื่อ + วันหมดอายุ</b> · ระบบจะเก็บไว้ 1 แถวต่อใบที่ซ้ำ',
+    okText: 'ลบเลย',
+    okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'dedup-certificates' })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok) {
+        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>'+(res.kept||0)+'</b> ใบ (ลบ '+(res.removed||0)+' ใบซ้ำ)');
+        loadFromCloud();
+      } else {
+        showInfo('✗ ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err){ showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message||String(err))); });
+  });
 }
 
 /* ─────────── CLOUD SYNC ─────────── */
