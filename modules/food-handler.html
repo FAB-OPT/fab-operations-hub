@@ -6066,7 +6066,9 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   if (!info || !body) return;
   info.textContent = 'กำลังโหลด...';
   if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...';
-  var url = SCRIPT_URL + '?action=requests' + (branchFilter ? '&branch=' + encodeURIComponent(branchFilter) : '') + '&_=' + Date.now();
+  // ดึงทั้งหมด (ไม่ส่ง branch param) — ใช้ root cache key 'req_v2' ที่ saveRequests clear ทุกครั้ง
+  // แล้ว filter ฝั่ง client ด้วย branchFilter
+  var url = SCRIPT_URL + '?action=requests&_=' + Date.now();
   fetch(url, { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
@@ -6075,6 +6077,10 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         return;
       }
       var rows = res.records || [];
+      // Client-side branch filter (ทำตรงนี้แทน server เพื่อให้ cache freshness)
+      if (branchFilter) {
+        rows = rows.filter(function(r){ return String(r.branch || r['สาขา'] || '') === String(branchFilter); });
+      }
       if (rows.length === 0) {
         info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
         if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
@@ -6465,14 +6471,14 @@ function exportTrainingPDF(preloadedReqs) {
         + 'body { font-family: "Sarabun", "Tahoma", sans-serif; color:#111; margin:0; font-size: 13.5px; }'
         + '.form-page { padding-top: 12mm; padding-bottom: 10mm; padding-left: 14mm; padding-right: 14mm; }'
         + '.form-page + .form-page { page-break-before: always; }'
-        + '.form-head { text-align:center; margin: 0 0 6px; position: relative; padding-top: 0; padding-right: 80px; }'
-        + '.form-logo { width: 108px; position: absolute; left: -10px; top: 0; mix-blend-mode: multiply; }'
-        + '.form-title-co { font-size: 16px; font-weight: 800; margin: 0 0 5px; padding: 0; line-height: 1.25; }'
-        + '.form-title-sub { font-size: 13.5px; font-weight: 700; margin: 0; line-height: 1.25; }'
+        + '.form-head { text-align:center; margin: 0 0 6px; position: relative; padding-top: 0; padding-right: 0; padding-left: 0; }'
+        + '.form-logo { width: 90px; position: absolute; left: 0; top: 4px; mix-blend-mode: multiply; }'
+        + '.form-title-co { font-size: 16px; font-weight: 800; margin: 0 0 5px; padding: 0; line-height: 1.25; text-align: center; }'
+        + '.form-title-sub { font-size: 13.5px; font-weight: 700; margin: 0; line-height: 1.25; text-align: center; }'
         + '.form-meta-row {'
         +   ' display: flex; align-items: baseline; justify-content: center; gap: 16px;'
         +   ' font-size: 12.5px; line-height: 1.25; margin: 0 0 5px;'
-        +   ' flex-wrap: wrap; padding-right: 80px;'
+        +   ' flex-wrap: wrap; padding-right: 0; padding-left: 0;'
         + ' }'
         + '.form-meta-row:last-of-type { margin-bottom: 20px; }'
         + '.form-meta-row .lbl { font-weight: 800; }'
@@ -7466,7 +7472,8 @@ function submitRequests() {
       name: name,
       empId: empId,
       idCard: idCard,
-      branch: r.branch || currentBranchName,
+      // บังคับใช้ currentBranchName ของสาขาที่ login (กัน mismatch กับ employee.branch จาก dropdown)
+      branch: currentBranchName || r.branch || '',
       position: position,
       course: course,
       trainDate: trainDate,
