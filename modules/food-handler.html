@@ -6640,7 +6640,18 @@ function handleImportRequestsXLSX(input) {
         var ws = wb.Sheets[sn];
         var rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
         if (rows.length < 2) return;
-        var header = rows[0];
+
+        // หา header row โดยสแกน 15 แถวแรก — หา row ที่มี 'ลำดับ' หรือ 'ชื่อ'+'นามสกุล'
+        var headerRowIdx = 0;
+        for (var hi = 0; hi < Math.min(15, rows.length); hi++) {
+          var rowText = rows[hi].map(function(c){ return String(c).toLowerCase(); }).join('|');
+          var hasName = rowText.indexOf('ชื่อ') >= 0 && rowText.indexOf('นามสกุล') >= 0;
+          var hasLamdab = rowText.indexOf('ลำดับ') >= 0;
+          var hasFullname = rowText.indexOf('fullname') >= 0;
+          if (hasName || hasLamdab || hasFullname) { headerRowIdx = hi; break; }
+        }
+        var header = rows[headerRowIdx];
+
         // Column detection
         var col = { name:-1, empId:-1, idCard:-1, branch:-1, position:-1, course:-1, trainDate:-1, timeSlot:-1, note:-1 };
         header.forEach(function(h,i){
@@ -6652,22 +6663,49 @@ function handleImportRequestsXLSX(input) {
           if (col.position<0 && ((s.indexOf('position')>=0 && s.indexOf('eng')<0) || s.indexOf('ตำแหน่ง')>=0)) col.position = i;
           if (col.course<0 && (s.indexOf('course')>=0 || s.indexOf('หลักสูตร')>=0)) col.course = i;
           if (col.trainDate<0 && (s.indexOf('traindate')>=0 || s.indexOf('วันอบรม')>=0)) col.trainDate = i;
-          if (col.timeSlot<0 && (s.indexOf('timeslot')>=0 || s.indexOf('รอบ')>=0 || s.indexOf('เวลา')>=0)) col.timeSlot = i;
+          if (col.timeSlot<0 && (s.indexOf('timeslot')>=0 || (s.indexOf('รอบ')>=0 && s.indexOf('อบรม')<0))) col.timeSlot = i;
           if (col.note<0 && (s.indexOf('note')>=0 || s.indexOf('หมายเหตุ')>=0)) col.note = i;
         });
-        for (var i = 1; i < rows.length; i++) {
+
+        // หาก headerRowIdx อยู่ก่อน row 3 บางทีมี course/round บอกใน row 2 (title)
+        // ลอง extract default course จาก row บน
+        var fileCourse = '';
+        for (var ti = 0; ti < headerRowIdx; ti++) {
+          var t = rows[ti].map(function(c){ return String(c); }).join(' ');
+          var cm = t.match(/หลักสูตร\s*[:：]?\s*(.+)/);
+          if (cm) { fileCourse = cm[1].trim(); break; }
+        }
+
+        for (var i = headerRowIdx + 1; i < rows.length; i++) {
           var r = rows[i];
           var name = col.name>=0 ? String(r[col.name]||'').trim() : '';
-          if (!name || name.length < 2) continue;
+          // Skip empty + 'ตัวอย่าง'
+          if (!name || name.length < 2 || name === 'ตัวอย่าง' || /ตัวอย่าง/i.test(name)) continue;
+
+          var courseRaw = col.course>=0 ? String(r[col.course]||'').trim() : '';
+          var trainDateRaw = col.trainDate>=0 ? String(r[col.trainDate]||'').trim() : '';
+          var timeSlotRaw  = col.timeSlot>=0 ? String(r[col.timeSlot]||'').trim() : '';
+
+          // ถ้าเซลล์ 'หลักสูตร' รวม date+time → แยกออก
+          if (courseRaw) {
+            var dm = courseRaw.match(/วันที่\s*(\d{1,2}\s+\S+\s+\d{4})/);
+            if (dm && !trainDateRaw) trainDateRaw = dm[1];
+            var tm = courseRaw.match(/เวลา\s*(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
+            if (tm && !timeSlotRaw) timeSlotRaw = tm[1];
+          }
+
+          // Combine course: text จากเซล + fileCourse (จากหัวเอกสาร)
+          var combinedCourse = courseRaw || fileCourse;
+
           records.push({
             name: name,
             empId:    col.empId>=0    ? String(r[col.empId]||'').trim()    : '',
-            idCard:   col.idCard>=0   ? String(r[col.idCard]||'').trim()   : '',
+            idCard:   col.idCard>=0   ? String(r[col.idCard]||'').replace(/\D/g,'').slice(0,13) : '',
             branch:   col.branch>=0   ? String(r[col.branch]||'').trim()   : '',
             position: col.position>=0 ? String(r[col.position]||'').trim() : '',
-            course:   col.course>=0   ? String(r[col.course]||'').trim()   : '',
-            trainDate:col.trainDate>=0? String(r[col.trainDate]||'').trim(): '',
-            timeSlot: col.timeSlot>=0 ? String(r[col.timeSlot]||'').trim() : '',
+            course:   combinedCourse,
+            trainDate: trainDateRaw,
+            timeSlot:  timeSlotRaw,
             note:     col.note>=0     ? String(r[col.note]||'').trim()     : ''
           });
         }
