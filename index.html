@@ -2349,6 +2349,7 @@ var requestRows = [];
 })();
 
 window.addEventListener('DOMContentLoaded', function() {
+  _pendingReturnUrl = _captureReturnUrl_();
   try { loadSystemsLocal(); } catch(e) { console.error('loadSystemsLocal', e); }
   try { loadAnnouncementsLocal(); } catch(e) { console.error('loadAnnouncementsLocal', e); }
   try { loadSystemsFromCloud().then(function(){ renderMenuCards(); }); } catch(e) { console.error('loadSystemsFromCloud', e); }
@@ -2374,7 +2375,9 @@ window.addEventListener('DOMContentLoaded', function() {
       }
     }
     if (role) {
-      // Returning from module / cross-app — skip login, go directly to menu
+      // Returning from module / cross-app — skip login
+      // ถ้ามี ?return= → redirect ไปทันที (ไม่ต้องแสดง menu)
+      if (_redirectIfReturnUrl_()) return;
       branchPin = sessionStorage.getItem('fab_branch_pin') || '';
       currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
       isAdminMode = (role === 'admin');
@@ -2470,6 +2473,35 @@ function hideError() { document.getElementById('loginError').textContent = ''; }
 /* ───────────── SSO Session (fab_session in localStorage, TTL 8h) ───────────── */
 var FAB_SESSION_KEY = 'fab_session';
 var FAB_SESSION_TTL_MS = 8 * 60 * 60 * 1000;  // 8 hours
+var _pendingReturnUrl = null;  // จาก ?return= — ใช้ redirect หลัง login สำเร็จ
+
+/* อ่าน ?return= จาก URL · validate safety (relative path หรือ same origin เท่านั้น) */
+function _captureReturnUrl_() {
+  try {
+    var params = new URLSearchParams(window.location.search);
+    var ret = params.get('return');
+    if (!ret) return null;
+    // Safety: relative path '/...' หรือ same-origin URL เท่านั้น (กัน open redirect)
+    if (ret.charAt(0) === '/') return ret;
+    try {
+      var u = new URL(ret, window.location.origin);
+      if (u.origin === window.location.origin) return u.pathname + u.search + u.hash;
+    } catch(e) {}
+    console.warn('Ignored unsafe return URL:', ret);
+    return null;
+  } catch(e) { return null; }
+}
+
+/* Redirect ไป return URL ถ้ามี · return true ถ้า redirect แล้ว */
+function _redirectIfReturnUrl_() {
+  if (_pendingReturnUrl) {
+    var url = _pendingReturnUrl;
+    _pendingReturnUrl = null;
+    window.location.href = url;
+    return true;
+  }
+  return false;
+}
 
 function _deriveBrand(branchCode) {
   if (!branchCode) return null;
@@ -2554,6 +2586,8 @@ function enterApp(role) {
   sessionStorage.setItem('fab_branch_name', currentBranchName || '');
   // SSO: save shared session ที่ใช้ข้าม project (Hub ↔ Checklist)
   saveFabSession(role === 'admin' ? 'admin' : 'branch', branchPin, branchPin, currentBranchName);
+  // ถ้ามี ?return= → redirect ไปแอปอื่นทันที (ไม่ต้องเข้าเมนู Hub)
+  if (_redirectIfReturnUrl_()) return;
   var loginCard = document.querySelector('#loginView .login-card');
   var loginView = document.getElementById('loginView');
   if (loginCard) loginCard.classList.add('exiting');
