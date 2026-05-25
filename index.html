@@ -2316,8 +2316,18 @@ window.addEventListener('DOMContentLoaded', function() {
   } catch(e) { console.error('loadAnnouncementsFromCloud', e); }
   try {
     var role = sessionStorage.getItem('fab_role');
+    // SSO: ถ้าไม่มี sessionStorage แต่มี fab_session ใน localStorage (ยังไม่หมดอายุ) → auto-restore
+    if (!role) {
+      var fs = loadFabSession();
+      if (fs && fs.role) {
+        role = fs.role;
+        sessionStorage.setItem('fab_role', role);
+        if (fs.branchCode) sessionStorage.setItem('fab_branch_pin', fs.branchCode);
+        if (fs.branchName) sessionStorage.setItem('fab_branch_name', fs.branchName);
+      }
+    }
     if (role) {
-      // Returning from module — skip login, go directly to menu
+      // Returning from module / cross-app — skip login, go directly to menu
       branchPin = sessionStorage.getItem('fab_branch_pin') || '';
       currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
       isAdminMode = (role === 'admin');
@@ -2410,6 +2420,52 @@ function showError(msg) {
 }
 function hideError() { document.getElementById('loginError').textContent = ''; }
 
+/* ───────────── SSO Session (fab_session in localStorage, TTL 8h) ───────────── */
+var FAB_SESSION_KEY = 'fab_session';
+var FAB_SESSION_TTL_MS = 8 * 60 * 60 * 1000;  // 8 hours
+
+function _deriveBrand(branchCode) {
+  if (!branchCode) return null;
+  var c = String(branchCode);
+  if (c.indexOf('50') === 0 || c.indexOf('55') === 0) return 'santafe';
+  if (c.indexOf('40') === 0) return 'jaedaeng';
+  return null;
+}
+
+function saveFabSession(role, pin, branchCode, branchName) {
+  var session = {
+    code: String(pin || ''),
+    name: role === 'admin' ? 'Kantapon' : (branchName || ''),
+    nick: role === 'admin' ? 'พี่กาย' : '',
+    role: role,                           // "branch" | "admin"
+    brand: role === 'admin' ? null : _deriveBrand(branchCode),
+    crossBrand: role === 'admin',         // admin = ดู cross-brand ได้
+    branchCode: role === 'branch' ? String(branchCode || '') : undefined,
+    branchName: role === 'branch' ? (branchName || '') : undefined,
+    loggedInAt: new Date().toISOString()
+  };
+  try { localStorage.setItem(FAB_SESSION_KEY, JSON.stringify(session)); } catch(e) {}
+}
+
+function loadFabSession() {
+  try {
+    var raw = localStorage.getItem(FAB_SESSION_KEY);
+    if (!raw) return null;
+    var s = JSON.parse(raw);
+    if (!s || !s.loggedInAt) return null;
+    var age = Date.now() - new Date(s.loggedInAt).getTime();
+    if (isNaN(age) || age > FAB_SESSION_TTL_MS) {
+      localStorage.removeItem(FAB_SESSION_KEY);
+      return null;
+    }
+    return s;
+  } catch(e) { return null; }
+}
+
+function clearFabSession() {
+  try { localStorage.removeItem(FAB_SESSION_KEY); } catch(e) {}
+}
+
 function doLogin() {
   var pin = getPinValue();
   var required = selectedRole === 'admin' ? 6 : 4;
@@ -2449,6 +2505,8 @@ function enterApp(role) {
   sessionStorage.setItem('fab_role', role === 'admin' ? 'admin' : 'branch');
   sessionStorage.setItem('fab_branch_pin', branchPin || '');
   sessionStorage.setItem('fab_branch_name', currentBranchName || '');
+  // SSO: save shared session ที่ใช้ข้าม project (Hub ↔ Checklist)
+  saveFabSession(role === 'admin' ? 'admin' : 'branch', branchPin, branchPin, currentBranchName);
   var loginCard = document.querySelector('#loginView .login-card');
   var loginView = document.getElementById('loginView');
   if (loginCard) loginCard.classList.add('exiting');
@@ -2544,19 +2602,39 @@ var DEFAULT_SYSTEMS = [{
   startDate: '',
   endDate: '',
   builtIn: true
+}, {
+  id: 'checklist',
+  emoji: '✅',
+  icon: 'icons/checklist.png',
+  name: 'Operations Standard Skill & Operations Checklist',
+  desc: 'ระบบตรวจสอบมาตรฐานการทำงาน',
+  url: '',
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
 }];
 
+function _injectBuiltInSystems_() {
+  // ensure ทุก built-in system ใน DEFAULT_SYSTEMS อยู่ใน SYSTEMS
+  DEFAULT_SYSTEMS.forEach(function(def){
+    var existing = SYSTEMS.find(function(x){ return x.id === def.id; });
+    if (!existing) {
+      SYSTEMS.unshift(def);
+    } else {
+      // mark existing as built-in (กัน admin-added duplicate)
+      existing.builtIn = true;
+      if (!existing.url && def.url) existing.url = def.url;
+    }
+  });
+}
 function loadSystemsLocal() {
   try {
     var saved = localStorage.getItem('fab_systems_v1');
-    if (saved) {
-      SYSTEMS = JSON.parse(saved);
-      if (!SYSTEMS.find(function(s){ return s.id === 'food-handler'; })) {
-        SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
-      }
-    }
+    if (saved) SYSTEMS = JSON.parse(saved);
   } catch(e) {}
   if (!SYSTEMS || !SYSTEMS.length) SYSTEMS = DEFAULT_SYSTEMS.slice();
+  _injectBuiltInSystems_();
   SYSTEMS.forEach(normalizeSystem);
 }
 function saveSystemsLocal() {
@@ -2572,9 +2650,8 @@ function loadSystemsFromCloud() {
       // Accept: array | { ok, systems:[] }
       var systems = Array.isArray(res) ? res : (res && res.ok && Array.isArray(res.systems) ? res.systems : null);
       if (systems) {
-        var hasBuiltIn = systems.some(function(s){ return s.id === 'food-handler'; });
         SYSTEMS = systems.slice();
-        if (!hasBuiltIn) SYSTEMS.unshift(DEFAULT_SYSTEMS[0]);
+        _injectBuiltInSystems_();
         SYSTEMS.sort(function(a,b){ return (b.builtIn?1:0) - (a.builtIn?1:0); });
         SYSTEMS.forEach(normalizeSystem);
         saveSystemsLocal();
@@ -2867,11 +2944,15 @@ function showComingSoon(systemId) {
 function openSystem(systemId) {
   var s = SYSTEMS.find(function(x){ return x.id === systemId; });
   if (!s) return;
-  if (s.url) { window.open(s.url, '_blank'); return; }
-  // Internal route
-  if (systemId === 'food-handler') {
-    goToBranchApp();
+  // Internal routes
+  if (systemId === 'food-handler') { goToBranchApp(); return; }
+  if (systemId === 'checklist') {
+    // SSO: session อยู่ใน localStorage แล้ว (จาก saveFabSession ตอน login)
+    // → ไป /Checklist/ ฝั่ง Checklist จะอ่าน fab_session แล้ว skip PIN
+    window.location.href = '/Checklist/';
+    return;
   }
+  if (s.url) { window.open(s.url, '_blank'); return; }
 }
 
 function renderEmojiPicker() {
@@ -3279,6 +3360,7 @@ function deleteAnnouncement() {
 
 function logout() {
   sessionStorage.clear();
+  clearFabSession();  // SSO: ลบ shared session → ทั้ง Hub และ Checklist ต้อง login ใหม่
   document.getElementById('menuView').style.display = 'none';
   document.getElementById('loginView').style.display = 'flex';
   allRecords = [];
