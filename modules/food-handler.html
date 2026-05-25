@@ -4394,13 +4394,23 @@ function loadFromCloud() {
       return;
     }
     matchData = records.map(function(r, idx) {
+      var expireDate = r['วันหมดอายุ'] || '';
+      // คำนวณสถานะใหม่จากวันหมดอายุ (source of truth) — กัน Cloud คืนค่าเป็นไทย/ว่าง แล้ว badge หาย
+      var expStatus = expireDate ? getExpStatus(expireDate) : 'unknown';
+      // ถ้าคำนวณไม่ได้ ลอง normalize จากค่าที่ sheet เก็บไว้ (รองรับทั้งไทย/อังกฤษ)
+      if (expStatus === 'unknown') {
+        var s = r['สถานะใบรับรอง'];
+        if (s === 'valid' || s === 'ยังมีผล') expStatus = 'valid';
+        else if (s === 'warning' || s === 'ใกล้หมดอายุ') expStatus = 'warning';
+        else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
+      }
       return {
         no: idx + 1,
         certName: r['ชื่อในใบรับรอง'] || '',
         course: r['หลักสูตร'] || '',
-        trainDate: r['วันอบรม'] || '',
-        expireDate: r['วันหมดอายุ'] || '',
-        expStatus: r['สถานะใบรับรอง'] || 'unknown',
+        trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
+        expireDate: expireDate,
+        expStatus: expStatus,
         empName: r['ชื่อในระบบ'] || '',
         branch: r['สาขา'] || '—',
         position: r['ตำแหน่ง'] || '—',
