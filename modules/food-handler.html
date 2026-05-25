@@ -3450,30 +3450,15 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     0 2px 6px rgba(15,23,42,0.04) !important;
 }
 
-/* ─── HARD LOCK topbar (body-level) — iOS Safari compatible ─── */
+/* ─── Topbar — normal scrolling (อยู่บนสุดของหน้า, scroll ตาม content) ─── */
 .topbar-fixed {
-  position: -webkit-sticky;       /* fallback */
-  position: fixed !important;
-  top: 0 !important;
-  left: 0 !important;
-  right: 0 !important;
-  width: auto !important;
-  margin: 0 !important;
-  border-radius: 0 0 18px 18px !important;
-  z-index: 99999 !important;
+  position: static !important;     /* normal flow — scrolls with page */
+  margin: 16px 20px 0 !important;  /* คืน card-style spacing */
+  border-radius: var(--radius-lg) !important;
   background: #ffffff !important;
-  /* GPU layer — force browser to composite as its own layer (กัน scroll flicker บน iOS) */
-  -webkit-transform: translate3d(0, 0, 0);
-  transform: translate3d(0, 0, 0);
-  will-change: transform;
-  -webkit-backface-visibility: hidden;
-  backface-visibility: hidden;
 }
-/* ดันเนื้อหาด้านล่างลงให้พ้น topbar */
-#adminView, #branchView { padding-top: 110px; }
 @media (max-width: 768px) {
-  #adminView, #branchView { padding-top: 88px; }
-  .topbar-fixed { padding: 10px 14px !important; }
+  .topbar-fixed { margin: 10px 12px 0 !important; padding: 10px 14px !important; }
   .topbar-fixed .logo-mark {
     width: 44px !important; height: 44px !important; margin: 0 !important;
   }
@@ -5156,7 +5141,7 @@ var currentBranchName = '';
 var allRecords = [];
 var requestRows = [];
 
-// Toggle which topbar is visible based on which view is active
+// Toggle which topbar is visible based on which view is active (normal scrolling)
 function _updateTopbarVisibility() {
   var aBar = document.getElementById('adminTopbar');
   var bBar = document.getElementById('branchTopbar');
@@ -5164,18 +5149,8 @@ function _updateTopbarVisibility() {
   var bView = document.getElementById('branchView');
   var aVisible = aView && getComputedStyle(aView).display !== 'none';
   var bVisible = bView && getComputedStyle(bView).display !== 'none';
-  [aBar, bBar].forEach(function(bar){
-    if (!bar) return;
-    // Force inline styles ทุกครั้ง (กัน CSS specificity issue บน iOS)
-    bar.style.setProperty('position', 'fixed', 'important');
-    bar.style.setProperty('top', '0', 'important');
-    bar.style.setProperty('left', '0', 'important');
-    bar.style.setProperty('right', '0', 'important');
-    bar.style.setProperty('z-index', '10000', 'important');
-    bar.style.setProperty('margin', '0', 'important');
-  });
-  if (aBar) aBar.style.setProperty('display', aVisible ? 'flex' : 'none', 'important');
-  if (bBar) bBar.style.setProperty('display', bVisible ? 'flex' : 'none', 'important');
+  if (aBar) aBar.style.display = aVisible ? 'flex' : 'none';
+  if (bBar) bBar.style.display = bVisible ? 'flex' : 'none';
 }
 
 window.addEventListener('DOMContentLoaded', function() {
@@ -5221,24 +5196,6 @@ window.addEventListener('DOMContentLoaded', function() {
   }
   setTimeout(function(){ if (typeof updateStepper === 'function') updateStepper(); }, 50);
   _updateTopbarVisibility();
-  // Re-assert topbar position on every scroll — iOS Safari sometimes resets position
-  // during scroll/keyboard events. Throttle with requestAnimationFrame.
-  var _scrollTicking = false;
-  window.addEventListener('scroll', function(){
-    if (_scrollTicking) return;
-    _scrollTicking = true;
-    requestAnimationFrame(function(){
-      _scrollTicking = false;
-      ['adminTopbar','branchTopbar'].forEach(function(id){
-        var bar = document.getElementById(id);
-        if (!bar || bar.style.display === 'none') return;
-        if (bar.style.position !== 'fixed') {
-          bar.style.setProperty('position', 'fixed', 'important');
-          bar.style.setProperty('top', '0', 'important');
-        }
-      });
-    });
-  }, { passive: true });
 });
 
 function selectRole(role) {
