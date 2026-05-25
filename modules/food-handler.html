@@ -6560,10 +6560,22 @@ function exportTrainingPDF(preloadedReqs, opts) {
       if (!reqs || reqs.length === 0) { showInfo('ยังไม่มีรายชื่อ', 'ยังไม่มีคำขออบรมในระบบ'); return; }
       var groups = {};
       reqs.forEach(function(r){
-        var c = r.course || r['หลักสูตร'] || '';
-        var s = r.timeSlot || r['รอบ'] || '';
-        var k = c + '|' + s;
-        if (!groups[k]) groups[k] = { course: c, slot: s, trainDate: r.trainDate || r['วันอบรม'] || '', rows: [] };
+        var cRaw = r.course || r['หลักสูตร'] || '';
+        var sRaw = r.timeSlot || r['รอบ'] || '';
+        // Normalize: ใช้ schedule key เป็น canonical course (กัน record course ไม่ตรงกันเล็กน้อย)
+        var schForGroup = _findCourseSchedule_(cRaw);
+        var canonicalCourse = cRaw;
+        if (schForGroup) {
+          // หา key ที่ตรงกับ sch — ไม่มี method ลัด ก็ loop หา
+          var sKeys = Object.keys(COURSE_SCHEDULES);
+          for (var ki = 0; ki < sKeys.length; ki++) {
+            if (COURSE_SCHEDULES[sKeys[ki]] === schForGroup) { canonicalCourse = sKeys[ki]; break; }
+          }
+        }
+        // Normalize slot: ลบ whitespace + normalize dash → 9.00-13.00
+        var canonicalSlot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
+        var k = canonicalCourse + '|' + canonicalSlot;
+        if (!groups[k]) groups[k] = { course: canonicalCourse, slot: canonicalSlot, trainDate: r.trainDate || r['วันอบรม'] || '', rows: [] };
         groups[k].rows.push(r);
       });
 
@@ -6917,12 +6929,22 @@ function exportTrainingForm() {
     var reqs = (results[1] && results[1].records) || [];
     if (reqs.length === 0) throw new Error('ยังไม่มีรายชื่อให้ส่งออก');
 
-    // Group by course + timeSlot
+    // Group by course + timeSlot — normalize เป็น canonical (เหมือนใน PDF export)
     var groups = {};
     reqs.forEach(function(r){
-      var course = r.course || r['หลักสูตร'] || '';
-      var slot = r.timeSlot || r['รอบ'] || '';
+      var cRaw = r.course || r['หลักสูตร'] || '';
+      var sRaw = r.timeSlot || r['รอบ'] || '';
       var trainDate = r.trainDate || r['วันอบรม'] || '';
+      // canonical course
+      var schForG = _findCourseSchedule_(cRaw);
+      var course = cRaw;
+      if (schForG) {
+        var sKeys = Object.keys(COURSE_SCHEDULES);
+        for (var ki = 0; ki < sKeys.length; ki++) {
+          if (COURSE_SCHEDULES[sKeys[ki]] === schForG) { course = sKeys[ki]; break; }
+        }
+      }
+      var slot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
       var key = course + '|' + slot;
       if (!groups[key]) groups[key] = { course: course, slot: slot, trainDate: trainDate, rows: [] };
       groups[key].rows.push(r);
