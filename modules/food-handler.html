@@ -3447,16 +3447,24 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     0 2px 6px rgba(15,23,42,0.04) !important;
 }
 
-/* ─── HARD LOCK topbar (body-level) ─── */
+/* ─── HARD LOCK topbar (body-level) — iOS Safari compatible ─── */
 .topbar-fixed {
+  position: -webkit-sticky;       /* fallback */
   position: fixed !important;
   top: 0 !important;
   left: 0 !important;
   right: 0 !important;
+  width: auto !important;
   margin: 0 !important;
   border-radius: 0 0 18px 18px !important;
-  z-index: 10000 !important;
+  z-index: 99999 !important;
   background: #ffffff !important;
+  /* GPU layer — force browser to composite as its own layer (กัน scroll flicker บน iOS) */
+  -webkit-transform: translate3d(0, 0, 0);
+  transform: translate3d(0, 0, 0);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 /* ดันเนื้อหาด้านล่างลงให้พ้น topbar */
 #adminView, #branchView { padding-top: 110px; }
@@ -5210,6 +5218,24 @@ window.addEventListener('DOMContentLoaded', function() {
   }
   setTimeout(function(){ if (typeof updateStepper === 'function') updateStepper(); }, 50);
   _updateTopbarVisibility();
+  // Re-assert topbar position on every scroll — iOS Safari sometimes resets position
+  // during scroll/keyboard events. Throttle with requestAnimationFrame.
+  var _scrollTicking = false;
+  window.addEventListener('scroll', function(){
+    if (_scrollTicking) return;
+    _scrollTicking = true;
+    requestAnimationFrame(function(){
+      _scrollTicking = false;
+      ['adminTopbar','branchTopbar'].forEach(function(id){
+        var bar = document.getElementById(id);
+        if (!bar || bar.style.display === 'none') return;
+        if (bar.style.position !== 'fixed') {
+          bar.style.setProperty('position', 'fixed', 'important');
+          bar.style.setProperty('top', '0', 'important');
+        }
+      });
+    });
+  }, { passive: true });
 });
 
 function selectRole(role) {
