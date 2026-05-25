@@ -2257,6 +2257,66 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .toolbar-row-search .search-wrap { flex: 1; max-width: none; }
 .toolbar-row-filters .filter-sel { flex: 1; min-width: 0; }
 
+/* ─── Match-status chips (filter by จับคู่) ─── */
+.match-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding: 0 20px;
+  margin: 6px 0 12px;
+}
+.match-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.match-chip:hover {
+  border-color: var(--gold);
+  color: var(--text);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 10px rgba(15,23,42,0.06);
+}
+.match-chip.active {
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff;
+  border-color: var(--gold);
+  box-shadow: 0 4px 14px rgba(255,122,26,0.3);
+}
+.match-chip .mc-icon { font-size: 14px; line-height: 1; }
+.match-chip .mc-count {
+  background: rgba(15,23,42,0.08);
+  padding: 2px 9px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  min-width: 24px;
+  text-align: center;
+  color: var(--text2);
+}
+.match-chip.active .mc-count {
+  background: rgba(255,255,255,0.28);
+  color: #fff;
+}
+.match-chip.mc-exact:not(.active) .mc-icon { color: var(--green); }
+.match-chip.mc-last:not(.active)  .mc-icon { color: var(--orange); }
+.match-chip.mc-none:not(.active)  .mc-icon { color: var(--red); }
+@media (max-width: 640px) {
+  .match-chips { padding: 0 12px; gap: 6px; }
+  .match-chip { padding: 8px 12px; font-size: 12.5px; }
+  .match-chip .mc-label { display: none; }
+  .match-chip[data-mf="all"] .mc-label { display: inline; }
+}
+
 /* ─── Export training form button (admin) ─── */
 .btn-export-form {
   display: inline-flex; align-items: center; gap: 8px;
@@ -3360,6 +3420,22 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   สถานะ "นามสกุลตรง" = พบนามสกุลเดียวกันในระบบ แต่ชื่อต้นต่างกัน อาจเป็นญาติหรือคนละคน กรุณาตรวจสอบเพิ่มเติม
 </div>
 
+<!-- MATCH-STATUS CHIPS (hidden until match done) -->
+<div class="match-chips" id="matchChips" style="display:none">
+  <button type="button" class="match-chip active" data-mf="all" onclick="setMatchFilter('all')">
+    <span class="mc-icon">🗂</span><span class="mc-label">ทั้งหมด</span><span class="mc-count" id="mcAll">0</span>
+  </button>
+  <button type="button" class="match-chip mc-exact" data-mf="exact" onclick="setMatchFilter('exact')">
+    <span class="mc-icon">✓</span><span class="mc-label">พบตรงสนิท</span><span class="mc-count" id="mcExact">0</span>
+  </button>
+  <button type="button" class="match-chip mc-last" data-mf="lastname" onclick="setMatchFilter('lastname')">
+    <span class="mc-icon">⚠</span><span class="mc-label">นามสกุลตรง</span><span class="mc-count" id="mcLast">0</span>
+  </button>
+  <button type="button" class="match-chip mc-none" data-mf="notfound" onclick="setMatchFilter('notfound')">
+    <span class="mc-icon">✗</span><span class="mc-label">ไม่พบ</span><span class="mc-count" id="mcNone">0</span>
+  </button>
+</div>
+
 <!-- TOOLBAR — row 1: search · row 2: filters -->
 <div class="toolbar toolbar-2row">
   <div class="toolbar-row toolbar-row-search">
@@ -3369,7 +3445,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     </div>
   </div>
   <div class="toolbar-row toolbar-row-filters">
-    <select class="filter-sel" id="matchFilter" onchange="renderTable()">
+    <select class="filter-sel" id="matchFilter" onchange="syncMatchChips();renderTable()" style="display:none">
       <option value="all">ทุกสถานะการจับคู่</option>
       <option value="exact">พบตรงสนิท</option>
       <option value="lastname">นามสกุลตรง</option>
@@ -4163,13 +4239,44 @@ function updateStats() {
   var d = matchData;
   document.getElementById('statsRow').style.display = d.length ? 'grid' : 'none';
   document.getElementById('sTotal').textContent = d.length;
-  document.getElementById('sExact').textContent = d.filter(function(r){return r.matchType==='exact';}).length;
-  document.getElementById('sLast').textContent = d.filter(function(r){return r.matchType==='lastname';}).length;
-  document.getElementById('sNone').textContent = d.filter(function(r){return r.matchType==='notfound';}).length;
+  var nExact = d.filter(function(r){return r.matchType==='exact';}).length;
+  var nLast  = d.filter(function(r){return r.matchType==='lastname';}).length;
+  var nNone  = d.filter(function(r){return r.matchType==='notfound';}).length;
+  document.getElementById('sExact').textContent = nExact;
+  document.getElementById('sLast').textContent = nLast;
+  document.getElementById('sNone').textContent = nNone;
   document.getElementById('sValid').textContent = d.filter(function(r){return r.expStatus==='valid';}).length;
   document.getElementById('sWarn').textContent = d.filter(function(r){return r.expStatus==='warning';}).length;
   document.getElementById('sExp').textContent = d.filter(function(r){return r.expStatus==='expired';}).length;
+  // Match-status chips
+  var chipsEl = document.getElementById('matchChips');
+  if (chipsEl) {
+    chipsEl.style.display = d.length ? 'flex' : 'none';
+    var mcAll   = document.getElementById('mcAll');
+    var mcExact = document.getElementById('mcExact');
+    var mcLast2 = document.getElementById('mcLast');
+    var mcNone2 = document.getElementById('mcNone');
+    if (mcAll)   mcAll.textContent   = d.length;
+    if (mcExact) mcExact.textContent = nExact;
+    if (mcLast2) mcLast2.textContent = nLast;
+    if (mcNone2) mcNone2.textContent = nNone;
+  }
   if (typeof updateStepper === 'function') updateStepper();
+}
+
+function setMatchFilter(val) {
+  var sel = document.getElementById('matchFilter');
+  if (sel) sel.value = val;
+  syncMatchChips();
+  renderTable();
+}
+function syncMatchChips() {
+  var sel = document.getElementById('matchFilter');
+  var val = sel ? sel.value : 'all';
+  document.querySelectorAll('.match-chip').forEach(function(el){
+    if (el.getAttribute('data-mf') === val) el.classList.add('active');
+    else el.classList.remove('active');
+  });
 }
 
 function getFiltered() {
