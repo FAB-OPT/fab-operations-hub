@@ -6361,17 +6361,30 @@ function rerenderRequestList() {
 
 /* ─── Custom combobox for name ───
    Source priority: Employees registry (empData) > Certificates (allRecords)
-   ใช้ Employees เป็นหลัก เพราะเป็น master list ที่ clean กว่า + ครอบคลุมพนักงานทุกคน */
+   ใช้ Employees เป็นหลัก เพราะเป็น master list ที่ clean กว่า + ครอบคลุมพนักงานทุกคน
+   Branch filter: สาขา view เห็นเฉพาะพนักงานสาขาตัวเอง · admin เห็นทุกคน */
+function matchesCurrentBranch_(empBranch) {
+  if (isAdminMode) return true;  // admin เห็นหมด
+  if (!empBranch) return false;
+  var s = String(empBranch).toLowerCase();
+  var pin = String(branchPin || '');
+  var branchShortName = (BRANCHES[branchPin] || '').toLowerCase();
+  if (pin && s.indexOf(pin) >= 0) return true;
+  if (branchShortName && s.indexOf(branchShortName) >= 0) return true;
+  return false;
+}
 function getEmpNamesList() {
   var seen = {};
   var arr = [];
-  // 1) จาก Employees registry (preferred)
+  // 1) จาก Employees registry (preferred) — filter ตามสาขาตัวเอง
   (empData || []).forEach(function(e){
+    if (!matchesCurrentBranch_(e.branch)) return;
     var n = (e.name || e.norm || '').trim();
     if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: e.position||'', branch: e.branch||'' }); }
   });
-  // 2) Fallback: จาก Certificates (เผื่อมีคนที่อยู่ใน cert แต่ไม่อยู่ใน Employees)
+  // 2) Fallback: จาก Certificates (เผื่อมีคนที่อยู่ใน cert แต่ไม่อยู่ใน Employees) — filter เหมือนกัน
   (allRecords || []).forEach(function(r){
+    if (!matchesCurrentBranch_(r['สาขา'])) return;
     var n = (r['ชื่อในระบบ'] || r['ชื่อในใบรับรอง'] || '').trim();
     if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: r['ตำแหน่ง']||'', branch: r['สาขา']||'' }); }
   });
