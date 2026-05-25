@@ -2594,6 +2594,30 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 .summary-overlay.show { display: flex; animation: fadeIn 0.25s; }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+/* ─── Export-PDF filter chips ─── */
+.exp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  background: #fff;
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text2);
+  cursor: pointer;
+  transition: all 0.18s ease;
+  user-select: none;
+}
+.exp-chip input[type="checkbox"] { margin: 0; cursor: pointer; }
+.exp-chip:hover { border-color: var(--gold); color: var(--text); }
+.exp-chip:has(input:checked) {
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  border-color: var(--gold);
+  color: #fff;
+}
 .summary-box {
   background: #ffffff;
   border-radius: 20px;
@@ -3473,8 +3497,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <button class="btn-export-form btn-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄</button>
     <button class="btn-export-form btn-refresh" onclick="clearServerCache()" title="ล้าง cache Apps Script (กรณีข้อมูลค้าง)" style="color:var(--red)!important;border-color:rgba(239,68,68,0.3)!important;">🗑 Cache</button>
+    <button class="btn-export-form" onclick="openImportRequestsModal()" title="นำเข้ารายชื่ออบรมจาก Excel (แบรนด์อื่นๆ)" style="background:linear-gradient(135deg,#3b82f6,#60a5fa);">📤 นำเข้า Excel</button>
     <button class="btn-export-form" onclick="exportTrainingForm()">📥 .xlsx</button>
-    <button class="btn-export-form btn-export-pdf" onclick="exportTrainingPDF()">📄 PDF</button>
+    <button class="btn-export-form btn-export-pdf" onclick="openExportPDFModal()">📄 PDF</button>
+    <input type="file" id="importReqXlsxInput" accept=".xlsx,.xls" style="display:none" onchange="handleImportRequestsXLSX(this)">
   </div>
 </div>
 <div class="table-container" style="margin-bottom:14px;">
@@ -3598,6 +3624,84 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     <div class="summary-footer">
       <button class="summary-btn-cancel" onclick="closeSubmitSummary()">ยกเลิก</button>
       <button class="summary-btn-confirm" onclick="confirmSubmit()">✓ ยืนยันส่ง</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ EXPORT PDF PREVIEW MODAL ═════════════════════ -->
+<div class="summary-overlay" id="exportPDFModal">
+  <div class="summary-box" style="max-width:680px;">
+    <div class="summary-header">
+      <div class="summary-title">📄 ตัวเลือกออกรายงาน PDF</div>
+      <button class="summary-close" onclick="closeExportPDFModal()">✕</button>
+    </div>
+    <div class="summary-body" id="exportPDFBody" style="padding:18px 22px;">
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700;margin-bottom:8px;font-size:13px;">🏢 เลือกสาขา</div>
+        <div id="expFilterBranches" style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow:auto;padding:8px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);"></div>
+        <div style="margin-top:6px;display:flex;gap:8px;">
+          <button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="toggleAllExportBranches(true)">เลือกทั้งหมด</button>
+          <button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;" onclick="toggleAllExportBranches(false)">ยกเลิกทั้งหมด</button>
+        </div>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700;margin-bottom:8px;font-size:13px;">📚 เลือกหลักสูตร</div>
+        <div id="expFilterCourses" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div style="margin-bottom:6px;">
+        <div style="font-weight:700;margin-bottom:8px;font-size:13px;">🕐 เลือกรอบ</div>
+        <div id="expFilterSlots" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
+      </div>
+      <div id="exportPDFCount" style="margin-top:14px;padding:12px;background:#fff7ed;border-radius:10px;border-left:4px solid var(--gold);font-weight:600;text-align:center;color:var(--text);">— รายการ</div>
+    </div>
+    <div class="summary-footer">
+      <button class="summary-btn-cancel" onclick="closeExportPDFModal()">ยกเลิก</button>
+      <button class="summary-btn-confirm" onclick="confirmExportPDF()">📄 ออก PDF</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ IMPORT REQUESTS XLSX MODAL ═════════════════════ -->
+<div class="summary-overlay" id="importReqModal">
+  <div class="summary-box" style="max-width:760px;">
+    <div class="summary-header">
+      <div class="summary-title">📤 นำเข้ารายชื่ออบรม (Excel)</div>
+      <button class="summary-close" onclick="closeImportRequestsModal()">✕</button>
+    </div>
+    <div class="summary-body" id="importReqBody" style="padding:18px 22px;">
+      <div id="importReqStage1">
+        <div style="margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.6;">
+          อัพโหลด Excel ที่มีรายชื่อพนักงานที่จะส่งอบรม (สำหรับแบรนด์อื่นๆ ที่ไม่ได้กรอกผ่านสาขา)
+        </div>
+        <div style="margin-bottom:14px;padding:14px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);font-size:12.5px;line-height:1.7;">
+          <div style="font-weight:700;margin-bottom:6px;color:var(--text);">รูปแบบ header ที่รองรับ (ไม่ต้องเรียง column ตาม):</div>
+          <div>• <b>ชื่อ</b> หรือ FullnameThai · <b>รหัสพนง</b> หรือ EmpCode · <b>เลขบัตร</b> หรือ IdentityCard</div>
+          <div>• <b>สาขา</b> หรือ OrgUnitName · <b>ตำแหน่ง</b> หรือ PositionName</div>
+          <div>• <b>หลักสูตร</b> · <b>วันอบรม</b> · <b>รอบ</b> หรือ timeSlot · <b>หมายเหตุ</b></div>
+        </div>
+        <button class="btn-export-form btn-export-pdf" style="width:100%;padding:14px;font-size:14px;" onclick="document.getElementById('importReqXlsxInput').click()">📂 เลือกไฟล์ Excel</button>
+      </div>
+      <div id="importReqStage2" style="display:none">
+        <div id="importReqSummary" style="margin-bottom:10px;font-size:13px;font-weight:600;"></div>
+        <div style="max-height:340px;overflow:auto;border:1px solid var(--border);border-radius:10px;">
+          <table style="width:100%;border-collapse:collapse;font-size:12px;">
+            <thead style="background:var(--bg3);position:sticky;top:0;">
+              <tr>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">ชื่อ</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">สาขา</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">ตำแหน่ง</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">หลักสูตร</th>
+                <th style="padding:8px;text-align:left;border-bottom:1px solid var(--border);">รอบ</th>
+              </tr>
+            </thead>
+            <tbody id="importReqPreview"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="summary-footer">
+      <button class="summary-btn-cancel" onclick="closeImportRequestsModal()">ยกเลิก</button>
+      <button class="summary-btn-confirm" id="importReqConfirmBtn" onclick="confirmImportRequests()" style="display:none">✓ บันทึก N รายการ</button>
     </div>
   </div>
 </div>
@@ -5855,12 +5959,85 @@ document.addEventListener('visibilitychange', function(){
 });
 
 /* ─── Export training form PDF (printable HTML view) ─── */
-function exportTrainingPDF() {
+/* ─────────── PDF EXPORT PREVIEW MODAL ─────────── */
+var _exportPDFCache = []; // last loaded requests for filter modal
+function openExportPDFModal() {
+  // โหลด requests มาก่อน แล้วสร้าง filter chips
   fetch(SCRIPT_URL + '?action=requests')
     .then(function(r){ return r.json(); })
     .then(function(res){
       var reqs = (res && res.records) || [];
-      if (reqs.length === 0) { alert('ยังไม่มีรายชื่อให้ส่งออก'); return; }
+      if (reqs.length === 0) {
+        showInfo('ยังไม่มีรายชื่อ', 'ยังไม่มีคำขออบรมในระบบให้ออกรายงาน');
+        return;
+      }
+      _exportPDFCache = reqs;
+      // เก็บรายชื่อ branches/courses/slots ที่ไม่ซ้ำ
+      var brSet={}, coSet={}, slSet={};
+      reqs.forEach(function(r){
+        var b = r.branch || r['สาขา'] || ''; if (b) brSet[b]=true;
+        var c = r.course || r['หลักสูตร'] || ''; if (c) coSet[c]=true;
+        var s = r.timeSlot || r['รอบ'] || ''; if (s) slSet[s]=true;
+      });
+      var branches = Object.keys(brSet).sort();
+      var courses = Object.keys(coSet).sort();
+      var slots = Object.keys(slSet).sort();
+      // Render chips — ทุกตัวเลือก active โดย default
+      document.getElementById('expFilterBranches').innerHTML = branches.map(function(b){
+        return '<label class="exp-chip"><input type="checkbox" data-kind="branch" value="'+escapeAttr(b)+'" checked onchange="updateExportPDFCount()"> <span>'+escapeHtml(b)+'</span></label>';
+      }).join('');
+      document.getElementById('expFilterCourses').innerHTML = courses.map(function(c){
+        return '<label class="exp-chip"><input type="checkbox" data-kind="course" value="'+escapeAttr(c)+'" checked onchange="updateExportPDFCount()"> <span>'+escapeHtml(c)+'</span></label>';
+      }).join('');
+      document.getElementById('expFilterSlots').innerHTML = slots.map(function(s){
+        return '<label class="exp-chip"><input type="checkbox" data-kind="slot" value="'+escapeAttr(s)+'" checked onchange="updateExportPDFCount()"> <span>'+escapeHtml(s)+' น.</span></label>';
+      }).join('');
+      updateExportPDFCount();
+      document.getElementById('exportPDFModal').classList.add('show');
+    })
+    .catch(function(err){ showInfo('🌐 โหลดข้อมูลไม่สำเร็จ', escapeHtml(err.message||String(err))); });
+}
+function closeExportPDFModal() {
+  document.getElementById('exportPDFModal').classList.remove('show');
+}
+function toggleAllExportBranches(val) {
+  document.querySelectorAll('#expFilterBranches input[type="checkbox"]').forEach(function(cb){ cb.checked = val; });
+  updateExportPDFCount();
+}
+function getExportPDFFiltered() {
+  var picks = function(kind){
+    var s = {};
+    document.querySelectorAll('#exportPDFModal input[data-kind="'+kind+'"]:checked').forEach(function(cb){ s[cb.value]=true; });
+    return s;
+  };
+  var br = picks('branch'), co = picks('course'), sl = picks('slot');
+  return _exportPDFCache.filter(function(r){
+    var b = r.branch || r['สาขา'] || '';
+    var c = r.course || r['หลักสูตร'] || '';
+    var s = r.timeSlot || r['รอบ'] || '';
+    if (b && !br[b]) return false;
+    if (c && !co[c]) return false;
+    if (s && !sl[s]) return false;
+    return true;
+  });
+}
+function updateExportPDFCount() {
+  var n = getExportPDFFiltered().length;
+  document.getElementById('exportPDFCount').innerHTML = 'จะออก PDF ทั้งหมด <b style="color:var(--gold);font-size:18px;">'+n+'</b> รายการ';
+}
+function confirmExportPDF() {
+  var filtered = getExportPDFFiltered();
+  if (filtered.length === 0) {
+    showInfo('ไม่มีรายการตรงเงื่อนไข', 'กรุณาเลือก filter อย่างน้อย 1 อย่างที่มีข้อมูล');
+    return;
+  }
+  closeExportPDFModal();
+  exportTrainingPDF(filtered);
+}
+
+function exportTrainingPDF(preloadedReqs) {
+  var run = function(reqs){
+      if (!reqs || reqs.length === 0) { showInfo('ยังไม่มีรายชื่อ', 'ยังไม่มีคำขออบรมในระบบ'); return; }
       var groups = {};
       reqs.forEach(function(r){
         var c = r.course || r['หลักสูตร'] || '';
@@ -5978,14 +6155,133 @@ function exportTrainingPDF() {
       html += '</body></html>';
 
       var w = window.open('', '_blank');
-      if (!w) { alert('Popup ถูกบล็อก — อนุญาตให้เปิด popup เพื่อ export PDF'); return; }
+      if (!w) { showInfo('Popup ถูกบล็อก', 'อนุญาตให้เปิด popup เพื่อ export PDF'); return; }
       w.document.open();
       w.document.write(html);
       w.document.close();
       // Auto-trigger print after load
       setTimeout(function(){ try { w.focus(); w.print(); } catch(e){} }, 600);
-    })
-    .catch(function(err){ alert('PDF export ผิดพลาด: ' + err.message); });
+  };
+  // ถ้ามี preloaded จาก modal → ใช้เลย, ไม่งั้น fetch
+  if (preloadedReqs && preloadedReqs.length) { run(preloadedReqs); return; }
+  fetch(SCRIPT_URL + '?action=requests')
+    .then(function(r){ return r.json(); })
+    .then(function(res){ run((res && res.records) || []); })
+    .catch(function(err){ showInfo('PDF export ผิดพลาด', escapeHtml(err.message||String(err))); });
+}
+
+/* ─────────── IMPORT REQUESTS XLSX (admin) ─────────── */
+var _importReqParsed = []; // staged records before save
+function openImportRequestsModal() {
+  _importReqParsed = [];
+  document.getElementById('importReqStage1').style.display = 'block';
+  document.getElementById('importReqStage2').style.display = 'none';
+  document.getElementById('importReqConfirmBtn').style.display = 'none';
+  document.getElementById('importReqXlsxInput').value = '';
+  document.getElementById('importReqModal').classList.add('show');
+}
+function closeImportRequestsModal() {
+  document.getElementById('importReqModal').classList.remove('show');
+}
+function handleImportRequestsXLSX(input) {
+  if (!input.files || !input.files[0]) return;
+  var file = input.files[0];
+  var reader = new FileReader();
+  reader.onload = function(e){
+    try {
+      var wb = XLSX.read(new Uint8Array(e.target.result), { type:'array' });
+      var records = [];
+      wb.SheetNames.forEach(function(sn){
+        var ws = wb.Sheets[sn];
+        var rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'' });
+        if (rows.length < 2) return;
+        var header = rows[0];
+        // Column detection
+        var col = { name:-1, empId:-1, idCard:-1, branch:-1, position:-1, course:-1, trainDate:-1, timeSlot:-1, note:-1 };
+        header.forEach(function(h,i){
+          var s = String(h).toLowerCase();
+          if (col.name<0 && (s.indexOf('fullname')>=0 || (s.indexOf('ชื่อ')>=0 && s.indexOf('เล่น')<0 && s.indexOf('nick')<0))) col.name = i;
+          if (col.empId<0 && (s.indexOf('empcode')>=0 || s.indexOf('empid')>=0 || s.indexOf('รหัสพนักงาน')>=0 || s.indexOf('รหัสพนง')>=0)) col.empId = i;
+          if (col.idCard<0 && (s.indexOf('identity')>=0 || s.indexOf('idcard')>=0 || s.indexOf('เลขบัตร')>=0 || s.indexOf('บัตรประชาชน')>=0)) col.idCard = i;
+          if (col.branch<0 && (s.indexOf('orgunit')>=0 || s.indexOf('สาขา')>=0 || s.indexOf('หน่วย')>=0)) col.branch = i;
+          if (col.position<0 && ((s.indexOf('position')>=0 && s.indexOf('eng')<0) || s.indexOf('ตำแหน่ง')>=0)) col.position = i;
+          if (col.course<0 && (s.indexOf('course')>=0 || s.indexOf('หลักสูตร')>=0)) col.course = i;
+          if (col.trainDate<0 && (s.indexOf('traindate')>=0 || s.indexOf('วันอบรม')>=0)) col.trainDate = i;
+          if (col.timeSlot<0 && (s.indexOf('timeslot')>=0 || s.indexOf('รอบ')>=0 || s.indexOf('เวลา')>=0)) col.timeSlot = i;
+          if (col.note<0 && (s.indexOf('note')>=0 || s.indexOf('หมายเหตุ')>=0)) col.note = i;
+        });
+        for (var i = 1; i < rows.length; i++) {
+          var r = rows[i];
+          var name = col.name>=0 ? String(r[col.name]||'').trim() : '';
+          if (!name || name.length < 2) continue;
+          records.push({
+            name: name,
+            empId:    col.empId>=0    ? String(r[col.empId]||'').trim()    : '',
+            idCard:   col.idCard>=0   ? String(r[col.idCard]||'').trim()   : '',
+            branch:   col.branch>=0   ? String(r[col.branch]||'').trim()   : '',
+            position: col.position>=0 ? String(r[col.position]||'').trim() : '',
+            course:   col.course>=0   ? String(r[col.course]||'').trim()   : '',
+            trainDate:col.trainDate>=0? String(r[col.trainDate]||'').trim(): '',
+            timeSlot: col.timeSlot>=0 ? String(r[col.timeSlot]||'').trim() : '',
+            note:     col.note>=0     ? String(r[col.note]||'').trim()     : ''
+          });
+        }
+      });
+      if (records.length === 0) {
+        showInfo('ไม่พบรายชื่อ', 'ไม่พบ row ที่มีคอลัมน์ "ชื่อ"/FullnameThai ที่กรอกข้อมูล');
+        return;
+      }
+      _importReqParsed = records;
+      // Show preview
+      document.getElementById('importReqStage1').style.display = 'none';
+      document.getElementById('importReqStage2').style.display = 'block';
+      document.getElementById('importReqSummary').innerHTML = '✓ พบ <b style="color:var(--green);">'+records.length+'</b> รายการ — ตรวจสอบก่อนบันทึก';
+      var preview = document.getElementById('importReqPreview');
+      preview.innerHTML = records.slice(0, 200).map(function(r){
+        return '<tr>'
+          + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);">'+escapeHtml(r.name)+'</td>'
+          + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text2);">'+escapeHtml(r.branch||'—')+'</td>'
+          + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text2);">'+escapeHtml(r.position||'—')+'</td>'
+          + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text2);font-size:11px;">'+escapeHtml(r.course||'—')+'</td>'
+          + '<td style="padding:6px 8px;border-bottom:1px solid var(--border);color:var(--text2);">'+escapeHtml(r.timeSlot||'—')+'</td>'
+          + '</tr>';
+      }).join('') + (records.length > 200 ? '<tr><td colspan="5" style="padding:8px;text-align:center;color:var(--text3);font-size:11px;">แสดง 200 จาก '+records.length+' (ทุก row จะถูกบันทึก)</td></tr>' : '');
+      var btn = document.getElementById('importReqConfirmBtn');
+      btn.style.display = 'inline-flex';
+      btn.innerHTML = '✓ บันทึก '+records.length+' รายการ';
+    } catch(err) {
+      showInfo('อ่านไฟล์ไม่ได้', escapeHtml(err.message||String(err)));
+    }
+  };
+  reader.onerror = function(){ showInfo('อ่านไฟล์ไม่ได้', 'FileReader error'); };
+  reader.readAsArrayBuffer(file);
+}
+function confirmImportRequests() {
+  if (!_importReqParsed.length) return;
+  var btn = document.getElementById('importReqConfirmBtn');
+  btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...';
+  fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'save-requests', records: _importReqParsed })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){
+    btn.disabled = false;
+    if (res && res.ok) {
+      closeImportRequestsModal();
+      showInfo('✓ นำเข้าสำเร็จ', 'บันทึก <b>'+res.saved+'</b> รายการลง Cloud แล้ว');
+      loadAdminRequests();
+    } else {
+      btn.innerHTML = '✓ บันทึก '+_importReqParsed.length+' รายการ';
+      showInfo('✗ บันทึกไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
+    }
+  })
+  .catch(function(err){
+    btn.disabled = false;
+    btn.innerHTML = '✓ บันทึก '+_importReqParsed.length+' รายการ';
+    showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message||String(err)));
+  });
 }
 
 /* ─── Export training form: fill ฟอร์ม.xlsx with grouped requests ─── */
