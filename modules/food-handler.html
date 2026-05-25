@@ -2393,26 +2393,34 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   box-shadow: 0 0 0 3px rgba(255,122,26,0.12);
 }
 
-@media (max-width: 640px) {
+/* flex-break — visible เฉพาะ mobile เพื่อบังคับ flex item ลงบรรทัดใหม่ */
+.flex-break { display: none; }
+
+@media (max-width: 768px) {
+  .flex-break { display: block; flex-basis: 100%; height: 0; }
   .filter-bar { padding: 10px 12px; gap: 8px; }
-  .filter-row-chips { gap: 6px; }
+  .filter-row-chips {
+    gap: 6px;
+    justify-content: center;
+  }
   .exp-status-chip { padding: 8px 10px; font-size: 12px; gap: 5px; }
   .exp-status-chip .esc-label { display: none; }
   .exp-status-chip[data-ef="all"] .esc-label { display: inline; }
-  /* dropdown สาขา/หลักสูตร อ่านได้ — กว้างพอสมควร แต่ wrap ลงล่างได้ */
+  /* dropdown สาขา/หลักสูตร บรรทัดเดียวกัน กึ่งกลาง */
   .filter-sel-pretty {
-    flex: 1 1 140px;
-    min-width: 140px;
+    flex: 1 1 0;
+    max-width: 48%;
+    min-width: 0;
     font-size: 12.5px;
     padding: 9px 12px;
   }
-  /* cleanup-group ดันลงบรรทัดใหม่บนมือถือ ครบเต็มแถว */
+  /* cleanup ลงบรรทัด 3 จัดกลาง */
   .filter-row-chips .filter-cleanup {
     margin-left: 0;
-    flex: 1 1 100%;
-    justify-content: center;
-    margin-top: 4px;
+    margin-right: auto;
+    margin-top: 0;
   }
+  .cleanup-group { justify-content: center; }
 }
 
 /* ─── Table pagination ─── */
@@ -2453,10 +2461,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   background: var(--bg3);
 }
 
-/* ─── Mobile: cert table → card layout (เหมือน req-history-table) ─── */
+/* ─── Mobile: cert table → card layout (เฉพาะ 4 ฟิลด์: ชื่อ/หลักสูตร/วัน/สถานะ) ─── */
 @media (max-width: 768px) {
   #mainTable thead { display: none; }
-  #mainTable, #mainTable tbody, #mainTable tr, #mainTable td { display: block; width: 100%; }
+  #mainTable, #mainTable tbody, #mainTable tr { display: block; width: 100%; }
   #mainTable tr {
     background: #fff;
     border: 1px solid rgba(15,23,42,0.08);
@@ -2464,50 +2472,61 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     padding: 14px 16px;
     margin-bottom: 12px;
     box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+    position: relative;
   }
-  #mainTable tbody td {
+  /* ซ่อน column ที่ไม่จำเป็นบนมือถือ */
+  #mainTable td[data-label="#"],
+  #mainTable td[data-label="ชื่อในระบบ"],
+  #mainTable td[data-label="สาขา"],
+  #mainTable td[data-label="ตำแหน่ง"],
+  #mainTable td[data-label="Sheet"],
+  #mainTable td[data-label="จับคู่"] { display: none !important; }
+  /* td ที่เหลือ → block layout */
+  #mainTable td[data-label="ชื่อในใบรับรอง"],
+  #mainTable td[data-label="หลักสูตร"],
+  #mainTable td[data-label="วันอบรม"],
+  #mainTable td[data-label="วันหมดอายุ"],
+  #mainTable td[data-label="สถานะ"] {
     display: flex; align-items: flex-start; gap: 10px;
     padding: 7px 0;
     border: none;
     border-bottom: 1px dashed rgba(15,23,42,0.06);
-    font-size: 13px;
+    font-size: 13.5px;
     line-height: 1.5;
     color: var(--text);
     text-align: left !important;
     white-space: normal !important;
     max-width: none !important;
   }
-  #mainTable tbody td:last-child { border-bottom: none; padding-bottom: 0; }
-  #mainTable tbody td::before {
+  #mainTable td[data-label="สถานะ"] { border-bottom: none; padding-bottom: 0; }
+  #mainTable td[data-label]::before {
     content: attr(data-icon) ' ' attr(data-label);
     color: var(--text3);
     font-size: 11.5px;
     font-weight: 700;
     flex-shrink: 0;
-    min-width: 105px;
+    min-width: 95px;
   }
-  /* ซ่อน # row บนมือถือ (ใช้ลำดับใน card) */
-  #mainTable tbody td.no-txt {
-    padding: 0 0 8px 0;
-    border-bottom: 2px solid rgba(234,88,12,0.18);
+  #mainTable td.cert-name {
+    font-weight: 800;
+    color: var(--text);
+    font-size: 15px;
+    padding-bottom: 10px !important;
+    border-bottom: 2px solid rgba(234,88,12,0.18) !important;
     margin-bottom: 4px;
   }
-  #mainTable tbody td.no-txt::before {
-    content: '#';
-    min-width: auto;
-    color: var(--gold);
-    font-weight: 800;
+  #mainTable td.cert-name::before { color: var(--gold); }
+  /* ปุ่มลบ ลอยอยู่มุมขวาบนของ card */
+  #mainTable td[data-label="ลบ"] {
+    position: absolute;
+    top: 10px; right: 10px;
+    padding: 0; border: none; background: none;
+    display: block;
   }
-  #mainTable tbody td.cert-name {
-    font-weight: 700;
-    color: var(--text);
-    font-size: 14.5px;
-  }
-  #mainTable tbody td.cert-name::before { color: var(--gold); }
-  #mainTable tbody td > * { flex: 1; }
+  #mainTable td[data-label="ลบ"]::before { display: none; }
+  #mainTable td > * { flex: 1; }
   .table-pagination { padding: 12px 6px; gap: 4px; }
   .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; font-size: 12px; }
-  /* ลำดับ row ใน count line */
   .count-line { font-size: 12px; padding: 0 8px 8px; }
 }
 .match-chip {
@@ -3413,10 +3432,30 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   box-shadow:
     0 10px 26px rgba(15,23,42,0.08),
     0 2px 6px rgba(15,23,42,0.04) !important;
-  /* lock at top */
-  position: sticky !important;
+}
+
+/* ─── HARD LOCK topbar (use fixed — sticky พังเพราะ body มี overflow-x:hidden บน iOS Safari) ─── */
+#adminView > .topbar,
+#branchView > .topbar {
+  position: fixed !important;
   top: 0 !important;
-  z-index: 100 !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 0 18px 18px !important;
+  z-index: 1000 !important;
+}
+/* ดันเนื้อหาด้านล่างลงให้พ้น topbar */
+#adminView { padding-top: 110px; }
+#branchView { padding-top: 110px; }
+@media (max-width: 768px) {
+  #adminView, #branchView { padding-top: 96px; }
+  #adminView > .topbar, #branchView > .topbar {
+    padding: 12px 16px !important;
+  }
+  #adminView > .topbar .logo-mark, #branchView > .topbar .logo-mark {
+    width: 44px !important; height: 44px !important; margin: 0 !important;
+  }
 }
 
 </style>
@@ -3673,14 +3712,18 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     <button type="button" class="exp-status-chip ec-exp" data-ef="expired" onclick="setExpFilter('expired')">
       <span class="esc-icon">✗</span><span class="esc-label">หมดอายุ</span><span class="esc-count" id="ecExp">0</span>
     </button>
-    <!-- dropdowns ติดกับ chip -->
+    <!-- บนมือถือ flex-break บังคับให้ dropdown ลงบรรทัดใหม่ -->
+    <div class="flex-break"></div>
+    <!-- dropdowns ติดกับ chip (desktop) / บรรทัดใหม่ (mobile, centered) -->
     <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
       <option value="all">🏢 ทุกสาขา</option>
     </select>
     <select class="filter-sel-pretty" id="courseFilter" onchange="_tablePage=1;renderTable()">
       <option value="all">📚 ทุกหลักสูตร</option>
     </select>
-    <!-- cleanup group ดันไปขวาสุด -->
+    <!-- บนมือถือ flex-break บังคับให้ cleanup ลงบรรทัดใหม่ -->
+    <div class="flex-break"></div>
+    <!-- cleanup group ดันไปขวาสุด (desktop) / center (mobile) -->
     <div class="cleanup-group filter-cleanup">
       <span class="cleanup-label">🧹 ล้างข้อมูลซ้ำ:</span>
       <button class="cleanup-btn cleanup-warn" onclick="dedupEmployeeRegistry()" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">ทะเบียนพนักงาน</button>
