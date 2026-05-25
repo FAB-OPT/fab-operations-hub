@@ -3958,17 +3958,20 @@ function processXLSXFile(file) {
 
         // Find column indices from header row
         var header = rows[0];
-        var nameCol = -1, branchCol = -1, posCol = -1;
+        var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1;
         header.forEach(function(h,i){
           var s = String(h).toLowerCase();
           if (s.indexOf('fullname') >= 0 || s.indexOf('ชื่อ') >= 0) nameCol = i;
           if (s.indexOf('orgunit') >= 0 || s.indexOf('สาขา') >= 0 || s.indexOf('หน่วย') >= 0) branchCol = i;
           if (s.indexOf('position') >= 0 || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
+          if (s.indexOf('empcode') >= 0 || s.indexOf('empid') >= 0 || s.indexOf('รหัสพนักงาน') >= 0 || s.indexOf('รหัสพนง') >= 0) empIdCol = i;
+          if (s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
         });
         // Fallback to known column indices (EmpCode=1, FullnameThai=2, Branch=9, Position=7)
         if (nameCol<0) nameCol = 2;
         if (branchCol<0) branchCol = 9;
         if (posCol<0) posCol = 7;
+        if (empIdCol<0) empIdCol = 1;
 
         for (var i = 1; i < rows.length; i++) {
           var row = rows[i];
@@ -3977,6 +3980,8 @@ function processXLSXFile(file) {
           employees.push({
             name: name,
             norm: normalizeName(name),
+            empId: String(row[empIdCol]||'').trim(),
+            idCard: idCardCol >= 0 ? String(row[idCardCol]||'').trim() : '',
             branch: String(row[branchCol]||'').trim(),
             position: String(row[posCol]||'').trim(),
             sheet: sheetName
@@ -4393,6 +4398,8 @@ function loadEmployeeRegistryFromCloud() {
         return {
           name: r.name || '',
           norm: normalizeName(r.name || ''),
+          empId: r.empId || '',
+          idCard: r.idCard || '',
           branch: r.branch || '',
           position: r.position || '',
           sheet: r.sheet || ''
@@ -6380,13 +6387,19 @@ function getEmpNamesList() {
   (empData || []).forEach(function(e){
     if (!matchesCurrentBranch_(e.branch)) return;
     var n = (e.name || e.norm || '').trim();
-    if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: e.position||'', branch: e.branch||'' }); }
+    if (n && !seen[n]) {
+      seen[n] = true;
+      arr.push({ name: n, position: e.position||'', branch: e.branch||'', empId: e.empId||'', idCard: e.idCard||'' });
+    }
   });
   // 2) Fallback: จาก Certificates (เผื่อมีคนที่อยู่ใน cert แต่ไม่อยู่ใน Employees) — filter เหมือนกัน
   (allRecords || []).forEach(function(r){
     if (!matchesCurrentBranch_(r['สาขา'])) return;
     var n = (r['ชื่อในระบบ'] || r['ชื่อในใบรับรอง'] || '').trim();
-    if (n && !seen[n]) { seen[n] = true; arr.push({ name: n, position: r['ตำแหน่ง']||'', branch: r['สาขา']||'' }); }
+    if (n && !seen[n]) {
+      seen[n] = true;
+      arr.push({ name: n, position: r['ตำแหน่ง']||'', branch: r['สาขา']||'', empId: r['รหัสพนักงาน']||'', idCard: r['เลขบัตรประชาชน']||'' });
+    }
   });
   return arr;
 }
@@ -6401,7 +6414,7 @@ function renderComboList(i, query) {
     return;
   }
   listEl.innerHTML = filtered.slice(0, 50).map(function(e){
-    return '<div class="combo-item" onmousedown="selectComboItem('+i+',\''+escapeAttr(e.name)+'\',\''+escapeAttr(e.position||'')+'\')">'
+    return '<div class="combo-item" onmousedown="selectComboItem('+i+',\''+escapeAttr(e.name)+'\',\''+escapeAttr(e.position||'')+'\',\''+escapeAttr(e.empId||'')+'\',\''+escapeAttr(e.idCard||'')+'\')">'
       + '<div class="ci-name">'+escapeHtml(e.name)+'</div>'
       + (e.position ? '<div class="ci-meta">'+escapeHtml(e.position)+(e.branch?' · '+escapeHtml(e.branch):'')+'</div>' : '')
       + '</div>';
@@ -6441,10 +6454,12 @@ function onComboKey(ev, i) {
   if (ev.key === 'Escape') { closeCombo(i); }
   else if (ev.key === 'Enter') { closeCombo(i); ev.preventDefault(); }
 }
-function selectComboItem(i, name, position) {
+function selectComboItem(i, name, position, empId, idCard) {
   if (!requestRows[i]) return;
   requestRows[i].name = name;
   if (position && !requestRows[i].position) requestRows[i].position = position;
+  if (empId   && !requestRows[i].empId)    requestRows[i].empId    = empId;
+  if (idCard  && !requestRows[i].idCard)   requestRows[i].idCard   = idCard;
   closeCombo(i);
   rerenderRequestList();
   onReqNameChange(i);
