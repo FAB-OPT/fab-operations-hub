@@ -3458,10 +3458,14 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   background: #ffffff !important;
 }
 @media (max-width: 768px) {
-  .topbar-fixed { margin: 10px 12px 0 !important; padding: 10px 14px !important; }
+  .topbar-fixed { margin: 12px 12px 0 !important; padding: 16px 18px !important; }
   .topbar-fixed .logo-mark {
-    width: 44px !important; height: 44px !important; margin: 0 !important;
+    width: 64px !important; height: 64px !important; margin: 0 !important;
   }
+  .topbar-fixed .logo-text { font-size: 16px !important; }
+  .topbar-fixed .logo-sub-inline { font-size: 13px !important; }
+  .topbar-fixed .back-btn { font-size: 12.5px !important; padding: 8px 12px !important; }
+  .topbar-fixed .branch-chip-name { font-size: 13px !important; }
 }
 
 /* ─── Mobile: หัวข้อ subsection ใหญ่ขึ้น ─── */
@@ -6119,6 +6123,26 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var trainDate = r['trainDate'] || r['วันอบรม'] || '';
         var slot = r['timeSlot'] || r['รอบ'] || '';
         var note = r['note'] || r['หมายเหตุ'] || '';
+        // ── Fallback: ถ้า trainDate/slot ว่าง — extract จาก course string (เช่น 'XXX วันที่ 10 มิ.ย. 2569 เวลา 9.00-13.00')
+        if ((!trainDate || !slot) && course && course !== '—') {
+          if (!trainDate) {
+            var dm = String(course).match(/วันที่\s*(\d{1,2}\s+\S+\s+\d{4})/);
+            if (dm) trainDate = dm[1];
+          }
+          if (!slot) {
+            var tm = String(course).match(/เวลา\s*(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
+            if (tm) slot = tm[1];
+          }
+          // Fallback 2: match COURSE_SCHEDULES (ลบ 'รุ่นที่...' suffix ออกก่อน lookup)
+          if (!trainDate || !slot) {
+            var courseLookup = String(course).replace(/\s*รุ่นที่\s*[:：].*$/, '').trim();
+            var sch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES[courseLookup] : null;
+            if (sch) {
+              if (!trainDate) trainDate = sch.date || '';
+              if (!slot && sch.slots && sch.slots.length === 1) slot = sch.slots[0];
+            }
+          }
+        }
         var tsFmt = ts ? formatThaiDateTime(ts) : '—';
         if (isAdmin) {
           var empId = r.empId || r['รหัสพนักงาน'] || '';
