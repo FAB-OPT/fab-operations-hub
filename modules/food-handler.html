@@ -6156,14 +6156,17 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var trainDate = r['trainDate'] || r['วันอบรม'] || '';
         var slot = r['timeSlot'] || r['รอบ'] || '';
         var note = r['note'] || r['หมายเหตุ'] || '';
-        // ── Fallback: ถ้า trainDate/slot ว่าง — extract จาก course string (เช่น 'XXX วันที่ 10 มิ.ย. 2569 เวลา 9.00-13.00')
+        // ── Fallback: ถ้า trainDate/slot ว่าง — extract จาก course string (รองรับหลายรูปแบบ)
         if ((!trainDate || !slot) && course && course !== '—') {
           if (!trainDate) {
+            // ลอง 'วันที่ X เดือน YYYY' หรือ '10 มิ.ย. 2569' / '10 มิถุนายน 2569'
             var dm = String(course).match(/วันที่\s*(\d{1,2}\s+\S+\s+\d{4})/);
+            if (!dm) dm = String(course).match(/(\d{1,2}\s+(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s+\d{4})/);
             if (dm) trainDate = dm[1];
           }
           if (!slot) {
             var tm = String(course).match(/เวลา\s*(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
+            if (!tm) tm = String(course).match(/(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
             if (tm) slot = tm[1];
           }
           // Fallback 2: match COURSE_SCHEDULES (ลบ 'รุ่นที่...' suffix ออกก่อน lookup)
@@ -6745,14 +6748,39 @@ function handleImportRequestsXLSX(input) {
 
           // ถ้าเซลล์ 'หลักสูตร' รวม date+time → แยกออก
           if (courseRaw) {
+            // วันที่: regex รับทั้ง 'วันที่ 10 มิถุนายน 2569' และ '10 มิ.ย. 2569'
             var dm = courseRaw.match(/วันที่\s*(\d{1,2}\s+\S+\s+\d{4})/);
+            if (!dm) dm = courseRaw.match(/(\d{1,2}\s+(?:มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม|ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s+\d{4})/);
             if (dm && !trainDateRaw) trainDateRaw = dm[1];
             var tm = courseRaw.match(/เวลา\s*(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
+            if (!tm) tm = courseRaw.match(/(\d{1,2}[.:]\d{2}\s*[-–~]\s*\d{1,2}[.:]\d{2})/);
             if (tm && !timeSlotRaw) timeSlotRaw = tm[1];
           }
 
-          // Combine course: text จากเซล + fileCourse (จากหัวเอกสาร)
-          var combinedCourse = courseRaw || fileCourse;
+          // Normalize course → match COURSE_SCHEDULES (เอาแค่ชื่อหลักสูตร ตัด date/time/ชื่อสาขาทิ้ง)
+          // ลำดับ: ถ้า courseRaw มี keyword ของหลักสูตร → ใช้ key เต็มจาก SCHEDULES
+          // (substring match) — fallback ใช้ raw ถ้าไม่ match
+          var cleanCourse = '';
+          var courseKeys = (typeof COURSE_SCHEDULES !== 'undefined') ? Object.keys(COURSE_SCHEDULES) : [];
+          var courseText = (courseRaw || fileCourse).toLowerCase();
+          // sort longest first → match the most specific
+          courseKeys.sort(function(a,b){ return b.length - a.length; });
+          for (var ck = 0; ck < courseKeys.length; ck++) {
+            var key = courseKeys[ck];
+            // partial match (substring) — ผู้สัมผัส / ผู้ประกอบ
+            var keyLow = key.toLowerCase();
+            var keyMid = keyLow.replace(/^การสุขาภิบาลอาหาร\s*สำหรับ/, '').trim();  // 'ผู้สัมผัสอาหาร' / 'ผู้ประกอบกิจการ'
+            if (courseText.indexOf(keyLow) >= 0 || (keyMid && courseText.indexOf(keyMid) >= 0)) {
+              cleanCourse = key; break;
+            }
+          }
+          if (!cleanCourse) cleanCourse = courseRaw || fileCourse;
+          // ถ้า match SCHEDULES และ trainDate/timeSlot ยังว่าง → ใช้ค่าจาก schedule
+          var schMatch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES[cleanCourse] : null;
+          if (schMatch) {
+            if (!trainDateRaw) trainDateRaw = schMatch.date || '';
+            if (!timeSlotRaw && schMatch.slots && schMatch.slots.length === 1) timeSlotRaw = schMatch.slots[0];
+          }
 
           records.push({
             name: name,
@@ -6760,7 +6788,7 @@ function handleImportRequestsXLSX(input) {
             idCard:   col.idCard>=0   ? String(r[col.idCard]||'').replace(/\D/g,'').slice(0,13) : '',
             branch:   col.branch>=0   ? String(r[col.branch]||'').trim()   : '',
             position: col.position>=0 ? String(r[col.position]||'').trim() : '',
-            course:   combinedCourse,
+            course:   cleanCourse,
             trainDate: trainDateRaw,
             timeSlot:  timeSlotRaw,
             note:     col.note>=0     ? String(r[col.note]||'').trim()     : ''
