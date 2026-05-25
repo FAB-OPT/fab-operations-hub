@@ -6618,8 +6618,8 @@ function exportTrainingPDF(preloadedReqs, opts) {
       var pageIdx = 0;
       Object.keys(groups).forEach(function(key){
         var g = groups[key];
-        var sch = COURSE_SCHEDULES[g.course];
-        var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(++pageIdx);
+        var sch = _findCourseSchedule_(g.course);
+        var roundNum = _findRoundForSlot_(sch, g.slot) || String(++pageIdx);
         var fullDate = (sch && sch.date) || formatThaiDate(g.trainDate);
 
         var totalPages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
@@ -7088,10 +7088,10 @@ function exportTrainingForm() {
       }
       var t = tuples[idx];
       var g = t.g;
-      var sch = COURSE_SCHEDULES[g.course];
+      var sch = _findCourseSchedule_(g.course);
       // Use group index for round
       var gIdx = keys.indexOf(Object.keys(groups).find(function(k){ return groups[k] === g; }));
-      var roundNum = (sch && sch.rounds && sch.rounds[g.slot]) || String(gIdx + 1);
+      var roundNum = _findRoundForSlot_(sch, g.slot) || String(gIdx + 1);
       var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
       var chunk = g.rows.slice(t.page * ROWS_PER_PAGE, (t.page + 1) * ROWS_PER_PAGE);
 
@@ -7147,6 +7147,34 @@ function backToStep1() {
   var mtbStep1 = document.getElementById('mtbBackStep1'); if (mtbStep1) mtbStep1.style.display = 'none';
   setTimeout(function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); }, 40);
   if (typeof updateStepper === 'function') updateStepper();
+}
+
+/* Helper: หา schedule จาก course (รองรับ substring + unique-part match) */
+function _findCourseSchedule_(course) {
+  if (!course || typeof COURSE_SCHEDULES === 'undefined') return null;
+  var keys = Object.keys(COURSE_SCHEDULES);
+  keys.sort(function(a,b){ return b.length - a.length; });
+  for (var i = 0; i < keys.length; i++) {
+    var key = keys[i];
+    if (course === key || String(course).indexOf(key) >= 0) return COURSE_SCHEDULES[key];
+    var uniq = key.replace(/^การสุขาภิบาลอาหาร\s*สำหรับ\s*/, '').trim();
+    if (uniq && String(course).indexOf(uniq) >= 0) return COURSE_SCHEDULES[key];
+  }
+  return null;
+}
+/* Helper: หา roundNum จาก slot (normalize ช่องว่าง/dash) */
+function _findRoundForSlot_(sch, slot) {
+  if (!sch || !sch.rounds || !slot) return '';
+  // Try exact first
+  if (sch.rounds[slot]) return sch.rounds[slot];
+  // Normalize: strip whitespace, normalize dashes
+  var norm = function(s){ return String(s).replace(/\s+/g, '').replace(/[–—~]/g, '-'); };
+  var slotN = norm(slot);
+  var keys = Object.keys(sch.rounds);
+  for (var i = 0; i < keys.length; i++) {
+    if (norm(keys[i]) === slotN) return sch.rounds[keys[i]];
+  }
+  return '';
 }
 
 /* Course schedules — date + time slots + รุ่นที่ tied to each session */
