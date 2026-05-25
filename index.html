@@ -2565,11 +2565,12 @@ function saveSystemsLocal() {
 
 function loadSystemsFromCloud() {
   // cache-bust on each load so mobile doesn't get stale browser cache
-  return fetch(SCRIPT_URL + '?action=systems&_=' + Date.now(), { method: 'GET' })
+  // ใช้ ?action=config (Apps Script รองรับ คืน {ok, systems, announcements})
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
-      // Accept both: array directly, OR { ok, systems }
-      var systems = Array.isArray(res) ? res : (res && res.ok && res.systems ? res.systems : null);
+      // Accept: array | { ok, systems:[] }
+      var systems = Array.isArray(res) ? res : (res && res.ok && Array.isArray(res.systems) ? res.systems : null);
       if (systems) {
         var hasBuiltIn = systems.some(function(s){ return s.id === 'food-handler'; });
         SYSTEMS = systems.slice();
@@ -2588,11 +2589,12 @@ function loadSystemsFromCloud() {
 }
 
 function saveSystemsToCloud() {
+  // ใช้ set-config endpoint (Apps Script รองรับ) — เก็บลง Config sheet
   return fetch(SCRIPT_URL, {
     method: 'POST',
     mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'systems-save', systems: SYSTEMS })
+    body: JSON.stringify({ type: 'set-config', key: 'systems', value: SYSTEMS })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
