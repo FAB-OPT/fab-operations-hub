@@ -6156,15 +6156,27 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var trainDate = r['trainDate'] || r['วันอบรม'] || '';
         var slot = r['timeSlot'] || r['รอบ'] || '';
         var note = r['note'] || r['หมายเหตุ'] || '';
-        // ── Override: ถ้า course ตรงกับ key ใน COURSE_SCHEDULES → ใช้ date จาก schedule dict
-        //    (เพราะ schedule dict = source of truth · กัน record เก่าเก็บวันที่ผิด)
+        // ── Override: ถ้า course match key ใน COURSE_SCHEDULES → ใช้ date จาก schedule dict
+        //    (schedule dict = source of truth · ครอบคลุม record เก่าที่บันทึก course แบบไม่ปกติ)
         if (course && course !== '—' && typeof COURSE_SCHEDULES !== 'undefined') {
-          var courseLookup = String(course).replace(/\s*รุ่นที่\s*[:：].*$/, '').trim();
-          var sch = COURSE_SCHEDULES[courseLookup];
+          var sch = null;
+          var keys = Object.keys(COURSE_SCHEDULES);
+          // sort longest key first (match แบบ specific ก่อน)
+          keys.sort(function(a,b){ return b.length - a.length; });
+          for (var ck = 0; ck < keys.length; ck++) {
+            var key = keys[ck];
+            // ลอง exact หรือ substring match (course อาจมี date/time suffix)
+            if (course === key || String(course).indexOf(key) >= 0) {
+              sch = COURSE_SCHEDULES[key]; break;
+            }
+            // หรือ match unique part (หลัง 'สำหรับ' เช่น 'ผู้สัมผัสอาหาร' / 'ผู้ประกอบกิจการ')
+            var uniq = key.replace(/^การสุขาภิบาลอาหาร\s*สำหรับ\s*/, '').trim();
+            if (uniq && String(course).indexOf(uniq) >= 0) {
+              sch = COURSE_SCHEDULES[key]; break;
+            }
+          }
           if (sch) {
-            // Override trainDate ถ้าตรงกับ key
-            trainDate = sch.date || trainDate;
-            // Slot: ถ้า saved slot ไม่อยู่ใน schedule slots — ใช้ slot แรก
+            trainDate = sch.date || trainDate;     // override ด้วย schedule date เสมอ
             if (!slot && sch.slots && sch.slots.length === 1) slot = sch.slots[0];
           }
         }
