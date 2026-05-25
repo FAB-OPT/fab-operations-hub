@@ -3442,20 +3442,23 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     0 2px 6px rgba(15,23,42,0.04) !important;
 }
 
-/* ─── HARD LOCK topbar — JS relocates to body level + inline styles เพื่อกัน ancestor transform/overflow ─── */
-body > .topbar.topbar-locked {
-  /* inline styles ใน JS เป็นตัวบังคับ — CSS นี้แค่ fallback */
+/* ─── HARD LOCK topbar (body-level) ─── */
+.topbar-fixed {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  margin: 0 !important;
+  border-radius: 0 0 18px 18px !important;
+  z-index: 10000 !important;
   background: #ffffff !important;
 }
 /* ดันเนื้อหาด้านล่างลงให้พ้น topbar */
-#adminView { padding-top: 110px; }
-#branchView { padding-top: 110px; }
+#adminView, #branchView { padding-top: 110px; }
 @media (max-width: 768px) {
-  #adminView, #branchView { padding-top: 90px; }
-  body > .topbar.topbar-locked {
-    padding: 10px 14px !important;
-  }
-  body > .topbar.topbar-locked .logo-mark {
+  #adminView, #branchView { padding-top: 88px; }
+  .topbar-fixed { padding: 10px 14px !important; }
+  .topbar-fixed .logo-mark {
     width: 44px !important; height: 44px !important; margin: 0 !important;
   }
 }
@@ -3539,23 +3542,25 @@ body > .topbar.topbar-locked {
   </defs>
 </svg>
 
-<!-- ═════════════════════ BRANCH VIEW ═════════════════════ -->
-<div id="branchView" style="display:none">
-  <div class="topbar">
-    <div class="logo">
-      <div class="logo-mark"><img src="../logo.png" alt="FAB"></div>
-      <div class="logo-info logo-info-inline">
-        <div class="logo-text">ฐานข้อมูล<span class="logo-sub-inline">ผู้สัมผัสและผู้ประกอบอาหาร</span></div>
-        <span id="branchTagInline" class="branch-tag-inline"></span>
-      </div>
-    </div>
-    <div class="topbar-actions">
-      <button class="back-btn btn-menu" id="topMenuBtn" onclick="goToMenu()"><svg class="ico"><use href="#i-arrow-left"/></svg> เมนูหลัก</button>
-      <button class="back-btn btn-menu" id="topBackToStep1Btn" onclick="backToStep1()" style="display:none"><svg class="ico"><use href="#i-arrow-left"/></svg> ย้อนกลับไปค้นหา</button>
-      <span id="branchTag"></span>
-      <button class="back-btn" onclick="logout()"><svg class="ico"><use href="#i-logout"/></svg> ออกจากระบบ</button>
+<!-- ═════════════════════ TOPBAR (BRANCH) — body-level, fixed lock ═════════════════════ -->
+<div class="topbar topbar-fixed" id="branchTopbar" style="display:none">
+  <div class="logo">
+    <div class="logo-mark"><img src="../logo.png" alt="FAB"></div>
+    <div class="logo-info logo-info-inline">
+      <div class="logo-text">ฐานข้อมูล<span class="logo-sub-inline">ผู้สัมผัสและผู้ประกอบอาหาร</span></div>
+      <span id="branchTagInline" class="branch-tag-inline"></span>
     </div>
   </div>
+  <div class="topbar-actions">
+    <button class="back-btn btn-menu" id="topMenuBtn" onclick="goToMenu()"><svg class="ico"><use href="#i-arrow-left"/></svg> เมนูหลัก</button>
+    <button class="back-btn btn-menu" id="topBackToStep1Btn" onclick="backToStep1()" style="display:none"><svg class="ico"><use href="#i-arrow-left"/></svg> ย้อนกลับไปค้นหา</button>
+    <span id="branchTag"></span>
+    <button class="back-btn" onclick="logout()"><svg class="ico"><use href="#i-logout"/></svg> ออกจากระบบ</button>
+  </div>
+</div>
+
+<!-- ═════════════════════ BRANCH VIEW ═════════════════════ -->
+<div id="branchView" style="display:none">
 
   <!-- STEPPER (2-step) -->
   <div class="page-hero">
@@ -3649,11 +3654,8 @@ body > .topbar.topbar-locked {
   </div>
 </div>
 
-<!-- ═════════════════════ ADMIN VIEW (hidden by default) ═════════════════════ -->
-<div id="adminView" style="display:none">
-
-<!-- TOPBAR -->
-<div class="topbar">
+<!-- ═════════════════════ TOPBAR (ADMIN) — body-level, fixed lock ═════════════════════ -->
+<div class="topbar topbar-fixed" id="adminTopbar" style="display:none">
   <div class="logo">
     <div class="logo-mark"><img src="../logo.png" alt="FAB"></div>
     <div class="logo-info logo-info-inline">
@@ -3669,7 +3671,8 @@ body > .topbar.topbar-locked {
   <span id="topStatus" style="display:none;font-size:12px;color:var(--text3);font-family:'Sarabun',sans-serif;"></span>
 </div>
 
-<!-- STEPPER ถูกนำออก (admin view) -->
+<!-- ═════════════════════ ADMIN VIEW (hidden by default) ═════════════════════ -->
+<div id="adminView" style="display:none">
 
 
 <!-- IMPORT ZONE -->
@@ -5100,40 +5103,19 @@ var currentBranchName = '';
 var allRecords = [];
 var requestRows = [];
 
-// HARD-FIX: relocate topbar to body level so it's not affected by parent transforms/overflow
-function _lockTopbarToBody() {
-  ['adminView', 'branchView'].forEach(function(id){
-    var view = document.getElementById(id);
-    if (!view) return;
-    var bar = view.querySelector(':scope > .topbar');
-    if (!bar || bar.dataset._locked) return;
-    bar.dataset._locked = '1';
-    bar.dataset._view = id;
-    bar.classList.add('topbar-locked');
-    // Apply inline styles with !important (highest specificity)
-    bar.style.setProperty('position', 'fixed', 'important');
-    bar.style.setProperty('top', '0', 'important');
-    bar.style.setProperty('left', '0', 'important');
-    bar.style.setProperty('right', '0', 'important');
-    bar.style.setProperty('margin', '0', 'important');
-    bar.style.setProperty('border-radius', '0 0 18px 18px', 'important');
-    bar.style.setProperty('z-index', '10000', 'important');
-    bar.style.setProperty('display', 'none', 'important');  // hidden by default — toggled below
-    document.body.insertBefore(bar, document.body.firstChild);
-  });
-}
+// Toggle which topbar is visible based on which view is active
 function _updateTopbarVisibility() {
-  ['adminView', 'branchView'].forEach(function(id){
-    var bar = document.querySelector('body > .topbar.topbar-locked[data-_view="'+id+'"]');
-    if (!bar) return;
-    var view = document.getElementById(id);
-    var visible = view && getComputedStyle(view).display !== 'none';
-    bar.style.setProperty('display', visible ? 'flex' : 'none', 'important');
-  });
+  var aBar = document.getElementById('adminTopbar');
+  var bBar = document.getElementById('branchTopbar');
+  var aView = document.getElementById('adminView');
+  var bView = document.getElementById('branchView');
+  var aVisible = aView && getComputedStyle(aView).display !== 'none';
+  var bVisible = bView && getComputedStyle(bView).display !== 'none';
+  if (aBar) aBar.style.display = aVisible ? 'flex' : 'none';
+  if (bBar) bBar.style.display = bVisible ? 'flex' : 'none';
 }
 
 window.addEventListener('DOMContentLoaded', function() {
-  _lockTopbarToBody();
   // Session handoff from Hub (../index.html)
   var role = sessionStorage.getItem('fab_role');
   if (!role) { window.location.href = '../index.html'; return; }
