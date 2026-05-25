@@ -2318,14 +2318,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   padding: 12px 20px;
   margin: 6px 0 12px;
 }
+/* sticky-top removed per user request — chip bar stays static, ไม่เลื่อนตาม scroll */
 .filter-bar.sticky-top {
-  position: sticky;
-  top: 0;
-  z-index: 50;
-  background: linear-gradient(180deg, rgba(255,255,255,0.96) 0%, rgba(255,255,255,0.92) 100%);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid var(--border);
-  box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+  position: static;
+  background: transparent;
 }
 .filter-row-chips, .filter-row-selects {
   display: flex;
@@ -2439,15 +2435,9 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .pg-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 .pg-dots { color: var(--text3); padding: 0 4px; font-weight: 700; }
 
-/* ─── Sticky table header ─── */
+/* ─── Table header — static (ไม่เลื่อนตาม) ─── */
 #mainTable thead th {
-  position: sticky;
-  top: 70px; /* offset for filter-bar sticky */
-  z-index: 5;
   background: var(--bg3);
-}
-@media (max-width: 768px) {
-  #mainTable thead th { top: 110px; }
 }
 .match-chip {
   display: inline-flex;
@@ -4504,25 +4494,37 @@ function checkReady() {
   }
 }
 
+// Filter matchData by branch+course only (ไม่นับ expFilter) — ใช้คำนวณ 4 กล่องตามที่ผู้ใช้เลือก dropdown
+function getFilteredForStats_() {
+  var brf = (document.getElementById('branchFilter')||{value:'all'}).value;
+  var cof = (document.getElementById('courseFilter')||{value:'all'}).value;
+  return matchData.filter(function(d){
+    if (brf !== 'all' && d.branch !== brf) return false;
+    if (cof !== 'all' && d.course !== cof) return false;
+    return true;
+  });
+}
+
 function updateStats() {
-  var d = matchData;
-  document.getElementById('statsRow').style.display = d.length ? 'grid' : 'none';
+  var dAll = matchData;
+  // 4 กล่อง + chips: นับตามที่เลือก branch/course (ไม่นับ exp chip ตัวเอง)
+  var d = getFilteredForStats_();
+  document.getElementById('statsRow').style.display = dAll.length ? 'grid' : 'none';
   document.getElementById('sTotal').textContent = d.length;
   var nValid = d.filter(function(r){return r.expStatus==='valid';}).length;
   var nWarn  = d.filter(function(r){return r.expStatus==='warning';}).length;
   var nExp   = d.filter(function(r){return r.expStatus==='expired';}).length;
-  // Stats boxes
   document.getElementById('sValid').textContent = nValid;
   document.getElementById('sWarn').textContent  = nWarn;
   document.getElementById('sExp').textContent   = nExp;
   // Hidden legacy match-type counts (kept for compat)
-  document.getElementById('sExact').textContent = d.filter(function(r){return r.matchType==='exact';}).length;
-  document.getElementById('sLast').textContent  = d.filter(function(r){return r.matchType==='lastname';}).length;
-  document.getElementById('sNone').textContent  = d.filter(function(r){return r.matchType==='notfound';}).length;
-  // Exp-status chips (replaces match-type chips)
+  document.getElementById('sExact').textContent = dAll.filter(function(r){return r.matchType==='exact';}).length;
+  document.getElementById('sLast').textContent  = dAll.filter(function(r){return r.matchType==='lastname';}).length;
+  document.getElementById('sNone').textContent  = dAll.filter(function(r){return r.matchType==='notfound';}).length;
+  // Exp-status chips นับแบบเดียวกัน (sync กับการ์ด)
   var chipsEl = document.getElementById('matchChips');
   if (chipsEl) {
-    chipsEl.style.display = d.length ? 'flex' : 'none';
+    chipsEl.style.display = dAll.length ? 'flex' : 'none';
     var ecAll = document.getElementById('ecAll');
     var ecV = document.getElementById('ecValid');
     var ecW = document.getElementById('ecWarn');
@@ -4532,7 +4534,7 @@ function updateStats() {
     if (ecW)   ecW.textContent   = nWarn;
     if (ecE)   ecE.textContent   = nExp;
   }
-  // Populate branch + course filter dropdowns
+  // Populate branch + course filter dropdowns (ครั้งแรกหลังโหลดข้อมูล)
   populateFilterDropdowns_();
   if (typeof updateStepper === 'function') updateStepper();
 }
@@ -4606,6 +4608,8 @@ function getSheetTag(s) {
 var _tablePage = 1;
 var _TABLE_PER_PAGE = 10;
 function renderTable() {
+  // อัปเดต 4 กล่อง + chips ก่อน render (เผื่อ user เพิ่งเปลี่ยน dropdown สาขา/หลักสูตร)
+  if (typeof updateStats === 'function') updateStats();
   var filtered = getFiltered();
   var tbody = document.getElementById('tableBody');
   var totalPages = Math.max(1, Math.ceil(filtered.length / _TABLE_PER_PAGE));
