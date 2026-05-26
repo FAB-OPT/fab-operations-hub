@@ -1552,7 +1552,12 @@ input[type=file] { display:none; }
     <div class="login-logo"><img src="logo.png" alt="FAB"></div>
     <div class="login-title">FAB Operations &amp; Training Hub<br><span class="login-title-sub">ระบบงานปฎิบัติการและฝึกอบรม</span></div>
 
-    <div class="pin-hint">กรอกรหัสผู้ใช้ — สาขา 4 หลัก หรือ Team Management 6 หลัก</div>
+    <div class="role-tabs">
+      <button class="role-tab active" data-role="branch" onclick="selectRole('branch')">สาขา</button>
+      <button class="role-tab" data-role="tm" onclick="selectRole('tm')">Team Management</button>
+    </div>
+
+    <div class="pin-hint">กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ</div>
     <div class="pin-boxes" id="pinBoxes"></div>
     <div class="login-error" id="loginError"></div>
     <div class="login-footer">© 2026 Operation FAB · v1.0</div>
@@ -2443,8 +2448,8 @@ function selectRole(role) {
 }
 
 function renderPinBoxes() {
-  // 6 ช่อง — รองรับทั้ง 4 หลัก (สาขา) และ 6 หลัก (Team Management) → 4 หลักไม่ต้องกรอก 2 ช่องท้าย
-  var count = 6;
+  // แท็บปัจจุบัน: 'branch' → 4 ช่อง, 'tm' (Team Management) → 6 ช่อง
+  var count = selectedRole === 'tm' ? 6 : 4;
   var html = '';
   for (var i = 0; i < count; i++) {
     html += '<input class="pin-box" type="password" maxlength="1" inputmode="numeric" autocomplete="off" data-i="'+i+'">';
@@ -2466,14 +2471,8 @@ function setupPinBoxes() {
       if (v) e.target.classList.add('filled'); else e.target.classList.remove('filled');
       if (v && i < boxes.length-1) boxes[i+1].focus();
       hideError();
-      var pin = getPinValue();
-      // auto-submit: 4 digits → if BRANCHES match · 6 digits → if USERS match
-      if (pin.length === 4 && BRANCHES[pin]) {
-        setTimeout(doLogin, 100);
-      } else if (pin.length === 6 && findUserByCode(pin)) {
-        setTimeout(doLogin, 100);
-      } else if (pin.length === boxes.length) {
-        // กรอกครบ 6 ช่อง แต่ไม่ match → ลอง login จะแสดง error
+      if (getPinValue().length === boxes.length) {
+        // auto-submit when all filled
         setTimeout(doLogin, 100);
       }
     });
@@ -2641,12 +2640,24 @@ function clearFabSession() {
 
 function doLogin() {
   var pin = getPinValue();
-  if (pin.length < 4) {
-    showError('กรุณากรอกรหัสอย่างน้อย 4 หลัก');
+  var required = selectedRole === 'tm' ? 6 : 4;
+  if (pin.length < required) {
+    showError('กรุณากรอกรหัสให้ครบ '+required+' หลัก');
     return;
   }
-  // 4 หลัก → branch login (BRANCHES dict)
-  if (pin.length === 4) {
+  if (selectedRole === 'tm') {
+    // Team Management: ตรวจจาก USERS db
+    var user = findUserByCode(pin);
+    if (!user) {
+      showError('ไม่พบรหัสผู้ใช้ ' + pin + ' ในระบบ');
+      clearPin();
+      return;
+    }
+    branchPin = pin;
+    currentBranchName = '';
+    enterApp(user.role);  // role จริง (admin/vp/coo/bzm)
+  } else {
+    // Branch login
     if (!BRANCHES[pin]) {
       showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
       clearPin();
@@ -2655,23 +2666,7 @@ function doLogin() {
     branchPin = pin;
     currentBranchName = getBranchFullName(pin);
     enterApp('branch');
-    return;
   }
-  // 6 หลัก → Team Management (USERS db)
-  if (pin.length === 6) {
-    var user = findUserByCode(pin);
-    if (!user) {
-      showError('ไม่พบรหัสผู้ใช้ ' + pin + ' ในระบบ');
-      clearPin();
-      return;
-    }
-    branchPin = pin;  // ใช้ code เป็น identifier (ไม่ใช่สาขา)
-    currentBranchName = '';  // ไม่ใช่ branch
-    isAdminMode = (user.role === 'admin');
-    enterApp(user.role);  // pass role ที่แท้จริง (admin/vp/coo/bzm)
-    return;
-  }
-  showError('รหัสไม่ถูกต้อง (4 หลัก = สาขา · 6 หลัก = Team Management)');
 }
 
 function clearPin() {
