@@ -1552,12 +1552,7 @@ input[type=file] { display:none; }
     <div class="login-logo"><img src="logo.png" alt="FAB"></div>
     <div class="login-title">FAB Operations &amp; Training Hub<br><span class="login-title-sub">ระบบงานปฎิบัติการและฝึกอบรม</span></div>
 
-    <div class="role-tabs">
-      <button class="role-tab active" data-role="branch" onclick="selectRole('branch')">สาขา</button>
-      <button class="role-tab" data-role="admin" onclick="selectRole('admin')">Team Management</button>
-    </div>
-
-    <div class="pin-hint">กรุณากรอกรหัสผ่านเพื่อเข้าสู่ระบบ</div>
+    <div class="pin-hint">กรอกรหัสผู้ใช้ — สาขา 4 หลัก หรือ Team Management 6 หลัก</div>
     <div class="pin-boxes" id="pinBoxes"></div>
     <div class="login-error" id="loginError"></div>
     <div class="login-footer">© 2026 Operation FAB · v1.0</div>
@@ -2298,8 +2293,35 @@ function exportCSV() {
 }
 
 /* ═════════════════════ LOGIN / AUTH ═════════════════════ */
-var ADMIN_CODE = '601183';
+var ADMIN_CODE = '601183';  // legacy, ยังใช้สำหรับ check Hub admin mode
 var isAdminMode = false;
+
+/* ─── Team Management user database (16 คน — login 6 หลัก) ─── */
+var USERS = [
+  // 🍔 Santa Fe — Team Management (10 คน)
+  { code: '490033', name: 'นิรุต เจริญศิลป์',         nick: 'พี่รุต',  role: 'bzm',   brand: 'santafe' },
+  { code: '500759', name: 'พัทธดนย์ วัฒนายุทธ',       nick: 'พี่ปิ๊ก', role: 'bzm',   brand: 'santafe' },
+  { code: '510620', name: 'สีวิกา สังข์ด้วง',          nick: 'พี่เจี๊ยบ', role: 'bzm',   brand: 'santafe' },
+  { code: '520532', name: 'ศุกร์แสง วัฒนาฟุ้งเจริญ',  nick: 'พี่หยี',  role: 'bzm',   brand: 'santafe' },
+  { code: '570998', name: 'นพชัย จันทร์รุ่ง',          nick: 'พี่นพ',  role: 'bzm',   brand: 'santafe' },
+  { code: '582134', name: 'นาย ณธวรรท ศิริเมธานณ',     nick: 'พี่บิ๊ก', role: 'bzm',   brand: 'santafe' },
+  { code: '601338', name: 'อนุรักษ์ สอนภักดี',          nick: 'พี่เอ็ม', role: 'bzm',   brand: 'santafe' },
+  { code: '480808', name: 'นางสาว อารียา สันเต๊ะ',     nick: 'พี่ก๊ะ',  role: 'vp',    brand: 'santafe' },
+  { code: '601183', name: 'Kantapon',                    nick: 'พี่กาย', role: 'admin', brand: 'santafe', crossBrand: true },
+  { code: '681201', name: 'อังคณา นิลกำเหนิด',          nick: 'พี่อิ๊ว', role: 'coo',   brand: 'santafe', crossBrand: true },
+  // 🌶️ เจ๊แดงสามย่าน — Team Management (6 คน)
+  { code: '550713', name: 'นาย ณฐกร เอื้อสถาพร',        nick: 'พี่ปอ',   role: 'vp',    brand: 'jaedaeng' },
+  { code: '590022', name: 'นางสาว คณัสวรรณ อิ่มสำราญ',   nick: 'พี่เฟิร์น', role: 'bzm',   brand: 'jaedaeng' },
+  { code: '490057', name: 'นางสาว พิมพ์พิชชา ชัชวาลย์', nick: 'พี่อ้อย', role: 'bzm',   brand: 'jaedaeng' },
+  { code: '560874', name: 'นางสาว จุรีพร ทองอาจ',        nick: 'พี่อีฟ',  role: 'bzm',   brand: 'jaedaeng' },
+  { code: '651221', name: 'ขวัญดาว บุญเรือง',            nick: 'พี่ดาว',  role: 'bzm',   brand: 'jaedaeng' },
+  { code: '651462', name: 'นุชจรินทร์ ใจยศ',             nick: 'พี่กัส',  role: 'bzm',   brand: 'jaedaeng' }
+];
+
+function findUserByCode(code) {
+  if (!code) return null;
+  return USERS.find(function(u){ return u.code === String(code); }) || null;
+}
 var BRANCHES = {
   '5001':'แฟชั่น ไอส์แลนด์','5002':'ซีคอนสแควร์ ศรีนครินทร์','5003':'เดอะมอลล์ ท่าพระ',
   '5004':'เซ็นทรัล รัตนาธิเบศร์','5005':'เดอะมอลล์ บางกะปิ','5007':'เซ็นทรัลพลาซา พระราม 2',
@@ -2421,7 +2443,8 @@ function selectRole(role) {
 }
 
 function renderPinBoxes() {
-  var count = selectedRole === 'admin' ? 6 : 4;
+  // 6 ช่อง — รองรับทั้ง 4 หลัก (สาขา) และ 6 หลัก (Team Management) → 4 หลักไม่ต้องกรอก 2 ช่องท้าย
+  var count = 6;
   var html = '';
   for (var i = 0; i < count; i++) {
     html += '<input class="pin-box" type="password" maxlength="1" inputmode="numeric" autocomplete="off" data-i="'+i+'">';
@@ -2443,8 +2466,14 @@ function setupPinBoxes() {
       if (v) e.target.classList.add('filled'); else e.target.classList.remove('filled');
       if (v && i < boxes.length-1) boxes[i+1].focus();
       hideError();
-      if (getPinValue().length === boxes.length) {
-        // auto-submit when all filled
+      var pin = getPinValue();
+      // auto-submit: 4 digits → if BRANCHES match · 6 digits → if USERS match
+      if (pin.length === 4 && BRANCHES[pin]) {
+        setTimeout(doLogin, 100);
+      } else if (pin.length === 6 && findUserByCode(pin)) {
+        setTimeout(doLogin, 100);
+      } else if (pin.length === boxes.length) {
+        // กรอกครบ 6 ช่อง แต่ไม่ match → ลอง login จะแสดง error
         setTimeout(doLogin, 100);
       }
     });
@@ -2548,18 +2577,46 @@ function _deriveBrand(branchCode) {
   return null;
 }
 
+/* save session — สำหรับ Team Management ใช้ data จาก USERS, สำหรับ branch ใช้ PIN + BRANCHES */
 function saveFabSession(role, pin, branchCode, branchName) {
-  var session = {
-    code: String(pin || ''),
-    name: role === 'admin' ? 'Kantapon' : (branchName || ''),
-    nick: role === 'admin' ? 'พี่กาย' : '',
-    role: role,                           // "branch" | "admin"
-    brand: role === 'admin' ? null : _deriveBrand(branchCode),
-    crossBrand: role === 'admin',         // admin = ดู cross-brand ได้
-    branchCode: role === 'branch' ? String(branchCode || '') : undefined,
-    branchName: role === 'branch' ? (branchName || '') : undefined,
-    loggedInAt: new Date().toISOString()
-  };
+  var session;
+  if (role === 'branch') {
+    session = {
+      code: String(pin || ''),
+      name: branchName || '',
+      nick: '',
+      role: 'branch',
+      brand: _deriveBrand(branchCode),
+      crossBrand: false,
+      branchCode: String(branchCode || ''),
+      branchName: branchName || '',
+      loggedInAt: new Date().toISOString()
+    };
+  } else {
+    // Team Management: lookup จาก USERS database
+    var user = findUserByCode(pin);
+    if (user) {
+      session = {
+        code: user.code,
+        name: user.name,
+        nick: user.nick || '',
+        role: user.role,                          // 'admin' | 'vp' | 'coo' | 'bzm' | 'franchise'
+        brand: user.brand || null,
+        crossBrand: !!user.crossBrand,
+        branchCode: undefined,
+        branchName: undefined,
+        loggedInAt: new Date().toISOString()
+      };
+    } else {
+      // legacy fallback (กัน case ไม่มีใน USERS)
+      session = {
+        code: String(pin || ''),
+        name: 'Kantapon', nick: 'พี่กาย',
+        role: 'admin', brand: null, crossBrand: true,
+        loggedInAt: new Date().toISOString()
+      };
+    }
+  }
   try { localStorage.setItem(FAB_SESSION_KEY, JSON.stringify(session)); } catch(e) {}
 }
 
@@ -2584,19 +2641,12 @@ function clearFabSession() {
 
 function doLogin() {
   var pin = getPinValue();
-  var required = selectedRole === 'admin' ? 6 : 4;
-  if (pin.length < required) {
-    showError('กรุณากรอกรหัสให้ครบ '+required+' หลัก');
+  if (pin.length < 4) {
+    showError('กรุณากรอกรหัสอย่างน้อย 4 หลัก');
     return;
   }
-  if (selectedRole === 'admin') {
-    if (pin !== ADMIN_CODE) {
-      showError('รหัสผ่าน Admin ไม่ถูกต้อง');
-      clearPin();
-      return;
-    }
-    enterApp('admin');
-  } else {
+  // 4 หลัก → branch login (BRANCHES dict)
+  if (pin.length === 4) {
     if (!BRANCHES[pin]) {
       showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
       clearPin();
@@ -2605,7 +2655,23 @@ function doLogin() {
     branchPin = pin;
     currentBranchName = getBranchFullName(pin);
     enterApp('branch');
+    return;
   }
+  // 6 หลัก → Team Management (USERS db)
+  if (pin.length === 6) {
+    var user = findUserByCode(pin);
+    if (!user) {
+      showError('ไม่พบรหัสผู้ใช้ ' + pin + ' ในระบบ');
+      clearPin();
+      return;
+    }
+    branchPin = pin;  // ใช้ code เป็น identifier (ไม่ใช่สาขา)
+    currentBranchName = '';  // ไม่ใช่ branch
+    isAdminMode = (user.role === 'admin');
+    enterApp(user.role);  // pass role ที่แท้จริง (admin/vp/coo/bzm)
+    return;
+  }
+  showError('รหัสไม่ถูกต้อง (4 หลัก = สาขา · 6 หลัก = Team Management)');
 }
 
 function clearPin() {
@@ -2617,12 +2683,14 @@ function clearPin() {
 }
 
 function enterApp(role) {
-  // Persist session so module can read after redirect
-  sessionStorage.setItem('fab_role', role === 'admin' ? 'admin' : 'branch');
+  // role อาจเป็น 'branch' หรือ 'admin'/'vp'/'coo'/'bzm' (Team Management)
+  var isTeamMgmt = (role !== 'branch');
+  // Persist session — module compat: sessionStorage.fab_role = 'admin' for team mgmt (treat as non-branch)
+  sessionStorage.setItem('fab_role', isTeamMgmt ? 'admin' : 'branch');
   sessionStorage.setItem('fab_branch_pin', branchPin || '');
   sessionStorage.setItem('fab_branch_name', currentBranchName || '');
-  // SSO: save shared session ที่ใช้ข้าม project (Hub ↔ Checklist)
-  saveFabSession(role === 'admin' ? 'admin' : 'branch', branchPin, branchPin, currentBranchName);
+  // SSO: save shared session ที่ใช้ข้าม project (Hub ↔ Checklist) — ส่ง role จริง
+  saveFabSession(isTeamMgmt ? 'tm' : 'branch', branchPin, branchPin, currentBranchName);
   // ถ้ามี ?return= → redirect ไปแอปอื่นทันที (ไม่ต้องเข้าเมนู Hub)
   if (_redirectIfReturnUrl_()) return;
   var loginCard = document.querySelector('#loginView .login-card');
@@ -2633,9 +2701,13 @@ function enterApp(role) {
     loginView.style.display = 'none';
     if (loginCard) loginCard.classList.remove('exiting');
     loginView.classList.remove('fading-out');
-    isAdminMode = (role === 'admin');
+    isAdminMode = isTeamMgmt;  // ทุก Team Mgmt role = admin view (ดูทุกระบบ)
     showMenuView();
-    showWelcome(isAdminMode ? 'Admin · Team Management' : currentBranchName);
+    var user = findUserByCode(branchPin);
+    var welcomeText = isTeamMgmt
+      ? (user ? (user.nick ? user.nick + ' · ' : '') + user.name + ' · ' + (user.role || 'Team').toUpperCase() : 'Team Management')
+      : currentBranchName;
+    showWelcome(welcomeText);
     // Fallback: if welcome modal isn't closed in 6s, still try to show announcements
     if (!isAdminMode) {
       setTimeout(function(){
@@ -2660,7 +2732,11 @@ function showMenuView() {
   var tag = document.getElementById('menuBranchTag');
   if (tag) {
     if (isAdminMode) {
-      tag.innerHTML = '<span class="admin-badge"><svg><use href="#i-shield"/></svg>ADMIN · TEAM MANAGEMENT</span>';
+      var u = findUserByCode(branchPin);
+      var label = u
+        ? (u.nick ? u.nick + ' · ' : '') + (u.role || 'admin').toUpperCase() + (u.brand ? ' · ' + (u.brand === 'santafe' ? '🍔 Santa Fe' : '🌶️ เจ๊แดง') : '')
+        : 'ADMIN · TEAM MANAGEMENT';
+      tag.innerHTML = '<span class="admin-badge"><svg><use href="#i-shield"/></svg>' + label + '</span>';
     } else {
       tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
     }
