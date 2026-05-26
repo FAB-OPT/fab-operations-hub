@@ -2492,15 +2492,39 @@ function _captureReturnUrl_() {
   } catch(e) { return null; }
 }
 
-/* Redirect ไป return URL ถ้ามี · return true ถ้า redirect แล้ว */
+/* Redirect ไป return URL ถ้ามี · return true ถ้า redirect แล้ว
+   + Loop detection: ถ้าเพิ่ง redirect ภายใน 3 วินาที = loop → หยุด แสดง dashboard แทน */
 function _redirectIfReturnUrl_() {
-  if (_pendingReturnUrl) {
-    var url = _pendingReturnUrl;
-    _pendingReturnUrl = null;
-    window.location.href = url;
-    return true;
+  if (!_pendingReturnUrl) return false;
+  var url = _pendingReturnUrl;
+  _pendingReturnUrl = null;
+  // Track redirect history (in sessionStorage — เก็บไว้ระหว่าง navigation)
+  var historyKey = '_fab_redirect_hist';
+  var history = [];
+  try { history = JSON.parse(sessionStorage.getItem(historyKey) || '[]'); } catch(e) {}
+  var now = Date.now();
+  // ลบ entry ที่เก่ากว่า 5 วินาที
+  history = history.filter(function(t){ return now - t < 5000; });
+  // ถ้ามีการ redirect ภายใน 5 วินาทีแล้ว 2 ครั้งขึ้นไป → loop
+  if (history.length >= 2) {
+    console.warn('🔁 Detected redirect loop with', url, '— breaking and showing dashboard');
+    sessionStorage.removeItem(historyKey);
+    // แจ้ง user
+    setTimeout(function(){
+      if (typeof showInfo === 'function') {
+        showInfo('⚠️ Redirect loop ถูกตัด',
+          'ไม่สามารถเข้า ' + url + ' ได้ — ' +
+          'อาจเป็นเพราะ session ไม่ตรงกับที่ระบบนั้นต้องการ ' +
+          '(เช่น admin ที่ไม่มี brand)<br><br>' +
+          'ลองคลิกการ์ดอีกครั้งจากเมนู Hub');
+      }
+    }, 300);
+    return false;
   }
-  return false;
+  history.push(now);
+  sessionStorage.setItem(historyKey, JSON.stringify(history));
+  window.location.href = url;
+  return true;
 }
 
 function _deriveBrand(branchCode) {
