@@ -1616,6 +1616,16 @@ input[type=file] { display:none; }
       </div>
 
       <div class="adm-section adm-edit-only">
+        <div class="adm-section-title">👥 กำหนดสิทธิ์การเข้าถึง Team Management</div>
+        <div class="adm-section-desc">เลือกว่าทีมระดับไหนเห็นระบบนี้ (สำหรับผู้ใช้ที่ไม่ใช่สาขา)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;">
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllRoles(true)">เลือกทั้งหมด</button>
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllRoles(false)">ยกเลิกทั้งหมด</button>
+        </div>
+        <div id="settingsRoleList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;"></div>
+      </div>
+
+      <div class="adm-section adm-edit-only">
         <div class="adm-section-title"><svg><use href="#i-calendar"/></svg> ระยะเวลาในการแสดงระบบ</div>
         <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดงให้สาขาเห็น (เว้นว่าง = แสดงตลอด)</div>
         <div class="adm-input-group">
@@ -2921,14 +2931,27 @@ function normalizeSystem(s) {
   s.startDate = toIsoString(s.startDate);
   s.endDate = toIsoString(s.endDate);
   if (!s.visibleBranches) s.visibleBranches = [];
+  if (!s.visibleRoles) s.visibleRoles = [];
+  s.hideFromAllBranches = !!s.hideFromAllBranches;
+  s.hideFromAllRoles = !!s.hideFromAllRoles;
   // Auto-assign icon based on name if missing (cross-device fallback)
   if (!s.icon) s.icon = guessIconFromName(s.name);
   return s;
 }
 
 function isSystemVisibleToBranch(s, branchCode) {
-  if (s.hideFromAllBranches) return false;  // admin เลือก 'ไม่ให้สาขาเห็น'
+  if (s.hideFromAllBranches) return false;
   if (s.visibleBranches && s.visibleBranches.length > 0 && s.visibleBranches.indexOf(branchCode) < 0) return false;
+  var today = todayIso();
+  if (s.startDate && today < s.startDate) return false;
+  if (s.endDate && today > s.endDate) return false;
+  return true;
+}
+
+/* For Team Management users (admin/bzm/coo/vp/franchise) — ตรวจจาก role */
+function isSystemVisibleToRole(s, role) {
+  if (s.hideFromAllRoles) return false;
+  if (s.visibleRoles && s.visibleRoles.length > 0 && s.visibleRoles.indexOf(role) < 0) return false;
   var today = todayIso();
   if (s.startDate && today < s.startDate) return false;
   if (s.endDate && today > s.endDate) return false;
@@ -3168,6 +3191,7 @@ function openSystemModal(mode, systemId) {
       }
     }
     populateBranchVisibility(s.visibleBranches || []);
+    populateRoleVisibility(s.visibleRoles || []);
     var delBtn = document.getElementById('deleteSystemBtn');
     if (delBtn) delBtn.style.display = s.builtIn ? 'none' : '';
   } else {
@@ -3176,6 +3200,7 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
     document.getElementById('sysComingSoon').checked = false;
+    populateRoleVisibility([]);  // ติ๊กทุก role default
   }
   document.getElementById('systemModal').classList.add('show');
 }
@@ -3229,6 +3254,35 @@ function toggleAllBranches(checked) {
   document.querySelectorAll('.branch-vis-chk').forEach(function(c){ c.checked = checked; });
 }
 
+/* ── Roles (Team Management) ────────────── */
+var TM_ROLES = [
+  { code: 'admin',     label: '👑 Admin',     desc: 'ผู้ดูแลระบบ' },
+  { code: 'vp',        label: '⭐ VP',        desc: 'รองประธาน' },
+  { code: 'coo',       label: '🎯 COO',       desc: 'ประธานปฎิบัติการ' },
+  { code: 'bzm',       label: '📋 BZM',       desc: 'ผู้จัดการเขต' },
+  { code: 'franchise', label: '🤝 Franchise', desc: 'แฟรนไชส์' }
+];
+
+function populateRoleVisibility(selectedRoles) {
+  selectedRoles = selectedRoles || [];
+  var grid = document.getElementById('settingsRoleList');
+  if (!grid) return;
+  var allChecked = selectedRoles.length === 0;
+  grid.innerHTML = TM_ROLES.map(function(r){
+    var checked = allChecked || selectedRoles.indexOf(r.code) >= 0;
+    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);cursor:pointer;">'
+      + '<input type="checkbox" class="adm-checkbox role-vis-chk" data-role="'+r.code+'"'+(checked?' checked':'')+'>'
+      + '<div style="flex:1;min-width:0;">'
+      +   '<div style="font-weight:700;font-size:13px;color:var(--text);">'+r.label+'</div>'
+      +   '<div style="font-size:11px;color:var(--text2);">'+r.desc+'</div>'
+      + '</div>'
+      + '</label>';
+  }).join('');
+}
+function toggleAllRoles(checked) {
+  document.querySelectorAll('.role-vis-chk').forEach(function(c){ c.checked = checked; });
+}
+
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
@@ -3250,15 +3304,23 @@ function saveSystemConfig() {
     if (c.checked) { visibleBranches.push(c.getAttribute('data-code')); anyChecked = true; }
     else allChecked = false;
   });
-  // 3 state:
-  // - allChecked = true  → visibleBranches = [] (visible to all)
-  // - anyChecked = false → hideFromAllBranches = true (hidden from all)
-  // - some checked       → visibleBranches = [list]
   var hideFromAllBranches = false;
   if (chks.length > 0 && allChecked) visibleBranches = [];
   else if (chks.length > 0 && !anyChecked) { hideFromAllBranches = true; visibleBranches = []; }
 
-  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches); };
+  // Roles (Team Management) — 3 states เหมือนสาขา
+  var visibleRoles = [];
+  var anyRoleChecked = false, allRoleChecked = true;
+  var roleChks = document.querySelectorAll('.role-vis-chk');
+  roleChks.forEach(function(c){
+    if (c.checked) { visibleRoles.push(c.getAttribute('data-role')); anyRoleChecked = true; }
+    else allRoleChecked = false;
+  });
+  var hideFromAllRoles = false;
+  if (roleChks.length > 0 && allRoleChecked) visibleRoles = [];
+  else if (roleChks.length > 0 && !anyRoleChecked) { hideFromAllRoles = true; visibleRoles = []; }
+
+  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleRoles, hideFromAllRoles); };
   if (chks.length > 0 && !anyChecked && currentEditingSystem) {
     customConfirm({
       icon: '⚠️', title: 'ไม่มีสาขาที่เห็น',
@@ -3270,7 +3332,7 @@ function saveSystemConfig() {
   proceed();
 }
 
-function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches) {
+function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleRoles, hideFromAllRoles) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
@@ -3284,6 +3346,8 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
         desc: desc,
         visibleBranches: visibleBranches,
         hideFromAllBranches: !!hideFromAllBranches,
+        visibleRoles: visibleRoles || [],
+        hideFromAllRoles: !!hideFromAllRoles,
         startDate: startDate,
         endDate: endDate,
         comingSoon: comingSoon,
@@ -3299,6 +3363,8 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
       desc: desc,
       visibleBranches: [],
       hideFromAllBranches: false,
+      visibleRoles: [],
+      hideFromAllRoles: false,
       startDate: '',
       endDate: '',
       comingSoon: comingSoon
