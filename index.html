@@ -2756,7 +2756,13 @@ function saveSystemsLocal() {
   try { localStorage.setItem('fab_systems_v1', JSON.stringify(SYSTEMS)); } catch(e) {}
 }
 
+var _lastSystemsSaveAt = 0;
 function loadSystemsFromCloud() {
+  // กัน race: ถ้าเพิ่ง save ภายใน 8 วินาที (cloud อาจยัง propagate ไม่ทัน) → skip load
+  if (Date.now() - _lastSystemsSaveAt < 8000) {
+    console.log('Skipping cloud load — recent save in flight');
+    return Promise.resolve(SYSTEMS);
+  }
   // cache-bust on each load so mobile doesn't get stale browser cache
   // ใช้ ?action=config (Apps Script รองรับ คืน {ok, systems, announcements})
   return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
@@ -2781,6 +2787,7 @@ function loadSystemsFromCloud() {
 }
 
 function saveSystemsToCloud() {
+  _lastSystemsSaveAt = Date.now();  // mark for loadSystemsFromCloud guard
   // ใช้ set-config endpoint (Apps Script รองรับ) — เก็บลง Config sheet
   return fetch(SCRIPT_URL, {
     method: 'POST',
