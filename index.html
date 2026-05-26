@@ -3190,8 +3190,8 @@ function openSystemModal(mode, systemId) {
         if (u) u.classList.add('selected');
       }
     }
-    populateBranchVisibility(s.visibleBranches || []);
-    populateRoleVisibility(s.visibleRoles || []);
+    populateBranchVisibility(s.visibleBranches || [], s.hideFromAllBranches);
+    populateRoleVisibility(s.visibleRoles || [], s.hideFromAllRoles);
     var delBtn = document.getElementById('deleteSystemBtn');
     if (delBtn) delBtn.style.display = s.builtIn ? 'none' : '';
   } else {
@@ -3238,11 +3238,15 @@ function handleIconUpload(file) {
   reader.readAsDataURL(file);
 }
 
-function populateBranchVisibility(selectedBranches) {
+function populateBranchVisibility(selectedBranches, hideFromAll) {
   selectedBranches = selectedBranches || [];
   var tbody = document.getElementById('settingsBranchTbody');
   if (!tbody) return;
-  var allChecked = selectedBranches.length === 0;
+  // 3 states:
+  //   hideFromAll=true → uncheck all (admin เคยกด 'ไม่ให้สาขาเห็น')
+  //   selectedBranches.length === 0 → check all (default = ให้ทุกสาขาเห็น)
+  //   มี items → check เฉพาะที่ระบุ
+  var allChecked = !hideFromAll && selectedBranches.length === 0;
   var html = '';
   Object.keys(BRANCHES).forEach(function(code){
     var checked = allChecked || selectedBranches.indexOf(code) >= 0;
@@ -3263,11 +3267,11 @@ var TM_ROLES = [
   { code: 'franchise', label: '🤝 Franchise', desc: 'แฟรนไชส์' }
 ];
 
-function populateRoleVisibility(selectedRoles) {
+function populateRoleVisibility(selectedRoles, hideFromAll) {
   selectedRoles = selectedRoles || [];
   var grid = document.getElementById('settingsRoleList');
   if (!grid) return;
-  var allChecked = selectedRoles.length === 0;
+  var allChecked = !hideFromAll && selectedRoles.length === 0;
   grid.innerHTML = TM_ROLES.map(function(r){
     var checked = allChecked || selectedRoles.indexOf(r.code) >= 0;
     return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);cursor:pointer;">'
