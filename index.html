@@ -2927,6 +2927,7 @@ function normalizeSystem(s) {
 }
 
 function isSystemVisibleToBranch(s, branchCode) {
+  if (s.hideFromAllBranches) return false;  // admin เลือก 'ไม่ให้สาขาเห็น'
   if (s.visibleBranches && s.visibleBranches.length > 0 && s.visibleBranches.indexOf(branchCode) < 0) return false;
   var today = todayIso();
   if (s.startDate && today < s.startDate) return false;
@@ -3249,9 +3250,15 @@ function saveSystemConfig() {
     if (c.checked) { visibleBranches.push(c.getAttribute('data-code')); anyChecked = true; }
     else allChecked = false;
   });
-  if (chks.length > 0 && allChecked) visibleBranches = [];  // [] = visible to all
+  // 3 state:
+  // - allChecked = true  → visibleBranches = [] (visible to all)
+  // - anyChecked = false → hideFromAllBranches = true (hidden from all)
+  // - some checked       → visibleBranches = [list]
+  var hideFromAllBranches = false;
+  if (chks.length > 0 && allChecked) visibleBranches = [];
+  else if (chks.length > 0 && !anyChecked) { hideFromAllBranches = true; visibleBranches = []; }
 
-  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches); };
+  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches); };
   if (chks.length > 0 && !anyChecked && currentEditingSystem) {
     customConfirm({
       icon: '⚠️', title: 'ไม่มีสาขาที่เห็น',
@@ -3263,7 +3270,7 @@ function saveSystemConfig() {
   proceed();
 }
 
-function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches) {
+function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
@@ -3276,6 +3283,7 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
         name: name,
         desc: desc,
         visibleBranches: visibleBranches,
+        hideFromAllBranches: !!hideFromAllBranches,
         startDate: startDate,
         endDate: endDate,
         comingSoon: comingSoon,
@@ -3290,6 +3298,7 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
       name: name,
       desc: desc,
       visibleBranches: [],
+      hideFromAllBranches: false,
       startDate: '',
       endDate: '',
       comingSoon: comingSoon
