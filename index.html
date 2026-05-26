@@ -2373,17 +2373,20 @@ window.addEventListener('DOMContentLoaded', function() {
     });
   } catch(e) { console.error('loadAnnouncementsFromCloud', e); }
   try {
-    var role = sessionStorage.getItem('fab_role');
-    // SSO: ถ้าไม่มี sessionStorage แต่มี fab_session ใน localStorage (ยังไม่หมดอายุ) → auto-restore
-    if (!role) {
-      var fs = loadFabSession();
-      if (fs && fs.role) {
-        role = fs.role;
-        sessionStorage.setItem('fab_role', role);
-        if (fs.branchCode) sessionStorage.setItem('fab_branch_pin', fs.branchCode);
-        if (fs.branchName) sessionStorage.setItem('fab_branch_name', fs.branchName);
-      }
+    // ถ้า refresh page → clear sessionStorage → บังคับ login ใหม่
+    var navType = 'navigate';
+    try {
+      var navEntries = performance.getEntriesByType('navigation');
+      if (navEntries && navEntries.length) navType = navEntries[0].type;
+    } catch(e) {}
+    if (navType === 'reload') {
+      sessionStorage.removeItem('fab_role');
+      sessionStorage.removeItem('fab_branch_pin');
+      sessionStorage.removeItem('fab_branch_name');
     }
+    var role = sessionStorage.getItem('fab_role');
+    // ไม่ auto-restore จาก localStorage (fab_session) อีกแล้ว — user ต้อง login ใหม่ทุกครั้ง
+    // fab_session ยังถูกใช้สำหรับ SSO ไป Checklist (เก็บ + redirect แต่ Hub ไม่อ่านกลับ)
     if (role) {
       // Returning from module / cross-app — skip login
       // ถ้ามี ?return= → redirect ไปทันที (ไม่ต้องแสดง menu)
