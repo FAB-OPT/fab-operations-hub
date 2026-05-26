@@ -7699,12 +7699,28 @@ function submitRequests() {
       timeSlot: timeSlot,
       note: r.note || ''
     });
-    // Check if has valid cert
+    // Check if has valid cert (normalize name compare + recompute status from date)
+    var _stripKey = function(str){
+      return String(str||'').replace(/[\u0009-\u000D\u0020\u00A0\u200B-\u200F\u2028\u2029\uFEFF\u002D]/g, '').toLowerCase();
+    };
+    var nameKey = _stripKey(name);
     var found = (allRecords || []).find(function(x){
-      return (x['ชื่อในระบบ'] || x['ชื่อในใบรับรอง']) === name;
+      return _stripKey(x['ชื่อในระบบ'] || x['ชื่อในใบรับรอง'] || '') === nameKey;
     });
-    if (found && (found['สถานะใบรับรอง'] === 'valid' || found['สถานะใบรับรอง'] === 'ยังมีผล')) {
-      warnings.push('<b>'+name+'</b> มีใบรับรองที่ยังไม่หมดอายุ (ถึง '+formatThaiDate(found['วันหมดอายุ'])+')');
+    if (found) {
+      // ตรวจสถานะจาก field สถานะใบรับรอง + คำนวณจากวันหมดอายุ (กันค่าใน field ว่าง/เก่า)
+      var rawStatus = String(found['สถานะใบรับรอง'] || '').toLowerCase();
+      var computedStatus = '';
+      if (typeof getExpStatus === 'function' && found['วันหมดอายุ']) {
+        computedStatus = getExpStatus(found['วันหมดอายุ']);
+      }
+      var isStillValid = (rawStatus === 'valid' || rawStatus === 'ยังมีผล' || rawStatus === 'warning' || rawStatus === 'ใกล้หมดอายุ'
+                          || computedStatus === 'valid' || computedStatus === 'warning');
+      if (isStillValid) {
+        var label = (computedStatus === 'warning' || rawStatus === 'warning' || rawStatus === 'ใกล้หมดอายุ')
+          ? 'ใบรับรองใกล้หมดอายุ' : 'มีใบรับรองที่ยังไม่หมดอายุ';
+        warnings.push('<b>'+name+'</b> '+label+' (ถึง '+formatThaiDate(found['วันหมดอายุ'])+')');
+      }
     }
   });
 
