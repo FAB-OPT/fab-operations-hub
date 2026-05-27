@@ -3237,9 +3237,38 @@ function loadSystemsLocal() {
   if (!SYSTEMS || !SYSTEMS.length) SYSTEMS = DEFAULT_SYSTEMS.slice();
   _injectBuiltInSystems_();
   SYSTEMS.forEach(normalizeSystem);
+  _applyLocalIcons();
 }
 function saveSystemsLocal() {
   try { localStorage.setItem('fab_systems_v1', JSON.stringify(SYSTEMS)); } catch(e) {}
+  _saveLocalIcons();
+}
+
+/* ─── Local-only icon overlay (data: URL ที่ admin อัปโหลด ไม่ส่งขึ้น cloud) ───
+   เก็บแยกเพื่อให้รอดจากการ overwrite ตอน loadSystemsFromCloud()
+   key: system id  ·  value: data URL */
+function _saveLocalIcons() {
+  try {
+    var icons = {};
+    SYSTEMS.forEach(function(s){
+      if (s && s.id && s.icon && typeof s.icon === 'string' && s.icon.indexOf('data:') === 0) {
+        icons[s.id] = s.icon;
+      }
+    });
+    localStorage.setItem('fab_local_icons_v1', JSON.stringify(icons));
+  } catch(e) {}
+}
+function _applyLocalIcons() {
+  try {
+    var raw = localStorage.getItem('fab_local_icons_v1');
+    if (!raw) return;
+    var icons = JSON.parse(raw);
+    if (!icons || typeof icons !== 'object') return;
+    SYSTEMS.forEach(function(s){
+      // ใช้ data URL ที่ admin อัปโหลดถ้ามี · override cloud icon (ที่ถูก strip เป็น '')
+      if (s && s.id && icons[s.id]) s.icon = icons[s.id];
+    });
+  } catch(e) {}
 }
 
 var _lastSystemsSaveAt = 0;
@@ -3261,6 +3290,7 @@ function loadSystemsFromCloud() {
         _injectBuiltInSystems_();
         // ไม่ sort — เคารพลำดับที่ admin จัดไว้
         SYSTEMS.forEach(normalizeSystem);
+        _applyLocalIcons();   // คืนรูป admin อัปโหลด (data URL) ทับ icon ที่ถูก strip จาก cloud
         saveSystemsLocal();
         renderMenuCards();
       }
