@@ -3809,6 +3809,12 @@ function selectPresetIcon(el, path) {
   el.classList.add('selected');
   document.getElementById('sysIconValue').value = path;
 }
+function _markUploadOptionSelected() {
+  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
+  var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
+  if (uploadOpt) uploadOpt.classList.add('selected');
+}
+
 function handleIconUpload(file) {
   if (!file || !/^image\//.test(file.type)) { alert('กรุณาเลือกไฟล์รูปภาพ'); return; }
   if (file.size > 2 * 1024 * 1024) { alert('ไฟล์ใหญ่เกินไป (จำกัด 2 MB)'); return; }
@@ -3816,12 +3822,11 @@ function handleIconUpload(file) {
   reader.onload = function(e) {
     var img = new Image();
     img.onload = function() {
+      // 128×128 PNG — คมชัด · รักษา transparency
       var canvas = document.createElement('canvas');
-      // 128×128 PNG — คมชัด, รักษา transparency · ขนาด ~10-25KB
       var size = 128;
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
-      // เปิด high-quality smoothing
       ctx.imageSmoothingEnabled = true;
       if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
       ctx.clearRect(0, 0, size, size);
@@ -3829,12 +3834,39 @@ function handleIconUpload(file) {
       var w = img.width * ratio, h = img.height * ratio;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
       var dataUrl = canvas.toDataURL('image/png');
+      var base64 = dataUrl.split(',')[1];  // strip "data:image/png;base64,"
+      var filename = 'sys-icon-' + Date.now() + '.png';
+
+      // โชว์ data URL ทันที (preview) — ถ้า upload สำเร็จจะอัปเดตเป็น Drive URL
       document.getElementById('sysIconValue').value = dataUrl;
-      document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
-      var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
-      if (uploadOpt) uploadOpt.classList.add('selected');
-      var kb = Math.round(dataUrl.length * 0.75 / 1024);
-      showInfo('✓ อัปโหลดสำเร็จ', 'รูป 128×128 PNG · ~' + kb + ' KB<br><small style="color:var(--text3);">เก็บเฉพาะเครื่องนี้ — device อื่นจะใช้ไอคอน fallback<br>(cross-device ต้องอัปเดต Apps Script + Drive)</small>');
+      _markUploadOptionSelected();
+      setSyncStatus('กำลังอัปโหลดรูปไป Drive...', 'var(--text2)');
+
+      // ลองอัปโหลดไป Apps Script → Drive (cross-device)
+      fetch(SCRIPT_URL, {
+        method: 'POST', mode: 'cors',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ type: 'upload-icon', filename: filename, base64: base64 })
+      })
+      .then(function(r){ return r.json(); })
+      .then(function(res){
+        if (res && res.ok && res.url) {
+          // สำเร็จ — ใช้ Drive URL · ทุก device เห็น
+          document.getElementById('sysIconValue').value = res.url;
+          setSyncStatus('✓ อัปโหลดรูปสำเร็จ · ทุก device เห็น', 'var(--green)');
+          showInfo('✓ อัปโหลดสำเร็จ', 'รูปอัปโหลด Drive แล้ว · ทุก device เห็นเหมือนกัน');
+        } else {
+          throw new Error((res && res.error) || 'Apps Script ไม่รองรับ action: upload-icon');
+        }
+      })
+      .catch(function(err){
+        // Fallback: เก็บ data URL ใน localStorage (เฉพาะเครื่องนี้)
+        var kb = Math.round(dataUrl.length * 0.75 / 1024);
+        setSyncStatus('⚠ Drive upload ล้มเหลว · ใช้ local fallback', 'var(--text3)');
+        showInfo('⚠️ อัปโหลด Drive ไม่ได้',
+          'รูปจะอยู่<b>เฉพาะเครื่องนี้</b> (~' + kb + ' KB)<br><small style="color:var(--text3);">' +
+          escapeHtml(err.message) + '<br>ต้องอัปเดต Apps Script ให้รองรับ <code>type:"upload-icon"</code></small>');
+      });
     };
     img.src = e.target.result;
   };
