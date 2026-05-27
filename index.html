@@ -1875,6 +1875,82 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- ═════════════════════ ADMIN: BRANCH MANAGEMENT ═════════════════════ -->
+<div class="adm-modal" id="branchMgmtModal">
+  <div class="adm-modal-box" style="max-width:920px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title">🏪 จัดการสาขา</div>
+      <button class="adm-modal-close" onclick="closeBranchMgmtModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="font-size:12px;color:var(--text2);">จำนวนสาขา: <span id="branchMgmtCount" style="color:var(--gold);font-weight:700;">0</span> สาขา</div>
+        <button class="adm-btn-primary" onclick="openBranchEditModal(null)" style="padding:8px 14px;font-size:13px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มสาขาใหม่</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="branchMgmtSearch" placeholder="ค้นหาด้วยรหัส / ชื่อสาขา..." class="adm-input" style="flex:1;min-width:220px;padding:8px 12px;font-size:13px;" oninput="renderBranchMgmtList()">
+        <select id="branchMgmtFilter" class="adm-input" style="width:auto;padding:8px 12px;font-size:13px;" onchange="renderBranchMgmtList()">
+          <option value="">ทุกแบรนด์</option>
+          <option value="50">Santa Fe</option>
+          <option value="55">Santa Fe Easy</option>
+          <option value="40">เจ๊แดง</option>
+        </select>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:520px;overflow-y:auto;">
+        <table class="adm-table" style="margin:0;">
+          <thead>
+            <tr>
+              <th style="position:sticky;top:0;background:var(--bg3);">รหัส</th>
+              <th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th>
+              <th style="position:sticky;top:0;background:var(--bg3);">แบรนด์</th>
+              <th style="position:sticky;top:0;background:var(--bg3);">BZM</th>
+              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:130px;">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="branchMgmtTbody"></tbody>
+        </table>
+      </div>
+      <div id="branchMgmtSync" style="text-align:center;font-size:11px;color:var(--text2);margin-top:10px;min-height:14px;"></div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeBranchMgmtModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ ADMIN: BRANCH EDITOR ═════════════════════ -->
+<div class="adm-modal" id="branchEditModal">
+  <div class="adm-modal-box" style="max-width:520px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title" id="branchEditTitle">เพิ่มสาขาใหม่</div>
+      <button class="adm-modal-close" onclick="closeBranchEditModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div class="adm-section">
+        <label class="adm-label">รหัสสาขา (4 หลัก) <span style="color:var(--red);">*</span></label>
+        <input type="text" class="adm-input" id="branchEditCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="เช่น 5001" autocomplete="off">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">รหัส 4 หลัก · ขึ้นต้น 50 = Santa Fe · 55 = Santa Fe Easy · 40 = เจ๊แดง</div>
+      </div>
+      <div class="adm-section">
+        <label class="adm-label">ชื่อสาขา <span style="color:var(--red);">*</span></label>
+        <input type="text" class="adm-input" id="branchEditName" placeholder="เช่น เซ็นทรัล ปิ่นเกล้า" maxlength="80">
+      </div>
+      <div class="adm-section">
+        <label class="adm-label">BZM ที่ดูแล</label>
+        <select class="adm-input" id="branchEditBzm">
+          <option value="">— ไม่ระบุ —</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">รายชื่อมาจาก USERS ที่มีตำแหน่ง BZM</div>
+      </div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" id="branchEditDeleteBtn" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="deleteCurrentBranch()">ลบสาขานี้</button>
+      <button class="adm-btn-secondary" onclick="closeBranchEditModal()">ยกเลิก</button>
+      <button class="adm-btn-primary" onclick="saveBranchEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ ADMIN: ANNOUNCEMENT EDITOR ═════════════════════ -->
 <div class="adm-modal" id="announcementEditorModal">
   <div class="adm-modal-box" style="max-width:600px;">
@@ -1991,6 +2067,7 @@ input[type=file] { display:none; }
     <div class="adm-only-block" style="text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button class="admin-announce-btn admin-role-only" onclick="openManageAnnouncementsModal()"><span class="emoji-3d">📢</span> จัดการประกาศสำหรับสาขา</button>
       <button class="admin-announce-btn admin-role-only" onclick="openUserMgmtModal()"><span class="emoji-3d">👥</span> จัดการผู้ใช้งาน Team Management</button>
+      <button class="admin-announce-btn admin-role-only" onclick="openBranchMgmtModal()"><span class="emoji-3d">🏪</span> จัดการสาขา</button>
     </div>
     <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:0;"></div>
     <div class="menu-grid" id="menuGrid"></div>
@@ -2609,6 +2686,55 @@ var BRANCH_BZM_MAP = {
   '5077':'พี่บิ๊ก','5078':'พี่บิ๊ก','5079':'พี่บิ๊ก'
 };
 
+var DEFAULT_BRANCHES = Object.assign({}, BRANCHES);
+var DEFAULT_BRANCH_BZM_MAP = Object.assign({}, BRANCH_BZM_MAP);
+
+function loadBranchesLocal() {
+  try {
+    var saved = localStorage.getItem('fab_branches_v1');
+    if (saved) {
+      var obj = JSON.parse(saved);
+      if (obj && typeof obj === 'object' && obj.branches) {
+        BRANCHES = obj.branches;
+        BRANCH_BZM_MAP = obj.bzmMap || {};
+      }
+    }
+  } catch (e) {}
+}
+function saveBranchesLocal() {
+  try {
+    localStorage.setItem('fab_branches_v1', JSON.stringify({
+      branches: BRANCHES, bzmMap: BRANCH_BZM_MAP
+    }));
+  } catch (e) {}
+}
+function loadBranchesFromCloud() {
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok && res.branches && typeof res.branches === 'object' && res.branches.branches) {
+        BRANCHES = res.branches.branches;
+        BRANCH_BZM_MAP = res.branches.bzmMap || {};
+        saveBranchesLocal();
+      }
+      return BRANCHES;
+    })
+    .catch(function(){ return BRANCHES; });
+}
+function saveBranchesToCloud() {
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({
+      type: 'set-config', key: 'branches',
+      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP }
+    })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+}
+loadBranchesLocal();
+
 function getBranchPrefix(code) {
   if (!code) return '';
   if (code.indexOf('55') === 0) return 'Santa Fe Easy';
@@ -3030,6 +3156,7 @@ function showMenuView() {
   loadSystemsFromCloud().then(function(){ renderMenuCards(); });
   if (_curU && _curU.role === 'admin') {
     try { loadUsersFromCloud(); } catch (e) { console.warn('loadUsersFromCloud', e); }
+    try { loadBranchesFromCloud(); } catch (e) { console.warn('loadBranchesFromCloud', e); }
   }
   window.scrollTo(0,0);
 }
@@ -3936,6 +4063,155 @@ function deleteCurrentUser() {
 
 function _syncUsersSync(msg, color) {
   var el = document.getElementById('userMgmtSync');
+  if (el) { el.textContent = msg; el.style.color = color || ''; }
+}
+
+/* ─────────── BRANCH MANAGEMENT (admin CRUD) ─────────── */
+var _editingBranchCode = null;  // null = adding new
+
+function renderBranchMgmtList() {
+  var tbody = document.getElementById('branchMgmtTbody');
+  if (!tbody) return;
+  var search = (document.getElementById('branchMgmtSearch').value || '').trim().toLowerCase();
+  var filter = document.getElementById('branchMgmtFilter').value || '';
+
+  var codes = Object.keys(BRANCHES).filter(function(c){
+    if (filter && c.indexOf(filter) !== 0) return false;
+    if (search) {
+      var name = (BRANCHES[c] || '').toLowerCase();
+      if (c.toLowerCase().indexOf(search) < 0 && name.indexOf(search) < 0) return false;
+    }
+    return true;
+  }).sort();
+
+  var html = '';
+  codes.forEach(function(code){
+    var name = BRANCHES[code] || '';
+    var brand = getBranchPrefix(code) || '-';
+    var bzm = BRANCH_BZM_MAP[code] || '';
+    var brandColor = code.indexOf('40') === 0 ? '#dc2626' : (code.indexOf('55') === 0 ? '#ea580c' : '#f97316');
+    html += '<tr>'
+      + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(code)+'</td>'
+      + '<td style="font-weight:600;font-size:13px;">'+escapeHtml(name)+'</td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;background:'+brandColor+'1a;color:'+brandColor+';border-radius:999px;font-weight:700;font-size:11px;">'+escapeHtml(brand)+'</span></td>'
+      + '<td style="font-size:12px;color:var(--text2);">'+(bzm ? escapeHtml(bzm) : '<span style="color:var(--text3);">—</span>')+'</td>'
+      + '<td style="text-align:center;white-space:nowrap;">'
+      +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openBranchEditModal(\''+escapeAttr(code)+'\')" title="แก้ไข">✏️ แก้ไข</button>'
+      +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteBranch(\''+escapeAttr(code)+'\')" title="ลบ">🗑</button>'
+      + '</td>'
+      + '</tr>';
+  });
+  if (!html) {
+    html = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3);">'+(search||filter?'ไม่พบสาขาที่ตรงกับเงื่อนไข':'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง')+'</td></tr>';
+  }
+  tbody.innerHTML = html;
+  var nEl = document.getElementById('branchMgmtCount');
+  if (nEl) nEl.textContent = Object.keys(BRANCHES).length;
+}
+
+function openBranchMgmtModal() {
+  document.getElementById('branchMgmtSearch').value = '';
+  document.getElementById('branchMgmtFilter').value = '';
+  renderBranchMgmtList();
+  document.getElementById('branchMgmtModal').classList.add('show');
+  // refresh จาก cloud (ถ้ามี)
+  loadBranchesFromCloud().then(renderBranchMgmtList).catch(function(){});
+}
+function closeBranchMgmtModal() {
+  document.getElementById('branchMgmtModal').classList.remove('show');
+}
+
+function _populateBzmOptions(selectedNick) {
+  var sel = document.getElementById('branchEditBzm');
+  if (!sel) return;
+  var bzms = USERS.filter(function(u){ return u.role === 'bzm'; })
+                  .map(function(u){ return u.nick || u.name; })
+                  .filter(function(v){ return !!v; });
+  // de-dup + รวม BZM ที่อยู่ใน mapping เก่าแต่อาจไม่อยู่ใน USERS
+  var existing = {};
+  bzms.forEach(function(n){ existing[n] = true; });
+  Object.keys(BRANCH_BZM_MAP).forEach(function(c){
+    var n = BRANCH_BZM_MAP[c];
+    if (n && !existing[n]) { bzms.push(n); existing[n] = true; }
+  });
+  bzms.sort(function(a,b){ return a.localeCompare(b, 'th'); });
+  sel.innerHTML = '<option value="">— ไม่ระบุ —</option>'
+    + bzms.map(function(n){
+        return '<option value="'+escapeAttr(n)+'"'+(n===selectedNick?' selected':'')+'>'+escapeHtml(n)+'</option>';
+      }).join('');
+}
+
+function openBranchEditModal(code) {
+  _editingBranchCode = code || null;
+  var isEdit = !!code;
+  document.getElementById('branchEditTitle').textContent = isEdit ? ('แก้ไขสาขา: ' + code) : 'เพิ่มสาขาใหม่';
+  document.getElementById('branchEditCode').value = isEdit ? code : '';
+  document.getElementById('branchEditCode').readOnly = isEdit;
+  document.getElementById('branchEditName').value = isEdit ? (BRANCHES[code] || '') : '';
+  _populateBzmOptions(isEdit ? (BRANCH_BZM_MAP[code] || '') : '');
+  var delBtn = document.getElementById('branchEditDeleteBtn');
+  if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
+  document.getElementById('branchEditModal').classList.add('show');
+}
+function closeBranchEditModal() {
+  document.getElementById('branchEditModal').classList.remove('show');
+  _editingBranchCode = null;
+}
+
+function saveBranchEdit() {
+  var code = document.getElementById('branchEditCode').value.trim();
+  var name = document.getElementById('branchEditName').value.trim();
+  var bzm = document.getElementById('branchEditBzm').value;
+
+  if (!/^\d{4}$/.test(code)) { showInfo('⚠️ รหัสไม่ถูกต้อง', 'รหัสสาขาต้องเป็นตัวเลข 4 หลักเท่านั้น'); return; }
+  if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อสาขา'); return; }
+  if (!_editingBranchCode && BRANCHES[code]) {
+    showInfo('⚠️ รหัสซ้ำ', 'รหัส <b>'+escapeHtml(code)+'</b> ถูกใช้แล้ว');
+    return;
+  }
+
+  BRANCHES[code] = name;
+  if (bzm) BRANCH_BZM_MAP[code] = bzm;
+  else delete BRANCH_BZM_MAP[code];
+
+  saveBranchesLocal();
+  renderBranchMgmtList();
+  closeBranchEditModal();
+  _syncBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveBranchesToCloud()
+    .then(function(){ _syncBranchesSync('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
+    .catch(function(err){ _syncBranchesSync('⚠ บันทึกในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+}
+
+function quickDeleteBranch(code) {
+  var name = BRANCHES[code] || '';
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบสาขานี้?',
+    desc: 'จะลบ <b>'+escapeHtml(name)+'</b> (รหัส '+escapeHtml(code)+') ออกถาวร — สาขานี้จะ login เข้าระบบไม่ได้อีก',
+    okText: 'ลบเลย'
+  }).then(function(ok){
+    if (!ok) return;
+    delete BRANCHES[code];
+    delete BRANCH_BZM_MAP[code];
+    saveBranchesLocal();
+    renderBranchMgmtList();
+    _syncBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
+    saveBranchesToCloud()
+      .then(function(){ _syncBranchesSync('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
+      .catch(function(err){ _syncBranchesSync('⚠ ลบในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+  });
+}
+
+function deleteCurrentBranch() {
+  if (!_editingBranchCode) return;
+  var code = _editingBranchCode;
+  closeBranchEditModal();
+  quickDeleteBranch(code);
+}
+
+function _syncBranchesSync(msg, color) {
+  var el = document.getElementById('branchMgmtSync');
   if (el) { el.textContent = msg; el.style.color = color || ''; }
 }
 
