@@ -739,6 +739,9 @@ body.is-admin .adm-only { display: flex; }
 
 .adm-only-block { display: none; }
 body.is-admin .adm-only-block { display: block; }
+/* admin-role-only: เฉพาะ role=admin (ไม่รวม vp/coo/bzm/franchise) */
+.admin-role-only { display: none !important; }
+body.is-admin-role .admin-role-only { display: inline-flex !important; }
 
 /* Coming-soon preview cards (admin-added announcements) */
 .menu-card-preview { background: #fffdf7; }
@@ -1924,7 +1927,7 @@ input[type=file] { display:none; }
     </div>
     <div class="adm-only-block" style="text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button class="admin-announce-btn" onclick="openManageAnnouncementsModal()"><span class="emoji-3d">📢</span> จัดการประกาศสำหรับสาขา</button>
-      <button class="admin-announce-btn" onclick="openUserMgmtModal()"><span class="emoji-3d">👥</span> จัดการผู้ใช้งาน Team Management</button>
+      <button class="admin-announce-btn admin-role-only" onclick="openUserMgmtModal()"><span class="emoji-3d">👥</span> จัดการผู้ใช้งาน Team Management</button>
     </div>
     <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:0;"></div>
     <div class="menu-grid" id="menuGrid"></div>
@@ -2947,10 +2950,13 @@ function showMenuView() {
     }
   }
   document.body.classList.toggle('is-admin', isAdminMode);
+  // is-admin-role = เฉพาะ role 'admin' (ปลดล็อกหน้าจัดการผู้ใช้)
+  var _curU = isAdminMode ? findUserByCode(branchPin) : null;
+  document.body.classList.toggle('is-admin-role', !!(_curU && _curU.role === 'admin'));
   renderMenuCards();
   // Refresh from cloud on view enter
   loadSystemsFromCloud().then(function(){ renderMenuCards(); });
-  if (isAdminMode) {
+  if (_curU && _curU.role === 'admin') {
     try { loadUsersFromCloud(); } catch (e) { console.warn('loadUsersFromCloud', e); }
   }
   window.scrollTo(0,0);
@@ -4164,6 +4170,7 @@ function logout() {
   requestRows = [];
   isAdminMode = false;
   document.body.classList.remove('is-admin');
+  document.body.classList.remove('is-admin-role');
   clearPin();
   hideError();
   window.scrollTo(0,0);
