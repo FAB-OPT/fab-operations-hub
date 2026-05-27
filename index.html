@@ -2448,15 +2448,27 @@ window.addEventListener('DOMContentLoaded', function() {
     if (role) {
       // Returning from module / cross-app — skip login
       // ถ้ามี ?return= → redirect ไปทันที (ไม่ต้องแสดง menu)
-      if (_redirectIfReturnUrl_()) return;
-      branchPin = sessionStorage.getItem('fab_branch_pin') || '';
-      currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
-      isAdminMode = (role === 'admin');
-      document.getElementById('loginView').style.display = 'none';
-      showMenuView();
-      // Show announcements (wait for cloud announcements to load first)
-      if (!isAdminMode) {
-        setTimeout(function(){ showBranchAnnouncementsModal(); }, 1200);
+      // BUT: ต้องมี fab_session ใน localStorage ด้วย ไม่งั้น target app จะ redirect กลับมา = loop
+      var hasSharedSession = false;
+      try { hasSharedSession = !!localStorage.getItem(FAB_SESSION_KEY); } catch(e) {}
+      if (hasSharedSession && _redirectIfReturnUrl_()) return;
+      // ถ้า sessionStorage มี role แต่ shared session ไม่มี → desync, ล้าง force re-login
+      if (_pendingReturnUrl && !hasSharedSession) {
+        console.warn('Session desync: sessionStorage has role but localStorage.fab_session missing — forcing re-login');
+        sessionStorage.removeItem('fab_role');
+        sessionStorage.removeItem('fab_branch_pin');
+        sessionStorage.removeItem('fab_branch_name');
+        // Fall through to show login (don't return)
+      } else {
+        branchPin = sessionStorage.getItem('fab_branch_pin') || '';
+        currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
+        isAdminMode = (role === 'admin');
+        document.getElementById('loginView').style.display = 'none';
+        showMenuView();
+        // Show announcements (wait for cloud announcements to load first)
+        if (!isAdminMode) {
+          setTimeout(function(){ showBranchAnnouncementsModal(); }, 1200);
+        }
       }
     } else {
       // Ensure PIN boxes rendered (in case earlyInit missed)
@@ -2579,16 +2591,21 @@ function _redirectIfReturnUrl_() {
   history = history.filter(function(t){ return now - t < 5000; });
   // ถ้ามีการ redirect ภายใน 5 วินาทีแล้ว 2 ครั้งขึ้นไป → loop
   if (history.length >= 2) {
-    console.warn('🔁 Detected redirect loop with', url, '— breaking and showing dashboard');
+    console.warn('🔁 Detected redirect loop with', url, '— clearing session + showing login');
     sessionStorage.removeItem(historyKey);
+    // Clear stale session ที่อาจทำให้ loop — บังคับให้ user login ใหม่
+    try {
+      sessionStorage.removeItem('fab_role');
+      sessionStorage.removeItem('fab_branch_pin');
+      sessionStorage.removeItem('fab_branch_name');
+      localStorage.removeItem(FAB_SESSION_KEY);
+    } catch(e) {}
     // แจ้ง user
     setTimeout(function(){
       if (typeof showInfo === 'function') {
-        showInfo('⚠️ Redirect loop ถูกตัด',
-          'ไม่สามารถเข้า ' + url + ' ได้ — ' +
-          'อาจเป็นเพราะ session ไม่ตรงกับที่ระบบนั้นต้องการ ' +
-          '(เช่น admin ที่ไม่มี brand)<br><br>' +
-          'ลองคลิกการ์ดอีกครั้งจากเมนู Hub');
+        showInfo('⚠️ Session มีปัญหา · ล้างแล้ว',
+          'ไม่สามารถเข้า ' + url + ' ได้เพราะ session อาจล้าสมัย<br>' +
+          'ระบบล้างข้อมูลแล้ว · กรุณาล็อกอินใหม่');
       }
     }, 300);
     return false;
