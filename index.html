@@ -1772,7 +1772,7 @@ input[type=file] { display:none; }
     <div class="adm-modal-body" id="adminAnnouncementsList"></div>
     <div class="adm-modal-footer">
       <button class="adm-btn-secondary" onclick="closeManageAnnouncementsModal()">ปิด</button>
-      <button class="adm-btn-primary" onclick="openAnnouncementEditor()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มประกาศใหม่</button>
+      <button class="adm-btn-primary admin-role-only" onclick="openAnnouncementEditor()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มประกาศใหม่</button>
     </div>
   </div>
 </div>
@@ -4137,12 +4137,21 @@ function openManageAnnouncementsModal() {
 function closeManageAnnouncementsModal() {
   document.getElementById('manageAnnouncementsModal').classList.remove('show');
 }
+function _isAdminRole() {
+  var u = findUserByCode(branchPin);
+  return !!(u && u.role === 'admin');
+}
+
 function renderAnnouncementsList() {
   var listEl = document.getElementById('adminAnnouncementsList');
   if (!ANNOUNCEMENTS.length) {
-    listEl.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text3);">ยังไม่มีประกาศ — กด "+ เพิ่มประกาศใหม่" ด้านล่างเพื่อสร้าง</div>';
+    var emptyMsg = _isAdminRole()
+      ? 'ยังไม่มีประกาศ — กด "+ เพิ่มประกาศใหม่" ด้านล่างเพื่อสร้าง'
+      : 'ยังไม่มีประกาศ';
+    listEl.innerHTML = '<div style="text-align:center;padding:36px 20px;color:var(--text3);">'+emptyMsg+'</div>';
     return;
   }
+  var canEdit = _isAdminRole();
   listEl.innerHTML = ANNOUNCEMENTS.map(function(a){
     var iconHtml = a.icon
       ? '<img src="'+a.icon+'" style="width:36px;height:36px;border-radius:8px;object-fit:contain;">'
@@ -4157,12 +4166,18 @@ function renderAnnouncementsList() {
       + '<div style="flex:1;min-width:0;"><div style="font-weight:700;color:var(--text);">'+escapeHtml(a.title)+'</div>'
       + '<div style="font-size:12px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(preview)+'</div>'
       + '<div style="font-size:11px;color:var(--text3);margin-top:4px;">📅 '+period+' · 🏪 '+branchCount+'</div></div></div>'
-      + '<button class="adm-btn-secondary" style="padding:7px 14px;font-size:12px;flex-shrink:0;" onclick="openAnnouncementEditor(\''+a.id+'\')">แก้ไข</button>'
+      + (canEdit
+          ? '<button class="adm-btn-secondary" style="padding:7px 14px;font-size:12px;flex-shrink:0;" onclick="openAnnouncementEditor(\''+a.id+'\')">แก้ไข</button>'
+          : '')
       + '</div>';
   }).join('');
 }
 
 function openAnnouncementEditor(id) {
+  if (!_isAdminRole()) {
+    showInfo('⚠️ ไม่มีสิทธิ์', 'เฉพาะ Admin เท่านั้นที่เพิ่ม/แก้ไขประกาศได้');
+    return;
+  }
   currentEditingAnnouncement = id || null;
   var a = id ? ANNOUNCEMENTS.find(function(x){return x.id===id;}) : null;
   document.getElementById('annEditorTitle').textContent = a ? 'แก้ไขประกาศ' : 'เพิ่มประกาศใหม่';
@@ -4193,6 +4208,7 @@ function toggleAllAnnBranches(checked) {
 }
 
 function saveAnnouncement() {
+  if (!_isAdminRole()) { showInfo('⚠️ ไม่มีสิทธิ์', 'เฉพาะ Admin เท่านั้นที่บันทึกประกาศได้'); return; }
   var emoji = document.getElementById('annEmoji').value.trim() || '📢';
   var title = document.getElementById('annTitle').value.trim();
   var message = document.getElementById('annMessage').value.trim();
@@ -4242,6 +4258,7 @@ function saveAnnouncement() {
 }
 
 function deleteAnnouncement() {
+  if (!_isAdminRole()) { showInfo('⚠️ ไม่มีสิทธิ์', 'เฉพาะ Admin เท่านั้นที่ลบประกาศได้'); return; }
   if (!currentEditingAnnouncement) return;
   var a = ANNOUNCEMENTS.find(function(x){return x.id===currentEditingAnnouncement;});
   customConfirm({
