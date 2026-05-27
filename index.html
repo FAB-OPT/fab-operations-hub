@@ -804,19 +804,17 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 
 /* ═══════════════════ ADMIN BADGE + ACTIONS ═══════════════════ */
 .admin-badge {
-  display: inline-flex; align-items: center; gap: 6px;
-  background: linear-gradient(135deg, rgba(239,68,68,0.12), rgba(220,38,38,0.06));
-  border: 1px solid rgba(239,68,68,0.32);
-  border-radius: 999px;
-  padding: 6px 14px;
+  display: inline-flex; align-items: center; gap: 8px;
+  background: transparent;
+  border: none;
+  padding: 4px 2px;
   font-family: 'Sarabun', sans-serif;
   font-weight: 700;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--red);
-  letter-spacing: 0.8px;
-  box-shadow: 0 2px 10px rgba(239,68,68,0.12);
+  letter-spacing: 0.3px;
 }
-.admin-badge svg { width:14px; height:14px; }
+.admin-badge svg { width:16px; height:16px; opacity:0.85; }
 
 .admin-actions {
   display: flex; flex-wrap: wrap; gap: 12px;
@@ -949,7 +947,8 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 .sys-tab {
   flex: none;
   padding: 14px 16px 12px;
-  font-size: 13px;
+  font-family: inherit;
+  font-size: 14px;
   font-weight: 700;
   color: var(--text2);
   background: transparent;
@@ -961,6 +960,7 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  letter-spacing: 0;
 }
 .sys-tab:hover { color: var(--text); background: rgba(245,158,11,0.05); }
 .sys-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
@@ -3699,6 +3699,18 @@ var BRAND_LABELS = {
   jaedaeng: { label: 'เจ๊แดง',     color: '#dc2626' }
 };
 
+/* render brand chip — ถ้า crossBrand → แสดงทั้ง 2 แบรนด์ */
+function _brandChipsHTML(user) {
+  if (user && user.crossBrand) {
+    return Object.keys(BRAND_LABELS).map(function(key){
+      var bl = BRAND_LABELS[key];
+      return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;margin:1px 2px 1px 0;">'+bl.label+'</span>';
+    }).join('');
+  }
+  var bl = BRAND_LABELS[user && user.brand] || { label: (user && user.brand) || '-', color: '#888' };
+  return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+bl.label+'</span>';
+}
+
 function populateUserVisibility(selectedUsers, hideFromAll) {
   selectedUsers = selectedUsers || [];
   var tbody = document.getElementById('settingsUserTbody');
@@ -3722,7 +3734,6 @@ function populateUserVisibility(selectedUsers, hideFromAll) {
     var isAdmin = u.role === 'admin';
     var checked = isAdmin || allChecked || selectedUsers.indexOf(u.code) >= 0;
     var rl = ROLE_LABELS[u.role] || { label: u.role || '-', color: '#888' };
-    var bl = BRAND_LABELS[u.brand] || { label: u.brand || '-', color: '#888' };
     html += '<tr'+(isAdmin?' style="background:rgba(168,85,247,0.04);"':'')+'>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(u.code)+'</td>'
       + '<td>'
@@ -3730,7 +3741,7 @@ function populateUserVisibility(selectedUsers, hideFromAll) {
       +   '<div style="font-size:11px;color:var(--text2);">'+escapeHtml(u.name || '')+'</div>'
       + '</td>'
       + '<td><span style="display:inline-block;padding:2px 8px;background:'+rl.color+'1a;color:'+rl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+rl.label+'</span></td>'
-      + '<td><span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+bl.label+'</span></td>'
+      + '<td>'+_brandChipsHTML(u)+'</td>'
       + '<td style="text-align:center;">'
       +   (isAdmin
           ? '<span title="Admin เห็นทุกระบบเสมอ" style="font-size:11px;color:var(--text3);">เห็นเสมอ</span>'
@@ -3766,7 +3777,6 @@ function renderUserMgmtList() {
   var html = '';
   sorted.forEach(function(u){
     var rl = ROLE_LABELS[u.role] || { label: u.role || '-', color: '#888' };
-    var bl = BRAND_LABELS[u.brand] || { label: u.brand || '-', color: '#888' };
     var isMe = (u.code === branchPin);
     html += '<tr'+(u.role==='admin'?' style="background:rgba(168,85,247,0.04);"':'')+'>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(u.code)
@@ -3776,10 +3786,8 @@ function renderUserMgmtList() {
       +   '<div style="font-weight:600;font-size:13px;">'+escapeHtml(u.nick || '-')+'</div>'
       +   '<div style="font-size:11px;color:var(--text2);">'+escapeHtml(u.name || '')+'</div>'
       + '</td>'
-      + '<td><span style="display:inline-block;padding:2px 8px;background:'+rl.color+'1a;color:'+rl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+rl.label+'</span>'
-      +   (u.crossBrand ? '<div style="font-size:10px;color:var(--text3);margin-top:3px;">⇄ cross-brand</div>' : '')
-      + '</td>'
-      + '<td><span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+bl.label+'</span></td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;background:'+rl.color+'1a;color:'+rl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+rl.label+'</span></td>'
+      + '<td>'+_brandChipsHTML(u)+'</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
       +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openUserEditModal(\''+escapeAttr(u.code)+'\')" title="แก้ไข">✏️ แก้ไข</button>'
       +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteUser(\''+escapeAttr(u.code)+'\')" title="ลบ"'+(isMe?' disabled':'')+'>🗑</button>'
