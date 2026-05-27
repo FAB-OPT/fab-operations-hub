@@ -1858,6 +1858,36 @@ input[type=file] { display:none; }
 #adminView.admin-shell ~ #adminTopbar { display: none !important; }
 
 /* Responsive — collapse to icon-only on tablet, hidden on small mobile */
+/* Mobile hamburger toggle button (hidden on desktop, shows on tablet/mobile) */
+.adm-mobile-toggle {
+  display: none;
+  position: fixed;
+  top: 12px; left: 12px;
+  width: 44px; height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(15,23,42,0.10);
+  background: #ffffff;
+  font-size: 20px;
+  cursor: pointer;
+  z-index: 70;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.10);
+  align-items: center; justify-content: center;
+  color: var(--text);
+}
+.adm-mobile-toggle:active { transform: scale(0.95); }
+
+/* Backdrop behind mobile sidebar overlay */
+.adm-mobile-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.45);
+  backdrop-filter: blur(2px);
+  z-index: 55;
+  animation: fadeIn 0.2s;
+}
+.adm-mobile-backdrop.show { display: block; }
+
+/* Tablet — collapse sidebar to icon-only */
 @media (max-width: 900px) {
   .admin-sidebar { width: 64px; padding: 12px 6px; }
   .admin-main { margin-left: 64px; }
@@ -1879,14 +1909,57 @@ input[type=file] { display:none; }
   .adm-side-user { padding: 4px; justify-content: center; }
   .adm-side-user::after { display: none; }
   .adm-side-account-actions { padding-top: 4px; }
-  .adm-side-user { justify-content: center; padding: 6px; }
   .adm-side-brand { justify-content: center; }
   .adm-side-header { padding-bottom: 10px; }
 }
-@media (max-width: 600px) {
-  .admin-sidebar { display: none; }
-  .admin-main { margin-left: 0; }
-  #adminView.admin-shell ~ #adminTopbar { display: flex !important; }
+
+/* Mobile — full sidebar as slide-in overlay (hidden by default) */
+@media (max-width: 700px) {
+  #adminView.admin-shell .admin-sidebar {
+    width: 280px;
+    padding: 18px 14px;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 4px 0 20px rgba(15,23,42,0.15);
+    z-index: 60;
+  }
+  #adminView.admin-shell .admin-sidebar.open { transform: translateX(0); }
+  /* Restore full sidebar content on mobile (was hidden in tablet mode) */
+  #adminView.admin-shell .admin-sidebar .adm-side-brand-info,
+  #adminView.admin-shell .admin-sidebar .adm-side-link-text,
+  #adminView.admin-shell .admin-sidebar .adm-side-user-info,
+  #adminView.admin-shell .admin-sidebar .adm-side-group-label,
+  #adminView.admin-shell .admin-sidebar .adm-side-chev { display: ''; }
+  #adminView.admin-shell .admin-sidebar .adm-side-children {
+    display: flex !important;
+    flex-direction: column;
+  }
+  #adminView.admin-shell .admin-sidebar .adm-side-collapsible:not(.open) .adm-side-children {
+    display: none !important;
+  }
+  #adminView.admin-shell .admin-sidebar .adm-side-link,
+  #adminView.admin-shell .admin-sidebar .adm-side-account-btn { justify-content: flex-start; padding: 11px 12px; }
+  #adminView.admin-shell .admin-sidebar .adm-side-link-text { display: inline; }
+  #adminView.admin-shell .admin-sidebar .adm-side-account-btn span:not(.adm-side-icon) { display: inline; }
+  #adminView.admin-shell .admin-sidebar .adm-side-brand-info { display: block; }
+  #adminView.admin-shell .admin-sidebar .adm-side-group-label { display: block; }
+  #adminView.admin-shell .admin-sidebar .adm-side-chev { display: inline; }
+  #adminView.admin-shell .admin-sidebar .adm-side-account {
+    padding: 14px 12px 10px; background: linear-gradient(160deg, #ffffff 0%, #fafaf9 65%, #f5f5f4 100%);
+    border: 1px solid rgba(15,23,42,0.08); box-shadow: 0 8px 24px -8px rgba(15,23,42,0.10);
+  }
+  #adminView.admin-shell .admin-sidebar .adm-side-account::before { display: block; }
+  #adminView.admin-shell .admin-sidebar .adm-side-user { padding: 2px 2px 12px; justify-content: flex-start; }
+  #adminView.admin-shell .admin-sidebar .adm-side-user::after { display: block; }
+  #adminView.admin-shell .admin-sidebar .adm-side-brand { justify-content: flex-start; }
+  #adminView.admin-shell .admin-sidebar .adm-side-logo { width: 48px; height: 48px; }
+  #adminView.admin-shell .admin-sidebar .adm-side-user-info { display: block; }
+  /* Content takes full width on mobile */
+  #adminView.admin-shell .admin-main { margin-left: 0; }
+  /* Show hamburger (only when admin mode is active) */
+  body.is-admin .adm-mobile-toggle { display: inline-flex; }
+  /* Section padding tighter */
+  .admin-main > [id^="adm-sec-"].active { padding: 70px 12px 16px; }
 }
 
 /* ═══════════════════ RESPONSIVE ═══════════════════ */
@@ -2733,6 +2806,18 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     display: flex; align-items: center; gap: 8px;
   }
   .req-history-table tbody td.cert-name::before { font-size: 13.5px; min-width: auto; color: var(--gold); }
+  /* Actions row: align buttons to right, hide "จัดการ" label */
+  .req-history-table tbody td[data-label="จัดการ"] {
+    justify-content: flex-end;
+    gap: 6px;
+    padding-top: 10px;
+    border-bottom: none;
+  }
+  .req-history-table tbody td[data-label="จัดการ"]::before { display: none; }
+  .req-history-table tbody td[data-label="จัดการ"] button {
+    width: 32px; height: 32px;
+    font-size: 13px;
+  }
   .req-history-wrap { overflow-x: visible; border: none; background: transparent; padding: 0; }
 }
 
@@ -2881,6 +2966,13 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 .req-filter-clear:hover {
   background: #fee2e2; color: #b91c1c;
+}
+@media (max-width: 700px) {
+  .req-filter-bar { padding: 8px 10px; gap: 4px; }
+  .req-filter-sel { flex: 1 1 calc(50% - 4px); min-width: 0; font-size: 12.5px; }
+  .req-filter-clear, .req-filter-refresh { font-size: 11.5px; padding: 6px 10px; }
+  .req-filter-clear { margin-left: 0; padding-left: 10px; }
+  .req-filter-clear::before { display: none; }
 }
 .req-filter-refresh {
   padding: 6px 13px;
@@ -3180,15 +3272,12 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   }
   /* ซ่อน column ที่ไม่จำเป็นบนมือถือ */
   #mainTable td[data-label="#"],
-  #mainTable td[data-label="ชื่อในระบบ"],
-  #mainTable td[data-label="สาขา"],
-  #mainTable td[data-label="ตำแหน่ง"],
   #mainTable td[data-label="Sheet"],
   #mainTable td[data-label="จับคู่"] { display: none !important; }
   /* td ที่เหลือ → block layout */
+  #mainTable td[data-label="สาขา"],
   #mainTable td[data-label="ชื่อในใบรับรอง"],
   #mainTable td[data-label="หลักสูตร"],
-  #mainTable td[data-label="วันอบรม"],
   #mainTable td[data-label="วันหมดอายุ"],
   #mainTable td[data-label="สถานะ"] {
     display: flex; align-items: flex-start; gap: 10px;
@@ -3215,14 +3304,14 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     font-weight: 800;
     color: var(--text);
     font-size: 15px;
-    padding-right: 44px !important;  /* เว้นที่ให้ปุ่มลบ */
+    padding-right: 76px !important;  /* เว้นที่ให้ปุ่มลบ+ดู */
     padding-bottom: 10px !important;
     border-bottom: 2px solid rgba(234,88,12,0.18) !important;
     margin-bottom: 4px;
   }
   #mainTable td.cert-name::before { color: var(--gold); }
-  /* ปุ่มลบ ลอยอยู่มุมขวาบนของ card — ขนาดเล็กลงให้พอดีในกรอบ */
-  #mainTable td[data-label="ลบ"] {
+  /* ปุ่ม view + ลบ ลอยอยู่มุมขวาบนของ card */
+  #mainTable td[data-label="จัดการ"] {
     position: absolute;
     top: 10px; right: 10px;
     padding: 0; border: none; background: none;
@@ -3232,8 +3321,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     z-index: 2;
     flex: 0 0 auto !important;
   }
-  #mainTable td[data-label="ลบ"]::before { display: none; }
-  #mainTable td[data-label="ลบ"] .btn-del-row {
+  #mainTable td[data-label="จัดการ"]::before { display: none; }
+  #mainTable td[data-label="จัดการ"] button {
     width: 28px !important;
     height: 28px !important;
     font-size: 13px !important;
@@ -4697,6 +4786,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   </div>
   <span id="topStatus" style="display:none;font-size:12px;color:var(--text3);font-family:'Sarabun',sans-serif;"></span>
 </div>
+
+<!-- Mobile hamburger toggle + backdrop (admin view only — visible <= 700px) -->
+<button class="adm-mobile-toggle" id="admMobileToggle" onclick="_toggleAdmMobileSidebar()" aria-label="เปิดเมนู">☰</button>
+<div class="adm-mobile-backdrop" id="admMobileBackdrop" onclick="_closeAdmMobileSidebar()"></div>
 
 <!-- ═════════════════════ ADMIN VIEW (hidden by default) ═════════════════════ -->
 <div id="adminView" class="admin-shell" style="display:none">
@@ -6466,6 +6559,30 @@ function _admToggleCollapse(name) {
   if (el) el.classList.toggle('open');
 }
 
+/* ─── Mobile sidebar toggle ─── */
+function _toggleAdmMobileSidebar() {
+  var sb = document.getElementById('adminSidebar');
+  var bd = document.getElementById('admMobileBackdrop');
+  if (!sb || !bd) return;
+  var open = sb.classList.toggle('open');
+  bd.classList.toggle('show', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function _closeAdmMobileSidebar() {
+  var sb = document.getElementById('adminSidebar');
+  var bd = document.getElementById('admMobileBackdrop');
+  if (sb) sb.classList.remove('open');
+  if (bd) bd.classList.remove('show');
+  document.body.style.overflow = '';
+}
+/* Auto-close sidebar when nav item clicked (on mobile) */
+document.addEventListener('click', function(e){
+  if (window.innerWidth > 700) return;
+  if (e.target.closest('.adm-side-link[data-target]')) {
+    setTimeout(_closeAdmMobileSidebar, 100);
+  }
+});
+
 /* ─── Generic Import Modal — kind: 'cert' (PDF) | 'registry' (Excel employees) ─── */
 var IMP_KIND_CONFIG = {
   cert: {
@@ -6726,6 +6843,7 @@ window.addEventListener('DOMContentLoaded', function() {
   if (isAdminMode) {
     document.getElementById('adminView').style.display = 'flex';
     document.getElementById('branchView').style.display = 'none';
+    document.body.classList.add('is-admin');
     _initAdminSidebar();
     // Sync user info in sidebar footer
     var adminName = 'Kantapon';
