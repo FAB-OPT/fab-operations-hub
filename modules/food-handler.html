@@ -1858,23 +1858,197 @@ input[type=file] { display:none; }
 #adminView.admin-shell ~ #adminTopbar { display: none !important; }
 
 /* Responsive — collapse to icon-only on tablet, hidden on small mobile */
-/* Mobile hamburger toggle button (hidden on desktop, shows on tablet/mobile) */
-.adm-mobile-toggle {
+/* Mobile top bar (sticky header: logo + section title + avatar) */
+.adm-mobile-bar {
   display: none;
   position: fixed;
-  top: 12px; left: 12px;
-  width: 44px; height: 44px;
-  border-radius: 12px;
-  border: 1px solid rgba(15,23,42,0.10);
-  background: #ffffff;
-  font-size: 20px;
-  cursor: pointer;
-  z-index: 70;
-  box-shadow: 0 4px 12px rgba(15,23,42,0.10);
-  align-items: center; justify-content: center;
-  color: var(--text);
+  top: 0; left: 0; right: 0;
+  height: 56px;
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(15,23,42,0.08);
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  z-index: 65;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 4px 12px -4px rgba(15,23,42,0.04);
 }
-.adm-mobile-toggle:active { transform: scale(0.95); }
+.adm-mobile-brand { flex-shrink: 0; }
+.adm-mobile-logo { width: 32px; height: 32px; object-fit: contain; }
+.adm-mobile-title {
+  flex: 1; min-width: 0;
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 800;
+  font-size: 15px;
+  color: var(--text);
+  letter-spacing: -0.2px;
+}
+.adm-mobile-title-icon { font-size: 18px; line-height: 1; }
+.adm-mobile-title-text { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adm-mobile-user-btn {
+  flex-shrink: 0;
+  width: 40px; height: 40px;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  border-radius: 50%;
+  display: inline-flex; align-items: center; justify-content: center;
+}
+.adm-mobile-user-btn:active { transform: scale(0.94); }
+.adm-mobile-user {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 13px;
+  box-shadow: 0 3px 8px rgba(234,88,12,0.30), 0 0 0 2px #ffffff, 0 0 0 3px rgba(234,88,12,0.12);
+}
+
+/* ═══════════════════ Mobile bottom tab bar ═══════════════════ */
+.adm-bottom-tabs {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid rgba(15,23,42,0.08);
+  z-index: 65;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom));
+  box-shadow: 0 -4px 14px -4px rgba(15,23,42,0.06);
+}
+.adm-tab {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 2px;
+  padding: 8px 4px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 10px;
+  color: var(--text3);
+  font-family: inherit;
+  transition: all 0.15s;
+  position: relative;
+}
+.adm-tab:active { transform: scale(0.94); }
+.adm-tab-icon { font-size: 22px; line-height: 1; transition: transform 0.15s; }
+.adm-tab-label { font-size: 11px; font-weight: 700; letter-spacing: 0.1px; }
+.adm-tab.active {
+  color: var(--gold);
+}
+.adm-tab.active .adm-tab-icon { transform: scale(1.05); }
+.adm-tab.active::before {
+  content: '';
+  position: absolute; top: 4px;
+  left: 50%; transform: translateX(-50%);
+  width: 24px; height: 3px;
+  background: var(--gold);
+  border-radius: 0 0 3px 3px;
+}
+
+/* ═══════════════════ Action sheets (bottom slide-in) ═══════════════════ */
+.adm-sheet-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.45);
+  backdrop-filter: blur(2px);
+  z-index: 75;
+}
+.adm-sheet-backdrop.show { display: block; animation: fadeIn 0.2s; }
+.adm-sheet {
+  display: none;
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 80;
+  pointer-events: none;
+}
+.adm-sheet.show {
+  display: block;
+  pointer-events: auto;
+  animation: sheetUp 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+@keyframes sheetUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+.adm-sheet-inner {
+  background: #ffffff;
+  border-radius: 24px 24px 0 0;
+  padding: 8px 14px calc(14px + env(safe-area-inset-bottom));
+  box-shadow: 0 -10px 40px -10px rgba(15,23,42,0.25);
+}
+.adm-sheet-handle {
+  width: 40px; height: 4px;
+  background: rgba(15,23,42,0.15);
+  border-radius: 999px;
+  margin: 0 auto 14px;
+}
+.adm-sheet-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: var(--text);
+  padding: 0 8px 14px;
+}
+.adm-sheet-btn {
+  width: 100%;
+  display: flex; align-items: center; gap: 14px;
+  padding: 12px 12px;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  border-radius: 12px;
+  text-align: left;
+  font-family: inherit;
+  transition: background 0.15s;
+}
+.adm-sheet-btn:active { background: rgba(15,23,42,0.04); }
+.adm-sheet-btn-icon {
+  flex-shrink: 0;
+  width: 42px; height: 42px;
+  border-radius: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-size: 19px;
+}
+.adm-sheet-btn-title {
+  font-size: 14.5px; font-weight: 700; color: var(--text);
+  line-height: 1.3;
+}
+.adm-sheet-btn-sub {
+  font-size: 12px; color: var(--text3);
+  margin-top: 2px; line-height: 1.4;
+}
+.adm-sheet-cancel {
+  width: 100%;
+  padding: 12px;
+  background: rgba(15,23,42,0.04);
+  border: 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text2);
+  cursor: pointer;
+  margin-top: 8px;
+  font-family: inherit;
+}
+.adm-sheet-cancel:active { background: rgba(15,23,42,0.08); }
+.adm-sheet-user-card {
+  display: flex; align-items: center; gap: 14px;
+  padding: 8px 8px 18px;
+  margin-bottom: 4px;
+  border-bottom: 1px solid rgba(15,23,42,0.06);
+}
+.adm-sheet-user-avatar {
+  width: 52px; height: 52px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff;
+  display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 800; font-size: 21px;
+  box-shadow: 0 4px 12px rgba(234,88,12,0.32), 0 0 0 3px #fff, 0 0 0 4px rgba(234,88,12,0.12);
+}
+.adm-sheet-user-name { font-size: 16px; font-weight: 800; color: var(--text); }
+.adm-sheet-user-role { font-size: 12px; color: var(--text3); margin-top: 2px; }
 
 /* Backdrop behind mobile sidebar overlay */
 .adm-mobile-backdrop {
@@ -1913,16 +2087,11 @@ input[type=file] { display:none; }
   .adm-side-header { padding-bottom: 10px; }
 }
 
-/* Mobile — full sidebar as slide-in overlay (hidden by default) */
+/* Mobile — hide sidebar entirely (bottom tabs replace it); top bar + bottom tabs show */
 @media (max-width: 700px) {
-  #adminView.admin-shell .admin-sidebar {
-    width: 280px;
-    padding: 18px 14px;
-    transform: translateX(-100%);
-    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 4px 0 20px rgba(15,23,42,0.15);
-    z-index: 60;
-  }
+  #adminView.admin-shell .admin-sidebar { display: none; }
+  body.is-admin .adm-bottom-tabs { display: flex; }
+  /* Legacy fallback — keep sidebar overlay rules but unused */
   #adminView.admin-shell .admin-sidebar.open { transform: translateX(0); }
   /* Restore full sidebar content on mobile (was hidden in tablet mode) */
   #adminView.admin-shell .admin-sidebar .adm-side-brand-info,
@@ -1956,10 +2125,24 @@ input[type=file] { display:none; }
   #adminView.admin-shell .admin-sidebar .adm-side-user-info { display: block; }
   /* Content takes full width on mobile */
   #adminView.admin-shell .admin-main { margin-left: 0; }
-  /* Show hamburger (only when admin mode is active) */
-  body.is-admin .adm-mobile-toggle { display: inline-flex; }
-  /* Section padding tighter */
-  .admin-main > [id^="adm-sec-"].active { padding: 70px 12px 16px; }
+  /* Show mobile top bar (only when admin mode is active) */
+  body.is-admin .adm-mobile-bar { display: flex; }
+  /* Section padding tighter — account for sticky top bar 56px + bottom tabs ~64px */
+  .admin-main > [id^="adm-sec-"].active { padding: 72px 14px 90px; }
+  /* Count cards spacing on mobile */
+  .req-count-row { gap: 10px; margin-bottom: 14px; }
+  .req-count-card { padding: 14px 16px; min-height: 80px; }
+  .req-count-card-num { font-size: 32px; letter-spacing: -1px; }
+  .req-count-card-label { font-size: 12.5px; }
+  /* Cert stats spacing */
+  .stats-row { gap: 10px; margin-top: 0 !important; }
+  .stat-item { padding: 14px 16px !important; gap: 8px; }
+  .stat-n { font-size: 32px !important; }
+  .stat-l { font-size: 12.5px !important; }
+  /* Section content container */
+  .table-container { padding: 12px; }
+  /* Padding to clear sticky bar when modal opens */
+  .summary-overlay { padding-top: 60px; }
 }
 
 /* ═══════════════════ RESPONSIVE ═══════════════════ */
@@ -4718,7 +4901,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
       <div id="branchResults" class="result-grid"></div>
       <div class="step1-cta" id="step1Cta">
         <button type="button" class="btn-reveal-step2" onclick="revealStep2()">
-          📋 หากไม่พบรายชื่อหรือใกล้หมดอายุ คลิกเพื่อส่งรายชื่อ
+          📋 คลิกเพื่อส่งรายชื่อ
           <span class="cta-arrow">↓</span>
         </button>
       </div>
@@ -4787,8 +4970,121 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <span id="topStatus" style="display:none;font-size:12px;color:var(--text3);font-family:'Sarabun',sans-serif;"></span>
 </div>
 
-<!-- Mobile hamburger toggle + backdrop (admin view only — visible <= 700px) -->
-<button class="adm-mobile-toggle" id="admMobileToggle" onclick="_toggleAdmMobileSidebar()" aria-label="เปิดเมนู">☰</button>
+<!-- Mobile top bar (admin view only — visible <= 700px): section title + avatar -->
+<header class="adm-mobile-bar" id="admMobileBar">
+  <div class="adm-mobile-brand">
+    <img src="../logo.png" alt="FAB" class="adm-mobile-logo">
+  </div>
+  <div class="adm-mobile-title">
+    <span class="adm-mobile-title-icon" id="admMobileSectionIcon">📜</span>
+    <span class="adm-mobile-title-text" id="admMobileSectionText">ข้อมูลใบรับรอง</span>
+  </div>
+  <button class="adm-mobile-user-btn" onclick="_admOpenUserSheet()">
+    <span class="adm-mobile-user" id="admMobileUser">K</span>
+  </button>
+</header>
+
+<!-- Mobile bottom tab bar (admin view only — visible <= 700px) -->
+<nav class="adm-bottom-tabs" id="admBottomTabs">
+  <button class="adm-tab" data-target="adm-sec-cert" onclick="showAdmSection('adm-sec-cert')">
+    <span class="adm-tab-icon">📜</span>
+    <span class="adm-tab-label">ใบรับรอง</span>
+  </button>
+  <button class="adm-tab" data-target="adm-sec-requests" onclick="showAdmSection('adm-sec-requests')">
+    <span class="adm-tab-icon">📋</span>
+    <span class="adm-tab-label">คำขอ</span>
+  </button>
+  <button class="adm-tab" onclick="_admOpenSheet('admImportSheet')">
+    <span class="adm-tab-icon">📥</span>
+    <span class="adm-tab-label">นำเข้า</span>
+  </button>
+  <button class="adm-tab" onclick="_admOpenSheet('admExportSheet')">
+    <span class="adm-tab-icon">📤</span>
+    <span class="adm-tab-label">ออก</span>
+  </button>
+</nav>
+
+<!-- Action sheets (mobile only — bottom sheet style) -->
+<div class="adm-sheet" id="admImportSheet">
+  <div class="adm-sheet-inner">
+    <div class="adm-sheet-handle"></div>
+    <div class="adm-sheet-title">📥 เลือกประเภทการนำเข้า</div>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); openImportModal('cert')">
+      <span class="adm-sheet-btn-icon" style="background:#fee2e2;color:#dc2626">📄</span>
+      <div>
+        <div class="adm-sheet-btn-title">นำเข้าข้อมูลใบรับรอง</div>
+        <div class="adm-sheet-btn-sub">PDF ใบรับรองอบรม สูงสุด 20 ไฟล์</div>
+      </div>
+    </button>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); openImportModal('registry')">
+      <span class="adm-sheet-btn-icon" style="background:#dcfce7;color:#15803d">👥</span>
+      <div>
+        <div class="adm-sheet-btn-title">นำเข้ารายชื่อพนักงาน</div>
+        <div class="adm-sheet-btn-sub">Excel ทะเบียนพนักงาน (.xlsx/.xls/.csv)</div>
+      </div>
+    </button>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); openImportRequestsModal()">
+      <span class="adm-sheet-btn-icon" style="background:#dbeafe;color:#1e40af">📋</span>
+      <div>
+        <div class="adm-sheet-btn-title">นำเข้าคำขออบรม</div>
+        <div class="adm-sheet-btn-sub">Excel รายชื่ออบรม สำหรับแบรนด์อื่นๆ</div>
+      </div>
+    </button>
+    <button class="adm-sheet-cancel" onclick="_admCloseAllSheets()">ยกเลิก</button>
+  </div>
+</div>
+
+<div class="adm-sheet" id="admExportSheet">
+  <div class="adm-sheet-inner">
+    <div class="adm-sheet-handle"></div>
+    <div class="adm-sheet-title">📤 เลือกรูปแบบรายงาน</div>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); openExportPDFModal()">
+      <span class="adm-sheet-btn-icon" style="background:#fee2e2;color:#dc2626">📄</span>
+      <div>
+        <div class="adm-sheet-btn-title">ออกรายงาน PDF</div>
+        <div class="adm-sheet-btn-sub">เลือก filter ก่อน · พิมพ์ได้</div>
+      </div>
+    </button>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); exportTrainingForm()">
+      <span class="adm-sheet-btn-icon" style="background:#dcfce7;color:#15803d">📊</span>
+      <div>
+        <div class="adm-sheet-btn-title">ออก Excel</div>
+        <div class="adm-sheet-btn-sub">ฟอร์มรายชื่ออบรม .xlsx</div>
+      </div>
+    </button>
+    <button class="adm-sheet-cancel" onclick="_admCloseAllSheets()">ยกเลิก</button>
+  </div>
+</div>
+
+<div class="adm-sheet" id="admUserSheet">
+  <div class="adm-sheet-inner">
+    <div class="adm-sheet-handle"></div>
+    <div class="adm-sheet-user-card">
+      <div class="adm-sheet-user-avatar" id="admSheetUserAvatar">K</div>
+      <div>
+        <div class="adm-sheet-user-name"><span id="admSheetUserName">Kantapon</span> <span class="adm-side-user-tag">(ADMIN)</span></div>
+        <div class="adm-sheet-user-role">ผู้ดูแลระบบ · FAB</div>
+      </div>
+    </div>
+    <button class="adm-sheet-btn" onclick="_admCloseAllSheets(); goToMenu()">
+      <span class="adm-sheet-btn-icon" style="background:rgba(15,23,42,0.06);color:var(--text)">←</span>
+      <div>
+        <div class="adm-sheet-btn-title">กลับเมนูหลัก</div>
+        <div class="adm-sheet-btn-sub">ไปยัง Hub</div>
+      </div>
+    </button>
+    <button class="adm-sheet-btn adm-sheet-btn-danger" onclick="_admCloseAllSheets(); logout()">
+      <span class="adm-sheet-btn-icon" style="background:#fee2e2;color:#dc2626">⏻</span>
+      <div>
+        <div class="adm-sheet-btn-title" style="color:#dc2626">ออกจากระบบ</div>
+        <div class="adm-sheet-btn-sub">กลับไปหน้า Login</div>
+      </div>
+    </button>
+    <button class="adm-sheet-cancel" onclick="_admCloseAllSheets()">ปิด</button>
+  </div>
+</div>
+
+<div class="adm-sheet-backdrop" id="admSheetBackdrop" onclick="_admCloseAllSheets()"></div>
 <div class="adm-mobile-backdrop" id="admMobileBackdrop" onclick="_closeAdmMobileSidebar()"></div>
 
 <!-- ═════════════════════ ADMIN VIEW (hidden by default) ═════════════════════ -->
@@ -6566,6 +6862,7 @@ function _toggleAdmMobileSidebar() {
   if (!sb || !bd) return;
   var open = sb.classList.toggle('open');
   bd.classList.toggle('show', open);
+  document.body.classList.toggle('adm-side-open', open);
   document.body.style.overflow = open ? 'hidden' : '';
 }
 function _closeAdmMobileSidebar() {
@@ -6573,8 +6870,44 @@ function _closeAdmMobileSidebar() {
   var bd = document.getElementById('admMobileBackdrop');
   if (sb) sb.classList.remove('open');
   if (bd) bd.classList.remove('show');
+  document.body.classList.remove('adm-side-open');
   document.body.style.overflow = '';
 }
+/* Sync section title in mobile top bar + active state on bottom tabs */
+var ADM_SECTION_META = {
+  'adm-sec-cert':     { icon: '📜', title: 'ข้อมูลใบรับรอง' },
+  'adm-sec-requests': { icon: '📋', title: 'คำขออบรม' },
+  'adm-sec-import':   { icon: '📥', title: 'นำเข้าข้อมูล' }
+};
+function _updateMobileSectionLabel(targetId) {
+  var meta = ADM_SECTION_META[targetId];
+  if (!meta) return;
+  var iEl = document.getElementById('admMobileSectionIcon');
+  var tEl = document.getElementById('admMobileSectionText');
+  if (iEl) iEl.textContent = meta.icon;
+  if (tEl) tEl.textContent = meta.title;
+  // Sync bottom tabs active state
+  document.querySelectorAll('.adm-tab[data-target]').forEach(function(t){
+    t.classList.toggle('active', t.getAttribute('data-target') === targetId);
+  });
+}
+
+/* Mobile action sheets */
+function _admOpenSheet(id) {
+  var bd = document.getElementById('admSheetBackdrop');
+  document.querySelectorAll('.adm-sheet').forEach(function(s){ s.classList.remove('show'); });
+  var sh = document.getElementById(id);
+  if (sh) sh.classList.add('show');
+  if (bd) bd.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function _admCloseAllSheets() {
+  document.querySelectorAll('.adm-sheet').forEach(function(s){ s.classList.remove('show'); });
+  var bd = document.getElementById('admSheetBackdrop');
+  if (bd) bd.classList.remove('show');
+  document.body.style.overflow = '';
+}
+function _admOpenUserSheet() { _admOpenSheet('admUserSheet'); }
 /* Auto-close sidebar when nav item clicked (on mobile) */
 document.addEventListener('click', function(e){
   if (window.innerWidth > 700) return;
@@ -6791,6 +7124,8 @@ function showAdmSection(targetId) {
   links.forEach(function(l){
     l.classList.toggle('active', l.getAttribute('data-target') === targetId);
   });
+  // Sync mobile section label
+  if (typeof _updateMobileSectionLabel === 'function') _updateMobileSectionLabel(targetId);
   // Persist + scroll to top
   try { sessionStorage.setItem(ADM_SEC_KEY, targetId); } catch(e) {}
   window.scrollTo({ top: 0, behavior: 'instant' });
@@ -6849,8 +7184,14 @@ window.addEventListener('DOMContentLoaded', function() {
     var adminName = 'Kantapon';
     var nameEl = document.getElementById('admUserName');
     var avEl = document.getElementById('admUserAvatar');
+    var mUserEl = document.getElementById('admMobileUser');
+    var sUserNameEl = document.getElementById('admSheetUserName');
+    var sUserAvEl = document.getElementById('admSheetUserAvatar');
     if (nameEl) nameEl.textContent = adminName;
     if (avEl) avEl.textContent = adminName.charAt(0).toUpperCase();
+    if (mUserEl) mUserEl.textContent = adminName.charAt(0).toUpperCase();
+    if (sUserNameEl) sUserNameEl.textContent = adminName;
+    if (sUserAvEl) sUserAvEl.textContent = adminName.charAt(0).toUpperCase();
     var adminTag = document.getElementById('adminTag');
     var adminTagHtml = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
     if (adminTag) adminTag.innerHTML = adminTagHtml;
