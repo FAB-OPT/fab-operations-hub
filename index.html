@@ -2355,6 +2355,37 @@ var BRANCHES = {
   '4015':'เดอะมอลล์ ท่าพระ','4018':'เทอมินัล 21 พระราม 3'
 };
 
+/* Branch → BZM nick mapping (Santa Fe) — used for SSO session.bzm field
+   Source: ขอบเขตงาน BZM ปัจจุบัน (ส่งโดยผู้ใช้) · revise here when ผู้ดูแลเปลี่ยน */
+var BRANCH_BZM_MAP = {
+  // พี่นพ
+  '5001':'พี่นพ','5002':'พี่นพ','5016':'พี่นพ','5041':'พี่นพ','5045':'พี่นพ',
+  '5069':'พี่นพ','5072':'พี่นพ','5084':'พี่นพ','5085':'พี่นพ','5087':'พี่นพ',
+  '5091':'พี่นพ','5505':'พี่นพ',
+  // พี่ปิ๊ก
+  '5003':'พี่ปิ๊ก','5007':'พี่ปิ๊ก','5017':'พี่ปิ๊ก','5021':'พี่ปิ๊ก','5024':'พี่ปิ๊ก',
+  '5031':'พี่ปิ๊ก','5034':'พี่ปิ๊ก','5036':'พี่ปิ๊ก','5040':'พี่ปิ๊ก','5054':'พี่ปิ๊ก',
+  '5071':'พี่ปิ๊ก','5508':'พี่ปิ๊ก',
+  // พี่เจี๊ยบ
+  '5004':'พี่เจี๊ยบ','5011':'พี่เจี๊ยบ','5028':'พี่เจี๊ยบ','5042':'พี่เจี๊ยบ','5052':'พี่เจี๊ยบ',
+  '5057':'พี่เจี๊ยบ','5066':'พี่เจี๊ยบ','5070':'พี่เจี๊ยบ','5076':'พี่เจี๊ยบ','5082':'พี่เจี๊ยบ',
+  '5509':'พี่เจี๊ยบ',
+  // พี่รุต
+  '5005':'พี่รุต','5010':'พี่รุต','5019':'พี่รุต','5038':'พี่รุต','5044':'พี่รุต',
+  '5046':'พี่รุต','5055':'พี่รุต','5065':'พี่รุต','5074':'พี่รุต','5080':'พี่รุต',
+  '5088':'พี่รุต',
+  // พี่หยี
+  '5013':'พี่หยี','5014':'พี่หยี','5015':'พี่หยี','5023':'พี่หยี','5035':'พี่หยี',
+  '5039':'พี่หยี','5049':'พี่หยี','5061':'พี่หยี','5062':'พี่หยี','5063':'พี่หยี',
+  '5064':'พี่หยี',
+  // พี่เอ็ม
+  '5012':'พี่เอ็ม','5018':'พี่เอ็ม','5026':'พี่เอ็ม','5027':'พี่เอ็ม','5030':'พี่เอ็ม',
+  '5033':'พี่เอ็ม','5047':'พี่เอ็ม','5050':'พี่เอ็ม','5068':'พี่เอ็ม','5073':'พี่เอ็ม',
+  '5081':'พี่เอ็ม','5089':'พี่เอ็ม','5090':'พี่เอ็ม','5504':'พี่เอ็ม',
+  // พี่บิ๊ก
+  '5077':'พี่บิ๊ก','5078':'พี่บิ๊ก','5079':'พี่บิ๊ก'
+};
+
 function getBranchPrefix(code) {
   if (!code) return '';
   if (code.indexOf('55') === 0) return 'Santa Fe Easy';
@@ -2580,26 +2611,31 @@ function _deriveBrand(branchCode) {
 function saveFabSession(role, pin, branchCode, branchName) {
   var session;
   if (role === 'branch') {
+    var bcode = String(branchCode || '');
     session = {
       code: String(pin || ''),
       name: branchName || '',
       nick: '',
       role: 'branch',
-      brand: _deriveBrand(branchCode),
+      title: 'สาขา',                              // Checklist SSO spec
+      brand: _deriveBrand(bcode),
       crossBrand: false,
-      branchCode: String(branchCode || ''),
+      branchCode: bcode,
       branchName: branchName || '',
+      bzm: BRANCH_BZM_MAP[bcode] || '',           // ชื่อเล่น BZM ที่ดูแลสาขานี้
       loggedInAt: new Date().toISOString()
     };
   } else {
     // Team Management: lookup จาก USERS database
     var user = findUserByCode(pin);
+    var roleTitle = { admin:'Admin', coo:'COO', vp:'VP', bzm:'BZM', franchise:'Franchise' };
     if (user) {
       session = {
         code: user.code,
         name: user.name,
         nick: user.nick || '',
         role: user.role,                          // 'admin' | 'vp' | 'coo' | 'bzm' | 'franchise'
+        title: roleTitle[user.role] || user.role || '',
         brand: user.brand || null,
         crossBrand: !!user.crossBrand,
         branchCode: undefined,
@@ -2611,7 +2647,7 @@ function saveFabSession(role, pin, branchCode, branchName) {
       session = {
         code: String(pin || ''),
         name: 'กันตภณ ลาภมงคลนาวิน', nick: 'พี่กาย',
-        role: 'admin', brand: null, crossBrand: true,
+        role: 'admin', title: 'Admin', brand: null, crossBrand: true,
         loggedInAt: new Date().toISOString()
       };
     }
@@ -3221,8 +3257,10 @@ function openSystem(systemId) {
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'checklist') {
     // SSO: session อยู่ใน localStorage แล้ว (จาก saveFabSession ตอน login)
-    // → ไป /Checklist/ ฝั่ง Checklist จะอ่าน fab_session แล้ว skip PIN
-    window.location.href = '/Checklist/';
+    // → ไป Checklist · ฝั่ง Checklist จะอ่าน fab_session แล้ว skip PIN
+    // file:// → ใช้ relative path (../Checklist/) · http(s) → ใช้ absolute (/Checklist/)
+    var target = (location.protocol === 'file:') ? '../Checklist/index.html' : '/Checklist/';
+    window.location.href = target;
     return;
   }
   if (s.url) { window.open(s.url, '_blank'); return; }
