@@ -2845,11 +2845,22 @@ var DEFAULT_SYSTEMS = [{
   endDate: '',
   builtIn: true
 }, {
-  id: 'checklist',
+  id: 'checklist-santafe',
   emoji: '✅',
   icon: 'icons/checklist.png',
-  name: 'Operations Standard Skill & Operations Checklist',
-  desc: 'ระบบตรวจสอบมาตรฐานการทำงาน',
+  name: 'ซานตาเฟ่ Operations Standard Skill & Operations Checklist',
+  desc: 'ระบบตรวจสอบมาตรฐานการทำงาน · แบรนด์ซานตาเฟ่',
+  url: '',
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  id: 'checklist-jaedaeng',
+  emoji: '✅',
+  icon: 'icons/checklist.png',
+  name: 'เจ๊แดง Quality Service Cleanliness & Operations Checklist',
+  desc: 'ระบบตรวจสอบมาตรฐาน QSC · แบรนด์เจ๊แดง',
   url: '',
   visibleBranches: [],
   startDate: '',
@@ -2858,6 +2869,8 @@ var DEFAULT_SYSTEMS = [{
 }];
 
 function _injectBuiltInSystems_() {
+  // ลบ legacy 'checklist' (ปุ่มเดียว) — ถูกแยกเป็น checklist-santafe / checklist-jaedaeng
+  SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== 'checklist'; });
   // ensure ทุก built-in system ใน DEFAULT_SYSTEMS อยู่ใน SYSTEMS
   DEFAULT_SYSTEMS.forEach(function(def){
     var existing = SYSTEMS.find(function(x){ return x.id === def.id; });
@@ -3272,23 +3285,25 @@ function openSystem(systemId) {
   if (!s) return;
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
-  if (systemId === 'checklist') {
+  if (systemId === 'checklist' || systemId === 'checklist-santafe' || systemId === 'checklist-jaedaeng') {
+    // brand override จาก id ปุ่ม (Hub แยกเป็น 2 ปุ่ม ส่งไป Checklist ผ่าน ?brand=)
+    var brandParam = (systemId === 'checklist-jaedaeng') ? 'jaedaeng'
+                    : (systemId === 'checklist-santafe') ? 'santafe'
+                    : '';
     // SSO: ก่อน redirect → re-save session ให้ fresh (refresh loggedInAt)
-    // เพื่อกัน Checklist ตี TTL expired แม้เพิ่ง login ก็ตาม
     try {
       var role = sessionStorage.getItem('fab_role'); // 'admin' | 'branch'
       var pin = sessionStorage.getItem('fab_branch_pin');
       var bname = sessionStorage.getItem('fab_branch_name');
       if (pin) {
         saveFabSession(role === 'branch' ? 'branch' : 'tm', pin, pin, bname);
-        console.log('[SSO] re-saved fab_session before Checklist redirect', { role: role, pin: pin });
+        console.log('[SSO] re-saved fab_session before Checklist redirect', { role: role, pin: pin, brand: brandParam });
       } else {
         console.warn('[SSO] no PIN in sessionStorage — fab_session not refreshed');
       }
     } catch (e) { console.error('[SSO] re-save failed:', e); }
-    // → ไป Checklist · ฝั่ง Checklist จะอ่าน fab_session แล้ว skip PIN
-    // file:// → ใช้ relative path (../Checklist/) · http(s) → ใช้ absolute (/Checklist/)
-    var target = (location.protocol === 'file:') ? '../Checklist/index.html' : '/Checklist/';
+    var base = (location.protocol === 'file:') ? '../Checklist/index.html' : '/Checklist/';
+    var target = brandParam ? (base + '?brand=' + brandParam) : base;
     window.location.href = target;
     return;
   }
