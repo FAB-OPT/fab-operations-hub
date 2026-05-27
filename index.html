@@ -804,33 +804,20 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 
 /* ═══════════════════ ADMIN BADGE + ACTIONS ═══════════════════ */
 .admin-badge {
-  display: inline-flex; align-items: center; gap: 10px;
+  display: inline-flex; align-items: center; gap: 6px;
   background: transparent;
   border: none;
-  padding: 2px;
+  padding: 4px 2px;
   font-family: 'Sarabun', sans-serif;
+  font-weight: 700;
+  font-size: 14px;
   color: var(--text);
+  letter-spacing: 0.2px;
 }
-.admin-badge-avatar {
-  width: 36px; height: 36px;
-  border-radius: 50%;
-  background: linear-gradient(135deg, #ef4444, #b91c1c);
-  color: #fff;
-  font-weight: 800;
-  font-size: 15px;
-  display: inline-flex; align-items: center; justify-content: center;
-  flex: none;
-  letter-spacing: 0.5px;
-  box-shadow: 0 4px 12px rgba(239,68,68,0.28);
-}
-.admin-badge-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
-.admin-badge-name { font-weight: 700; font-size: 13px; color: var(--text); }
 .admin-badge-role {
-  font-size: 10px; font-weight: 800;
   color: var(--red);
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-  margin-top: 2px;
+  font-weight: 800;
+  letter-spacing: 0.6px;
 }
 
 .admin-actions {
@@ -3130,18 +3117,12 @@ function showMenuView() {
   if (tag) {
     if (isAdminMode) {
       var u = findUserByCode(branchPin);
-      // เอาแค่ชื่อแรก (ก่อนช่องว่าง)
-      var firstName = u && (u.name || u.nick) ? String(u.name || u.nick).trim().split(/\s+/)[0] : '';
+      var fullName = u ? (u.name || u.nick || '') : '';
       var role = (u && u.role ? u.role : 'admin').toUpperCase();
-      // initial = อักษรแรกของ firstName (รองรับทั้งไทย/อังกฤษ)
-      var initial = firstName ? firstName.charAt(0).toUpperCase() : 'A';
       tag.innerHTML =
         '<span class="admin-badge">'
-        + '<span class="admin-badge-avatar">' + escapeHtml(initial) + '</span>'
-        + '<span class="admin-badge-text">'
-        +   '<span class="admin-badge-name">' + escapeHtml(firstName || 'Admin') + '</span>'
-        +   '<span class="admin-badge-role">' + escapeHtml(role) + '</span>'
-        + '</span>'
+        +   escapeHtml(fullName || 'Admin')
+        +   ' <span class="admin-badge-role">(' + escapeHtml(role) + ')</span>'
         + '</span>';
     } else {
       tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
@@ -3293,12 +3274,21 @@ function loadSystemsFromCloud() {
 
 function saveSystemsToCloud() {
   _lastSystemsSaveAt = Date.now();  // mark for loadSystemsFromCloud guard
-  // ใช้ set-config endpoint (Apps Script รองรับ) — เก็บลง Config sheet
+  // ไม่ส่ง data: URL ของ icon ขึ้น cloud — ภาพอัปโหลดเองตั้งใจให้อยู่เฉพาะเครื่อง
+  // (ป้องกัน payload ใหญ่เกิน → fetch fail · ตรงตาม tooltip "เฉพาะเครื่องนี้")
+  var sysForCloud = SYSTEMS.map(function(s){
+    if (s && s.icon && typeof s.icon === 'string' && s.icon.indexOf('data:') === 0) {
+      var clone = Object.assign({}, s);
+      clone.icon = '';  // cloud ไม่เก็บ data URL · device อื่นจะใช้ guessIconFromName fallback
+      return clone;
+    }
+    return s;
+  });
   return fetch(SCRIPT_URL, {
     method: 'POST',
     mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'systems', value: SYSTEMS })
+    body: JSON.stringify({ type: 'set-config', key: 'systems', value: sysForCloud })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
@@ -3521,14 +3511,14 @@ function renderMenuCards() {
         + ' ondrop="_sysDrop(event,\''+s.id+'\')"'
         + ' ondragend="_sysDragEnd(event)"'
       : '';
-    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+(isAdminMode?' menu-card-draggable':'')+'" role="button" tabindex="0"'+dragAttrs+' onclick="'+clickHandler+'">';
+    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+(_isAdminRole?' menu-card-draggable':'')+'" role="button" tabindex="0"'+(_isAdminRole?dragAttrs:'')+' onclick="'+clickHandler+'">';
     html += '<div class="menu-card-top">';
     html += iconHtml;
     html += '<div class="menu-card-body">';
     html += '<div class="menu-card-title">'+escapeHtml(s.name)+'</div>';
     html += '<div class="menu-card-desc">'+escapeHtml(s.desc)+'</div>';
     html += '</div>';
-    if (isAdminMode) {
+    if (_isAdminRole) {
       html += '<div class="menu-card-admin-tools">';
       html += '<span class="menu-card-drag-handle" title="ลากเพื่อจัดลำดับ" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();">⠿</span>';
       html += '<button class="menu-card-settings" onclick="event.stopPropagation();openEditSystemModal(\''+s.id+'\')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>';
@@ -3555,7 +3545,7 @@ function renderMenuCards() {
     html += '</div>';
     html += '</div>';
   });
-  if (isAdminMode) {
+  if (_isAdminRole) {
     html += '<div class="menu-card menu-card-add" role="button" tabindex="0" onclick="openAddSystemModal()">'
       + '<div class="menu-card-top">'
       + '<div class="menu-card-icon menu-card-icon-add"><svg><use href="#i-plus"/></svg></div>'
