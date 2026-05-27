@@ -1641,7 +1641,7 @@ input[type=file] { display:none; }
             <div class="icon-option" data-icon="icons/checklist.png" onclick="selectPresetIcon(this,'icons/checklist.png')"><img src="icons/checklist.png" alt="checklist"></div>
             <div class="icon-option" data-icon="icons/storage.png" onclick="selectPresetIcon(this,'icons/storage.png')"><img src="icons/storage.png" alt="storage"></div>
             <div class="icon-option" data-icon="icons/billing.png" onclick="selectPresetIcon(this,'icons/billing.png')"><img src="icons/billing.png" alt="billing"></div>
-            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (ย่อ 64×64 · ทุก device เห็น)">
+            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (128×128 PNG · ทุก device เห็น)">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
             </label>
           </div>
@@ -3808,22 +3808,24 @@ function handleIconUpload(file) {
     var img = new Image();
     img.onload = function() {
       var canvas = document.createElement('canvas');
-      // 64×64 JPEG q=0.7 พื้นหลังขาว — ขนาด ~3-6KB · ส่งขึ้น cloud ได้ (ทุก device เห็น)
-      var size = 64;
+      // 128×128 PNG — คมชัด, รักษา transparency · ขนาด ~10-25KB
+      var size = 128;
       canvas.width = size; canvas.height = size;
       var ctx = canvas.getContext('2d');
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(0, 0, size, size);
+      // เปิด high-quality smoothing
+      ctx.imageSmoothingEnabled = true;
+      if ('imageSmoothingQuality' in ctx) ctx.imageSmoothingQuality = 'high';
+      ctx.clearRect(0, 0, size, size);
       var ratio = Math.min(size / img.width, size / img.height);
       var w = img.width * ratio, h = img.height * ratio;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
-      var dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+      var dataUrl = canvas.toDataURL('image/png');
       document.getElementById('sysIconValue').value = dataUrl;
       document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
       var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
       if (uploadOpt) uploadOpt.classList.add('selected');
-      var kb = Math.round(dataUrl.length * 0.75 / 1024);  // base64 → bytes approx
-      showInfo('✓ อัปโหลดสำเร็จ', 'รูปย่อ 64×64 ขนาด ~' + kb + ' KB · ทุก device เห็นเหมือนกัน');
+      var kb = Math.round(dataUrl.length * 0.75 / 1024);
+      showInfo('✓ อัปโหลดสำเร็จ', 'รูป 128×128 PNG (คมชัด · มี transparency) · ~' + kb + ' KB · ทุก device เห็นเหมือนกัน');
     };
     img.src = e.target.result;
   };
