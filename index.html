@@ -1616,18 +1616,32 @@ input[type=file] { display:none; }
       </div>
 
       <div class="adm-section adm-edit-only">
-        <div class="adm-section-title">👥 กำหนดสิทธิ์การเข้าถึง Team Management</div>
-        <div class="adm-section-desc">เลือกว่าทีมระดับไหนเห็นระบบนี้ (สำหรับผู้ใช้ที่ไม่ใช่สาขา)</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
-          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllRoles(true)">เลือกทั้งหมด</button>
-          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllRoles(false)">ยกเลิกทั้งหมด</button>
+        <div class="adm-section-title">👥 กำหนดสิทธิ์ผู้ใช้งาน Team Management</div>
+        <div class="adm-section-desc">เลือกผู้ใช้งานที่เห็นระบบนี้ (รายชื่อจะอัปเดตตามข้อมูล USERS ใน Hub โดยอัตโนมัติ)</div>
+        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllUsers(true)">เลือกทั้งหมด</button>
+          <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllUsers(false)">ยกเลิกทั้งหมด</button>
+          <span style="font-size:11px;color:var(--text3);margin-left:auto;align-self:center;">👑 Admin เห็นเสมอ ไม่ต้องเลือก</span>
         </div>
-        <div id="settingsRoleList" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;"></div>
+        <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+          <table class="adm-table">
+            <thead>
+              <tr>
+                <th style="position:sticky;top:0;background:var(--bg3);">รหัส</th>
+                <th style="position:sticky;top:0;background:var(--bg3);">ชื่อ-นิค</th>
+                <th style="position:sticky;top:0;background:var(--bg3);">ตำแหน่ง</th>
+                <th style="position:sticky;top:0;background:var(--bg3);">แบรนด์</th>
+                <th style="position:sticky;top:0;background:var(--bg3);text-align:center;">เห็น</th>
+              </tr>
+            </thead>
+            <tbody id="settingsUserTbody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="adm-section adm-edit-only">
         <div class="adm-section-title"><svg><use href="#i-calendar"/></svg> ระยะเวลาในการแสดงระบบ</div>
-        <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดงให้สาขาเห็น (เว้นว่าง = แสดงตลอด)</div>
+        <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดง (เว้นว่าง = แสดงตลอด)</div>
         <div class="adm-input-group">
           <div>
             <label class="adm-label">วันที่เริ่ม</label>
@@ -1642,12 +1656,18 @@ input[type=file] { display:none; }
 
       <div class="adm-section">
         <div class="adm-section-title">🚧 สถานะระบบ</div>
-        <div class="adm-section-desc">เปิด/ปิดการใช้งานระบบ</div>
-        <label style="display:flex;align-items:center;gap:12px;cursor:pointer;padding:10px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);">
-          <input type="checkbox" id="sysComingSoon" style="width:20px;height:20px;cursor:pointer;">
-          <div style="flex:1;">
-            <div style="font-weight:700;color:var(--text);">ปิดระบบนี้ (แสดงเป็น "เร็วๆ นี้")</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:2px;">เมื่อเปิด — สาขาคลิกแล้วจะเห็นป็อปอัพ "เร็วๆ นี้" แทนการเข้าระบบ</div>
+        <div class="adm-section-desc">เปิด/ปิดการใช้งานระบบสำหรับผู้ใช้งานทั่วไป</div>
+        <label class="sys-status-toggle" style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;padding:14px 16px;background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(245,158,11,0.02));border-radius:12px;border:1.5px solid rgba(245,158,11,0.25);">
+          <input type="checkbox" id="sysComingSoon" style="width:22px;height:22px;cursor:pointer;margin-top:1px;flex:none;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:800;color:var(--text);font-size:14px;">ปิดระบบนี้ (แสดงเป็น "เร็วๆ นี้")</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">
+              <span style="display:inline-block;padding:2px 8px;background:rgba(239,68,68,0.1);color:var(--red);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;">ผู้ใช้ทั่วไป</span>
+              คลิกแล้วเห็นป็อปอัพ "เร็วๆ นี้" แทนการเข้าระบบ
+              <br>
+              <span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.12);color:var(--green);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;margin-top:6px;">👑 Admin</span>
+              ยังเข้าใช้งานได้ปกติ (เพื่อทดสอบ/ตั้งค่าก่อนเปิดจริง)
+            </div>
           </div>
         </label>
       </div>
@@ -3078,9 +3098,18 @@ function normalizeSystem(s) {
   s.startDate = toIsoString(s.startDate);
   s.endDate = toIsoString(s.endDate);
   if (!s.visibleBranches) s.visibleBranches = [];
-  if (!s.visibleRoles) s.visibleRoles = [];
   s.hideFromAllBranches = !!s.hideFromAllBranches;
-  s.hideFromAllRoles = !!s.hideFromAllRoles;
+  // Migrate legacy role-based → per-user (one-time on load)
+  if (!s.visibleUsers) {
+    if (s.visibleRoles && s.visibleRoles.length > 0) {
+      s.visibleUsers = USERS
+        .filter(function(u){ return s.visibleRoles.indexOf(u.role) >= 0; })
+        .map(function(u){ return u.code; });
+    } else {
+      s.visibleUsers = [];
+    }
+  }
+  s.hideFromAllUsers = !!(s.hideFromAllUsers || s.hideFromAllRoles);
   // Auto-assign icon based on name if missing (cross-device fallback)
   if (!s.icon) s.icon = guessIconFromName(s.name);
   return s;
@@ -3095,10 +3124,12 @@ function isSystemVisibleToBranch(s, branchCode) {
   return true;
 }
 
-/* For Team Management users (admin/bzm/coo/vp/franchise) — ตรวจจาก role */
-function isSystemVisibleToRole(s, role) {
-  if (s.hideFromAllRoles) return false;
-  if (s.visibleRoles && s.visibleRoles.length > 0 && s.visibleRoles.indexOf(role) < 0) return false;
+/* For Team Management users — ตรวจจาก user code (admin role bypass ทุก filter) */
+function isSystemVisibleToUser(s, userCode) {
+  var u = findUserByCode(userCode);
+  if (u && u.role === 'admin') return true;  // 👑 admin เห็นทุกระบบเสมอ
+  if (s.hideFromAllUsers) return false;
+  if (s.visibleUsers && s.visibleUsers.length > 0 && s.visibleUsers.indexOf(String(userCode)) < 0) return false;
   var today = todayIso();
   if (s.startDate && today < s.startDate) return false;
   if (s.endDate && today > s.endDate) return false;
@@ -3108,14 +3139,23 @@ function isSystemVisibleToRole(s, role) {
 function renderMenuCards() {
   var grid = document.getElementById('menuGrid');
   if (!grid) return;
+  // คนปัจจุบัน: ถ้า isAdminMode (TM user) → lookup จาก USERS, branch → null
+  var _curUser = isAdminMode ? findUserByCode(branchPin) : null;
+  var _isAdminRole = !!(_curUser && _curUser.role === 'admin');
   var html = '';
   SYSTEMS.forEach(function(s, idx){
-    var visible = isAdminMode || isSystemVisibleToBranch(s, branchPin);
+    // visibility:
+    //   admin role → เห็นทุกระบบ (เพื่อจัดการ)
+    //   TM อื่นๆ → ตรวจ visibleUsers + date
+    //   branch → ตรวจ visibleBranches + date
+    var visible = _isAdminRole
+      || (isAdminMode ? isSystemVisibleToUser(s, branchPin) : isSystemVisibleToBranch(s, branchPin));
     if (!visible) return;
     var notStarted = s.startDate && todayIso() < s.startDate;
-    // ปิดระบบ: ถ้า s.comingSoon === true → coming-soon (admin toggle ได้)
+    // ปิดระบบ: ถ้า s.comingSoon === true → coming-soon
     //          ถ้าเป็น admin-added (ไม่ใช่ builtIn) ก็เป็น coming-soon ด้วย
-    var isComingSoon = (s.comingSoon === true) || (!s.builtIn);
+    //          👑 admin role bypass — เข้าได้แม้ปิดอยู่ (เพื่อทดสอบ)
+    var isComingSoon = !_isAdminRole && ((s.comingSoon === true) || (!s.builtIn));
     // Cache-bust icon if it's a remote URL (data: URLs unchanged)
     var iconSrc = s.icon || '';
     if (iconSrc && iconSrc.indexOf('data:') !== 0 && iconSrc.indexOf('http') === 0) {
@@ -3354,7 +3394,17 @@ function openSystemModal(mode, systemId) {
       }
     }
     populateBranchVisibility(s.visibleBranches || [], s.hideFromAllBranches);
-    populateRoleVisibility(s.visibleRoles || [], s.hideFromAllRoles);
+    // Migrate legacy visibleRoles → visibleUsers (ครั้งเดียวตอนเปิด modal)
+    var users = s.visibleUsers;
+    var hideUsers = s.hideFromAllUsers;
+    if (!users && s.visibleRoles && s.visibleRoles.length > 0) {
+      users = USERS.filter(function(u){ return s.visibleRoles.indexOf(u.role) >= 0; })
+                   .map(function(u){ return u.code; });
+    } else if (!users) {
+      users = [];
+      if (s.hideFromAllRoles) hideUsers = true;
+    }
+    populateUserVisibility(users, hideUsers);
     var delBtn = document.getElementById('deleteSystemBtn');
     if (delBtn) delBtn.style.display = s.builtIn ? 'none' : '';
   } else {
@@ -3363,7 +3413,7 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
     document.getElementById('sysComingSoon').checked = false;
-    populateRoleVisibility([]);  // ติ๊กทุก role default
+    populateUserVisibility([]);  // ติ๊กทุกคน default
   }
   document.getElementById('systemModal').classList.add('show');
 }
@@ -3421,33 +3471,62 @@ function toggleAllBranches(checked) {
   document.querySelectorAll('.branch-vis-chk').forEach(function(c){ c.checked = checked; });
 }
 
-/* ── Roles (Team Management) ────────────── */
-var TM_ROLES = [
-  { code: 'admin',     label: '👑 Admin',     desc: 'ผู้ดูแลระบบ' },
-  { code: 'vp',        label: '⭐ VP',        desc: 'รองประธาน' },
-  { code: 'coo',       label: '🎯 COO',       desc: 'ประธานปฎิบัติการ' },
-  { code: 'bzm',       label: '📋 BZM',       desc: 'ผู้จัดการเขต' },
-  { code: 'franchise', label: '🤝 Franchise', desc: 'แฟรนไชส์' }
-];
+/* ── Users (Team Management) — แทนที่ role-based เดิมด้วย per-user ───────── */
+var ROLE_LABELS = {
+  admin:     { label: '👑 Admin',     color: '#a855f7' },
+  vp:        { label: '⭐ VP',        color: '#3b82f6' },
+  coo:       { label: '🎯 COO',       color: '#06b6d4' },
+  bzm:       { label: '📋 BZM',       color: '#f59e0b' },
+  franchise: { label: '🤝 Franchise', color: '#10b981' }
+};
+var BRAND_LABELS = {
+  santafe:  { label: '🍔 Santa Fe',  color: '#f97316' },
+  jaedaeng: { label: '🌶️ เจ๊แดง',     color: '#dc2626' }
+};
 
-function populateRoleVisibility(selectedRoles, hideFromAll) {
-  selectedRoles = selectedRoles || [];
-  var grid = document.getElementById('settingsRoleList');
-  if (!grid) return;
-  var allChecked = !hideFromAll && selectedRoles.length === 0;
-  grid.innerHTML = TM_ROLES.map(function(r){
-    var checked = allChecked || selectedRoles.indexOf(r.code) >= 0;
-    return '<label style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);cursor:pointer;">'
-      + '<input type="checkbox" class="adm-checkbox role-vis-chk" data-role="'+r.code+'"'+(checked?' checked':'')+'>'
-      + '<div style="flex:1;min-width:0;">'
-      +   '<div style="font-weight:700;font-size:13px;color:var(--text);">'+r.label+'</div>'
-      +   '<div style="font-size:11px;color:var(--text2);">'+r.desc+'</div>'
-      + '</div>'
-      + '</label>';
-  }).join('');
+function populateUserVisibility(selectedUsers, hideFromAll) {
+  selectedUsers = selectedUsers || [];
+  var tbody = document.getElementById('settingsUserTbody');
+  if (!tbody) return;
+  // 3 states: hideFromAll=true → uncheck all
+  //           selectedUsers.length === 0 → check all (default = ทุกคนเห็น)
+  //           มี items → check เฉพาะที่ระบุ
+  var allChecked = !hideFromAll && selectedUsers.length === 0;
+  // sort: admin first, then by brand (santafe → jaedaeng), then role priority, then nick
+  var ROLE_ORDER = { admin: 0, vp: 1, coo: 2, bzm: 3, franchise: 4 };
+  var sorted = USERS.slice().sort(function(a, b){
+    if ((a.role === 'admin') !== (b.role === 'admin')) return a.role === 'admin' ? -1 : 1;
+    if (a.brand !== b.brand) return (a.brand || '') < (b.brand || '') ? -1 : 1;
+    var ra = ROLE_ORDER[a.role] != null ? ROLE_ORDER[a.role] : 99;
+    var rb = ROLE_ORDER[b.role] != null ? ROLE_ORDER[b.role] : 99;
+    if (ra !== rb) return ra - rb;
+    return (a.nick || a.name || '').localeCompare(b.nick || b.name || '', 'th');
+  });
+  var html = '';
+  sorted.forEach(function(u){
+    var isAdmin = u.role === 'admin';
+    var checked = isAdmin || allChecked || selectedUsers.indexOf(u.code) >= 0;
+    var rl = ROLE_LABELS[u.role] || { label: u.role || '-', color: '#888' };
+    var bl = BRAND_LABELS[u.brand] || { label: u.brand || '-', color: '#888' };
+    html += '<tr'+(isAdmin?' style="background:rgba(168,85,247,0.04);"':'')+'>'
+      + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(u.code)+'</td>'
+      + '<td>'
+      +   '<div style="font-weight:600;font-size:13px;">'+escapeHtml(u.nick || '-')+'</div>'
+      +   '<div style="font-size:11px;color:var(--text2);">'+escapeHtml(u.name || '')+'</div>'
+      + '</td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;background:'+rl.color+'1a;color:'+rl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+rl.label+'</span></td>'
+      + '<td><span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+bl.label+'</span></td>'
+      + '<td style="text-align:center;">'
+      +   (isAdmin
+          ? '<span title="Admin เห็นทุกระบบเสมอ" style="font-size:11px;color:var(--text3);">เห็นเสมอ</span>'
+          : '<input type="checkbox" class="adm-checkbox user-vis-chk" data-code="'+escapeAttr(u.code)+'"'+(checked?' checked':'')+'>')
+      + '</td>'
+      + '</tr>';
+  });
+  tbody.innerHTML = html;
 }
-function toggleAllRoles(checked) {
-  document.querySelectorAll('.role-vis-chk').forEach(function(c){ c.checked = checked; });
+function toggleAllUsers(checked) {
+  document.querySelectorAll('.user-vis-chk').forEach(function(c){ c.checked = checked; });
 }
 
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
@@ -3475,19 +3554,19 @@ function saveSystemConfig() {
   if (chks.length > 0 && allChecked) visibleBranches = [];
   else if (chks.length > 0 && !anyChecked) { hideFromAllBranches = true; visibleBranches = []; }
 
-  // Roles (Team Management) — 3 states เหมือนสาขา
-  var visibleRoles = [];
-  var anyRoleChecked = false, allRoleChecked = true;
-  var roleChks = document.querySelectorAll('.role-vis-chk');
-  roleChks.forEach(function(c){
-    if (c.checked) { visibleRoles.push(c.getAttribute('data-role')); anyRoleChecked = true; }
-    else allRoleChecked = false;
+  // Users (Team Management) — 3 states เหมือนสาขา · admin ไม่อยู่ใน checkboxes (เห็นเสมอ)
+  var visibleUsers = [];
+  var anyUserChecked = false, allUserChecked = true;
+  var userChks = document.querySelectorAll('.user-vis-chk');
+  userChks.forEach(function(c){
+    if (c.checked) { visibleUsers.push(c.getAttribute('data-code')); anyUserChecked = true; }
+    else allUserChecked = false;
   });
-  var hideFromAllRoles = false;
-  if (roleChks.length > 0 && allRoleChecked) visibleRoles = [];
-  else if (roleChks.length > 0 && !anyRoleChecked) { hideFromAllRoles = true; visibleRoles = []; }
+  var hideFromAllUsers = false;
+  if (userChks.length > 0 && allUserChecked) visibleUsers = [];
+  else if (userChks.length > 0 && !anyUserChecked) { hideFromAllUsers = true; visibleUsers = []; }
 
-  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleRoles, hideFromAllRoles); };
+  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers); };
   if (chks.length > 0 && !anyChecked && currentEditingSystem) {
     customConfirm({
       icon: '⚠️', title: 'ไม่มีสาขาที่เห็น',
@@ -3499,7 +3578,7 @@ function saveSystemConfig() {
   proceed();
 }
 
-function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleRoles, hideFromAllRoles) {
+function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
@@ -3513,8 +3592,8 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
         desc: desc,
         visibleBranches: visibleBranches,
         hideFromAllBranches: !!hideFromAllBranches,
-        visibleRoles: visibleRoles || [],
-        hideFromAllRoles: !!hideFromAllRoles,
+        visibleUsers: visibleUsers || [],
+        hideFromAllUsers: !!hideFromAllUsers,
         startDate: startDate,
         endDate: endDate,
         comingSoon: comingSoon,
@@ -3530,8 +3609,8 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
       desc: desc,
       visibleBranches: [],
       hideFromAllBranches: false,
-      visibleRoles: [],
-      hideFromAllRoles: false,
+      visibleUsers: [],
+      hideFromAllUsers: false,
       startDate: '',
       endDate: '',
       comingSoon: comingSoon
