@@ -804,17 +804,34 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 
 /* ═══════════════════ ADMIN BADGE + ACTIONS ═══════════════════ */
 .admin-badge {
-  display: inline-flex; align-items: center; gap: 8px;
+  display: inline-flex; align-items: center; gap: 10px;
   background: transparent;
   border: none;
-  padding: 4px 2px;
+  padding: 2px;
   font-family: 'Sarabun', sans-serif;
-  font-weight: 700;
-  font-size: 13px;
-  color: var(--red);
-  letter-spacing: 0.3px;
+  color: var(--text);
 }
-.admin-badge svg { width:16px; height:16px; opacity:0.85; }
+.admin-badge-avatar {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: #fff;
+  font-weight: 800;
+  font-size: 15px;
+  display: inline-flex; align-items: center; justify-content: center;
+  flex: none;
+  letter-spacing: 0.5px;
+  box-shadow: 0 4px 12px rgba(239,68,68,0.28);
+}
+.admin-badge-text { display: flex; flex-direction: column; line-height: 1.15; min-width: 0; }
+.admin-badge-name { font-weight: 700; font-size: 13px; color: var(--text); }
+.admin-badge-role {
+  font-size: 10px; font-weight: 800;
+  color: var(--red);
+  letter-spacing: 1.2px;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
 
 .admin-actions {
   display: flex; flex-wrap: wrap; gap: 12px;
@@ -2987,12 +3004,19 @@ function showMenuView() {
   if (tag) {
     if (isAdminMode) {
       var u = findUserByCode(branchPin);
-      // เอาแค่ชื่อแรก (ก่อนช่องว่าง) — เช่น "Kantapon Lapmongkolnawin" → "Kantapon"
+      // เอาแค่ชื่อแรก (ก่อนช่องว่าง)
       var firstName = u && (u.name || u.nick) ? String(u.name || u.nick).trim().split(/\s+/)[0] : '';
-      var label = u
-        ? escapeHtml(firstName) + ' (' + (u.role || 'admin').toUpperCase() + ')'
-        : 'ADMIN';
-      tag.innerHTML = '<span class="admin-badge"><svg><use href="#i-shield"/></svg>' + label + '</span>';
+      var role = (u && u.role ? u.role : 'admin').toUpperCase();
+      // initial = อักษรแรกของ firstName (รองรับทั้งไทย/อังกฤษ)
+      var initial = firstName ? firstName.charAt(0).toUpperCase() : 'A';
+      tag.innerHTML =
+        '<span class="admin-badge">'
+        + '<span class="admin-badge-avatar">' + escapeHtml(initial) + '</span>'
+        + '<span class="admin-badge-text">'
+        +   '<span class="admin-badge-name">' + escapeHtml(firstName || 'Admin') + '</span>'
+        +   '<span class="admin-badge-role">' + escapeHtml(role) + '</span>'
+        + '</span>'
+        + '</span>';
     } else {
       tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
     }
