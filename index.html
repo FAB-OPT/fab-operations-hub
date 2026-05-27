@@ -3273,7 +3273,19 @@ function openSystem(systemId) {
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'checklist') {
-    // SSO: session อยู่ใน localStorage แล้ว (จาก saveFabSession ตอน login)
+    // SSO: ก่อน redirect → re-save session ให้ fresh (refresh loggedInAt)
+    // เพื่อกัน Checklist ตี TTL expired แม้เพิ่ง login ก็ตาม
+    try {
+      var role = sessionStorage.getItem('fab_role'); // 'admin' | 'branch'
+      var pin = sessionStorage.getItem('fab_branch_pin');
+      var bname = sessionStorage.getItem('fab_branch_name');
+      if (pin) {
+        saveFabSession(role === 'branch' ? 'branch' : 'tm', pin, pin, bname);
+        console.log('[SSO] re-saved fab_session before Checklist redirect', { role: role, pin: pin });
+      } else {
+        console.warn('[SSO] no PIN in sessionStorage — fab_session not refreshed');
+      }
+    } catch (e) { console.error('[SSO] re-save failed:', e); }
     // → ไป Checklist · ฝั่ง Checklist จะอ่าน fab_session แล้ว skip PIN
     // file:// → ใช้ relative path (../Checklist/) · http(s) → ใช้ absolute (/Checklist/)
     var target = (location.protocol === 'file:') ? '../Checklist/index.html' : '/Checklist/';
