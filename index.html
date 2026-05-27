@@ -4078,13 +4078,19 @@ function renderBranchMgmtList() {
   codes.forEach(function(code){
     var name = BRANCHES[code] || '';
     var brand = getBranchPrefix(code) || '-';
-    var bzm = BRANCH_BZM_MAP[code] || '';
+    var bzmNick = BRANCH_BZM_MAP[code] || '';
+    var bzmUser = bzmNick ? USERS.find(function(u){ return u.role === 'bzm' && (u.nick === bzmNick || u.name === bzmNick); }) : null;
+    var bzmHtml = bzmNick
+      ? (bzmUser && bzmUser.name
+          ? '<div style="font-weight:600;font-size:12px;">'+escapeHtml(bzmUser.name)+'</div><div style="font-size:11px;color:var(--text3);">'+escapeHtml(bzmNick)+'</div>'
+          : '<div style="font-weight:600;font-size:12px;">'+escapeHtml(bzmNick)+'</div>')
+      : '<span style="color:var(--text3);">—</span>';
     var brandColor = code.indexOf('40') === 0 ? '#dc2626' : (code.indexOf('55') === 0 ? '#ea580c' : '#f97316');
     html += '<tr>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(code)+'</td>'
       + '<td style="font-weight:600;font-size:13px;">'+escapeHtml(name)+'</td>'
       + '<td><span style="display:inline-block;padding:2px 8px;background:'+brandColor+'1a;color:'+brandColor+';border-radius:999px;font-weight:700;font-size:11px;">'+escapeHtml(brand)+'</span></td>'
-      + '<td style="font-size:12px;color:var(--text2);">'+(bzm ? escapeHtml(bzm) : '<span style="color:var(--text3);">—</span>')+'</td>'
+      + '<td>'+bzmHtml+'</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
       +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openBranchEditModal(\''+escapeAttr(code)+'\')" title="แก้ไข">✏️ แก้ไข</button>'
       +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteBranch(\''+escapeAttr(code)+'\')" title="ลบ">🗑</button>'
@@ -4114,20 +4120,25 @@ function closeBranchMgmtModal() {
 function _populateBzmOptions(selectedNick) {
   var sel = document.getElementById('branchEditBzm');
   if (!sel) return;
-  var bzms = USERS.filter(function(u){ return u.role === 'bzm'; })
-                  .map(function(u){ return u.nick || u.name; })
-                  .filter(function(v){ return !!v; });
-  // de-dup + รวม BZM ที่อยู่ใน mapping เก่าแต่อาจไม่อยู่ใน USERS
-  var existing = {};
-  bzms.forEach(function(n){ existing[n] = true; });
+  // value = nick (compat กับ BRANCH_BZM_MAP เดิม) · label = "ชื่อ-นามสกุล (นิค)"
+  var seen = {};
+  var opts = [];
+  USERS.filter(function(u){ return u.role === 'bzm'; }).forEach(function(u){
+    var nick = u.nick || u.name;
+    if (!nick || seen[nick]) return;
+    seen[nick] = true;
+    var label = u.name ? (u.name + (u.nick ? ' (' + u.nick + ')' : '')) : nick;
+    opts.push({ value: nick, label: label });
+  });
+  // รวม BZM ที่อยู่ใน mapping เก่าแต่อาจไม่อยู่ใน USERS (legacy)
   Object.keys(BRANCH_BZM_MAP).forEach(function(c){
     var n = BRANCH_BZM_MAP[c];
-    if (n && !existing[n]) { bzms.push(n); existing[n] = true; }
+    if (n && !seen[n]) { seen[n] = true; opts.push({ value: n, label: n }); }
   });
-  bzms.sort(function(a,b){ return a.localeCompare(b, 'th'); });
+  opts.sort(function(a,b){ return a.label.localeCompare(b.label, 'th'); });
   sel.innerHTML = '<option value="">— ไม่ระบุ —</option>'
-    + bzms.map(function(n){
-        return '<option value="'+escapeAttr(n)+'"'+(n===selectedNick?' selected':'')+'>'+escapeHtml(n)+'</option>';
+    + opts.map(function(o){
+        return '<option value="'+escapeAttr(o.value)+'"'+(o.value===selectedNick?' selected':'')+'>'+escapeHtml(o.label)+'</option>';
       }).join('');
 }
 
