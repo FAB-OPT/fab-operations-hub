@@ -1641,7 +1641,7 @@ input[type=file] { display:none; }
             <div class="icon-option" data-icon="icons/checklist.png" onclick="selectPresetIcon(this,'icons/checklist.png')"><img src="icons/checklist.png" alt="checklist"></div>
             <div class="icon-option" data-icon="icons/storage.png" onclick="selectPresetIcon(this,'icons/storage.png')"><img src="icons/storage.png" alt="storage"></div>
             <div class="icon-option" data-icon="icons/billing.png" onclick="selectPresetIcon(this,'icons/billing.png')"><img src="icons/billing.png" alt="billing"></div>
-            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (128×128 PNG · ทุก device เห็น)">
+            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (128×128 PNG · เฉพาะเครื่องนี้)">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
             </label>
           </div>
@@ -3304,12 +3304,21 @@ function loadSystemsFromCloud() {
 
 function saveSystemsToCloud() {
   _lastSystemsSaveAt = Date.now();  // mark for loadSystemsFromCloud guard
-  // ส่ง SYSTEMS ทั้งหมด รวม data URL ของรูปที่ admin อัปโหลด (ขนาดย่อ 64×64 JPEG → ~3-6KB/รูป)
+  // ไม่ส่ง data: URL ของ icon ขึ้น cloud (Apps Script POST รับ payload ใหญ่ไม่ไหว → Failed to fetch)
+  // รูปอัปโหลด admin เก็บใน localStorage 'fab_local_icons_v1' · _applyLocalIcons() จะคืนรูปหลังโหลด cloud
+  var sysForCloud = SYSTEMS.map(function(s){
+    if (s && s.icon && typeof s.icon === 'string' && s.icon.indexOf('data:') === 0) {
+      var clone = Object.assign({}, s);
+      clone.icon = '';  // cloud ไม่เก็บ · device อื่นใช้ guessIconFromName fallback
+      return clone;
+    }
+    return s;
+  });
   return fetch(SCRIPT_URL, {
     method: 'POST',
     mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'systems', value: SYSTEMS })
+    body: JSON.stringify({ type: 'set-config', key: 'systems', value: sysForCloud })
   })
   .then(function(r){ return r.json(); })
   .then(function(res){
@@ -3825,7 +3834,7 @@ function handleIconUpload(file) {
       var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
       if (uploadOpt) uploadOpt.classList.add('selected');
       var kb = Math.round(dataUrl.length * 0.75 / 1024);
-      showInfo('✓ อัปโหลดสำเร็จ', 'รูป 128×128 PNG (คมชัด · มี transparency) · ~' + kb + ' KB · ทุก device เห็นเหมือนกัน');
+      showInfo('✓ อัปโหลดสำเร็จ', 'รูป 128×128 PNG · ~' + kb + ' KB<br><small style="color:var(--text3);">เก็บเฉพาะเครื่องนี้ — device อื่นจะใช้ไอคอน fallback<br>(cross-device ต้องอัปเดต Apps Script + Drive)</small>');
     };
     img.src = e.target.result;
   };
