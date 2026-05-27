@@ -931,6 +931,46 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 .adm-modal-body { padding: 20px 24px; }
 .adm-section { margin-bottom: 24px; }
 .adm-section:last-child { margin-bottom: 0; }
+/* ── System modal tabs ── */
+.sys-tabs {
+  display: flex;
+  gap: 4px;
+  border-bottom: 1.5px solid var(--border);
+  margin: -20px -24px 20px;
+  padding: 0 24px;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 5;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.sys-tabs::-webkit-scrollbar { display: none; }
+.sys-tab {
+  flex: none;
+  padding: 14px 16px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text2);
+  background: transparent;
+  border: none;
+  border-bottom: 3px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.sys-tab:hover { color: var(--text); background: rgba(245,158,11,0.05); }
+.sys-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+.sys-tab-panel { display: none; animation: fadeIn 0.2s ease; }
+.sys-tab-panel.active { display: block; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@media (max-width: 640px) {
+  .sys-tabs { margin: -16px -18px 16px; padding: 0 18px; }
+  .sys-tab { padding: 12px 12px 10px; font-size: 12px; }
+}
 .adm-section-title {
   font-size: 13px; font-weight: 700; color: var(--text);
   margin-bottom: 10px; display: flex; align-items: center; gap: 8px;
@@ -1575,10 +1615,15 @@ input[type=file] { display:none; }
       <button class="adm-modal-close" onclick="closeSystemModal()"><svg class="ico"><use href="#i-x"/></svg></button>
     </div>
     <div class="adm-modal-body">
+      <div class="sys-tabs">
+        <button type="button" class="sys-tab active" data-tab="info" onclick="switchSysTab('info')">ข้อมูล</button>
+        <button type="button" class="sys-tab adm-edit-only" data-tab="branches" onclick="switchSysTab('branches')">สิทธิ์สาขา</button>
+        <button type="button" class="sys-tab adm-edit-only" data-tab="users" onclick="switchSysTab('users')">สิทธิ์ผู้ใช้</button>
+        <button type="button" class="sys-tab adm-edit-only" data-tab="config" onclick="switchSysTab('config')">ระยะเวลา · สถานะ</button>
+      </div>
 
-      <div class="adm-section">
-        <div class="adm-section-title"><svg><use href="#i-edit"/></svg> ข้อมูลระบบ</div>
-
+      <!-- ── Tab: ข้อมูล ── -->
+      <div class="sys-tab-panel active" data-panel="info">
         <div>
           <label class="adm-label">ชื่อระบบ</label>
           <input type="text" class="adm-input" id="sysName" placeholder="เช่น ระบบรายงานยอดขาย">
@@ -1601,14 +1646,14 @@ input[type=file] { display:none; }
         </div>
       </div>
 
-      <div class="adm-section adm-edit-only">
-        <div class="adm-section-title"><svg><use href="#i-shield"/></svg> กำหนดสิทธิ์การเข้าถึงรายสาขา</div>
-        <div class="adm-section-desc">เลือกว่าสาขาใดเห็นระบบนี้ (ติ๊กถูก = เห็น / ไม่ติ๊ก = ซ่อน)</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;">
+      <!-- ── Tab: สิทธิ์สาขา ── -->
+      <div class="sys-tab-panel adm-edit-only" data-panel="branches">
+        <div class="adm-section-desc" style="margin-bottom:10px;">เลือกว่าสาขาใดเห็นระบบนี้ (ติ๊กถูก = เห็น / ไม่ติ๊ก = ซ่อน)</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;">
           <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllBranches(true)">เลือกทั้งหมด</button>
           <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllBranches(false)">ยกเลิกทั้งหมด</button>
         </div>
-        <div style="max-height:260px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+        <div style="max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
           <table class="adm-table">
             <thead>
               <tr><th style="position:sticky;top:0;background:var(--bg3);">รหัส</th><th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th><th style="position:sticky;top:0;background:var(--bg3);text-align:center;">เห็น</th></tr>
@@ -1618,15 +1663,15 @@ input[type=file] { display:none; }
         </div>
       </div>
 
-      <div class="adm-section adm-edit-only">
-        <div class="adm-section-title">👥 กำหนดสิทธิ์ผู้ใช้งาน Team Management</div>
-        <div class="adm-section-desc">เลือกผู้ใช้งานที่เห็นระบบนี้ (รายชื่อจะอัปเดตตามข้อมูล USERS ใน Hub โดยอัตโนมัติ)</div>
-        <div style="display:flex;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+      <!-- ── Tab: สิทธิ์ผู้ใช้ ── -->
+      <div class="sys-tab-panel adm-edit-only" data-panel="users">
+        <div class="adm-section-desc" style="margin-bottom:10px;">เลือกผู้ใช้งานที่เห็นระบบนี้ (รายชื่อจะอัปเดตตามข้อมูล USERS ใน Hub โดยอัตโนมัติ)</div>
+        <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
           <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllUsers(true)">เลือกทั้งหมด</button>
           <button class="adm-btn-secondary" style="padding:6px 12px;font-size:11px;" onclick="toggleAllUsers(false)">ยกเลิกทั้งหมด</button>
-          <span style="font-size:11px;color:var(--text3);margin-left:auto;align-self:center;">Admin เห็นเสมอ ไม่ต้องเลือก</span>
+          <span style="font-size:11px;color:var(--text3);margin-left:auto;">Admin เห็นเสมอ ไม่ต้องเลือก</span>
         </div>
-        <div style="max-height:300px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
+        <div style="max-height:480px;overflow-y:auto;border:1px solid var(--border);border-radius:10px;">
           <table class="adm-table">
             <thead>
               <tr>
@@ -1642,39 +1687,40 @@ input[type=file] { display:none; }
         </div>
       </div>
 
-      <div class="adm-section adm-edit-only">
-        <div class="adm-section-title"><svg><use href="#i-calendar"/></svg> ระยะเวลาในการแสดงระบบ</div>
-        <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดง (เว้นว่าง = แสดงตลอด)</div>
-        <div class="adm-input-group">
-          <div>
-            <label class="adm-label">วันที่เริ่ม</label>
-            <input type="date" class="adm-input" id="sysStartDate">
-          </div>
-          <div>
-            <label class="adm-label">วันที่สิ้นสุด</label>
-            <input type="date" class="adm-input" id="sysEndDate">
-          </div>
-        </div>
-      </div>
-
-      <div class="adm-section">
-        <div class="adm-section-title">🚧 สถานะระบบ</div>
-        <div class="adm-section-desc">เปิด/ปิดการใช้งานระบบสำหรับผู้ใช้งานทั่วไป</div>
-        <label class="sys-status-toggle" style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;padding:14px 16px;background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(245,158,11,0.02));border-radius:12px;border:1.5px solid rgba(245,158,11,0.25);">
-          <input type="checkbox" id="sysComingSoon" style="width:22px;height:22px;cursor:pointer;margin-top:1px;flex:none;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:800;color:var(--text);font-size:14px;">ปิดระบบนี้ (แสดงเป็น "เร็วๆ นี้")</div>
-            <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">
-              <span style="display:inline-block;padding:2px 8px;background:rgba(239,68,68,0.1);color:var(--red);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;">ผู้ใช้ทั่วไป</span>
-              คลิกแล้วเห็นป็อปอัพ "เร็วๆ นี้" แทนการเข้าระบบ
-              <br>
-              <span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.12);color:var(--green);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;margin-top:6px;">Admin</span>
-              ยังเข้าใช้งานได้ปกติ (เพื่อทดสอบ/ตั้งค่าก่อนเปิดจริง)
+      <!-- ── Tab: ระยะเวลา · สถานะ ── -->
+      <div class="sys-tab-panel adm-edit-only" data-panel="config">
+        <div class="adm-section">
+          <div class="adm-section-title"><svg><use href="#i-calendar"/></svg> ระยะเวลาในการแสดงระบบ</div>
+          <div class="adm-section-desc">กำหนดช่วงวันที่ที่ระบบจะแสดง (เว้นว่าง = แสดงตลอด)</div>
+          <div class="adm-input-group">
+            <div>
+              <label class="adm-label">วันที่เริ่ม</label>
+              <input type="date" class="adm-input" id="sysStartDate">
+            </div>
+            <div>
+              <label class="adm-label">วันที่สิ้นสุด</label>
+              <input type="date" class="adm-input" id="sysEndDate">
             </div>
           </div>
-        </label>
+        </div>
+        <div class="adm-section">
+          <div class="adm-section-title">สถานะระบบ</div>
+          <div class="adm-section-desc">เปิด/ปิดการใช้งานระบบสำหรับผู้ใช้งานทั่วไป</div>
+          <label class="sys-status-toggle" style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;padding:14px 16px;background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(245,158,11,0.02));border-radius:12px;border:1.5px solid rgba(245,158,11,0.25);">
+            <input type="checkbox" id="sysComingSoon" style="width:22px;height:22px;cursor:pointer;margin-top:1px;flex:none;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:800;color:var(--text);font-size:14px;">ปิดระบบนี้ (แสดงเป็น "เร็วๆ นี้")</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">
+                <span style="display:inline-block;padding:2px 8px;background:rgba(239,68,68,0.1);color:var(--red);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;">ผู้ใช้ทั่วไป</span>
+                คลิกแล้วเห็นป็อปอัพ "เร็วๆ นี้" แทนการเข้าระบบ
+                <br>
+                <span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.12);color:var(--green);border-radius:6px;font-weight:700;font-size:10px;margin-right:6px;margin-top:6px;">Admin</span>
+                ยังเข้าใช้งานได้ปกติ (เพื่อทดสอบ/ตั้งค่าก่อนเปิดจริง)
+              </div>
+            </div>
+          </label>
+        </div>
       </div>
-
     </div>
     <div class="adm-modal-footer">
       <button class="adm-btn-secondary adm-edit-only" id="deleteSystemBtn" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="deleteSystem()">ลบระบบนี้</button>
@@ -3511,11 +3557,32 @@ function selectEmoji(btn, e) {
   document.getElementById('sysEmojiPreview').textContent = e;
 }
 
+function switchSysTab(tab) {
+  document.querySelectorAll('#systemModal .sys-tab').forEach(function(b){
+    b.classList.toggle('active', b.getAttribute('data-tab') === tab);
+  });
+  document.querySelectorAll('#systemModal .sys-tab-panel').forEach(function(p){
+    p.classList.toggle('active', p.getAttribute('data-panel') === tab);
+  });
+  // Scroll modal body กลับขึ้นบนตอนสลับแท็บ
+  var box = document.querySelector('#systemModal .adm-modal-box');
+  if (box) box.scrollTop = 0;
+}
+
 function openSystemModal(mode, systemId) {
   currentEditingSystem = systemId || null;
   var isEdit = mode === 'edit';
   document.getElementById('systemModalTitle').textContent = isEdit ? 'ตั้งค่าประกาศระบบ' : 'ประกาศระบบใหม่ (เร็วๆ นี้)';
-  document.querySelectorAll('.adm-edit-only').forEach(function(el){ el.style.display = isEdit ? '' : 'none'; });
+  document.querySelectorAll('.adm-edit-only').forEach(function(el){
+    // .sys-tab adm-edit-only ต้องใช้ inline-flex (ไม่ใช่ block)
+    if (el.classList && el.classList.contains('sys-tab')) {
+      el.style.display = isEdit ? 'inline-flex' : 'none';
+    } else {
+      el.style.display = isEdit ? '' : 'none';
+    }
+  });
+  // Reset เป็นแท็บแรกทุกครั้งที่เปิด
+  switchSysTab('info');
 
   var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
   // Reset icon selection
