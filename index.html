@@ -1037,12 +1037,16 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
   padding: 8px; border: 1px solid var(--border2); border-radius: 10px;
 }
 
-/* Icon picker library */
+/* Icon picker — preview + ปุ่มอัปโหลด */
 .icon-picker {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
   margin-top: 8px;
+}
+.icon-picker .icon-option-upload {
+  width: 84px; height: 84px; aspect-ratio: auto;
 }
 .icon-option {
   aspect-ratio: 1;
@@ -1081,6 +1085,17 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
   background: var(--bg3);
 }
 .icon-option-upload svg { width: 24px; height: 24px; }
+/* ตัวอย่างโลโก้ที่เลือก/อัปโหลด */
+.icon-preview {
+  width: 84px; height: 84px;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #fff;
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px; flex-shrink: 0;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.06);
+}
+.icon-preview img { width: 100%; height: 100%; object-fit: contain; }
 @media (max-width: 640px) {
   .icon-picker { grid-template-columns: repeat(3, 1fr); }
 }
@@ -1635,15 +1650,17 @@ input[type=file] { display:none; }
           <textarea class="adm-textarea" rows="2" id="sysDesc" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
         </div>
         <div style="margin-top:14px;">
-          <label class="adm-label">เลือกไอคอน</label>
-          <div class="icon-picker" id="iconPicker">
-            <div class="icon-option" data-icon="icons/training.png" onclick="selectPresetIcon(this,'icons/training.png')"><img src="icons/training.png" alt="training"></div>
-            <div class="icon-option" data-icon="icons/checklist.png" onclick="selectPresetIcon(this,'icons/checklist.png')"><img src="icons/checklist.png" alt="checklist"></div>
-            <div class="icon-option" data-icon="icons/storage.png" onclick="selectPresetIcon(this,'icons/storage.png')"><img src="icons/storage.png" alt="storage"></div>
-            <div class="icon-option" data-icon="icons/billing.png" onclick="selectPresetIcon(this,'icons/billing.png')"><img src="icons/billing.png" alt="billing"></div>
-            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดรูปเอง (128×128 PNG · เฉพาะเครื่องนี้)">
+          <label class="adm-label">โลโก้ระบบ</label>
+          <div class="icon-picker" id="iconPicker" style="align-items:center;">
+            <!-- ตัวอย่างโลโก้ปัจจุบัน -->
+            <div class="icon-preview" id="sysIconPreview" style="display:none;">
+              <img id="sysIconPreviewImg" src="" alt="logo">
+            </div>
+            <!-- ปุ่มอัปโหลด -->
+            <label for="sysIconFile" class="icon-option icon-option-upload" title="อัปโหลดโลโก้ (128×128 PNG)">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5-5 5 5M12 5v12"/></svg>
             </label>
+            <span style="font-size:12px;color:var(--text2);">กดเพื่ออัปโหลดรูป (แนะนำ PNG จัตุรัส)</span>
           </div>
           <input type="file" id="sysIconFile" accept="image/*" style="display:none" onchange="handleIconUpload(this.files[0])">
           <input type="hidden" id="sysIconValue">
@@ -3754,10 +3771,10 @@ function openSystemModal(mode, systemId) {
   switchSysTab('info');
 
   var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
-  // Reset icon selection
-  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
+  // Reset icon
   document.getElementById('sysIconValue').value = '';
   document.getElementById('sysIconFile').value = '';
+  _setIconPreview('');
   if (s) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
@@ -3766,16 +3783,7 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysComingSoon').checked = !!s.comingSoon;
     if (s.icon) {
       document.getElementById('sysIconValue').value = s.icon;
-      // Highlight matching preset (if any)
-      var matched = false;
-      document.querySelectorAll('#iconPicker .icon-option[data-icon]').forEach(function(o){
-        if (o.getAttribute('data-icon') === s.icon) { o.classList.add('selected'); matched = true; }
-      });
-      // If custom upload (data URL), mark upload option
-      if (!matched && /^data:/.test(s.icon)) {
-        var u = document.querySelector('#iconPicker .icon-option-upload');
-        if (u) u.classList.add('selected');
-      }
+      _setIconPreview(s.icon);
     }
     populateBranchVisibility(s.visibleBranches || [], s.hideFromAllBranches);
     // Migrate legacy visibleRoles → visibleUsers (ครั้งเดียวตอนเปิด modal)
@@ -3802,13 +3810,15 @@ function openSystemModal(mode, systemId) {
   document.getElementById('systemModal').classList.add('show');
 }
 
-function selectPresetIcon(el, path) {
-  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
-  el.classList.add('selected');
-  document.getElementById('sysIconValue').value = path;
+// แสดง/ซ่อน ตัวอย่างโลโก้
+function _setIconPreview(src) {
+  var box = document.getElementById('sysIconPreview');
+  var img = document.getElementById('sysIconPreviewImg');
+  if (!box || !img) return;
+  if (src) { img.src = src; box.style.display = ''; }
+  else { img.src = ''; box.style.display = 'none'; }
 }
 function _markUploadOptionSelected() {
-  document.querySelectorAll('#iconPicker .icon-option').forEach(function(o){ o.classList.remove('selected'); });
   var uploadOpt = document.querySelector('#iconPicker .icon-option-upload');
   if (uploadOpt) uploadOpt.classList.add('selected');
 }
@@ -3837,6 +3847,7 @@ function handleIconUpload(file) {
 
       // โชว์ data URL ทันที (preview) — ถ้า upload สำเร็จจะอัปเดตเป็น Drive URL
       document.getElementById('sysIconValue').value = dataUrl;
+      _setIconPreview(dataUrl);
       _markUploadOptionSelected();
       setSyncStatus('กำลังอัปโหลดรูปไป Drive...', 'var(--text2)');
 
