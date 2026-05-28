@@ -3130,21 +3130,7 @@ function showMenuView() {
   setTimeout(updateAnnounceBtnVisibility, 100);
   mv.classList.add('view-active');
   setTimeout(function(){ mv.classList.remove('view-active'); }, 600);
-  var tag = document.getElementById('menuBranchTag');
-  if (tag) {
-    if (isAdminMode) {
-      var u = findUserByCode(branchPin);
-      var fullName = u ? (u.name || u.nick || '') : '';
-      var role = (u && u.role ? u.role : 'admin').toUpperCase();
-      tag.innerHTML =
-        '<span class="admin-badge">'
-        +   escapeHtml(fullName || 'Admin')
-        +   ' <span class="admin-badge-role">(' + escapeHtml(role) + ')</span>'
-        + '</span>';
-    } else {
-      tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
-    }
-  }
+  _renderMenuUserTag();
   document.body.classList.toggle('is-admin', isAdminMode);
   // is-admin-role = เฉพาะ role 'admin' (ปลดล็อกหน้าจัดการผู้ใช้)
   var _curU = isAdminMode ? findUserByCode(branchPin) : null;
@@ -3153,10 +3139,29 @@ function showMenuView() {
   // Refresh from cloud on view enter
   loadSystemsFromCloud().then(function(){ renderMenuCards(); });
   if (_curU && _curU.role === 'admin') {
-    try { loadUsersFromCloud(); } catch (e) { console.warn('loadUsersFromCloud', e); }
+    // โหลด USERS/BRANCHES ใหม่จาก cloud แล้ว re-render badge (กันชื่อไม่ตรงตอนเปิดครั้งแรก)
+    try { loadUsersFromCloud().then(function(){ _renderMenuUserTag(); }); } catch (e) { console.warn('loadUsersFromCloud', e); }
     try { loadBranchesFromCloud(); } catch (e) { console.warn('loadBranchesFromCloud', e); }
   }
   window.scrollTo(0,0);
+}
+
+// แสดงป้ายผู้ใช้มุมขวาบน (แยกออกมาเพื่อ re-render หลังโหลด USERS จาก cloud)
+function _renderMenuUserTag() {
+  var tag = document.getElementById('menuBranchTag');
+  if (!tag) return;
+  if (isAdminMode) {
+    var u = findUserByCode(branchPin);
+    var fullName = u ? (u.name || u.nick || '') : '';
+    var role = (u && u.role ? u.role : 'admin').toUpperCase();
+    tag.innerHTML =
+      '<span class="admin-badge">'
+      +   escapeHtml(fullName || 'Admin')
+      +   ' <span class="admin-badge-role">(' + escapeHtml(role) + ')</span>'
+      + '</span>';
+  } else {
+    tag.innerHTML = '<span class="branch-chip"><span class="branch-chip-name">' + currentBranchName + '</span></span>';
+  }
 }
 
 function goToBranchApp() {
