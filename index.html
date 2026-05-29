@@ -2956,12 +2956,27 @@ var JAEDAENG_BRANCHES = [
 var DEFAULT_JAEDAENG_BRANCHES = JAEDAENG_BRANCHES.slice();
 var JD_BRANCH_KEY = 'fab_jaedaeng_branches_v1';
 
+// Merge: backfill lat/lng จาก DEFAULT_JAEDAENG_BRANCHES สำหรับ entry ที่ขาด coords (legacy data)
+function _mergeJdBranches(arr) {
+  if (!Array.isArray(arr)) return JAEDAENG_BRANCHES;
+  return arr.map(function(e){
+    if (!e || typeof e !== 'object') return e;
+    var hasCoord = e.lat != null && e.lng != null && !isNaN(e.lat) && !isNaN(e.lng);
+    if (hasCoord) return e;
+    var def = DEFAULT_JAEDAENG_BRANCHES.find(function(d){ return d.name === e.name; });
+    if (def && def.lat != null && def.lng != null) {
+      return Object.assign({}, e, { lat: def.lat, lng: def.lng });
+    }
+    return e;
+  });
+}
+
 function loadJdBranchesLocal() {
   try {
     var saved = localStorage.getItem(JD_BRANCH_KEY);
     if (saved) {
       var arr = JSON.parse(saved);
-      if (Array.isArray(arr)) JAEDAENG_BRANCHES = arr;
+      if (Array.isArray(arr)) JAEDAENG_BRANCHES = _mergeJdBranches(arr);
     }
   } catch (e) {}
 }
@@ -2973,7 +2988,7 @@ function loadJdBranchesFromCloud() {
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res && res.ok && Array.isArray(res.jaedaengBranches)) {
-        JAEDAENG_BRANCHES = res.jaedaengBranches;
+        JAEDAENG_BRANCHES = _mergeJdBranches(res.jaedaengBranches);
         saveJdBranchesLocal();
       }
       return JAEDAENG_BRANCHES;
