@@ -1955,6 +1955,74 @@ input[type=file] { display:none; }
   </div>
 </div>
 
+<!-- ═════════════════════ ADMIN: JAEDAENG BRANCH MGMT ═════════════════════ -->
+<div class="adm-modal" id="jdBranchMgmtModal">
+  <div class="adm-modal-box" style="max-width:920px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title">🍜 จัดการสาขาเจ๊แดง</div>
+      <button class="adm-modal-close" onclick="closeJdBranchMgmtModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
+        <div style="font-size:12px;color:var(--text2);">จำนวนสาขา: <span id="jdBranchMgmtCount" style="color:var(--gold);font-weight:700;">0</span> สาขา</div>
+        <button class="adm-btn-primary" onclick="openJdBranchEditModal(null)" style="padding:8px 14px;font-size:13px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มสาขาใหม่</button>
+      </div>
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="jdBranchMgmtSearch" placeholder="ค้นหาด้วยชื่อสาขา / ชื่อ BZM..." class="adm-input" style="flex:1;min-width:220px;padding:8px 12px;font-size:13px;" oninput="renderJdBranchMgmtList()">
+        <select id="jdBranchMgmtFilter" class="adm-input" style="width:auto;padding:8px 12px;font-size:13px;" onchange="renderJdBranchMgmtList()">
+          <option value="">ทุก BZM</option>
+        </select>
+      </div>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:520px;overflow-y:auto;">
+        <table class="adm-table" style="margin:0;">
+          <thead>
+            <tr>
+              <th style="position:sticky;top:0;background:var(--bg3);width:50px;">#</th>
+              <th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th>
+              <th style="position:sticky;top:0;background:var(--bg3);">BZM ที่ดูแล</th>
+              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:130px;">จัดการ</th>
+            </tr>
+          </thead>
+          <tbody id="jdBranchMgmtTbody"></tbody>
+        </table>
+      </div>
+      <div id="jdBranchMgmtSync" style="text-align:center;font-size:11px;color:var(--text2);margin-top:10px;min-height:14px;"></div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeJdBranchMgmtModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ ADMIN: JAEDAENG BRANCH EDITOR ═════════════════════ -->
+<div class="adm-modal" id="jdBranchEditModal">
+  <div class="adm-modal-box" style="max-width:520px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title" id="jdBranchEditTitle">เพิ่มสาขาใหม่</div>
+      <button class="adm-modal-close" onclick="closeJdBranchEditModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div class="adm-section">
+        <label class="adm-label">ชื่อสาขา <span style="color:var(--red);">*</span></label>
+        <input type="text" class="adm-input" id="jdBranchEditName" placeholder="เช่น ร้านส้มตำเจ๊แดง (ธนิยะ)" maxlength="120">
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">ชื่อนี้จะใช้เป็น ID สาขา · ห้ามซ้ำกับสาขาอื่น</div>
+      </div>
+      <div class="adm-section">
+        <label class="adm-label">BZM ที่ดูแล <span style="color:var(--red);">*</span></label>
+        <select class="adm-input" id="jdBranchEditBzm">
+          <option value="">— เลือก BZM —</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">รายชื่อมาจาก USERS ที่มีตำแหน่ง BZM และแบรนด์เจ๊แดง</div>
+      </div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" id="jdBranchEditDeleteBtn" style="background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);margin-right:auto;" onclick="deleteCurrentJdBranch()">ลบสาขานี้</button>
+      <button class="adm-btn-secondary" onclick="closeJdBranchEditModal()">ยกเลิก</button>
+      <button class="adm-btn-primary" onclick="saveJdBranchEdit()">บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═════════════════════ ADMIN: ANNOUNCEMENT EDITOR ═════════════════════ -->
 <div class="adm-modal" id="announcementEditorModal">
   <div class="adm-modal-box" style="max-width:600px;">
@@ -2071,7 +2139,8 @@ input[type=file] { display:none; }
     <div class="adm-only-block" style="text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button class="admin-announce-btn admin-role-only" onclick="openManageAnnouncementsModal()"><span class="emoji-3d">📢</span> จัดการประกาศสำหรับสาขา</button>
       <button class="admin-announce-btn admin-role-only" onclick="openUserMgmtModal()"><span class="emoji-3d">👥</span> จัดการผู้ใช้งาน Team Management</button>
-      <button class="admin-announce-btn admin-role-only" onclick="openBranchMgmtModal()"><span class="emoji-3d">🏪</span> จัดการสาขา</button>
+      <button class="admin-announce-btn admin-role-only" onclick="openBranchMgmtModal()"><span class="emoji-3d">🏪</span> จัดการสาขา Santa Fe</button>
+      <button class="admin-announce-btn admin-role-only" onclick="openJdBranchMgmtModal()"><span class="emoji-3d">🍜</span> จัดการสาขาเจ๊แดง</button>
     </div>
     <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:0;"></div>
     <div class="menu-grid" id="menuGrid"></div>
@@ -2692,6 +2761,101 @@ var BRANCH_BZM_MAP = {
 
 var DEFAULT_BRANCHES = Object.assign({}, BRANCHES);
 var DEFAULT_BRANCH_BZM_MAP = Object.assign({}, BRANCH_BZM_MAP);
+
+/* ──────────────────── JAEDAENG BRANCHES ────────────────────
+   ใช้ชื่อสาขาเป็น ID (ไม่มีรหัส 4 หลักแบบ Santa Fe) · sync ผ่าน cloud key='jaedaengBranches'
+   แต่ละสาขา: { name, manager, managerNick } */
+var JAEDAENG_BRANCHES = [
+  // นุชจรินทร์ (พี่กัส)
+  { name: "ร้านส้มตำเจ๊แดง (ธนิยะ)",                      manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (ดุสิต เซ็นทรัล พาร์ค)",        manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (พรานนก)",                     manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (Paseo กาญจนาภิเษก)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลพระราม 2)",            manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (The Bright พระราม 2)",         manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (ศาลายา ปั๊ม PT)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊ม ปตท.เวสวิลเลจ)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท.บรมราชชนนี)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (บางจาก ราชพฤกษ์)",             manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (PTT ราชพฤกษ์)",                manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
+  { name: "ร้านส้มตำเจ๊แดง (มอเตอร์เวย์-ชลบุรี)",          manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (เอกเกณฑ์ พัทยา)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (The Street รัชดา)",            manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (PTT. นวลจันทร์)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท. พระราม 4)",               manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (ต้นซุง)",                       manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (ฟอร์จุนทาวน์)",                manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
+  { name: "ร้านส้มตำเจ๊แดง (สยาม)",                         manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (สยามพารากอน)",                  manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลเวิลด์)",               manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (คู่บอน)",                       manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (บางจากสุขุมวิท 62)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (ทากะทาวน์)",                    manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (Emporium)",                     manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (True Digital Park)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (For you park บางนา)",          manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (เดอะมอลล์ งามวงศ์วาน)",        manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลอีสต์วิลล์)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
+  { name: "ร้านส้มตำเจ๊แดง (Charn at the Avenue)",           manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท. สายไหม 56)",               manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (บางจากรังสิต คลองสอง)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (ฟิวเจอร์ปาร์ค รังสิต)",          manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (เมืองทองธานี)",                  manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (เทพารักษ์-สายไหม)",              manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก-ศาลายา)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (ประชาชื่น)",                     manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "4007 ซีคอนศรีนครินทร์ (เจ๊แดง จุ่มนัว)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "4008 เซ็นทรัลศาลายา (เจ๊แดง จุ่มนัว)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "4018 เทอมินอล21 พระราม 3 (เจ๊แดง จุ่มนัว)",       manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
+  { name: "ร้านส้มตำเจ๊แดง (S-Oasis)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (ท็อปส์ เซ็นทรัลลาดพร้าว)",       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (Little Walk รัตนาธิเบศร์)",      manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (The Circle ราชพฤกษ์)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (ไอคอนสยาม)",                     manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (กรุงเทพกริฑา)",                   manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก รามคำแหง)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (เสนานิคม)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "4001 แฟชั่น ไอส์แลนด์ (เจ๊แดง จุ่มนัว)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "4005 ซีคอนบางแค (เจ๊แดง จุ่มนัว)",                manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "4015 เดอะมอลล์ท่าพระ (เจ๊แดง จุ่มนัว)",            manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+];
+var DEFAULT_JAEDAENG_BRANCHES = JAEDAENG_BRANCHES.slice();
+var JD_BRANCH_KEY = 'fab_jaedaeng_branches_v1';
+
+function loadJdBranchesLocal() {
+  try {
+    var saved = localStorage.getItem(JD_BRANCH_KEY);
+    if (saved) {
+      var arr = JSON.parse(saved);
+      if (Array.isArray(arr)) JAEDAENG_BRANCHES = arr;
+    }
+  } catch (e) {}
+}
+function saveJdBranchesLocal() {
+  try { localStorage.setItem(JD_BRANCH_KEY, JSON.stringify(JAEDAENG_BRANCHES)); } catch (e) {}
+}
+function loadJdBranchesFromCloud() {
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok && Array.isArray(res.jaedaengBranches)) {
+        JAEDAENG_BRANCHES = res.jaedaengBranches;
+        saveJdBranchesLocal();
+      }
+      return JAEDAENG_BRANCHES;
+    })
+    .catch(function(){ return JAEDAENG_BRANCHES; });
+}
+function saveJdBranchesToCloud() {
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'set-config', key: 'jaedaengBranches', value: JAEDAENG_BRANCHES })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+}
+loadJdBranchesLocal();
 
 function loadBranchesLocal() {
   try {
@@ -4307,6 +4471,176 @@ function deleteCurrentBranch() {
 
 function _syncBranchesSync(msg, color) {
   var el = document.getElementById('branchMgmtSync');
+  if (el) { el.textContent = msg; el.style.color = color || ''; }
+}
+
+/* ──────────────────── JAEDAENG BRANCH MGMT (UI) ──────────────────── */
+var _editingJdBranchIdx = -1;
+
+function _getJdBzmOptions() {
+  // BZM ของแบรนด์เจ๊แดง = role==='bzm' && (brand==='jaedaeng' || crossBrand)
+  // + รวม BZM ที่ปรากฏใน JAEDAENG_BRANCHES (legacy)
+  var seen = {};
+  var opts = [];
+  USERS.filter(function(u){
+    return u.role === 'bzm' && (u.brand === 'jaedaeng' || u.crossBrand);
+  }).forEach(function(u){
+    var nick = u.nick || u.name;
+    if (!nick || seen[nick]) return;
+    seen[nick] = true;
+    opts.push({ nick: nick, name: u.name || nick, label: u.name + (u.nick ? ' (' + u.nick + ')' : '') });
+  });
+  JAEDAENG_BRANCHES.forEach(function(b){
+    if (b.managerNick && !seen[b.managerNick]) {
+      seen[b.managerNick] = true;
+      opts.push({ nick: b.managerNick, name: b.manager || b.managerNick, label: (b.manager || '') + ' (' + b.managerNick + ')' });
+    }
+  });
+  opts.sort(function(a,b){ return a.label.localeCompare(b.label, 'th'); });
+  return opts;
+}
+
+function _populateJdFilter() {
+  var sel = document.getElementById('jdBranchMgmtFilter');
+  if (!sel) return;
+  var current = sel.value;
+  var opts = _getJdBzmOptions();
+  sel.innerHTML = '<option value="">ทุก BZM</option>'
+    + opts.map(function(o){ return '<option value="'+escapeAttr(o.nick)+'"'+(o.nick===current?' selected':'')+'>'+escapeHtml(o.label)+'</option>'; }).join('');
+}
+
+function _populateJdBzmSelect(selectedNick) {
+  var sel = document.getElementById('jdBranchEditBzm');
+  if (!sel) return;
+  var opts = _getJdBzmOptions();
+  sel.innerHTML = '<option value="">— เลือก BZM —</option>'
+    + opts.map(function(o){ return '<option value="'+escapeAttr(o.nick)+'" data-name="'+escapeAttr(o.name)+'"'+(o.nick===selectedNick?' selected':'')+'>'+escapeHtml(o.label)+'</option>'; }).join('');
+}
+
+function renderJdBranchMgmtList() {
+  var tbody = document.getElementById('jdBranchMgmtTbody');
+  if (!tbody) return;
+  var search = (document.getElementById('jdBranchMgmtSearch').value || '').trim().toLowerCase();
+  var filter = document.getElementById('jdBranchMgmtFilter').value || '';
+  var rows = JAEDAENG_BRANCHES.map(function(b, i){ return { b: b, i: i }; });
+  if (filter) rows = rows.filter(function(r){ return r.b.managerNick === filter; });
+  if (search) rows = rows.filter(function(r){
+    return (r.b.name||'').toLowerCase().indexOf(search) >= 0
+        || (r.b.manager||'').toLowerCase().indexOf(search) >= 0
+        || (r.b.managerNick||'').toLowerCase().indexOf(search) >= 0;
+  });
+  var html = '';
+  rows.forEach(function(r, idx){
+    var b = r.b;
+    var bzmHtml = b.managerNick
+      ? '<span style="font-weight:600;font-size:12px;">' + escapeHtml(b.manager || '') + ' <span style="color:var(--text3);font-weight:500;">(' + escapeHtml(b.managerNick) + ')</span></span>'
+      : '<span style="color:var(--text3);">—</span>';
+    html += '<tr>'
+      + '<td style="font-weight:700;color:var(--gold);font-size:12px;">' + (idx + 1) + '</td>'
+      + '<td style="font-weight:600;font-size:13px;">' + escapeHtml(b.name) + '</td>'
+      + '<td>' + bzmHtml + '</td>'
+      + '<td style="text-align:center;white-space:nowrap;">'
+      +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openJdBranchEditModal(' + r.i + ')" title="แก้ไข">✏️ แก้ไข</button>'
+      +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteJdBranch(' + r.i + ')" title="ลบ">🗑</button>'
+      + '</td>'
+      + '</tr>';
+  });
+  if (!html) {
+    html = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text3);">' + (search || filter ? 'ไม่พบสาขาที่ตรงกับเงื่อนไข' : 'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง') + '</td></tr>';
+  }
+  tbody.innerHTML = html;
+  var nEl = document.getElementById('jdBranchMgmtCount');
+  if (nEl) nEl.textContent = JAEDAENG_BRANCHES.length;
+}
+
+function openJdBranchMgmtModal() {
+  document.getElementById('jdBranchMgmtSearch').value = '';
+  _populateJdFilter();
+  document.getElementById('jdBranchMgmtFilter').value = '';
+  renderJdBranchMgmtList();
+  document.getElementById('jdBranchMgmtModal').classList.add('show');
+  loadJdBranchesFromCloud().then(function(){
+    _populateJdFilter();
+    renderJdBranchMgmtList();
+  }).catch(function(){});
+}
+function closeJdBranchMgmtModal() {
+  document.getElementById('jdBranchMgmtModal').classList.remove('show');
+}
+
+function openJdBranchEditModal(idx) {
+  _editingJdBranchIdx = (typeof idx === 'number') ? idx : -1;
+  var isEdit = _editingJdBranchIdx >= 0;
+  var b = isEdit ? JAEDAENG_BRANCHES[_editingJdBranchIdx] : { name: '', manager: '', managerNick: '' };
+  document.getElementById('jdBranchEditTitle').textContent = isEdit ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่';
+  document.getElementById('jdBranchEditName').value = b.name || '';
+  _populateJdBzmSelect(b.managerNick || '');
+  var delBtn = document.getElementById('jdBranchEditDeleteBtn');
+  if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
+  document.getElementById('jdBranchEditModal').classList.add('show');
+}
+function closeJdBranchEditModal() {
+  document.getElementById('jdBranchEditModal').classList.remove('show');
+  _editingJdBranchIdx = -1;
+}
+
+function saveJdBranchEdit() {
+  var name = document.getElementById('jdBranchEditName').value.trim();
+  var sel = document.getElementById('jdBranchEditBzm');
+  var nick = sel.value;
+  var opt = sel.options[sel.selectedIndex];
+  var managerName = opt ? (opt.getAttribute('data-name') || '') : '';
+
+  if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อสาขา'); return; }
+  if (!nick) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือก BZM ที่ดูแลสาขานี้'); return; }
+  // เช็คชื่อซ้ำ (ยกเว้นตัวเอง)
+  var dup = JAEDAENG_BRANCHES.findIndex(function(b, i){ return i !== _editingJdBranchIdx && b.name === name; });
+  if (dup >= 0) { showInfo('⚠️ ชื่อซ้ำ', 'มีสาขาชื่อนี้อยู่แล้ว — กรุณาใช้ชื่ออื่น'); return; }
+
+  var entry = { name: name, manager: managerName || nick, managerNick: nick };
+  if (_editingJdBranchIdx >= 0) JAEDAENG_BRANCHES[_editingJdBranchIdx] = entry;
+  else JAEDAENG_BRANCHES.push(entry);
+
+  saveJdBranchesLocal();
+  renderJdBranchMgmtList();
+  _populateJdFilter();
+  closeJdBranchEditModal();
+  _syncJdBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
+  saveJdBranchesToCloud()
+    .then(function(){ _syncJdBranchesSync('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
+    .catch(function(err){ _syncJdBranchesSync('⚠ บันทึกในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+}
+
+function quickDeleteJdBranch(idx) {
+  var b = JAEDAENG_BRANCHES[idx];
+  if (!b) return;
+  customConfirm({
+    icon: '🗑',
+    title: 'ลบสาขานี้?',
+    desc: 'จะลบ <b>' + escapeHtml(b.name) + '</b> ออกจากระบบเจ๊แดง — สาขานี้จะไม่ปรากฏในรายการตรวจอีก',
+    okText: 'ลบเลย'
+  }).then(function(ok){
+    if (!ok) return;
+    JAEDAENG_BRANCHES.splice(idx, 1);
+    saveJdBranchesLocal();
+    renderJdBranchMgmtList();
+    _populateJdFilter();
+    _syncJdBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
+    saveJdBranchesToCloud()
+      .then(function(){ _syncJdBranchesSync('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
+      .catch(function(err){ _syncJdBranchesSync('⚠ ลบในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+  });
+}
+
+function deleteCurrentJdBranch() {
+  if (_editingJdBranchIdx < 0) return;
+  var idx = _editingJdBranchIdx;
+  closeJdBranchEditModal();
+  quickDeleteJdBranch(idx);
+}
+
+function _syncJdBranchesSync(msg, color) {
+  var el = document.getElementById('jdBranchMgmtSync');
   if (el) { el.textContent = msg; el.style.color = color || ''; }
 }
 
