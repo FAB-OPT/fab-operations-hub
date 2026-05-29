@@ -3372,7 +3372,7 @@ function clearFabSession() {
   try { localStorage.removeItem(FAB_SESSION_KEY); } catch(e) {}
 }
 
-async function doLogin() {
+function doLogin() {
   var pin = getPinValue();
   var required = selectedRole === 'tm' ? 6 : 4;
   if (pin.length < required) {
@@ -3380,33 +3380,23 @@ async function doLogin() {
     return;
   }
   if (selectedRole === 'tm') {
-    // Team Management: ตรวจจาก USERS db
     var user = findUserByCode(pin);
-    // ไม่เจอใน cache → ลอง sync จาก cloud ก่อน (รองรับกรณีอุปกรณ์อื่นแก้รหัสและเครื่องนี้ยังเป็นข้อมูลเก่า)
     if (!user) {
-      showError('กำลังตรวจสอบรหัสจาก cloud...');
-      try { await loadUsersFromCloud(); } catch (e) {}
-      user = findUserByCode(pin);
-    }
-    if (!user) {
+      // ทริก sync cloud ใน background (ไม่รอ) — ครั้งหน้าผู้ใช้ลองอีกครั้งจะเจอ
+      try { loadUsersFromCloud(); } catch (e) {}
       showError('ไม่พบรหัสผู้ใช้ ' + pin + ' ในระบบ');
       clearPin();
       return;
     }
     branchPin = pin;
     currentBranchName = '';
-    enterApp(user.role);  // role จริง (admin/vp/coo/bzm)
+    enterApp(user.role);
   } else {
-    // Branch login
     if (!BRANCHES[pin]) {
-      // ลอง sync สาขาจาก cloud ก่อน
-      showError('กำลังตรวจสอบรหัสจาก cloud...');
-      try { await loadBranchesFromCloud(); } catch (e) {}
-      if (!BRANCHES[pin]) {
-        showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
-        clearPin();
-        return;
-      }
+      try { loadBranchesFromCloud(); } catch (e) {}
+      showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
+      clearPin();
+      return;
     }
     branchPin = pin;
     currentBranchName = getBranchFullName(pin);
