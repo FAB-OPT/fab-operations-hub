@@ -4370,7 +4370,7 @@ function openUserEditModal(code) {
   var u = code ? findUserByCode(code) : null;
   document.getElementById('userEditTitle').textContent = u ? 'แก้ไขผู้ใช้: ' + (u.nick || u.name || u.code) : 'เพิ่มผู้ใช้ใหม่';
   document.getElementById('userEditCode').value = u ? u.code : '';
-  document.getElementById('userEditCode').readOnly = !!u;  // ไม่ให้แก้ code (เป็น primary key)
+  document.getElementById('userEditCode').readOnly = false;  // อนุญาตให้แก้รหัสได้ (เช็คซ้ำใน saveUserEdit)
   document.getElementById('userEditName').value = u ? (u.name || '') : '';
   document.getElementById('userEditNick').value = u ? (u.nick || '') : '';
   document.getElementById('userEditRole').value = u ? (u.role || 'bzm') : 'bzm';
@@ -4403,13 +4403,13 @@ function saveUserEdit() {
   if (!role) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือกตำแหน่ง'); return; }
   if (!brand) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือกแบรนด์'); return; }
 
-  // ตรวจ duplicate code (เฉพาะตอน add ใหม่)
-  if (!_editingUserCode) {
-    if (USERS.some(function(u){ return u.code === code; })) {
-      showInfo('⚠️ รหัสซ้ำ', 'รหัส <b>'+escapeHtml(code)+'</b> ถูกใช้แล้ว · กรุณาใช้รหัสอื่น');
-      return;
-    }
+  // ตรวจ duplicate code — เช็คทั้งตอน add และตอน edit (ยกเว้นตัวเอง)
+  if (USERS.some(function(u){ return u.code === code && u.code !== _editingUserCode; })) {
+    showInfo('⚠️ รหัสซ้ำ', 'รหัส <b>'+escapeHtml(code)+'</b> ถูกใช้แล้ว · กรุณาใช้รหัสอื่น');
+    return;
   }
+  // ถ้ากำลังแก้รหัสของตัวเอง (ที่ login อยู่) → อัปเดต session
+  var changingOwnCode = (_editingUserCode && _editingUserCode === branchPin && code !== _editingUserCode);
 
   var newUser = { code: code, name: name, nick: nick, role: role, brand: brand };
   if (crossBrand) newUser.crossBrand = true;
@@ -4424,6 +4424,18 @@ function saveUserEdit() {
   saveUsersLocal();
   renderUserMgmtList();
   closeUserEditModal();
+  // ถ้าเปลี่ยนรหัสตัวเอง → อัปเดต session ใน sessionStorage/localStorage ทันที (ไม่ต้อง login ใหม่)
+  if (changingOwnCode) {
+    try {
+      branchPin = code;
+      var sess = localStorage.getItem('fab_session');
+      if (sess) {
+        var sObj = JSON.parse(sess);
+        if (sObj) { sObj.code = code; sObj.pin = code; localStorage.setItem('fab_session', JSON.stringify(sObj)); }
+      }
+    } catch (e) {}
+    showInfo('✓ เปลี่ยนรหัสผ่านสำเร็จ', 'รหัสใหม่: <b>' + escapeHtml(code) + '</b><br>ครั้งต่อไป login ด้วยรหัสนี้');
+  }
   _syncUsersSync('กำลังซิงค์ Cloud...', 'var(--text2)');
   saveUsersToCloud()
     .then(function(){ _syncUsersSync('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
