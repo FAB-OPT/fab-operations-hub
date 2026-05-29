@@ -2101,6 +2101,7 @@ input[type=file] { display:none; }
               <th style="position:sticky;top:0;background:var(--bg3);width:50px;">#</th>
               <th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th>
               <th style="position:sticky;top:0;background:var(--bg3);">BZM ที่ดูแล</th>
+              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:80px;">GPS</th>
               <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:130px;">จัดการ</th>
             </tr>
           </thead>
@@ -2134,6 +2135,18 @@ input[type=file] { display:none; }
           <option value="">— เลือก BZM —</option>
         </select>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">รายชื่อมาจาก USERS ที่มีตำแหน่ง BZM และแบรนด์เจ๊แดง</div>
+      </div>
+      <div class="adm-section">
+        <label class="adm-label">📍 พิกัด GPS</label>
+        <div style="display:flex;gap:8px;margin-bottom:6px;">
+          <input type="text" class="adm-input" id="jdBranchEditLat" placeholder="Latitude (เช่น 13.7301775)" style="flex:1;" inputmode="decimal">
+          <input type="text" class="adm-input" id="jdBranchEditLng" placeholder="Longitude (เช่น 100.5307144)" style="flex:1;" inputmode="decimal">
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" class="adm-input" id="jdBranchEditGmapsUrl" placeholder="หรือวาง URL จาก Google Maps แล้วกดดึงพิกัด..." style="flex:1;font-size:12px;">
+          <button type="button" class="adm-btn-secondary" style="padding:8px 12px;font-size:12px;white-space:nowrap;" onclick="extractGmapsCoords()">ดึงพิกัด</button>
+        </div>
+        <div id="jdBranchEditCoordStatus" style="font-size:11px;color:var(--text3);margin-top:6px;min-height:14px;"></div>
       </div>
     </div>
     <div class="adm-modal-footer">
@@ -2882,60 +2895,60 @@ var DEFAULT_BRANCH_BZM_MAP = Object.assign({}, BRANCH_BZM_MAP);
 
 /* ──────────────────── JAEDAENG BRANCHES ────────────────────
    ใช้ชื่อสาขาเป็น ID (ไม่มีรหัส 4 หลักแบบ Santa Fe) · sync ผ่าน cloud key='jaedaengBranches'
-   แต่ละสาขา: { name, manager, managerNick } */
+   แต่ละสาขา: { name, manager, managerNick, lat, lng } */
 var JAEDAENG_BRANCHES = [
   // นุชจรินทร์ (พี่กัส)
-  { name: "ร้านส้มตำเจ๊แดง (ธนิยะ)",                      manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (ดุสิต เซ็นทรัล พาร์ค)",        manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (พรานนก)",                     manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (Paseo กาญจนาภิเษก)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลพระราม 2)",            manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (The Bright พระราม 2)",         manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (ศาลายา ปั๊ม PT)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (ปั๊ม ปตท.เวสวิลเลจ)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (ปตท.บรมราชชนนี)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (บางจาก ราชพฤกษ์)",             manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (PTT ราชพฤกษ์)",                manager: "นุชจรินทร์",   managerNick: "พี่กัส" },
-  { name: "ร้านส้มตำเจ๊แดง (มอเตอร์เวย์-ชลบุรี)",          manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (เอกเกณฑ์ พัทยา)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (The Street รัชดา)",            manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (PTT. นวลจันทร์)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (ปตท. พระราม 4)",               manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (ต้นซุง)",                       manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (ฟอร์จุนทาวน์)",                manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น" },
-  { name: "ร้านส้มตำเจ๊แดง (สยาม)",                         manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (สยามพารากอน)",                  manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลเวิลด์)",               manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (คู่บอน)",                       manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (บางจากสุขุมวิท 62)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (ทากะทาวน์)",                    manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (Emporium)",                     manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (True Digital Park)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (For you park บางนา)",          manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (เดอะมอลล์ งามวงศ์วาน)",        manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลอีสต์วิลล์)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว" },
-  { name: "ร้านส้มตำเจ๊แดง (Charn at the Avenue)",           manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (ปตท. สายไหม 56)",               manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (บางจากรังสิต คลองสอง)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (ฟิวเจอร์ปาร์ค รังสิต)",          manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (เมืองทองธานี)",                  manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (เทพารักษ์-สายไหม)",              manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก-ศาลายา)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (ประชาชื่น)",                     manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "4007 ซีคอนศรีนครินทร์ (เจ๊แดง จุ่มนัว)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "4008 เซ็นทรัลศาลายา (เจ๊แดง จุ่มนัว)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "4018 เทอมินอล21 พระราม 3 (เจ๊แดง จุ่มนัว)",       manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย" },
-  { name: "ร้านส้มตำเจ๊แดง (S-Oasis)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (ท็อปส์ เซ็นทรัลลาดพร้าว)",       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (Little Walk รัตนาธิเบศร์)",      manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (The Circle ราชพฤกษ์)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (ไอคอนสยาม)",                     manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (กรุงเทพกริฑา)",                   manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก รามคำแหง)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "ร้านส้มตำเจ๊แดง (เสนานิคม)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "4001 แฟชั่น ไอส์แลนด์ (เจ๊แดง จุ่มนัว)",          manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "4005 ซีคอนบางแค (เจ๊แดง จุ่มนัว)",                manager: "จุรีพร",     managerNick: "พี่อีฟ" },
-  { name: "4015 เดอะมอลล์ท่าพระ (เจ๊แดง จุ่มนัว)",            manager: "จุรีพร",     managerNick: "พี่อีฟ" },
+  { name: "ร้านส้มตำเจ๊แดง (ธนิยะ)",                      manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7301775, lng: 100.5307144 },
+  { name: "ร้านส้มตำเจ๊แดง (ดุสิต เซ็นทรัล พาร์ค)",        manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7283064, lng: 100.534965  },
+  { name: "ร้านส้มตำเจ๊แดง (พรานนก)",                     manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7535468, lng: 100.4455994 },
+  { name: "ร้านส้มตำเจ๊แดง (Paseo กาญจนาภิเษก)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7665982, lng: 100.4036471 },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลพระราม 2)",            manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.662599,  lng: 100.4347654 },
+  { name: "ร้านส้มตำเจ๊แดง (The Bright พระราม 2)",         manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.6687652, lng: 100.4497944 },
+  { name: "ร้านส้มตำเจ๊แดง (ศาลายา ปั๊ม PT)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7887022, lng: 100.3393726 },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊ม ปตท.เวสวิลเลจ)",          manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.8567282, lng: 100.407688  },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท.บรมราชชนนี)",              manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7819421, lng: 100.4105383 },
+  { name: "ร้านส้มตำเจ๊แดง (บางจาก ราชพฤกษ์)",             manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.7907227, lng: 100.4446842 },
+  { name: "ร้านส้มตำเจ๊แดง (PTT ราชพฤกษ์)",                manager: "นุชจรินทร์",   managerNick: "พี่กัส",   lat: 13.8408768, lng: 100.4077997 },
+  { name: "ร้านส้มตำเจ๊แดง (มอเตอร์เวย์-ชลบุรี)",          manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 13.5393791, lng: 101.006768  },
+  { name: "ร้านส้มตำเจ๊แดง (เอกเกณฑ์ พัทยา)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 12.9510719, lng: 100.8857879 },
+  { name: "ร้านส้มตำเจ๊แดง (The Street รัชดา)",            manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 13.7535468, lng: 100.4455941 },
+  { name: "ร้านส้มตำเจ๊แดง (PTT. นวลจันทร์)",              manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 13.8182153, lng: 100.6462443 },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท. พระราม 4)",               manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 13.7131324, lng: 100.5818959 },
+  { name: "ร้านส้มตำเจ๊แดง (ต้นซุง)",                       manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: null,       lng: null        },
+  { name: "ร้านส้มตำเจ๊แดง (ฟอร์จุนทาวน์)",                manager: "คณัสวรรณ", managerNick: "พี่เฟิร์น", lat: 13.759541,  lng: 100.5649858 },
+  { name: "ร้านส้มตำเจ๊แดง (สยาม)",                         manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.7353013, lng: 100.5108902 },
+  { name: "ร้านส้มตำเจ๊แดง (สยามพารากอน)",                  manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.7463,    lng: 100.5346    },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลเวิลด์)",               manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.7447218, lng: 100.4645232 },
+  { name: "ร้านส้มตำเจ๊แดง (คู่บอน)",                       manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.8548134, lng: 100.67797   },
+  { name: "ร้านส้มตำเจ๊แดง (บางจากสุขุมวิท 62)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.6952912, lng: 100.6033721 },
+  { name: "ร้านส้มตำเจ๊แดง (ทากะทาวน์)",                    manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.7453243, lng: 100.5700709 },
+  { name: "ร้านส้มตำเจ๊แดง (Emporium)",                     manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.7428975, lng: 100.564992  },
+  { name: "ร้านส้มตำเจ๊แดง (True Digital Park)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.6866139, lng: 100.6348432 },
+  { name: "ร้านส้มตำเจ๊แดง (For you park บางนา)",          manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.6712974, lng: 100.6183834 },
+  { name: "ร้านส้มตำเจ๊แดง (เดอะมอลล์ งามวงศ์วาน)",        manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.8558865, lng: 100.5390694 },
+  { name: "ร้านส้มตำเจ๊แดง (เซ็นทรัลอีสต์วิลล์)",            manager: "ขวัญดาว",  managerNick: "พี่ดาว",   lat: 13.8029718, lng: 100.6143198 },
+  { name: "ร้านส้มตำเจ๊แดง (Charn at the Avenue)",           manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.8007595, lng: 100.3735592 },
+  { name: "ร้านส้มตำเจ๊แดง (ปตท. สายไหม 56)",               manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.9184717, lng: 100.6576505 },
+  { name: "ร้านส้มตำเจ๊แดง (บางจากรังสิต คลองสอง)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.9885509, lng: 100.6373587 },
+  { name: "ร้านส้มตำเจ๊แดง (ฟิวเจอร์ปาร์ค รังสิต)",          manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.9892012, lng: 100.6148237 },
+  { name: "ร้านส้มตำเจ๊แดง (เมืองทองธานี)",                  manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.9147566, lng: 100.5371567 },
+  { name: "ร้านส้มตำเจ๊แดง (เทพารักษ์-สายไหม)",              manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.8812783, lng: 100.6239798 },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก-ศาลายา)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.8068012, lng: 100.3129815 },
+  { name: "ร้านส้มตำเจ๊แดง (ประชาชื่น)",                     manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.8417627, lng: 100.5307696 },
+  { name: "4007 ซีคอนศรีนครินทร์ (เจ๊แดง จุ่มนัว)",         manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.6932864, lng: 100.6453704 },
+  { name: "4008 เซ็นทรัลศาลายา (เจ๊แดง จุ่มนัว)",            manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.7873021, lng: 100.2733108 },
+  { name: "4018 เทอมินอล21 พระราม 3 (เจ๊แดง จุ่มนัว)",       manager: "พิมพ์พิชชา", managerNick: "พี่อ้อย",  lat: 13.689139,  lng: 100.4295476 },
+  { name: "ร้านส้มตำเจ๊แดง (S-Oasis)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: null,       lng: null        },
+  { name: "ร้านส้มตำเจ๊แดง (ท็อปส์ เซ็นทรัลลาดพร้าว)",       manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.8159219, lng: 100.5583448 },
+  { name: "ร้านส้มตำเจ๊แดง (Little Walk รัตนาธิเบศร์)",      manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.8650669, lng: 100.4921928 },
+  { name: "ร้านส้มตำเจ๊แดง (The Circle ราชพฤกษ์)",          manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7672438, lng: 100.4397739 },
+  { name: "ร้านส้มตำเจ๊แดง (ไอคอนสยาม)",                     manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7264086, lng: 100.500041  },
+  { name: "ร้านส้มตำเจ๊แดง (กรุงเทพกริฑา)",                   manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7537365, lng: 100.7145711 },
+  { name: "ร้านส้มตำเจ๊แดง (ปั๊มบางจาก รามคำแหง)",          manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7789767, lng: 100.6750197 },
+  { name: "ร้านส้มตำเจ๊แดง (เสนานิคม)",                       manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.8341619, lng: 100.5799618 },
+  { name: "4001 แฟชั่น ไอส์แลนด์ (เจ๊แดง จุ่มนัว)",          manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.8253442, lng: 100.6788238 },
+  { name: "4005 ซีคอนบางแค (เจ๊แดง จุ่มนัว)",                manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7123589, lng: 100.4308969 },
+  { name: "4015 เดอะมอลล์ท่าพระ (เจ๊แดง จุ่มนัว)",            manager: "จุรีพร",     managerNick: "พี่อีฟ",   lat: 13.7139355, lng: 100.477666  },
 ];
 var DEFAULT_JAEDAENG_BRANCHES = JAEDAENG_BRANCHES.slice();
 var JD_BRANCH_KEY = 'fab_jaedaeng_branches_v1';
@@ -4660,10 +4673,15 @@ function renderJdBranchMgmtList() {
     var bzmHtml = b.managerNick
       ? '<span style="font-weight:600;font-size:12px;">' + escapeHtml(b.manager || '') + ' <span style="color:var(--text3);font-weight:500;">(' + escapeHtml(b.managerNick) + ')</span></span>'
       : '<span style="color:var(--text3);">—</span>';
+    var hasCoord = (b.lat != null && b.lng != null && !isNaN(b.lat) && !isNaN(b.lng));
+    var gpsHtml = hasCoord
+      ? '<span title="' + b.lat + ', ' + b.lng + '" style="color:var(--green);font-weight:700;font-size:13px;">✓</span>'
+      : '<span title="ไม่มีพิกัด" style="color:var(--red);font-weight:700;font-size:13px;">✗</span>';
     html += '<tr>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">' + (idx + 1) + '</td>'
       + '<td style="font-weight:600;font-size:13px;">' + escapeHtml(b.name) + '</td>'
       + '<td>' + bzmHtml + '</td>'
+      + '<td style="text-align:center;">' + gpsHtml + '</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
       +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openJdBranchEditModal(' + r.i + ')" title="แก้ไข">✏️ แก้ไข</button>'
       +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteJdBranch(' + r.i + ')" title="ลบ">🗑</button>'
@@ -4671,7 +4689,7 @@ function renderJdBranchMgmtList() {
       + '</tr>';
   });
   if (!html) {
-    html = '<tr><td colspan="4" style="text-align:center;padding:30px;color:var(--text3);">' + (search || filter ? 'ไม่พบสาขาที่ตรงกับเงื่อนไข' : 'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง') + '</td></tr>';
+    html = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3);">' + (search || filter ? 'ไม่พบสาขาที่ตรงกับเงื่อนไข' : 'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง') + '</td></tr>';
   }
   tbody.innerHTML = html;
   var nEl = document.getElementById('jdBranchMgmtCount');
@@ -4696,13 +4714,52 @@ function closeJdBranchMgmtModal() {
 function openJdBranchEditModal(idx) {
   _editingJdBranchIdx = (typeof idx === 'number') ? idx : -1;
   var isEdit = _editingJdBranchIdx >= 0;
-  var b = isEdit ? JAEDAENG_BRANCHES[_editingJdBranchIdx] : { name: '', manager: '', managerNick: '' };
+  var b = isEdit ? JAEDAENG_BRANCHES[_editingJdBranchIdx] : { name: '', manager: '', managerNick: '', lat: null, lng: null };
   document.getElementById('jdBranchEditTitle').textContent = isEdit ? 'แก้ไขสาขา' : 'เพิ่มสาขาใหม่';
   document.getElementById('jdBranchEditName').value = b.name || '';
+  document.getElementById('jdBranchEditLat').value = (b.lat != null ? b.lat : '');
+  document.getElementById('jdBranchEditLng').value = (b.lng != null ? b.lng : '');
+  document.getElementById('jdBranchEditGmapsUrl').value = '';
+  document.getElementById('jdBranchEditCoordStatus').textContent = '';
   _populateJdBzmSelect(b.managerNick || '');
   var delBtn = document.getElementById('jdBranchEditDeleteBtn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
   document.getElementById('jdBranchEditModal').classList.add('show');
+}
+
+// แกะ lat/lng จาก Google Maps URL — รองรับ ?q=lat,lng · @lat,lng,zoom · !3dlat!4dlng
+function extractGmapsCoords() {
+  var url = document.getElementById('jdBranchEditGmapsUrl').value.trim();
+  var statusEl = document.getElementById('jdBranchEditCoordStatus');
+  if (!url) { statusEl.textContent = '⚠️ กรุณาวาง URL ก่อน'; statusEl.style.color = 'var(--red)'; return; }
+  var lat = null, lng = null;
+  // pattern 1: @lat,lng
+  var m = url.match(/@(-?\d+\.\d+),(-?\d+\.\d+)/);
+  if (m) { lat = parseFloat(m[1]); lng = parseFloat(m[2]); }
+  // pattern 2: !3dlat!4dlng
+  if (lat == null) {
+    m = url.match(/!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)/);
+    if (m) { lat = parseFloat(m[1]); lng = parseFloat(m[2]); }
+  }
+  // pattern 3: q=lat,lng or query=lat,lng
+  if (lat == null) {
+    m = url.match(/[?&](?:q|query|ll)=(-?\d+\.\d+),(-?\d+\.\d+)/);
+    if (m) { lat = parseFloat(m[1]); lng = parseFloat(m[2]); }
+  }
+  // pattern 4: raw "lat,lng" string
+  if (lat == null) {
+    m = url.match(/^\s*(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)\s*$/);
+    if (m) { lat = parseFloat(m[1]); lng = parseFloat(m[2]); }
+  }
+  if (lat == null || lng == null) {
+    statusEl.textContent = '❌ หาพิกัดใน URL ไม่เจอ — ลองคัดลอกใหม่ (รูปแบบ Google Maps · "Share" → "Copy link")';
+    statusEl.style.color = 'var(--red)';
+    return;
+  }
+  document.getElementById('jdBranchEditLat').value = lat;
+  document.getElementById('jdBranchEditLng').value = lng;
+  statusEl.textContent = '✓ ดึงพิกัดสำเร็จ: ' + lat + ', ' + lng;
+  statusEl.style.color = 'var(--green)';
 }
 function closeJdBranchEditModal() {
   document.getElementById('jdBranchEditModal').classList.remove('show');
@@ -4715,6 +4772,8 @@ function saveJdBranchEdit() {
   var nick = sel.value;
   var opt = sel.options[sel.selectedIndex];
   var managerName = opt ? (opt.getAttribute('data-name') || '') : '';
+  var latRaw = document.getElementById('jdBranchEditLat').value.trim();
+  var lngRaw = document.getElementById('jdBranchEditLng').value.trim();
 
   if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อสาขา'); return; }
   if (!nick) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือก BZM ที่ดูแลสาขานี้'); return; }
@@ -4722,7 +4781,15 @@ function saveJdBranchEdit() {
   var dup = JAEDAENG_BRANCHES.findIndex(function(b, i){ return i !== _editingJdBranchIdx && b.name === name; });
   if (dup >= 0) { showInfo('⚠️ ชื่อซ้ำ', 'มีสาขาชื่อนี้อยู่แล้ว — กรุณาใช้ชื่ออื่น'); return; }
 
-  var entry = { name: name, manager: managerName || nick, managerNick: nick };
+  // validate lat/lng (อนุญาตให้เว้นว่างทั้งคู่)
+  var lat = null, lng = null;
+  if (latRaw || lngRaw) {
+    lat = parseFloat(latRaw); lng = parseFloat(lngRaw);
+    if (isNaN(lat) || isNaN(lng)) { showInfo('⚠️ พิกัดไม่ถูกต้อง', 'lat/lng ต้องเป็นตัวเลขทศนิยม (หรือเว้นว่างทั้ง 2 ช่อง)'); return; }
+    if (lat < -90 || lat > 90 || lng < -180 || lng > 180) { showInfo('⚠️ พิกัดเกินช่วง', 'lat อยู่ระหว่าง -90 ถึง 90 · lng อยู่ระหว่าง -180 ถึง 180'); return; }
+  }
+
+  var entry = { name: name, manager: managerName || nick, managerNick: nick, lat: lat, lng: lng };
   if (_editingJdBranchIdx >= 0) JAEDAENG_BRANCHES[_editingJdBranchIdx] = entry;
   else JAEDAENG_BRANCHES.push(entry);
 
