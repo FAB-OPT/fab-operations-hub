@@ -3099,6 +3099,9 @@ window.addEventListener('DOMContentLoaded', function() {
   try { loadSystemsLocal(); } catch(e) { console.error('loadSystemsLocal', e); }
   try { loadAnnouncementsLocal(); } catch(e) { console.error('loadAnnouncementsLocal', e); }
   try { loadSystemsFromCloud().then(function(){ renderMenuCards(); }); } catch(e) { console.error('loadSystemsFromCloud', e); }
+  // โหลด USERS + BRANCHES จาก cloud ตั้งแต่เปิดแอป → ผู้ใช้ login ด้วยรหัสที่อุปกรณ์อื่นแก้ได้ทันที (ไม่ต้อง login เก่าก่อน)
+  try { loadUsersFromCloud(); } catch(e) { console.error('loadUsersFromCloud (init)', e); }
+  try { loadBranchesFromCloud(); } catch(e) { console.error('loadBranchesFromCloud (init)', e); }
   try {
     loadAnnouncementsFromCloud().then(function(){
       // Once cloud loads, try to show announcements (only if menuView is visible and not admin)
@@ -3369,7 +3372,7 @@ function clearFabSession() {
   try { localStorage.removeItem(FAB_SESSION_KEY); } catch(e) {}
 }
 
-function doLogin() {
+async function doLogin() {
   var pin = getPinValue();
   var required = selectedRole === 'tm' ? 6 : 4;
   if (pin.length < required) {
@@ -3379,6 +3382,12 @@ function doLogin() {
   if (selectedRole === 'tm') {
     // Team Management: ตรวจจาก USERS db
     var user = findUserByCode(pin);
+    // ไม่เจอใน cache → ลอง sync จาก cloud ก่อน (รองรับกรณีอุปกรณ์อื่นแก้รหัสและเครื่องนี้ยังเป็นข้อมูลเก่า)
+    if (!user) {
+      showError('กำลังตรวจสอบรหัสจาก cloud...');
+      try { await loadUsersFromCloud(); } catch (e) {}
+      user = findUserByCode(pin);
+    }
     if (!user) {
       showError('ไม่พบรหัสผู้ใช้ ' + pin + ' ในระบบ');
       clearPin();
@@ -3390,9 +3399,14 @@ function doLogin() {
   } else {
     // Branch login
     if (!BRANCHES[pin]) {
-      showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
-      clearPin();
-      return;
+      // ลอง sync สาขาจาก cloud ก่อน
+      showError('กำลังตรวจสอบรหัสจาก cloud...');
+      try { await loadBranchesFromCloud(); } catch (e) {}
+      if (!BRANCHES[pin]) {
+        showError('ไม่พบรหัสสาขา ' + pin + ' ในระบบ');
+        clearPin();
+        return;
+      }
     }
     branchPin = pin;
     currentBranchName = getBranchFullName(pin);
