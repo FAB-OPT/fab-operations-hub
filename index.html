@@ -4151,10 +4151,12 @@ function openSystemModal(mode, systemId) {
   switchSysTab('info');
 
   var s = isEdit ? SYSTEMS.find(function(x){ return x.id === systemId; }) : null;
-  // Reset icon
+  // Reset icon + upload state
   document.getElementById('sysIconValue').value = '';
   document.getElementById('sysIconFile').value = '';
   _setIconPreview('');
+  _iconUploadPromise = null;
+  _iconUploadOk = true;  // assume existing icon is valid (Drive URL จากการบันทึกก่อน)
   if (s) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
@@ -4205,6 +4207,10 @@ function _markUploadOptionSelected() {
   if (uploadOpt) uploadOpt.classList.add('selected');
 }
 
+// Track current icon upload state so save can wait/block correctly
+var _iconUploadPromise = null;
+var _iconUploadOk = false;
+
 function handleIconUpload(file) {
   if (!file || !/^image\//.test(file.type)) { alert('กรุณาเลือกไฟล์รูปภาพ'); return; }
   if (file.size > 2 * 1024 * 1024) { alert('ไฟล์ใหญ่เกินไป (จำกัด 2 MB)'); return; }
@@ -4224,17 +4230,18 @@ function handleIconUpload(file) {
       var w = img.width * ratio, h = img.height * ratio;
       ctx.drawImage(img, (size - w) / 2, (size - h) / 2, w, h);
       var dataUrl = canvas.toDataURL('image/png');
-      var base64 = dataUrl.split(',')[1];  // strip "data:image/png;base64,"
+      var base64 = dataUrl.split(',')[1];
       var filename = 'sys-icon-' + Date.now() + '.png';
 
-      // โชว์ data URL ทันที (preview) — ถ้า upload สำเร็จจะอัปเดตเป็น Drive URL
-      document.getElementById('sysIconValue').value = dataUrl;
+      // โชว์ preview ทันที (visual only — sysIconValue ยังว่างไว้)
       _setIconPreview(dataUrl);
       _markUploadOptionSelected();
+      document.getElementById('sysIconValue').value = '';  // เคลียร์จนกว่าจะอัปโหลด Drive สำเร็จ
+      _iconUploadOk = false;
       setSyncStatus('กำลังอัปโหลดรูปไป Drive...', 'var(--text2)');
 
-      // ลองอัปโหลดไป Apps Script → Drive (cross-device)
-      fetch(SCRIPT_URL, {
+      // อัปโหลด Drive — เก็บ promise ไว้ใน _iconUploadPromise สำหรับ saveSystemConfig await
+      _iconUploadPromise = fetch(SCRIPT_URL, {
         method: 'POST', mode: 'cors',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ type: 'upload-icon', filename: filename, base64: base64 })
@@ -4242,21 +4249,20 @@ function handleIconUpload(file) {
       .then(function(r){ return r.json(); })
       .then(function(res){
         if (res && res.ok && res.url) {
-          // สำเร็จ — ใช้ Drive URL · ทุก device เห็น
           document.getElementById('sysIconValue').value = res.url;
+          _iconUploadOk = true;
           setSyncStatus('✓ อัปโหลดรูปสำเร็จ · ทุก device เห็น', 'var(--green)');
-          showInfo('✓ อัปโหลดสำเร็จ', 'รูปอัปโหลด Drive แล้ว · ทุก device เห็นเหมือนกัน');
-        } else {
-          throw new Error((res && res.error) || 'Apps Script ไม่รองรับ action: upload-icon');
+          return res.url;
         }
+        throw new Error((res && res.error) || 'Apps Script ไม่รองรับ action: upload-icon');
       })
       .catch(function(err){
-        // Fallback: เก็บ data URL ใน localStorage (เฉพาะเครื่องนี้)
-        var kb = Math.round(dataUrl.length * 0.75 / 1024);
-        setSyncStatus('⚠ Drive upload ล้มเหลว · ใช้ local fallback', 'var(--text3)');
-        showInfo('⚠️ อัปโหลด Drive ไม่ได้',
-          'รูปจะอยู่<b>เฉพาะเครื่องนี้</b> (~' + kb + ' KB)<br><small style="color:var(--text3);">' +
-          escapeHtml(err.message) + '<br>ต้องอัปเดต Apps Script ให้รองรับ <code>type:"upload-icon"</code></small>');
+        _iconUploadOk = false;
+        setSyncStatus('⚠ Drive upload ล้มเหลว — กรุณาลองใหม่', 'var(--red)');
+        showInfo('⚠️ อัปโหลด Drive ไม่สำเร็จ',
+          'ลองใหม่อีกครั้ง (เน็ตอาจหลุด/Apps Script ไม่ตอบ)<br><small style="color:var(--text3);">' +
+          escapeHtml(err.message) + '</small>');
+        throw err;
       });
     };
     img.src = e.target.result;
@@ -4923,7 +4929,18 @@ function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
 
-function saveSystemConfig() {
+async function saveSystemConfig() {
+  // ถ้ามี upload icon ค้างอยู่ → รอให้เสร็จก่อน (กันบันทึก data URL ที่ sync cloud ไม่ได้)
+  if (_iconUploadPromise) {
+    setSyncStatus('รอรูปอัปโหลดเสร็จก่อนบันทึก...', 'var(--text2)');
+    try { await _iconUploadPromise; } catch (e) {}
+    _iconUploadPromise = null;
+    // ถ้าอัปโหลดไม่สำเร็จ → block บันทึก
+    if (!_iconUploadOk && document.getElementById('sysIconPreview').style.display !== 'none') {
+      showInfo('⚠️ บันทึกไม่ได้', 'รูปอัปโหลด Drive ไม่สำเร็จ — กรุณาลองอัปโหลดใหม่ หรือเอารูปออกก่อน');
+      return;
+    }
+  }
   var name = document.getElementById('sysName').value.trim();
   var desc = document.getElementById('sysDesc').value.trim();
   var url = document.getElementById('sysUrl').value.trim();
