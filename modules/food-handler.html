@@ -5224,6 +5224,36 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   </select>
   <button class="req-filter-clear" onclick="_clearAdminReqFilters()" title="ล้างตัวกรอง">✕ ล้าง</button>
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
+  <button class="req-filter-refresh" onclick="openAdminReqDupCheck()" title="ตรวจรายชื่อที่ส่งซ้ำ" style="background:rgba(245,158,11,0.1);color:#b45309;border-color:rgba(245,158,11,0.3);">🔍 ตรวจรายชื่อซ้ำ</button>
+</div>
+
+<!-- Modal: รายชื่อซ้ำ -->
+<div class="adm-modal" id="adminReqDupModal">
+  <div class="adm-modal-box" style="max-width:900px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title">🔍 รายชื่อที่ส่งซ้ำ</div>
+      <button class="adm-modal-close" onclick="closeAdminReqDupModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+        <div style="font-size:12px;color:var(--text2);flex:1;min-width:200px;">
+          เกณฑ์: เทียบจาก <b>ชื่อ + เลขบัตร</b> (กลุ่มเดียวกัน = คนเดียวกันสมัครซ้ำ) · เลือกแถวที่ต้องการลบ → กดลบทีเดียว
+        </div>
+        <select id="adminReqDupCriteria" class="adm-input" style="width:auto;padding:6px 10px;font-size:12px;" onchange="renderAdminReqDupList()">
+          <option value="name-idcard">ชื่อ + เลขบัตร</option>
+          <option value="name-course">ชื่อ + หลักสูตร</option>
+          <option value="name-only">ชื่อ (เข้มงวด)</option>
+        </select>
+      </div>
+      <div id="adminReqDupSummary" style="font-size:13px;color:var(--text2);margin-bottom:10px;"></div>
+      <div id="adminReqDupBody" style="max-height:520px;overflow-y:auto;"></div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeAdminReqDupModal()">ปิด</button>
+      <button class="adm-btn-secondary" id="adminReqDupKeepOldestBtn" onclick="adminReqDupAutoSelect('keep-oldest')" style="background:rgba(59,130,246,0.08);color:#1d4ed8;border-color:rgba(59,130,246,0.25);">เลือกซ้ำอัตโนมัติ (เก็บอันแรก)</button>
+      <button class="adm-btn-primary" id="adminReqDupDeleteBtn" onclick="adminReqDupDeleteSelected()" style="background:linear-gradient(135deg,#dc2626,#991b1b);">🗑 ลบที่เลือก (<span id="adminReqDupSelCount">0</span>)</button>
+    </div>
+  </div>
 </div>
 
 <div class="table-container" style="margin-bottom:14px;">
@@ -6446,6 +6476,157 @@ function dedupEmployeeRegistry() {
       }
     })
     .catch(function(err){ showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message||String(err))); });
+  });
+}
+
+/* ─────────── ADMIN: ตรวจรายชื่อซ้ำในคำขออบรม ─────────── */
+function _stripIdDigits(s) { return String(s||'').replace(/\D/g, ''); }
+function _normName(s) { return String(s||'').replace(/\s+/g, ' ').trim().toLowerCase(); }
+
+function _findAdminReqDuplicates(rows, criteria) {
+  if (!Array.isArray(rows) || rows.length === 0) return [];
+  var groups = {};
+  rows.forEach(function(r, idx){
+    var key;
+    if (criteria === 'name-course') {
+      key = _normName(r.name) + '|' + _normName(r.course);
+    } else if (criteria === 'name-only') {
+      key = _normName(r.name);
+    } else {
+      // default: name-idcard
+      var id = _stripIdDigits(r.idCard);
+      if (!_normName(r.name) || !id) return;  // ข้ามถ้าข้อมูลไม่ครบ
+      key = _normName(r.name) + '|' + id;
+    }
+    if (!key) return;
+    if (!groups[key]) groups[key] = [];
+    groups[key].push(Object.assign({}, r, { _idx: idx }));
+  });
+  // เฉพาะ key ที่มี > 1 → ซ้ำ
+  return Object.keys(groups)
+    .filter(function(k){ return groups[k].length > 1; })
+    .map(function(k){ return { key: k, items: groups[k] }; })
+    .sort(function(a,b){ return b.items.length - a.items.length; });
+}
+
+function openAdminReqDupCheck() {
+  if (!_adminRowCache || _adminRowCache.length === 0) {
+    showInfo('ยังไม่มีข้อมูล', 'กรุณาโหลดรายการคำขออบรมก่อน');
+    return;
+  }
+  document.getElementById('adminReqDupModal').classList.add('show');
+  renderAdminReqDupList();
+}
+function closeAdminReqDupModal() {
+  document.getElementById('adminReqDupModal').classList.remove('show');
+}
+
+function renderAdminReqDupList() {
+  var criteria = document.getElementById('adminReqDupCriteria').value;
+  var dupGroups = _findAdminReqDuplicates(_adminRowCache || [], criteria);
+  var body = document.getElementById('adminReqDupBody');
+  var summary = document.getElementById('adminReqDupSummary');
+
+  if (dupGroups.length === 0) {
+    summary.innerHTML = '<span style="color:var(--green);font-weight:700;">✓ ไม่พบรายชื่อซ้ำ</span>';
+    body.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3);">🎉 ไม่มีรายชื่อที่ซ้ำกันตามเกณฑ์นี้</div>';
+    _updateAdminReqDupSelCount();
+    return;
+  }
+
+  var totalDups = dupGroups.reduce(function(s,g){ return s + g.items.length; }, 0);
+  var totalExtra = dupGroups.reduce(function(s,g){ return s + (g.items.length - 1); }, 0);
+  summary.innerHTML = 'พบ <b style="color:var(--red);">' + dupGroups.length + '</b> กลุ่มที่ซ้ำ · รวม ' + totalDups + ' รายการ (เก็บไว้ 1 อัน → ลบส่วนเกิน ' + totalExtra + ' รายการ)';
+
+  var html = '';
+  dupGroups.forEach(function(g, gi){
+    var first = g.items[0];
+    html += '<div style="background:#fff;border:1px solid rgba(245,158,11,0.3);border-radius:10px;margin-bottom:12px;overflow:hidden;">' +
+      '<div style="background:rgba(245,158,11,0.1);padding:10px 14px;font-size:13px;font-weight:700;color:#b45309;">' +
+        '👤 ' + escapeHtml(first.name||'-') + (first.idCard ? ' · บัตร: ' + escapeHtml(String(first.idCard).slice(-4).padStart(13,'•')) : '') +
+        '<span style="margin-left:8px;color:#dc2626;font-size:12px;">(ซ้ำ ' + g.items.length + ' รายการ)</span>' +
+      '</div>' +
+      '<div>';
+    g.items.forEach(function(it, ii){
+      var ts = it.timestamp || '-';
+      html += '<div style="display:flex;gap:10px;align-items:center;padding:10px 14px;border-bottom:1px dashed rgba(0,0,0,0.06);">' +
+        '<input type="checkbox" class="adm-req-dup-chk" data-idx="' + it._idx + '" onchange="_updateAdminReqDupSelCount()" style="width:18px;height:18px;flex-shrink:0;cursor:pointer;">' +
+        '<div style="flex:1;min-width:0;font-size:12.5px;line-height:1.5;">' +
+          '<div><b>' + escapeHtml(it.course || '-') + '</b> · ' + escapeHtml(it.branch || '-') + (it.position ? ' · ' + escapeHtml(it.position) : '') + '</div>' +
+          '<div style="color:var(--text3);font-size:11.5px;">วันอบรม: ' + escapeHtml(it.trainDate || '-') + (it.timeSlot ? ' (' + escapeHtml(it.timeSlot) + ')' : '') + ' · ส่ง: ' + escapeHtml(ts) + '</div>' +
+        '</div>' +
+      '</div>';
+    });
+    html += '</div></div>';
+  });
+  body.innerHTML = html;
+  _updateAdminReqDupSelCount();
+}
+
+function _updateAdminReqDupSelCount() {
+  var n = document.querySelectorAll('.adm-req-dup-chk:checked').length;
+  var el = document.getElementById('adminReqDupSelCount');
+  if (el) el.textContent = n;
+  var btn = document.getElementById('adminReqDupDeleteBtn');
+  if (btn) btn.disabled = (n === 0);
+}
+
+function adminReqDupAutoSelect(mode) {
+  // mode: 'keep-oldest' → ติ๊กทุกอันยกเว้นอันแรกของแต่ละกลุ่ม (เก็บอันแรกไว้)
+  document.querySelectorAll('.adm-req-dup-chk').forEach(function(c){ c.checked = false; });
+  var groups = document.querySelectorAll('#adminReqDupBody > div');
+  groups.forEach(function(g){
+    var chks = g.querySelectorAll('.adm-req-dup-chk');
+    chks.forEach(function(c, i){
+      if (mode === 'keep-oldest' && i > 0) c.checked = true;  // ติ๊กตั้งแต่ตัวที่ 2 เป็นต้นไป
+    });
+  });
+  _updateAdminReqDupSelCount();
+}
+
+function adminReqDupDeleteSelected() {
+  var checked = Array.from(document.querySelectorAll('.adm-req-dup-chk:checked'));
+  if (checked.length === 0) return;
+  var indices = checked.map(function(c){ return parseInt(c.getAttribute('data-idx'), 10); });
+  var records = indices.map(function(i){ return _adminRowCache[i]; }).filter(Boolean);
+  customConfirm({
+    icon: ICON_TRASH,
+    title: 'ลบ ' + records.length + ' รายการที่เลือก?',
+    desc: 'ระบบจะลบรายการที่ติ๊กไว้ออกจาก Cloud — ไม่สามารถกู้คืนได้',
+    okText: 'ลบเลย',
+    okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    var btn = document.getElementById('adminReqDupDeleteBtn');
+    if (btn) { btn.disabled = true; btn.textContent = 'กำลังลบ... 0/' + records.length; }
+    var done = 0, failed = 0;
+    var seq = Promise.resolve();
+    records.forEach(function(rec){
+      seq = seq.then(function(){
+        var key = {
+          rowIndex: rec._rowIndex,
+          name: rec.name,
+          idCard: rec.idCard,
+          timestamp: rec.timestamp
+        };
+        return fetch(SCRIPT_URL, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ type: 'delete-request', key: key })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){
+          if (res && res.ok) done++; else failed++;
+          if (btn) btn.textContent = 'กำลังลบ... ' + (done+failed) + '/' + records.length;
+        })
+        .catch(function(){ failed++; });
+      });
+    });
+    seq.then(function(){
+      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>' + done + '</b> รายการ' + (failed ? ' · ✗ ล้มเหลว ' + failed + ' รายการ' : ''));
+      closeAdminReqDupModal();
+      loadAdminRequests();
+    });
   });
 }
 
