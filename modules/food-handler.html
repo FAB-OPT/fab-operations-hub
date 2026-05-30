@@ -6150,11 +6150,17 @@ function processMatch() {
       });
     });
 
-    // Filter: keep ONLY records that match an employee in registry (drop notfound)
+    // Filter: เก็บทุก record ที่ match + notfound ที่หมดอายุ/ใกล้หมด
+    // (ใบรับรองหมดอายุเป็นข้อมูลสำคัญ ต้องเก็บแม้จะไม่มีในทะเบียนแล้ว — ใช้ตามผู้รับผิดชอบที่ลาออก/โอนย้าย)
     var totalPdf = raw.length;
-    matchData = raw.filter(function(d){ return d.matchType !== 'notfound'; });
+    matchData = raw.filter(function(d){
+      if (d.matchType !== 'notfound') return true;                              // matched ทุก status
+      if (d.expStatus === 'expired' || d.expStatus === 'warning') return true;  // หมดอายุ/ใกล้หมด — เก็บไว้
+      return false;                                                              // notfound + valid → drop (น่าจะพิมพ์ชื่อผิด)
+    });
     // Renumber after filter
     matchData.forEach(function(d, i){ d.no = i + 1; });
+    var keptNotFound = matchData.filter(function(d){ return d.matchType === 'notfound'; }).length;
 
     document.getElementById('processBtn').innerHTML = '&#9889; จับคู่ข้อมูล';
     document.getElementById('processBtn').disabled = false;
@@ -6165,7 +6171,8 @@ function processMatch() {
     renderTable();
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
 
-    document.getElementById('processInfo').textContent = 'จับคู่สำเร็จ ' + matchData.length + ' รายการ (ตัดออก ' + (totalPdf - matchData.length) + ' ที่ไม่มีในทะเบียน) — กำลังบันทึก Cloud...';
+    var notFoundMsg = keptNotFound > 0 ? ' (รวมหมดอายุ/ใกล้หมดที่ไม่อยู่ในทะเบียน ' + keptNotFound + ' ใบ)' : '';
+    document.getElementById('processInfo').textContent = 'จับคู่สำเร็จ ' + matchData.length + ' รายการ' + notFoundMsg + ' (ตัดออก ' + (totalPdf - matchData.length) + ' ใบที่ไม่มีในทะเบียนและยังมีผล) — กำลังบันทึก Cloud...';
     document.getElementById('topStatus').textContent = 'Matched · ' + new Date().toLocaleTimeString('th-TH');
     // Auto-save to cloud
     setTimeout(function(){
@@ -6735,8 +6742,12 @@ function loadFromCloud() {
         matchType: r['สถานะจับคู่'] || 'notfound'
       };
     })
-    // กรอง row เก่าที่เป็น lastname-only match ออก (เก็บใน Cloud แต่ไม่โชว์) — match ใหม่ต้อง exact เท่านั้น
-    .filter(function(d){ return d.matchType !== 'lastname' && d.matchType !== 'notfound'; });
+    // กรอง: เอา lastname-only ออก · matched เก็บทุก status · notfound เก็บเฉพาะหมดอายุ/ใกล้หมด
+    .filter(function(d){
+      if (d.matchType === 'lastname') return false;
+      if (d.matchType !== 'notfound') return true;
+      return d.expStatus === 'expired' || d.expStatus === 'warning';
+    });
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
     document.getElementById('exportBtn').disabled = false;
