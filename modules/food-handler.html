@@ -6192,7 +6192,28 @@ function checkReady() {
     document.getElementById('processInfo').textContent = 'จับคู่อัตโนมัติ...';
     setTimeout(processMatch, 200);  // auto-match when both loaded
   } else if (ready && !empData) {
-    document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · รออัปโหลดรายชื่อพนักงาน Excel';
+    // PDF โหลดแล้วแต่ empData ยังไม่ load → ลอง fetch จาก cloud ก่อน
+    document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · กำลังโหลดทะเบียนพนักงานจาก Cloud...';
+    setStatus('pdf', 'loading', 'กำลังโหลดทะเบียนพนักงานจาก Cloud...');
+    if (typeof loadEmployeeRegistryFromCloud === 'function') {
+      loadEmployeeRegistryFromCloud()
+        .then(function(){
+          if (empData && empData.length > 0) {
+            document.getElementById('processInfo').textContent = 'โหลดทะเบียนเสร็จ · กำลังจับคู่อัตโนมัติ...';
+            setStatus('pdf', 'done', 'โหลดสำเร็จ — กำลังจับคู่...');
+            setTimeout(processMatch, 200);
+          } else {
+            document.getElementById('processInfo').textContent = 'ไม่พบทะเบียนพนักงานใน Cloud · กรุณา import Excel ก่อน';
+            setStatus('pdf', 'error', 'ต้องอัปโหลดทะเบียนพนักงาน Excel ก่อน');
+          }
+        })
+        .catch(function(err){
+          document.getElementById('processInfo').textContent = 'โหลดทะเบียนไม่สำเร็จ: ' + (err.message || err);
+          setStatus('pdf', 'error', 'โหลดทะเบียนไม่สำเร็จ');
+        });
+    } else {
+      document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · รออัปโหลดรายชื่อพนักงาน Excel';
+    }
   }
 }
 
@@ -6416,9 +6437,9 @@ function saveEmployeeRegistryToCloud(employees, replaceAll) {
 }
 
 function loadEmployeeRegistryFromCloud() {
-  if (!SCRIPT_URL) return;
+  if (!SCRIPT_URL) return Promise.resolve();
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
-  fetch(SCRIPT_URL + '?action=employees', { method: 'GET' })
+  return fetch(SCRIPT_URL + '?action=employees', { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (!res || !res.ok) {
