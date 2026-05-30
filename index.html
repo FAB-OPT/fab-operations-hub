@@ -1716,6 +1716,13 @@ input[type=file] { display:none; }
           <input type="text" class="adm-input" id="sysName" placeholder="เช่น ระบบรายงานยอดขาย">
           <label class="adm-label" style="margin-top:12px;">คำบรรยาย</label>
           <textarea class="adm-textarea" rows="2" id="sysDesc" placeholder="คำอธิบายสั้นๆ เกี่ยวกับระบบ"></textarea>
+          <label class="adm-label" style="margin-top:12px;">URL (ลิงก์เปิดเมื่อกดการ์ด)</label>
+          <input type="text" class="adm-input" id="sysUrl" placeholder="เช่น /Santa-Fe-Sales-Report-2.0/ หรือ https://...">
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5;">
+            • <b>Relative path</b> (แนะนำ): <code>/Santa-Fe-Sales-Report-2.0/</code> → SSO ผ่าน localStorage<br>
+            • <b>Full URL</b>: <code>https://example.com/...</code> → เปิดในแท็บใหม่<br>
+            • ว่าง = ไม่ทำงาน (ระบบ built-in ไม่ต้องใส่)
+          </div>
         </div>
         <div style="margin-top:14px;">
           <label class="adm-label">โลโก้ระบบ</label>
@@ -4061,7 +4068,23 @@ function openSystem(systemId) {
     window.location.href = target;
     return;
   }
-  if (s.url) { window.open(s.url, '_blank'); return; }
+  if (s.url) {
+    var isRelative = (s.url.indexOf('http://') !== 0 && s.url.indexOf('https://') !== 0);
+    if (isRelative) {
+      // Same-origin → SSO ผ่าน localStorage → navigate same tab
+      try {
+        var role2 = sessionStorage.getItem('fab_role');
+        var pin2 = sessionStorage.getItem('fab_branch_pin');
+        var bname2 = sessionStorage.getItem('fab_branch_name');
+        if (pin2) saveFabSession(role2 === 'branch' ? 'branch' : 'tm', pin2, pin2, bname2);
+      } catch (e) {}
+      window.location.href = s.url;
+    } else {
+      // External URL → เปิดในแท็บใหม่
+      window.open(s.url, '_blank');
+    }
+    return;
+  }
 }
 
 function renderEmojiPicker() {
@@ -4112,6 +4135,7 @@ function openSystemModal(mode, systemId) {
   if (s) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
+    document.getElementById('sysUrl').value = s.url || '';
     document.getElementById('sysStartDate').value = s.startDate || '';
     document.getElementById('sysEndDate').value = s.endDate || '';
     document.getElementById('sysComingSoon').checked = !!s.comingSoon;
@@ -4136,6 +4160,7 @@ function openSystemModal(mode, systemId) {
   } else {
     document.getElementById('sysName').value = '';
     document.getElementById('sysDesc').value = '';
+    document.getElementById('sysUrl').value = '';
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
     document.getElementById('sysComingSoon').checked = false;
@@ -4878,6 +4903,7 @@ function closeSystemModal() { document.getElementById('systemModal').classList.r
 function saveSystemConfig() {
   var name = document.getElementById('sysName').value.trim();
   var desc = document.getElementById('sysDesc').value.trim();
+  var url = document.getElementById('sysUrl').value.trim();
   var startDate = document.getElementById('sysStartDate').value;
   var endDate = document.getElementById('sysEndDate').value;
   var icon = (document.getElementById('sysIconValue').value || '').trim();
@@ -4908,7 +4934,7 @@ function saveSystemConfig() {
   if (userChks.length > 0 && allUserChecked) visibleUsers = [];
   else if (userChks.length > 0 && !anyUserChecked) { hideFromAllUsers = true; visibleUsers = []; }
 
-  var proceed = function() { _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers); };
+  var proceed = function() { _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers); };
   if (chks.length > 0 && !anyChecked && currentEditingSystem) {
     customConfirm({
       icon: '⚠️', title: 'ไม่มีสาขาที่เห็น',
@@ -4920,7 +4946,7 @@ function saveSystemConfig() {
   proceed();
 }
 
-function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers) {
+function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
@@ -4932,6 +4958,7 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
         emoji: existing.emoji || '',
         name: name,
         desc: desc,
+        url: url,
         visibleBranches: visibleBranches,
         hideFromAllBranches: !!hideFromAllBranches,
         visibleUsers: visibleUsers || [],
@@ -4949,6 +4976,7 @@ function _saveSystemConfigInner(name, desc, startDate, endDate, icon, visibleBra
       emoji: '',
       name: name,
       desc: desc,
+      url: url,
       visibleBranches: [],
       hideFromAllBranches: false,
       visibleUsers: [],
