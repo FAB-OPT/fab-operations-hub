@@ -607,6 +607,35 @@ body {
 }
 .menu-card-admin-tools .menu-card-settings { width: 32px; height: 32px; border-radius: 9px; }
 
+/* Quick toggle: ซ่อน/แสดงระบบจากผู้ใช้ทั่วไป (admin only — subtle) */
+.menu-card-visibility {
+  width: 32px; height: 32px;
+  border-radius: 9px;
+  border: 1px solid rgba(15,23,42,0.08);
+  background: rgba(255,255,255,0.7);
+  color: var(--text2);
+  font-size: 15px;
+  cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center;
+  transition: all .2s;
+  font-family: inherit;
+  line-height: 1;
+}
+.menu-card-visibility:hover {
+  background: #fff;
+  border-color: var(--gold);
+  color: var(--gold);
+  transform: scale(1.08);
+}
+.menu-card-visibility.is-hidden {
+  background: rgba(239,68,68,0.08);
+  border-color: rgba(239,68,68,0.25);
+}
+.menu-card-visibility.is-hidden:hover {
+  background: rgba(34,197,94,0.10);
+  border-color: rgba(34,197,94,0.35);
+}
+
 /* Drag handle (⠿) — แสดงสัญลักษณ์ลาก */
 .menu-card-drag-handle {
   cursor: grab;
@@ -3918,8 +3947,12 @@ function renderMenuCards() {
     html += '<div class="menu-card-desc">'+escapeHtml(s.desc)+'</div>';
     html += '</div>';
     if (_isAdminRole) {
+      var isHidden = !!s.comingSoon;
+      var visIcon = isHidden ? '🙈' : '👁';
+      var visTitle = isHidden ? 'ระบบถูกซ่อน · กดเพื่อเปิดให้ผู้ใช้เห็น' : 'ระบบเปิดอยู่ · กดเพื่อซ่อนจากผู้ใช้';
       html += '<div class="menu-card-admin-tools">';
       html += '<span class="menu-card-drag-handle" title="ลากเพื่อจัดลำดับ" onmousedown="event.stopPropagation();" ontouchstart="event.stopPropagation();">⠿</span>';
+      html += '<button class="menu-card-visibility' + (isHidden ? ' is-hidden' : '') + '" onclick="event.stopPropagation();toggleSystemVisibility(\''+s.id+'\')" title="'+escapeAttr(visTitle)+'">'+visIcon+'</button>';
       html += '<button class="menu-card-settings" onclick="event.stopPropagation();openEditSystemModal(\''+s.id+'\')" title="ตั้งค่าระบบนี้"><svg><use href="#i-settings"/></svg></button>';
       html += '</div>';
     }
@@ -4926,6 +4959,20 @@ function _syncJdBranchesSync(msg, color) {
 }
 
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
+
+/* Quick toggle: ซ่อน/แสดงระบบ — ใช้ comingSoon flag (admin ยังเห็นปกติ · ผู้ใช้ทั่วไปเห็นเป็น "เร็วๆ นี้") */
+function toggleSystemVisibility(systemId) {
+  var idx = SYSTEMS.findIndex(function(s){ return s.id === systemId; });
+  if (idx < 0) return;
+  SYSTEMS[idx].comingSoon = !SYSTEMS[idx].comingSoon;
+  var nowHidden = SYSTEMS[idx].comingSoon;
+  saveSystemsLocal();
+  renderMenuCards();
+  setSyncStatus(nowHidden ? '🙈 ซ่อนระบบจากผู้ใช้แล้ว (Admin ยังเห็น)' : '👁 เปิดระบบให้ผู้ใช้เห็นแล้ว', nowHidden ? 'var(--text2)' : 'var(--green)');
+  saveSystemsToCloud()
+    .then(function(){ setSyncStatus((nowHidden ? '🙈 ซ่อน' : '👁 เปิด') + ' · ซิงค์ Cloud · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
+    .catch(function(err){ setSyncStatus('⚠ บันทึกในเครื่อง · cloud sync: ' + err.message, 'var(--text3)'); });
+}
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
 
