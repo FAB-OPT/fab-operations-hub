@@ -1816,6 +1816,19 @@ input[type=file] { display:none; }
             </div>
           </label>
         </div>
+        <!-- 🕵️ Secret toggle — แสดงเฉพาะเมื่อปลดล็อคระบบลับแล้ว -->
+        <div class="adm-section" id="sysSecretSection" style="display:none;">
+          <label class="sys-status-toggle" style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;padding:14px 16px;background:linear-gradient(135deg,rgba(239,68,68,0.06),rgba(239,68,68,0.02));border-radius:12px;border:1.5px solid rgba(239,68,68,0.25);">
+            <input type="checkbox" id="sysSecret" style="width:22px;height:22px;cursor:pointer;margin-top:1px;flex:none;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-weight:800;color:var(--red);font-size:14px;">🕵️ ระบบลับ (ซ่อนจากทุกคน)</div>
+              <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">
+                ถ้าติ๊ก → ระบบนี้จะ<b>ซ่อนจากทุกคน</b>รวม admin คนอื่น<br>
+                <span style="color:var(--text3);">ปลดล็อคชั่วคราวด้วยการแตะโลโก้ 3 ครั้ง · ล็อกอัตโนมัติเมื่อ refresh หรือแตะอีก 3 ครั้ง</span>
+              </div>
+            </div>
+          </label>
+        </div>
       </div>
     </div>
     <div class="adm-modal-footer">
@@ -2262,7 +2275,7 @@ input[type=file] { display:none; }
 <div id="menuView" style="display:none">
   <div class="topbar">
     <div class="logo">
-      <div class="logo-mark"><img src="logo.png" alt="FAB"></div>
+      <div class="logo-mark" id="logoMark" onclick="_logoTapHandler()"><img src="logo.png" alt="FAB"></div>
       <div class="logo-info">
         <div class="logo-text">FAB Operations &amp; Training Hub</div>
         <div class="logo-sub">ระบบงานปฎิบัติการและฝึกอบรม</div>
@@ -3877,7 +3890,10 @@ function renderMenuCards() {
   var _curUser = isAdminMode ? findUserByCode(branchPin) : null;
   var _isAdminRole = !!(_curUser && _curUser.role === 'admin');
   var html = '';
+  var _secretUnlocked = (sessionStorage.getItem('fab_secret_unlock') === '1');
   SYSTEMS.forEach(function(s, idx){
+    // 🕵️ ระบบลับ: ซ่อนจากทุกคน (รวม admin) จนกว่าจะปลดล็อค (แตะโลโก้ 3 ครั้ง)
+    if (s.secret && !_secretUnlocked) return;
     // visibility:
     //   admin role → เห็นทุกระบบ (เพื่อจัดการ)
     //   TM อื่นๆ → ตรวจ visibleUsers + date
@@ -4157,10 +4173,16 @@ function openSystemModal(mode, systemId) {
   _setIconPreview('');
   _iconUploadPromise = null;
   _iconUploadOk = true;  // assume existing icon is valid (Drive URL จากการบันทึกก่อน)
+  // Secret section — แสดงเฉพาะเมื่อปลดล็อคแล้ว
+  var _secretSection = document.getElementById('sysSecretSection');
+  if (_secretSection) {
+    _secretSection.style.display = (sessionStorage.getItem('fab_secret_unlock') === '1') ? '' : 'none';
+  }
   if (s) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
     document.getElementById('sysUrl').value = s.url || '';
+    document.getElementById('sysSecret').checked = !!s.secret;
     document.getElementById('sysStartDate').value = s.startDate || '';
     document.getElementById('sysEndDate').value = s.endDate || '';
     document.getElementById('sysComingSoon').checked = !!s.comingSoon;
@@ -4186,6 +4208,7 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysName').value = '';
     document.getElementById('sysDesc').value = '';
     document.getElementById('sysUrl').value = '';
+    document.getElementById('sysSecret').checked = false;
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
     document.getElementById('sysComingSoon').checked = false;
@@ -4926,6 +4949,40 @@ function _syncJdBranchesSync(msg, color) {
 }
 
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
+
+/* 🕵️ Secret unlock — แตะโลโก้ 3 ครั้งภายใน 1.5 วินาที → toggle ระบบลับ */
+var _logoTaps = [];
+function _logoTapHandler() {
+  var now = Date.now();
+  _logoTaps = _logoTaps.filter(function(t){ return now - t < 1500; });
+  _logoTaps.push(now);
+  if (_logoTaps.length >= 3) {
+    _logoTaps = [];
+    var unlocked = sessionStorage.getItem('fab_secret_unlock') === '1';
+    if (unlocked) {
+      sessionStorage.removeItem('fab_secret_unlock');
+      _toggleSecretIndicator(false);
+      showInfo('🔒 ล็อกระบบลับ', 'ระบบลับถูกซ่อนแล้ว');
+    } else {
+      sessionStorage.setItem('fab_secret_unlock', '1');
+      _toggleSecretIndicator(true);
+      showInfo('🕵️ ปลดล็อคระบบลับ', 'ระบบลับจะแสดงจน refresh หน้า · แตะโลโก้ 3 ครั้งอีกครั้งเพื่อล็อก');
+    }
+    renderMenuCards();
+  }
+}
+function _toggleSecretIndicator(on) {
+  var lg = document.getElementById('logoMark');
+  if (!lg) return;
+  if (on) lg.style.filter = 'drop-shadow(0 0 8px rgba(239,68,68,0.5))';
+  else lg.style.filter = '';
+}
+// Restore visual indicator on page load if already unlocked this session
+(function(){
+  if (sessionStorage.getItem('fab_secret_unlock') === '1') {
+    setTimeout(function(){ _toggleSecretIndicator(true); }, 100);
+  }
+})();
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
 
@@ -4988,6 +5045,9 @@ async function saveSystemConfig() {
 
 function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
+  // อ่าน secret flag เฉพาะเมื่อปลดล็อค (กันคนอื่นมาแก้)
+  var _secretEnabled = (sessionStorage.getItem('fab_secret_unlock') === '1');
+  var secret = _secretEnabled ? !!(document.getElementById('sysSecret') && document.getElementById('sysSecret').checked) : null;
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
     if (idx >= 0) {
@@ -5006,6 +5066,7 @@ function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visib
         startDate: startDate,
         endDate: endDate,
         comingSoon: comingSoon,
+        secret: _secretEnabled ? secret : !!existing.secret,  // ถ้าไม่ปลดล็อค → คงค่าเดิม
         builtIn: existing.builtIn || false
       };
     }
@@ -5017,6 +5078,7 @@ function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visib
       name: name,
       desc: desc,
       url: url,
+      secret: _secretEnabled ? !!secret : false,
       visibleBranches: [],
       hideFromAllBranches: false,
       visibleUsers: [],
