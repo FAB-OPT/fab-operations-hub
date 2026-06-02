@@ -2053,8 +2053,17 @@ input[type=file] { display:none; }
     </div>
     <div class="adm-modal-body">
       <div class="adm-section">
+        <label class="adm-label">แบรนด์</label>
+        <select class="adm-input" id="branchEditBrand" onchange="_onBranchBrandChange()">
+          <option value="">— เลือกแบรนด์ —</option>
+          <option value="50">Santa Fe</option>
+          <option value="55">Santa Fe Easy</option>
+        </select>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">เลือกแล้วระบบจะเติมเลขขึ้นต้นรหัสให้อัตโนมัติ (50 / 55)</div>
+      </div>
+      <div class="adm-section">
         <label class="adm-label">รหัสสาขา (4 หลัก) <span style="color:var(--red);">*</span></label>
-        <input type="text" class="adm-input" id="branchEditCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="เช่น 5001" autocomplete="off">
+        <input type="text" class="adm-input" id="branchEditCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="เช่น 5001" autocomplete="off" oninput="_syncBranchBrandFromCode()">
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">รหัส 4 หลัก · ขึ้นต้น 50 = Santa Fe · 55 = Santa Fe Easy · 40 = เจ๊แดง</div>
       </div>
       <div class="adm-section">
@@ -4694,9 +4703,40 @@ function openBranchEditModal(code) {
   document.getElementById('branchEditCode').readOnly = isEdit;
   document.getElementById('branchEditName').value = isEdit ? (BRANCHES[code] || '') : '';
   _populateBzmOptions(isEdit ? (BRANCH_BZM_MAP[code] || '') : '');
+  // แบรนด์: ตั้งจาก prefix รหัส · แก้ไข = ล็อก (รหัสล็อกอยู่แล้ว)
+  var brandSel = document.getElementById('branchEditBrand');
+  if (brandSel) {
+    brandSel.value = _brandPrefixOf(isEdit ? code : '');
+    brandSel.disabled = isEdit;
+  }
   var delBtn = document.getElementById('branchEditDeleteBtn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
   document.getElementById('branchEditModal').classList.add('show');
+}
+
+// คืน prefix แบรนด์ฝั่ง Santa Fe จากรหัส ('50' | '55' | '')
+function _brandPrefixOf(code) {
+  var c = String(code || '');
+  if (c.indexOf('55') === 0) return '55';
+  if (c.indexOf('50') === 0) return '50';
+  return '';
+}
+// เลือกแบรนด์ → เติม/แทนเลขขึ้นต้นรหัสให้
+function _onBranchBrandChange() {
+  if (_editingBranchCode) return; // แก้ไข: รหัสล็อก ไม่แตะ
+  var sel = document.getElementById('branchEditBrand');
+  var codeEl = document.getElementById('branchEditCode');
+  if (!sel || !codeEl || !sel.value) return;
+  var cur = (codeEl.value || '').replace(/\D/g, '');
+  var rest = cur.length > 2 ? cur.slice(2) : '';
+  codeEl.value = (sel.value + rest).slice(0, 4);
+  codeEl.focus();
+}
+// พิมพ์รหัสเอง → ซิงค์ dropdown แบรนด์ให้ตรง
+function _syncBranchBrandFromCode() {
+  var sel = document.getElementById('branchEditBrand');
+  var codeEl = document.getElementById('branchEditCode');
+  if (sel && codeEl) sel.value = _brandPrefixOf(codeEl.value);
 }
 function closeBranchEditModal() {
   document.getElementById('branchEditModal').classList.remove('show');
