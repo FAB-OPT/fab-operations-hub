@@ -2054,16 +2054,17 @@ input[type=file] { display:none; }
     <div class="adm-modal-body">
       <div class="adm-section">
         <label class="adm-label">แบรนด์</label>
-        <select class="adm-input" id="branchEditBrand" onchange="_onBranchBrandChange()">
+        <select class="adm-input" id="branchEditBrand">
           <option value="">— เลือกแบรนด์ —</option>
           <option value="50">Santa Fe</option>
           <option value="55">Santa Fe Easy</option>
+          <option value="40">เจ๊แดง จุ่มนัวร์</option>
         </select>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;">เลือกแล้วระบบจะเติมเลขขึ้นต้นรหัสให้อัตโนมัติ (50 / 55)</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;">เลือกแบรนด์ได้อิสระ · ถ้าไม่เลือก ระบบจะใช้ตามเลขขึ้นต้นรหัสให้</div>
       </div>
       <div class="adm-section">
         <label class="adm-label">รหัสสาขา (4 หลัก) <span style="color:var(--red);">*</span></label>
-        <input type="text" class="adm-input" id="branchEditCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="เช่น 5001" autocomplete="off" oninput="_syncBranchBrandFromCode()">
+        <input type="text" class="adm-input" id="branchEditCode" maxlength="4" inputmode="numeric" pattern="[0-9]*" placeholder="เช่น 5001" autocomplete="off">
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">รหัส 4 หลัก · ขึ้นต้น 50 = Santa Fe · 55 = Santa Fe Easy · 40 = เจ๊แดง</div>
       </div>
       <div class="adm-section">
@@ -2955,6 +2956,8 @@ var BRANCH_BZM_MAP = {
   '5077':'พี่บิ๊ก','5078':'พี่บิ๊ก','5079':'พี่บิ๊ก'
 };
 
+// แบรนด์ที่กำหนดเองต่อสาขา (override) — ถ้าไม่มี ใช้ตามเลขขึ้นต้นรหัส · ค่า = '50'|'55'|'40'
+var BRANCH_BRAND_MAP = {};
 var DEFAULT_BRANCHES = Object.assign({}, BRANCHES);
 var DEFAULT_BRANCH_BZM_MAP = Object.assign({}, BRANCH_BZM_MAP);
 
@@ -3079,6 +3082,7 @@ function loadBranchesLocal() {
       if (obj && typeof obj === 'object' && obj.branches) {
         BRANCHES = obj.branches;
         BRANCH_BZM_MAP = obj.bzmMap || {};
+        BRANCH_BRAND_MAP = obj.brandMap || {};
       }
     }
   } catch (e) {}
@@ -3086,7 +3090,7 @@ function loadBranchesLocal() {
 function saveBranchesLocal() {
   try {
     localStorage.setItem('fab_branches_v1', JSON.stringify({
-      branches: BRANCHES, bzmMap: BRANCH_BZM_MAP
+      branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP
     }));
   } catch (e) {}
 }
@@ -3097,6 +3101,7 @@ function loadBranchesFromCloud() {
       if (res && res.ok && res.branches && typeof res.branches === 'object' && res.branches.branches) {
         BRANCHES = res.branches.branches;
         BRANCH_BZM_MAP = res.branches.bzmMap || {};
+        BRANCH_BRAND_MAP = res.branches.brandMap || {};
         saveBranchesLocal();
       }
       return BRANCHES;
@@ -3109,7 +3114,7 @@ function saveBranchesToCloud() {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
       type: 'set-config', key: 'branches',
-      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP }
+      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP }
     })
   })
   .then(function(r){ return r.json(); })
@@ -3363,9 +3368,10 @@ function _redirectIfReturnUrl_() {
 
 function _deriveBrand(branchCode) {
   if (!branchCode) return null;
-  var c = String(branchCode);
-  if (c.indexOf('50') === 0 || c.indexOf('55') === 0) return 'santafe';
-  if (c.indexOf('40') === 0) return 'jaedaeng';
+  // เคารพแบรนด์ที่กำหนดเอง (override) ก่อน · ไม่มีค่อยใช้ตามเลขขึ้นต้นรหัส
+  var bp = getBranchBrand(String(branchCode));
+  if (bp === '50' || bp === '55') return 'santafe';
+  if (bp === '40') return 'jaedaeng';
   return null;
 }
 
@@ -4611,7 +4617,7 @@ function renderBranchMgmtList() {
   var filter = document.getElementById('branchMgmtFilter').value || '';
 
   var codes = Object.keys(BRANCHES).filter(function(c){
-    if (filter && c.indexOf(filter) !== 0) return false;
+    if (filter && getBranchBrand(c) !== filter) return false;
     if (search) {
       var name = (BRANCHES[c] || '').toLowerCase();
       if (c.toLowerCase().indexOf(search) < 0 && name.indexOf(search) < 0) return false;
@@ -4622,7 +4628,8 @@ function renderBranchMgmtList() {
   var html = '';
   codes.forEach(function(code){
     var name = BRANCHES[code] || '';
-    var brand = getBranchPrefix(code) || '-';
+    var bp = getBranchBrand(code);
+    var brand = brandLabelOf(bp) || '-';
     var bzmNick = BRANCH_BZM_MAP[code] || '';
     var bzmUser = bzmNick ? USERS.find(function(u){ return u.role === 'bzm' && (u.nick === bzmNick || u.name === bzmNick); }) : null;
     var bzmHtml = bzmNick
@@ -4631,7 +4638,7 @@ function renderBranchMgmtList() {
         + '<span style="color:var(--text3);font-weight:500;">(' + escapeHtml(bzmNick) + ')</span>'
         + '</span>'
       : '<span style="color:var(--text3);">—</span>';
-    var brandColor = code.indexOf('40') === 0 ? '#dc2626' : (code.indexOf('55') === 0 ? '#ea580c' : '#f97316');
+    var brandColor = bp === '40' ? '#dc2626' : (bp === '55' ? '#ea580c' : (bp === '50' ? '#f97316' : '#9ca3af'));
     html += '<tr>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(code)+'</td>'
       + '<td style="font-weight:600;font-size:13px;">'+escapeHtml(name)+'</td>'
@@ -4703,40 +4710,33 @@ function openBranchEditModal(code) {
   document.getElementById('branchEditCode').readOnly = isEdit;
   document.getElementById('branchEditName').value = isEdit ? (BRANCHES[code] || '') : '';
   _populateBzmOptions(isEdit ? (BRANCH_BZM_MAP[code] || '') : '');
-  // แบรนด์: ตั้งจาก prefix รหัส · แก้ไข = ล็อก (รหัสล็อกอยู่แล้ว)
+  // แบรนด์: เลือกได้อิสระ · ตั้งค่าเริ่มจากแบรนด์ที่ใช้จริง (override หรือ prefix)
   var brandSel = document.getElementById('branchEditBrand');
   if (brandSel) {
-    brandSel.value = _brandPrefixOf(isEdit ? code : '');
-    brandSel.disabled = isEdit;
+    brandSel.value = isEdit ? getBranchBrand(code) : '';
+    brandSel.disabled = false;
   }
   var delBtn = document.getElementById('branchEditDeleteBtn');
   if (delBtn) delBtn.style.display = isEdit ? '' : 'none';
   document.getElementById('branchEditModal').classList.add('show');
 }
 
-// คืน prefix แบรนด์ฝั่ง Santa Fe จากรหัส ('50' | '55' | '')
-function _brandPrefixOf(code) {
+// prefix แบรนด์จากเลขขึ้นต้นรหัส ('50' | '55' | '40' | '')
+function _prefixCodeOf(code) {
   var c = String(code || '');
   if (c.indexOf('55') === 0) return '55';
   if (c.indexOf('50') === 0) return '50';
+  if (c.indexOf('40') === 0) return '40';
   return '';
 }
-// เลือกแบรนด์ → เติม/แทนเลขขึ้นต้นรหัสให้
-function _onBranchBrandChange() {
-  if (_editingBranchCode) return; // แก้ไข: รหัสล็อก ไม่แตะ
-  var sel = document.getElementById('branchEditBrand');
-  var codeEl = document.getElementById('branchEditCode');
-  if (!sel || !codeEl || !sel.value) return;
-  var cur = (codeEl.value || '').replace(/\D/g, '');
-  var rest = cur.length > 2 ? cur.slice(2) : '';
-  codeEl.value = (sel.value + rest).slice(0, 4);
-  codeEl.focus();
-}
-// พิมพ์รหัสเอง → ซิงค์ dropdown แบรนด์ให้ตรง
-function _syncBranchBrandFromCode() {
-  var sel = document.getElementById('branchEditBrand');
-  var codeEl = document.getElementById('branchEditCode');
-  if (sel && codeEl) sel.value = _brandPrefixOf(codeEl.value);
+// แบรนด์ที่ใช้จริงของสาขา = override ที่เลือกไว้ ถ้าไม่มีค่อยใช้ตามเลขขึ้นต้นรหัส
+function getBranchBrand(code) { return BRANCH_BRAND_MAP[code] || _prefixCodeOf(code); }
+// ป้ายชื่อแบรนด์จาก prefix code
+function brandLabelOf(p) {
+  if (p === '55') return 'Santa Fe Easy';
+  if (p === '50') return 'Santa Fe';
+  if (p === '40') return 'เจ๊แดง จุ่มนัวร์';
+  return '';
 }
 function closeBranchEditModal() {
   document.getElementById('branchEditModal').classList.remove('show');
@@ -4747,6 +4747,7 @@ function saveBranchEdit() {
   var code = document.getElementById('branchEditCode').value.trim();
   var name = document.getElementById('branchEditName').value.trim();
   var bzm = document.getElementById('branchEditBzm').value;
+  var brand = document.getElementById('branchEditBrand').value;
 
   if (!/^\d{4}$/.test(code)) { showInfo('⚠️ รหัสไม่ถูกต้อง', 'รหัสสาขาต้องเป็นตัวเลข 4 หลักเท่านั้น'); return; }
   if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อสาขา'); return; }
@@ -4758,6 +4759,9 @@ function saveBranchEdit() {
   BRANCHES[code] = name;
   if (bzm) BRANCH_BZM_MAP[code] = bzm;
   else delete BRANCH_BZM_MAP[code];
+  // แบรนด์: เก็บเฉพาะเมื่อเลือก (override) · ถ้าไม่เลือก = ใช้ตามเลขขึ้นต้นรหัส
+  if (brand) BRANCH_BRAND_MAP[code] = brand;
+  else delete BRANCH_BRAND_MAP[code];
 
   saveBranchesLocal();
   renderBranchMgmtList();
@@ -4779,6 +4783,7 @@ function quickDeleteBranch(code) {
     if (!ok) return;
     delete BRANCHES[code];
     delete BRANCH_BZM_MAP[code];
+    delete BRANCH_BRAND_MAP[code];
     saveBranchesLocal();
     renderBranchMgmtList();
     _syncBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
