@@ -7014,6 +7014,7 @@ function _reqBrandType(r) {
   if (stored) return stored;
   var name = String(r.branch || r['สาขา'] || '');
   if (/สำนักงานใหญ่|head\s*office|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(name)) return 'Head Office';
+  if (/เจ๊?\s*แดง|จุ่มนัวร์/i.test(name)) return 'เจ๊แดง';
   var t = _brandTypeFromCode(_codeFromBranchName(name));
   return t || 'ซานตาเฟ่';
 }
@@ -8510,8 +8511,14 @@ function _getRowBranch(r) {
 function _getRowTrainDate(r) {
   return String(_prepReqFields(r).trainDate || '').trim() || '— ไม่ระบุ';
 }
+// รวมรอบเวลาที่เขียนต่างกันให้เป็นรูปแบบเดียว (เว้นวรรค/ชนิดขีดต่างกัน = รอบเดียวกัน)
+function _normSlot(s) {
+  s = String(s || '').trim();
+  if (!s) return '';
+  return s.replace(/[–—~]/g, '-').replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ').trim();
+}
 function _getRowSlot(r) {
-  return String(_prepReqFields(r).slot || '').trim() || '— ไม่ระบุ';
+  return _normSlot(_prepReqFields(r).slot) || '— ไม่ระบุ';
 }
 /* Zone derivation — keyword-based mapping from branch name (BZM = Branch Zone Map).
    Edit the BRANCH_ZONE_RULES list to adjust grouping for your business. */
@@ -9115,7 +9122,7 @@ function openExportPDFModal() {
       reqs.forEach(function(r){
         var b = r.branch || r['สาขา'] || ''; if (b) brSet[b]=true;
         var c = r.course || r['หลักสูตร'] || ''; if (c) coSet[c]=true;
-        var s = r.timeSlot || r['รอบ'] || ''; if (s) slSet[s]=true;
+        var s = _normSlot(r.timeSlot || r['รอบ'] || ''); if (s) slSet[s]=true;
         var t = _reqBrandType(r); if (t) tySet[t]=true;
       });
       var branches = Object.keys(brSet).sort();
@@ -9185,7 +9192,7 @@ function getExportPDFFiltered() {
   return _exportPDFCache.filter(function(r){
     var b = r.branch || r['สาขา'] || '';
     var c = r.course || r['หลักสูตร'] || '';
-    var s = r.timeSlot || r['รอบ'] || '';
+    var s = _normSlot(r.timeSlot || r['รอบ'] || '');
     if (ty && !ty[_reqBrandType(r)]) return false;
     if (br && b && !br[b]) return false;
     if (co && c && !co[c]) return false;
