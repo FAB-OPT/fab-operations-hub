@@ -3064,6 +3064,19 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .req-filter-sel:hover, .req-filter-sel:focus {
   background: rgba(15,23,42,0.04);
 }
+.req-filter-search {
+  padding: 7px 12px;
+  background: rgba(15,23,42,0.04);
+  border: 0;
+  border-radius: 8px;
+  font-size: 13px; font-weight: 600; color: var(--text);
+  font-family: inherit;
+  outline: none;
+  min-width: 200px; flex: 1 1 220px;
+  transition: box-shadow 0.15s ease;
+}
+.req-filter-search::placeholder { color: var(--text3); font-weight: 500; }
+.req-filter-search:focus { box-shadow: 0 0 0 2px rgba(234,88,12,0.22); }
 .req-filter-clear {
   padding: 6px 13px;
   background: transparent;
@@ -5315,11 +5328,18 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 <!-- ตัวกรอง: หลักสูตร / สาขา + ล้าง + รีเฟรช (sort ย้ายไปคลิกที่หัวตาราง) -->
 <div class="req-filter-bar" id="adminReqFilterBar">
+  <input type="text" class="req-filter-search" id="adminReqSearch" placeholder="🔍 ค้นหา ชื่อ / รหัส / เลขบัตร / สาขา..." oninput="_applyAdminReqFilters()" autocomplete="off">
   <select class="req-filter-sel" id="adminReqCourseFilter" onchange="_applyAdminReqFilters()">
     <option value="all">📚 ทุกหลักสูตร</option>
   </select>
   <select class="req-filter-sel" id="adminReqBranchFilter" onchange="_applyAdminReqFilters()">
     <option value="all">🏬 ทุกสาขา</option>
+  </select>
+  <select class="req-filter-sel" id="adminReqDateFilter" onchange="_applyAdminReqFilters()">
+    <option value="all">📅 ทุกวันอบรม</option>
+  </select>
+  <select class="req-filter-sel" id="adminReqSlotFilter" onchange="_applyAdminReqFilters()">
+    <option value="all">🕐 ทุกรอบเวลา</option>
   </select>
   <button class="req-filter-clear" onclick="_clearAdminReqFilters()" title="ล้างตัวกรอง">✕ ล้าง</button>
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
@@ -5478,6 +5498,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
       <div class="modal-callout">
         <span class="modal-callout-icon">ℹ</span>
         <span>เลือก <b>สาขา / หลักสูตร / รอบ</b> ที่ต้องการ — ถ้าไม่เลือกเลย จะออกครบทั้งหมด · เลขบัตรประชาชนสามารถซ่อนได้ที่ตัวเลือกด้านล่าง</span>
+      </div>
+      <div style="margin-bottom:14px;">
+        <div style="font-weight:700;margin-bottom:8px;font-size:13px;">🏷️ เลือกประเภท</div>
+        <div id="expFilterTypes" style="display:flex;flex-wrap:wrap;gap:6px;"></div>
       </div>
       <div style="margin-bottom:14px;">
         <div style="font-weight:700;margin-bottom:8px;font-size:13px;">🏢 เลือกสาขา</div>
@@ -6952,6 +6976,46 @@ function getBranchFullName(code) {
   var prefix = getBranchPrefix(code);
   var name = BRANCHES[code] || '';
   return prefix ? (prefix + ' ' + name) : name;
+}
+
+/* ─── ประเภท/แบรนด์ของคำขออบรม: ซานตาเฟ่ / เจ๊แดง / Head Office ─── */
+function _brandTypeFromCode(code) {
+  code = String(code || '');
+  if (code.indexOf('40') === 0) return 'เจ๊แดง';
+  if (code.indexOf('50') === 0 || code.indexOf('55') === 0) return 'ซานตาเฟ่';
+  return '';
+}
+// ทำให้ค่า brand ที่เก็บ/นำเข้า เป็น 1 ใน 3 ประเภทมาตรฐาน
+function _normBrandType(b) {
+  b = String(b || '');
+  if (/เจ๊?\s*แดง|จุ่มนัวร์|jaedaeng|^40/i.test(b)) return 'เจ๊แดง';
+  if (/head\s*office|สำนักงานใหญ่|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(b)) return 'Head Office';
+  if (/ซานตา|santa|เฟ่|^5[05]/i.test(b)) return 'ซานตาเฟ่';
+  return b ? b : '';
+}
+// แบรนด์ ณ ตอนสาขา login (จากรหัส) — ใช้เก็บลง record ตอนส่ง
+function _currentBrandType() {
+  var code = branchPin || '';
+  if (!code && currentBranchName) {
+    for (var k in BRANCHES) { if (BRANCHES[k] === currentBranchName) { code = k; break; } }
+  }
+  return _brandTypeFromCode(code);
+}
+// รหัสสาขาจากชื่อ (reverse lookup, best-effort — ใช้กับ record เก่าที่ยังไม่มี brand)
+function _codeFromBranchName(name) {
+  name = String(name || '').trim();
+  if (!name) return '';
+  for (var k in BRANCHES) { if (BRANCHES[k] === name) return k; }
+  return '';
+}
+// ประเภทของ request: ใช้ field brand ที่เก็บไว้ก่อน · ไม่มีค่อยเดาจากชื่อสาขา
+function _reqBrandType(r) {
+  var stored = _normBrandType(r.brand || r['แบรนด์'] || r['ประเภท'] || '');
+  if (stored) return stored;
+  var name = String(r.branch || r['สาขา'] || '');
+  if (/สำนักงานใหญ่|head\s*office|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(name)) return 'Head Office';
+  var t = _brandTypeFromCode(_codeFromBranchName(name));
+  return t || 'ซานตาเฟ่';
 }
 var selectedRole = 'branch';
 var branchPin = '';
@@ -8435,13 +8499,19 @@ function _openMyReqDetail(idx) {
 
 /* ═══ Admin request count chips + filter bar ═══ */
 var _adminCertIdx = {};
-var _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', sort: 'date_desc' };
+var _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', trainDate: 'all', slot: 'all', search: '', sort: 'date_desc' };
 
 function _getRowCourse(r) {
   return String(r.course || r['หลักสูตร'] || '').trim() || '— ไม่ระบุ';
 }
 function _getRowBranch(r) {
   return String(r.branch || r['สาขา'] || '').trim() || '— ไม่ระบุ';
+}
+function _getRowTrainDate(r) {
+  return String(_prepReqFields(r).trainDate || '').trim() || '— ไม่ระบุ';
+}
+function _getRowSlot(r) {
+  return String(_prepReqFields(r).slot || '').trim() || '— ไม่ระบุ';
 }
 /* Zone derivation — keyword-based mapping from branch name (BZM = Branch Zone Map).
    Edit the BRANCH_ZONE_RULES list to adjust grouping for your business. */
@@ -8533,7 +8603,9 @@ function _populateAdminReqFilterOptions(rows) {
   var branchSel = document.getElementById('adminReqBranchFilter');
   var zoneSel = document.getElementById('adminReqZoneFilter');
   if (!courseSel || !branchSel) return;
-  var courses = {}, branches = {}, zones = {};
+  var dateSel = document.getElementById('adminReqDateFilter');
+  var slotSel = document.getElementById('adminReqSlotFilter');
+  var courses = {}, branches = {}, zones = {}, trainDates = {}, slots = {};
   // If a zone is selected, branch options should only include branches in that zone
   var curZ = _adminReqFilters.zone;
   rows.forEach(function(r){
@@ -8542,6 +8614,8 @@ function _populateAdminReqFilterOptions(rows) {
     if (curZ === 'all' || _getRowZone(r) === curZ) {
       branches[_getRowBranch(r)] = (branches[_getRowBranch(r)] || 0) + 1;
     }
+    var _td = _getRowTrainDate(r); trainDates[_td] = (trainDates[_td] || 0) + 1;
+    var _sl = _getRowSlot(r);      slots[_sl] = (slots[_sl] || 0) + 1;
   });
   var curC = _adminReqFilters.course;
   var curB = _adminReqFilters.branch;
@@ -8570,6 +8644,33 @@ function _populateAdminReqFilterOptions(rows) {
   if (curC !== 'all' && !courses[curC]) { _adminReqFilters.course = 'all'; courseSel.value = 'all'; }
   if (curZ !== 'all' && !zones[curZ])   { _adminReqFilters.zone = 'all';   if (zoneSel) zoneSel.value = 'all'; }
   if (curB !== 'all' && !branches[curB]) { _adminReqFilters.branch = 'all'; branchSel.value = 'all'; }
+  // วันอบรม + รอบเวลา
+  var curD = _adminReqFilters.trainDate, curSl = _adminReqFilters.slot;
+  if (dateSel) {
+    var dateKeys = Object.keys(trainDates).sort(function(a,b){
+      if (a.indexOf('ไม่ระบุ') >= 0) return 1;
+      if (b.indexOf('ไม่ระบุ') >= 0) return -1;
+      return trainDates[b] - trainDates[a];
+    });
+    dateSel.innerHTML = '<option value="all">📅 ทุกวันอบรม ('+rows.length+')</option>'
+      + dateKeys.map(function(d){
+          var lbl = (d.indexOf('ไม่ระบุ') >= 0) ? d : (formatThaiDate(d) || d);
+          return '<option value="'+escapeAttr(d)+'"'+(d===curD?' selected':'')+'>'+escapeHtml(lbl)+' ('+trainDates[d]+')</option>';
+        }).join('');
+    if (curD !== 'all' && !trainDates[curD]) { _adminReqFilters.trainDate = 'all'; dateSel.value = 'all'; }
+  }
+  if (slotSel) {
+    var slotKeys = Object.keys(slots).sort(function(a,b){
+      if (a.indexOf('ไม่ระบุ') >= 0) return 1;
+      if (b.indexOf('ไม่ระบุ') >= 0) return -1;
+      return slots[b] - slots[a];
+    });
+    slotSel.innerHTML = '<option value="all">🕐 ทุกรอบเวลา ('+rows.length+')</option>'
+      + slotKeys.map(function(s){
+          return '<option value="'+escapeAttr(s)+'"'+(s===curSl?' selected':'')+'>'+escapeHtml(s)+' ('+slots[s]+')</option>';
+        }).join('');
+    if (curSl !== 'all' && !slots[curSl]) { _adminReqFilters.slot = 'all'; slotSel.value = 'all'; }
+  }
 }
 
 /* Filter + sort + render to main table body */
@@ -8577,9 +8678,15 @@ function _applyAdminReqFilters() {
   var courseSel = document.getElementById('adminReqCourseFilter');
   var branchSel = document.getElementById('adminReqBranchFilter');
   var zoneSel = document.getElementById('adminReqZoneFilter');
+  var dateSel = document.getElementById('adminReqDateFilter');
+  var slotSel = document.getElementById('adminReqSlotFilter');
+  var searchEl = document.getElementById('adminReqSearch');
   if (courseSel) _adminReqFilters.course = courseSel.value;
   if (branchSel) _adminReqFilters.branch = branchSel.value;
   if (zoneSel)   _adminReqFilters.zone   = zoneSel.value;
+  if (dateSel)   _adminReqFilters.trainDate = dateSel.value;
+  if (slotSel)   _adminReqFilters.slot   = slotSel.value;
+  if (searchEl)  _adminReqFilters.search = searchEl.value;
   var body = document.getElementById('adminReqBody');
   var info = document.getElementById('adminReqInfo');
   if (!body) return;
@@ -8593,6 +8700,20 @@ function _applyAdminReqFilters() {
   }
   if (_adminReqFilters.branch !== 'all') {
     rows = rows.filter(function(r){ return _getRowBranch(r) === _adminReqFilters.branch; });
+  }
+  if (_adminReqFilters.trainDate !== 'all') {
+    rows = rows.filter(function(r){ return _getRowTrainDate(r) === _adminReqFilters.trainDate; });
+  }
+  if (_adminReqFilters.slot !== 'all') {
+    rows = rows.filter(function(r){ return _getRowSlot(r) === _adminReqFilters.slot; });
+  }
+  var _q = String(_adminReqFilters.search || '').trim().toLowerCase();
+  if (_q) {
+    rows = rows.filter(function(r){
+      var p = _prepReqFields(r);
+      var hay = [p.name, p.empId, p.idCard, p.branch, p.pos, p.course, p.note].join(' ').toLowerCase();
+      return hay.indexOf(_q) >= 0;
+    });
   }
   // Re-populate branch dropdown so it only shows branches in the current zone
   if (zoneSel && _adminRowCache) _populateAdminReqFilterOptions(_adminRowCache);
@@ -8660,10 +8781,13 @@ function _setCourseFilter(course, encoded) {
   _applyAdminReqFilters();
 }
 function _clearAdminReqFilters() {
-  _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', sort: 'date_desc' };
+  _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', trainDate: 'all', slot: 'all', search: '', sort: 'date_desc' };
   var c = document.getElementById('adminReqCourseFilter'); if (c) c.value = 'all';
   var z = document.getElementById('adminReqZoneFilter');   if (z) z.value = 'all';
   var b = document.getElementById('adminReqBranchFilter'); if (b) b.value = 'all';
+  var d = document.getElementById('adminReqDateFilter');   if (d) d.value = 'all';
+  var sl = document.getElementById('adminReqSlotFilter');  if (sl) sl.value = 'all';
+  var sr = document.getElementById('adminReqSearch');      if (sr) sr.value = '';
   _applyAdminReqFilters();
 }
 
@@ -8986,16 +9110,27 @@ function openExportPDFModal() {
         return;
       }
       _exportPDFCache = reqs;
-      // เก็บรายชื่อ branches/courses/slots ที่ไม่ซ้ำ
-      var brSet={}, coSet={}, slSet={};
+      // เก็บรายชื่อ branches/courses/slots/types ที่ไม่ซ้ำ
+      var brSet={}, coSet={}, slSet={}, tySet={};
       reqs.forEach(function(r){
         var b = r.branch || r['สาขา'] || ''; if (b) brSet[b]=true;
         var c = r.course || r['หลักสูตร'] || ''; if (c) coSet[c]=true;
         var s = r.timeSlot || r['รอบ'] || ''; if (s) slSet[s]=true;
+        var t = _reqBrandType(r); if (t) tySet[t]=true;
       });
       var branches = Object.keys(brSet).sort();
       var courses = Object.keys(coSet).sort();
       var slots = Object.keys(slSet).sort();
+      // ประเภท: เรียงตามลำดับมาตรฐาน
+      var TYPE_ORDER = ['ซานตาเฟ่','เจ๊แดง','Head Office'];
+      var types = Object.keys(tySet).sort(function(a,b){
+        var ia = TYPE_ORDER.indexOf(a), ib = TYPE_ORDER.indexOf(b);
+        return (ia<0?99:ia) - (ib<0?99:ib);
+      });
+      var TYPE_ICON = { 'ซานตาเฟ่':'🟠', 'เจ๊แดง':'🔴', 'Head Office':'🏢' };
+      document.getElementById('expFilterTypes').innerHTML = types.map(function(t){
+        return '<label class="exp-chip"><input type="checkbox" data-kind="type" value="'+escapeAttr(t)+'" onchange="updateExportPDFCount()"> <span>'+(TYPE_ICON[t]||'🏷️')+' '+escapeHtml(t)+'</span></label>';
+      }).join('') || '<span style="color:var(--text3);font-size:12px;">— ไม่มีข้อมูล —</span>';
       // Render chips — ไม่ active โดย default (ผู้ใช้เลือกเองตามต้องการ · ไม่เลือก = ทุกตัว)
       document.getElementById('expFilterBranches').innerHTML = branches.map(function(b){
         return '<label class="exp-chip"><input type="checkbox" data-kind="branch" value="'+escapeAttr(b)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(b)+'</span></label>';
@@ -9046,11 +9181,12 @@ function getExportPDFFiltered() {
     arr.forEach(function(cb){ s[cb.value]=true; });
     return s;
   };
-  var br = picks('branch'), co = picks('course'), sl = picks('slot');
+  var br = picks('branch'), co = picks('course'), sl = picks('slot'), ty = picks('type');
   return _exportPDFCache.filter(function(r){
     var b = r.branch || r['สาขา'] || '';
     var c = r.course || r['หลักสูตร'] || '';
     var s = r.timeSlot || r['รอบ'] || '';
+    if (ty && !ty[_reqBrandType(r)]) return false;
     if (br && b && !br[b]) return false;
     if (co && c && !co[c]) return false;
     if (sl && s && !sl[s]) return false;
@@ -10301,7 +10437,8 @@ function submitRequests() {
       course: course,
       trainDate: trainDate,
       timeSlot: timeSlot,
-      note: r.note || ''
+      note: r.note || '',
+      brand: _currentBrandType()   // ประเภท/แบรนด์ จากรหัสสาขาที่ล็อกอิน (แม่นยำ)
     });
     // Check if has valid cert (normalize name compare + recompute status from date)
     var _stripKey = function(str){

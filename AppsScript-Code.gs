@@ -8,7 +8,7 @@
    ═══════════════════════════════════════════════════════════════ */
 
 var CACHE_SEC = 300;
-var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note'];
+var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note','brand'];
 var EMP_HEADERS = ['name','empId','idCard','branch','position','sheet'];
 
 /* ───────────────────────── ROUTER ───────────────────────── */
