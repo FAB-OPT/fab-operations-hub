@@ -9745,10 +9745,15 @@ function exportTrainingForm() {
         ws.getCell('D' + rowNum).value = pos;
         ws.getCell('E' + rowNum).value = String(idCard);
         ws.getCell('F' + rowNum).value = branch;
-        // กันข้อความยาวโดนตัด: ย่อให้พอดีช่อง (คงสไตล์เดิมจาก template)
+        // กันข้อความยาวโดนตัด — ใช้ ตัดบรรทัด + ลดฟอนต์ (ตัวแปลง PDF เช่น Smallpdf รองรับ · shrinkToFit ไม่รองรับ)
         ['C','D','F'].forEach(function(col){
           var cell = ws.getCell(col + rowNum);
-          try { cell.alignment = Object.assign({}, cell.alignment || {}, { shrinkToFit: true, wrapText: false }); } catch(e) {}
+          var len = String(cell.value || '').length;
+          try {
+            cell.alignment = Object.assign({}, cell.alignment || {}, { wrapText: true, vertical: 'middle', shrinkToFit: false });
+            // ยาวมาก → ลดขนาดฟอนต์ลงให้พอดีช่อง (ตำแหน่งภาษาอังกฤษมักยาว)
+            if (len > 18) cell.font = Object.assign({}, cell.font || {}, { size: len > 26 ? 8 : 9 });
+          } catch(e) {}
         });
       });
     }
