@@ -3862,6 +3862,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   background-position: center;
 }
 .exp-chip.hidden-by-search { display: none; }
+.exp-chip.hidden-by-type { display: none; }
 
 /* ─── Branch dropdown (PDF export) ─── */
 .exp-dropdown { position: relative; }
@@ -8604,80 +8605,52 @@ function _updateSortIndicators() {
   });
 }
 
-/* Populate filter dropdown options from rows (preserve current selection if still valid) */
-function _populateAdminReqFilterOptions(rows) {
+/* Populate filter dropdowns — faceted: ตัวเลขแต่ละช่องอิงตัวกรอง "อื่น" ที่เลือกอยู่
+   (เลือกหลักสูตรแล้ว รอบ/วันจะเหลือเฉพาะที่มีจริง · กันเลือกชนกันได้ 0) */
+function _populateAdminReqFilterOptions(allRows) {
   var courseSel = document.getElementById('adminReqCourseFilter');
   var branchSel = document.getElementById('adminReqBranchFilter');
-  var zoneSel = document.getElementById('adminReqZoneFilter');
   if (!courseSel || !branchSel) return;
+  var zoneSel = document.getElementById('adminReqZoneFilter');
   var dateSel = document.getElementById('adminReqDateFilter');
   var slotSel = document.getElementById('adminReqSlotFilter');
-  var courses = {}, branches = {}, zones = {}, trainDates = {}, slots = {};
-  // If a zone is selected, branch options should only include branches in that zone
-  var curZ = _adminReqFilters.zone;
-  rows.forEach(function(r){
-    courses[_getRowCourse(r)] = (courses[_getRowCourse(r)] || 0) + 1;
-    zones[_getRowZone(r)] = (zones[_getRowZone(r)] || 0) + 1;
-    if (curZ === 'all' || _getRowZone(r) === curZ) {
-      branches[_getRowBranch(r)] = (branches[_getRowBranch(r)] || 0) + 1;
+  allRows = allRows || [];
+  var F = _adminReqFilters;
+  var q = String(F.search || '').trim().toLowerCase();
+
+  // ผ่านตัวกรองทุกตัว "ยกเว้น" มิติที่กำลังนับ
+  function passExcept(r, except) {
+    if (except !== 'course'    && F.course    !== 'all' && _getRowCourse(r)    !== F.course)    return false;
+    if (except !== 'zone'      && F.zone      !== 'all' && _getRowZone(r)      !== F.zone)      return false;
+    if (except !== 'branch'    && F.branch    !== 'all' && _getRowBranch(r)    !== F.branch)    return false;
+    if (except !== 'trainDate' && F.trainDate !== 'all' && _getRowTrainDate(r) !== F.trainDate) return false;
+    if (except !== 'slot'      && F.slot      !== 'all' && _getRowSlot(r)      !== F.slot)      return false;
+    if (except !== 'search'    && q) {
+      var p = _prepReqFields(r);
+      if ([p.name,p.empId,p.idCard,p.branch,p.pos,p.course,p.note].join(' ').toLowerCase().indexOf(q) < 0) return false;
     }
-    var _td = _getRowTrainDate(r); trainDates[_td] = (trainDates[_td] || 0) + 1;
-    var _sl = _getRowSlot(r);      slots[_sl] = (slots[_sl] || 0) + 1;
-  });
-  var curC = _adminReqFilters.course;
-  var curB = _adminReqFilters.branch;
-  var courseKeys = Object.keys(courses).sort(function(a,b){ return courses[b] - courses[a]; });
-  var zoneKeys = Object.keys(zones).sort(function(a,b){
-    if (a.indexOf('ต่างจังหวัด') >= 0) return 1;
-    if (b.indexOf('ต่างจังหวัด') >= 0) return -1;
-    return zones[b] - zones[a];
-  });
-  var branchKeys = Object.keys(branches).sort(function(a,b){ return branches[b] - branches[a]; });
-  courseSel.innerHTML = '<option value="all">📚 ทุกหลักสูตร ('+rows.length+')</option>'
-    + courseKeys.map(function(c){
-        return '<option value="'+escapeAttr(c)+'"'+(c===curC?' selected':'')+'>'+escapeHtml(c)+' ('+courses[c]+')</option>';
-      }).join('');
-  if (zoneSel) {
-    zoneSel.innerHTML = '<option value="all">📍 ทุกโซน ('+rows.length+')</option>'
-      + zoneKeys.map(function(z){
-          return '<option value="'+escapeAttr(z)+'"'+(z===curZ?' selected':'')+'>'+escapeHtml(z)+' ('+zones[z]+')</option>';
-        }).join('');
+    return true;
   }
-  var branchTotal = 0; Object.keys(branches).forEach(function(k){ branchTotal += branches[k]; });
-  branchSel.innerHTML = '<option value="all">🏬 ทุกสาขา ('+branchTotal+')</option>'
-    + branchKeys.map(function(b){
-        return '<option value="'+escapeAttr(b)+'"'+(b===curB?' selected':'')+'>'+escapeHtml(b)+' ('+branches[b]+')</option>';
-      }).join('');
-  if (curC !== 'all' && !courses[curC]) { _adminReqFilters.course = 'all'; courseSel.value = 'all'; }
-  if (curZ !== 'all' && !zones[curZ])   { _adminReqFilters.zone = 'all';   if (zoneSel) zoneSel.value = 'all'; }
-  if (curB !== 'all' && !branches[curB]) { _adminReqFilters.branch = 'all'; branchSel.value = 'all'; }
-  // วันอบรม + รอบเวลา
-  var curD = _adminReqFilters.trainDate, curSl = _adminReqFilters.slot;
-  if (dateSel) {
-    var dateKeys = Object.keys(trainDates).sort(function(a,b){
-      if (a.indexOf('ไม่ระบุ') >= 0) return 1;
-      if (b.indexOf('ไม่ระบุ') >= 0) return -1;
-      return trainDates[b] - trainDates[a];
+  function build(sel, except, getter, allLabel, cur, label, tailKey) {
+    if (!sel) return;
+    var m = {}, total = 0;
+    allRows.forEach(function(r){ if (passExcept(r, except)) { var k = getter(r); m[k] = (m[k]||0)+1; total++; } });
+    if (cur && cur !== 'all' && m[cur] === undefined) m[cur] = 0; // คงค่าที่เลือกไว้ให้เห็น (แม้ 0)
+    var keys = Object.keys(m).sort(function(a,b){
+      if (tailKey) { if (a.indexOf(tailKey)>=0) return 1; if (b.indexOf(tailKey)>=0) return -1; }
+      return m[b] - m[a];
     });
-    dateSel.innerHTML = '<option value="all">📅 ทุกวันอบรม ('+rows.length+')</option>'
-      + dateKeys.map(function(d){
-          var lbl = (d.indexOf('ไม่ระบุ') >= 0) ? d : (formatThaiDate(d) || d);
-          return '<option value="'+escapeAttr(d)+'"'+(d===curD?' selected':'')+'>'+escapeHtml(lbl)+' ('+trainDates[d]+')</option>';
+    sel.innerHTML = '<option value="all">'+allLabel+' ('+total+')</option>'
+      + keys.map(function(k){
+          var lbl = label ? label(k) : k;
+          return '<option value="'+escapeAttr(k)+'"'+(k===cur?' selected':'')+'>'+escapeHtml(lbl)+' ('+m[k]+')</option>';
         }).join('');
-    if (curD !== 'all' && !trainDates[curD]) { _adminReqFilters.trainDate = 'all'; dateSel.value = 'all'; }
   }
-  if (slotSel) {
-    var slotKeys = Object.keys(slots).sort(function(a,b){
-      if (a.indexOf('ไม่ระบุ') >= 0) return 1;
-      if (b.indexOf('ไม่ระบุ') >= 0) return -1;
-      return slots[b] - slots[a];
-    });
-    slotSel.innerHTML = '<option value="all">🕐 ทุกรอบเวลา ('+rows.length+')</option>'
-      + slotKeys.map(function(s){
-          return '<option value="'+escapeAttr(s)+'"'+(s===curSl?' selected':'')+'>'+escapeHtml(s)+' ('+slots[s]+')</option>';
-        }).join('');
-    if (curSl !== 'all' && !slots[curSl]) { _adminReqFilters.slot = 'all'; slotSel.value = 'all'; }
-  }
+  build(courseSel, 'course',    _getRowCourse,    '📚 ทุกหลักสูตร', F.course,    null, null);
+  build(zoneSel,   'zone',      _getRowZone,      '📍 ทุกโซน',      F.zone,      null, 'ต่างจังหวัด');
+  build(branchSel, 'branch',    _getRowBranch,    '🏬 ทุกสาขา',     F.branch,    null, null);
+  build(dateSel,   'trainDate', _getRowTrainDate, '📅 ทุกวันอบรม',  F.trainDate, function(d){ return d.indexOf('ไม่ระบุ')>=0 ? d : (formatThaiDate(d)||d); }, 'ไม่ระบุ');
+  build(slotSel,   'slot',      _getRowSlot,      '🕐 ทุกรอบเวลา',  F.slot,      null, 'ไม่ระบุ');
 }
 
 /* Filter + sort + render to main table body */
@@ -8722,8 +8695,8 @@ function _applyAdminReqFilters() {
       return hay.indexOf(_q) >= 0;
     });
   }
-  // Re-populate branch dropdown so it only shows branches in the current zone
-  if (zoneSel && _adminRowCache) _populateAdminReqFilterOptions(_adminRowCache);
+  // Re-populate dropdowns แบบ faceted — ตัวเลขแต่ละช่องอิงตัวกรองอื่นที่เลือกอยู่
+  if (_adminRowCache) _populateAdminReqFilterOptions(_adminRowCache);
   // Apply sort
   var s = _adminReqFilters.sort;
   if (s === 'date_desc' || s === 'date_asc') {
@@ -9106,6 +9079,7 @@ document.addEventListener('visibilitychange', function(){
 /* ─── Export training form PDF (printable HTML view) ─── */
 /* ─────────── PDF EXPORT PREVIEW MODAL ─────────── */
 var _exportPDFCache = []; // last loaded requests for filter modal
+var _expBranchType = {};  // branchName -> ประเภท (ใช้กรองสาขาตามประเภทที่เลือก)
 function openExportPDFModal() {
   // โหลด requests มาก่อน แล้วสร้าง filter chips
   fetch(SCRIPT_URL + '?action=requests')
@@ -9119,11 +9093,13 @@ function openExportPDFModal() {
       _exportPDFCache = reqs;
       // เก็บรายชื่อ branches/courses/slots/types ที่ไม่ซ้ำ
       var brSet={}, coSet={}, slSet={}, tySet={};
+      _expBranchType = {};
       reqs.forEach(function(r){
         var b = r.branch || r['สาขา'] || ''; if (b) brSet[b]=true;
         var c = r.course || r['หลักสูตร'] || ''; if (c) coSet[c]=true;
         var s = _normSlot(r.timeSlot || r['รอบ'] || ''); if (s) slSet[s]=true;
         var t = _reqBrandType(r); if (t) tySet[t]=true;
+        if (b) _expBranchType[b] = t;   // จำประเภทของแต่ละสาขา
       });
       var branches = Object.keys(brSet).sort();
       var courses = Object.keys(coSet).sort();
@@ -9200,14 +9176,29 @@ function getExportPDFFiltered() {
     return true;
   });
 }
+// เลือกประเภท → เหลือเฉพาะสาขาในประเภทนั้น (ซ่อน + เคลียร์เช็คสาขาที่ไม่ตรง)
+function _applyExpTypeToBranches() {
+  var picked = {};
+  document.querySelectorAll('#exportPDFModal input[data-kind="type"]:checked').forEach(function(cb){ picked[cb.value] = true; });
+  var any = Object.keys(picked).length > 0;
+  document.querySelectorAll('#expFilterBranches .exp-chip').forEach(function(chip){
+    var cb = chip.querySelector('input[type="checkbox"]');
+    if (!cb) return;
+    var t = _expBranchType[cb.value] || 'ซานตาเฟ่';
+    var show = !any || !!picked[t];
+    chip.classList.toggle('hidden-by-type', !show);
+    if (!show && cb.checked) cb.checked = false;
+  });
+}
 function updateExportPDFCount() {
+  _applyExpTypeToBranches();   // ประเภทมีผลต่อช่องเลือกสาขา
   var n = getExportPDFFiltered().length;
   document.getElementById('exportPDFCount').innerHTML = 'จะออก PDF ทั้งหมด <b style="color:var(--gold);font-size:18px;">'+n+'</b> รายการ';
   // Sync branch dropdown label + count + has-selection state
   var dd = document.getElementById('expBranchDropdown');
   if (dd) {
     var sel = document.querySelectorAll('#expFilterBranches input[type="checkbox"]:checked').length;
-    var total = document.querySelectorAll('#expFilterBranches input[type="checkbox"]').length;
+    var total = document.querySelectorAll('#expFilterBranches .exp-chip:not(.hidden-by-type) input[type="checkbox"]').length;
     var label = document.getElementById('expBranchLabel');
     var cnt = document.getElementById('expBranchCount');
     if (cnt) cnt.textContent = sel;
