@@ -9248,6 +9248,12 @@ function exportTrainingPDF(preloadedReqs, opts) {
         groups[k].rows.push(r);
       });
 
+      // คอลัมน์ ตำแหน่ง/สาขา ปรับกว้างตามตำแหน่งที่ยาวสุด — ตำแหน่งสั้น = ช่องแคบ คืนที่ให้สาขา (ตำแหน่ง+สาขา = คงที่)
+      var _maxPosLen = 0;
+      reqs.forEach(function(r){ var _l = String(r.position || r['ตำแหน่ง'] || '').length; if (_l > _maxPosLen) _maxPosLen = _l; });
+      var _posW = _maxPosLen <= 16 ? 105 : _maxPosLen <= 24 ? 130 : _maxPosLen <= 32 ? 158 : 185;
+      var _brW  = 310 - _posW;
+
       // Build printable HTML
       var html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ทะเบียนรายชื่อผู้เข้าอบรม</title>';
       html += '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">';
@@ -9356,9 +9362,9 @@ function exportTrainingPDF(preloadedReqs, opts) {
             +   '<th style="width:38px;">ลำดับ</th>'
             +   '<th style="width:58px;">รหัสพนักงาน</th>'
             +   '<th style="width:145px;">ชื่อ - นามสกุล</th>'
-            +   '<th style="width:180px;">ตำแหน่ง</th>'
+            +   '<th style="width:' + _posW + 'px;">ตำแหน่ง</th>'
             +   (hideIdCard ? '' : '<th style="width:105px;">เลขบัตรประจำตัวประชาชน</th>')
-            +   '<th style="width:130px;">สาขา/หน่วยงาน</th>'
+            +   '<th style="width:' + _brW + 'px;">สาขา/หน่วยงาน</th>'
             + '</tr></thead><tbody>';
           // Always render 25 rows (fill blank if fewer)
           for (var i = 0; i < ROWS_PER_PAGE; i++) {
