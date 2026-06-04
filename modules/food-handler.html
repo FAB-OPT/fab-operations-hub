@@ -9252,13 +9252,20 @@ function exportTrainingPDF(preloadedReqs, opts) {
       var _maxPosLen = 0;
       reqs.forEach(function(r){ var _l = String(r.position || r['ตำแหน่ง'] || '').length; if (_l > _maxPosLen) _maxPosLen = _l; });
       var _posW = Math.max(90, Math.min(188, Math.round(_maxPosLen * 4.7 + 14)));  // ตำแหน่งกว้างพอดีเนื้อหา
-      var _brW  = 318 - _posW;  // ที่เหลือยกให้สาขา (รวม ตำแหน่ง+สาขา คงที่ 318)
+      var _brW  = 318 - _posW;  // ที่เหลือยกให้สาขา (รวม ตำแหน่ง+สาขา = 318)
       // ฟอนต์ตำแหน่งเดียวทั้งรายงาน — พอดีตัวที่ยาวสุด (สูงสุด 11px) ให้ทุกแถวขนาดเท่ากัน
       var _posFont = Math.max(8, Math.min(11, Math.round((_posW / 656 * 688) / (Math.max(_maxPosLen, 1) * 0.48))));
       // เติมรหัสสาขานำหน้าชื่อ (เช่น "4018 เจ๊แดง จุ่มนัวร์ เทอมินัล 21 พระราม 3") — แมพ ชื่อเต็ม -> รหัส จาก BRANCHES
       var _brCodeByName = {};
       try { Object.keys(BRANCHES).forEach(function(c){ _brCodeByName[getBranchFullName(c)] = c; }); } catch(e) {}
-      function _brDisp(name){ name = String(name || ''); var c = _brCodeByName[name]; return c ? (c + ' ' + name) : name; }
+      // แสดง "รหัส + ชื่อสาขา" โดยตัดแบรนด์นำหน้าออก (Santa Fe / Santa Fe Easy / เจ๊แดง จุ่มนัวร์)
+      function _brStripBrand(s){ return String(s || '').replace(/^(Santa Fe Easy|Santa Fe|เจ๊แดง จุ่มนัวร์|เจ๊แดง)\s+/i, ''); }
+      function _brDisp(name){
+        name = String(name || '');
+        var c = _brCodeByName[name];
+        if (c) return c + ' ' + (BRANCHES[c] || _brStripBrand(name));
+        return _brStripBrand(name);
+      }
 
       // สาขาก็อยู่บรรทัดเดียว (กันตัดบรรทัด ดันแถวสูง) — ฟอนต์เดียวพอดีสาขาที่ยาวสุด (รวมรหัสนำหน้าแล้ว)
       var _maxBrLen = 0;
