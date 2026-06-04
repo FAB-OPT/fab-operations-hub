@@ -9255,9 +9255,14 @@ function exportTrainingPDF(preloadedReqs, opts) {
       var _brW  = 318 - _posW;  // ที่เหลือยกให้สาขา (รวม ตำแหน่ง+สาขา คงที่ 318)
       // ฟอนต์ตำแหน่งเดียวทั้งรายงาน — พอดีตัวที่ยาวสุด (สูงสุด 11px) ให้ทุกแถวขนาดเท่ากัน
       var _posFont = Math.max(8, Math.min(11, Math.round((_posW / 656 * 688) / (Math.max(_maxPosLen, 1) * 0.48))));
-      // สาขาก็อยู่บรรทัดเดียว (กันตัดบรรทัด ดันแถวสูง) — ฟอนต์เดียวพอดีสาขาที่ยาวสุด
+      // เติมรหัสสาขานำหน้าชื่อ (เช่น "4018 เจ๊แดง จุ่มนัวร์ เทอมินัล 21 พระราม 3") — แมพ ชื่อเต็ม -> รหัส จาก BRANCHES
+      var _brCodeByName = {};
+      try { Object.keys(BRANCHES).forEach(function(c){ _brCodeByName[getBranchFullName(c)] = c; }); } catch(e) {}
+      function _brDisp(name){ name = String(name || ''); var c = _brCodeByName[name]; return c ? (c + ' ' + name) : name; }
+
+      // สาขาก็อยู่บรรทัดเดียว (กันตัดบรรทัด ดันแถวสูง) — ฟอนต์เดียวพอดีสาขาที่ยาวสุด (รวมรหัสนำหน้าแล้ว)
       var _maxBrLen = 0;
-      reqs.forEach(function(r){ var _l = String(r.branch || r['สาขา'] || '').length; if (_l > _maxBrLen) _maxBrLen = _l; });
+      reqs.forEach(function(r){ var _l = _brDisp(r.branch || r['สาขา'] || '').length; if (_l > _maxBrLen) _maxBrLen = _l; });
       var _brFont = Math.max(8, Math.min(11, Math.round((_brW / 656 * 688) / (Math.max(_maxBrLen, 1) * 0.46))));
 
       // Build printable HTML
@@ -9382,7 +9387,7 @@ function exportTrainingPDF(preloadedReqs, opts) {
               + '<td>' + escapeHtml(r.name || '') + '</td>'
               + '<td class="pos-cell">' + escapeHtml(r.position || '') + '</td>'
               + (hideIdCard ? '' : '<td class="idcard">' + escapeHtml(r.idCard || '') + '</td>')
-              + '<td class="branch-cell">' + escapeHtml(r.branch || '') + '</td>'
+              + '<td class="branch-cell">' + escapeHtml(_brDisp(r.branch || '')) + '</td>'
               + '</tr>';
           }
           html += '</tbody></table></div>';
