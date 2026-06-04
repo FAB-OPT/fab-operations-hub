@@ -9255,6 +9255,10 @@ function exportTrainingPDF(preloadedReqs, opts) {
       var _brW  = 310 - _posW;
       // ฟอนต์ตำแหน่งเดียวทั้งรายงาน — พอดีตัวที่ยาวสุด (สูงสุด 11px) ให้ทุกแถวขนาดเท่ากัน
       var _posFont = Math.max(8, Math.min(11, Math.round((_posW / 656 * 688) / (Math.max(_maxPosLen, 1) * 0.48))));
+      // สาขาก็อยู่บรรทัดเดียว (กันตัดบรรทัด ดันแถวสูง) — ฟอนต์เดียวพอดีสาขาที่ยาวสุด
+      var _maxBrLen = 0;
+      reqs.forEach(function(r){ var _l = String(r.branch || r['สาขา'] || '').length; if (_l > _maxBrLen) _maxBrLen = _l; });
+      var _brFont = Math.max(8, Math.min(11, Math.round((_brW / 656 * 688) / (Math.max(_maxBrLen, 1) * 0.46))));
 
       // Build printable HTML
       var html = '<!doctype html><html lang="th"><head><meta charset="utf-8"><title>ทะเบียนรายชื่อผู้เข้าอบรม</title>';
@@ -9263,7 +9267,7 @@ function exportTrainingPDF(preloadedReqs, opts) {
         + '@page { size: A4; margin: 0; }'
         + '* { box-sizing: border-box; }'
         + 'body { font-family: "Sarabun", "Tahoma", sans-serif; color:#111; margin:0; font-size: 13.5px; }'
-        + '.form-page { padding-top: 11mm; padding-bottom: 7mm; padding-left: 14mm; padding-right: 14mm; }'
+        + '.form-page { padding-top: 9mm; padding-bottom: 5mm; padding-left: 14mm; padding-right: 14mm; }'
         + '.form-page + .form-page { page-break-before: always; }'
         + '.form-head { text-align:center; margin: 0 0 6px; position: relative; padding-top: 0; padding-right: 0; padding-left: 0; }'
         + '.form-logo { width: 90px; position: absolute; left: 0; top: 4px; mix-blend-mode: multiply; }'
@@ -9274,22 +9278,22 @@ function exportTrainingPDF(preloadedReqs, opts) {
         +   ' font-size: 12.5px; line-height: 1.25; margin: 0 0 5px;'
         +   ' flex-wrap: wrap; padding-right: 0; padding-left: 0;'
         + ' }'
-        + '.form-meta-row:last-of-type { margin-bottom: 20px; }'
+        + '.form-meta-row:last-of-type { margin-bottom: 12px; }'
         + '.form-meta-row .lbl { font-weight: 800; }'
         + '.form-meta-row .val {'
         +   ' display: inline-block; min-width: 110px;'
         +   ' border-bottom: 1px dotted #444; padding: 0 6px; font-weight: 500;'
         +   ' text-align: center;'
         + ' }'
-        + 'table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 12px; margin: 6px 0 0; table-layout: fixed; }'
-        + 'th, td { border: 1px solid #555; padding: 3px 4px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'
-        + 'td.branch-cell { white-space: normal !important; overflow: visible !important; text-overflow: clip !important; word-break: break-word; line-height: 1.25; font-size: 11px; }'
+        + 'table { width: 100%; max-width: 100%; border-collapse: collapse; font-size: 11px; margin: 4px 0 0; table-layout: fixed; }'
+        + 'th, td { border: 1px solid #555; padding: 1.5px 4px; text-align: center; vertical-align: middle; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }'
+        + 'td.branch-cell { white-space: nowrap !important; overflow: hidden; text-overflow: clip; padding-left: 3px; padding-right: 3px; font-size: ' + _brFont + 'px; }'
         + 'td.pos-cell { white-space: nowrap !important; overflow: hidden; text-overflow: clip; padding-left: 4px; padding-right: 4px; font-size: ' + _posFont + 'px; }'
         + 'th { background: #d9d9d9; font-weight: 800; text-align: center; font-size: 11.5px; padding: 5px 3px; white-space: normal; line-height: 1.15; }'
-        + 'td.num { text-align: center; color: #1d4ed8; width: 38px; font-weight: 700; vertical-align: middle; line-height: 1.2; padding: 4px 2px; }'
+        + 'td.num { text-align: center; color: #1d4ed8; width: 38px; font-weight: 700; vertical-align: middle; line-height: 1.1; padding: 1.5px 2px; }'
         + 'td.empid { text-align: center; }'
         + 'td.idcard { text-align: center; }'
-        + 'td.empty { height: 23px; }'
+        + 'td.empty { height: 17px; }'
         + '.print-bar { position:fixed; top: 10px; right: 10px; z-index:9999; }'
         + '.print-bar button {'
         +   ' padding: 9px 18px; font-size: 14px; font-weight: 700; cursor: pointer;'
@@ -9304,7 +9308,7 @@ function exportTrainingPDF(preloadedReqs, opts) {
       // Logo absolute URL
       var logoUrl = new URL('../logo.png', location.href).href;
 
-      var ROWS_PER_PAGE = 30;
+      var ROWS_PER_PAGE = 40;
       var pageIdx = 0;
       // Sort groups + rows according to opts.sortOrder
       var sortKey = opts.sortOrder || 'default';
