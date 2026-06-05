@@ -6983,14 +6983,15 @@ function getBranchFullName(code) {
 /* ─── ประเภท/แบรนด์ของคำขออบรม: ซานตาเฟ่ / เจ๊แดง / Head Office ─── */
 function _brandTypeFromCode(code) {
   code = String(code || '');
-  if (code.indexOf('40') === 0) return 'เจ๊แดง จุ่มนัวร์';
+  if (code.indexOf('40') === 0) return _normBrandType(getBranchFullName(code)) || 'เจ๊แดง';
   if (code.indexOf('50') === 0 || code.indexOf('55') === 0) return 'ซานตาเฟ่';
   return '';
 }
 // ทำให้ค่า brand ที่เก็บ/นำเข้า เป็น 1 ใน 3 ประเภทมาตรฐาน
 function _normBrandType(b) {
   b = String(b || '');
-  if (/เจ๊?\s*แดง|จุ่มนัวร์|jaedaeng|^40/i.test(b)) return 'เจ๊แดง จุ่มนัวร์';
+  if (/จุ่มนัวร์/i.test(b)) return 'เจ๊แดง จุ่มนัวร์';
+  if (/เจ๊?\s*แดง|jaedaeng|^40/i.test(b)) return 'เจ๊แดง';
   if (/head\s*office|สำนักงานใหญ่|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(b)) return 'Head Office';
   if (/ซานตา|santa|เฟ่|^5[05]/i.test(b)) return 'ซานตาเฟ่';
   return b ? b : '';
@@ -7012,12 +7013,18 @@ function _codeFromBranchName(name) {
 }
 // ประเภทของ request: ใช้ field brand ที่เก็บไว้ก่อน · ไม่มีค่อยเดาจากชื่อสาขา
 function _reqBrandType(r) {
+  var name = String(r.branch || r['สาขา'] || '');
+  // resolve เป็นชื่อเต็ม (มี prefix แบรนด์) ก่อน เพราะชื่อที่เก็บเป็นชื่อสั้น
+  var code = _codeFromBranchName(name);
+  var full = code ? getBranchFullName(code) : name;
+  // เจ๊แดง: แยกตามชื่อเต็ม — มี "จุ่มนัวร์" = เจ๊แดง จุ่มนัวร์, ที่เหลือ = เจ๊แดง
+  if (/จุ่มนัวร์/i.test(full)) return 'เจ๊แดง จุ่มนัวร์';
+  if (/เจ๊?\s*แดง|jaedaeng/i.test(full)) return 'เจ๊แดง';
+  if (/สำนักงานใหญ่|head\s*office|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(full)) return 'Head Office';
+  // ทางสำรอง: ใช้ field brand ที่เก็บไว้ แล้วค่อยเดาจากรหัส
   var stored = _normBrandType(r.brand || r['แบรนด์'] || r['ประเภท'] || '');
   if (stored) return stored;
-  var name = String(r.branch || r['สาขา'] || '');
-  if (/สำนักงานใหญ่|head\s*office|สนญ|ออฟฟิศ|\bho\b|\bhq\b/i.test(name)) return 'Head Office';
-  if (/เจ๊?\s*แดง|จุ่มนัวร์/i.test(name)) return 'เจ๊แดง จุ่มนัวร์';
-  var t = _brandTypeFromCode(_codeFromBranchName(name));
+  var t = _brandTypeFromCode(code);
   return t || 'ซานตาเฟ่';
 }
 var selectedRole = 'branch';
@@ -9120,13 +9127,15 @@ function openExportPDFModal() {
       var branches = Object.keys(brSet).sort();
       var courses = Object.keys(coSet).sort();
       var slots = Object.keys(slSet).sort();
+      // ถ้ามีเจ๊แดงตระกูลใดในข้อมูล → ให้เลือกแยก "เจ๊แดง" / "เจ๊แดง จุ่มนัวร์" ได้ทั้งคู่
+      if (tySet['เจ๊แดง'] || tySet['เจ๊แดง จุ่มนัวร์']) { tySet['เจ๊แดง'] = true; tySet['เจ๊แดง จุ่มนัวร์'] = true; }
       // ประเภท: เรียงตามลำดับมาตรฐาน
-      var TYPE_ORDER = ['ซานตาเฟ่','เจ๊แดง จุ่มนัวร์','Head Office'];
+      var TYPE_ORDER = ['ซานตาเฟ่','เจ๊แดง','เจ๊แดง จุ่มนัวร์','Head Office'];
       var types = Object.keys(tySet).sort(function(a,b){
         var ia = TYPE_ORDER.indexOf(a), ib = TYPE_ORDER.indexOf(b);
         return (ia<0?99:ia) - (ib<0?99:ib);
       });
-      var TYPE_ICON = { 'ซานตาเฟ่':'🟠', 'เจ๊แดง จุ่มนัวร์':'🔴', 'Head Office':'🏢' };
+      var TYPE_ICON = { 'ซานตาเฟ่':'🟠', 'เจ๊แดง':'🔴', 'เจ๊แดง จุ่มนัวร์':'🔴', 'Head Office':'🏢' };
       document.getElementById('expFilterTypes').innerHTML = types.map(function(t){
         return '<label class="exp-chip"><input type="checkbox" data-kind="type" value="'+escapeAttr(t)+'" onchange="updateExportPDFCount()"> <span>'+(TYPE_ICON[t]||'🏷️')+' '+escapeHtml(t)+'</span></label>';
       }).join('') || '<span style="color:var(--text3);font-size:12px;">— ไม่มีข้อมูล —</span>';
