@@ -5261,18 +5261,13 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 <!-- FILTER BAR — chips + dropdowns + cleanup group ทั้งหมดอยู่บรรทัดเดียว -->
 <div class="filter-bar" id="matchChips" style="display:none">
   <div class="filter-row-chips">
-    <button type="button" class="exp-status-chip active" data-ef="all" onclick="setExpFilter('all')">
-      <span class="esc-icon">📋</span><span class="esc-label">ทั้งหมด</span><span class="esc-count" id="ecAll">0</span>
-    </button>
-    <button type="button" class="exp-status-chip ec-valid" data-ef="valid" onclick="setExpFilter('valid')">
-      <span class="esc-icon">✓</span><span class="esc-label">ยังมีผล</span><span class="esc-count" id="ecValid">0</span>
-    </button>
-    <button type="button" class="exp-status-chip ec-warn" data-ef="warning" onclick="setExpFilter('warning')">
-      <span class="esc-icon">⚠</span><span class="esc-label">ใกล้หมดอายุ</span><span class="esc-count" id="ecWarn">0</span>
-    </button>
-    <button type="button" class="exp-status-chip ec-exp" data-ef="expired" onclick="setExpFilter('expired')">
-      <span class="esc-icon">✗</span><span class="esc-label">หมดอายุ</span><span class="esc-count" id="ecExp">0</span>
-    </button>
+    <!-- สถานะใบรับรอง (dropdown พร้อมจำนวน) -->
+    <select class="filter-sel-pretty" id="expFilter" onchange="setExpFilter(this.value)">
+      <option value="all">📋 ทั้งหมด</option>
+      <option value="valid">✓ ยังมีผล</option>
+      <option value="warning">⚠ ใกล้หมดอายุ</option>
+      <option value="expired">✗ หมดอายุ</option>
+    </select>
     <!-- บนมือถือ flex-break บังคับให้ dropdown ลงบรรทัดใหม่ -->
     <div class="flex-break"></div>
     <!-- ค้นหาแบบพิมพ์ (ชื่อ/สาขา/หลักสูตร/ตำแหน่ง) -->
@@ -5295,7 +5290,6 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   </div>
   <!-- hidden state holders (kept for JS compatibility — getFiltered reads these) -->
   <select id="matchFilter" style="display:none"><option value="all">all</option></select>
-  <select id="expFilter" style="display:none" onchange="renderTable()"><option value="all">all</option><option value="valid">valid</option><option value="warning">warning</option><option value="expired">expired</option></select>
   <select id="sheetFilter" style="display:none"><option value="all">all</option></select>
 </div>
 
@@ -6385,18 +6379,17 @@ function updateStats() {
   document.getElementById('sExact').textContent = dAll.filter(function(r){return r.matchType==='exact';}).length;
   document.getElementById('sLast').textContent  = dAll.filter(function(r){return r.matchType==='lastname';}).length;
   document.getElementById('sNone').textContent  = dAll.filter(function(r){return r.matchType==='notfound';}).length;
-  // Exp-status chips นับแบบเดียวกัน (sync กับการ์ด)
+  // Exp-status dropdown — ใส่จำนวนใน option (sync กับการ์ด)
   var chipsEl = document.getElementById('matchChips');
   if (chipsEl) {
     chipsEl.style.display = dAll.length ? 'flex' : 'none';
-    var ecAll = document.getElementById('ecAll');
-    var ecV = document.getElementById('ecValid');
-    var ecW = document.getElementById('ecWarn');
-    var ecE = document.getElementById('ecExp');
-    if (ecAll) ecAll.textContent = d.length;
-    if (ecV)   ecV.textContent   = nValid;
-    if (ecW)   ecW.textContent   = nWarn;
-    if (ecE)   ecE.textContent   = nExp;
+    var efSel = document.getElementById('expFilter');
+    if (efSel && efSel.options.length >= 4) {
+      efSel.options[0].text = '📋 ทั้งหมด (' + d.length + ')';
+      efSel.options[1].text = '✓ ยังมีผล (' + nValid + ')';
+      efSel.options[2].text = '⚠ ใกล้หมดอายุ (' + nWarn + ')';
+      efSel.options[3].text = '✗ หมดอายุ (' + nExp + ')';
+    }
   }
   // Populate branch + course filter dropdowns (ครั้งแรกหลังโหลดข้อมูล)
   populateFilterDropdowns_();
