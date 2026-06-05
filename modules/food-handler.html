@@ -3863,6 +3863,16 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 .exp-chip.hidden-by-search { display: none; }
 .exp-chip.hidden-by-type { display: none; }
+.exp-chip.hidden-by-facet { display: none; }
+.exp-ct {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(15,23,42,0.08);
+  color: var(--text2);
+  font-size: 11px; font-weight: 800; font-variant-numeric: tabular-nums;
+}
+.exp-chip:has(input:checked) .exp-ct { background: #2563eb; color: #ffffff; }
 
 /* ─── Branch dropdown (PDF export) ─── */
 .exp-dropdown { position: relative; }
@@ -5265,6 +5275,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     </button>
     <!-- บนมือถือ flex-break บังคับให้ dropdown ลงบรรทัดใหม่ -->
     <div class="flex-break"></div>
+    <!-- ค้นหาแบบพิมพ์ (ชื่อ/สาขา/หลักสูตร/ตำแหน่ง) -->
+    <input type="text" class="req-filter-search" id="searchQ" placeholder="🔍 ค้นหา ชื่อ / สาขา / หลักสูตร / ตำแหน่ง..." oninput="_tablePage=1;renderTable()" autocomplete="off" style="max-width:300px">
     <!-- dropdowns ติดกับ chip (desktop) / บรรทัดใหม่ (mobile, centered) -->
     <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
       <option value="all">🏢 ทุกสาขา</option>
@@ -5285,7 +5297,6 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <select id="matchFilter" style="display:none"><option value="all">all</option></select>
   <select id="expFilter" style="display:none" onchange="renderTable()"><option value="all">all</option><option value="valid">valid</option><option value="warning">warning</option><option value="expired">expired</option></select>
   <select id="sheetFilter" style="display:none"><option value="all">all</option></select>
-  <input type="text" id="searchQ" style="display:none">
 </div>
 
 <!-- CERT TABLE -->
@@ -9137,17 +9148,17 @@ function openExportPDFModal() {
       });
       var TYPE_ICON = { 'ซานตาเฟ่':'🟠', 'เจ๊แดง':'🔴', 'เจ๊แดง จุ่มนัวร์':'🔴', 'Head Office':'🏢' };
       document.getElementById('expFilterTypes').innerHTML = types.map(function(t){
-        return '<label class="exp-chip"><input type="checkbox" data-kind="type" value="'+escapeAttr(t)+'" onchange="updateExportPDFCount()"> <span>'+(TYPE_ICON[t]||'🏷️')+' '+escapeHtml(t)+'</span></label>';
+        return '<label class="exp-chip"><input type="checkbox" data-kind="type" value="'+escapeAttr(t)+'" onchange="updateExportPDFCount()"> <span>'+(TYPE_ICON[t]||'🏷️')+' '+escapeHtml(t)+' <b class="exp-ct"></b></span></label>';
       }).join('') || '<span style="color:var(--text3);font-size:12px;">— ไม่มีข้อมูล —</span>';
       // Render chips — ไม่ active โดย default (ผู้ใช้เลือกเองตามต้องการ · ไม่เลือก = ทุกตัว)
       document.getElementById('expFilterBranches').innerHTML = branches.map(function(b){
-        return '<label class="exp-chip"><input type="checkbox" data-kind="branch" value="'+escapeAttr(b)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(b)+'</span></label>';
+        return '<label class="exp-chip"><input type="checkbox" data-kind="branch" value="'+escapeAttr(b)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(b)+' <b class="exp-ct"></b></span></label>';
       }).join('');
       document.getElementById('expFilterCourses').innerHTML = courses.map(function(c){
-        return '<label class="exp-chip"><input type="checkbox" data-kind="course" value="'+escapeAttr(c)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(c)+'</span></label>';
+        return '<label class="exp-chip"><input type="checkbox" data-kind="course" value="'+escapeAttr(c)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(c)+' <b class="exp-ct"></b></span></label>';
       }).join('');
       document.getElementById('expFilterSlots').innerHTML = slots.map(function(s){
-        return '<label class="exp-chip"><input type="checkbox" data-kind="slot" value="'+escapeAttr(s)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(s)+' น.</span></label>';
+        return '<label class="exp-chip"><input type="checkbox" data-kind="slot" value="'+escapeAttr(s)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(s)+' น. <b class="exp-ct"></b></span></label>';
       }).join('');
       updateExportPDFCount();
       document.getElementById('exportPDFModal').classList.add('show');
@@ -9201,29 +9212,54 @@ function getExportPDFFiltered() {
     return true;
   });
 }
-// เลือกประเภท → เหลือเฉพาะสาขาในประเภทนั้น (ซ่อน + เคลียร์เช็คสาขาที่ไม่ตรง)
-function _applyExpTypeToBranches() {
-  var picked = {};
-  document.querySelectorAll('#exportPDFModal input[data-kind="type"]:checked').forEach(function(cb){ picked[cb.value] = true; });
-  var any = Object.keys(picked).length > 0;
-  document.querySelectorAll('#expFilterBranches .exp-chip').forEach(function(chip){
-    var cb = chip.querySelector('input[type="checkbox"]');
-    if (!cb) return;
-    var t = _expBranchType[cb.value] || 'ซานตาเฟ่';
-    var show = !any || !!picked[t];
-    chip.classList.toggle('hidden-by-type', !show);
-    if (!show && cb.checked) cb.checked = false;
+// ── Faceted filter: นับจำนวนต่อค่า ตาม filter ของหมวดอื่นที่เลือกไว้ + ซ่อนค่าที่ไม่มีข้อมูล ──
+function _expValOf(kind, r) {
+  if (kind === 'course') return r.course || r['หลักสูตร'] || '';
+  if (kind === 'slot')   return _normSlot(r.timeSlot || r['รอบ'] || '');
+  if (kind === 'type')   return _reqBrandType(r);
+  return r.branch || r['สาขา'] || '';
+}
+function _expPicks(kind) {
+  var arr = document.querySelectorAll('#exportPDFModal input[data-kind="'+kind+'"]:checked');
+  if (arr.length === 0) return null;
+  var s = {}; arr.forEach(function(cb){ s[cb.value] = true; }); return s;
+}
+// นับ record ต่อค่าในหมวด kind โดยผ่าน filter ของ "ทุกหมวดที่ไม่ใช่ตัวเอง" (faceted)
+function _expCountsFor(kind) {
+  var others = {};
+  ['course','slot','type','branch'].forEach(function(k){ if (k !== kind) others[k] = _expPicks(k); });
+  var counts = {};
+  _exportPDFCache.forEach(function(r){
+    for (var k in others) { var p = others[k]; if (p) { var v = _expValOf(k, r); if (v && !p[v]) return; } }
+    var val = _expValOf(kind, r); if (val) counts[val] = (counts[val] || 0) + 1;
+  });
+  return counts;
+}
+var _EXP_FACET_EL = { course:'expFilterCourses', slot:'expFilterSlots', type:'expFilterTypes', branch:'expFilterBranches' };
+function _refreshExpFacets() {
+  ['course','slot','type','branch'].forEach(function(kind){
+    var counts = _expCountsFor(kind);
+    var box = document.getElementById(_EXP_FACET_EL[kind]); if (!box) return;
+    box.querySelectorAll('.exp-chip').forEach(function(chip){
+      var cb = chip.querySelector('input[type="checkbox"]'); if (!cb) return;
+      var n = counts[cb.value] || 0;
+      var ct = chip.querySelector('.exp-ct'); if (ct) ct.textContent = n;
+      // หลักสูตร = ตัวขับ โชว์เสมอ · หมวดอื่นซ่อนเมื่อไม่มีข้อมูล (โชว์เฉพาะที่มี)
+      var hide = (kind !== 'course') && n === 0;
+      chip.classList.toggle('hidden-by-facet', hide);
+      if (hide && cb.checked) cb.checked = false;
+    });
   });
 }
 function updateExportPDFCount() {
-  _applyExpTypeToBranches();   // ประเภทมีผลต่อช่องเลือกสาขา
+  _refreshExpFacets();   // นับจำนวน + ซ่อนค่าที่ไม่มีข้อมูล (faceted: หลักสูตร→รอบ/แบรนด์/สาขา)
   var n = getExportPDFFiltered().length;
   document.getElementById('exportPDFCount').innerHTML = 'จะออก PDF ทั้งหมด <b style="color:var(--gold);font-size:18px;">'+n+'</b> รายการ';
   // Sync branch dropdown label + count + has-selection state
   var dd = document.getElementById('expBranchDropdown');
   if (dd) {
     var sel = document.querySelectorAll('#expFilterBranches input[type="checkbox"]:checked').length;
-    var total = document.querySelectorAll('#expFilterBranches .exp-chip:not(.hidden-by-type) input[type="checkbox"]').length;
+    var total = document.querySelectorAll('#expFilterBranches .exp-chip:not(.hidden-by-facet) input[type="checkbox"]').length;
     var label = document.getElementById('expBranchLabel');
     var cnt = document.getElementById('expBranchCount');
     if (cnt) cnt.textContent = sel;
