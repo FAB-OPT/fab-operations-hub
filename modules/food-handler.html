@@ -6788,6 +6788,7 @@ function adminReqDupDeleteSelected() {
     seq.then(function(){
       showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>' + done + '</b> รายการ' + (failed ? ' · ✗ ล้มเหลว ' + failed + ' รายการ' : ''));
       closeAdminReqDupModal();
+      _fhBustRequests();
       loadAdminRequests();
     });
   });
@@ -8263,22 +8264,30 @@ function logout() {
 }
 
 function loadRecordsForSearch() {
-  document.getElementById('branchSearchInfo').textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+  var info = document.getElementById('branchSearchInfo');
+  function _renderCerts() {
+    if (info) info.textContent = 'พบข้อมูลในระบบ ' + allRecords.length + ' รายการ — พิมพ์เพื่อค้นหา';
+    updateBranchStats();
+    branchSearch();
+  }
+  // 1) โชว์จากแคชทันที
+  var _c = _fhCacheGet('fh_certs_v1');
+  if (_c && _c.length) { allRecords = _c; _renderCerts(); }
+  else if (info) info.textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช
   fetch(SCRIPT_URL, { method:'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.ok) {
         allRecords = res.records || [];
-        document.getElementById('branchSearchInfo').textContent = 'พบข้อมูลในระบบ ' + allRecords.length + ' รายการ — พิมพ์เพื่อค้นหา';
-        updateBranchStats();
-        branchSearch();
-      } else {
-        document.getElementById('branchSearchInfo').innerHTML = '<span style="color:var(--red)">โหลดข้อมูลไม่ได้: '+(res.error||'unknown')+'</span>';
+        _fhCacheSet('fh_certs_v1', allRecords);
+        _renderCerts();
+        if (_adminRowCache && _adminRowCache.length) { _adminCertIdx = buildCertIndex(); if (typeof _applyAdminReqFilters === 'function') _applyAdminReqFilters(); }
+      } else if (!_c && info) {
+        info.innerHTML = '<span style="color:var(--red)">โหลดข้อมูลไม่ได้: '+(res.error||'unknown')+'</span>';
       }
     })
-    .catch(function(err){
-      document.getElementById('branchSearchInfo').innerHTML = '<span style="color:var(--red)">เชื่อมต่อ Cloud ไม่ได้: '+err.message+'</span>';
-    });
+    .catch(function(err){ if (!_c && info) info.innerHTML = '<span style="color:var(--red)">เชื่อมต่อ Cloud ไม่ได้: '+err.message+'</span>'; });
 }
 
 function updateBranchStats() {
@@ -8771,61 +8780,66 @@ function _clearAdminReqFilters() {
   _applyAdminReqFilters();
 }
 
+// localStorage cache (stale-while-revalidate) — โชว์ของเดิมทันที แล้วรีเฟรชเบื้องหลัง
+function _fhCacheSet(key, data){ try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {} }
+function _fhCacheGet(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { return null; } }
+function _fhBustRequests(){ try { localStorage.removeItem('fh_requests_v1'); } catch(e) {} }  // ล้างแคชหลังแก้ข้อมูล
+
 function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   var info = document.getElementById(infoElId);
   var body = document.getElementById(bodyElId);
   var inlineInfo = !isAdmin ? document.getElementById('myRequestsInfoInline') : null;
   if (!info || !body) return;
-  info.textContent = 'กำลังโหลด...';
-  if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...';
-  // ดึงทั้งหมด (ไม่ส่ง branch param) — ใช้ root cache key 'req_v2' ที่ saveRequests clear ทุกครั้ง
-  // แล้ว filter ฝั่ง client ด้วย branchFilter
-  var url = SCRIPT_URL + '?action=requests&_=' + Date.now();
-  fetch(url, { method: 'GET' })
+
+  function _process(records) {
+    var rows = (records || []).slice();
+    if (branchFilter) {
+      rows = rows.filter(function(r){ return String(r.branch || r['สาขา'] || '') === String(branchFilter); });
+    }
+    if (rows.length === 0) {
+      info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
+      if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
+      if (isAdmin) {
+        _adminRowCache = [];
+        var bar = document.getElementById('adminReqCountBar'); if (bar) bar.innerHTML = '';
+        _populateAdminReqFilterOptions([]);
+      }
+      body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
+      return;
+    }
+    if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
+    if (isAdmin) {
+      _adminRowCache = rows;
+      _adminCertIdx = buildCertIndex();
+      _renderAdminReqCountBar(rows);
+      _populateAdminReqFilterOptions(rows);
+      _applyAdminReqFilters();
+    } else {
+      rows.sort(function(a,b){
+        var ta = a['timestamp'] || a['วันที่ส่ง'] || '';
+        var tb = b['timestamp'] || b['วันที่ส่ง'] || '';
+        return tb > ta ? 1 : tb < ta ? -1 : 0;
+      });
+      info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
+      _myReqRowCache = [];
+      body.innerHTML = rows.map(function(r){ return _renderMyReqRow(r); }).join('');
+    }
+  }
+
+  // 1) โชว์จากแคชทันที (ถ้ามี) — ไม่ต้องรอเน็ต
+  var _cached = _fhCacheGet('fh_requests_v1');
+  if (_cached && _cached.length) { _process(_cached); }
+  else { info.textContent = 'กำลังโหลด...'; if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...'; }
+
+  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช + re-render
+  fetch(SCRIPT_URL + '?action=requests&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
-      if (!res.ok) {
-        info.innerHTML = '<span style="color:var(--red)">โหลดไม่สำเร็จ: '+(res.error||'unknown')+'</span>';
-        return;
-      }
-      var rows = res.records || [];
-      // Client-side branch filter (ทำตรงนี้แทน server เพื่อให้ cache freshness)
-      if (branchFilter) {
-        rows = rows.filter(function(r){ return String(r.branch || r['สาขา'] || '') === String(branchFilter); });
-      }
-      if (rows.length === 0) {
-        info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
-        if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
-        if (isAdmin) {
-          _adminRowCache = [];
-          var bar = document.getElementById('adminReqCountBar'); if (bar) bar.innerHTML = '';
-          _populateAdminReqFilterOptions([]);
-        }
-        body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
-        return;
-      }
-      if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
-      if (isAdmin) {
-        _adminRowCache = rows;
-        _adminCertIdx = buildCertIndex();
-        _renderAdminReqCountBar(rows);
-        _populateAdminReqFilterOptions(rows);
-        _applyAdminReqFilters();
-      } else {
-        // Branch view: sort newest first + render directly
-        rows.sort(function(a,b){
-          var ta = a['timestamp'] || a['วันที่ส่ง'] || '';
-          var tb = b['timestamp'] || b['วันที่ส่ง'] || '';
-          return tb > ta ? 1 : tb < ta ? -1 : 0;
-        });
-        info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
-        _myReqRowCache = []; // reset before rendering (re-populated by _renderMyReqRow)
-        body.innerHTML = rows.map(function(r){ return _renderMyReqRow(r); }).join('');
-      }
+      if (!res.ok) { if (!_cached) info.innerHTML = '<span style="color:var(--red)">โหลดไม่สำเร็จ: '+(res.error||'unknown')+'</span>'; return; }
+      _fhCacheSet('fh_requests_v1', res.records || []);
+      _process(res.records || []);
     })
-    .catch(function(err){
-      info.innerHTML = '<span style="color:var(--red)">เชื่อมต่อไม่ได้: '+err.message+'</span>';
-    });
+    .catch(function(err){ if (!_cached) info.innerHTML = '<span style="color:var(--red)">เชื่อมต่อไม่ได้: '+err.message+'</span>'; });
 }
 
 function loadMyRequests() {
@@ -8943,6 +8957,7 @@ function saveEditRequest() {
       hideLoadingOverlay();
       if (res.ok) {
         closeEditRequest();
+        _fhBustRequests();
         loadAdminRequests();
       } else {
         customConfirm({ icon:ICON_WARN, title:'บันทึกไม่สำเร็จ', desc:escapeHtml(res.error || 'unknown')+'<br><br>อาจเป็นเพราะ Apps Script ยังไม่ได้ deploy เวอร์ชั่นใหม่', okText:'ปิด', okIsPrimary:true, hideCancel:true });
@@ -8986,6 +9001,7 @@ function doDeleteRequest(keyData, btn, tr) {
           tr.style.transform = 'translateX(-20px)';
           setTimeout(function(){ if (tr.parentNode) tr.parentNode.removeChild(tr); }, 250);
         }
+        _fhBustRequests();
         setTimeout(loadAdminRequests, 600);
       } else {
         if (btn) btn.disabled = false;
@@ -9605,6 +9621,7 @@ function confirmImportRequests() {
     if (res && res.ok) {
       closeImportRequestsModal();
       showInfo('✓ นำเข้าสำเร็จ', 'บันทึก <b>'+res.saved+'</b> รายการลง Cloud แล้ว');
+      _fhBustRequests();
       loadAdminRequests();
     } else {
       btn.innerHTML = '✓ บันทึก '+_importReqParsed.length+' รายการ';
@@ -10530,6 +10547,7 @@ function submitRequests() {
         statusEl.innerHTML = '<span style="color:var(--green)">✓ ส่งรายชื่อ '+res.saved+' รายการเรียบร้อย</span>';
         requestRows = [];
         rerenderRequestList();
+        _fhBustRequests();
         setTimeout(loadMyRequests, 600);
         setTimeout(function(){ hideLoadingOverlay(); backToStep1(); }, 1500);
       } else {
