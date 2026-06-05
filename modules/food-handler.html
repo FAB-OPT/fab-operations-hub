@@ -9820,21 +9820,15 @@ function exportTrainingForm() {
         ws.getCell('D' + rowNum).value = pos;
         ws.getCell('E' + rowNum).value = String(idCard);
         ws.getCell('F' + rowNum).value = branch;
-        // กันข้อความยาวโดนตัด — ปรับขนาดฟอนต์ให้พอดีคอลัมน์อัตโนมัติ
-        // (ตัวแปลง PDF เช่น Smallpdf รองรับแค่ ฟอนต์ + ความกว้างคอลัมน์ · ไม่รองรับ wrap/shrinkToFit)
-        // ฟอนต์ที่พอดี ≈ widthChars * 11 / len (เทมเพลตฐานฟอนต์ 11)
-        function _fitFont(col, w, max) {
+        // ตัวหนังสือทุกเซลล์ขนาดเท่ากัน (UNIFORM_FONT) — ไม่ย่อตามความยาวข้อความ
+        var UNIFORM_FONT = 11;
+        ['B','C','D','E','F'].forEach(function(col){
           try {
             var cell = ws.getCell(col + rowNum);
-            var len = String(cell.value || '').length;
-            var size = Math.max(8, Math.min(max, Math.floor(w * 11 / Math.max(len, 1))));
-            cell.font = Object.assign({}, cell.font || {}, { size: size });
+            cell.font = Object.assign({}, cell.font || {}, { size: UNIFORM_FONT });
             cell.alignment = Object.assign({}, cell.alignment || {}, { vertical: 'middle', wrapText: false, shrinkToFit: false });
           } catch(e) {}
-        }
-        _fitFont('D', 38, 14);  // ตำแหน่ง (กว้าง 38)
-        _fitFont('C', 25, 16);  // ชื่อ (กว้าง 25)
-        _fitFont('F', 22, 14);  // สาขา (กว้าง 22)
+        });
       });
     }
 
