@@ -6985,6 +6985,16 @@ function getBranchFullName(code) {
   return prefix ? (prefix + ' ' + name) : name;
 }
 
+/* ─── แสดงสาขาแบบเดียวกับใน PDF: "รหัส ชื่อ" (ตัด Santa Fe / Santa Fe Easy · เก็บเจ๊แดง) ─── */
+var _brCodeByNameG = {};
+try { Object.keys(BRANCHES).forEach(function(c){ _brCodeByNameG[getBranchFullName(c)] = c; }); } catch(e) {}
+function _brStripBrandG(s){ return String(s || '').replace(/^(Santa Fe Easy|Santa Fe)\s+/i, ''); }
+function _brDispG(name){
+  name = String(name || '');
+  var c = _brCodeByNameG[name];
+  return (c ? (c + ' ') : '') + _brStripBrandG(name);
+}
+
 /* ─── ประเภท/แบรนด์ของคำขออบรม: ซานตาเฟ่ / เจ๊แดง / Head Office ─── */
 function _brandTypeFromCode(code) {
   code = String(code || '');
@@ -8454,7 +8464,7 @@ function _renderAdminReqRow(r, certIdx, showCourseCol) {
   var p = _prepReqFields(r);
   var keyData = encodeURIComponent(JSON.stringify({ rowIndex: p.rowIdx, timestamp: String(p.tsRaw), name: p.name, idCard: p.idCard }));
   var html = '<tr>'
-    +'<td data-label="สาขา" data-icon="🏬">'+escapeHtml(p.branch)+'</td>'
+    +'<td data-label="สาขา" data-icon="🏬">'+escapeHtml(_brDispG(p.branch))+'</td>'
     +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(p.name)+'</td>'
     +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(p.empId)+'</td>'
     +'<td data-label="ตำแหน่ง" data-icon="💼">'+escapeHtml(p.pos)+'</td>';
@@ -8669,7 +8679,7 @@ function _populateAdminReqFilterOptions(allRows) {
   }
   build(courseSel, 'course',    _getRowCourse,    '📚 ทุกหลักสูตร', F.course,    null, null);
   build(zoneSel,   'zone',      _getRowZone,      '📍 ทุกโซน',      F.zone,      null, 'ต่างจังหวัด');
-  build(branchSel, 'branch',    _getRowBranch,    '🏬 ทุกสาขา',     F.branch,    null, null);
+  build(branchSel, 'branch',    _getRowBranch,    '🏬 ทุกสาขา',     F.branch,    _brDispG, null);
   build(dateSel,   'trainDate', _getRowTrainDate, '📅 ทุกวันอบรม',  F.trainDate, function(d){ return d.indexOf('ไม่ระบุ')>=0 ? d : (formatThaiDate(d)||d); }, 'ไม่ระบุ');
   build(slotSel,   'slot',      _getRowSlot,      '🕐 ทุกรอบเวลา',  F.slot,      null, 'ไม่ระบุ');
 }
