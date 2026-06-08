@@ -5426,7 +5426,12 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
         <span>การแก้ไขจะ <b>บันทึกขึ้น Google Sheet ทันที</b> เมื่อกดบันทึก · ตรวจให้แน่ใจก่อน <b>ช่องที่มี *</b> จำเป็นต้องกรอก</span>
       </div>
       <div class="edit-grid">
-        <div class="edit-field"><label>ชื่อ-นามสกุล <span class="req-mark">*</span></label><input id="edt-name" type="text"></div>
+        <div class="edit-field"><label>ชื่อ-นามสกุล <span class="req-mark">*</span></label>
+          <div class="combo-wrap">
+            <input id="edt-name" type="text" autocomplete="off" oninput="_reqEmpCombo(this.value)" onfocus="_reqEmpCombo(this.value)" placeholder="พิมพ์ชื่อ/รหัส เพื่อค้นจากทะเบียนพนักงาน">
+            <div class="combo-list" id="edtNameCombo" style="display:none"></div>
+          </div>
+        </div>
         <div class="edit-field"><label>รหัสพนักงาน</label><input id="edt-empId" type="text"></div>
         <div class="edit-field"><label>เลขบัตรประชาชน <span class="req-mark">*</span></label><input id="edt-idCard" type="text" maxlength="13"></div>
         <div class="edit-field"><label>ตำแหน่ง</label><input id="edt-position" type="text"></div>
@@ -8886,6 +8891,9 @@ var _adminRowCache = []; // last loaded admin requests for lookup
 // เติมค่าในฟอร์ม + dropdown หลักสูตร/รอบ (ใช้ร่วมทั้งแก้ไขและเพิ่ม)
 function _fillRequestForm(rec) {
   rec = rec || {};
+  // โหลดทะเบียนพนักงานไว้ล่วงหน้า (ถ้ายังไม่มี) เพื่อให้ช่องชื่อค้นได้
+  try { if ((!empData || !empData.length) && typeof loadEmployeeRegistryFromCloud === 'function') loadEmployeeRegistryFromCloud(); } catch(e) {}
+  var _cb = document.getElementById('edtNameCombo'); if (_cb) _cb.style.display = 'none';
   document.getElementById('edt-name').value = rec.name || '';
   document.getElementById('edt-empId').value = rec.empId || '';
   document.getElementById('edt-idCard').value = rec.idCard || '';
@@ -8945,8 +8953,50 @@ function openAddRequest() {
 
 function closeEditRequest() {
   document.getElementById('editRequestModal').classList.remove('show');
+  var _cb = document.getElementById('edtNameCombo'); if (_cb) _cb.style.display = 'none';
   _editingKey = null;
   _addMode = false;
+}
+
+// Autocomplete ช่องชื่อในฟอร์มเพิ่ม/แก้ไข — ดึงจากทะเบียนพนักงาน (getEmpNamesList)
+function _reqEmpCombo(query) {
+  var listEl = document.getElementById('edtNameCombo');
+  if (!listEl) return;
+  var emps = (typeof getEmpNamesList === 'function') ? getEmpNamesList() : [];
+  if (!emps.length) {
+    listEl.innerHTML = '<div class="combo-empty">กำลังโหลดทะเบียนพนักงาน...</div>';
+    listEl.style.display = 'block';
+    return;
+  }
+  var q = (query || '').trim().toLowerCase();
+  var filtered = q ? emps.filter(function(e){
+    return e.name.toLowerCase().indexOf(q) >= 0
+      || String(e.empId||'').toLowerCase().indexOf(q) >= 0
+      || String(e.position||'').toLowerCase().indexOf(q) >= 0;
+  }) : emps;
+  if (!filtered.length) {
+    listEl.innerHTML = '<div class="combo-empty">ไม่พบในทะเบียน — พิมพ์เพื่อกรอกเอง</div>';
+    listEl.style.display = 'block';
+    return;
+  }
+  listEl.innerHTML = filtered.slice(0, 50).map(function(e){
+    var meta = [e.empId, e.position, e.branch].filter(Boolean).map(escapeHtml).join(' · ');
+    return '<div class="combo-item" onmousedown="_reqEmpPick(\''
+      + escapeAttr(e.name)+'\',\''+escapeAttr(e.empId||'')+'\',\''+escapeAttr(e.idCard||'')+'\',\''+escapeAttr(e.position||'')+'\',\''+escapeAttr(e.branch||'')+'\')">'
+      + '<div class="ci-name">'+escapeHtml(e.name)+'</div>'
+      + (meta ? '<div class="ci-meta">'+meta+'</div>' : '')
+      + '</div>';
+  }).join('') + (filtered.length > 50 ? '<div class="combo-empty">แสดง 50 จาก '+filtered.length+' (พิมพ์เพื่อแคบลง)</div>' : '');
+  listEl.style.display = 'block';
+}
+function _reqEmpPick(name, empId, idCard, position, branch) {
+  var g = function(id){ return document.getElementById(id); };
+  if (g('edt-name')) g('edt-name').value = name || '';
+  if (g('edt-empId')) g('edt-empId').value = empId || '';
+  if (g('edt-idCard')) g('edt-idCard').value = String(idCard || '').replace(/\D/g, '');
+  if (g('edt-position')) g('edt-position').value = position || '';
+  if (branch && g('edt-branch')) g('edt-branch').value = branch;
+  var listEl = document.getElementById('edtNameCombo'); if (listEl) listEl.style.display = 'none';
 }
 function saveEditRequest() {
   if (!_addMode && !_editingKey) return;
