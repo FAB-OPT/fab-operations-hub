@@ -5350,6 +5350,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   <button class="req-filter-clear" onclick="_clearAdminReqFilters()" title="ล้างตัวกรอง">✕ ล้าง</button>
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
   <button class="req-filter-refresh" onclick="openAdminReqDupCheck()" title="ตรวจรายชื่อที่ส่งซ้ำ" style="background:rgba(245,158,11,0.1);color:#b45309;border-color:rgba(245,158,11,0.3);">🔍 ตรวจรายชื่อซ้ำ</button>
+  <button class="req-filter-refresh" onclick="openAddRequest()" title="เพิ่มผู้เข้าอบรมด้วยตนเอง" style="background:rgba(16,185,129,0.12);color:#047857;border-color:rgba(16,185,129,0.35);font-weight:700;">➕ เพิ่มผู้เข้าอบรม</button>
 </div>
 
 <!-- Modal: รายชื่อซ้ำ -->
@@ -5416,7 +5417,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 <div class="edit-overlay" id="editRequestModal">
   <div class="edit-box">
     <div class="edit-header intent-edit">
-      <div class="edit-title">✏️ แก้ไขรายการ</div>
+      <div class="edit-title" id="editModalTitle">✏️ แก้ไขรายการ</div>
       <button class="edit-close" onclick="closeEditRequest()">✕</button>
     </div>
     <div class="edit-body">
@@ -8869,34 +8870,22 @@ function _refreshAdminReqCerts() {
 
 /* ─── Edit request (admin only) ─── */
 var _editingKey = null;
+var _addMode = false;
 var _adminRowCache = []; // last loaded admin requests for lookup
-function openEditRequest(keyDataStr, rowIdx) {
-  var keyData;
-  try { keyData = JSON.parse(decodeURIComponent(keyDataStr)); } catch(e) { return; }
-  _editingKey = keyData;
-  // Find full row from cache
-  var rec = _adminRowCache.find(function(r){
-    return (r._rowIndex == rowIdx) || (
-      String(r.name) === String(keyData.name) &&
-      String(r.idCard) === String(keyData.idCard)
-    );
-  }) || {};
 
-  // Populate form
-  document.getElementById('edt-name').value = rec.name || keyData.name || '';
+// เติมค่าในฟอร์ม + dropdown หลักสูตร/รอบ (ใช้ร่วมทั้งแก้ไขและเพิ่ม)
+function _fillRequestForm(rec) {
+  rec = rec || {};
+  document.getElementById('edt-name').value = rec.name || '';
   document.getElementById('edt-empId').value = rec.empId || '';
-  document.getElementById('edt-idCard').value = rec.idCard || keyData.idCard || '';
+  document.getElementById('edt-idCard').value = rec.idCard || '';
   document.getElementById('edt-position').value = rec.position || '';
   document.getElementById('edt-branch').value = rec.branch || '';
   document.getElementById('edt-note').value = rec.note || '';
-
-  // Populate course dropdown
   var courseSel = document.getElementById('edt-course');
   courseSel.innerHTML = '<option value="">-- เลือก --</option>' + COURSE_OPTIONS.map(function(c){
     return '<option value="'+escapeAttr(c)+'"'+(c === rec.course ? ' selected':'')+'>'+escapeHtml(c)+'</option>';
   }).join('');
-
-  // Populate slot dropdown based on selected course
   function updateSlots() {
     var sel = courseSel.value;
     var sch = COURSE_SCHEDULES[sel];
@@ -8910,21 +8899,47 @@ function openEditRequest(keyDataStr, rowIdx) {
       slotSel.innerHTML = '<option value="">เลือกหลักสูตรก่อน</option>';
     }
   }
-  courseSel.onchange = function(){
-    // Reset selected slot when course changes
-    rec.timeSlot = '';
-    updateSlots();
-  };
+  courseSel.onchange = function(){ rec.timeSlot = ''; updateSlots(); };
   updateSlots();
+}
 
+function openEditRequest(keyDataStr, rowIdx) {
+  var keyData;
+  try { keyData = JSON.parse(decodeURIComponent(keyDataStr)); } catch(e) { return; }
+  _editingKey = keyData;
+  _addMode = false;
+  // Find full row from cache
+  var rec = _adminRowCache.find(function(r){
+    return (r._rowIndex == rowIdx) || (
+      String(r.name) === String(keyData.name) &&
+      String(r.idCard) === String(keyData.idCard)
+    );
+  }) || {};
+  var merged = Object.assign({}, rec, {
+    name: rec.name || keyData.name || '',
+    idCard: rec.idCard || keyData.idCard || ''
+  });
+  var t = document.getElementById('editModalTitle'); if (t) t.textContent = '✏️ แก้ไขรายการ';
+  _fillRequestForm(merged);
   document.getElementById('editRequestModal').classList.add('show');
 }
+
+// เพิ่มผู้เข้าอบรมด้วยตนเอง (ฟอร์มว่าง)
+function openAddRequest() {
+  _editingKey = null;
+  _addMode = true;
+  var t = document.getElementById('editModalTitle'); if (t) t.textContent = '➕ เพิ่มผู้เข้าอบรม';
+  _fillRequestForm({});
+  document.getElementById('editRequestModal').classList.add('show');
+}
+
 function closeEditRequest() {
   document.getElementById('editRequestModal').classList.remove('show');
   _editingKey = null;
+  _addMode = false;
 }
 function saveEditRequest() {
-  if (!_editingKey) return;
+  if (!_addMode && !_editingKey) return;
   var record = {
     name: document.getElementById('edt-name').value.trim(),
     empId: document.getElementById('edt-empId').value.trim(),
@@ -8938,6 +8953,8 @@ function saveEditRequest() {
   };
   var sch = COURSE_SCHEDULES[record.course];
   record.trainDate = sch ? sch.date : '';
+  // โหมดเพิ่ม: เก็บแบรนด์ (เดาจากชื่อสาขา) เพื่อให้ตัวกรองประเภทใน PDF ใช้ได้
+  if (_addMode) { try { record.brand = _normBrandType(record.branch) || ''; } catch(e) {} }
 
   // บังคับกรอกทุกช่อง ยกเว้น 'หมายเหตุ'
   var missing = [];
@@ -8957,11 +8974,14 @@ function saveEditRequest() {
     });
     return;
   }
-  showLoadingOverlay('กำลังบันทึก...', '');
+  showLoadingOverlay(_addMode ? 'กำลังเพิ่มรายชื่อ...' : 'กำลังบันทึก...', '');
+  var _payload = _addMode
+    ? { type: 'save-requests', records: [record] }
+    : { type: 'update-request', key: _editingKey, record: record };
   fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'update-request', key: _editingKey, record: record })
+    body: JSON.stringify(_payload)
   })
     .then(function(r){ return r.json(); })
     .then(function(res){
