@@ -746,38 +746,6 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 /* Coming-soon preview cards (admin-added announcements) */
 .menu-card-preview { background: #fffdf7; }
 
-/* ═══════════════════ 🔒 ALT MENU MODE ═══════════════════ */
-/* Alt URL = subset (curated for sharing) · Main URL = admin sees all */
-/* ใน Alt view → ซ่อนปุ่ม "คัดลอกลิงค์ Alt" (มีอยู่แล้ว ไม่ต้องโชว์ซ้ำ) */
-body.alt-menu-on .alt-only-hide { display: none !important; }
-
-/* การ์ดใน main URL ที่ admin ดู — ถ้าระบบนี้ถูกซ่อนจาก Alt → ขึ้น stamp ให้รู้ */
-.menu-card-alt-hidden {
-  position: relative;
-  border: 1.5px solid rgba(15,23,42,0.18) !important;
-}
-.menu-card-alt-hidden::after {
-  content: '';
-  position: absolute; inset: 0;
-  background: repeating-linear-gradient(45deg, transparent 0px, transparent 16px, rgba(15,23,42,0.03) 16px, rgba(15,23,42,0.03) 17px);
-  pointer-events: none;
-  border-radius: inherit;
-}
-.menu-card-alt-stamp {
-  position: absolute;
-  top: 10px; right: 10px;
-  z-index: 2;
-  padding: 4px 10px;
-  background: linear-gradient(135deg, #475569, #1e293b);
-  color: #fde68a;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 10.5px;
-  font-weight: 800;
-  letter-spacing: 0.4px;
-  border-radius: 6px;
-  box-shadow: 0 3px 10px -2px rgba(15,23,42,0.4);
-  pointer-events: none;
-}
 .menu-card-preview .menu-card-arrow {
   background: rgba(217,119,6,0.1);
   color: #b45309;
@@ -1849,20 +1817,6 @@ input[type=file] { display:none; }
             </div>
           </label>
         </div>
-        <!-- 🔒 Hide from Alt link — main URL = เห็นทุกระบบ · alt URL = ซ่อนระบบที่ติ๊ก -->
-        <!-- ซ่อน section นี้เมื่ออยู่ใน Alt view (เป็นการตั้งค่าจาก main URL เท่านั้น) -->
-        <div class="adm-section alt-only-hide">
-          <label class="sys-status-toggle" style="display:flex;align-items:flex-start;gap:14px;cursor:pointer;padding:14px 16px;background:linear-gradient(135deg,rgba(245,158,11,0.06),rgba(245,158,11,0.02));border-radius:12px;border:1.5px solid rgba(245,158,11,0.28);">
-            <input type="checkbox" id="sysHideFromAlt" style="width:22px;height:22px;cursor:pointer;margin-top:1px;flex:none;">
-            <div style="flex:1;min-width:0;">
-              <div style="font-weight:800;color:#b45309;font-size:14px;">🔒 ซ่อนจากลิงค์ Alt</div>
-              <div style="font-size:12px;color:var(--text2);margin-top:4px;line-height:1.55;">
-                ถ้าติ๊ก → ระบบนี้จะ<b>ไม่แสดง</b>ในลิงค์ Alt (สำหรับแชร์เฉพาะกลุ่ม)<br>
-                <b>ลิงค์หลัก (admin)</b> ยังเห็นปกติ — ใช้สำหรับซ่อนระบบ admin ตอนแชร์ให้คนภายนอก
-              </div>
-            </div>
-          </label>
-        </div>
       </div>
     </div>
     <div class="adm-modal-footer">
@@ -2337,7 +2291,6 @@ input[type=file] { display:none; }
     </div>
     <div class="adm-only-block" style="text-align:center;margin-bottom:20px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap;">
       <button class="admin-announce-btn admin-role-only" onclick="openAdminToolsModal()"><span class="emoji-3d">⚙️</span> เครื่องมือผู้ดูแลระบบ</button>
-      <button class="admin-announce-btn admin-role-only alt-only-hide" id="copyAltLinkBtn" onclick="copyAltMenuLink()" style="background:linear-gradient(135deg,#f59e0b,#d97706);box-shadow:0 8px 24px rgba(245,158,11,.35);" title="คัดลอกลิงค์พิเศษที่เห็นระบบทั้งหมด (รวมระบบที่ซ่อนจากหน้าหลัก)"><span class="emoji-3d">🔐</span> คัดลอกลิงค์ Alt</button>
     </div>
     <div id="syncStatus" style="text-align:center;font-size:12px;font-weight:600;margin-bottom:14px;min-height:0;"></div>
     <div class="menu-grid" id="menuGrid"></div>
@@ -3941,12 +3894,7 @@ function renderMenuCards() {
   var _curUser = isAdminMode ? findUserByCode(branchPin) : null;
   var _isAdminRole = !!(_curUser && _curUser.role === 'admin');
   var html = '';
-  // ─── ALT MENU MODE — main URL = เห็นทุกระบบ (admin view) · ALT URL = ซ่อนระบบที่ติ๊ก hideFromAlt
-  var _altMode = _isAltMenuActive();
-  document.body.classList.toggle('alt-menu-on', _altMode);
   SYSTEMS.forEach(function(s, idx){
-    // ใน Alt URL → ระบบที่ admin set hideFromAlt=true จะถูกซ่อน
-    if (_altMode && s.hideFromAlt) return;
     // visibility:
     //   admin role → เห็นทุกระบบ (เพื่อจัดการ)
     //   TM อื่นๆ → ตรวจ visibleUsers + date
@@ -3971,8 +3919,6 @@ function renderMenuCards() {
       ? 'event.stopPropagation();showComingSoon(\''+s.id+'\')'
       : 'openSystem(\''+s.id+'\')';
     var featuredClass = (s.id === 'food-handler' && !isComingSoon) ? ' menu-card-featured' : '';
-    // ใน Main URL → ระบบที่ติ๊ก hideFromAlt จะมี stamp "ไม่อยู่ใน Alt" เพื่อให้ admin รู้
-    var altClass = (!_altMode && s.hideFromAlt) ? ' menu-card-alt-hidden' : '';
     var dragAttrs = isAdminMode
       ? ' draggable="true" data-sys-id="'+escapeAttr(s.id)+'"'
         + ' ondragstart="_sysDragStart(event,\''+s.id+'\')"'
@@ -3981,9 +3927,7 @@ function renderMenuCards() {
         + ' ondrop="_sysDrop(event,\''+s.id+'\')"'
         + ' ondragend="_sysDragEnd(event)"'
       : '';
-    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+altClass+(_isAdminRole?' menu-card-draggable':'')+'" role="button" tabindex="0"'+(_isAdminRole?dragAttrs:'')+' onclick="'+clickHandler+'">';
-    // ใน main URL ที่ admin ดูอยู่ + ระบบนี้ติ๊ก hide จาก alt → ขึ้น stamp ให้รู้
-    if (!_altMode && s.hideFromAlt && _isAdminRole) html += '<div class="menu-card-alt-stamp">🔒 ไม่อยู่ใน Alt</div>';
+    html += '<div class="menu-card'+(isComingSoon?' menu-card-preview':'')+featuredClass+(_isAdminRole?' menu-card-draggable':'')+'" role="button" tabindex="0"'+(_isAdminRole?dragAttrs:'')+' onclick="'+clickHandler+'">';
     html += '<div class="menu-card-top">';
     html += iconHtml;
     html += '<div class="menu-card-body">';
@@ -4234,7 +4178,6 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysName').value = s.name;
     document.getElementById('sysDesc').value = s.desc;
     document.getElementById('sysUrl').value = s.url || '';
-    document.getElementById('sysHideFromAlt').checked = !!s.hideFromAlt;
     document.getElementById('sysStartDate').value = s.startDate || '';
     document.getElementById('sysEndDate').value = s.endDate || '';
     document.getElementById('sysComingSoon').checked = !!s.comingSoon;
@@ -4260,7 +4203,6 @@ function openSystemModal(mode, systemId) {
     document.getElementById('sysName').value = '';
     document.getElementById('sysDesc').value = '';
     document.getElementById('sysUrl').value = '';
-    document.getElementById('sysHideFromAlt').checked = false;
     document.getElementById('sysStartDate').value = '';
     document.getElementById('sysEndDate').value = '';
     document.getElementById('sysComingSoon').checked = false;
@@ -5032,26 +4974,6 @@ function _syncJdBranchesSync(msg, color) {
 
 function openEditSystemModal(systemId) { openSystemModal('edit', systemId); }
 
-/* ─── ALT MENU MODE ───
-   URL ?all=KEY → ถ้า KEY ตรงกับ ALT_MENU_KEY → โชว์ระบบที่ถูก hideFromMain ด้วย
-   admin สามารถ copy ลิงค์นี้ไปแชร์ให้คนที่ควรเห็น */
-var ALT_MENU_KEY = 'fabopt2026';   // ↞ ถ้าอยากเปลี่ยน key เปลี่ยนตรงนี้
-function _isAltMenuActive() {
-  try {
-    var m = (new URLSearchParams(location.search)).get('all');
-    return !!m && m === ALT_MENU_KEY;
-  } catch (e) { return false; }
-}
-function copyAltMenuLink() {
-  var url = location.origin + location.pathname + '?all=' + encodeURIComponent(ALT_MENU_KEY);
-  try {
-    navigator.clipboard.writeText(url).then(function(){
-      showInfo('✓ คัดลอกลิงค์ Alt แล้ว', '<div style="word-break:break-all;font-family:monospace;background:var(--bg2);padding:8px;border-radius:6px;font-size:12px;">' + escapeHtml(url) + '</div><br>ลิงค์นี้สำหรับ<b>แชร์ให้คนภายนอก</b> — จะไม่เห็นระบบที่ admin ติ๊ก "ซ่อนจากลิงค์ Alt"');
-    });
-  } catch (e) {
-    showInfo('ลิงค์ Alt Menu', '<div style="word-break:break-all;font-family:monospace;">' + escapeHtml(url) + '</div>');
-  }
-}
 function openAddSystemModal() { openSystemModal('add'); }
 function closeSystemModal() { document.getElementById('systemModal').classList.remove('show'); }
 
@@ -5114,7 +5036,6 @@ async function saveSystemConfig() {
 
 function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visibleBranches, hideFromAllBranches, visibleUsers, hideFromAllUsers) {
   var comingSoon = !!(document.getElementById('sysComingSoon') && document.getElementById('sysComingSoon').checked);
-  var hideFromAlt = !!(document.getElementById('sysHideFromAlt') && document.getElementById('sysHideFromAlt').checked);
   if (currentEditingSystem) {
     var idx = SYSTEMS.findIndex(function(s){ return s.id === currentEditingSystem; });
     if (idx >= 0) {
@@ -5133,7 +5054,6 @@ function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visib
         startDate: startDate,
         endDate: endDate,
         comingSoon: comingSoon,
-        hideFromAlt: hideFromAlt,
         builtIn: existing.builtIn || false
       };
     }
@@ -5145,7 +5065,6 @@ function _saveSystemConfigInner(name, desc, url, startDate, endDate, icon, visib
       name: name,
       desc: desc,
       url: url,
-      hideFromMain: hideFromMain,
       visibleBranches: [],
       hideFromAllBranches: false,
       visibleUsers: [],
