@@ -1639,6 +1639,22 @@ input[type=file] { display:none; }
   .login-card { padding:24px 18px 18px; }
 }
 </style>
+<!-- Firebase (เก็บประวัติการเข้าใช้งาน — collection hubAccessLog) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script>
+var HUB_FB_CONFIG = {
+  apiKey: "AIzaSyB489GnLRLLL00a-5JhsGBn5y7W8STIGpI",
+  authDomain: "checklist-a89e2.firebaseapp.com",
+  projectId: "checklist-a89e2",
+  storageBucket: "checklist-a89e2.firebasestorage.app",
+  messagingSenderId: "501211065462",
+  appId: "1:501211065462:web:8f81f87357c21be1804357"
+};
+var hubDb = null;
+try { if (typeof firebase !== 'undefined') { firebase.initializeApp(HUB_FB_CONFIG); hubDb = firebase.firestore(); } }
+catch (e) { console.warn('Hub Firebase init failed', e); }
+</script>
 </head>
 <body>
 
@@ -2086,10 +2102,59 @@ input[type=file] { display:none; }
           </div>
           <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <button class="admin-tool-card" data-accent="blue" onclick="closeAdminToolsModal(); openAccessLogModal();">
+          <span class="admin-tool-stripe"></span>
+          <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
+          <div class="admin-tool-text">
+            <div class="admin-tool-title">ประวัติการเข้าใช้งาน</div>
+            <div class="admin-tool-desc">ดูการเข้าระบบของผู้ใช้ทั้งหมด</div>
+          </div>
+          <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
       </div>
     </div>
     <div class="adm-modal-footer">
       <button class="adm-btn-secondary" onclick="closeAdminToolsModal()">ปิด</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═════════════════════ ADMIN: ACCESS LOG (ประวัติการเข้าใช้งาน) ═════════════════════ -->
+<div class="adm-modal" id="accessLogModal">
+  <div class="adm-modal-box" style="max-width:940px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title">🕒 ประวัติการเข้าใช้งาน</div>
+      <button class="adm-modal-close" onclick="closeAccessLogModal()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
+        <input type="text" id="accessLogSearch" placeholder="ค้นหา ชื่อ / รหัส / สาขา..." class="adm-input" style="flex:1;min-width:200px;padding:8px 12px;font-size:13px;" oninput="renderAccessLog()">
+        <select id="accessLogRole" class="adm-input" style="width:auto;padding:8px 12px;font-size:13px;" onchange="renderAccessLog()">
+          <option value="">ทุกตำแหน่ง</option>
+          <option value="branch">สาขา</option>
+          <option value="bzm">BZM</option>
+          <option value="admin">Admin</option>
+          <option value="vp">VP</option>
+          <option value="coo">COO</option>
+        </select>
+        <button class="adm-btn-secondary" style="padding:8px 12px;font-size:13px;" onclick="loadAccessLog()">รีเฟรช</button>
+      </div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:8px;" id="accessLogCount"></div>
+      <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:520px;overflow-y:auto;">
+        <table class="adm-table" style="margin:0;">
+          <thead><tr>
+            <th style="position:sticky;top:0;background:var(--bg3);width:160px;">เวลา</th>
+            <th style="position:sticky;top:0;background:var(--bg3);">ผู้ใช้</th>
+            <th style="position:sticky;top:0;background:var(--bg3);width:90px;">ตำแหน่ง</th>
+            <th style="position:sticky;top:0;background:var(--bg3);">สาขา/แบรนด์</th>
+            <th style="position:sticky;top:0;background:var(--bg3);width:90px;">อุปกรณ์</th>
+          </tr></thead>
+          <tbody id="accessLogTbody"><tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeAccessLogModal()">ปิด</button>
     </div>
   </div>
 </div>
@@ -3394,6 +3459,27 @@ function clearFabSession() {
   try { localStorage.removeItem(FAB_SESSION_KEY); } catch(e) {}
 }
 
+/* บันทึกประวัติการเข้าใช้งาน (login) ลง Firestore — admin ดูได้ที่เครื่องมือผู้ดูแล */
+function logHubAccess() {
+  try {
+    if (!hubDb) return;
+    var s = loadFabSession(); if (!s) return;
+    var ua = navigator.userAgent || '';
+    var dev = /iPhone|iPad|iPod/i.test(ua) ? 'iOS'
+            : /Android/i.test(ua) ? 'Android'
+            : /Windows/i.test(ua) ? 'Windows'
+            : /Macintosh|Mac OS/i.test(ua) ? 'Mac' : 'อื่นๆ';
+    var entry = {
+      at: new Date().toISOString(),
+      code: s.code || '', name: s.name || '', nick: s.nick || '',
+      role: s.role || '', brand: s.brand || '',
+      branchCode: s.branchCode || '', branchName: s.branchName || '',
+      device: dev
+    };
+    hubDb.collection('hubAccessLog').add(entry).catch(function(e){ console.warn('access log save failed', e); });
+  } catch (e) { console.warn('logHubAccess error', e); }
+}
+
 function doLogin() {
   var pin = getPinValue();
   var required = selectedRole === 'tm' ? 6 : 4;
@@ -3443,6 +3529,7 @@ function enterApp(role) {
   sessionStorage.setItem('fab_branch_name', currentBranchName || '');
   // SSO: save shared session ที่ใช้ข้าม project (Hub ↔ Checklist) — ส่ง role จริง
   saveFabSession(isTeamMgmt ? 'tm' : 'branch', branchPin, branchPin, currentBranchName);
+  logHubAccess();   // บันทึกประวัติการเข้าใช้งาน
   // ถ้ามี ?return= → redirect ไปแอปอื่นทันที (ไม่ต้องเข้าเมนู Hub)
   if (_redirectIfReturnUrl_()) return;
   var loginCard = document.querySelector('#loginView .login-card');
@@ -4605,6 +4692,60 @@ function openAdminToolsModal() {
 }
 function closeAdminToolsModal() {
   document.getElementById('adminToolsModal').classList.remove('show');
+}
+
+/* ───────── ประวัติการเข้าใช้งาน (admin) ───────── */
+var _accessLogData = [];
+function openAccessLogModal() {
+  document.getElementById('accessLogModal').classList.add('show');
+  loadAccessLog();
+}
+function closeAccessLogModal() {
+  document.getElementById('accessLogModal').classList.remove('show');
+}
+function loadAccessLog() {
+  var tb = document.getElementById('accessLogTbody');
+  if (!hubDb) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">ยังไม่ได้เชื่อมต่อฐานข้อมูล</td></tr>'; return; }
+  tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</td></tr>';
+  hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
+    .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); })
+    .catch(function(e){
+      console.warn('load access log failed', e);
+      tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">โหลดไม่สำเร็จ: ' + escapeHtml(e && e.message ? e.message : e) + '</td></tr>';
+    });
+}
+function _fmtAccessTime(iso) {
+  try {
+    var d = new Date(iso); var p = function(n){ return String(n).padStart(2,'0'); };
+    return p(d.getDate())+'/'+p(d.getMonth()+1)+'/'+d.getFullYear()+' '+p(d.getHours())+':'+p(d.getMinutes());
+  } catch(e){ return iso || ''; }
+}
+function renderAccessLog() {
+  var tb = document.getElementById('accessLogTbody');
+  var q = (document.getElementById('accessLogSearch').value || '').trim().toLowerCase();
+  var roleF = document.getElementById('accessLogRole').value || '';
+  var roleLabel = { branch:'สาขา', bzm:'BZM', admin:'Admin', vp:'VP', coo:'COO', franchise:'Franchise' };
+  var rows = _accessLogData.filter(function(r){
+    if (roleF && r.role !== roleF) return false;
+    if (!q) return true;
+    var hay = ((r.name||'')+' '+(r.nick||'')+' '+(r.code||'')+' '+(r.branchName||'')+' '+(r.branchCode||'')).toLowerCase();
+    return hay.indexOf(q) >= 0;
+  });
+  document.getElementById('accessLogCount').textContent = 'พบ ' + rows.length + ' รายการ' + (_accessLogData.length >= 1000 ? ' (แสดงล่าสุด 1000)' : '');
+  if (!rows.length) { tb.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:20px;color:var(--text2)">ไม่มีข้อมูล</td></tr>'; return; }
+  tb.innerHTML = rows.map(function(r){
+    var who = (r.role === 'branch')
+      ? ((r.branchCode||'') + ' ' + (r.branchName||''))
+      : ((r.name||'-') + (r.nick ? ' ('+r.nick+')' : ''));
+    var loc = (r.role === 'branch') ? '—' : (r.brand ? (r.brand === 'jaedaeng' ? 'เจ๊แดง' : 'Santa Fe') : '—');
+    return '<tr>'
+      + '<td style="white-space:nowrap;">' + _fmtAccessTime(r.at) + '</td>'
+      + '<td>' + escapeHtml(who) + '<div style="font-size:11px;color:var(--text2);">รหัส ' + escapeHtml(r.code||'-') + '</div></td>'
+      + '<td>' + (roleLabel[r.role] || r.role || '-') + '</td>'
+      + '<td>' + escapeHtml(loc) + '</td>'
+      + '<td>' + escapeHtml(r.device||'-') + '</td>'
+      + '</tr>';
+  }).join('');
 }
 
 function openBranchMgmtModal() {
