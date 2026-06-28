@@ -4783,11 +4783,11 @@ function loadAccessLog() {
   // realtime: อัปเดตสดทันที ไม่ต้องกดรีเฟรช
   try {
     _accessLogUnsub = hubDb.collection('hubAccessLog').orderBy('loginAt', 'desc').limit(1000)
-      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {} },
+      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); }); renderAccessLog(); try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {} },
         function(e){
           console.warn('access log snapshot failed, fallback get', e);
           hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
-            .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); })
+            .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); }); renderAccessLog(); })
             .catch(function(e2){ box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">โหลดไม่สำเร็จ: ' + escapeHtml(e2 && e2.message ? e2.message : e2) + '</div>'; });
         });
   } catch (e) {
@@ -4862,6 +4862,7 @@ function renderAccessLog() {
       + dRow('ระยะเวลา', dur)
       + '<div style="margin-top:9px;color:var(--text2);font-weight:700;">📋 เมนูที่เข้า ('+menus.length+')</div>'
       + menusHtml
+      + '<div style="margin-top:12px;text-align:right;"><button onclick="event.stopPropagation();deleteAccessLogRow(\''+escapeHtml(r._id||'')+'\')" style="background:none;border:1px solid rgba(220,38,38,.4);color:#dc2626;border-radius:8px;padding:5px 12px;font-size:12px;font-weight:700;cursor:pointer;">🗑 ลบรายการนี้</button></div>'
       + '</div>';
     return summary + detail;
   }).join('');
@@ -4873,9 +4874,27 @@ function toggleLogRow(i) {
   d.style.display = open ? 'none' : 'block';
   if (c) c.style.transform = open ? '' : 'rotate(90deg)';
 }
+function deleteAccessLogRow(id) {
+  if (!hubDb || !id) return;
+  customConfirm({ icon:'🗑', title:'ลบรายการนี้?', desc:'ลบเซสชันนี้ออกจากประวัติถาวร', okText:'ลบ', cancelText:'ยกเลิก' }).then(function(ok){
+    if (!ok) return;
+    hubDb.collection('hubAccessLog').doc(String(id)).delete()
+      .then(function(){
+        _accessLogData = _accessLogData.filter(function(r){ return r._id !== id; });
+        try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {}
+        renderAccessLog();
+      })
+      .catch(function(e){ alert('ลบไม่สำเร็จ: ' + (e && e.message ? e.message : e)); });
+  });
+}
 function clearAllAccessLog() {
   if (!hubDb) return;
-  if (!window.confirm('ลบประวัติการเข้าใช้งานทั้งหมด?\nลบถาวร กู้คืนไม่ได้')) return;
+  customConfirm({ icon:'🗑', title:'ลบประวัติทั้งหมด?', desc:'ลบประวัติการเข้าใช้งานทั้งหมดถาวร — กู้คืนไม่ได้', okText:'ลบทั้งหมด', cancelText:'ยกเลิก' }).then(function(ok){
+    if (!ok) return;
+    _doClearAllAccessLog();
+  });
+}
+function _doClearAllAccessLog() {
   var box = document.getElementById('accessLogList');
   box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังลบ…</div>';
   hubDb.collection('hubAccessLog').get().then(function(snap){
