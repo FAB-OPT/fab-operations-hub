@@ -3465,11 +3465,16 @@ function _hubDeviceStr() {
 function logHubAccess() {
   try {
     if (!hubDb) return;
-    if (_hubSessId()) { _hubResumeSession(); _startIdleWatch(); return; }   // มี session แล้ว → กลับมาใช้ต่อ (เคลียร์สถานะออก) ไม่สร้างซ้ำ
     var s = loadFabSession(); if (!s) return;
+    if (_hubSessId()) {
+      var prevCode = ''; try { prevCode = sessionStorage.getItem('hub_log_code') || ''; } catch(e){}
+      if (prevCode === String(s.code || '')) { _hubResumeSession(); _startIdleWatch(); return; } // คนเดิม (reload/กลับมา) → ใช้ session เดิม
+      _hubLogoutBeacon();   // คนใหม่ login ในแท็บเดิม → ปิด session คนเก่าก่อน
+      try { sessionStorage.removeItem('hub_log_id'); sessionStorage.removeItem('hub_log_loginat'); sessionStorage.removeItem('hub_log_code'); } catch(e){}
+    }
     var now = new Date().toISOString();
     var id = (s.code || 'x') + '_' + Date.now();
-    try { sessionStorage.setItem('hub_log_id', id); sessionStorage.setItem('hub_log_loginat', now); } catch(e){}
+    try { sessionStorage.setItem('hub_log_id', id); sessionStorage.setItem('hub_log_loginat', now); sessionStorage.setItem('hub_log_code', String(s.code || '')); } catch(e){}
     // เขียนด้วย REST + keepalive → บันทึกเสร็จแม้หน้ากำลัง redirect (SSO) ทันที
     var sv = function(v){ return { stringValue: String(v == null ? '' : v) }; };
     var url = 'https://firestore.googleapis.com/v1/projects/' + HUB_FB_CONFIG.projectId
@@ -3504,7 +3509,7 @@ function logHubLogout() {
     var loginIso = _hubLoginAt();
     var durSec = loginIso ? Math.max(0, Math.round((Date.now() - new Date(loginIso).getTime()) / 1000)) : null;
     hubDb.collection('hubAccessLog').doc(id).set({ logoutAt: now, lastActiveAt: now, durationSec: durSec }, { merge: true }).catch(function(){});
-    try { sessionStorage.removeItem('hub_log_id'); sessionStorage.removeItem('hub_log_loginat'); } catch(e){}
+    try { sessionStorage.removeItem('hub_log_id'); sessionStorage.removeItem('hub_log_loginat'); sessionStorage.removeItem('hub_log_code'); } catch(e){}
   } catch (e) {}
 }
 /* กลับมาใช้งานต่อ — เคลียร์สถานะ "ออก" (logoutAt) ของเซสชันที่ยังอยู่ในแท็บนี้ */
