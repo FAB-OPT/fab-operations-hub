@@ -3501,6 +3501,26 @@ function logHubLogout() {
     try { sessionStorage.removeItem('hub_log_id'); sessionStorage.removeItem('hub_log_loginat'); } catch(e){}
   } catch (e) {}
 }
+/* ดักตอนออกจากหน้า Hub (ปิดแท็บ / ไปแอปอื่น) — ใช้ REST + keepalive ให้บันทึกทันแม้หน้ากำลังปิด */
+function _hubLogoutBeacon() {
+  try {
+    var id = _hubSessId(); if (!id) return;
+    var loginIso = _hubLoginAt();
+    var now = new Date();
+    var dur = loginIso ? Math.max(0, Math.round((now.getTime() - new Date(loginIso).getTime()) / 1000)) : null;
+    var url = 'https://firestore.googleapis.com/v1/projects/' + HUB_FB_CONFIG.projectId
+      + '/databases/(default)/documents/hubAccessLog/' + encodeURIComponent(id)
+      + '?key=' + HUB_FB_CONFIG.apiKey
+      + '&updateMask.fieldPaths=logoutAt&updateMask.fieldPaths=lastActiveAt&updateMask.fieldPaths=durationSec';
+    var body = JSON.stringify({ fields: {
+      logoutAt: { stringValue: now.toISOString() },
+      lastActiveAt: { stringValue: now.toISOString() },
+      durationSec: (dur == null ? { nullValue: null } : { integerValue: String(dur) })
+    }});
+    fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: body, keepalive: true }).catch(function(){});
+  } catch (e) {}
+}
+window.addEventListener('pagehide', _hubLogoutBeacon);
 
 function doLogin() {
   var pin = getPinValue();
@@ -4762,6 +4782,9 @@ function _sessDurSec(r) {
   var end = r.logoutAt || r.lastActiveAt || start;
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime())/1000));
 }
+function _roleColor(role) {
+  return ({ admin:'#e11d48', coo:'#7c3aed', vp:'#2563eb', bzm:'#0e7490', branch:'#16a34a', franchise:'#10b981' })[role] || '#64748b';
+}
 function renderAccessLog() {
   var box = document.getElementById('accessLogList');
   var q = (document.getElementById('accessLogSearch').value || '').trim().toLowerCase();
@@ -4774,29 +4797,35 @@ function renderAccessLog() {
     return hay.indexOf(q) >= 0;
   });
   document.getElementById('accessLogCount').textContent = 'พบ ' + rows.length + ' เซสชัน' + (_accessLogData.length >= 1000 ? ' (ล่าสุด 1000)' : '');
-  if (!rows.length) { box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">ไม่มีข้อมูล</div>'; return; }
+  if (!rows.length) { box.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text2)">ไม่มีข้อมูล</div>'; return; }
   box.innerHTML = rows.map(function(r, i){
+    var rc = _roleColor(r.role);
+    var rlabel = roleLabel[r.role] || r.role || '';
     var who = (r.role === 'branch') ? ((r.branchCode||'')+' '+(r.branchName||'')) : ((r.name||'-')+(r.nick?' ('+r.nick+')':''));
     var dur = _fmtDur(_sessDurSec(r));
     var brand = r.brand ? (r.brand==='jaedaeng'?'เจ๊แดง':'Santa Fe') : '';
     var menus = Array.isArray(r.menus) ? r.menus : [];
-    var statusOut = r.logoutAt ? '' : ' · <span style="color:var(--gold);">ยังไม่ออก/ปิดแท็บ</span>';
-    var summary = '<div onclick="toggleLogRow('+i+')" style="display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;border-bottom:1px solid var(--border);">'
-      + '<span id="logchev'+i+'" style="transition:transform .15s;flex:none;color:var(--text2);font-size:11px;">▶</span>'
+    var chip = r.logoutAt
+      ? '<span style="font-size:10.5px;font-weight:800;color:#16a34a;background:rgba(22,163,74,.13);padding:2px 9px;border-radius:99px;white-space:nowrap;">ออกแล้ว</span>'
+      : '<span style="font-size:10.5px;font-weight:800;color:#b45309;background:rgba(245,158,11,.16);padding:2px 9px;border-radius:99px;white-space:nowrap;">ค้าง</span>';
+    var summary = '<div onclick="toggleLogRow('+i+')" onmouseover="this.style.background=\'var(--bg2)\'" onmouseout="this.style.background=\'\'" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;">'
+      + '<span id="logchev'+i+'" style="transition:transform .15s;flex:none;color:var(--text3);font-size:11px;">▶</span>'
+      + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:'+rc+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;">'+escapeHtml((rlabel||'?').charAt(0))+'</span>'
       + '<div style="flex:1;min-width:0;">'
-      +   '<div style="font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(who)+' <span style="font-weight:500;color:var(--text2);font-size:12px;">· '+(roleLabel[r.role]||r.role||'')+'</span></div>'
-      +   '<div style="font-size:11.5px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+_fmtAccessTime(r.loginAt||r.at)+' · ⏳ '+dur+' · 📋 '+menus.length+' เมนู'+statusOut+'</div>'
+      +   '<div style="font-size:13.5px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+escapeHtml(who)+' <span style="font-weight:800;color:'+rc+';font-size:10.5px;background:'+rc+'22;padding:1px 8px;border-radius:99px;margin-left:3px;">'+escapeHtml(rlabel)+'</span></div>'
+      +   '<div style="font-size:11.5px;color:var(--text2);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">🕐 '+_fmtAccessTime(r.loginAt||r.at)+' &nbsp;·&nbsp; ⏳ '+dur+' &nbsp;·&nbsp; 📋 '+menus.length+' เมนู</div>'
       + '</div>'
-      + '<span style="font-size:11px;color:var(--text3);flex:none;">'+escapeHtml(r.device||'')+'</span>'
+      + '<div style="flex:none;display:flex;flex-direction:column;align-items:flex-end;gap:4px;">'+chip+'<span style="font-size:10.5px;color:var(--text3);">'+escapeHtml(r.device||'')+'</span></div>'
       + '</div>';
-    var detail = '<div id="logdet'+i+'" style="display:none;padding:10px 16px 14px 38px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:12.5px;color:var(--text);line-height:1.85;">'
-      + '<div>เข้าระบบ: <b>'+_fmtAccessTime(r.loginAt||r.at)+'</b></div>'
-      + '<div>ออกจากระบบ: <b>'+(r.logoutAt?_fmtAccessTime(r.logoutAt):'— (ไม่ได้กดออก/ปิดแท็บ)')+'</b></div>'
-      + '<div>ใช้งานล่าสุด: <b>'+_fmtAccessTime(r.lastActiveAt||r.loginAt||r.at)+'</b></div>'
-      + '<div>ระยะเวลาในระบบ: <b>'+dur+'</b></div>'
-      + (brand?'<div>แบรนด์: <b>'+escapeHtml(brand)+'</b></div>':'')
-      + '<div>รหัส: <b>'+escapeHtml(r.code||'-')+'</b> · อุปกรณ์: <b>'+escapeHtml(r.device||'-')+'</b></div>'
-      + '<div style="margin-top:4px;">เมนูที่เข้า: '+(menus.length?menus.map(function(m){return '<span style="display:inline-block;background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:1px 8px;margin:2px 3px 0 0;font-size:11.5px;">'+escapeHtml(m)+'</span>';}).join(''):'<span style="color:var(--text3)">— ไม่ได้เข้าเมนูใด</span>')+'</div>'
+    var dRow = function(label, val){ return '<div style="display:flex;gap:10px;"><span style="color:var(--text2);min-width:108px;flex:none;">'+label+'</span><span style="color:var(--text);font-weight:600;">'+val+'</span></div>'; };
+    var detail = '<div id="logdet'+i+'" style="display:none;padding:12px 16px 14px 60px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.75;">'
+      + dRow('เข้าระบบ', _fmtAccessTime(r.loginAt||r.at))
+      + dRow('ออกจากระบบ', r.logoutAt ? _fmtAccessTime(r.logoutAt) : '<span style="color:var(--text3)">— (ปิดแท็บ/ไปแอปอื่น)</span>')
+      + dRow('ใช้งานล่าสุด', _fmtAccessTime(r.lastActiveAt||r.loginAt||r.at))
+      + dRow('ระยะเวลา', dur)
+      + (brand ? dRow('แบรนด์', escapeHtml(brand)) : '')
+      + dRow('รหัส / อุปกรณ์', escapeHtml(r.code||'-')+' · '+escapeHtml(r.device||'-'))
+      + '<div style="margin-top:6px;"><span style="color:var(--text2);">เมนูที่เข้า:</span> '+(menus.length?menus.map(function(m){return '<span style="display:inline-block;background:var(--bg3);border:1px solid var(--border);border-radius:7px;padding:2px 9px;margin:3px 4px 0 0;font-size:11.5px;color:var(--text);">'+escapeHtml(m)+'</span>';}).join(''):'<span style="color:var(--text3)">— ไม่ได้เข้าเมนูใด</span>')+'</div>'
       + '</div>';
     return summary + detail;
   }).join('');
