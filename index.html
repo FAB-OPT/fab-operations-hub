@@ -3516,14 +3516,18 @@ function logHubLogout() {
 /* กลับมาใช้งานต่อ — เคลียร์สถานะ "ออก" (logoutAt) ของเซสชันที่ยังอยู่ในแท็บนี้ */
 function _hubResumeSession() {
   try {
+    _hubNavApp = false;   // กลับมาที่หน้า Hub แล้ว = ใช้งานอยู่
     if (!hubDb) return;
     var id = _hubSessId(); if (!id) return;
     hubDb.collection('hubAccessLog').doc(id).set({ logoutAt: null, lastActiveAt: new Date().toISOString() }, { merge: true }).catch(function(){});
   } catch (e) {}
 }
-/* ดักตอนออกจากหน้า Hub (ปิดแท็บ / ไปแอปอื่น) — ใช้ REST + keepalive ให้บันทึกทันแม้หน้ากำลังปิด */
+/* true เมื่อกำลังไปเปิดเมนู/โมดูลอื่น (Checklist/สอนงาน ฯลฯ) → ไม่นับว่า "ออกจากระบบ" */
+var _hubNavApp = false;
+/* ดักตอนออกจากหน้า Hub (ปิดแท็บจริงๆ) — ใช้ REST + keepalive ให้บันทึกทันแม้หน้ากำลังปิด */
 function _hubLogoutBeacon() {
   try {
+    if (_hubNavApp) return;   // กำลังไปเมนูอื่น ไม่ใช่ออกจากระบบ
     var id = _hubSessId(); if (!id) return;
     var loginIso = _hubLoginAt();
     var now = new Date();
@@ -4222,6 +4226,7 @@ function openSystem(systemId) {
   var s = SYSTEMS.find(function(x){ return x.id === systemId; });
   if (!s) return;
   logHubMenu(s.name || systemId);   // บันทึกว่าเข้าเมนูนี้
+  _hubNavApp = true;   // ไปเปิดโมดูลอื่น = ยังอยู่ในระบบ (ไม่นับว่าออก)
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'santafe-sales-report') {
@@ -5664,6 +5669,7 @@ function _stopIdleWatch() {
 
 function logout() {
   _stopIdleWatch();
+  _hubNavApp = false;  // ออกจากระบบจริง → บันทึกเวลาออก
   _hubLogoutBeacon();  // บันทึกเวลาออกแบบ keepalive (เขียนทันแม้ redirect) ก่อนล้าง session
   sessionStorage.clear();
   clearFabSession();  // SSO: ลบ shared session → ทั้ง Hub และ Checklist ต้อง login ใหม่
