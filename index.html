@@ -2144,7 +2144,8 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
         <div style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</div>
       </div>
     </div>
-    <div class="adm-modal-footer">
+    <div class="adm-modal-footer" style="justify-content:space-between;">
+      <button class="adm-btn-secondary" style="color:#dc2626;border-color:rgba(220,38,38,.35);" onclick="clearAllAccessLog()">🗑 ลบประวัติทั้งหมด</button>
       <button class="adm-btn-secondary" onclick="closeAccessLogModal()">ปิด</button>
     </div>
   </div>
@@ -4871,6 +4872,32 @@ function toggleLogRow(i) {
   var open = d.style.display !== 'none';
   d.style.display = open ? 'none' : 'block';
   if (c) c.style.transform = open ? '' : 'rotate(90deg)';
+}
+function clearAllAccessLog() {
+  if (!hubDb) return;
+  if (!window.confirm('ลบประวัติการเข้าใช้งานทั้งหมด?\nลบถาวร กู้คืนไม่ได้')) return;
+  var box = document.getElementById('accessLogList');
+  box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังลบ…</div>';
+  hubDb.collection('hubAccessLog').get().then(function(snap){
+    var docs = snap.docs, chain = Promise.resolve(), i = 0;
+    while (i < docs.length) {
+      (function(slice){
+        chain = chain.then(function(){
+          var batch = hubDb.batch();
+          slice.forEach(function(d){ batch.delete(d.ref); });
+          return batch.commit();
+        });
+      })(docs.slice(i, i + 400));
+      i += 400;
+    }
+    return chain;
+  }).then(function(){
+    _accessLogData = [];
+    try { localStorage.removeItem('hub_accesslog_cache'); } catch(e){}
+    renderAccessLog();
+  }).catch(function(e){
+    box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">ลบไม่สำเร็จ: ' + escapeHtml(e && e.message ? e.message : e) + '</div>';
+  });
 }
 
 function openBranchMgmtModal() {
