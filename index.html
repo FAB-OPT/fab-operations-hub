@@ -4767,11 +4767,17 @@ function loadAccessLog() {
   var box = document.getElementById('accessLogList');
   if (!hubDb) { box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">ยังไม่ได้เชื่อมต่อฐานข้อมูล</div>'; return; }
   if (_accessLogUnsub) { try { _accessLogUnsub(); } catch(e){} _accessLogUnsub = null; }
-  box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</div>';
+  // cache-first: โชว์ทันทีจาก cache เครื่อง (ไม่ต้องรอเชื่อม Firestore) แล้ว realtime ค่อยอัปเดต
+  var _shownCache = false;
+  try {
+    var _cc = JSON.parse(localStorage.getItem('hub_accesslog_cache') || 'null');
+    if (Array.isArray(_cc) && _cc.length) { _accessLogData = _cc; renderAccessLog(); _shownCache = true; }
+  } catch(_) {}
+  if (!_shownCache) box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</div>';
   // realtime: อัปเดตสดทันที ไม่ต้องกดรีเฟรช
   try {
     _accessLogUnsub = hubDb.collection('hubAccessLog').orderBy('loginAt', 'desc').limit(1000)
-      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); },
+      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {} },
         function(e){
           console.warn('access log snapshot failed, fallback get', e);
           hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
