@@ -4751,28 +4751,33 @@ function closeAdminToolsModal() {
 
 /* ───────── ประวัติการเข้าใช้งาน (admin) ───────── */
 var _accessLogData = [];
+var _accessLogUnsub = null;
 function openAccessLogModal() {
   document.getElementById('accessLogModal').classList.add('show');
   loadAccessLog();
 }
 function closeAccessLogModal() {
   document.getElementById('accessLogModal').classList.remove('show');
+  if (_accessLogUnsub) { try { _accessLogUnsub(); } catch(e){} _accessLogUnsub = null; }
 }
 function loadAccessLog() {
   var box = document.getElementById('accessLogList');
   if (!hubDb) { box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">ยังไม่ได้เชื่อมต่อฐานข้อมูล</div>'; return; }
+  if (_accessLogUnsub) { try { _accessLogUnsub(); } catch(e){} _accessLogUnsub = null; }
   box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</div>';
-  hubDb.collection('hubAccessLog').orderBy('loginAt', 'desc').limit(1000).get()
-    .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); })
-    .catch(function(e){
-      // เผื่อ record เก่าไม่มี field loginAt → ลอง orderBy('at')
-      hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
-        .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); })
-        .catch(function(e2){
-          console.warn('load access log failed', e2);
-          box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">โหลดไม่สำเร็จ: ' + escapeHtml(e2 && e2.message ? e2.message : e2) + '</div>';
+  // realtime: อัปเดตสดทันที ไม่ต้องกดรีเฟรช
+  try {
+    _accessLogUnsub = hubDb.collection('hubAccessLog').orderBy('loginAt', 'desc').limit(1000)
+      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); },
+        function(e){
+          console.warn('access log snapshot failed, fallback get', e);
+          hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
+            .then(function(snap){ _accessLogData = snap.docs.map(function(d){ return d.data(); }); renderAccessLog(); })
+            .catch(function(e2){ box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">โหลดไม่สำเร็จ: ' + escapeHtml(e2 && e2.message ? e2.message : e2) + '</div>'; });
         });
-    });
+  } catch (e) {
+    box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">โหลดไม่สำเร็จ</div>';
+  }
 }
 function _fmtAccessTime(iso) {
   try {
