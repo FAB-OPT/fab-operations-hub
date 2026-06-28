@@ -3222,6 +3222,8 @@ window.addEventListener('DOMContentLoaded', function() {
         currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
         isAdminMode = (role === 'admin');
         document.getElementById('loginView').style.display = 'none';
+        _hubResumeSession();   // กลับมาจากแอปอื่น → เคลียร์สถานะออก (ยังใช้งานอยู่)
+        _startIdleWatch();
         showMenuView();
         // Show announcements (wait for cloud announcements to load first)
         if (!isAdminMode) {
@@ -3463,7 +3465,7 @@ function _hubDeviceStr() {
 function logHubAccess() {
   try {
     if (!hubDb) return;
-    if (_hubSessId()) return;   // แท็บนี้มี session อยู่แล้ว → ไม่สร้างซ้ำ (กัน log ซ้ำตอน login/reload ซ้ำ)
+    if (_hubSessId()) { _hubResumeSession(); _startIdleWatch(); return; }   // มี session แล้ว → กลับมาใช้ต่อ (เคลียร์สถานะออก) ไม่สร้างซ้ำ
     var s = loadFabSession(); if (!s) return;
     var now = new Date().toISOString();
     var id = (s.code || 'x') + '_' + Date.now();
@@ -3485,6 +3487,7 @@ function logHubMenu(name) {
     var id = _hubSessId(); if (!id) return;
     hubDb.collection('hubAccessLog').doc(id).set({
       lastActiveAt: new Date().toISOString(),
+      logoutAt: null,
       menus: firebase.firestore.FieldValue.arrayUnion(name)
     }, { merge: true }).catch(function(){});
   } catch (e) {}
@@ -3499,6 +3502,14 @@ function logHubLogout() {
     var durSec = loginIso ? Math.max(0, Math.round((Date.now() - new Date(loginIso).getTime()) / 1000)) : null;
     hubDb.collection('hubAccessLog').doc(id).set({ logoutAt: now, lastActiveAt: now, durationSec: durSec }, { merge: true }).catch(function(){});
     try { sessionStorage.removeItem('hub_log_id'); sessionStorage.removeItem('hub_log_loginat'); } catch(e){}
+  } catch (e) {}
+}
+/* กลับมาใช้งานต่อ — เคลียร์สถานะ "ออก" (logoutAt) ของเซสชันที่ยังอยู่ในแท็บนี้ */
+function _hubResumeSession() {
+  try {
+    if (!hubDb) return;
+    var id = _hubSessId(); if (!id) return;
+    hubDb.collection('hubAccessLog').doc(id).set({ logoutAt: null, lastActiveAt: new Date().toISOString() }, { merge: true }).catch(function(){});
   } catch (e) {}
 }
 /* ดักตอนออกจากหน้า Hub (ปิดแท็บ / ไปแอปอื่น) — ใช้ REST + keepalive ให้บันทึกทันแม้หน้ากำลังปิด */
@@ -4807,7 +4818,7 @@ function renderAccessLog() {
     var menus = Array.isArray(r.menus) ? r.menus : [];
     var chip = r.logoutAt
       ? '<span style="font-size:10.5px;font-weight:800;color:#dc2626;background:rgba(220,38,38,.12);padding:2px 9px;border-radius:99px;white-space:nowrap;">ออกจากระบบแล้ว</span>'
-      : '<span style="font-size:10.5px;font-weight:800;color:#b45309;background:rgba(245,158,11,.16);padding:2px 9px;border-radius:99px;white-space:nowrap;">ค้าง</span>';
+      : '<span style="font-size:10.5px;font-weight:800;color:#16a34a;background:rgba(22,163,74,.13);padding:2px 9px;border-radius:99px;white-space:nowrap;">กำลังใช้งาน</span>';
     var summary = '<div onclick="toggleLogRow('+i+')" onmouseover="this.style.background=\'var(--bg2)\'" onmouseout="this.style.background=\'\'" style="display:flex;align-items:center;gap:12px;padding:12px 14px;cursor:pointer;border-bottom:1px solid var(--border);transition:background .12s;">'
       + '<span id="logchev'+i+'" style="transition:transform .15s;flex:none;color:var(--text3);font-size:11px;">▶</span>'
       + '<span style="flex:none;width:34px;height:34px;border-radius:50%;background:'+rc+';color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;">'+escapeHtml((rlabel||'?').charAt(0))+'</span>'
@@ -4820,7 +4831,7 @@ function renderAccessLog() {
     var dRow = function(label, val){ return '<div style="display:flex;gap:10px;"><span style="color:var(--text2);min-width:108px;flex:none;">'+label+'</span><span style="color:var(--text);font-weight:600;">'+val+'</span></div>'; };
     var detail = '<div id="logdet'+i+'" style="display:none;padding:12px 16px 14px 60px;background:var(--bg2);border-bottom:1px solid var(--border);font-size:12.5px;line-height:1.75;">'
       + dRow('เข้าระบบ', _fmtAccessTime(r.loginAt||r.at))
-      + dRow('ออกจากระบบ', r.logoutAt ? _fmtAccessTime(r.logoutAt) : '<span style="color:var(--text3)">— (ปิดแท็บ/ไปแอปอื่น)</span>')
+      + dRow('ออกจากระบบ', r.logoutAt ? _fmtAccessTime(r.logoutAt) : '<span style="color:#16a34a;font-weight:700">กำลังใช้งานอยู่</span>')
       + dRow('ใช้งานล่าสุด', _fmtAccessTime(r.lastActiveAt||r.loginAt||r.at))
       + dRow('ระยะเวลา', dur)
       + (brand ? dRow('แบรนด์', escapeHtml(brand)) : '')
