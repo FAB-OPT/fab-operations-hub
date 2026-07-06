@@ -4953,6 +4953,11 @@ function applyFhConfigUI() {
   var tg = document.getElementById('fhSubmitToggle');     if (tg) tg.checked = open;
   var lbl = document.getElementById('fhSubmitToggleLabel');
   if (lbl) { lbl.textContent = open ? '✅ เปิดรับรายชื่ออยู่ — สาขาส่งได้' : '🔒 ปิดรับรายชื่อ — สาขาส่งไม่ได้'; lbl.style.color = open ? '#16a34a' : '#dc2626'; }
+  // ตารางอบรม: cloud override → ใช้ทั่วทั้งแอป
+  if (FH_CONFIG.schedules && typeof COURSE_SCHEDULES !== 'undefined') {
+    try { COURSE_SCHEDULES = FH_CONFIG.schedules; COURSE_OPTIONS = Object.keys(COURSE_SCHEDULES); } catch (e) {}
+  }
+  try { if (typeof renderFhScheduleEditor === 'function') renderFhScheduleEditor(); } catch (e) {}
 }
 function onFhSubmitToggle(checked) {
   saveFhConfig({ submitOpen: !!checked })
@@ -5254,6 +5259,10 @@ window.addEventListener('DOMContentLoaded', startFhConfigSync);
       </div>
       <div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;border-top:1px dashed var(--border);padding-top:12px;">เมื่อ <b>ปิด</b> → หน้าสาขาจะซ่อนปุ่มส่งรายชื่อ + ขึ้นข้อความ "ปิดรับชั่วคราว" (มีผลทุกสาขาทันที)</div>
     </div>
+
+    <div style="font-size:16px;font-weight:800;color:var(--text);margin-top:26px;">📅 ตารางอบรม (วันที่ · รอบเวลา · รุ่น)</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:2px;">แก้แล้วกด "บันทึก" → สาขาเห็นตารางใหม่ทันที</div>
+    <div id="fhScheduleEditor"></div>
   </div>
 </div>
 <!-- end adm-sec-settings -->
@@ -10203,6 +10212,66 @@ var COURSE_SCHEDULES = {
   }
 };
 var COURSE_OPTIONS = Object.keys(COURSE_SCHEDULES);
+
+// ── Admin: ตัวแก้ตารางอบรม (บันทึกลง fhConfig → sync ทุกสาขา) ──
+function _fhEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function renderFhScheduleEditor() {
+  var box = document.getElementById('fhScheduleEditor'); if (!box) return;
+  var sch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES : {};
+  var courses = Object.keys(sch);
+  var html = courses.map(function(cname){
+    var c = sch[cname] || {};
+    var slots = Array.isArray(c.slots) ? c.slots : [];
+    var rounds = c.rounds || {};
+    var slotRows = slots.map(function(s){
+      return _fhSlotRowHtml(s, rounds[s] || '');
+    }).join('');
+    return '<div class="section-card fh-course-block" data-cname="'+_fhEsc(cname)+'" style="padding:16px;margin-top:14px;">'
+      + '<div style="font-weight:800;color:var(--text);margin-bottom:12px;">📚 '+_fhEsc(cname)+'</div>'
+      + '<label style="font-size:12px;color:var(--text2);display:block;">วันที่อบรม</label>'
+      + '<input class="form-input fh-course-date" value="'+_fhEsc(c.date||'')+'" placeholder="เช่น 10 มิถุนายน 2569" style="margin-bottom:8px;">'
+      + '<label style="font-size:12px;color:var(--text2);display:block;">วันที่ (แบบสั้น)</label>'
+      + '<input class="form-input fh-course-dateshort" value="'+_fhEsc(c.dateShort||'')+'" placeholder="เช่น 10 มิ.ย. 2569">'
+      + '<div style="font-size:12px;color:var(--text2);margin-top:12px;font-weight:700;">รอบเวลา + รุ่น</div>'
+      + '<div class="fh-slots">'+slotRows+'</div>'
+      + '<button type="button" class="btn-add" onclick="_fhAddSlot(this)" style="margin-top:8px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรอบเวลา</button>'
+      + '</div>';
+  }).join('');
+  box.innerHTML = html
+    + '<div style="margin-top:18px;"><button type="button" class="btn-submit" onclick="saveFhSchedules()"><svg class="ico"><use href="#i-send"/></svg> บันทึกตารางอบรม</button></div>';
+}
+function _fhSlotRowHtml(time, round){
+  return '<div class="fh-slot-row" style="display:flex;gap:8px;margin-top:8px;align-items:center;">'
+    + '<input class="form-input fh-slot-time" value="'+_fhEsc(time)+'" placeholder="เวลา เช่น 9.00-13.00" style="flex:1;margin:0;">'
+    + '<input class="form-input fh-slot-round" value="'+_fhEsc(round)+'" placeholder="รุ่น เช่น 2/2569" style="width:130px;margin:0;">'
+    + '<button type="button" onclick="this.closest(\'.fh-slot-row\').remove()" title="ลบ" style="flex:none;width:34px;height:34px;border:1px solid #FCA5A5;background:#FEF2F2;color:#dc2626;border-radius:8px;cursor:pointer;font-weight:800;">✕</button>'
+    + '</div>';
+}
+function _fhAddSlot(btn){
+  var block = btn.closest('.fh-course-block'); if (!block) return;
+  var slots = block.querySelector('.fh-slots');
+  if (slots) slots.insertAdjacentHTML('beforeend', _fhSlotRowHtml('', ''));
+}
+function saveFhSchedules(){
+  var blocks = document.querySelectorAll('#fhScheduleEditor .fh-course-block');
+  var out = {};
+  blocks.forEach(function(b){
+    var cname = b.getAttribute('data-cname'); if (!cname) return;
+    var date = (b.querySelector('.fh-course-date')||{}).value || '';
+    var dateShort = (b.querySelector('.fh-course-dateshort')||{}).value || '';
+    var slots = [], rounds = {};
+    b.querySelectorAll('.fh-slot-row').forEach(function(r){
+      var t = ((r.querySelector('.fh-slot-time')||{}).value || '').trim();
+      var rd = ((r.querySelector('.fh-slot-round')||{}).value || '').trim();
+      if (!t) return;
+      slots.push(t); if (rd) rounds[t] = rd;
+    });
+    out[cname] = { date: date.trim(), dateShort: dateShort.trim(), slots: slots, rounds: rounds };
+  });
+  saveFhConfig({ schedules: out })
+    .then(function(){ alert('บันทึกตารางอบรมแล้ว — สาขาจะเห็นตารางใหม่ทันที'); })
+    .catch(function(e){ alert('บันทึกไม่สำเร็จ: ' + (e && e.message ? e.message : e)); });
+}
 
 function rerenderRequestList() {
   var list = document.getElementById('requestList');
