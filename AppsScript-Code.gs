@@ -1,14 +1,15 @@
 /* ═══════════════════════════════════════════════════════════════
    FAB Operations Hub — Apps Script Backend (Code.gs)
-   Sheets: Certificates, Requests, Config, Employees
+   Sheets: Certificates, Requests, Config, Employees, Exams, ExamResults
    OCR: Google Cloud Vision API (Script Property: VISION_API_KEY)
 
    อัปเดต: getConfig() คืน users + branches เพิ่ม → ซิงค์ข้ามอุปกรณ์
+   อัปเดต: เพิ่มระบบสอบออนไลน์ (Exams / ExamResults)
    วิธีใช้: ก๊อปทั้งไฟล์นี้ทับใน Apps Script editor → Save → Deploy (New version)
    ═══════════════════════════════════════════════════════════════ */
 
 var CACHE_SEC = 300;
-var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note','brand'];
+var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note'];
 var EMP_HEADERS = ['name','empId','idCard','branch','position','sheet'];
 
 /* ───────────────────────── ROUTER ───────────────────────── */
@@ -20,6 +21,8 @@ function doGet(e) {
     if (action === 'employees')    return jsonOut(getEmployees());
     if (action === 'requests')     return jsonOut(getRequests(branch));
     if (action === 'config')       return jsonOut(getConfig());
+    if (action === 'exams')        return jsonOut(getExams());
+    if (action === 'exam-results') return jsonOut(getExamResults());
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
   } catch (err) {
@@ -40,6 +43,9 @@ function doPost(e) {
     if (data.type === 'dedup-certificates') return jsonOut(dedupCertificates());
     if (data.type === 'set-config')         return jsonOut(setConfig(data.key, data.value));
     if (data.type === 'upload-icon')        return jsonOut(uploadIcon(data.base64, data.filename));
+    if (data.type === 'save-exam')          return jsonOut(saveExam(data.exam));
+    if (data.type === 'delete-exam')        return jsonOut(deleteExam(data.id));
+    if (data.type === 'submit-exam-result') return jsonOut(saveExamResult(data.result));
     if (data.type === 'clear-cache')        return jsonOut(clearAllCacheReturn());
     if (data.type === 'ocr-image')          return ocrImage(data.imageBase64, data.filename, data.mimeType);
     return jsonOut({ ok: false, error: 'unknown type: ' + data.type });
@@ -487,4 +493,129 @@ function ocrImage(imageBase64, filename, mimeType) {
   } catch (err) {
     return jsonOut({ ok: false, error: String(err) });
   }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   ONLINE EXAM SYSTEM  (ระบบสอบออนไลน์)
+   Sheets: Exams (ชุดข้อสอบ), ExamResults (ผลสอบ)
+   - Exam ทั้งชุด (config + คำถาม) เก็บเป็น JSON ในคอลัมน์ 'json'
+   ═══════════════════════════════════════════════════════════════ */
+var EXAM_HEADERS = ['id','title','brand','active','startDate','endDate','questions','updatedAt','json'];
+var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson'];
+
+function _getOrCreateSheet(name, headers) {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName(name);
+  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(headers); }
+  else if (sh.getLastRow() === 0) { sh.appendRow(headers); }
+  return sh;
+}
+
+/* ──────────────── EXAMS ──────────────── */
+function getExams() {
+  var sh = _getOrCreateSheet('Exams', EXAM_HEADERS);
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { ok: true, exams: [] };
+  var headers = values[0].map(function(h){ return String(h).trim(); });
+  var jsonCol = headers.indexOf('json');
+  var exams = [];
+  for (var i = 1; i < values.length; i++) {
+    var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
+    if (!raw) continue;
+    try { exams.push(JSON.parse(raw)); } catch (e) {}
+  }
+  return { ok: true, exams: exams };
+}
+
+function saveExam(exam) {
+  if (!exam || !exam.title) return { ok: false, error: 'invalid exam' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('Exams', EXAM_HEADERS);
+    if (!exam.id) exam.id = 'exam_' + Date.now() + '_' + Math.floor(Math.random()*1e5);
+    exam.updatedAt = new Date().toISOString();
+    var values = sh.getDataRange().getValues();
+    var headers = values[0].map(function(h){ return String(h).trim(); });
+    var idCol = headers.indexOf('id');
+    var rowArr = _examToRow(exam, headers);
+    // upsert
+    for (var i = 1; i < values.length; i++) {
+      if (String(values[i][idCol]) === String(exam.id)) {
+        sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
+        return { ok: true, id: exam.id, updated: true };
+      }
+    }
+    sh.appendRow(rowArr);
+    return { ok: true, id: exam.id, updated: false };
+  } finally { lock.releaseLock(); }
+}
+
+function _examToRow(exam, headers) {
+  var map = {
+    id: exam.id || '',
+    title: exam.title || '',
+    brand: exam.brand || '',
+    active: exam.active !== false,
+    startDate: exam.startDate || '',
+    endDate: exam.endDate || '',
+    questions: (exam.questions || []).length,
+    updatedAt: exam.updatedAt || '',
+    json: JSON.stringify(exam)
+  };
+  return headers.map(function(h){ return map.hasOwnProperty(h) ? map[h] : ''; });
+}
+
+function deleteExam(id) {
+  if (!id) return { ok: false, error: 'no id' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('Exams', EXAM_HEADERS);
+    var values = sh.getDataRange().getValues();
+    var headers = values[0].map(function(h){ return String(h).trim(); });
+    var idCol = headers.indexOf('id');
+    for (var i = values.length - 1; i >= 1; i--) {
+      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); return { ok: true }; }
+    }
+    return { ok: false, error: 'not found' };
+  } finally { lock.releaseLock(); }
+}
+
+/* ──────────────── EXAM RESULTS ──────────────── */
+function saveExamResult(r) {
+  if (!r || !r.name) return { ok: false, error: 'invalid result' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('ExamResults', EXAMRESULT_HEADERS);
+    var row = [
+      r.submittedAt || new Date().toISOString(),
+      r.examId || '', r.examTitle || '', r.name || '', r.empId || '',
+      r.branch || '', r.brand || '', r.pct != null ? r.pct : '',
+      r.correct != null ? r.correct : '', r.total != null ? r.total : '',
+      r.result || '', r.violations != null ? r.violations : 0,
+      r.finishReason || '', r.startedAt || '',
+      r.answers ? JSON.stringify(r.answers) : ''
+    ];
+    sh.appendRow(row);
+    return { ok: true, saved: 1 };
+  } finally { lock.releaseLock(); }
+}
+
+function getExamResults() {
+  var sh = _getOrCreateSheet('ExamResults', EXAMRESULT_HEADERS);
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { ok: true, results: [] };
+  var headers = values[0].map(function(h){ return String(h).trim(); });
+  var results = [];
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (!row[0] && !row[3]) continue;
+    var rec = {};
+    headers.forEach(function(h, j){ rec[h] = row[j]; });
+    if (rec.answersJson) { try { rec.answers = JSON.parse(rec.answersJson); } catch (e) {} }
+    results.push(rec);
+  }
+  return { ok: true, results: results };
 }

@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ระบบสอบออนไลน์ · FAB Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg2:#ffffff; --bg3:#f8fafc;
+  --border:#e5e7eb; --border2:#d1d5db;
+  --gold:#ea580c; --gold2:#f59e0b;
+  --green:#10b981; --red:#ef4444; --orange:#f59e0b; --blue:#3b82f6; --purple:#8b5cf6;
+  --text:#111827; --text2:#4b5563; --text3:#9ca3af;
+  --radius:14px; --radius-lg:20px; --radius-xl:24px;
+  --shadow-sm:0 1px 3px rgba(15,23,42,.04);
+  --shadow:0 4px 16px rgba(15,23,42,.06);
+  --shadow-lg:0 20px 50px rgba(15,23,42,.12);
+  /* dark tokens สำหรับหน้าทำข้อสอบ (โฟกัส/กันโกง) */
+  --ink:#0e1626; --ink-2:#16213a; --ink-3:#1f2d4d; --line:#2c3a5c;
+  --navy:#1f4e78; --navy-d:#173a5c; --amber:#e8a33d; --amber-d:#c9852a;
+  --on-ink:#e7ecf6; --on-ink-mute:#9fb0cf;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+svg{fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+html{overflow-x:clip}
+body{
+  font-family:'Sarabun',system-ui,sans-serif;color:var(--text);min-height:100vh;overflow-x:clip;
+  background:
+    radial-gradient(ellipse 60% 50% at 0% 0%, rgba(167,243,208,.75) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 0%, rgba(191,219,254,.75) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 0% 100%, rgba(254,202,202,.7) 0%, transparent 55%),
+    radial-gradient(ellipse 60% 50% at 100% 100%, rgba(254,215,170,.75) 0%, transparent 55%),
+    #fbfcff;
+}
+.mono{font-family:'IBM Plex Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+.hidden{display:none!important}
+
+/* ───── topbar ───── */
+.topbar{position:sticky;top:0;z-index:60;display:flex;align-items:center;gap:12px;
+  padding:12px 20px;background:rgba(255,255,255,.9);backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--border);box-shadow:var(--shadow-sm)}
+.topbar .brand{display:flex;align-items:center;gap:11px;min-width:0}
+.topbar .logo-mark{width:42px;height:42px;border-radius:12px;flex:0 0 auto;
+  background:linear-gradient(135deg,var(--gold),var(--gold2));display:grid;place-items:center;
+  color:#fff;font-size:22px;box-shadow:0 6px 16px -6px rgba(234,88,12,.6)}
+.topbar .t-title{font-weight:800;font-size:16px;line-height:1.15}
+.topbar .t-sub{font-size:12px;color:var(--text2)}
+.topbar .spacer{flex:1}
+.chip{display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;
+  background:var(--bg3);border:1px solid var(--border);font-size:13px;font-weight:600;color:var(--text2)}
+.chip.admin{color:var(--red);background:#fef2f2;border-color:#fecaca}
+.btn-back{display:inline-flex;align-items:center;gap:7px;padding:8px 14px;border-radius:11px;
+  background:var(--bg2);border:1px solid var(--border);font-weight:600;font-size:13.5px;color:var(--text2)}
+.btn-back:hover{border-color:var(--border2)}
+.btn-back svg{width:16px;height:16px}
+
+.shell{max-width:1080px;margin:0 auto;padding:28px 22px 80px}
+.view-title{font-size:22px;font-weight:800;margin:2px 0 4px}
+.view-sub{color:var(--text2);font-size:14px;margin-bottom:22px}
+
+/* ───── generic buttons ───── */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:11px 18px;
+  border-radius:12px;font-weight:700;font-size:14.5px;transition:transform .08s,box-shadow .15s,background .15s;border:1px solid transparent}
+.btn:active{transform:translateY(1px)}
+.btn svg{width:17px;height:17px}
+.btn-primary{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#fff;box-shadow:0 8px 20px -8px rgba(234,88,12,.6)}
+.btn-primary:hover{filter:brightness(1.04)}
+.btn-soft{background:var(--bg2);border-color:var(--border);color:var(--text2)}
+.btn-soft:hover{border-color:var(--border2)}
+.btn-danger{background:#fef2f2;border-color:#fecaca;color:var(--red)}
+.btn-danger:hover{background:#fee2e2}
+.btn-green{background:var(--green);color:#fff}
+.btn-sm{padding:8px 13px;font-size:13px;border-radius:10px}
+
+/* ───── cards / grid ───── */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.ex-card{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:18px 18px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:10px;transition:.15s}
+.ex-card:hover{border-color:var(--gold);box-shadow:var(--shadow-lg);transform:translateY(-3px)}
+.ex-card .ec-top{display:flex;align-items:flex-start;gap:12px}
+.ex-card .ec-ic{width:48px;height:48px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;
+  font-size:26px;background:linear-gradient(135deg,#fff7ed,#ffedd5);filter:drop-shadow(0 3px 5px rgba(0,0,0,.08))}
+.ex-card .ec-name{font-weight:800;font-size:16px;line-height:1.3}
+.ex-card .ec-meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:2px}
+.tag{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:8px;font-size:12px;font-weight:600;
+  background:var(--bg3);color:var(--text2);border:1px solid var(--border)}
+.tag.g{background:#ecfdf5;color:#047857;border-color:#a7f3d0}
+.tag.o{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
+.tag.r{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
+.tag.b{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
+.ex-card .ec-actions{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.empty{text-align:center;padding:60px 20px;color:var(--text3)}
+.empty .em-ic{font-size:52px;margin-bottom:12px}
+.empty .em-t{font-size:16px;font-weight:700;color:var(--text2)}
+
+/* ───── admin tabs ───── */
+.tabs{display:flex;gap:8px;margin-bottom:22px;flex-wrap:wrap}
+.tab{padding:10px 18px;border-radius:12px;font-weight:700;font-size:14px;color:var(--text2);
+  background:var(--bg2);border:1px solid var(--border)}
+.tab.active{background:linear-gradient(135deg,var(--gold),var(--gold2));color:#fff;border-color:transparent;box-shadow:0 6px 16px -8px rgba(234,88,12,.6)}
+
+/* ───── table ───── */
+.table-wrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow)}
+.tbl-tools{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding:14px 16px;border-bottom:1px solid var(--border);background:var(--bg3)}
+.tbl-tools input,.tbl-tools select{padding:9px 12px;border:1px solid var(--border);border-radius:10px;font-family:inherit;font-size:13.5px;background:#fff}
+table{width:100%;border-collapse:collapse;font-size:13.5px}
+thead th{background:var(--bg3);text-align:left;padding:11px 14px;font-weight:700;color:var(--text2);white-space:nowrap;border-bottom:1px solid var(--border);position:sticky;top:0}
+tbody td{padding:10px 14px;border-bottom:1px solid var(--border)}
+tbody tr:hover{background:#fafbfc}
+.pill{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+.pill.pass{background:#ecfdf5;color:#047857}
+.pill.fail{background:#fef2f2;color:#b91c1c}
+
+/* ───── inputs / editor ───── */
+label.fld{display:block;margin-bottom:14px}
+label.fld>span{display:block;font-size:13px;font-weight:700;color:var(--text2);margin-bottom:6px}
+.txt{width:100%;padding:11px 13px;border:1.5px solid var(--border);border-radius:11px;font-family:inherit;font-size:14.5px;background:#fff;color:var(--text)}
+.txt:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 4px rgba(234,88,12,.1)}
+textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
+.row-flex{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.row-3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.switch-row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)}
+.switch-row .sw-t{font-size:13.5px;font-weight:600}
+.switch-row .sw-d{font-size:12px;color:var(--text3)}
+.sw{position:relative;width:44px;height:25px;flex:0 0 auto}
+.sw input{opacity:0;width:0;height:0}
+.sw .track{position:absolute;inset:0;background:var(--border2);border-radius:999px;transition:.15s}
+.sw .track::before{content:'';position:absolute;width:19px;height:19px;left:3px;top:3px;background:#fff;border-radius:50%;transition:.15s;box-shadow:0 1px 3px rgba(0,0,0,.3)}
+.sw input:checked+.track{background:var(--green)}
+.sw input:checked+.track::before{transform:translateX(19px)}
+
+/* question editor */
+.q-item{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px}
+.q-item .q-head{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.q-item .q-num{width:28px;height:28px;border-radius:8px;background:var(--navy);color:#fff;display:grid;place-items:center;font-weight:700;font-size:13px;flex:0 0 auto}
+.q-choice{display:flex;align-items:center;gap:9px;margin:7px 0}
+.q-choice input[type=radio]{width:19px;height:19px;flex:0 0 auto;accent-color:var(--green);cursor:pointer}
+.q-choice .txt{padding:8px 11px;font-size:13.5px}
+.q-choice .rm{padding:6px;border-radius:8px;color:var(--red);flex:0 0 auto}
+.q-choice .rm:hover{background:#fee2e2}
+.hint-line{font-size:12px;color:var(--text3);margin-top:4px}
+
+/* ───── modal ───── */
+.modal{position:fixed;inset:0;z-index:2000;display:none;align-items:flex-start;justify-content:center;
+  padding:24px;background:rgba(15,23,42,.55);backdrop-filter:blur(6px);overflow-y:auto}
+.modal.show{display:flex;animation:fade .2s ease}
+.modal-box{background:var(--bg2);border-radius:22px;max-width:720px;width:100%;box-shadow:var(--shadow-lg);margin:auto}
+.modal-head{display:flex;align-items:center;justify-content:space-between;padding:20px 24px;border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);border-radius:22px 22px 0 0;z-index:2}
+.modal-head h3{font-size:18px;font-weight:800}
+.modal-x{width:34px;height:34px;border-radius:10px;color:var(--text2);display:grid;place-items:center;font-size:20px}
+.modal-x:hover{background:var(--bg3)}
+.modal-body{padding:20px 24px}
+.modal-foot{display:flex;gap:12px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg2);border-radius:0 0 22px 22px}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+
+/* toast */
+.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);z-index:3000;
+  background:#111827;color:#fff;padding:13px 20px;border-radius:12px;font-weight:600;font-size:14px;
+  box-shadow:var(--shadow-lg);opacity:0;pointer-events:none;transition:.25s;max-width:90vw}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.err{background:#b91c1c}
+.toast.ok{background:#047857}
+
+.loading{display:inline-block;width:18px;height:18px;border:2.5px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+.loading.dark{border-color:rgba(31,78,120,.25);border-top-color:var(--navy)}
+@keyframes spin{to{transform:rotate(360deg)}}
+.center-load{display:flex;align-items:center;justify-content:center;gap:12px;padding:60px;color:var(--text2);font-weight:600}
+
+/* ══════════════════ EXAM RUNNER (dark, fullscreen overlay) ══════════════════ */
+.exam-overlay{position:fixed;inset:0;z-index:1500;background:var(--ink);display:none;overflow-y:auto}
+.exam-overlay.show{display:block}
+.exam-overlay .paper-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:32px 18px;
+  background:radial-gradient(1200px 600px at 15% -10%, rgba(31,78,120,.28), transparent 60%),
+             radial-gradient(900px 500px at 110% 120%, rgba(232,163,61,.16), transparent 55%),var(--ink)}
+.exam-scr{display:none;min-height:100vh}
+.exam-scr.active{display:block}
+.paper-card{width:100%;max-width:660px;background:#f6f4ee;border-radius:22px;box-shadow:0 18px 50px -18px rgba(8,16,34,.55);overflow:hidden}
+.paper-card .ch{background:linear-gradient(135deg,var(--navy),var(--navy-d));color:#fff;padding:28px 32px 24px}
+.paper-card .ch .eyebrow{font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber);margin-bottom:9px;font-weight:600}
+.paper-card .ch h1{font-size:24px;font-weight:700;line-height:1.25}
+.paper-card .ch p{margin-top:7px;color:#cfe0f2;font-size:14.5px}
+.paper-card .cb{padding:24px 32px 30px}
+.meta-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:20px}
+.meta{background:#fff;border:1px solid #e6e1d6;border-radius:12px;padding:12px;text-align:center}
+.meta .n{font-family:'IBM Plex Mono';font-size:21px;font-weight:600;color:var(--navy);line-height:1}
+.meta .l{font-size:12px;color:#6b7688;margin-top:6px}
+.rules{background:#fff;border:1px solid #e6e1d6;border-radius:12px;padding:4px 6px;margin-bottom:20px}
+.rule{display:flex;gap:12px;align-items:flex-start;padding:11px 12px;border-bottom:1px dashed #e9e4d8;font-size:14px;color:#3a4457}
+.rule:last-child{border-bottom:none}
+.rule .ic{flex:0 0 26px;height:26px;border-radius:8px;display:grid;place-items:center;background:#fdeede;color:var(--amber-d);font-size:15px}
+.rule.warn .ic{background:#fbe1e1;color:#b23636}
+.rule b{color:#b23636;font-weight:700}
+.p-fld{display:block;margin-bottom:13px}
+.p-fld>span{display:block;font-size:13px;color:#4a5568;font-weight:600;margin-bottom:6px}
+.p-txt{width:100%;padding:12px 14px;border:1.5px solid #d9d3c6;border-radius:11px;font-family:inherit;font-size:15.5px;background:#fff;color:#182135}
+.p-txt:focus{outline:none;border-color:var(--navy);box-shadow:0 0 0 4px rgba(31,78,120,.12)}
+.p-txt[readonly]{background:#efece3;color:#5a6478}
+.p-btn{width:100%;padding:15px;border-radius:12px;font-weight:700;font-size:16px;background:var(--navy);color:#fff;box-shadow:0 10px 24px -10px rgba(31,78,120,.7)}
+.p-btn:hover{background:#245a8a}
+.p-hint{font-size:12px;color:#9aa6bb;text-align:center;margin-top:16px;line-height:1.5}
+
+.exam-top{position:sticky;top:0;z-index:40;background:rgba(14,22,38,.92);backdrop-filter:blur(10px);border-bottom:1px solid var(--line);
+  display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:12px;padding:12px 18px}
+.exam-title{color:var(--on-ink);font-weight:600;font-size:15px;display:flex;align-items:center;gap:10px;min-width:0}
+.exam-title .dot{width:9px;height:9px;border-radius:50%;background:var(--green);flex:0 0 auto;box-shadow:0 0 0 4px rgba(16,185,129,.18)}
+.exam-title span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.timer{justify-self:center;display:flex;align-items:center;gap:10px;background:var(--ink-2);border:1px solid var(--line);border-radius:12px;padding:7px 16px;color:var(--on-ink)}
+.timer .clock{font-family:'IBM Plex Mono';font-size:21px;font-weight:600}
+.timer .lbl{font-size:10.5px;color:var(--on-ink-mute);letter-spacing:.12em;text-transform:uppercase}
+.timer.warn{border-color:var(--amber);color:var(--amber)}
+.timer.danger{border-color:var(--red);color:#ff8f8f;animation:pulse 1s infinite}
+@keyframes pulse{50%{background:rgba(214,69,69,.14)}}
+.shield{justify-self:end;display:flex;align-items:center;gap:7px;background:var(--ink-2);border:1px solid var(--line);border-radius:10px;padding:7px 11px;font-size:12.5px;color:var(--on-ink-mute)}
+.shield b{color:var(--amber);font-family:'IBM Plex Mono';font-weight:600}
+.shield.hot b{color:#ff8f8f}
+.progress-bar{height:3px;background:var(--ink-3)}
+.progress-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--navy),var(--amber));transition:width .3s}
+.exam-main{max-width:840px;margin:0 auto;padding:30px 20px 130px}
+.q-index{font-family:'IBM Plex Mono';color:var(--amber);font-size:13px;letter-spacing:.14em;font-weight:600;margin-bottom:14px}
+.q-text{color:var(--on-ink);font-size:22px;line-height:1.55;font-weight:500;margin-bottom:26px;user-select:none}
+.choices{display:flex;flex-direction:column;gap:12px}
+.choice{display:flex;gap:15px;align-items:flex-start;text-align:left;background:var(--ink-2);border:1.5px solid var(--line);border-radius:14px;
+  padding:15px 18px;color:var(--on-ink);font-size:17px;line-height:1.5;transition:.12s;user-select:none;width:100%}
+.choice:hover{border-color:#3d5488;background:#1a2947}
+.choice.sel{border-color:var(--amber);background:rgba(232,163,61,.12)}
+.choice .key{flex:0 0 34px;height:34px;border-radius:9px;display:grid;place-items:center;background:var(--ink-3);border:1px solid var(--line);font-family:'IBM Plex Mono';font-weight:600;color:var(--on-ink-mute)}
+.choice.sel .key{background:var(--amber);color:#3a2a08;border-color:var(--amber)}
+.choice .ctxt{flex:1}
+.exam-foot{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(14,22,38,.94);backdrop-filter:blur(10px);border-top:1px solid var(--line);padding:12px 18px}
+.foot-inner{max-width:840px;margin:0 auto;display:flex;align-items:center;gap:12px}
+.nav-grid{display:flex;gap:6px;flex-wrap:wrap;flex:1;justify-content:center;max-height:56px;overflow-y:auto;padding:2px}
+.nav-dot{width:32px;height:32px;border-radius:8px;background:var(--ink-2);border:1px solid var(--line);color:var(--on-ink-mute);font-family:'IBM Plex Mono';font-size:12.5px;font-weight:600;display:grid;place-items:center}
+.nav-dot:hover{border-color:#3d5488}
+.nav-dot.done{background:var(--navy);border-color:var(--navy);color:#fff}
+.nav-dot.here{outline:2px solid var(--amber);outline-offset:1px}
+.enav{padding:12px 20px;border-radius:11px;font-weight:600;font-size:15px;white-space:nowrap}
+.enav.ghost{background:transparent;color:var(--on-ink);border:1.5px solid var(--line)}
+.enav.ghost:hover{background:rgba(255,255,255,.06)}
+.enav.amber{background:var(--amber);color:#3a2a08}
+.enav.amber:hover{background:#efb257}
+.lock{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:24px;background:rgba(8,13,24,.97);backdrop-filter:blur(16px)}
+.lock.show{display:grid;animation:fade .2s ease}
+.lock-card{max-width:460px;width:100%;text-align:center;color:var(--on-ink)}
+.lock-ic{width:78px;height:78px;border-radius:22px;background:rgba(214,69,69,.15);border:1px solid rgba(214,69,69,.4);display:grid;place-items:center;margin:0 auto 20px;font-size:36px}
+.lock-card h2{font-size:23px;font-weight:700;margin-bottom:10px}
+.lock-card p{color:var(--on-ink-mute);font-size:15px;line-height:1.6;margin-bottom:8px}
+.lock-count{font-family:'IBM Plex Mono';font-size:14px;color:var(--amber);margin:16px 0 22px}
+.lock-count b{color:#ff8f8f}
+.p-btn.red{background:var(--red)}.p-btn.red:hover{background:#e05656}
+.flash{position:fixed;inset:0;z-index:99;background:#000;display:none}
+.flash.show{display:block;animation:flashout .5s ease}
+@keyframes flashout{0%{opacity:1}100%{opacity:0}}
+.emodal{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:24px;background:rgba(8,13,24,.7);backdrop-filter:blur(6px)}
+.emodal.show{display:grid;animation:fade .2s ease}
+.emodal-card{background:#f6f4ee;border-radius:18px;max-width:420px;width:100%;padding:26px;box-shadow:0 18px 50px -18px rgba(8,16,34,.55)}
+.emodal-card h3{font-size:19px;margin-bottom:8px}
+.emodal-card p{margin-bottom:18px;color:#5a6478;font-size:14.5px;line-height:1.55}
+.warn-line{color:#b23636;font-weight:600}
+.emodal-actions{display:flex;gap:12px}
+.emodal-actions .p-btn{flex:1;padding:13px;font-size:15px}
+.p-btn.ghost{background:transparent;color:#182135;border:1.5px solid #cdd6e2;box-shadow:none}
+
+/* result */
+.ring-wrap{display:flex;align-items:center;gap:24px;margin-bottom:22px;flex-wrap:wrap}
+.ring{position:relative;width:128px;height:128px;flex:0 0 auto}
+.ring svg{transform:rotate(-90deg)}
+.ring .rt{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+.ring .rt .pct{font-family:'IBM Plex Mono';font-size:31px;font-weight:600;line-height:1}
+.ring .rt .sub{font-size:12px;color:#6b7688;margin-top:3px}
+.verdict{flex:1;min-width:190px}
+.badge{display:inline-flex;align-items:center;gap:8px;padding:8px 15px;border-radius:999px;font-weight:700;font-size:15px}
+.badge.pass{background:rgba(16,185,129,.15);color:#1e7a50}
+.badge.fail{background:rgba(214,69,69,.12);color:#b23636}
+.verdict h2{margin:12px 0 4px;font-size:22px}
+.verdict p{color:#5a6478;font-size:14.5px}
+.stat-row{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:20px 0}
+.stat{background:#fff;border:1px solid #e6e1d6;border-radius:12px;padding:14px;text-align:center}
+.stat .n{font-family:'IBM Plex Mono';font-size:21px;font-weight:600;color:var(--navy)}
+.stat .n.bad{color:#b23636}
+.stat .l{font-size:12px;color:#6b7688;margin-top:5px}
+.review{border-top:1px solid #e6e1d6;margin-top:6px}
+.rev-q{padding:15px 2px;border-bottom:1px solid #ece7db}
+.rev-q .rq-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:9px}
+.rev-mark{flex:0 0 24px;height:24px;border-radius:7px;display:grid;place-items:center;font-size:14px;color:#fff;margin-top:2px}
+.rev-mark.ok{background:var(--green)}.rev-mark.no{background:var(--red)}
+.rev-q .rq-text{font-weight:600;color:#182135;font-size:15px;line-height:1.5}
+.rev-opt{font-size:14px;padding:7px 12px;border-radius:9px;margin:5px 0 0 34px;display:flex;gap:8px;align-items:center}
+.rev-opt.correct{background:rgba(16,185,129,.12);color:#1e7a50;font-weight:600}
+.rev-opt.wrong{background:rgba(214,69,69,.1);color:#b23636;font-weight:600}
+.rev-opt .rtag{font-family:'IBM Plex Mono';font-size:11px;letter-spacing:.06em}
+.result-actions{display:flex;gap:12px;margin-top:22px;flex-wrap:wrap}
+.result-actions .p-btn{flex:1;min-width:150px}
+
+@media(max-width:640px){
+  .row-flex,.row-3{grid-template-columns:1fr}
+  .meta-grid{grid-template-columns:repeat(2,1fr)}
+  .exam-top{grid-template-columns:auto 1fr auto;padding:10px 12px}
+  .exam-title span{max-width:80px}
+  .q-text{font-size:19px}
+  .stat-row{grid-template-columns:1fr}
+  .shell{padding:20px 14px 70px}
+}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+
+<!-- ═══════════ TOPBAR ═══════════ -->
+<div class="topbar">
+  <div class="brand">
+    <div class="logo-mark">📝</div>
+    <div>
+      <div class="t-title">ระบบสอบออนไลน์</div>
+      <div class="t-sub">FAB Operations &amp; Training Hub</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <span class="chip" id="userChip">—</span>
+  <button class="btn-back" onclick="backToHub()">
+    <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> กลับหน้าหลัก
+  </button>
+</div>
+
+<!-- ═══════════ BRANCH VIEW (สาขา) ═══════════ -->
+<section id="branchView" class="hidden">
+  <div class="shell">
+    <div class="view-title">แบบทดสอบสำหรับสาขา</div>
+    <div class="view-sub" id="branchSub">เลือกชุดข้อสอบที่ต้องทำด้านล่าง</div>
+    <div id="branchList"><div class="center-load"><span class="loading dark"></span> กำลังโหลดชุดข้อสอบ…</div></div>
+  </div>
+</section>
+
+<!-- ═══════════ ADMIN VIEW ═══════════ -->
+<section id="adminView" class="hidden">
+  <div class="shell">
+    <div class="tabs">
+      <button class="tab active" id="tabExams" onclick="switchTab('exams')">📚 ชุดข้อสอบ</button>
+      <button class="tab" id="tabResults" onclick="switchTab('results')">📊 ผลสอบ</button>
+    </div>
+
+    <!-- exams tab -->
+    <div id="paneExams">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <div class="view-title" style="margin:0">จัดการชุดข้อสอบ</div>
+          <div class="view-sub" style="margin:2px 0 0">สร้าง แก้ไข มอบหมายให้สาขา และตั้งค่าการสอบ</div>
+        </div>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-soft btn-sm" onclick="loadExams(true)"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> รีเฟรช</button>
+          <button class="btn btn-primary" onclick="openExamEditor(null)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> สร้างชุดข้อสอบ</button>
+        </div>
+      </div>
+      <div id="adminExamList"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></div>
+    </div>
+
+    <!-- results tab -->
+    <div id="paneResults" class="hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <div class="view-title" style="margin:0">ผลการสอบ</div>
+          <div class="view-sub" style="margin:2px 0 0">ดูผลรายคน/สาขา และดาวน์โหลดเป็น CSV</div>
+        </div>
+        <button class="btn btn-soft btn-sm" onclick="loadResults(true)"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> รีเฟรช</button>
+      </div>
+      <div class="table-wrap">
+        <div class="tbl-tools">
+          <input id="fltSearch" type="text" placeholder="🔎 ค้นหาชื่อ/รหัส/สาขา" oninput="renderResults()" style="flex:1;min-width:160px">
+          <select id="fltExam" onchange="renderResults()"><option value="">— ทุกชุดข้อสอบ —</option></select>
+          <select id="fltBranch" onchange="renderResults()"><option value="">— ทุกสาขา —</option></select>
+          <select id="fltResult" onchange="renderResults()"><option value="">— ผ่าน/ไม่ผ่าน —</option><option value="pass">ผ่าน</option><option value="fail">ไม่ผ่าน</option></select>
+          <button class="btn btn-green btn-sm" onclick="exportResultsCSV()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> CSV</button>
+        </div>
+        <div style="max-height:64vh;overflow:auto">
+          <table>
+            <thead><tr>
+              <th>วันที่-เวลา</th><th>ชื่อ-สกุล</th><th>รหัส</th><th>สาขา</th><th>ชุดข้อสอบ</th>
+              <th style="text-align:center">คะแนน</th><th style="text-align:center">ผล</th><th style="text-align:center">เตือน</th><th>หมายเหตุ</th>
+            </tr></thead>
+            <tbody id="resultsBody"><tr><td colspan="9"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ═══════════ EXAM EDITOR MODAL (admin) ═══════════ -->
+<div class="modal" id="editorModal">
+  <div class="modal-box">
+    <div class="modal-head">
+      <h3 id="editorTitle">สร้างชุดข้อสอบ</h3>
+      <button class="modal-x" onclick="closeEditor()">×</button>
+    </div>
+    <div class="modal-body">
+      <label class="fld"><span>ชื่อชุดข้อสอบ *</span><input class="txt" id="edTitle" placeholder="เช่น แบบทดสอบมาตรฐานการบริการ เจ๊แดง 2026"></label>
+      <div class="row-flex">
+        <label class="fld"><span>แบรนด์ (ถ้ามี)</span><input class="txt" id="edBrand" placeholder="เช่น เจ๊แดง / ซานตาเฟ่"></label>
+        <label class="fld"><span>สถานะ</span>
+          <select class="txt" id="edActive"><option value="true">🟢 เปิดใช้งาน (สาขาทำได้)</option><option value="false">⚪ ปิด (ร่าง/ซ่อน)</option></select>
+        </label>
+      </div>
+      <div class="row-3">
+        <label class="fld"><span>เวลา (นาที)</span><input class="txt" id="edTime" type="number" min="1" value="20"></label>
+        <label class="fld"><span>เกณฑ์ผ่าน (%)</span><input class="txt" id="edPass" type="number" min="0" max="100" value="70"></label>
+        <label class="fld"><span>เตือนได้กี่ครั้ง</span><input class="txt" id="edViol" type="number" min="1" value="3"></label>
+      </div>
+      <div class="row-flex">
+        <label class="fld"><span>เปิดให้ทำตั้งแต่วันที่ (ว่าง = ทันที)</span><input class="txt" id="edStart" type="date"></label>
+        <label class="fld"><span>ปิดรับวันที่ (ว่าง = ไม่จำกัด)</span><input class="txt" id="edEnd" type="date"></label>
+      </div>
+      <label class="fld"><span>มอบหมายให้สาขา (พิมพ์ชื่อสาขา 1 บรรทัด/สาขา — เว้นว่าง = ทุกสาขา)</span>
+        <textarea class="txt" id="edBranches" placeholder="สาขาสามย่าน&#10;สาขาสีลม"></textarea>
+      </label>
+
+      <div style="margin:8px 0 16px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px">
+        <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">สุ่มลำดับคำถามแต่ละคน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
+        <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">สุ่มลำดับ ก/ข/ค/ง</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
+        <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมด fullscreen ตอนสอบ</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
+        <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ/ออกหน้าจอ</div><div class="sw-d">นับเป็นการเตือนเมื่อออกจากหน้า</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
+        <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen/Snipping</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
+        <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์เมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
+        <div class="switch-row" style="border-bottom:none"><div><div class="sw-t">แสดงเฉลยหลังสอบ</div><div class="sw-d">ให้ผู้สอบเห็นข้อที่ผิด/เฉลย</div></div><label class="sw"><input type="checkbox" id="edReview" checked><span class="track"></span></label></div>
+      </div>
+
+      <div style="display:flex;align-items:center;justify-content:space-between;margin:18px 0 10px">
+        <div style="font-weight:800;font-size:16px">คำถาม (<span id="qCount">0</span> ข้อ)</div>
+        <button class="btn btn-soft btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
+      </div>
+      <div id="qEditor"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-soft" onclick="closeEditor()">ยกเลิก</button>
+      <button class="btn btn-primary" id="btnSaveExam" onclick="saveExam()"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg> บันทึกชุดข้อสอบ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ EXAM RUNNER OVERLAY (branch takes exam) ═══════════ -->
+<div class="exam-overlay" id="examOverlay">
+  <!-- start -->
+  <section id="ex-start" class="exam-scr active">
+    <div class="paper-wrap">
+      <div class="paper-card">
+        <div class="ch">
+          <div class="eyebrow" id="exEyebrow">FAB · Examination Mode</div>
+          <h1 id="exStartTitle">แบบทดสอบ</h1>
+          <p>กรุณากรอกข้อมูลและอ่านกติกาก่อนเริ่มทำข้อสอบ</p>
+        </div>
+        <div class="cb">
+          <div class="meta-grid">
+            <div class="meta"><div class="n" id="mQ">–</div><div class="l">ข้อ</div></div>
+            <div class="meta"><div class="n" id="mT">–</div><div class="l">นาที</div></div>
+            <div class="meta"><div class="n" id="mP">–</div><div class="l">ผ่าน (%)</div></div>
+            <div class="meta"><div class="n" id="mV">–</div><div class="l">เตือนได้</div></div>
+          </div>
+          <div class="rules" id="exRules"></div>
+          <div class="row-flex">
+            <label class="p-fld"><span>ชื่อ–สกุล *</span><input class="p-txt" id="inName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
+            <label class="p-fld"><span>รหัสพนักงาน</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off"></label>
+          </div>
+          <label class="p-fld"><span>สาขา</span><input class="p-txt" id="inBranch" readonly></label>
+          <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
+          <p class="p-hint">แนะนำให้ทำบนคอมพิวเตอร์และไม่สลับหน้าจอ เพื่อให้ระบบกันโกงทำงานเต็มที่</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- exam -->
+  <section id="ex-exam" class="exam-scr">
+    <div class="exam-top">
+      <div class="exam-title"><span class="dot"></span><span id="exRunTitle">แบบทดสอบ</span></div>
+      <div class="timer" id="timerBox"><div><div class="clock" id="clock">--:--</div><div class="lbl">เวลาที่เหลือ</div></div></div>
+      <div class="shield" id="shield">🛡️ เตือน <b id="vCount">0</b>/<span id="vMax">0</span></div>
+    </div>
+    <div class="progress-bar"><i id="prog" style="width:0%"></i></div>
+    <div class="exam-main">
+      <div class="q-index" id="qIndex">ข้อ 1</div>
+      <div class="q-text" id="qText"></div>
+      <div class="choices" id="choices"></div>
+    </div>
+    <div class="exam-foot"><div class="foot-inner">
+      <button class="enav ghost" id="btnPrev" onclick="prevQ()">ย้อนกลับ</button>
+      <div class="nav-grid" id="navGrid"></div>
+      <button class="enav amber" id="btnNext" onclick="nextQ()">ถัดไป</button>
+    </div></div>
+  </section>
+
+  <!-- result -->
+  <section id="ex-result" class="exam-scr">
+    <div class="paper-wrap">
+      <div class="paper-card">
+        <div class="ch"><div class="eyebrow">Result</div><h1>ผลการทำข้อสอบ</h1><p id="resWho"></p></div>
+        <div class="cb">
+          <div class="ring-wrap">
+            <div class="ring">
+              <svg width="128" height="128" viewBox="0 0 128 128">
+                <circle cx="64" cy="64" r="56" fill="none" stroke="#e6e1d6" stroke-width="12"/>
+                <circle id="ringArc" cx="64" cy="64" r="56" fill="none" stroke="#10b981" stroke-width="12" stroke-linecap="round" stroke-dasharray="351.9" stroke-dashoffset="351.9"/>
+              </svg>
+              <div class="rt"><div class="pct" id="resPct">0%</div><div class="sub">คะแนน</div></div>
+            </div>
+            <div class="verdict"><span class="badge" id="resBadge"></span><h2 id="resHead"></h2><p id="resSub"></p></div>
+          </div>
+          <div class="stat-row">
+            <div class="stat"><div class="n" id="resCorrect">0</div><div class="l">ตอบถูก</div></div>
+            <div class="stat"><div class="n bad" id="resWrong">0</div><div class="l">ตอบผิด/ไม่ตอบ</div></div>
+            <div class="stat"><div class="n" id="resViol">0</div><div class="l">การเตือน</div></div>
+          </div>
+          <div id="saveState" style="text-align:center;font-size:13px;margin-bottom:8px;color:#6b7688"></div>
+          <div class="review" id="review"></div>
+          <div class="result-actions">
+            <button class="p-btn ghost" onclick="closeExamOverlay()">กลับไปหน้าชุดข้อสอบ</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- lock overlay -->
+  <div class="lock" id="lock">
+    <div class="lock-card">
+      <div class="lock-ic">⚠️</div>
+      <h2 id="lockTitle">ตรวจพบการออกจากหน้าจอ</h2>
+      <p id="lockMsg">ระบบกำลังบันทึกการทำข้อสอบ ห้ามสลับแท็บ ย่อหน้าจอ หรือออกจากหน้านี้</p>
+      <div class="lock-count">การเตือนครั้งที่ <b id="lockN">1</b> จากทั้งหมด <span id="lockMax">3</span> ครั้ง</div>
+      <button class="p-btn red" onclick="resumeExam()">กลับเข้าทำข้อสอบ</button>
+    </div>
+  </div>
+  <div class="flash" id="flash"></div>
+
+  <!-- submit confirm -->
+  <div class="emodal" id="submitModal">
+    <div class="emodal-card">
+      <h3>ยืนยันส่งข้อสอบ?</h3>
+      <p id="submitMsg">เมื่อส่งแล้วจะไม่สามารถแก้ไขคำตอบได้อีก</p>
+      <div class="emodal-actions">
+        <button class="p-btn ghost" onclick="document.getElementById('submitModal').classList.remove('show')">ยังไม่ส่ง</button>
+        <button class="p-btn" onclick="confirmSubmit()">ส่งเลย</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ═════════════════════ CONFIG / SESSION ═════════════════════ */
+var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
+
+var isAdminMode = false;
+var branchPin = '';
+var currentBranchName = '';
+
+var EXAMS = [];       // ชุดข้อสอบทั้งหมด (จาก backend)
+var RESULTS = [];     // ผลสอบ (admin)
+
+var $ = function(id){ return document.getElementById(id); };
+function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML; }
+function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function uid(){ return 'exam_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
+function toast(msg, kind){ var t=$('toast'); t.className='toast show'+(kind?' '+kind:''); t.textContent=msg; clearTimeout(t._t); t._t=setTimeout(function(){ t.classList.remove('show'); }, 2600); }
+
+/* ═════════════════════ API ═════════════════════ */
+function apiGet(action){
+  return fetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+'&_t='+Date.now())
+    .then(function(r){ return r.json(); });
+}
+function apiPost(body){
+  return fetch(SCRIPT_URL, {
+    method:'POST', mode:'cors',
+    headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body: JSON.stringify(body)
+  }).then(function(r){ return r.json(); });
+}
+
+/* ═════════════════════ BOOT ═════════════════════ */
+window.addEventListener('DOMContentLoaded', function(){
+  var role = sessionStorage.getItem('fab_role');
+  if(!role){ window.location.href='../index.html'; return; }
+  branchPin = sessionStorage.getItem('fab_branch_pin') || '';
+  currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
+  isAdminMode = (role==='admin');
+
+  if(isAdminMode){
+    $('adminView').classList.remove('hidden');
+    $('userChip').textContent = 'Kantapon (Admin)';
+    $('userChip').className = 'chip admin';
+    loadExams();
+    loadResults();
+  } else {
+    $('branchView').classList.remove('hidden');
+    $('userChip').textContent = currentBranchName || ('สาขา '+branchPin);
+    $('branchSub').textContent = 'สาขา: '+(currentBranchName||branchPin)+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
+    loadBranchExams();
+  }
+});
+
+function backToHub(){ window.location.href = '../index.html'; }
+
+/* ═════════════════════ ADMIN: TABS ═════════════════════ */
+function switchTab(t){
+  $('tabExams').classList.toggle('active', t==='exams');
+  $('tabResults').classList.toggle('active', t==='results');
+  $('paneExams').classList.toggle('hidden', t!=='exams');
+  $('paneResults').classList.toggle('hidden', t!=='results');
+}
+
+/* ═════════════════════ LOAD EXAMS ═════════════════════ */
+function loadExams(force){
+  if(force) $('adminExamList').innerHTML = '<div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div>';
+  return apiGet('exams').then(function(res){
+    EXAMS = (res && res.ok && res.exams) ? res.exams : [];
+    renderAdminExams();
+    fillExamFilter();
+  }).catch(function(){
+    $('adminExamList').innerHTML = '<div class="empty"><div class="em-ic">📡</div><div class="em-t">โหลดข้อมูลไม่สำเร็จ</div><div>ตรวจสอบว่า Apps Script ได้ deploy รองรับ action=exams แล้ว</div></div>';
+  });
+}
+
+function renderAdminExams(){
+  var host = $('adminExamList');
+  if(!EXAMS.length){ host.innerHTML = '<div class="empty"><div class="em-ic">📭</div><div class="em-t">ยังไม่มีชุดข้อสอบ</div><div>กด “สร้างชุดข้อสอบ” เพื่อเริ่มต้น</div></div>'; return; }
+  host.innerHTML = '<div class="grid">'+EXAMS.map(function(ex){
+    var nQ = (ex.questions||[]).length;
+    var branchTxt = (ex.visibleBranches&&ex.visibleBranches.length)? (ex.visibleBranches.length+' สาขา') : 'ทุกสาขา';
+    return '<div class="ex-card">'+
+      '<div class="ec-top"><div class="ec-ic">📝</div><div style="min-width:0"><div class="ec-name">'+esc(ex.title)+'</div>'+
+        '<div class="ec-meta">'+
+          '<span class="tag '+(ex.active?'g':'')+'">'+(ex.active?'🟢 เปิด':'⚪ ปิด')+'</span>'+
+          '<span class="tag b">'+nQ+' ข้อ</span>'+
+          '<span class="tag o">⏱ '+ex.timeLimitMinutes+' นาที</span>'+
+          '<span class="tag">ผ่าน '+ex.passingScorePercent+'%</span>'+
+          '<span class="tag">'+esc(branchTxt)+'</span>'+
+        '</div></div></div>'+
+      '<div class="ec-actions">'+
+        '<button class="btn btn-soft btn-sm" onclick="openExamEditor(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>'+
+        '<button class="btn btn-soft btn-sm" onclick="previewExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลองทำ</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
+      '</div></div>';
+  }).join('')+'</div>';
+}
+
+/* ═════════════════════ EXAM EDITOR ═════════════════════ */
+var editingId = null;
+var draftQuestions = [];
+
+function openExamEditor(id){
+  editingId = id;
+  var ex = id ? EXAMS.find(function(x){return x.id===id;}) : null;
+  $('editorTitle').textContent = ex ? 'แก้ไขชุดข้อสอบ' : 'สร้างชุดข้อสอบ';
+  $('edTitle').value = ex ? ex.title : '';
+  $('edBrand').value = ex ? (ex.brand||'') : '';
+  $('edActive').value = ex ? String(ex.active!==false) : 'true';
+  $('edTime').value = ex ? ex.timeLimitMinutes : 20;
+  $('edPass').value = ex ? ex.passingScorePercent : 70;
+  $('edViol').value = ex ? ex.maxViolations : 3;
+  $('edStart').value = ex ? (ex.startDate||'') : '';
+  $('edEnd').value = ex ? (ex.endDate||'') : '';
+  $('edBranches').value = ex && ex.visibleBranches ? ex.visibleBranches.join('\n') : '';
+  $('edShufQ').checked = ex ? ex.shuffleQuestions!==false : true;
+  $('edShufC').checked = ex ? ex.shuffleChoices!==false : true;
+  $('edFs').checked = ex ? ex.requireFullscreen!==false : true;
+  $('edLeave').checked = ex ? ex.blockLeaveScreen!==false : true;
+  $('edShot').checked = ex ? ex.blockScreenshot!==false : true;
+  $('edAuto').checked = ex ? ex.autoSubmitOnMaxViolations!==false : true;
+  $('edReview').checked = ex ? ex.showReview!==false : true;
+  draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
+  if(!draftQuestions.length) addQuestion(true);
+  renderQEditor();
+  $('editorModal').classList.add('show');
+}
+function closeEditor(){ $('editorModal').classList.remove('show'); }
+
+function addQuestion(silent){
+  draftQuestions.push({q:'', choices:['','',''], answer:0});
+  if(!silent) renderQEditor();
+}
+function removeQuestion(i){ draftQuestions.splice(i,1); renderQEditor(); }
+function addChoice(i){ draftQuestions[i].choices.push(''); renderQEditor(); }
+function removeChoice(qi,ci){
+  var q=draftQuestions[qi];
+  if(q.choices.length<=2){ toast('ต้องมีอย่างน้อย 2 ตัวเลือก','err'); return; }
+  q.choices.splice(ci,1);
+  if(q.answer>=q.choices.length) q.answer=0;
+  renderQEditor();
+}
+// อ่านค่าจาก DOM กลับเข้า draft ก่อน re-render (กันข้อมูลหาย)
+function syncDraftFromDOM(){
+  draftQuestions.forEach(function(q,qi){
+    var qt=$('q_'+qi); if(qt) q.q=qt.value;
+    q.choices.forEach(function(_,ci){ var el=$('c_'+qi+'_'+ci); if(el) q.choices[ci]=el.value; });
+  });
+}
+function setAnswer(qi,ci){ syncDraftFromDOM(); draftQuestions[qi].answer=ci; renderQEditor(); }
+
+function renderQEditor(){
+  $('qCount').textContent = draftQuestions.length;
+  $('qEditor').innerHTML = draftQuestions.map(function(q,qi){
+    var choices = q.choices.map(function(c,ci){
+      return '<div class="q-choice">'+
+        '<input type="radio" name="ans_'+qi+'" '+(q.answer===ci?'checked':'')+' onclick="setAnswer('+qi+','+ci+')" title="ตั้งเป็นคำตอบที่ถูก">'+
+        '<input class="txt" id="c_'+qi+'_'+ci+'" value="'+esc(c)+'" placeholder="ตัวเลือกที่ '+(ci+1)+'" style="flex:1">'+
+        '<button class="rm" onclick="removeChoice('+qi+','+ci+')" title="ลบตัวเลือก"><svg viewBox="0 0 24 24" width="16" height="16"><path d="M18 6L6 18M6 6l12 12"/></svg></button>'+
+      '</div>';
+    }).join('');
+    return '<div class="q-item">'+
+      '<div class="q-head"><div class="q-num">'+(qi+1)+'</div>'+
+        '<input class="txt" id="q_'+qi+'" value="'+esc(q.q)+'" placeholder="พิมพ์คำถาม…" style="flex:1">'+
+        '<button class="rm" onclick="removeQuestion('+qi+')" title="ลบคำถาม" style="color:var(--red)"><svg viewBox="0 0 24 24" width="18" height="18"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
+      '</div>'+
+      choices+
+      '<div class="hint-line">◉ เลือกวงกลมหน้าตัวเลือกที่เป็น “คำตอบที่ถูก” · <a href="javascript:void(0)" onclick="addChoice('+qi+')" style="color:var(--gold);font-weight:700">+ เพิ่มตัวเลือก</a></div>'+
+    '</div>';
+  }).join('');
+}
+
+function collectExamFromForm(){
+  syncDraftFromDOM();
+  var title = $('edTitle').value.trim();
+  if(!title){ toast('กรุณาตั้งชื่อชุดข้อสอบ','err'); return null; }
+  var qs = draftQuestions.map(function(q){
+    return { q:(q.q||'').trim(), choices:q.choices.map(function(c){return (c||'').trim();}).filter(function(c){return c!=='';}), answer:q.answer };
+  }).filter(function(q){ return q.q!=='' && q.choices.length>=2; });
+  if(!qs.length){ toast('ต้องมีอย่างน้อย 1 คำถามที่สมบูรณ์ (มีคำถาม + ตัวเลือก ≥2)','err'); return null; }
+  // clamp answer index
+  qs.forEach(function(q){ if(q.answer>=q.choices.length) q.answer=0; });
+  var branches = $('edBranches').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+  return {
+    id: editingId || uid(),
+    title: title,
+    brand: $('edBrand').value.trim(),
+    active: $('edActive').value==='true',
+    timeLimitMinutes: Math.max(1, parseInt($('edTime').value)||20),
+    passingScorePercent: Math.min(100, Math.max(0, parseInt($('edPass').value)||70)),
+    maxViolations: Math.max(1, parseInt($('edViol').value)||3),
+    startDate: $('edStart').value,
+    endDate: $('edEnd').value,
+    visibleBranches: branches,
+    shuffleQuestions: $('edShufQ').checked,
+    shuffleChoices: $('edShufC').checked,
+    requireFullscreen: $('edFs').checked,
+    blockLeaveScreen: $('edLeave').checked,
+    blockScreenshot: $('edShot').checked,
+    autoSubmitOnMaxViolations: $('edAuto').checked,
+    showReview: $('edReview').checked,
+    questions: qs,
+    updatedAt: new Date().toISOString()
+  };
+}
+
+function saveExam(){
+  var exam = collectExamFromForm();
+  if(!exam) return;
+  var btn=$('btnSaveExam'); var old=btn.innerHTML; btn.innerHTML='<span class="loading"></span> กำลังบันทึก…'; btn.disabled=true;
+  apiPost({ type:'save-exam', exam:exam }).then(function(res){
+    if(res && res.ok){
+      toast('บันทึกชุดข้อสอบเรียบร้อย','ok');
+      closeEditor();
+      // อัปเดต local ทันที
+      var i = EXAMS.findIndex(function(x){return x.id===exam.id;});
+      if(i>=0) EXAMS[i]=exam; else EXAMS.push(exam);
+      renderAdminExams(); fillExamFilter();
+    } else { toast('บันทึกไม่สำเร็จ: '+((res&&res.error)||'ไม่ทราบสาเหตุ'),'err'); }
+  }).catch(function(e){ toast('เชื่อมต่อ backend ไม่ได้: '+e.message,'err'); })
+    .finally(function(){ btn.innerHTML=old; btn.disabled=false; });
+}
+
+function deleteExam(id){
+  var ex = EXAMS.find(function(x){return x.id===id;});
+  if(!ex) return;
+  if(!confirm('ลบชุดข้อสอบ “'+ex.title+'” ?\nผลสอบที่เคยบันทึกไว้จะยังคงอยู่')) return;
+  apiPost({ type:'delete-exam', id:id }).then(function(res){
+    if(res && res.ok){ EXAMS=EXAMS.filter(function(x){return x.id!==id;}); renderAdminExams(); fillExamFilter(); toast('ลบแล้ว','ok'); }
+    else toast('ลบไม่สำเร็จ: '+((res&&res.error)||''),'err');
+  }).catch(function(e){ toast('เชื่อมต่อไม่ได้: '+e.message,'err'); });
+}
+
+function previewExam(id){
+  var ex = EXAMS.find(function(x){return x.id===id;});
+  if(ex) openExamRunner(ex, true);
+}
+
+/* ═════════════════════ RESULTS (admin) ═════════════════════ */
+function loadResults(force){
+  if(force) $('resultsBody').innerHTML='<tr><td colspan="9"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr>';
+  return apiGet('exam-results').then(function(res){
+    RESULTS = (res && res.ok && res.results) ? res.results : [];
+    fillBranchFilter();
+    renderResults();
+  }).catch(function(){
+    $('resultsBody').innerHTML='<tr><td colspan="9"><div class="empty"><div class="em-ic">📡</div><div class="em-t">โหลดผลสอบไม่สำเร็จ</div></div></td></tr>';
+  });
+}
+function fillExamFilter(){
+  var sel=$('fltExam'); if(!sel) return;
+  var cur=sel.value;
+  sel.innerHTML='<option value="">— ทุกชุดข้อสอบ —</option>'+EXAMS.map(function(e){return '<option value="'+esc(e.title)+'">'+esc(e.title)+'</option>';}).join('');
+  sel.value=cur;
+}
+function fillBranchFilter(){
+  var sel=$('fltBranch'); if(!sel) return;
+  var cur=sel.value;
+  var set={}; RESULTS.forEach(function(r){ if(r.branch) set[r.branch]=1; });
+  sel.innerHTML='<option value="">— ทุกสาขา —</option>'+Object.keys(set).sort().map(function(b){return '<option value="'+esc(b)+'">'+esc(b)+'</option>';}).join('');
+  sel.value=cur;
+}
+function filteredResults(){
+  var q=($('fltSearch').value||'').toLowerCase().trim();
+  var fe=$('fltExam').value, fb=$('fltBranch').value, fr=$('fltResult').value;
+  return RESULTS.filter(function(r){
+    if(fe && r.examTitle!==fe) return false;
+    if(fb && r.branch!==fb) return false;
+    if(fr==='pass' && !isPass(r)) return false;
+    if(fr==='fail' && isPass(r)) return false;
+    if(q){ var hay=((r.name||'')+' '+(r.empId||'')+' '+(r.branch||'')).toLowerCase(); if(hay.indexOf(q)<0) return false; }
+    return true;
+  }).sort(function(a,b){ return (b.submittedAt||'').localeCompare(a.submittedAt||''); });
+}
+function isPass(r){ return String(r.result)==='ผ่าน' || r.pass===true || r.pass==='true'; }
+function fmtDT(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d)) return iso; return d.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
+
+function renderResults(){
+  var list=filteredResults();
+  var body=$('resultsBody');
+  if(!list.length){ body.innerHTML='<tr><td colspan="9"><div class="empty"><div class="em-ic">📭</div><div class="em-t">ไม่มีผลสอบตามเงื่อนไข</div></div></td></tr>'; return; }
+  body.innerHTML=list.map(function(r){
+    var pass=isPass(r);
+    return '<tr>'+
+      '<td class="mono" style="white-space:nowrap">'+esc(fmtDT(r.submittedAt))+'</td>'+
+      '<td>'+esc(r.name)+'</td>'+
+      '<td class="mono">'+esc(r.empId||'—')+'</td>'+
+      '<td>'+esc(r.branch||'—')+'</td>'+
+      '<td>'+esc(r.examTitle)+'</td>'+
+      '<td style="text-align:center;font-weight:700">'+esc(r.pct)+'%<div style="font-size:11px;color:var(--text3)">'+esc(r.correct)+'/'+esc(r.total)+'</div></td>'+
+      '<td style="text-align:center"><span class="pill '+(pass?'pass':'fail')+'">'+(pass?'ผ่าน':'ไม่ผ่าน')+'</span></td>'+
+      '<td style="text-align:center;'+(r.violations>0?'color:var(--red);font-weight:700':'')+'">'+esc(r.violations||0)+'</td>'+
+      '<td style="font-size:12px;color:var(--text3)">'+esc(r.finishReason||'')+'</td>'+
+    '</tr>';
+  }).join('');
+}
+
+function exportResultsCSV(){
+  var list=filteredResults();
+  if(!list.length){ toast('ไม่มีข้อมูลให้ดาวน์โหลด','err'); return; }
+  var head=['วันที่-เวลา','ชื่อ-สกุล','รหัสพนักงาน','สาขา','ชุดข้อสอบ','คะแนน(%)','ตอบถูก','ทั้งหมด','ผลสอบ','จำนวนเตือน','หมายเหตุ'];
+  var rows=[head].concat(list.map(function(r){
+    return [fmtDT(r.submittedAt), r.name, r.empId, r.branch, r.examTitle, r.pct, r.correct, r.total, (isPass(r)?'ผ่าน':'ไม่ผ่าน'), r.violations||0, r.finishReason||''];
+  }));
+  var csv='﻿'+rows.map(function(row){ return row.map(function(c){ return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
+  var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  var a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='ผลสอบ_'+todayStr()+'.csv'; a.click();
+}
+
+/* ═════════════════════ BRANCH: list exams ═════════════════════ */
+function loadBranchExams(){
+  apiGet('exams').then(function(res){
+    EXAMS = (res && res.ok && res.exams) ? res.exams : [];
+    renderBranchExams();
+  }).catch(function(){
+    $('branchList').innerHTML='<div class="empty"><div class="em-ic">📡</div><div class="em-t">โหลดชุดข้อสอบไม่สำเร็จ</div><div>กรุณาลองใหม่ หรือแจ้งผู้ดูแลระบบ</div></div>';
+  });
+}
+function examOpenForBranch(ex){
+  if(ex.active===false) return false;
+  var t=todayStr();
+  if(ex.startDate && t<ex.startDate) return false;
+  if(ex.endDate && t>ex.endDate) return false;
+  if(ex.visibleBranches && ex.visibleBranches.length){
+    var mine=(currentBranchName||'').trim();
+    var ok=ex.visibleBranches.some(function(b){ return b && (b===mine || (mine && mine.indexOf(b)>=0) || (b.indexOf(mine)>=0 && mine)); });
+    if(!ok) return false;
+  }
+  return true;
+}
+function renderBranchExams(){
+  var list=EXAMS.filter(examOpenForBranch);
+  var host=$('branchList');
+  if(!list.length){ host.innerHTML='<div class="empty"><div class="em-ic">☕</div><div class="em-t">ยังไม่มีข้อสอบสำหรับสาขาของคุณ</div><div>โปรดกลับมาตรวจสอบใหม่ภายหลัง</div></div>'; return; }
+  host.innerHTML='<div class="grid">'+list.map(function(ex){
+    var nQ=(ex.questions||[]).length;
+    return '<div class="ex-card">'+
+      '<div class="ec-top"><div class="ec-ic">📝</div><div style="min-width:0"><div class="ec-name">'+esc(ex.title)+'</div>'+
+        (ex.brand?'<div style="font-size:12.5px;color:var(--text3);margin-top:2px">'+esc(ex.brand)+'</div>':'')+
+        '<div class="ec-meta">'+
+          '<span class="tag b">'+nQ+' ข้อ</span>'+
+          '<span class="tag o">⏱ '+ex.timeLimitMinutes+' นาที</span>'+
+          '<span class="tag">ผ่าน '+ex.passingScorePercent+'%</span>'+
+          (ex.endDate?'<span class="tag r">ปิดรับ '+esc(ex.endDate)+'</span>':'')+
+        '</div></div></div>'+
+      '<div class="ec-actions"><button class="btn btn-primary btn-sm" style="width:100%" onclick="startBranchExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'+
+    '</div>';
+  }).join('')+'</div>';
+}
+function startBranchExam(id){
+  var ex=EXAMS.find(function(x){return x.id===id;});
+  if(ex) openExamRunner(ex, false);
+}
+
+/* ═════════════════════════════════════════════════════════════
+   EXAM RUNNER ENGINE  (ยกจาก exam_system.html เดิม + ต่อ backend)
+   ═════════════════════════════════════════════════════════════ */
+var R = null; // runner state
+
+function shuffle(arr){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+function pad(n){ return String(n).padStart(2,'0'); }
+function fmtClock(sec){ return pad(Math.floor(sec/60))+':'+pad(sec%60); }
+function exShow(scr){ document.querySelectorAll('.exam-scr').forEach(function(s){ s.classList.remove('active'); }); $(scr).classList.add('active'); }
+
+function openExamRunner(exam, isPreview){
+  R = {
+    exam: exam, isPreview: !!isPreview,
+    student:{name:'',id:'',branch:currentBranchName||''},
+    questions:[], answers:{}, current:0,
+    timeLeft:0, timerId:null,
+    violations:0, violationLog:[],
+    locked:false, finished:false, startedAt:null, fsOK:false, result:null, finishReason:''
+  };
+  var CFG=exam;
+  $('exEyebrow').textContent = CFG.brand ? ('FAB · '+CFG.brand) : 'FAB · Examination Mode';
+  $('exStartTitle').textContent = CFG.title || 'แบบทดสอบ';
+  $('exRunTitle').textContent = CFG.title || 'แบบทดสอบ';
+  $('mQ').textContent = (CFG.questions||[]).length;
+  $('mT').textContent = CFG.timeLimitMinutes;
+  $('mP').textContent = CFG.passingScorePercent;
+  $('mV').textContent = CFG.maxViolations;
+  $('vMax').textContent = CFG.maxViolations;
+  $('lockMax').textContent = CFG.maxViolations;
+
+  var rules=[];
+  rules.push(['⏱️','มีเวลาทำข้อสอบ <b>'+CFG.timeLimitMinutes+' นาที</b> เมื่อหมดเวลาระบบจะส่งอัตโนมัติ',false]);
+  if(CFG.shuffleQuestions||CFG.shuffleChoices) rules.push(['🔀','ลำดับข้อและตัวเลือกจะถูกสลับแบบสุ่มสำหรับแต่ละคน',false]);
+  if(CFG.blockLeaveScreen) rules.push(['🚫','<b>ห้ามสลับแท็บ ย่อหน้าจอ หรือออกจากหน้านี้</b> ระหว่างสอบ',true]);
+  if(CFG.blockScreenshot) rules.push(['📵','<b>ห้ามจับภาพหน้าจอ (Screenshot)</b> ระบบจะบันทึกและนับเป็นการเตือน',true]);
+  rules.push(['⚠️','หากถูกเตือนครบ <b>'+CFG.maxViolations+' ครั้ง</b> '+(CFG.autoSubmitOnMaxViolations?'ระบบจะส่งข้อสอบทันที':'จะถูกบันทึกในผลสอบ'),true]);
+  if(isPreview) rules.push(['👁️','<b>โหมดทดลอง (Admin)</b> — ผลจะไม่ถูกบันทึกลงระบบ',false]);
+  $('exRules').innerHTML = rules.map(function(r){ return '<div class="rule '+(r[2]?'warn':'')+'"><div class="ic">'+r[0]+'</div><div>'+r[1]+'</div></div>'; }).join('');
+
+  $('inName').value = isPreview ? '(ทดลอง) Admin' : '';
+  $('inId').value = '';
+  $('inBranch').value = currentBranchName || (isPreview?'—':'');
+  exShow('ex-start');
+  $('examOverlay').classList.add('show');
+  document.body.style.overflow='hidden';
+  $('inName').focus();
+}
+function closeExamOverlay(){
+  $('examOverlay').classList.remove('show');
+  document.body.style.overflow='';
+  if(R && R.timerId) clearInterval(R.timerId);
+  detachGuards();
+  if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
+  R=null;
+  // refresh list
+  if(isAdminMode){ loadResults(); }
+}
+
+function beginExam(){
+  var name=$('inName').value.trim();
+  if(!name){ toast('กรุณากรอกชื่อ–สกุลก่อนเริ่ม','err'); $('inName').focus(); return; }
+  R.student={ name:name, id:$('inId').value.trim(), branch:currentBranchName||$('inBranch').value.trim() };
+  var CFG=R.exam;
+  var qs=(CFG.questions||[]).map(function(item,qi){
+    var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
+    if(CFG.shuffleChoices) choices=shuffle(choices);
+    return { q:item.q, choices:choices, origIndex:qi };
+  });
+  if(CFG.shuffleQuestions) qs=shuffle(qs);
+  R.questions=qs; R.answers={}; R.current=0;
+  R.timeLeft=CFG.timeLimitMinutes*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
+  exShow('ex-exam');
+  renderQuestion(); renderNav(); startTimer();
+  if(CFG.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){R.fsOK=false;}); }
+  attachGuards();
+}
+
+function startTimer(){
+  updateClock();
+  R.timerId=setInterval(function(){ R.timeLeft--; updateClock(); if(R.timeLeft<=0){ clearInterval(R.timerId); finishExam('หมดเวลา'); } },1000);
+}
+function updateClock(){
+  $('clock').textContent=fmtClock(Math.max(0,R.timeLeft));
+  var box=$('timerBox'); box.classList.remove('warn','danger');
+  if(R.timeLeft<=30) box.classList.add('danger'); else if(R.timeLeft<=120) box.classList.add('warn');
+}
+function renderQuestion(){
+  var q=R.questions[R.current], total=R.questions.length;
+  $('qIndex').textContent='ข้อ '+(R.current+1)+' / '+total;
+  $('qText').textContent=q.q;
+  $('prog').style.width=((R.current+1)/total*100)+'%';
+  var keys=['A','B','C','D','E','F','G','H'];
+  var sel=R.answers[R.current];
+  $('choices').innerHTML=q.choices.map(function(c,i){
+    return '<button class="choice '+(sel===i?'sel':'')+'" onclick="pickChoice('+i+')"><span class="key">'+keys[i]+'</span><span class="ctxt">'+esc(c.text)+'</span></button>';
+  }).join('');
+  $('btnPrev').style.visibility = R.current===0?'hidden':'visible';
+  $('btnNext').textContent = R.current===total-1?'ส่งข้อสอบ':'ถัดไป';
+  var main=document.querySelector('.exam-main'); main.classList.remove('fade'); void main.offsetWidth;
+}
+function pickChoice(i){ R.answers[R.current]=i; renderQuestion(); renderNav(); }
+function renderNav(){
+  $('vCount').textContent=R.violations;
+  $('navGrid').innerHTML=R.questions.map(function(_,i){
+    return '<button class="nav-dot '+(R.answers[i]!=null?'done':'')+' '+(i===R.current?'here':'')+'" onclick="gotoQ('+i+')">'+(i+1)+'</button>';
+  }).join('');
+}
+function gotoQ(i){ R.current=i; renderQuestion(); renderNav(); }
+function prevQ(){ if(R.current>0){ R.current--; renderQuestion(); renderNav(); } }
+function nextQ(){ if(R.current<R.questions.length-1){ R.current++; renderQuestion(); renderNav(); } else openSubmitModal(); }
+
+function openSubmitModal(){
+  var un=R.questions.filter(function(_,i){return R.answers[i]==null;}).length;
+  $('submitMsg').innerHTML = un>0 ? 'คุณยังไม่ได้ตอบ <span class="warn-line">'+un+' ข้อ</span> เมื่อส่งแล้วจะไม่สามารถแก้ไขได้อีก' : 'ตอบครบทุกข้อแล้ว เมื่อส่งแล้วจะไม่สามารถแก้ไขคำตอบได้อีก';
+  $('submitModal').classList.add('show');
+}
+function confirmSubmit(){ $('submitModal').classList.remove('show'); finishExam('ส่งด้วยตนเอง'); }
+
+/* ── anti-cheat guards ── */
+function attachGuards(){
+  var CFG=R.exam;
+  if(CFG.blockLeaveScreen){
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onBlur);
+    window.addEventListener('beforeunload', onBeforeUnload);
+    if(CFG.requireFullscreen) document.addEventListener('fullscreenchange', onFsChange);
+  }
+  if(CFG.blockScreenshot){
+    document.addEventListener('keydown', onKeyDown, true);
+    document.addEventListener('keyup', onKeyUp, true);
+    document.addEventListener('contextmenu', preventAll, true);
+    document.addEventListener('copy', preventAll, true);
+    document.addEventListener('cut', preventAll, true);
+  }
+}
+function detachGuards(){
+  document.removeEventListener('visibilitychange', onVisibility);
+  window.removeEventListener('blur', onBlur);
+  window.removeEventListener('beforeunload', onBeforeUnload);
+  document.removeEventListener('fullscreenchange', onFsChange);
+  document.removeEventListener('keydown', onKeyDown, true);
+  document.removeEventListener('keyup', onKeyUp, true);
+  document.removeEventListener('contextmenu', preventAll, true);
+  document.removeEventListener('copy', preventAll, true);
+  document.removeEventListener('cut', preventAll, true);
+}
+function preventAll(e){ e.preventDefault(); return false; }
+function onBeforeUnload(e){ if(R && !R.finished){ e.preventDefault(); e.returnValue=''; return ''; } }
+function onVisibility(){ if(document.hidden && R && !R.finished) triggerLock('ตรวจพบการสลับแท็บหรือย่อหน้าจอ','คุณออกจากหน้าข้อสอบ ระบบได้บันทึกการเตือนไว้แล้ว'); }
+function onBlur(){ if(R && !R.finished && !document.hidden) triggerLock('ตรวจพบการออกจากหน้าจอ','หน้าต่างข้อสอบสูญเสียโฟกัส กรุณาอยู่ในหน้านี้ตลอดการสอบ'); }
+function onFsChange(){ if(!document.fullscreenElement && R && !R.finished && R.fsOK) triggerLock('ออกจากโหมดเต็มจอ','กรุณาทำข้อสอบในโหมดเต็มจอตลอดเวลา'); }
+function onKeyDown(e){
+  var k=e.key, kl=k.toLowerCase();
+  if(k==='PrintScreen'){ screenshotAttempt(); e.preventDefault(); return; }
+  if(e.metaKey && e.shiftKey && kl==='s'){ screenshotAttempt(); return; }
+  if(e.metaKey && e.shiftKey && ['3','4','5','6'].indexOf(k)>=0){ screenshotAttempt(); return; }
+  if(k==='F12'){ e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && ['p','s','u','c','a'].indexOf(kl)>=0){ e.preventDefault(); return; }
+  if((e.ctrlKey||e.metaKey) && e.shiftKey && ['i','j','c'].indexOf(kl)>=0){ e.preventDefault(); return; }
+}
+function onKeyUp(e){ if(e.key==='PrintScreen') screenshotAttempt(); }
+var ssCooldown=false;
+function screenshotAttempt(){
+  if(ssCooldown) return; ssCooldown=true; setTimeout(function(){ssCooldown=false;},700);
+  var f=$('flash'); f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},500);
+  try{ navigator.clipboard && navigator.clipboard.writeText(' '); }catch(e){}
+  if(R && !R.finished) triggerLock('ตรวจพบการจับภาพหน้าจอ','ห้ามจับภาพหน้าจอ (Screenshot) ระหว่างสอบ ระบบได้บันทึกและนับเป็นการเตือนแล้ว');
+}
+var lockCooldown=false;
+function triggerLock(title,msg){
+  if(!R || R.locked || lockCooldown) return;
+  registerViolation(title);
+  if(R.finished) return;
+  R.locked=true;
+  $('lockTitle').textContent=title; $('lockMsg').textContent=msg; $('lockN').textContent=R.violations;
+  $('lock').classList.add('show');
+}
+function resumeExam(){
+  R.locked=false; $('lock').classList.remove('show');
+  lockCooldown=true; setTimeout(function(){lockCooldown=false;},600);
+  if(R.exam.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){}); }
+}
+function registerViolation(reason){
+  R.violations++;
+  R.violationLog.push({t:new Date().toISOString(), reason:reason});
+  $('vCount').textContent=R.violations;
+  if(R.violations>0) $('shield').classList.add('hot');
+  if(R.violations>=R.exam.maxViolations && R.exam.autoSubmitOnMaxViolations && !R.finished){
+    finishExam('ถูกตัดสิทธิ์ (เตือนครบกำหนด)');
+  }
+}
+
+/* ── finish + score ── */
+function finishExam(reason){
+  if(R.finished) return;
+  R.finished=true;
+  clearInterval(R.timerId);
+  detachGuards();
+  $('lock').classList.remove('show'); $('submitModal').classList.remove('show');
+  if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
+  document.body.style.overflow='';
+  R.finishReason=reason;
+  computeAndShow();
+}
+function computeAndShow(){
+  var total=R.questions.length, correct=0;
+  R.questions.forEach(function(q,i){ var sel=R.answers[i]; if(sel!=null && q.choices[sel].correct) correct++; });
+  var wrong=total-correct;
+  var pct=Math.round(correct/total*100);
+  var pass=pct>=R.exam.passingScorePercent;
+  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass};
+
+  var arc=$('ringArc'), C=351.9;
+  arc.style.stroke = pass ? '#10b981' : '#ef4444';
+  arc.style.strokeDashoffset = C-(C*pct/100);
+  $('resPct').textContent=pct+'%';
+  $('resWho').textContent = R.student.name+(R.student.id?' · รหัส '+R.student.id:'')+(R.student.branch?' · '+R.student.branch:'');
+  var badge=$('resBadge'); badge.className='badge '+(pass?'pass':'fail'); badge.innerHTML=pass?'✓ ผ่านเกณฑ์':'✕ ไม่ผ่านเกณฑ์';
+  $('resHead').textContent = pass?'ยินดีด้วย! ผ่านการทดสอบ':'ยังไม่ผ่านเกณฑ์';
+  var sub='ทำได้ '+correct+' จาก '+total+' ข้อ · เกณฑ์ผ่าน '+R.exam.passingScorePercent+'%';
+  if(R.finishReason && R.finishReason!=='ส่งด้วยตนเอง') sub+=' · เหตุผลจบ: '+R.finishReason;
+  $('resSub').textContent=sub;
+  $('resCorrect').textContent=correct;
+  $('resWrong').textContent=wrong;
+  $('resViol').textContent=R.violations; $('resViol').className='n'+(R.violations>0?' bad':'');
+
+  if(R.exam.showReview){
+    $('review').innerHTML=R.questions.map(function(q,i){
+      var sel=R.answers[i];
+      var ok=sel!=null && q.choices[sel].correct;
+      var opts='';
+      q.choices.forEach(function(c,ci){
+        if(c.correct) opts+='<div class="rev-opt correct"><span class="rtag">เฉลย</span>'+esc(c.text)+'</div>';
+        else if(ci===sel) opts+='<div class="rev-opt wrong"><span class="rtag">คุณตอบ</span>'+esc(c.text)+'</div>';
+      });
+      if(sel==null) opts+='<div class="rev-opt wrong"><span class="rtag">—</span>ไม่ได้ตอบ</div>';
+      return '<div class="rev-q"><div class="rq-head"><span class="rev-mark '+(ok?'ok':'no')+'">'+(ok?'✓':'✕')+'</span><span class="rq-text">'+(i+1)+'. '+esc(q.q)+'</span></div>'+opts+'</div>';
+    }).join('');
+  } else { $('review').innerHTML=''; }
+
+  exShow('ex-result');
+  submitResultToBackend();
+}
+
+function submitResultToBackend(){
+  var st=$('saveState');
+  if(R.isPreview){ st.innerHTML='👁️ โหมดทดลอง — ไม่บันทึกผล'; return; }
+  st.innerHTML='<span class="loading dark"></span> กำลังบันทึกผลขึ้นระบบ…';
+  var payload={
+    type:'submit-exam-result',
+    result:{
+      examId:R.exam.id, examTitle:R.exam.title, brand:R.exam.brand||'',
+      name:R.student.name, empId:R.student.id, branch:R.student.branch,
+      pct:R.result.pct, correct:R.result.correct, total:R.result.total,
+      result: R.result.pass?'ผ่าน':'ไม่ผ่าน', pass:R.result.pass,
+      violations:R.violations, finishReason:R.finishReason,
+      startedAt: R.startedAt? R.startedAt.toISOString():'', submittedAt:new Date().toISOString(),
+      answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })
+    }
+  };
+  apiPost(payload).then(function(res){
+    if(res && res.ok) st.innerHTML='<span style="color:var(--green)">✓ บันทึกผลเรียบร้อยแล้ว</span>';
+    else st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ: '+((res&&res.error)||'')+'</span>';
+  }).catch(function(e){ st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ (เชื่อมต่อไม่ได้) — แจ้งผู้ดูแล</span>'; });
+}
+</script>
+</body>
+</html>

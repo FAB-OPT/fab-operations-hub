@@ -3678,6 +3678,14 @@ function goToBranchApp() {
   window.location.href = 'modules/food-handler.html?v=' + Date.now();
 }
 
+function goToExamApp() {
+  // Hand off session to online-exam module (เหมือน food-handler)
+  sessionStorage.setItem('fab_role', isAdminMode ? 'admin' : 'branch');
+  sessionStorage.setItem('fab_branch_pin', branchPin || '');
+  sessionStorage.setItem('fab_branch_name', currentBranchName || '');
+  window.location.href = 'modules/online-exam.html?v=' + Date.now();
+}
+
 function goToMenu() {
   document.getElementById('branchView').style.display = 'none';
   document.getElementById('adminView').style.display = 'none';
@@ -3747,6 +3755,17 @@ var DEFAULT_SYSTEMS = [{
   name: 'Training Record Management System',
   desc: 'ระบบบันทึก/จัดการประวัติการอบรม',
   url: '/-Training-Record-Management-System/',   // same origin → SSO ผ่าน fab_session
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  id: 'online-exam',
+  emoji: '📝',
+  icon: 'icons/training.png',
+  name: 'ระบบสอบออนไลน์',
+  desc: 'ทำข้อสอบสำหรับสาขา + จัดการชุดข้อสอบและผลสอบ (Admin)',
+  url: '',                       // internal route → modules/online-exam.html
   visibleBranches: [],
   startDate: '',
   endDate: '',
@@ -4229,6 +4248,7 @@ function openSystem(systemId) {
   _hubNavApp = true;   // ไปเปิดโมดูลอื่น = ยังอยู่ในระบบ (ไม่นับว่าออก)
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
+  if (systemId === 'online-exam') { goToExamApp(); return; }
   if (systemId === 'santafe-sales-report') {
     // SSO: re-save session → navigate same-tab → Santa Fe Sales Report อ่าน fab_session
     try {
