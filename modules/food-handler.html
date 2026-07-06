@@ -4973,7 +4973,48 @@ function onFhSubmitToggle(checked) {
     .then(function(){ /* realtime จะอัปเดต UI เอง */ })
     .catch(function(e){ alert('บันทึกไม่สำเร็จ: ' + (e && e.message ? e.message : e)); });
 }
-window.addEventListener('DOMContentLoaded', startFhConfigSync);
+// ── ใบเซอร์: เก็บไฟล์ PDF บน R2 + แผนที่ URL บน Firebase (fhCertFiles) ──
+var FH_R2_URL = 'https://qa-upload.project03.workers.dev';
+var FH_CERT_FILES = {};   // key(ชื่อ|วันหมดอายุ) → url
+function _fhUploadToR2(file) {
+  return fetch(FH_R2_URL, { method: 'POST', body: file, headers: { 'Content-Type': (file && file.type) || 'application/pdf' } })
+    .then(function(r){ if (!r.ok) throw new Error('R2 ' + r.status); return r.json(); })
+    .then(function(j){ return (j && j.url) || null; })
+    .catch(function(e){ console.warn('R2 upload cert failed', e); return null; });
+}
+function _fhCertKey(name, expire) {
+  return String(name || '').replace(/\s+/g, '').toLowerCase().replace(/\//g, '_')
+    + '|' + String(expire || '').replace(/\s+/g, '').replace(/\//g, '_');
+}
+function _fhCertUrl(name, expire) { return FH_CERT_FILES[_fhCertKey(name, expire)] || ''; }
+function saveFhCertFile(name, expire, url) {
+  if (!fhDb || !name || !url) return;
+  var key = _fhCertKey(name, expire);
+  try {
+    fhDb.collection('fhCertFiles').doc(key).set({ name: name, expire: expire || '', url: url, at: new Date().toISOString() }, { merge: true }).catch(function(){});
+    FH_CERT_FILES[key] = url;
+  } catch (e) {}
+}
+function _fhStoreCertFile(file, certs) {   // อัปไฟล์ 1 ครั้ง → ผูก URL กับทุกใบในไฟล์นั้น
+  if (!file || !certs || !certs.length) return;
+  _fhUploadToR2(file).then(function(url){
+    if (!url) return;
+    certs.forEach(function(c){ if (c && c.name) saveFhCertFile(c.name, c.expireDate || c.trainDate || '', url); });
+  });
+}
+function startFhCertFilesSync() {
+  if (!fhDb) return;
+  try {
+    fhDb.collection('fhCertFiles').onSnapshot(function(snap){
+      var m = {};
+      snap.forEach(function(doc){ var d = doc.data() || {}; if (d.url) m[doc.id] = d.url; });
+      FH_CERT_FILES = m;
+      try { if (typeof renderTable === 'function' && typeof matchData !== 'undefined' && matchData && matchData.length) renderTable(); } catch (e) {}
+      try { var q = document.getElementById('branchSearchQ'); if (q && q.value && typeof branchSearch === 'function') branchSearch(); } catch (e) {}
+    }, function(e){ console.warn('fhCertFiles sync', e); });
+  } catch (e) {}
+}
+window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); startFhCertFilesSync(); });
 </script>
 </head>
 <body>
@@ -5905,6 +5946,7 @@ function processPDFFiles(fileList) {
         })
         .then(function(certs){
           if (certs.length > 0) {
+            _fhStoreCertFile(file, certs);   // เก็บไฟล์ PDF ขึ้น R2 + ผูก URL
             allExtracted = allExtracted.concat(certs);
             done++;
             setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
@@ -5916,6 +5958,7 @@ function processPDFFiles(fileList) {
             ocrPdfViaAppsScript(ab, file.name)
               .then(function(ocrCerts){
                 if (ocrCerts && ocrCerts.length > 0) {
+                  _fhStoreCertFile(file, ocrCerts);   // เก็บไฟล์ PDF ขึ้น R2 + ผูก URL
                   allExtracted = allExtracted.concat(ocrCerts);
                   console.log('[OCR] ✓', file.name, '→', ocrCerts.length, 'certs');
                 } else {
@@ -6610,6 +6653,7 @@ function renderTable() {
       +'<td data-label="จับคู่" data-icon="🔗">'+getMatchBadge(d.matchType)+'</td>'
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
+      +   ((_fhCertUrl(d.certName, d.expireDate)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.expireDate)+'" target="_blank" rel="noopener" title="ดาวน์โหลดใบเซอร์" style="text-decoration:none;">⬇️</a>' : '')
       +   '<button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button>'
       +'</td>'
       +'</tr>';
@@ -8476,6 +8520,7 @@ function branchSearch() {
       +'<div class="rc-meta rc-course"><strong>หลักสูตร:</strong> '+escapeHtml(r['หลักสูตร']||'—')+'</div>'
       +'<div class="rc-meta"><strong>วันหมดอายุ:</strong> '+escapeHtml(formatThaiDate(r['วันหมดอายุ']))+'</div>'
       +'<div class="rc-badge">'+getExpBadge(status)+'</div>'
+      + ((_fhCertUrl(r['ชื่อในใบรับรอง'], r['วันหมดอายุ'])) ? '<a href="'+_fhCertUrl(r['ชื่อในใบรับรอง'], r['วันหมดอายุ'])+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 14px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">⬇️ ดาวน์โหลดใบเซอร์</a>' : '')
       +'</div>';
   }).join('') + (results.length > 60 ? '<div class="empty-state">แสดง 60 รายการแรกจาก '+results.length+' (พิมพ์เพิ่มเติมเพื่อแคบลง)</div>' : '');
 }
