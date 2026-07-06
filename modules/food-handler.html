@@ -4929,6 +4929,16 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 #adm-sec-settings .fh-card-h{display:flex;align-items:center;gap:8px;font-weight:800;color:var(--text);font-size:14.5px;margin-bottom:4px;padding-bottom:11px;border-bottom:1px solid var(--border);}
 #adm-sec-settings .fh-card-h .cico{width:28px;height:28px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:15px;background:#f1f5f9;flex:none;}
 @media(max-width:860px){#adm-sec-settings .fh-grid2{grid-template-columns:1fr;}#adm-sec-settings .fh-set-wrap{padding:6px 14px 80px;}#adm-sec-settings .fh-save-row{justify-content:stretch;}#adm-sec-settings .fh-save-row .btn-submit{width:100%;justify-content:center;}}
+/* ── tabbed settings ── */
+#adm-sec-settings .fh-tabs{display:flex;gap:6px;background:#f1f5f9;border:1px solid #e6ebf1;border-radius:15px;padding:6px;margin:18px 0 0;position:sticky;top:8px;z-index:6;}
+#adm-sec-settings .fh-tab{flex:1;display:flex;align-items:center;justify-content:center;gap:7px;border:none;background:transparent;color:#64748b;font-weight:700;font-size:14px;padding:12px 10px;border-radius:11px;cursor:pointer;transition:.18s ease;white-space:nowrap;font-family:inherit;}
+#adm-sec-settings .fh-tab:hover{color:#EA580C;}
+#adm-sec-settings .fh-tab.active{background:#fff;color:#EA580C;box-shadow:0 2px 7px rgba(15,23,42,.09);}
+#adm-sec-settings .fh-tab .tico{font-size:16px;line-height:1;}
+#adm-sec-settings .fh-tabpanel{display:none;}
+#adm-sec-settings .fh-tabpanel.active{display:block;animation:fhFade .22s ease;}
+@keyframes fhFade{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
+@media(max-width:560px){#adm-sec-settings .fh-tab{font-size:12px;padding:9px 4px;flex-direction:column;gap:3px;}#adm-sec-settings .fh-tab .tico{font-size:17px;}}
 </style></style>
 <!-- Firebase — เก็บ config กลางของ Food Handler (sync ทุกสาขา) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -5324,20 +5334,32 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <div class="fh-set-wrap">
     <div class="page-hero"><div class="page-hero-body"><div class="page-hero-title">⚙️ ตั้งค่าระบบ</div><div class="page-hero-sub">เปิด-ปิดการรับรายชื่อ · ตารางอบรม · แบรนด์/สาขา</div></div></div>
 
-    <div class="fh-set-head"><div class="ic">🔔</div><div><h3>รับการส่งรายชื่อจากสาขา</h3><p>เปิด/ปิดให้สาขาส่งรายชื่อผู้เข้าอบรม — มีผลทุกสาขาทันที</p></div></div>
-    <div class="section-card" style="padding:18px 20px;margin-top:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
-        <div id="fhSubmitToggleLabel" style="font-size:14.5px;font-weight:700;">—</div>
-        <label class="fh-switch"><input type="checkbox" id="fhSubmitToggle" onchange="onFhSubmitToggle(this.checked)"><span class="fh-slider"></span></label>
-      </div>
-      <div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;border-top:1px dashed var(--border);padding-top:12px;">เมื่อ <b>ปิด</b> → หน้าสาขาจะซ่อนปุ่มส่งรายชื่อ + ขึ้นข้อความ "ปิดรับชั่วคราว" (มีผลทุกสาขาทันที)</div>
+    <div class="fh-tabs" role="tablist">
+      <button type="button" class="fh-tab active" data-tab="submit" onclick="fhSetTab('submit')"><span class="tico">🔔</span>รับรายชื่อ</button>
+      <button type="button" class="fh-tab" data-tab="schedule" onclick="fhSetTab('schedule')"><span class="tico">📅</span>ตารางอบรม</button>
+      <button type="button" class="fh-tab" data-tab="brand" onclick="fhSetTab('brand')"><span class="tico">🏷️</span>แบรนด์/สาขา</button>
     </div>
 
-    <div class="fh-set-head"><div class="ic">📅</div><div><h3>ตารางอบรม</h3><p>วันที่ · รอบเวลา · รุ่น — แก้แล้วกด "บันทึก" สาขาเห็นตารางใหม่ทันที</p></div></div>
-    <div id="fhScheduleEditor"></div>
+    <div class="fh-tabpanel active" id="fhTab-submit">
+      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">🔔</div><div><h3>รับการส่งรายชื่อจากสาขา</h3><p>เปิด/ปิดให้สาขาส่งรายชื่อผู้เข้าอบรม — มีผลทุกสาขาทันที</p></div></div>
+      <div class="section-card" style="padding:18px 20px;margin-top:14px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div id="fhSubmitToggleLabel" style="font-size:14.5px;font-weight:700;">—</div>
+          <label class="fh-switch"><input type="checkbox" id="fhSubmitToggle" onchange="onFhSubmitToggle(this.checked)"><span class="fh-slider"></span></label>
+        </div>
+        <div style="font-size:12px;color:var(--text3);margin-top:12px;line-height:1.5;border-top:1px dashed var(--border);padding-top:12px;">เมื่อ <b>ปิด</b> → หน้าสาขาจะซ่อนปุ่มส่งรายชื่อ + ขึ้นข้อความ "ปิดรับชั่วคราว" (มีผลทุกสาขาทันที)</div>
+      </div>
+    </div>
 
-    <div class="fh-set-head"><div class="ic">🏷️</div><div><h3>แบรนด์ / สาขา (เพิ่มเอง)</h3><p>เพิ่มแบรนด์ใหม่ (กำหนดรหัสนำหน้า) แล้วเพิ่มสาขาในแบรนด์นั้น — สาขาที่ใส่ login ได้ทันที</p></div></div>
-    <div id="fhBrandBranchEditor"></div>
+    <div class="fh-tabpanel" id="fhTab-schedule">
+      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">📅</div><div><h3>ตารางอบรม</h3><p>วันที่ · รอบเวลา · รุ่น — แก้แล้วกด "บันทึก" สาขาเห็นตารางใหม่ทันที</p></div></div>
+      <div id="fhScheduleEditor"></div>
+    </div>
+
+    <div class="fh-tabpanel" id="fhTab-brand">
+      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">🏷️</div><div><h3>แบรนด์ / สาขา (เพิ่มเอง)</h3><p>เพิ่มแบรนด์ใหม่ (กำหนดรหัสนำหน้า) แล้วเพิ่มสาขาในแบรนด์นั้น — สาขาที่ใส่ login ได้ทันที</p></div></div>
+      <div id="fhBrandBranchEditor"></div>
+    </div>
   </div>
 </div>
 <!-- end adm-sec-settings -->
@@ -10301,6 +10323,11 @@ var COURSE_OPTIONS = Object.keys(COURSE_SCHEDULES);
 
 // ── Admin: ตัวแก้ตารางอบรม (บันทึกลง fhConfig → sync ทุกสาขา) ──
 function _fhEsc(s){ return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+function fhSetTab(name){
+  var wrap = document.getElementById('adm-sec-settings'); if(!wrap) return;
+  wrap.querySelectorAll('.fh-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===name); });
+  wrap.querySelectorAll('.fh-tabpanel').forEach(function(p){ p.classList.toggle('active', p.id==='fhTab-'+name); });
+}
 function renderFhScheduleEditor() {
   var box = document.getElementById('fhScheduleEditor'); if (!box) return;
   var sch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES : {};
