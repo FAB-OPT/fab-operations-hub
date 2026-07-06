@@ -346,6 +346,9 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
+<!-- Firebase (ใช้โปรเจกต์เดียวกับ food-handler เพื่อเก็บค่า "สาขาที่เห็นแบรนด์") -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 </head>
 <body>
 
@@ -377,6 +380,8 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
       <h1 class="gate-title">เลือกแบรนด์ก่อนเริ่มใช้งาน</h1>
       <p class="gate-sub">ระบบจะแสดงชุดข้อสอบตามแบรนด์ที่เลือก</p>
       <div class="brand-grid" id="brandGrid"></div>
+      <div id="brandAdminTools"></div>
+      <div id="brandGateEmpty"></div>
     </div>
   </div>
 </section>
@@ -527,6 +532,26 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
   </div>
 </div>
 
+<!-- ═══════════ MODAL: ตั้งค่าสาขาที่เห็นแบรนด์ (แอดมิน) ═══════════ -->
+<div class="modal" id="brandVisModal">
+  <div class="modal-box" style="max-width:600px">
+    <div class="modal-head">
+      <h3>⚙️ ตั้งค่าสาขาที่เห็นแบรนด์</h3>
+      <button class="modal-x" onclick="closeBrandVis()">×</button>
+    </div>
+    <div class="modal-body">
+      <div style="background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:14px;font-size:13px;color:var(--text2);line-height:1.65">
+        กำหนดว่าสาขาไหนเห็นแบรนด์ใดในหน้าเลือกแบรนด์ · เปิด <b style="color:var(--text)">“ทุกสาขา”</b> = ทุกสาขาเห็น · หรือปิดแล้วพิมพ์ชื่อสาขาที่ให้เห็น (บรรทัดละสาขา ใช้แค่บางส่วนของชื่อก็ได้) · <b style="color:var(--text)">แอดมินเห็นทุกแบรนด์เสมอ</b>
+      </div>
+      <div id="brandVisRows"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-soft" onclick="closeBrandVis()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveBrandVis()"><svg viewBox="0 0 24 24"><path d="M20 6L9 17l-5-5"/></svg> บันทึก</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════ EXAM RUNNER OVERLAY (branch takes exam) ═══════════ -->
 <div class="exam-overlay" id="examOverlay">
   <!-- start -->
@@ -661,6 +686,91 @@ var BRANDS = [
 var currentBrand = null;   // key ที่เลือก ('jaedaeng' | 'santafe' | 'all')
 var _dataLoaded = false;   // โหลดข้อมูลจาก backend แล้วหรือยัง
 
+/* ═══ Firebase (เก็บค่า "สาขาที่เห็นแบรนด์" บน cloud sync ทุกเครื่อง) ═══ */
+var EX_FB_CONFIG = {
+  apiKey: "AIzaSyB489GnLRLLL00a-5JhsGBn5y7W8STIGpI",
+  authDomain: "checklist-a89e2.firebaseapp.com",
+  projectId: "checklist-a89e2",
+  storageBucket: "checklist-a89e2.firebasestorage.app",
+  messagingSenderId: "501211065462",
+  appId: "1:501211065462:web:8f81f87357c21be1804357"
+};
+var exDb = null;
+try { if (typeof firebase !== 'undefined') { firebase.initializeApp(EX_FB_CONFIG); exDb = firebase.firestore(); } }
+catch (e) { console.warn('Exam Firebase init failed', e); }
+
+var EXAM_CFG = { brandVisibility: null };   // { jaedaeng:{all:true}, santafe:{all:false,branches:[...]} }
+
+function examConfigSave(patch){
+  if(!exDb) return Promise.reject(new Error('เชื่อมต่อ cloud ไม่ได้'));
+  return exDb.collection('fhConfig').doc('examConfig').set(patch, { merge:true });
+}
+function startExamConfigSync(){
+  if(!exDb){ return; }
+  try{
+    exDb.collection('fhConfig').doc('examConfig').onSnapshot(function(snap){
+      var d = (snap && snap.exists) ? (snap.data()||{}) : {};
+      EXAM_CFG.brandVisibility = d.brandVisibility || {};
+      if(!$('brandGate').classList.contains('hidden')) showBrandGate();
+    }, function(e){ console.warn('examConfig sync error', e); });
+  }catch(e){ console.warn(e); }
+}
+// สาขาปัจจุบันเห็นแบรนด์นี้ไหม (ค่าเริ่มต้น = เห็นทุกแบรนด์)
+function brandVisibleToBranch(key){
+  var bv = EXAM_CFG.brandVisibility || {};
+  var c = bv[key];
+  if(!c || c.all || !(c.branches && c.branches.length)) return true;
+  var mine = (currentBranchName||'').trim();
+  if(!mine) return true;
+  return c.branches.some(function(b){ return b && (b===mine || mine.indexOf(b)>=0 || b.indexOf(mine)>=0); });
+}
+
+/* ═══ แอดมิน: ตั้งค่าสาขาที่เห็นแบรนด์ ═══ */
+function openBrandVis(){ renderBrandVisForm(); $('brandVisModal').classList.add('show'); }
+function closeBrandVis(){ $('brandVisModal').classList.remove('show'); }
+function toggleBvAll(cb){
+  var row = cb.closest('.bv-row'); if(!row) return;
+  var ta = row.querySelector('.bv-branches'); if(ta) ta.style.display = cb.checked ? 'none' : '';
+}
+function renderBrandVisForm(){
+  var bv = EXAM_CFG.brandVisibility || {};
+  $('brandVisRows').innerHTML = BRANDS.map(function(b){
+    var c = bv[b.key] || {};
+    var all = c.all || !(c.branches && c.branches.length);   // ยังไม่ตั้ง = ทุกสาขา
+    var txt = (c.branches||[]).join('\n');
+    var icon = b.logo
+      ? '<img src="'+b.logo+'" alt="" style="width:36px;height:36px;object-fit:contain;border-radius:8px">'
+      : '<span style="font-size:26px">'+b.emoji+'</span>';
+    return '<div class="bv-row" data-key="'+esc(b.key)+'" style="border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:12px">'+
+      '<div style="display:flex;align-items:center;gap:11px;margin-bottom:10px">'+icon+
+        '<div style="font-weight:800;font-size:15px">'+esc(b.name)+'</div>'+
+        '<label style="margin-left:auto;display:flex;align-items:center;gap:7px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer">'+
+          '<input type="checkbox" class="bv-all" '+(all?'checked':'')+' onchange="toggleBvAll(this)"> ทุกสาขา</label>'+
+      '</div>'+
+      '<textarea class="txt bv-branches" placeholder="พิมพ์ชื่อสาขาที่ให้เห็น บรรทัดละสาขา&#10;เช่น สามย่าน" '+
+        'style="min-height:74px;font-size:13px'+(all?';display:none':'')+'">'+esc(txt)+'</textarea>'+
+    '</div>';
+  }).join('');
+}
+function saveBrandVis(){
+  var bv = {};
+  document.querySelectorAll('#brandVisRows .bv-row').forEach(function(row){
+    var key = row.getAttribute('data-key');
+    var all = row.querySelector('.bv-all').checked;
+    if(all){ bv[key] = { all:true }; }
+    else {
+      var branches = row.querySelector('.bv-branches').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
+      bv[key] = { all:false, branches:branches };
+    }
+  });
+  EXAM_CFG.brandVisibility = bv;
+  closeBrandVis();
+  examConfigSave({ brandVisibility: bv })
+    .then(function(){ toast('บันทึกการตั้งค่าแบรนด์แล้ว','ok'); })
+    .catch(function(e){ toast('บันทึกไม่สำเร็จ: '+e.message,'err'); });
+  if(!$('brandGate').classList.contains('hidden')) showBrandGate();
+}
+
 var $ = function(id){ return document.getElementById(id); };
 function esc(s){ var d=document.createElement('div'); d.textContent=(s==null?'':s); return d.innerHTML; }
 function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
@@ -694,7 +804,8 @@ window.addEventListener('DOMContentLoaded', function(){
   } else {
     $('userChip').textContent = currentBranchName || ('สาขา '+branchPin);
   }
-  showBrandGate();   // เลือกแบรนด์ก่อนเข้าใช้งาน
+  startExamConfigSync();   // โหลดค่าสาขาที่เห็นแบรนด์จาก cloud
+  showBrandGate();         // เลือกแบรนด์ก่อนเข้าใช้งาน
 });
 
 function backToHub(){ window.location.href = '../index.html'; }
@@ -705,10 +816,12 @@ function showBrandGate(){
   $('adminView').classList.add('hidden');
   $('branchView').classList.add('hidden');
   $('brandChip').classList.add('hidden');
+  // สาขาเห็นเฉพาะแบรนด์ที่เปิดให้ · แอดมินเห็นทุกแบรนด์
+  var visible = isAdminMode ? BRANDS : BRANDS.filter(function(b){ return brandVisibleToBranch(b.key); });
   var extra = isAdminMode
     ? '<button class="brand-btn all" onclick="pickBrand(\'all\')"><span class="b-emoji">🗂️</span><span class="b-name">ดูทุกแบรนด์ (Admin)</span></button>'
     : '';
-  $('brandGrid').innerHTML = BRANDS.map(function(b){
+  $('brandGrid').innerHTML = visible.map(function(b){
     var icon = b.logo
       ? '<span class="b-logo"><img src="'+b.logo+'" alt="'+esc(b.name)+'"></span>'
       : '<span class="b-emoji">'+b.emoji+'</span>';
@@ -717,6 +830,12 @@ function showBrandGate(){
       '<span class="b-name">'+esc(b.name)+'</span>'+
       '<span class="b-desc">'+esc(b.desc)+'</span></button>';
   }).join('') + extra;
+  $('brandAdminTools').innerHTML = isAdminMode
+    ? '<button class="btn btn-soft" style="margin-top:18px" onclick="openBrandVis()">⚙️ ตั้งค่าสาขาที่เห็นแบรนด์</button>'
+    : '';
+  $('brandGateEmpty').innerHTML = (!isAdminMode && !visible.length)
+    ? '<div style="margin-top:10px;color:var(--text2);font-size:14px;line-height:1.6">ยังไม่มีแบรนด์ที่เปิดให้สาขาของคุณ<br>โปรดติดต่อผู้ดูแลระบบ</div>'
+    : '';
 }
 function brandInfo(key){ return BRANDS.find(function(b){return b.key===key;}) || {name:'ทุกแบรนด์', emoji:'🗂️'}; }
 function pickBrand(key){
