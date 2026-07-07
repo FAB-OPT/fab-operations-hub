@@ -190,6 +190,14 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 .modal-x:hover{background:var(--bg3)}
 .modal-body{padding:20px 24px}
 .modal-foot{display:flex;gap:12px;justify-content:flex-end;padding:16px 24px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--bg2);border-radius:0 0 22px 22px}
+.etabs{display:flex;gap:4px;margin:0 0 18px;border-bottom:1px solid var(--border);flex-wrap:wrap}
+.etab{background:none;border:none;padding:11px 16px;font-family:inherit;font-size:14px;font-weight:700;color:var(--text2);border-bottom:2px solid transparent;cursor:pointer;border-radius:8px 8px 0 0;transition:.12s}
+.etab:hover{color:var(--text);background:var(--bg3)}
+.etab.active{color:var(--gold);border-bottom-color:var(--gold)}
+.etab-panel.hidden{display:none}
+.imp-card{background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:18px}
+.imp-steps{display:flex;flex-direction:column;gap:8px;margin:6px 0 16px;font-size:13.5px;color:var(--text2);line-height:1.55}
+.imp-steps b{color:var(--gold)}
 @keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 
 /* toast */
@@ -349,6 +357,8 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 }
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
+<!-- SheetJS — นำเข้า/สร้างแบบฟอร์มข้อสอบ Excel -->
+<script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -456,44 +466,77 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
       <button class="modal-x" onclick="closeEditor()">×</button>
     </div>
     <div class="modal-body">
-      <label class="fld"><span>ชื่อชุดข้อสอบ *</span><input class="txt" id="edTitle" placeholder="เช่น แบบทดสอบมาตรฐานการบริการ เจ๊แดง 2026"></label>
-      <div class="row-flex">
-        <label class="fld"><span>แบรนด์ (ถ้ามี)</span><input class="txt" id="edBrand" placeholder="เช่น เจ๊แดง / ซานตาเฟ่"></label>
-        <label class="fld"><span>สถานะ</span>
-          <select class="txt" id="edActive"><option value="true">🟢 เปิดใช้งาน (สาขาทำได้)</option><option value="false">⚪ ปิด (ร่าง/ซ่อน)</option></select>
+      <div class="etabs">
+        <button type="button" class="etab active" data-t="1" onclick="examTab(1)">① ข้อมูล &amp; ตั้งค่า</button>
+        <button type="button" class="etab" data-t="2" onclick="examTab(2)">② คำถาม (<span id="qCountTab">0</span>)</button>
+        <button type="button" class="etab" data-t="3" onclick="examTab(3)">③ นำเข้าจากไฟล์</button>
+      </div>
+
+      <!-- TAB 1: ข้อมูล & ตั้งค่า -->
+      <div class="etab-panel" data-p="1">
+        <label class="fld"><span>ชื่อชุดข้อสอบ *</span><input class="txt" id="edTitle" placeholder="เช่น แบบทดสอบมาตรฐานการบริการ เจ๊แดง 2026"></label>
+        <div class="row-flex">
+          <label class="fld"><span>แบรนด์ (ถ้ามี)</span><input class="txt" id="edBrand" placeholder="เช่น เจ๊แดง / ซานตาเฟ่"></label>
+          <label class="fld"><span>สถานะ</span>
+            <select class="txt" id="edActive"><option value="true">🟢 เปิดใช้งาน (สาขาทำได้)</option><option value="false">⚪ ปิด (ร่าง/ซ่อน)</option></select>
+          </label>
+        </div>
+        <div class="row-3">
+          <label class="fld"><span>เวลา (นาที)</span><input class="txt" id="edTime" type="number" min="1" value="20"></label>
+          <label class="fld"><span>เกณฑ์ผ่าน (%)</span><input class="txt" id="edPass" type="number" min="0" max="100" value="70"></label>
+          <label class="fld"><span>เตือนได้กี่ครั้ง</span><input class="txt" id="edViol" type="number" min="1" value="3"></label>
+        </div>
+        <div class="row-flex">
+          <label class="fld"><span>เปิดให้ทำตั้งแต่วันที่ (ว่าง = ทันที)</span><input class="txt" id="edStart" type="date"></label>
+          <label class="fld"><span>ปิดรับวันที่ (ว่าง = ไม่จำกัด)</span><input class="txt" id="edEnd" type="date"></label>
+        </div>
+        <label class="fld"><span>มอบหมายให้สาขา (พิมพ์ชื่อสาขา 1 บรรทัด/สาขา — เว้นว่าง = ทุกสาขา)</span>
+          <textarea class="txt" id="edBranches" placeholder="สาขาสามย่าน&#10;สาขาสีลม"></textarea>
         </label>
-      </div>
-      <div class="row-3">
-        <label class="fld"><span>เวลา (นาที)</span><input class="txt" id="edTime" type="number" min="1" value="20"></label>
-        <label class="fld"><span>เกณฑ์ผ่าน (%)</span><input class="txt" id="edPass" type="number" min="0" max="100" value="70"></label>
-        <label class="fld"><span>เตือนได้กี่ครั้ง</span><input class="txt" id="edViol" type="number" min="1" value="3"></label>
-      </div>
-      <div class="row-flex">
-        <label class="fld"><span>เปิดให้ทำตั้งแต่วันที่ (ว่าง = ทันที)</span><input class="txt" id="edStart" type="date"></label>
-        <label class="fld"><span>ปิดรับวันที่ (ว่าง = ไม่จำกัด)</span><input class="txt" id="edEnd" type="date"></label>
-      </div>
-      <label class="fld"><span>มอบหมายให้สาขา (พิมพ์ชื่อสาขา 1 บรรทัด/สาขา — เว้นว่าง = ทุกสาขา)</span>
-        <textarea class="txt" id="edBranches" placeholder="สาขาสามย่าน&#10;สาขาสีลม"></textarea>
-      </label>
-
-      <div style="margin:8px 0 16px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px">
-        <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">สุ่มลำดับคำถามแต่ละคน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
-        <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">สุ่มลำดับ ก/ข/ค/ง</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
-        <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมด fullscreen ตอนสอบ</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
-        <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ/ออกหน้าจอ</div><div class="sw-d">นับเป็นการเตือนเมื่อออกจากหน้า</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
-        <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen/Snipping</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
-        <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์เมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
-        <div class="switch-row" style="border-bottom:none"><div><div class="sw-t">แสดงเฉลยหลังสอบ</div><div class="sw-d">ให้ผู้สอบเห็นข้อที่ผิด/เฉลย</div></div><label class="sw"><input type="checkbox" id="edReview" checked><span class="track"></span></label></div>
-      </div>
-
-      <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:18px 0 10px">
-        <div style="font-weight:800;font-size:16px">คำถาม (<span id="qCount">0</span> ข้อ)</div>
-        <div style="display:flex;gap:8px">
-          <button class="btn btn-soft btn-sm" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> นำเข้า</button>
-          <button class="btn btn-soft btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
+        <div style="margin:8px 0 4px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:12px">
+          <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">สุ่มลำดับคำถามแต่ละคน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">สุ่มลำดับ ก/ข/ค/ง</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมด fullscreen ตอนสอบ</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ/ออกหน้าจอ</div><div class="sw-d">นับเป็นการเตือนเมื่อออกจากหน้า</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen/Snipping</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์เมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
+          <div class="switch-row" style="border-bottom:none"><div><div class="sw-t">แสดงเฉลยหลังสอบ</div><div class="sw-d">ให้ผู้สอบเห็นข้อที่ผิด/เฉลย</div></div><label class="sw"><input type="checkbox" id="edReview" checked><span class="track"></span></label></div>
         </div>
       </div>
-      <div id="qEditor"></div>
+
+      <!-- TAB 2: คำถาม -->
+      <div class="etab-panel hidden" data-p="2">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 12px">
+          <div style="font-weight:800;font-size:16px">คำถาม (<span id="qCount">0</span> ข้อ)</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-soft btn-sm" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> วางข้อความ</button>
+            <button class="btn btn-soft btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
+          </div>
+        </div>
+        <div id="qEditor"></div>
+      </div>
+
+      <!-- TAB 3: นำเข้าจากไฟล์ -->
+      <div class="etab-panel hidden" data-p="3">
+        <div class="imp-card">
+          <div style="font-weight:800;font-size:15px;margin-bottom:2px">นำเข้าข้อสอบจากไฟล์ Excel</div>
+          <div class="imp-steps">
+            <div><b>①</b> ดาวน์โหลดแบบฟอร์ม แล้วเปิดด้วย Excel / Google Sheets</div>
+            <div><b>②</b> กรอก <b>คำถาม</b> · <b>ตัวเลือกที่ 1–5</b> · <b>เฉลย</b> (ใส่เลขข้อที่ถูก 1–5) — 1 คำถามต่อ 1 แถว</div>
+            <div><b>③</b> อัปโหลดไฟล์กลับมา แล้วกด “นำเข้า”</div>
+          </div>
+          <button class="btn btn-soft" onclick="downloadExamTemplate()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลดแบบฟอร์ม (.xlsx)</button>
+          <div style="margin-top:16px">
+            <label class="fld"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv)</span>
+              <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" class="txt" onchange="importExamFile(event)" style="padding:9px 12px">
+            </label>
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px">
+              <div id="fileImportCount" style="font-size:13px;font-weight:700;color:var(--text2)">พบ 0 ข้อ</div>
+              <button class="btn btn-primary btn-sm" id="fileImportBtn" disabled onclick="doFileImport()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> นำเข้า (เพิ่มต่อท้าย)</button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-soft" onclick="closeEditor()">ยกเลิก</button>
@@ -876,6 +919,11 @@ function openExamEditor(id){
   draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
   if(!draftQuestions.length) addQuestion(true);
   renderQEditor();
+  _fileParsed=[];
+  var _fi=$('fileImportInput'); if(_fi) _fi.value='';
+  var _fc=$('fileImportCount'); if(_fc){ _fc.textContent='พบ 0 ข้อ'; _fc.style.color='var(--text2)'; }
+  var _fb=$('fileImportBtn'); if(_fb) _fb.disabled=true;
+  examTab(1);
   $('editorModal').classList.add('show');
 }
 function closeEditor(){ $('editorModal').classList.remove('show'); }
@@ -904,6 +952,7 @@ function setAnswer(qi,ci){ syncDraftFromDOM(); draftQuestions[qi].answer=ci; ren
 
 function renderQEditor(){
   $('qCount').textContent = draftQuestions.length;
+  var _qt=$('qCountTab'); if(_qt) _qt.textContent=draftQuestions.length;
   $('qEditor').innerHTML = draftQuestions.map(function(q,qi){
     var choices = q.choices.map(function(c,ci){
       return '<div class="q-choice">'+
@@ -983,6 +1032,68 @@ function doImport(){
   renderQEditor();
   closeImport();
   toast('นำเข้า '+parsed.length+' ข้อเรียบร้อย','ok');
+}
+
+/* ── แท็บในโมดัลสร้างข้อสอบ ── */
+function examTab(n){
+  n=String(n);
+  document.querySelectorAll('#editorModal .etab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-t')===n); });
+  document.querySelectorAll('#editorModal .etab-panel').forEach(function(p){ p.classList.toggle('hidden', p.getAttribute('data-p')!==n); });
+  if(n!=='2') syncDraftFromDOM();   // เก็บค่าที่พิมพ์ในแท็บคำถามไว้ก่อนสลับ
+}
+
+/* ── นำเข้าจากไฟล์ Excel + ดาวน์โหลดแบบฟอร์ม ── */
+function downloadExamTemplate(){
+  if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
+  var rows=[
+    ['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','ตัวเลือกที่ 5','เฉลย (เลขข้อที่ถูก 1-5)'],
+    ['อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?','0–4 °C','5–10 °C','10–15 °C','ต่ำกว่า -18 °C','','1'],
+    ['ขั้นตอนแรกเมื่อลูกค้าเข้าร้าน?','กล่าวต้อนรับและทักทาย','รอลูกค้าเรียก','เดินไปเก็บโต๊ะ','','','1']
+  ];
+  var ws=XLSX.utils.aoa_to_sheet(rows);
+  ws['!cols']=[{wch:46},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20}];
+  var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
+  XLSX.writeFile(wb, 'แบบฟอร์มข้อสอบ.xlsx');
+}
+var _fileParsed=[];
+function importExamFile(ev){
+  var f=ev.target.files && ev.target.files[0]; if(!f) return;
+  if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่','err'); return; }
+  var rd=new FileReader();
+  rd.onload=function(e){
+    try{
+      var wb=XLSX.read(e.target.result,{type:'array'});
+      var ws=wb.Sheets[wb.SheetNames[0]];
+      var aoa=XLSX.utils.sheet_to_json(ws,{header:1,defval:''});
+      var out=[];
+      for(var i=1;i<aoa.length;i++){                 // ข้ามแถวหัวตาราง
+        var r=aoa[i]||[];
+        var q=String(r[0]==null?'':r[0]).trim(); if(!q) continue;
+        var choices=[];
+        for(var c=1;c<=5;c++){ var v=String(r[c]==null?'':r[c]).trim(); if(v) choices.push(v); }
+        if(choices.length<2) continue;
+        var an=parseInt(String(r[6]==null?'':r[6]).trim(),10); if(isNaN(an)) an=1;
+        out.push({ q:q, choices:choices, answer:Math.min(Math.max(an-1,0),choices.length-1) });
+      }
+      _fileParsed=out;
+      var el=$('fileImportCount'); el.textContent='พบ '+out.length+' ข้อ'; el.style.color = out.length? 'var(--green)':'var(--text2)';
+      $('fileImportBtn').disabled = out.length===0;
+      if(!out.length) toast('ไม่พบข้อสอบในไฟล์ — ตรวจว่ากรอกตามแบบฟอร์มหรือไม่','err');
+    }catch(err){ toast('อ่านไฟล์ไม่สำเร็จ: '+err.message,'err'); }
+  };
+  rd.readAsArrayBuffer(f);
+}
+function doFileImport(){
+  if(!_fileParsed.length){ toast('ยังไม่มีข้อมูลให้นำเข้า','err'); return; }
+  syncDraftFromDOM();
+  _fileParsed.forEach(function(p){ draftQuestions.push({ q:p.q, choices:p.choices.slice(), answer:p.answer }); });
+  renderQEditor();
+  toast('นำเข้า '+_fileParsed.length+' ข้อเรียบร้อย','ok');
+  _fileParsed=[];
+  var el=$('fileImportCount'); if(el){ el.textContent='พบ 0 ข้อ'; el.style.color='var(--text2)'; }
+  $('fileImportBtn').disabled=true;
+  var fi=$('fileImportInput'); if(fi) fi.value='';
+  examTab(2);
 }
 
 function collectExamFromForm(){
