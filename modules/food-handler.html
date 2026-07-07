@@ -6327,7 +6327,7 @@ function _parseEmpWorkbook(wb) {
     var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
     if (rows.length < 2) return;
     var header = rows[0];
-    var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1;
+    var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1, brandCol = -1;
     header.forEach(function(h,i){
       var s = String(h).toLowerCase();
       if (s.indexOf('fullname') >= 0 || (s.indexOf('ชื่อ') >= 0 && s.indexOf('เล่น') < 0 && s.indexOf('nick') < 0)) nameCol = i;
@@ -6335,6 +6335,7 @@ function _parseEmpWorkbook(wb) {
       if ((s.indexOf('position') >= 0 && s.indexOf('eng') < 0) || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
       if (s.indexOf('empcode') >= 0 || s.indexOf('empid') >= 0 || s.indexOf('รหัสพนักงาน') >= 0 || s.indexOf('รหัสพนง') >= 0) empIdCol = i;
       if (s.indexOf('identity') >= 0 || s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
+      if (s.indexOf('แบรนด์') >= 0 || s.indexOf('แบนด์') >= 0 || s.indexOf('brand') >= 0 || s === 'sheet') brandCol = i;
     });
     if (nameCol<0) nameCol = 2;
     if (branchCol<0) branchCol = 9;
@@ -6351,7 +6352,7 @@ function _parseEmpWorkbook(wb) {
         idCard: idCardCol >= 0 ? String(row[idCardCol]||'').trim() : '',
         branch: String(row[branchCol]||'').trim(),
         position: String(row[posCol]||'').trim(),
-        sheet: sheetName
+        sheet: (brandCol >= 0 && String(row[brandCol]||'').trim()) ? String(row[brandCol]).trim() : sheetName
       });
     }
   });
@@ -7409,11 +7410,11 @@ function fhStepPopup(n) {
 /* ดาวน์โหลดฟอร์มตั้งต้น (Excel) ทะเบียนพนักงาน — หัวคอลัมน์ตรงกับที่ระบบอ่าน */
 function downloadRegistryTemplate() {
   if (typeof XLSX === 'undefined') { showInfo('ยังโหลดไม่เสร็จ', 'รอสักครู่แล้วลองใหม่ครับ'); return; }
-  var headers = ['รหัสพนักงาน','ชื่อ-นามสกุล','เลขบัตรประชาชน','ตำแหน่ง','สาขา'];
-  var ex1 = ['5001','นายตัวอย่าง ทดสอบ','1234567890123','พนักงานบริการ','5001 สาขาตัวอย่าง'];
-  var ex2 = ['4008','นางสาวสมมติ นามสกุล','1100501234567','ผู้จัดการ','4008 เจ๊แดงสาขาตัวอย่าง'];
+  var headers = ['รหัสพนักงาน','ชื่อ-นามสกุล','เลขบัตรประชาชน','ตำแหน่ง','สาขา','แบรนด์'];
+  var ex1 = ['5001','นายตัวอย่าง ทดสอบ','1234567890123','พนักงานบริการ','5001 สาขาตัวอย่าง','Santa Fe'];
+  var ex2 = ['4008','นางสาวสมมติ นามสกุล','1100501234567','ผู้จัดการ','4008 เจ๊แดงสาขาตัวอย่าง','เจ๊แดง จุ่มนัวร์'];
   var ws = XLSX.utils.aoa_to_sheet([headers, ex1, ex2]);
-  ws['!cols'] = [{wch:14},{wch:28},{wch:20},{wch:22},{wch:26}];
+  ws['!cols'] = [{wch:14},{wch:28},{wch:20},{wch:22},{wch:26},{wch:18}];
   var wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'ทะเบียนพนักงาน');
   try { XLSX.writeFile(wb, 'ฟอร์มตั้งต้น-ทะเบียนพนักงาน.xlsx'); }
