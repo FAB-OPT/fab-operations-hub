@@ -327,6 +327,9 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 .lock-count b{color:#ff8f8f}
 .p-btn.red{background:var(--red)}.p-btn.red:hover{background:#e05656}
 .flash{position:fixed;inset:0;z-index:99;background:#000;display:none}
+.wm{position:fixed;inset:-25%;z-index:45;pointer-events:none;display:none;flex-wrap:wrap;align-content:center;justify-content:center;gap:54px 76px;transform:rotate(-24deg)}
+.wm.show{display:flex}
+.wm span{font-family:'IBM Plex Mono',monospace;font-size:14px;font-weight:600;letter-spacing:.04em;color:rgba(255,255,255,.06);white-space:nowrap}
 .flash.show{display:block;animation:flashout .5s ease}
 @keyframes flashout{0%{opacity:1}100%{opacity:0}}
 .emodal{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:24px;background:rgba(8,13,24,.7);backdrop-filter:blur(6px)}
@@ -717,6 +720,7 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
     </div>
   </div>
   <div class="flash" id="flash"></div>
+  <div class="wm" id="examWm" aria-hidden="true"></div>
 
   <!-- submit confirm -->
   <div class="emodal" id="submitModal">
@@ -1418,11 +1422,19 @@ function beginExam(){
   R.questions=qs; R.answers={}; R.current=0;
   R.timeLeft=CFG.timeLimitMinutes*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
   exShow('ex-exam');
+  setupWatermark();
   renderQuestion(); renderNav(); startTimer();
   // เต็มจอ = เฉพาะสอบจริง · กันโกงตรวจจับทั้งสองโหมด (ทดลองเตือนแบบ toast ไม่ล็อก)
   if(!R.isPreview && CFG.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){R.fsOK=false;}); }
   attachGuards();
 }
+function setupWatermark(){
+  var wm=$('examWm'); if(!wm) return;
+  var label=(R.student.name||'ผู้สอบ')+(R.student.id?' · '+R.student.id:'');
+  var html=''; for(var i=0;i<90;i++){ html+='<span>'+esc(label)+'</span>'; }
+  wm.innerHTML=html; wm.classList.add('show');
+}
+function hideWatermark(){ var wm=$('examWm'); if(wm){ wm.classList.remove('show'); wm.innerHTML=''; } }
 
 function startTimer(){
   updateClock();
@@ -1551,6 +1563,7 @@ function finishExam(reason){
   R.finished=true;
   clearInterval(R.timerId);
   detachGuards();
+  hideWatermark();
   $('lock').classList.remove('show'); $('submitModal').classList.remove('show');
   if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
   document.body.style.overflow='';
