@@ -5970,9 +5970,10 @@ function processPDFFiles(fileList) {
     var seen = {};
     var uniq = [];
     allExtracted.forEach(function(item){
-      var k = item.name + '|' + item.expireDate;
+      var k = item.name + '|' + item.expireDate + '|' + (item.course||'');
       if (!seen[k]) { seen[k] = true; uniq.push(item); }
     });
+    console.log('[DIAG FINISH] allExtracted(ก่อน dedup)=' + allExtracted.length + ' → pdfData(หลัง dedup)=' + uniq.length);
     pdfData = uniq;
     setProg('pdf', 100);
     var msg = 'โหลดสำเร็จ — ' + files.length + ' ไฟล์, พบ ' + uniq.length + ' ใบรับรอง';
@@ -6515,6 +6516,16 @@ function processMatch() {
   setTimeout(function() {
     var raw = [];
     var employees = empData || [];
+
+    try {
+      console.log('[DIAG NAMES] cert ตัวอย่าง:', JSON.stringify(pdfData.slice(0,3).map(function(c){ return c.name; })));
+      console.log('[DIAG NAMES] ทะเบียน ตัวอย่าง:', JSON.stringify(employees.slice(0,3).map(function(e){ return e.norm || e.name; })));
+      if (pdfData[0]) {
+        var cp0 = getParts(pdfData[0].name);
+        var hit = employees.filter(function(e){ var ep=getParts(e.norm||''); return ep.first===cp0.first && ep.last===cp0.last; });
+        console.log('[DIAG NAMES] ชื่อแรก "' + pdfData[0].name + '" → first="' + cp0.first + '" last="' + cp0.last + '" · เจอในทะเบียน ' + hit.length + ' คน');
+      }
+    } catch(e) { console.warn('DIAG NAMES err', e); }
 
     pdfData.forEach(function(cert, idx) {
       var cp = getParts(cert.name);
