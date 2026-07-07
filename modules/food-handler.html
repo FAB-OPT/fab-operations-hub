@@ -5396,7 +5396,6 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="fh-tabs" role="tablist">
       <button type="button" class="fh-tab active" data-tab="submit" onclick="fhSetTab('submit')"><span class="tico">🔔</span>รับรายชื่อ</button>
       <button type="button" class="fh-tab" data-tab="schedule" onclick="fhSetTab('schedule')"><span class="tico">📅</span>ตารางอบรม</button>
-      <button type="button" class="fh-tab" data-tab="brand" onclick="fhSetTab('brand')"><span class="tico">🏷️</span>แบรนด์/สาขา</button>
     </div>
 
     <div class="fh-tabpanel active" id="fhTab-submit">
@@ -5411,10 +5410,6 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 
     <div class="fh-tabpanel" id="fhTab-schedule">
       <div id="fhScheduleEditor" style="margin-top:6px;"></div>
-    </div>
-
-    <div class="fh-tabpanel" id="fhTab-brand">
-      <div id="fhBrandBranchEditor" style="margin-top:6px;"></div>
     </div>
   </div>
 </div>
@@ -5669,7 +5664,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="section-card" style="padding:16px 20px;margin-top:16px;">
       <div style="font-weight:800;color:var(--text);margin-bottom:12px;">📋 ลำดับการอัปโหลดข้อมูล</div>
       <div class="reg-steps">
-        <div class="reg-step"><span class="reg-step-n">1</span><div style="flex:1;min-width:0;"><b>อัปทะเบียนพนักงาน</b> (Excel)<br><span class="reg-step-sub">อัปหลายไฟล์ได้ · รวม+ตัดซ้ำอัตโนมัติ</span></div><button class="reg-step-btn" onclick="openImportModal('registry')">📊 อัปทะเบียน</button></div>
+        <div class="reg-step"><span class="reg-step-n">1</span><div style="flex:1;min-width:0;"><b>อัปทะเบียนพนักงาน</b> (Excel) · <a href="javascript:void(0)" onclick="downloadRegistryTemplate()" style="color:#EA580C;font-weight:700;text-decoration:none;">⬇️ ฟอร์มตั้งต้น</a><br><span class="reg-step-sub">อัปหลายไฟล์ได้ · รวม+ตัดซ้ำอัตโนมัติ · ถ้ายังไม่มีไฟล์ โหลดฟอร์มตั้งต้นไปกรอกก่อน</span></div><button class="reg-step-btn" onclick="openImportModal('registry')">📊 อัปทะเบียน</button></div>
         <div class="reg-step"><span class="reg-step-n">2</span><div style="flex:1;min-width:0;"><b>อัปใบรับรอง</b> (PDF)<br><span class="reg-step-sub">1 ไฟล์หลายคนได้ · ตัดหน้าแยกรายคนอัตโนมัติ</span></div><button class="reg-step-btn" onclick="openImportModal('cert')">📄 อัปใบรับรอง</button></div>
         <div class="reg-step"><span class="reg-step-n">3</span><div style="flex:1;min-width:0;"><b>จับคู่ข้อมูล</b><br><span class="reg-step-sub">เติมสาขา/แบรนด์ให้ใบรับรองจากทะเบียน</span></div><button class="reg-step-btn reg-step-btn-accent" onclick="reMatchCerts()">🔗 จับคู่ข้อมูล</button></div>
       </div>
@@ -7397,6 +7392,19 @@ function renderRegistryTable() {
   }).join('');
   if (rows.length > 500) html += '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:12px;">แสดง 500 แรกจาก '+rows.length+' · พิมพ์ค้นหาเพื่อกรอง</td></tr>';
   body.innerHTML = html;
+}
+/* ดาวน์โหลดฟอร์มตั้งต้น (Excel) ทะเบียนพนักงาน — หัวคอลัมน์ตรงกับที่ระบบอ่าน */
+function downloadRegistryTemplate() {
+  if (typeof XLSX === 'undefined') { showInfo('ยังโหลดไม่เสร็จ', 'รอสักครู่แล้วลองใหม่ครับ'); return; }
+  var headers = ['รหัสพนักงาน','ชื่อ-นามสกุล','เลขบัตรประชาชน','ตำแหน่ง','สาขา'];
+  var ex1 = ['5001','นายตัวอย่าง ทดสอบ','1234567890123','พนักงานบริการ','5001 สาขาตัวอย่าง'];
+  var ex2 = ['4008','นางสาวสมมติ นามสกุล','1100501234567','ผู้จัดการ','4008 เจ๊แดงสาขาตัวอย่าง'];
+  var ws = XLSX.utils.aoa_to_sheet([headers, ex1, ex2]);
+  ws['!cols'] = [{wch:14},{wch:28},{wch:20},{wch:22},{wch:26}];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'ทะเบียนพนักงาน');
+  try { XLSX.writeFile(wb, 'ฟอร์มตั้งต้น-ทะเบียนพนักงาน.xlsx'); }
+  catch(e) { showInfo('ดาวน์โหลดไม่สำเร็จ', escapeHtml(e.message || String(e))); }
 }
 function _reloadRegistry() {
   var body = document.getElementById('registryBody'); if (body) body.innerHTML = '<tr><td colspan="6" class="empty">กำลังโหลด...</td></tr>';
