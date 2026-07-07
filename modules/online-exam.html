@@ -1425,8 +1425,15 @@ function beginExam(){
   setupWatermark();
   renderQuestion(); renderNav(); startTimer();
   // เต็มจอ = เฉพาะสอบจริง · กันโกงตรวจจับทั้งสองโหมด (ทดลองเตือนแบบ toast ไม่ล็อก)
-  if(!R.isPreview && CFG.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){R.fsOK=false;}); }
+  if(!R.isPreview && CFG.requireFullscreen) goFullscreen();
   attachGuards();
+}
+// เข้าเต็มจอแบบรองรับหลายเบราว์เซอร์ + กันพังบน iPhone (ไม่มีฟังก์ชันก็ข้าม)
+function goFullscreen(){
+  var el=document.documentElement;
+  var fn=el.requestFullscreen||el.webkitRequestFullscreen||el.msRequestFullscreen;
+  if(!fn) return;
+  try{ var p=fn.call(el); if(p&&p.then){ p.then(function(){R.fsOK=true;}).catch(function(){}); } else { R.fsOK=true; } }catch(e){}
 }
 function setupWatermark(){
   var wm=$('examWm'); if(!wm) return;
@@ -1560,7 +1567,7 @@ function triggerLock(title,msg){
 function resumeExam(){
   R.locked=false; $('lock').classList.remove('show');
   lockCooldown=true; setTimeout(function(){lockCooldown=false;},600);
-  if(!R.isPreview && R.exam.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){}); }
+  if(!R.isPreview && R.exam.requireFullscreen) goFullscreen();
 }
 function registerViolation(reason){
   R.violations++;
