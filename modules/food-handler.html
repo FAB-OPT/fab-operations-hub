@@ -6200,6 +6200,18 @@ function extractFromPDFText(text) {
       if (certNames.length > 200) break;
     }
   }
+  // Fallback: ใบรับรองแบบ "ไม่มีคำนำหน้า" (นาย/นาง) — ชื่ออยู่บรรทัดก่อน "ผ่านการอบรม" (เช่น CRG)
+  if (certNames.length === 0) {
+    var beforeTrainRe = /([฀-๿]+(?:[ \t]+[฀-๿]+){1,2})[ \t]*[\r\n]+[ \t]*ผ่านการอบรม/g;
+    var bm;
+    while ((bm = beforeTrainRe.exec(text)) !== null) {
+      var nm = bm[1].replace(/\s+/g, ' ').trim();
+      // ตัดบรรทัดที่ไม่ใช่ชื่อคน (บริษัท/หลักสูตร/หัวเอกสาร)
+      if (/บริษัท|จำกัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited/i.test(nm)) continue;
+      if (nm.length >= 4 && nm.length < 60 && nm.split(' ').length >= 2) certNames.push(nm);
+      if (certNames.length > 300) break;
+    }
+  }
   var seen = {};
   certNames = certNames.filter(function(n) {
     var k = n.replace(/\s/g, '');
