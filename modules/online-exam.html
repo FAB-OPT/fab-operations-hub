@@ -317,14 +317,14 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 .enav.ghost:hover{background:var(--bg3)}
 .enav.amber{background:var(--gold);color:#fff}
 .enav.amber:hover{filter:brightness(1.04)}
-.lock{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:24px;background:rgba(8,13,24,.97);backdrop-filter:blur(16px)}
+.lock{position:fixed;inset:0;z-index:90;display:none;place-items:center;padding:24px;background:rgba(15,23,42,.5);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
 .lock.show{display:grid;animation:fade .2s ease}
-.lock-card{max-width:460px;width:100%;text-align:center;color:var(--on-ink)}
-.lock-ic{width:78px;height:78px;border-radius:22px;background:rgba(214,69,69,.15);border:1px solid rgba(214,69,69,.4);display:grid;place-items:center;margin:0 auto 20px;font-size:36px}
-.lock-card h2{font-size:23px;font-weight:700;margin-bottom:10px}
-.lock-card p{color:var(--on-ink-mute);font-size:15px;line-height:1.6;margin-bottom:8px}
-.lock-count{font-family:'IBM Plex Mono';font-size:14px;color:var(--amber);margin:16px 0 22px}
-.lock-count b{color:#ff8f8f}
+.lock-card{max-width:440px;width:100%;text-align:center;color:var(--text);background:#fff;border-radius:22px;padding:30px 26px;box-shadow:var(--shadow-lg);border:1px solid var(--border)}
+.lock-ic{width:74px;height:74px;border-radius:20px;background:#fef2f2;border:1px solid #fecaca;display:grid;place-items:center;margin:0 auto 18px;font-size:34px}
+.lock-card h2{font-size:22px;font-weight:800;margin-bottom:10px;color:var(--text)}
+.lock-card p{color:var(--text2);font-size:15px;line-height:1.6;margin-bottom:8px}
+.lock-count{font-family:'IBM Plex Mono';font-size:14px;color:var(--gold);margin:16px 0 22px}
+.lock-count b{color:var(--red)}
 .p-btn.red{background:var(--red)}.p-btn.red:hover{background:#e05656}
 .flash{position:fixed;inset:0;z-index:99;background:#000;display:none}
 .wm{position:fixed;inset:-25%;z-index:1;pointer-events:none;display:none;flex-wrap:wrap;align-content:center;justify-content:center;gap:28px 42px;transform:rotate(-24deg)}
@@ -1541,7 +1541,7 @@ function onKeyUp(e){ if(e.key==='PrintScreen') screenshotAttempt(); }
 var ssCooldown=false;
 function screenshotAttempt(){
   if(ssCooldown) return; ssCooldown=true; setTimeout(function(){ssCooldown=false;},700);
-  if(R && R.isPreview){ toast('👁️ ทดลอง: ตรวจพบการจับภาพหน้าจอ (เวลาสอบจริงจะแฟลชดำ + นับเป็นการเตือน)','err'); return; }
+  if(R && R.isPreview){ if(!R.finished) triggerLock('ตรวจพบการจับภาพหน้าจอ','ห้ามจับภาพหน้าจอ (Screenshot) ระหว่างสอบ'); return; }
   var f=$('flash'); f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},500);
   try{ navigator.clipboard && navigator.clipboard.writeText(' '); }catch(e){}
   if(R && !R.finished) triggerLock('ตรวจพบการจับภาพหน้าจอ','ห้ามจับภาพหน้าจอ (Screenshot) ระหว่างสอบ ระบบได้บันทึกและนับเป็นการเตือนแล้ว');
@@ -1549,17 +1549,18 @@ function screenshotAttempt(){
 var lockCooldown=false;
 function triggerLock(title,msg){
   if(!R || R.locked || lockCooldown) return;
-  if(R.isPreview){ lockCooldown=true; setTimeout(function(){lockCooldown=false;},1200); toast('👁️ ทดลอง: '+title+' (เวลาสอบจริงจะล็อกหน้าจอ + นับเตือน)','err'); return; }
-  registerViolation(title);
+  if(!R.isPreview) registerViolation(title);   // นับเฉพาะสอบจริง
   if(R.finished) return;
   R.locked=true;
-  $('lockTitle').textContent=title; $('lockMsg').textContent=msg; $('lockN').textContent=R.violations;
+  $('lockTitle').textContent = (R.isPreview?'👁️ ทดลอง — ':'')+title;
+  $('lockMsg').textContent = R.isPreview ? (msg+' · โหมดทดลอง: ไม่นับ/ไม่บันทึก (เวลาสอบจริงจะนับเป็นการเตือน)') : msg;
+  $('lockN').textContent = R.violations;
   $('lock').classList.add('show');
 }
 function resumeExam(){
   R.locked=false; $('lock').classList.remove('show');
   lockCooldown=true; setTimeout(function(){lockCooldown=false;},600);
-  if(R.exam.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){}); }
+  if(!R.isPreview && R.exam.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){}); }
 }
 function registerViolation(reason){
   R.violations++;
