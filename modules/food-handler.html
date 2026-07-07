@@ -6545,10 +6545,11 @@ function processMatch() {
       });
     });
 
-    // Filter: เก็บเฉพาะ record ที่ match กับทะเบียน (drop notfound ทั้งหมด)
+    // เก็บทุกใบที่อัป (รวมที่ยังไม่เจอในทะเบียน) — กันข้อมูลหายตอนนำเข้า
     var totalPdf = raw.length;
-    matchData = raw.filter(function(d){ return d.matchType !== 'notfound'; });
-    // Renumber after filter
+    matchData = raw;
+    var nMatched = raw.filter(function(d){ return d.matchType !== 'notfound'; }).length;
+    // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
 
     document.getElementById('processBtn').innerHTML = '&#9889; จับคู่ข้อมูล';
@@ -6560,7 +6561,7 @@ function processMatch() {
     renderTable();
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
 
-    document.getElementById('processInfo').textContent = 'จับคู่สำเร็จ ' + matchData.length + ' รายการ (ตัดออก ' + (totalPdf - matchData.length) + ' ที่ไม่มีในทะเบียน) — กำลังบันทึก Cloud...';
+    document.getElementById('processInfo').textContent = 'นำเข้า ' + matchData.length + ' ใบ (จับคู่ทะเบียนได้ ' + nMatched + ' · ยังไม่เจอ ' + (totalPdf - nMatched) + ') — กำลังบันทึก Cloud...';
     document.getElementById('topStatus').textContent = 'Matched · ' + new Date().toLocaleTimeString('th-TH');
     // Auto-save to cloud
     setTimeout(function(){
