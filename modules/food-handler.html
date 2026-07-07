@@ -6583,33 +6583,27 @@ function showProg(type) { document.getElementById(type+'Prog').style.display='bl
 function setProg(type, pct) { document.getElementById(type+'Fill').style.width = pct+'%'; }
 function checkReady() {
   var ready = pdfData !== null;
-  document.getElementById('processBtn').disabled = !ready;
-  if (ready && empData) {
+  var pb = document.getElementById('processBtn');
+  if (pb) pb.disabled = !ready;
+  if (!ready) return;
+  // มีทะเบียนใน memory แล้ว → จับคู่เลย
+  if (empData && empData.length > 0) {
     document.getElementById('processInfo').textContent = 'จับคู่อัตโนมัติ...';
-    setTimeout(processMatch, 200);  // auto-match when both loaded
-  } else if (ready && !empData) {
-    // PDF โหลดแล้วแต่ empData ยังไม่ load → ลอง fetch จาก cloud ก่อน
-    document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · กำลังโหลดทะเบียนพนักงานจาก Cloud...';
-    setStatus('pdf', 'loading', 'กำลังโหลดทะเบียนพนักงานจาก Cloud...');
-    if (typeof loadEmployeeRegistryFromCloud === 'function') {
-      loadEmployeeRegistryFromCloud()
-        .then(function(){
-          if (empData && empData.length > 0) {
-            document.getElementById('processInfo').textContent = 'โหลดทะเบียนเสร็จ · กำลังจับคู่อัตโนมัติ...';
-            setStatus('pdf', 'done', 'โหลดสำเร็จ — กำลังจับคู่...');
-            setTimeout(processMatch, 200);
-          } else {
-            document.getElementById('processInfo').textContent = 'ไม่พบทะเบียนพนักงานใน Cloud · กรุณา import Excel ก่อน';
-            setStatus('pdf', 'error', 'ต้องอัปโหลดทะเบียนพนักงาน Excel ก่อน');
-          }
-        })
-        .catch(function(err){
-          document.getElementById('processInfo').textContent = 'โหลดทะเบียนไม่สำเร็จ: ' + (err.message || err);
-          setStatus('pdf', 'error', 'โหลดทะเบียนไม่สำเร็จ');
-        });
-    } else {
-      document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · รออัปโหลดรายชื่อพนักงาน Excel';
-    }
+    setTimeout(processMatch, 200);
+    return;
+  }
+  // ยังไม่มีทะเบียน → ลองโหลดจาก cloud ก่อน แล้ว "จับคู่+แสดงเสมอ"
+  // (ถ้าไม่มีทะเบียน ใบที่อัปก็ยังขึ้น — จับคู่ทีหลังได้เมื่อทะเบียนพร้อม)
+  document.getElementById('processInfo').textContent = 'PDF โหลดแล้ว · กำลังเตรียมข้อมูล...';
+  setStatus('pdf', 'loading', 'กำลังเตรียมข้อมูล...');
+  function _matchAnyway() {
+    setStatus('pdf', 'done', 'พร้อมแล้ว — กำลังแสดงข้อมูล...');
+    setTimeout(processMatch, 200);
+  }
+  if (typeof loadEmployeeRegistryFromCloud === 'function') {
+    loadEmployeeRegistryFromCloud().then(_matchAnyway).catch(_matchAnyway);
+  } else {
+    _matchAnyway();
   }
 }
 
