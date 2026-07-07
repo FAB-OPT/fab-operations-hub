@@ -5065,12 +5065,48 @@ function saveFhCertFile(name, expire, url) {
     FH_CERT_FILES[key] = url;
   } catch (e) {}
 }
-function _fhStoreCertFile(file, certs) {   // อัปไฟล์ 1 ครั้ง → ผูก URL กับทุกใบในไฟล์นั้น
+function _fhStoreCertFile(file, certs) {   // อัปไฟล์ 1 ครั้ง → ผูก URL กับทุกใบในไฟล์นั้น (fallback)
   if (!file || !certs || !certs.length) return;
   _fhUploadToR2(file).then(function(url){
     if (!url) return;
     certs.forEach(function(c){ if (c && c.name) saveFhCertFile(c.name, c.expireDate || c.trainDate || '', url); });
   });
+}
+/* ตัด PDF เป็นหน้าๆ → อัปแยกขึ้น R2 → ผูก URL เฉพาะหน้าของแต่ละคน (ดาวน์โหลดได้เฉพาะใบตัวเอง) */
+function _fhSplitStoreCerts(arrayBuffer, file, certs) {
+  if (!certs || !certs.length) return;
+  // ถ้า pdf-lib ยังไม่โหลด/ไม่มี buffer → fallback อัปทั้งไฟล์
+  if (typeof PDFLib === 'undefined' || !arrayBuffer) { _fhStoreCertFile(file, certs); return; }
+  // จัดกลุ่มตามหน้า
+  var byPage = {};
+  certs.forEach(function(c){ var p = c && c._page ? c._page : 1; (byPage[p] = byPage[p] || []).push(c); });
+  PDFLib.PDFDocument.load(arrayBuffer.slice(0)).then(function(srcDoc){
+    var total = srcDoc.getPageCount();
+    var pageNums = Object.keys(byPage);
+    var chain = Promise.resolve();
+    pageNums.forEach(function(pStr){
+      var pageIdx = parseInt(pStr, 10) - 1;
+      if (pageIdx < 0 || pageIdx >= total) { // หน้าเพี้ยน → ผูกทั้งไฟล์ให้คนกลุ่มนี้แทน
+        chain = chain.then(function(){ return _fhUploadToR2(file).then(function(url){ if(url) byPage[pStr].forEach(function(c){ if(c&&c.name) saveFhCertFile(c.name, c.expireDate||c.trainDate||'', url); }); }); });
+        return;
+      }
+      chain = chain.then(function(){
+        return PDFLib.PDFDocument.create().then(function(newDoc){
+          return newDoc.copyPages(srcDoc, [pageIdx]).then(function(copied){
+            newDoc.addPage(copied[0]);
+            return newDoc.save().then(function(bytes){
+              var blob = new Blob([bytes], { type: 'application/pdf' });
+              return _fhUploadToR2(blob).then(function(url){
+                if (!url) return;
+                byPage[pStr].forEach(function(c){ if (c && c.name) saveFhCertFile(c.name, c.expireDate || c.trainDate || '', url); });
+              });
+            });
+          });
+        });
+      });
+    });
+    return chain;
+  }).catch(function(e){ console.warn('split cert failed → fallback ทั้งไฟล์', e); _fhStoreCertFile(file, certs); });
 }
 function startFhCertFilesSync() {
   if (!fhDb) return;
@@ -5915,6 +5951,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <!-- PDF.js for proper PDF text extraction -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<!-- pdf-lib for splitting PDF per page (ดาวน์โหลดแยกรายคน) -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
 <script>
   if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -6002,6 +6040,7 @@ function processPDFFiles(fileList) {
                 var pageTextSpace = content.items.map(function(it){ return it.str; }).join(' ');
                 pageText = pageText + '\n' + pageTextSpace;
                 var pageCerts = extractFromPDFText(pageText);
+                pageCerts.forEach(function(c){ c._page = p; });   // ติดเลขหน้าไว้ตัดแยกรายคน
                 allPageCerts = allPageCerts.concat(pageCerts);
                 return processPage(p + 1);
               });
@@ -6011,7 +6050,7 @@ function processPDFFiles(fileList) {
         })
         .then(function(certs){
           if (certs.length > 0) {
-            _fhStoreCertFile(file, certs);   // เก็บไฟล์ PDF ขึ้น R2 + ผูก URL
+            _fhSplitStoreCerts(ab, file, certs);   // ตัดหน้า→อัปแยก→ผูก URL รายคน
             allExtracted = allExtracted.concat(certs);
             done++;
             setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
@@ -6023,7 +6062,7 @@ function processPDFFiles(fileList) {
             ocrPdfViaAppsScript(ab, file.name)
               .then(function(ocrCerts){
                 if (ocrCerts && ocrCerts.length > 0) {
-                  _fhStoreCertFile(file, ocrCerts);   // เก็บไฟล์ PDF ขึ้น R2 + ผูก URL
+                  _fhSplitStoreCerts(ab, file, ocrCerts);   // ตัดหน้า→อัปแยก→ผูก URL รายคน
                   allExtracted = allExtracted.concat(ocrCerts);
                   console.log('[OCR] ✓', file.name, '→', ocrCerts.length, 'certs');
                 } else {
@@ -6094,8 +6133,8 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
       return chain.then(function(){ return pages; });
     })
     .then(function(pages){
-      // Send pages in parallel (max 4 concurrent) — Vision API rate limit is high
-      var allText = '';
+      // Send pages in parallel (max 4 concurrent) — สกัด cert "รายหน้า" + ติดเลขหน้า (ตัดแยกรายคน)
+      var allCerts = [];
       var idx = 0;
       var active = 0;
       var MAX_PARALLEL = 4;
@@ -6117,8 +6156,10 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
             .then(function(r){ return r.json(); })
             .then(function(res){
               if (res && res.ok) {
-                allText += '\n' + (res.text || '');
-                console.log('[OCR] ✓ page', page.pageNum, '→', (res.text||'').length, 'chars');
+                var pageCerts = extractFromPDFText(res.text || '');
+                pageCerts.forEach(function(c){ c._page = page.pageNum; });   // ติดเลขหน้า
+                allCerts = allCerts.concat(pageCerts);
+                console.log('[OCR] ✓ page', page.pageNum, '→', (res.text||'').length, 'chars ·', pageCerts.length, 'ใบ');
               } else {
                 console.warn('[OCR] ✗ page', page.pageNum, '— Apps Script returned:', res);
               }
@@ -6126,18 +6167,18 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
             .catch(function(err){ console.warn('[OCR] ✗ page', page.pageNum, '— fetch error:', err); })
             .then(function(){
               active--;
-              if (idx >= pages.length && active === 0) resolve(allText);
+              if (idx >= pages.length && active === 0) resolve(allCerts);
               else pumpNext();
             });
           }
         }
-        if (pages.length === 0) resolve('');
+        if (pages.length === 0) resolve([]);
         else pumpNext();
       });
     })
-    .then(function(text){
-      console.log('[OCR]', filename, 'total OCR text:', text.length, 'chars');
-      return extractFromPDFText(text);
+    .then(function(certs){
+      console.log('[OCR]', filename, 'total certs:', certs.length);
+      return certs;
     });
 }
 
