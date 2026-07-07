@@ -5512,19 +5512,18 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <table id="mainTable">
     <thead>
       <tr>
-        <th>#</th>
-        <th>สาขา / หน่วยงาน</th>
-        <th>ชื่อในใบรับรอง</th>
+        <th>ลำดับ</th>
+        <th>แบรนด์</th>
+        <th>สาขา</th>
         <th>หลักสูตร</th>
+        <th>ชื่อ</th>
         <th>วันหมดอายุ</th>
-        <th>สถานะใบรับรอง</th>
-        <th>Sheet</th>
-        <th>สถานะจับคู่</th>
+        <th>สถานะ</th>
         <th class="th-actions">จัดการ</th>
       </tr>
     </thead>
     <tbody id="tableBody">
-      <tr><td colspan="9" class="empty">
+      <tr><td colspan="8" class="empty">
         <div style="font-size:48px;margin-bottom:10px;">📂</div>
         <div style="font-weight:700;color:var(--text2);margin-bottom:4px;">ยังไม่มีข้อมูลให้แสดง</div>
         <div style="font-size:12px;color:var(--text3);">กรุณาอัปโหลดไฟล์ PDF และ Excel แล้วกด "จับคู่ข้อมูล"</div>
@@ -6685,6 +6684,18 @@ function getSheetTag(s) {
   if (!s||s==='—') return '<span style="color:var(--text3)">—</span>';
   return '<span class="sheet-tag st-'+s+'">'+s+'</span>';
 }
+/* แบรนด์ของแถวใบรับรอง — ดึงรหัสสาขาจากช่องสาขา แล้วแปลงเป็นชื่อแบรนด์ (fallback: Sheet) */
+function _certBrand(d) {
+  var m = String((d && d.branch) || '').match(/(\d{3,})/);
+  var b = getBranchPrefix(m ? m[1] : '');
+  if (b) return b;
+  return (d && d.sheet && d.sheet !== '—') ? d.sheet : '—';
+}
+function _certBrandTag(d) {
+  var b = _certBrand(d);
+  if (b === '—') return '<span style="color:var(--text3)">—</span>';
+  return '<span style="font-size:12px;font-weight:700;color:var(--text2);white-space:nowrap;">' + escapeHtml(b) + '</span>';
+}
 
 var _tablePage = 1;
 function _TABLE_PER_PAGE() { return window.innerWidth <= 768 ? 10 : 20; }
@@ -6703,20 +6714,19 @@ function renderTable() {
   document.getElementById('countLine').innerHTML = 'แสดง <em>'+pageRows.length+'</em> รายการ (จากทั้งหมด '+filtered.length+(filtered.length<matchData.length?'/'+matchData.length:'')+') · หน้า '+_tablePage+'/'+totalPages;
 
   if (filtered.length===0) {
-    tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูลที่ค้นหา</td></tr>';
+    tbody.innerHTML='<tr><td colspan="8" class="empty">ไม่พบข้อมูลที่ค้นหา</td></tr>';
     renderTablePagination_(totalPages);
     return;
   }
   tbody.innerHTML = pageRows.map(function(d){
     return '<tr>'
-      +'<td class="no-txt" data-label="#" data-icon="🔢">'+d.no+'</td>'
+      +'<td class="no-txt" data-label="ลำดับ" data-icon="🔢">'+d.no+'</td>'
+      +'<td data-label="แบรนด์" data-icon="🏷">'+_certBrandTag(d)+'</td>'
       +'<td data-label="สาขา" data-icon="🏢" class="branch-txt">'+d.branch+'</td>'
-      +'<td class="cert-name" data-label="ชื่อในใบรับรอง" data-icon="📜">'+d.certName+'</td>'
       +'<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">'+d.course+'</td>'
+      +'<td class="cert-name" data-label="ชื่อ" data-icon="📜">'+d.certName+'</td>'
       +'<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">'+formatThaiDate(d.expireDate)+'</td>'
       +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus)+'</td>'
-      +'<td data-label="Sheet" data-icon="📑">'+getSheetTag(d.sheet)+'</td>'
-      +'<td data-label="จับคู่" data-icon="🔗">'+getMatchBadge(d.matchType)+'</td>'
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
       +   ((_fhCertUrl(d.certName, d.expireDate)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.expireDate)+'" target="_blank" rel="noopener" title="ดาวน์โหลดใบเซอร์" style="text-decoration:none;">⬇️</a>' : '')
