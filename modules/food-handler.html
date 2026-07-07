@@ -7239,6 +7239,24 @@ function loadFromCloud() {
   });
 }
 
+/* วินิจฉัยการจับคู่ชื่อ — เรียก fhDiagNames() ในคอนโซลได้เลย (ใช้ข้อมูลที่โหลดอยู่ ไม่ต้องอัปใหม่) */
+window.fhDiagNames = function() {
+  var emp = empData || [];
+  var md = matchData || [];
+  console.log('%c[fhDiag] cert=' + md.length + ' · ทะเบียน=' + emp.length, 'color:#ea580c;font-weight:bold');
+  console.log('[fhDiag] ชื่อ cert (5 ตัวอย่าง):', JSON.stringify(md.slice(0,5).map(function(d){ return d.certName; })));
+  console.log('[fhDiag] ชื่อทะเบียน (5 ตัวอย่าง):', JSON.stringify(emp.slice(0,5).map(function(e){ return e.norm || e.name; })));
+  var hit = 0, samples = [];
+  md.forEach(function(d){
+    var c = getParts(d.certName || '');
+    var ok = emp.some(function(e){ var ep = getParts(e.norm || e.name || ''); return c.first && c.last && ep.first === c.first && ep.last === c.last; });
+    if (ok) hit++; else if (samples.length < 5) samples.push(d.certName + ' (first=' + c.first + ' last=' + c.last + ')');
+  });
+  console.log('%c[fhDiag] จับคู่ได้ ' + hit + '/' + md.length, 'color:#16a34a;font-weight:bold');
+  if (samples.length) console.log('[fhDiag] ตัวอย่างที่จับคู่ไม่ได้:', JSON.stringify(samples));
+  return hit + '/' + md.length;
+};
+
 function exportCSV() {
   if (!matchData.length) return;
   var filtered = getFiltered();
