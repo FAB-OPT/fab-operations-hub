@@ -502,7 +502,6 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
       <div class="etabs">
         <button type="button" class="etab active" data-t="1" onclick="examTab(1)">ข้อมูล &amp; ตั้งค่า</button>
         <button type="button" class="etab" data-t="2" onclick="examTab(2)">คำถาม (<span id="qCountTab">0</span>)</button>
-        <button type="button" class="etab" data-t="3" onclick="examTab(3)">นำเข้าจากไฟล์</button>
       </div>
 
       <!-- TAB 1: ข้อมูล & ตั้งค่า -->
@@ -551,41 +550,43 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
         </div>
       </div>
 
-      <!-- TAB 2: คำถาม -->
+      <!-- TAB 2: คำถาม (รวมนำเข้าจากไฟล์) -->
       <div class="etab-panel hidden" data-p="2">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px">
           <button class="btn btn-soft btn-sm" onclick="examTab(1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> ตั้งค่า</button>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-soft btn-sm" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> วางข้อความ</button>
-            <button class="btn btn-soft btn-sm" onclick="examTab(3)"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าไฟล์</button>
-            <button class="btn btn-primary btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
+            <button class="btn btn-soft btn-sm" onclick="toggleImportPanel()"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าหลายข้อ</button>
+            <button class="btn btn-primary btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถามเอง</button>
           </div>
         </div>
-        <div style="font-weight:800;font-size:15px;margin:0 0 12px">คำถามทั้งหมด <span style="color:var(--gold)">(<span id="qCount">0</span> ข้อ)</span></div>
-        <div id="qEditor"></div>
-      </div>
 
-      <!-- TAB 3: นำเข้าจากไฟล์ -->
-      <div class="etab-panel hidden" data-p="3">
-        <div style="margin:0 0 14px"><button class="btn btn-soft btn-sm" onclick="examTab(2)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> คำถาม</button></div>
-        <div class="imp-card">
-          <div style="font-weight:800;font-size:15px;margin-bottom:2px">นำเข้าข้อสอบจากไฟล์ Excel</div>
-          <div class="imp-steps">
-            <div><b>1.</b> ดาวน์โหลดแบบฟอร์ม แล้วเปิดด้วย Excel / Google Sheets</div>
-            <div><b>2.</b> กรอก <b>คำถาม</b> · <b>ตัวเลือกที่ 1–4</b> · <b>เฉลย</b> (ใส่เลขข้อที่ถูก 1–4) — 1 คำถามต่อ 1 แถว</div>
-            <div><b>3.</b> อัปโหลดไฟล์กลับมา แล้วกด “นำเข้า”</div>
-          </div>
-          <button class="btn btn-soft" onclick="downloadExamTemplate()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลดแบบฟอร์ม (.xlsx)</button>
-          <div style="margin-top:16px">
-            <label class="fld"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv)</span>
-              <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" class="txt" onchange="importExamFile(event)" style="padding:9px 12px">
-            </label>
-            <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px">
-              <div id="fileImportCount" style="font-size:13px;font-weight:700;color:var(--text2)">พบ 0 ข้อ</div>
-              <button class="btn btn-primary btn-sm" id="fileImportBtn" disabled onclick="doFileImport()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> นำเข้า (เพิ่มต่อท้าย)</button>
+        <!-- แผงนำเข้า (พับได้) -->
+        <div id="importPanel" class="hidden" style="margin:0 0 16px">
+          <div class="imp-card">
+            <div style="font-weight:800;font-size:15px;margin-bottom:2px">นำเข้าหลายข้อพร้อมกัน</div>
+            <div class="imp-steps">
+              <div><b>1.</b> ดาวน์โหลดแบบฟอร์ม แล้วเปิดด้วย Excel / Google Sheets</div>
+              <div><b>2.</b> กรอก <b>คำถาม</b> · <b>ตัวเลือกที่ 1–4</b> · <b>เฉลย</b> (ใส่เลขข้อที่ถูก 1–4) — 1 คำถามต่อ 1 แถว</div>
+              <div><b>3.</b> อัปโหลดไฟล์กลับมา แล้วกด “นำเข้า”</div>
+            </div>
+            <div style="display:flex;gap:8px;flex-wrap:wrap">
+              <button class="btn btn-soft" onclick="downloadExamTemplate()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลดแบบฟอร์ม (.xlsx)</button>
+              <button class="btn btn-soft" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> วางเป็นข้อความ / JSON</button>
+            </div>
+            <div style="margin-top:16px">
+              <label class="fld"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv)</span>
+                <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" class="txt" onchange="importExamFile(event)" style="padding:9px 12px">
+              </label>
+              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px">
+                <div id="fileImportCount" style="font-size:13px;font-weight:700;color:var(--text2)">พบ 0 ข้อ</div>
+                <button class="btn btn-primary btn-sm" id="fileImportBtn" disabled onclick="doFileImport()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> นำเข้า (เพิ่มต่อท้าย)</button>
+              </div>
             </div>
           </div>
         </div>
+
+        <div style="font-weight:800;font-size:15px;margin:0 0 12px">คำถามทั้งหมด <span style="color:var(--gold)">(<span id="qCount">0</span> ข้อ)</span></div>
+        <div id="qEditor"></div>
       </div>
     </div>
     <div class="modal-foot">
@@ -979,6 +980,7 @@ function openExamEditor(id){
   var _fi=$('fileImportInput'); if(_fi) _fi.value='';
   var _fc=$('fileImportCount'); if(_fc){ _fc.textContent='พบ 0 ข้อ'; _fc.style.color='var(--text2)'; }
   var _fb=$('fileImportBtn'); if(_fb) _fb.disabled=true;
+  var _ip=$('importPanel'); if(_ip) _ip.classList.add('hidden');
   examTab(1);
   $('editorModal').classList.add('show');
 }
@@ -1100,6 +1102,7 @@ function examTab(n){
   document.querySelectorAll('#editorModal .etab-panel').forEach(function(p){ p.classList.toggle('hidden', p.getAttribute('data-p')!==n); });
   if(n!=='2') syncDraftFromDOM();   // เก็บค่าที่พิมพ์ในแท็บคำถามไว้ก่อนสลับ
 }
+function toggleImportPanel(){ var p=$('importPanel'); if(p) p.classList.toggle('hidden'); }
 
 /* ── นำเข้าจากไฟล์ Excel + ดาวน์โหลดแบบฟอร์ม ── */
 function downloadExamTemplate(){
@@ -1152,7 +1155,7 @@ function doFileImport(){
   var el=$('fileImportCount'); if(el){ el.textContent='พบ 0 ข้อ'; el.style.color='var(--text2)'; }
   $('fileImportBtn').disabled=true;
   var fi=$('fileImportInput'); if(fi) fi.value='';
-  examTab(2);
+  var ip=$('importPanel'); if(ip) ip.classList.add('hidden');   // พับแผงนำเข้าหลังนำเข้าเสร็จ
 }
 
 function collectExamFromForm(){
