@@ -1419,11 +1419,9 @@ function beginExam(){
   R.timeLeft=CFG.timeLimitMinutes*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
   exShow('ex-exam');
   renderQuestion(); renderNav(); startTimer();
-  // โหมดทดลอง (admin) = ไม่เปิดกันโกง/เต็มจอ · เวลาสอบจริงเท่านั้นที่กันโกง
-  if(!R.isPreview){
-    if(CFG.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){R.fsOK=false;}); }
-    attachGuards();
-  }
+  // เต็มจอ = เฉพาะสอบจริง · กันโกงตรวจจับทั้งสองโหมด (ทดลองเตือนแบบ toast ไม่ล็อก)
+  if(!R.isPreview && CFG.requireFullscreen){ document.documentElement.requestFullscreen().then(function(){R.fsOK=true;}).catch(function(){R.fsOK=false;}); }
+  attachGuards();
 }
 
 function startTimer(){
@@ -1473,15 +1471,19 @@ function attachGuards(){
   if(CFG.blockLeaveScreen){
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('blur', onBlur);
-    window.addEventListener('beforeunload', onBeforeUnload);
-    if(CFG.requireFullscreen) document.addEventListener('fullscreenchange', onFsChange);
+    if(!R.isPreview){                                  // สอบจริงเท่านั้น: กันปิดหน้า + ล็อกเมื่อออกเต็มจอ
+      window.addEventListener('beforeunload', onBeforeUnload);
+      if(CFG.requireFullscreen) document.addEventListener('fullscreenchange', onFsChange);
+    }
   }
   if(CFG.blockScreenshot){
     document.addEventListener('keydown', onKeyDown, true);
     document.addEventListener('keyup', onKeyUp, true);
-    document.addEventListener('contextmenu', preventAll, true);
-    document.addEventListener('copy', preventAll, true);
-    document.addEventListener('cut', preventAll, true);
+    if(!R.isPreview){                                  // สอบจริงเท่านั้น: บล็อกคลิกขวา/คัดลอก
+      document.addEventListener('contextmenu', preventAll, true);
+      document.addEventListener('copy', preventAll, true);
+      document.addEventListener('cut', preventAll, true);
+    }
   }
 }
 function detachGuards(){
@@ -1513,6 +1515,7 @@ function onKeyUp(e){ if(e.key==='PrintScreen') screenshotAttempt(); }
 var ssCooldown=false;
 function screenshotAttempt(){
   if(ssCooldown) return; ssCooldown=true; setTimeout(function(){ssCooldown=false;},700);
+  if(R && R.isPreview){ toast('👁️ ทดลอง: ตรวจพบการจับภาพหน้าจอ (เวลาสอบจริงจะแฟลชดำ + นับเป็นการเตือน)','err'); return; }
   var f=$('flash'); f.classList.add('show'); setTimeout(function(){f.classList.remove('show');},500);
   try{ navigator.clipboard && navigator.clipboard.writeText(' '); }catch(e){}
   if(R && !R.finished) triggerLock('ตรวจพบการจับภาพหน้าจอ','ห้ามจับภาพหน้าจอ (Screenshot) ระหว่างสอบ ระบบได้บันทึกและนับเป็นการเตือนแล้ว');
@@ -1520,6 +1523,7 @@ function screenshotAttempt(){
 var lockCooldown=false;
 function triggerLock(title,msg){
   if(!R || R.locked || lockCooldown) return;
+  if(R.isPreview){ lockCooldown=true; setTimeout(function(){lockCooldown=false;},1200); toast('👁️ ทดลอง: '+title+' (เวลาสอบจริงจะล็อกหน้าจอ + นับเตือน)','err'); return; }
   registerViolation(title);
   if(R.finished) return;
   R.locked=true;
