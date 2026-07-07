@@ -6573,6 +6573,7 @@ function processMatch() {
     renderTable();
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
 
+    console.log('[DIAG MATCH] pdfData=' + (pdfData?pdfData.length:0) + ' empData=' + (empData?empData.length:0) + ' → matchData=' + matchData.length + ' (จับคู่ได้=' + nMatched + ')');
     document.getElementById('processInfo').textContent = 'นำเข้า ' + matchData.length + ' ใบ (จับคู่ทะเบียนได้ ' + nMatched + ' · ยังไม่เจอ ' + (totalPdf - nMatched) + ') — กำลังบันทึก Cloud...';
     document.getElementById('topStatus').textContent = 'Matched · ' + new Date().toLocaleTimeString('th-TH');
     // Auto-save to cloud
@@ -6595,6 +6596,7 @@ function showProg(type) { document.getElementById(type+'Prog').style.display='bl
 function setProg(type, pct) { document.getElementById(type+'Fill').style.width = pct+'%'; }
 function checkReady() {
   var ready = pdfData !== null;
+  console.log('[DIAG checkReady] pdfData=' + (pdfData?pdfData.length:'null') + ' empData=' + (empData?empData.length:'null'));
   var pb = document.getElementById('processBtn');
   if (pb) pb.disabled = !ready;
   if (!ready) return;
@@ -7143,6 +7145,7 @@ function saveToCloud() {
   .then(function(res){
     btn.disabled = false;
     btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';
+    console.log('[DIAG SAVE] ok=' + res.ok + ' saved=' + res.saved + ' err=' + (res.error||'-'));
     if (res.ok) {
       document.getElementById('processInfo').textContent = '✓ บันทึก ' + res.saved + ' รายการลง Cloud สำเร็จ · กำลังโหลดข้อมูลรวม...';
       // โหลดข้อมูลทั้งหมดจาก Cloud มาแสดงรวมกัน (กันข้อมูลก่อนหน้าหาย)
@@ -7175,6 +7178,7 @@ function loadFromCloud() {
       return;
     }
     var records = res.records || [];
+    console.log('[DIAG LOAD] records จาก Cloud = ' + records.length);
     if (records.length === 0) {
       document.getElementById('processInfo').textContent = 'ยังไม่มีข้อมูลใน Cloud';
       return;
@@ -7205,6 +7209,7 @@ function loadFromCloud() {
     })
     // เก็บทุกใบที่มีชื่อในใบรับรอง (รวม notfound ที่ยังไม่จับคู่ทะเบียน) — กันข้อมูลหายตอน reload
     .filter(function(d){ return !!(d.certName && String(d.certName).trim()); });
+    console.log('[DIAG LOAD] หลัง map+filter → matchData = ' + matchData.length);
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
     document.getElementById('exportBtn').disabled = false;
