@@ -6567,9 +6567,20 @@ function processMatch() {
       });
     });
 
-    // เก็บทุกใบที่อัป (รวมที่ยังไม่เจอในทะเบียน) — กันข้อมูลหายตอนนำเข้า
+    // สะสม: รวมของเดิม (ที่โหลดมา) + ใบใหม่ แล้วตัดซ้ำ ชื่อ+วันหมดอายุ+หลักสูตร
+    // (กันของเดิมหายตอน save ทับ · ใบใหม่ทับข้อมูลเดิมของคนเดิมได้ ถ้า key เดียวกัน)
     var totalPdf = raw.length;
-    matchData = raw;
+    var _prev = Array.isArray(matchData) ? matchData : [];
+    var _mkey = function(d){ return (d.certName||'') + '|' + (d.expireDate||'') + '|' + (d.course||''); };
+    var _mseen = {}, _merged = [];
+    // เอาใบใหม่ก่อน (ให้ค่าจับคู่ล่าสุดชนะ) แล้วตามด้วยของเดิม
+    raw.concat(_prev).forEach(function(d){
+      if (!(d.certName && String(d.certName).trim())) return;
+      var k = _mkey(d);
+      if (_mseen[k]) return;
+      _mseen[k] = true; _merged.push(d);
+    });
+    matchData = _merged;
     var nMatched = raw.filter(function(d){ return d.matchType !== 'notfound'; }).length;
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
@@ -7219,7 +7230,16 @@ function loadFromCloud() {
     })
     // เก็บทุกใบที่มีชื่อในใบรับรอง (รวม notfound ที่ยังไม่จับคู่ทะเบียน) — กันข้อมูลหายตอน reload
     .filter(function(d){ return !!(d.certName && String(d.certName).trim()); });
-    console.log('[DIAG LOAD] หลัง map+filter → matchData = ' + matchData.length);
+    // ตัดซ้ำ ชื่อ+วันหมดอายุ+หลักสูตร (กัน sheet มีแถวซ้ำจากการ append)
+    (function(){
+      var seen = {}, out = [];
+      matchData.forEach(function(d){
+        var k = (d.certName||'') + '|' + (d.expireDate||'') + '|' + (d.course||'');
+        if (seen[k]) return; seen[k] = true; out.push(d);
+      });
+      matchData = out;
+    })();
+    console.log('[DIAG LOAD] หลัง map+filter+dedup → matchData = ' + matchData.length);
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
     document.getElementById('exportBtn').disabled = false;
