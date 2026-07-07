@@ -572,7 +572,7 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
           <div style="font-weight:800;font-size:15px;margin-bottom:2px">นำเข้าข้อสอบจากไฟล์ Excel</div>
           <div class="imp-steps">
             <div><b>1.</b> ดาวน์โหลดแบบฟอร์ม แล้วเปิดด้วย Excel / Google Sheets</div>
-            <div><b>2.</b> กรอก <b>คำถาม</b> · <b>ตัวเลือกที่ 1–5</b> · <b>เฉลย</b> (ใส่เลขข้อที่ถูก 1–5) — 1 คำถามต่อ 1 แถว</div>
+            <div><b>2.</b> กรอก <b>คำถาม</b> · <b>ตัวเลือกที่ 1–4</b> · <b>เฉลย</b> (ใส่เลขข้อที่ถูก 1–4) — 1 คำถามต่อ 1 แถว</div>
             <div><b>3.</b> อัปโหลดไฟล์กลับมา แล้วกด “นำเข้า”</div>
           </div>
           <button class="btn btn-soft" onclick="downloadExamTemplate()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลดแบบฟอร์ม (.xlsx)</button>
@@ -985,11 +985,14 @@ function openExamEditor(id){
 function closeEditor(){ $('editorModal').classList.remove('show'); }
 
 function addQuestion(silent){
-  draftQuestions.push({q:'', choices:['','',''], answer:0});
+  draftQuestions.push({q:'', choices:['','','',''], answer:0});
   if(!silent) renderQEditor();
 }
 function removeQuestion(i){ draftQuestions.splice(i,1); renderQEditor(); }
-function addChoice(i){ draftQuestions[i].choices.push(''); renderQEditor(); }
+function addChoice(i){
+  if(draftQuestions[i].choices.length>=4){ toast('สูงสุด 4 ตัวเลือก','err'); return; }
+  draftQuestions[i].choices.push(''); renderQEditor();
+}
 function removeChoice(qi,ci){
   var q=draftQuestions[qi];
   if(q.choices.length<=2){ toast('ต้องมีอย่างน้อย 2 ตัวเลือก','err'); return; }
@@ -1102,12 +1105,12 @@ function examTab(n){
 function downloadExamTemplate(){
   if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
   var rows=[
-    ['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','ตัวเลือกที่ 5','เฉลย (เลขข้อที่ถูก 1-5)'],
-    ['อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?','0–4 °C','5–10 °C','10–15 °C','ต่ำกว่า -18 °C','','1'],
-    ['ขั้นตอนแรกเมื่อลูกค้าเข้าร้าน?','กล่าวต้อนรับและทักทาย','รอลูกค้าเรียก','เดินไปเก็บโต๊ะ','','','1']
+    ['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)'],
+    ['อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?','0–4 °C','5–10 °C','10–15 °C','ต่ำกว่า -18 °C','1'],
+    ['ขั้นตอนแรกเมื่อลูกค้าเข้าร้าน?','กล่าวต้อนรับและทักทาย','รอลูกค้าเรียก','เดินไปเก็บโต๊ะ','สอบถามที่นั่ง','1']
   ];
   var ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:46},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20}];
+  ws['!cols']=[{wch:46},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20}];
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
   XLSX.writeFile(wb, 'แบบฟอร์มข้อสอบ.xlsx');
 }
@@ -1126,9 +1129,9 @@ function importExamFile(ev){
         var r=aoa[i]||[];
         var q=String(r[0]==null?'':r[0]).trim(); if(!q) continue;
         var choices=[];
-        for(var c=1;c<=5;c++){ var v=String(r[c]==null?'':r[c]).trim(); if(v) choices.push(v); }
+        for(var c=1;c<=4;c++){ var v=String(r[c]==null?'':r[c]).trim(); if(v) choices.push(v); }
         if(choices.length<2) continue;
-        var an=parseInt(String(r[6]==null?'':r[6]).trim(),10); if(isNaN(an)) an=1;
+        var an=parseInt(String(r[5]==null?'':r[5]).trim(),10); if(isNaN(an)) an=1;
         out.push({ q:q, choices:choices, answer:Math.min(Math.max(an-1,0),choices.length-1) });
       }
       _fileParsed=out;
