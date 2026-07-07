@@ -577,13 +577,9 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
               <button class="btn btn-soft" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> วางเป็นข้อความ / JSON</button>
             </div>
             <div style="margin-top:16px">
-              <label class="fld"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv)</span>
+              <label class="fld" style="margin-bottom:0"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv) — <b style="color:var(--gold)">เลือกแล้วระบบนำเข้าให้อัตโนมัติ</b></span>
                 <input type="file" id="fileImportInput" accept=".xlsx,.xls,.csv" class="txt" onchange="importExamFile(event)" style="padding:9px 12px">
               </label>
-              <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:4px">
-                <div id="fileImportCount" style="font-size:13px;font-weight:700;color:var(--text2)">พบ 0 ข้อ</div>
-                <button class="btn btn-primary btn-sm" id="fileImportBtn" disabled onclick="doFileImport()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> นำเข้า (เพิ่มต่อท้าย)</button>
-              </div>
             </div>
           </div>
         </div>
@@ -1143,10 +1139,14 @@ function importExamFile(ev){
         var an=parseInt(String(r[5]==null?'':r[5]).trim(),10); if(isNaN(an)) an=1;
         out.push({ q:q, choices:choices, answer:Math.min(Math.max(an-1,0),choices.length-1) });
       }
-      _fileParsed=out;
-      var el=$('fileImportCount'); el.textContent='พบ '+out.length+' ข้อ'; el.style.color = out.length? 'var(--green)':'var(--text2)';
-      $('fileImportBtn').disabled = out.length===0;
-      if(!out.length) toast('ไม่พบข้อสอบในไฟล์ — ตรวจว่ากรอกตามแบบฟอร์มหรือไม่','err');
+      if(!out.length){ toast('ไม่พบข้อสอบในไฟล์ — ตรวจว่ากรอกตามแบบฟอร์มหรือไม่','err'); ev.target.value=''; return; }
+      // นำเข้าอัตโนมัติทันทีที่เลือกไฟล์
+      syncDraftFromDOM();
+      out.forEach(function(p){ draftQuestions.push({ q:p.q, choices:p.choices.slice(), answer:p.answer }); });
+      renderQEditor();
+      toast('นำเข้า '+out.length+' ข้อเรียบร้อย','ok');
+      ev.target.value='';
+      var ip=$('importPanel'); if(ip) ip.classList.add('hidden');
     }catch(err){ toast('อ่านไฟล์ไม่สำเร็จ: '+err.message,'err'); }
   };
   rd.readAsArrayBuffer(f);
