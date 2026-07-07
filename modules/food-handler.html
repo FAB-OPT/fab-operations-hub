@@ -6230,6 +6230,91 @@ function handleXLSX(input) {
   if (input.files[0]) processXLSXFile(input.files[0]);
 }
 
+/* แยก parser ทะเบียนพนักงานออกมา — ใช้ทั้งไฟล์เดียว/หลายไฟล์ */
+function _parseEmpWorkbook(wb) {
+  var employees = [];
+  wb.SheetNames.forEach(function(sheetName) {
+    var ws = wb.Sheets[sheetName];
+    var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
+    if (rows.length < 2) return;
+    var header = rows[0];
+    var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1;
+    header.forEach(function(h,i){
+      var s = String(h).toLowerCase();
+      if (s.indexOf('fullname') >= 0 || (s.indexOf('ชื่อ') >= 0 && s.indexOf('เล่น') < 0 && s.indexOf('nick') < 0)) nameCol = i;
+      if (s.indexOf('orgunit') >= 0 || s.indexOf('สาขา') >= 0 || s.indexOf('หน่วย') >= 0) branchCol = i;
+      if ((s.indexOf('position') >= 0 && s.indexOf('eng') < 0) || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
+      if (s.indexOf('empcode') >= 0 || s.indexOf('empid') >= 0 || s.indexOf('รหัสพนักงาน') >= 0 || s.indexOf('รหัสพนง') >= 0) empIdCol = i;
+      if (s.indexOf('identity') >= 0 || s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
+    });
+    if (nameCol<0) nameCol = 2;
+    if (branchCol<0) branchCol = 9;
+    if (posCol<0) posCol = 7;
+    if (empIdCol<0) empIdCol = 1;
+    for (var i = 1; i < rows.length; i++) {
+      var row = rows[i];
+      var name = String(row[nameCol]||'').trim();
+      if (!name || name==='-' || name.length < 2) continue;
+      employees.push({
+        name: name,
+        norm: normalizeName(name),
+        empId: String(row[empIdCol]||'').trim(),
+        idCard: idCardCol >= 0 ? String(row[idCardCol]||'').trim() : '',
+        branch: String(row[branchCol]||'').trim(),
+        position: String(row[posCol]||'').trim(),
+        sheet: sheetName
+      });
+    }
+  });
+  return employees;
+}
+
+/* นำเข้าทะเบียนพนักงานหลายไฟล์ — อ่านทุกไฟล์ → รวม → ตัดซ้ำ → บันทึกทีเดียว (replace-all) */
+function processXLSXFiles(files) {
+  files = Array.prototype.slice.call(files || []);
+  if (!files.length) return;
+  if (files.length === 1) { processXLSXFile(files[0]); return; }
+  setStatus('xlsx','loading','กำลังอ่าน ' + files.length + ' ไฟล์ Excel...');
+  showProg('xlsx'); setProg('xlsx',15);
+  var all = [];
+  var chain = Promise.resolve();
+  files.forEach(function(file, idx){
+    chain = chain.then(function(){
+      return new Promise(function(resolve){
+        var reader = new FileReader();
+        reader.onload = function(e){
+          try {
+            var wb = XLSX.read(new Uint8Array(e.target.result), {type:'array'});
+            all = all.concat(_parseEmpWorkbook(wb));
+          } catch(err) { console.warn('parse fail', file.name, err); }
+          setProg('xlsx', 15 + Math.round((idx+1)/files.length*60));
+          resolve();
+        };
+        reader.onerror = function(){ resolve(); };
+        reader.readAsArrayBuffer(file);
+      });
+    });
+  });
+  chain.then(function(){
+    // ตัดซ้ำจาก ชื่อ(normalized) + เลขบัตร/รหัสพนักงาน
+    var seen = {}, merged = [];
+    all.forEach(function(emp){
+      var key = (emp.norm||'') + '|' + (emp.idCard || emp.empId || '');
+      if (seen[key]) return;
+      seen[key] = true; merged.push(emp);
+    });
+    if (!merged.length) { setStatus('xlsx','error','ไม่พบข้อมูลในไฟล์'); return; }
+    empData = merged;
+    setProg('xlsx',100);
+    var dupCut = all.length - merged.length;
+    setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + merged.length + ' คน จาก ' + files.length + ' ไฟล์' + (dupCut>0 ? (' (ตัดซ้ำ '+dupCut+')') : '') + ' · กำลังบันทึกลง Cloud...');
+    var card = document.getElementById('xlsxCard'); if (card) card.classList.add('loaded');
+    saveEmployeeRegistryToCloud(merged, true)
+      .then(function(){ setStatus('xlsx','done','✓ บันทึกทะเบียน ' + merged.length + ' คนลง Cloud แล้ว (ครั้งต่อไปไม่ต้อง upload ซ้ำ)'); })
+      .catch(function(err){ setStatus('xlsx','done','พบ ' + merged.length + ' คน · ⚠ บันทึก Cloud ไม่สำเร็จ: ' + (err.message||err)); });
+  });
+}
+
 function processXLSXFile(file) {
   setStatus('xlsx','loading','กำลังอ่านไฟล์ Excel...');
   showProg('xlsx');
@@ -6243,49 +6328,7 @@ function processXLSXFile(file) {
       var wb = XLSX.read(data, {type:'array'});
       setProg('xlsx',75);
 
-      var employees = [];
-      wb.SheetNames.forEach(function(sheetName) {
-        var ws = wb.Sheets[sheetName];
-        var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
-        if (rows.length < 2) return;
-
-        // Find column indices from header row
-        var header = rows[0];
-        var nameCol = -1, branchCol = -1, posCol = -1, empIdCol = -1, idCardCol = -1;
-        header.forEach(function(h,i){
-          var s = String(h).toLowerCase();
-          // ชื่อ: FullnameThai (กัน NicknameThai / ชื่อเล่น)
-          if (s.indexOf('fullname') >= 0 || (s.indexOf('ชื่อ') >= 0 && s.indexOf('เล่น') < 0 && s.indexOf('nick') < 0)) nameCol = i;
-          // สาขา: OrgUnitName
-          if (s.indexOf('orgunit') >= 0 || s.indexOf('สาขา') >= 0 || s.indexOf('หน่วย') >= 0) branchCol = i;
-          // ตำแหน่ง: PositionName เท่านั้น (กัน PositionNameEng)
-          if ((s.indexOf('position') >= 0 && s.indexOf('eng') < 0) || s.indexOf('ตำแหน่ง') >= 0) posCol = i;
-          // รหัสพนักงาน: EmpCode / EmpID
-          if (s.indexOf('empcode') >= 0 || s.indexOf('empid') >= 0 || s.indexOf('รหัสพนักงาน') >= 0 || s.indexOf('รหัสพนง') >= 0) empIdCol = i;
-          // เลขบัตรประชาชน: IdentityCard
-          if (s.indexOf('identity') >= 0 || s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
-        });
-        // Fallback to known column indices (EmpCode=1, FullnameThai=2, Branch=9, Position=7)
-        if (nameCol<0) nameCol = 2;
-        if (branchCol<0) branchCol = 9;
-        if (posCol<0) posCol = 7;
-        if (empIdCol<0) empIdCol = 1;
-
-        for (var i = 1; i < rows.length; i++) {
-          var row = rows[i];
-          var name = String(row[nameCol]||'').trim();
-          if (!name || name==='-' || name.length < 2) continue;
-          employees.push({
-            name: name,
-            norm: normalizeName(name),
-            empId: String(row[empIdCol]||'').trim(),
-            idCard: idCardCol >= 0 ? String(row[idCardCol]||'').trim() : '',
-            branch: String(row[branchCol]||'').trim(),
-            position: String(row[posCol]||'').trim(),
-            sheet: sheetName
-          });
-        }
-      });
+      var employees = _parseEmpWorkbook(wb);
 
       if (employees.length > 0) {
         empData = employees;
@@ -7440,10 +7483,10 @@ var IMP_KIND_CONFIG = {
   },
   registry: {
     title: '👥 นำเข้ารายชื่อพนักงาน',
-    subtitle: 'อัปโหลด <b>Excel ทะเบียนพนักงาน</b> · รองรับหลาย Sheet (JD, ST, Easy, OP)',
+    subtitle: 'อัปโหลด <b>Excel ทะเบียนพนักงาน</b> ได้หลายไฟล์ · รองรับหลาย Sheet (JD, ST, Easy, OP) · ระบบรวม+ตัดซ้ำให้อัตโนมัติ',
     accept: '.xlsx,.xls,.csv',
-    multiple: false,
-    hint: 'รองรับ: <b>.xlsx / .xls / .csv</b> · เลือก 1 ไฟล์',
+    multiple: true,
+    hint: 'รองรับ: <b>.xlsx / .xls / .csv</b> · เลือกได้หลายไฟล์ (สูงสุด 20)',
     iconLabel: '📊',
     typeLabel: 'ทะเบียน'
   }
@@ -7578,7 +7621,7 @@ function impDoUpload() {
       processPDFFiles(dt.files);
       _impWatchStatus('pdfStatusText', _impQueue.slice());
     } else if (_impKind === 'registry') {
-      processXLSXFile(_impQueue[0]);
+      processXLSXFiles(_impQueue.slice());
       _impWatchStatus('xlsxStatusText', _impQueue.slice());
     }
   } catch (e) {
