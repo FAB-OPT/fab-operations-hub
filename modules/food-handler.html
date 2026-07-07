@@ -5341,8 +5341,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     </div>
 
     <div class="fh-tabpanel active" id="fhTab-submit">
-      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">🔔</div><div><h3>รับการส่งรายชื่อจากสาขา</h3><p>เปิด/ปิดให้สาขาส่งรายชื่อผู้เข้าอบรม — มีผลทุกสาขาทันที</p></div></div>
-      <div class="section-card" style="padding:18px 20px;margin-top:14px;">
+      <div class="section-card" style="padding:18px 20px;margin-top:20px;">
         <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
           <div id="fhSubmitToggleLabel" style="font-size:14.5px;font-weight:700;">—</div>
           <label class="fh-switch"><input type="checkbox" id="fhSubmitToggle" onchange="onFhSubmitToggle(this.checked)"><span class="fh-slider"></span></label>
@@ -5352,13 +5351,11 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     </div>
 
     <div class="fh-tabpanel" id="fhTab-schedule">
-      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">📅</div><div><h3>ตารางอบรม</h3><p>วันที่ · รอบเวลา · รุ่น — แก้แล้วกด "บันทึก" สาขาเห็นตารางใหม่ทันที</p></div></div>
-      <div id="fhScheduleEditor"></div>
+      <div id="fhScheduleEditor" style="margin-top:6px;"></div>
     </div>
 
     <div class="fh-tabpanel" id="fhTab-brand">
-      <div class="fh-set-head" style="margin-top:22px;"><div class="ic">🏷️</div><div><h3>แบรนด์ / สาขา (เพิ่มเอง)</h3><p>เพิ่มแบรนด์ใหม่ (กำหนดรหัสนำหน้า) แล้วเพิ่มสาขาในแบรนด์นั้น — สาขาที่ใส่ login ได้ทันที</p></div></div>
-      <div id="fhBrandBranchEditor"></div>
+      <div id="fhBrandBranchEditor" style="margin-top:6px;"></div>
     </div>
   </div>
 </div>
@@ -5479,6 +5476,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <span class="cleanup-label">🧹 ล้างข้อมูลซ้ำ:</span>
       <button class="cleanup-btn cleanup-warn" onclick="dedupEmployeeRegistry()" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">ทะเบียนพนักงาน</button>
       <button class="cleanup-btn cleanup-info" onclick="dedupCertificateRegistry()" title="ลบใบรับรองที่ซ้ำใน Cloud">ใบรับรอง</button>
+      <button class="cleanup-btn" onclick="clearAllCerts()" title="ลบใบรับรองทั้งหมดใน Cloud" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);">🗑 ลบใบรับรองทั้งหมด</button>
     </div>
   </div>
   <!-- hidden state holders (kept for JS compatibility — getFiltered reads these) -->
@@ -5544,6 +5542,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
   <button class="req-filter-refresh" onclick="openAdminReqDupCheck()" title="ตรวจรายชื่อที่ส่งซ้ำ" style="background:rgba(245,158,11,0.1);color:#b45309;border-color:rgba(245,158,11,0.3);">🔍 ตรวจรายชื่อซ้ำ</button>
   <button class="req-filter-refresh" onclick="openAddRequest()" title="เพิ่มผู้เข้าอบรมด้วยตนเอง" style="background:rgba(16,185,129,0.12);color:#047857;border-color:rgba(16,185,129,0.35);font-weight:700;">➕ เพิ่มผู้เข้าอบรม</button>
+  <button class="req-filter-refresh" onclick="clearAllRequests()" title="ลบคำขออบรมทั้งหมด" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);font-weight:700;">🗑 ลบทั้งหมด</button>
 </div>
 
 <!-- Modal: รายชื่อซ้ำ -->
@@ -9321,6 +9320,77 @@ function doDeleteRequest(keyData, btn, tr) {
         hideCancel: true
       });
     });
+}
+
+/* Admin: ลบคำขออบรมทั้งหมด (loop delete-request จากแถวล่างขึ้นบน กันดัชนีเลื่อน) */
+function clearAllRequests() {
+  var records = (Array.isArray(_adminRowCache) ? _adminRowCache.slice() : [])
+    .sort(function(a,b){ return (b._rowIndex||0) - (a._rowIndex||0); });
+  if (!records.length) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีคำขออบรมให้ลบ'); return; }
+  customConfirm({
+    icon: ICON_TRASH,
+    title: 'ลบคำขออบรมทั้งหมด?',
+    desc: 'จะลบทั้งหมด <strong>'+records.length+'</strong> รายการออกจาก Cloud ถาวร — ไม่สามารถกู้คืนได้',
+    okText: 'ลบทั้งหมด', okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    var done = 0, failed = 0, total = records.length;
+    showLoadingOverlay('กำลังลบคำขออบรม...', '0/' + total);
+    var seq = Promise.resolve();
+    records.forEach(function(rec){
+      seq = seq.then(function(){
+        var key = { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
+        return fetch(SCRIPT_URL, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ type: 'delete-request', key: key })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ if (res && res.ok) done++; else failed++; })
+        .catch(function(){ failed++; })
+        .then(function(){ showLoadingOverlay('กำลังลบคำขออบรม...', (done+failed) + '/' + total); });
+      });
+    });
+    seq.then(function(){
+      hideLoadingOverlay();
+      _fhBustRequests();
+      loadAdminRequests();
+      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>'+done+'</b> รายการ' + (failed ? ' · ✗ ล้มเหลว '+failed+' รายการ' : ''));
+    });
+  });
+}
+
+/* Admin: ลบใบรับรองทั้งหมด (save-certificates แบบ replace-all ด้วย records ว่าง) */
+function clearAllCerts() {
+  var n = (typeof matchData !== 'undefined' && matchData) ? matchData.length : 0;
+  if (!n) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีใบรับรองให้ลบ'); return; }
+  customConfirm({
+    icon: ICON_TRASH,
+    title: 'ลบใบรับรองทั้งหมด?',
+    desc: 'จะลบทั้งหมด <strong>'+n+'</strong> รายการออกจาก Cloud ถาวร — ไม่สามารถกู้คืนได้',
+    okText: 'ลบทั้งหมด', okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    showLoadingOverlay('กำลังลบใบรับรองทั้งหมด...', '');
+    fetch(SCRIPT_URL, {
+      method: 'POST', mode: 'cors',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ type: 'save-certificates', records: [], replaceAll: true })
+    })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      hideLoadingOverlay();
+      if (res && res.ok) {
+        matchData = [];
+        try { updateStats(); } catch(e) {}
+        try { renderTable(); } catch(e) {}
+        showInfo('ลบสำเร็จ', 'ลบใบรับรองทั้งหมดออกจาก Cloud แล้ว');
+      } else {
+        showInfo('ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
+      }
+    })
+    .catch(function(err){ hideLoadingOverlay(); showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message || String(err))); });
+  });
 }
 
 /* Admin: force clear server-side cache */
