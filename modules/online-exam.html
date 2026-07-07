@@ -724,12 +724,17 @@ function backToHub(){ window.location.href = '../index.html'; }
 
 /* ═════════════════════ BRAND GATE (เลือกแบรนด์ก่อนใช้งาน) ═════════════════════ */
 function showBrandGate(){
+  // กรองแบรนด์ตามสิทธิ์ของผู้ใช้ (อิงจาก session ของฮับ)
+  var visible = BRANDS.filter(function(b){ return brandAllowed(b.key); });
+  // ล็อกแบรนด์เดียว → ข้ามหน้าเลือก เข้าแบรนด์นั้นเลย (ไม่ต้องกด)
+  if(visible.length===1 && !(isAdminMode && isAllBrandAdmin())){
+    pickBrand(visible[0].key);
+    return;
+  }
   $('brandGate').classList.remove('hidden');
   $('adminView').classList.add('hidden');
   $('branchView').classList.add('hidden');
   $('brandChip').classList.add('hidden');
-  // กรองแบรนด์ตามสิทธิ์ของผู้ใช้ (อิงจาก session ของฮับ)
-  var visible = BRANDS.filter(function(b){ return brandAllowed(b.key); });
   var extra = (isAdminMode && isAllBrandAdmin())
     ? '<button class="brand-btn all" onclick="pickBrand(\'all\')"><span class="b-emoji">🗂️</span><span class="b-name">ดูทุกแบรนด์ (Admin)</span></button>'
     : '';
@@ -754,7 +759,9 @@ function pickBrand(key){
   var b = brandInfo(key);
   $('brandChipEmoji').textContent = b.emoji;
   $('brandChipName').textContent = b.name;
-  $('brandChip').classList.remove('hidden');
+  // แสดงชิป "เปลี่ยนแบรนด์" เฉพาะเมื่อมีสิทธิ์มากกว่า 1 แบรนด์
+  var multi = isAllBrandAdmin() || BRANDS.filter(function(x){ return brandAllowed(x.key); }).length > 1;
+  $('brandChip').classList.toggle('hidden', !multi);
   $('brandGate').classList.add('hidden');
 
   if(isAdminMode){
