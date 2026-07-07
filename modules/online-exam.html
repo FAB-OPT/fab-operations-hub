@@ -126,7 +126,15 @@ button{font-family:inherit;cursor:pointer;border:none;background:none}
 .tag.o{background:#fff7ed;color:#c2410c;border-color:#fed7aa}
 .tag.r{background:#fef2f2;color:#b91c1c;border-color:#fecaca}
 .tag.b{background:#eff6ff;color:#1d4ed8;border-color:#bfdbfe}
-.ex-card .ec-actions{display:flex;gap:8px;margin-top:6px;flex-wrap:wrap}
+.ex-card .ec-actions{display:flex;gap:8px;margin-top:auto;padding-top:4px}
+.ex-card .ec-sub{font-size:12px;color:var(--text3);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ec-status{flex:0 0 auto;font-size:11.5px;font-weight:700;padding:4px 11px;border-radius:999px;white-space:nowrap;align-self:flex-start}
+.ec-status.on{background:#ecfdf5;color:#047857;border:1px solid #a7f3d0}
+.ec-status.off{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.ec-stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ec-stat{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:10px 6px;text-align:center}
+.ec-stat b{display:block;font-size:19px;font-weight:800;color:var(--text);line-height:1.1;letter-spacing:-.02em}
+.ec-stat span{font-size:11px;color:var(--text3)}
 .empty{text-align:center;padding:60px 20px;color:var(--text3)}
 .empty .em-ic{font-size:52px;margin-bottom:12px}
 .empty .em-t{font-size:16px;font-weight:700;color:var(--text2)}
@@ -919,20 +927,22 @@ function renderAdminExams(){
   }
   host.innerHTML = '<div class="grid">'+list.map(function(ex){
     var nQ = (ex.questions||[]).length;
-    var branchTxt = (ex.visibleBranches&&ex.visibleBranches.length)? (ex.visibleBranches.length+' สาขา') : 'ทุกสาขา';
     return '<div class="ex-card">'+
-      '<div class="ec-top"><div class="ec-ic">📝</div><div style="min-width:0"><div class="ec-name">'+esc(ex.title)+'</div>'+
-        '<div class="ec-meta">'+
-          '<span class="tag '+(ex.active?'g':'')+'">'+(ex.active?'🟢 เปิด':'⚪ ปิด')+'</span>'+
-          '<span class="tag b">'+nQ+' ข้อ</span>'+
-          '<span class="tag o">⏱ '+ex.timeLimitMinutes+' นาที</span>'+
-          '<span class="tag">ผ่าน '+ex.passingScorePercent+'%</span>'+
-          '<span class="tag">'+esc(branchTxt)+'</span>'+
-        '</div></div></div>'+
+      '<div class="ec-top">'+
+        '<div class="ec-ic">📝</div>'+
+        '<div style="min-width:0;flex:1"><div class="ec-name">'+esc(ex.title)+'</div>'+
+          (ex.brand?'<div class="ec-sub">'+esc(ex.brand)+'</div>':'')+'</div>'+
+        '<span class="ec-status '+(ex.active?'on':'off')+'">'+(ex.active?'🟢 เปิด':'⚪ ปิด')+'</span>'+
+      '</div>'+
+      '<div class="ec-stats">'+
+        '<div class="ec-stat"><b>'+nQ+'</b><span>ข้อ</span></div>'+
+        '<div class="ec-stat"><b>'+ex.timeLimitMinutes+'</b><span>นาที</span></div>'+
+        '<div class="ec-stat"><b>'+ex.passingScorePercent+'%</b><span>เกณฑ์ผ่าน</span></div>'+
+      '</div>'+
       '<div class="ec-actions">'+
-        '<button class="btn btn-soft btn-sm" onclick="openExamEditor(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>'+
-        '<button class="btn btn-soft btn-sm" onclick="previewExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลองทำ</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
+        '<button class="btn btn-soft btn-sm" style="flex:1" onclick="openExamEditor(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>'+
+        '<button class="btn btn-soft btn-sm" style="flex:1" onclick="previewExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>'+
+        '<button class="btn btn-danger btn-sm" onclick="deleteExam(\''+ex.id+'\')" title="ลบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
       '</div></div>';
   }).join('')+'</div>';
 }
