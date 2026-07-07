@@ -5473,23 +5473,23 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- FILTER BAR — chips + dropdowns + cleanup group ทั้งหมดอยู่บรรทัดเดียว -->
 <div class="filter-bar" id="matchChips" style="display:none">
   <div class="filter-row-chips">
-    <!-- สถานะใบรับรอง (dropdown พร้อมจำนวน) -->
+    <!-- ดรอปดาว: หลักสูตร · แบรนด์ · สาขา · ค้นหา (+ สถานะท้ายสุด) -->
+    <select class="filter-sel-pretty" id="courseFilter" onchange="_tablePage=1;renderTable()">
+      <option value="all">📚 ทุกหลักสูตร</option>
+    </select>
+    <select class="filter-sel-pretty" id="brandFilter" onchange="_tablePage=1;renderTable()">
+      <option value="all">🏷️ ทุกแบรนด์</option>
+    </select>
+    <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
+      <option value="all">🏢 ทุกสาขา</option>
+    </select>
+    <input type="text" class="req-filter-search" id="searchQ" placeholder="🔍 ค้นหา ชื่อ / สาขา / หลักสูตร / ตำแหน่ง..." oninput="_tablePage=1;renderTable()" autocomplete="off" style="max-width:300px">
+    <div class="flex-break"></div>
     <select class="filter-sel-pretty" id="expFilter" onchange="setExpFilter(this.value)">
       <option value="all">📋 ทั้งหมด</option>
       <option value="valid">✓ ยังมีผล</option>
       <option value="warning">⚠ ใกล้หมดอายุ</option>
       <option value="expired">✗ หมดอายุ</option>
-    </select>
-    <!-- บนมือถือ flex-break บังคับให้ dropdown ลงบรรทัดใหม่ -->
-    <div class="flex-break"></div>
-    <!-- ค้นหาแบบพิมพ์ (ชื่อ/สาขา/หลักสูตร/ตำแหน่ง) -->
-    <input type="text" class="req-filter-search" id="searchQ" placeholder="🔍 ค้นหา ชื่อ / สาขา / หลักสูตร / ตำแหน่ง..." oninput="_tablePage=1;renderTable()" autocomplete="off" style="max-width:300px">
-    <!-- dropdowns ติดกับ chip (desktop) / บรรทัดใหม่ (mobile, centered) -->
-    <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
-      <option value="all">🏢 ทุกสาขา</option>
-    </select>
-    <select class="filter-sel-pretty" id="courseFilter" onchange="_tablePage=1;renderTable()">
-      <option value="all">📚 ทุกหลักสูตร</option>
     </select>
     <!-- บนมือถือ flex-break บังคับให้ cleanup ลงบรรทัดใหม่ -->
     <div class="flex-break"></div>
@@ -6622,11 +6622,13 @@ function updateStats() {
 function populateFilterDropdowns_() {
   var brSel = document.getElementById('branchFilter');
   var coSel = document.getElementById('courseFilter');
+  var bdSel = document.getElementById('brandFilter');
   if (!brSel || !coSel) return;
-  var brSet = {}, coSet = {};
+  var brSet = {}, coSet = {}, bdSet = {};
   matchData.forEach(function(d){
     if (d.branch && d.branch !== '—') brSet[d.branch] = true;
     if (d.course) coSet[d.course] = true;
+    var bd = _certBrand(d); if (bd && bd !== '—') bdSet[bd] = true;
   });
   var currBr = brSel.value, currCo = coSel.value;
   brSel.innerHTML = '<option value="all">🏢 ทุกสาขา</option>' + Object.keys(brSet).sort().map(function(b){
@@ -6635,6 +6637,12 @@ function populateFilterDropdowns_() {
   coSel.innerHTML = '<option value="all">📚 ทุกหลักสูตร</option>' + Object.keys(coSet).sort().map(function(c){
     return '<option value="'+escapeAttr(c)+'"'+(c===currCo?' selected':'')+'>'+escapeHtml(c)+'</option>';
   }).join('');
+  if (bdSel) {
+    var currBd = bdSel.value;
+    bdSel.innerHTML = '<option value="all">🏷️ ทุกแบรนด์</option>' + Object.keys(bdSet).sort().map(function(b){
+      return '<option value="'+escapeAttr(b)+'"'+(b===currBd?' selected':'')+'>'+escapeHtml(b)+'</option>';
+    }).join('');
+  }
 }
 
 function setExpFilter(val) {
@@ -6656,6 +6664,7 @@ function getFiltered() {
   var sf = (document.getElementById('sheetFilter')||{value:'all'}).value;
   var brf = (document.getElementById('branchFilter')||{value:'all'}).value;
   var cof = (document.getElementById('courseFilter')||{value:'all'}).value;
+  var bdf = (document.getElementById('brandFilter')||{value:'all'}).value;
   return matchData.filter(function(d) {
     var ok = true;
     if (q) ok = ok && (d.certName+d.empName+d.branch+d.position).toLowerCase().indexOf(q)>=0;
@@ -6664,6 +6673,7 @@ function getFiltered() {
     if (sf!=='all') ok = ok && d.sheet===sf;
     if (brf!=='all') ok = ok && d.branch===brf;
     if (cof!=='all') ok = ok && d.course===cof;
+    if (bdf!=='all') ok = ok && _certBrand(d)===bdf;
     return ok;
   });
 }
