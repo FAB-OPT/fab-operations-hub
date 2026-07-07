@@ -92,13 +92,13 @@ function saveCertificates(records) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName('Certificates') || ss.insertSheet('Certificates');
     var headers = ['ชื่อในใบรับรอง','หลักสูตร','วันอบรม','วันหมดอายุ','สถานะใบรับรอง','ชื่อในระบบ','สาขา','ตำแหน่ง','Sheet','สถานะจับคู่'];
-    if (sh.getLastRow() === 0) sh.appendRow(headers);
+    sh.clear();                 // replace: ล้างก่อนเขียน (เว็บส่งชุดเต็มทุกครั้ง — กันซ้ำ/ของเดิมตกค้าง)
+    sh.appendRow(headers);
     var rows = records.map(function(r){
       return [r.certName||'', r.course||'', r.trainDate||'', r.expireDate||'', r.expStatus||'',
               r.empName||'', r.branch||'', r.position||'', r.sheet||'', r.matchType||''];
     });
-    var start = sh.getLastRow() + 1;
-    sh.getRange(start, 1, rows.length, headers.length).setValues(rows);
+    if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
     CacheService.getScriptCache().remove('cert_v2');
     return { ok: true, saved: rows.length };
   } finally { lock.releaseLock(); }
