@@ -811,13 +811,15 @@ window.addEventListener('DOMContentLoaded', function(){
   if(!role){ window.location.href='../index.html'; return; }
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
   currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
-  isAdminMode = (role==='admin');
+  // เฉพาะ role 'admin' จริงเท่านั้นที่จัดการข้อสอบได้ · ผู้ใช้อื่น (coo/vp/bzm/สาขา) ดู+ทำข้อสอบอย่างเดียว
+  var _sess = getHubSession();
+  isAdminMode = !!(_sess && _sess.role === 'admin');
 
   if(isAdminMode){
-    $('userChip').textContent = 'Kantapon (Admin)';
+    $('userChip').textContent = (_sess && (_sess.nick || _sess.name)) || 'Admin';
     $('userChip').className = 'chip admin';
   } else {
-    $('userChip').textContent = currentBranchName || ('สาขา '+branchPin);
+    $('userChip').textContent = (_sess && (_sess.nick || _sess.name)) || currentBranchName || ('สาขา '+branchPin);
   }
   showBrandGate();         // เลือกแบรนด์ (กรองตามสิทธิ์ผู้ใช้)
 });
@@ -872,8 +874,9 @@ function pickBrand(key){
     else { renderAdminExams(); fillExamFilter(); renderResults(); }
   } else {
     $('branchView').classList.remove('hidden');
-    var bn = currentBranchName || ('สาขา '+branchPin);
-    $('branchSub').textContent = 'สาขา: '+bn+' · แบรนด์ '+b.name+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
+    var _s = getHubSession();
+    var who = currentBranchName || (_s && (_s.name || _s.nick)) || ('รหัส '+branchPin);
+    $('branchSub').textContent = who+' · แบรนด์ '+b.name+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
     if(!_dataLoaded){ _dataLoaded=true; loadBranchExams(); }
     else { renderBranchExams(); }
   }
