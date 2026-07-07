@@ -5991,6 +5991,11 @@ function handlePDF(input) {
   if (input.files && input.files.length) processPDFFiles(input.files);
 }
 
+/* กันปิดแท็บ/รีเฟรชระหว่างนำเข้า+บันทึกยังไม่เสร็จ (OCR/ตัดหน้า ทำในเบราว์เซอร์) */
+window._fhImportBusy = false;
+window.addEventListener('beforeunload', function(e){
+  if (window._fhImportBusy) { e.preventDefault(); e.returnValue = 'กำลังบันทึกใบรับรอง ยังไม่เสร็จ — ปิดตอนนี้ข้อมูลที่ยังไม่บันทึกจะหาย'; return e.returnValue; }
+});
 function processPDFFiles(fileList) {
   var files = Array.from(fileList).filter(function(f){ return /\.pdf$/i.test(f.name); });
   if (files.length === 0) { setStatus('pdf','error','ไม่พบไฟล์ .pdf'); return; }
@@ -5998,6 +6003,7 @@ function processPDFFiles(fileList) {
     setStatus('pdf','error','PDF.js ยังโหลดไม่เสร็จ — รอ 2-3 วินาทีแล้วลองใหม่');
     return;
   }
+  window._fhImportBusy = true;   // ⛔ ห้ามปิดแท็บจนกว่าจะบันทึกเสร็จ
   setStatus('pdf','loading','กำลังอ่าน 0/'+files.length+' ไฟล์...');
   showProg('pdf'); setProg('pdf', 5);
   var allExtracted = [];
@@ -6641,6 +6647,7 @@ function processMatch() {
     // Auto-save to cloud
     setTimeout(function(){
       if (matchData.length > 0) saveToCloud();
+      else window._fhImportBusy = false;   // ไม่มีอะไรบันทึก — จบ
     }, 400);
   }, 300);
 }
@@ -7208,6 +7215,7 @@ function saveToCloud() {
     btn.disabled = false;
     btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';
     console.log('[DIAG SAVE] ok=' + res.ok + ' saved=' + res.saved + ' err=' + (res.error||'-'));
+    window._fhImportBusy = false;   // ✅ บันทึกฝั่ง server เสร็จแล้ว — ปิดแท็บได้
     if (res.ok) {
       document.getElementById('processInfo').textContent = '✓ บันทึก ' + res.saved + ' รายการลง Cloud สำเร็จ · กำลังโหลดข้อมูลรวม...';
       // โหลดข้อมูลทั้งหมดจาก Cloud มาแสดงรวมกัน (กันข้อมูลก่อนหน้าหาย)
@@ -7220,6 +7228,7 @@ function saveToCloud() {
   .catch(function(err){
     btn.disabled = false;
     btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';
+    window._fhImportBusy = false;
     document.getElementById('processInfo').textContent = '✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message;
   });
 }
