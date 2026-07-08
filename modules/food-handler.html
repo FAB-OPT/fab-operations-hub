@@ -7372,6 +7372,22 @@ window.fhDiagNames = function() {
   return hit + '/' + md.length;
 };
 
+/* เทียบรหัสตัวอักษร ชื่อ cert vs ทะเบียน (หาสาเหตุจับคู่ไม่ติด) — fhWhy('ชื่อ สกุล') */
+window.fhWhy = function(certName){
+  var hex = function(s){ return [].map.call(String(s||''), function(c){ return c.charCodeAt(0).toString(16); }).join(' '); };
+  var cp = getParts(certName);
+  var emp = (typeof empData !== 'undefined' && empData) ? empData : [];
+  console.log('%c[fhWhy] cert="'+certName+'" first="'+cp.first+'" last="'+cp.last+'"', 'color:#ea580c;font-weight:bold');
+  console.log('[fhWhy] cert first codes:', hex(cp.first), '· last codes:', hex(cp.last));
+  var cands = emp.filter(function(e){ var ep=getParts(e.norm||e.name||''); return _thStrip(ep.first)===_thStrip(cp.first) || _thStrip(ep.last)===_thStrip(cp.last); });
+  console.log('[fhWhy] ผู้ที่ชื่อ/สกุลใกล้เคียงในทะเบียน:', cands.length);
+  cands.slice(0,6).forEach(function(e){
+    var ep=getParts(e.norm||e.name||'');
+    console.log('  ทะเบียน="'+(e.name)+'" first="'+ep.first+'"('+hex(ep.first)+') last="'+ep.last+'"('+hex(ep.last)+') · match='+_certEmpMatch(cp, e.norm||e.name||''));
+  });
+  return cands.length + ' คนใกล้เคียง';
+};
+
 /* วินิจฉัยไฟล์ใบรับรอง (ปุ่มดาวน์โหลด) — เรียก fhDiagFiles() ในคอนโซล */
 window.fhDiagFiles = function() {
   var keys = Object.keys(FH_CERT_FILES || {});
