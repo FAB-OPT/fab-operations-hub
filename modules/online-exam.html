@@ -742,6 +742,17 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 
 <div class="toast" id="toast"></div>
 
+<!-- PWA gate: บังคับ "เพิ่มลงหน้าจอโฮม" ก่อนทำข้อสอบ (เฉพาะผู้ทำข้อสอบบนมือถือ-เบราว์เซอร์) -->
+<div id="pwaGate" style="display:none;position:fixed;inset:0;z-index:2147483000;background:#f5f6f8;align-items:center;justify-content:center;padding:26px;text-align:center">
+  <div style="max-width:430px;width:100%;background:#fff;border:1px solid var(--border);border-radius:22px;box-shadow:var(--shadow-lg);padding:30px 26px">
+    <div style="font-size:54px;line-height:1;margin-bottom:8px">📲</div>
+    <div style="font-weight:800;font-size:21px;color:var(--text);margin-bottom:8px" id="pwaGateTitle">เพิ่มลงหน้าจอโฮมก่อนทำข้อสอบ</div>
+    <div style="font-size:14.5px;color:var(--text2);line-height:1.6;margin-bottom:18px" id="pwaGateDesc">ต้องทำข้อสอบแบบเต็มจอเพื่อความปลอดภัย<br>กรุณาติดตั้งลงหน้าจอโฮม แล้วเปิดจาก<b style="color:var(--gold)">ไอคอนแอป</b></div>
+    <div id="pwaGateSteps" style="text-align:left;background:var(--bg3);border:1px solid var(--border);border-radius:14px;padding:14px 16px;font-size:14px;color:var(--text);line-height:1.9"></div>
+    <div style="margin-top:16px"><a href="javascript:void(0)" onclick="pwaGateSkip()" style="font-size:12.5px;color:var(--text3);text-decoration:underline">ติดตั้งไม่ได้? ทำต่อในเบราว์เซอร์ (ไม่เต็มจอ)</a></div>
+  </div>
+</div>
+
 <script>
 /* ═════════════════════ CONFIG / SESSION ═════════════════════ */
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
@@ -838,8 +849,33 @@ window.addEventListener('DOMContentLoaded', function(){
   } else {
     $('userChip').textContent = (_sess && (_sess.nick || _sess.name)) || currentBranchName || ('สาขา '+branchPin);
   }
+  if(!isAdminMode && maybePwaGate()) return;   // ผู้ทำข้อสอบบนมือถือ-เบราว์เซอร์: บังคับติดตั้งก่อน
   showBrandGate();         // เลือกแบรนด์ (กรองตามสิทธิ์ผู้ใช้)
 });
+/* ═══ บังคับ "เพิ่มลงหน้าจอโฮม" ก่อนทำข้อสอบ (มือถือ-เบราว์เซอร์ · เฉพาะผู้ทำข้อสอบ) ═══ */
+function _pwaUA(){ return navigator.userAgent||''; }
+function _pwaStandalone(){ return (window.matchMedia&&window.matchMedia('(display-mode: standalone)').matches)||window.navigator.standalone===true; }
+function _pwaIOS(){ return /iPhone|iPad|iPod/i.test(_pwaUA())||(/Macintosh/.test(_pwaUA())&&navigator.maxTouchPoints>1); }
+function _pwaMobile(){ return /Android|iPhone|iPad|iPod/i.test(_pwaUA())||(/Macintosh/.test(_pwaUA())&&navigator.maxTouchPoints>1); }
+function _pwaInApp(){ return /\bLine\/|FBAN|FBAV|FB_IAB|Instagram|Messenger|TikTok/i.test(_pwaUA()); }
+function pwaGateSkip(){ try{sessionStorage.setItem('pwa_skip','1');}catch(e){} var g=$('pwaGate'); if(g) g.style.display='none'; showBrandGate(); }
+function maybePwaGate(){
+  var skip=false; try{ skip=sessionStorage.getItem('pwa_skip')==='1'; }catch(e){}
+  if(skip || !_pwaMobile() || _pwaStandalone()) return false;
+  var steps;
+  if(_pwaInApp()){
+    $('pwaGateTitle').textContent='เปิดในเบราว์เซอร์ก่อน';
+    $('pwaGateDesc').innerHTML='ตอนนี้เปิดอยู่ในแอป (LINE/Facebook ฯลฯ) ซึ่งติดตั้งไม่ได้<br>กรุณาเปิดลิงก์นี้ใน <b style="color:var(--gold)">Safari / Chrome</b> ก่อน';
+    steps='1) แตะเมนู <b>⋯ / ⋮</b> มุมขวาบนของแอป<br>2) เลือก <b>“เปิดในเบราว์เซอร์”</b><br>3) แล้วค่อยเพิ่มลงหน้าจอโฮม';
+  } else if(_pwaIOS()){
+    steps='1) แตะปุ่ม <b>แชร์</b> (สี่เหลี่ยมมีลูกศรขึ้น ⬆️) ที่แถบล่าง<br>2) เลื่อนหา <b>“เพิ่มลงในหน้าจอโฮม”</b><br>3) แตะ <b>เพิ่ม</b> แล้วเปิดจากไอคอน';
+  } else {
+    steps='1) แตะเมนู <b>⋮</b> มุมขวาบน<br>2) เลือก <b>“ติดตั้งแอป”</b> หรือ <b>“เพิ่มลงในหน้าจอหลัก”</b><br>3) เปิดจากไอคอน';
+  }
+  $('pwaGateSteps').innerHTML=steps;
+  $('pwaGate').style.display='flex';
+  return true;
+}
 
 function backToHub(){ window.location.href = '../index.html'; }
 
