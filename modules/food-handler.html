@@ -7373,11 +7373,18 @@ window.fhDiagNames = function() {
   return hit + '/' + md.length;
 };
 
-/* ดูแถวจริงในตารางใบรับรอง — fhRow('รณชัย') */
+/* ดูแถวจริงในตารางใบรับรอง + เช็ก match ของ certName จริง — fhRow('รณชัย') */
 window.fhRow = function(q){
+  var hex = function(s){ return [].map.call(String(s||''), function(c){ return c.charCodeAt(0).toString(16); }).join(' '); };
+  var emp = (typeof empData !== 'undefined' && empData) ? empData : [];
   var r = (typeof matchData !== 'undefined' && matchData ? matchData : []).filter(function(d){ return (d.certName||'').indexOf(q) >= 0; });
   console.log('%c[fhRow] เจอ ' + r.length + ' แถว:', 'color:#ea580c;font-weight:bold');
-  r.forEach(function(d){ console.log('  ชื่อ="'+d.certName+'" · สาขา="'+(d.branch||'')+'" · แบรนด์(sheet)="'+(d.sheet||'')+'" · จับคู่='+(d.matchType||'')); });
+  r.forEach(function(d){
+    var cp = getParts(d.certName||'');
+    var m = emp.some(function(e){ return _certEmpMatch(cp, e.norm||e.name||''); });
+    console.log('  certName="'+d.certName+'" (len='+String(d.certName||'').length+') hex=['+hex(d.certName)+']');
+    console.log('    first="'+cp.first+'"('+hex(cp.first)+') last="'+cp.last+'"('+hex(cp.last)+') · matchในทะเบียน='+m+' · สาขา="'+(d.branch||'')+'" แบรนด์="'+(d.sheet||'')+'"');
+  });
   return r.length + ' แถว';
 };
 
