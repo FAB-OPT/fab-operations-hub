@@ -6262,10 +6262,8 @@ function extractFromPDFText(text) {
   // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
   var nameRegexes = [
-    // 1) Strict: title + first(Thai) + space + last(Thai) — handles "นายอนุรักษ์ ไสว" or "นาย อนุรักษ์ ไสว"
-    /(นาย|นางสาว|นาง)\s*([฀-๿]+?)\s+([฀-๿]{2,})/g,
-    // 2) Even more lenient: any title chunk + any Thai chunk (no length minimum)
-    /(นาย|นางสาว|นาง)\s*([฀-๿]+)\s+([฀-๿]+)/g
+    // 1) Strict: title + first(Thai ≥2) + space + last(Thai ≥2) — กัน "นาย น พ" (ตัวอักษรเดี่ยว)
+    /(นาย|นางสาว|นาง)\s*([฀-๿]{2,})\s+([฀-๿]{2,})/g
   ];
   for (var ri = 0; ri < nameRegexes.length && certNames.length === 0; ri++) {
     var re = nameRegexes[ri];
@@ -6277,17 +6275,21 @@ function extractFromPDFText(text) {
       if (certNames.length > 200) break;
     }
   }
-  // Fallback: ใบรับรองแบบ "ไม่มีคำนำหน้า" (นาย/นาง) — ชื่ออยู่บรรทัดก่อน "ผ่านการอบรม" (เช่น CRG)
+  var _badName = /บริษัท|จำกัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited|company|restaurant/i;
+  function _pushCertName(nm){
+    nm = String(nm||'').replace(/\s+/g, ' ').trim();
+    if (_badName.test(nm)) return;
+    if (nm.length >= 4 && nm.length < 60 && nm.split(' ').length >= 2) certNames.push(nm);
+  }
+  // Fallback A (ผสอ CRG): ชื่ออยู่บรรทัดก่อน "ผ่านการอบรม" (ไม่มีคำนำหน้า)
   if (certNames.length === 0) {
     var beforeTrainRe = /([฀-๿]+(?:[ \t]+[฀-๿]+){1,2})[ \t]*[\r\n]+[ \t]*ผ่านการอบรม/g;
-    var bm;
-    while ((bm = beforeTrainRe.exec(text)) !== null) {
-      var nm = bm[1].replace(/\s+/g, ' ').trim();
-      // ตัดบรรทัดที่ไม่ใช่ชื่อคน (บริษัท/หลักสูตร/หัวเอกสาร)
-      if (/บริษัท|จำกัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited/i.test(nm)) continue;
-      if (nm.length >= 4 && nm.length < 60 && nm.split(' ').length >= 2) certNames.push(nm);
-      if (certNames.length > 300) break;
-    }
+    var bm; while ((bm = beforeTrainRe.exec(text)) !== null) { _pushCertName(bm[1]); if (certNames.length > 300) break; }
+  }
+  // Fallback B (ผปก CRG): ชื่ออยู่ต้น ก่อน "บริษัท เซ็นทรัล / CENTRAL RESTAURANTS" (ไม่มีคำนำหน้า)
+  if (certNames.length === 0) {
+    var beforeCoRe = /([฀-๿]{2,}(?:[ \t]+[฀-๿]{2,}){1,2})[ \t\r\n]*(?:บริษัท[ \t]*เซ็นทรัล|central\s*restaurant)/gi;
+    var cm; while ((cm = beforeCoRe.exec(text)) !== null) { _pushCertName(cm[1]); if (certNames.length > 300) break; }
   }
   var seen = {};
   certNames = certNames.filter(function(n) {
