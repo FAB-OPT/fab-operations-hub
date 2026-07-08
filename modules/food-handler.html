@@ -6623,10 +6623,11 @@ function processMatch() {
       var found = null, matchType = 'notfound';
 
       if (employees.length > 0) {
-        // 1) first+last (exact หรือ ตัดวรรณยุกต์/การันต์แล้วตรง)
+        // 1) first+last (exact หรือ ตัดวรรณยุกต์/การันต์แล้วตรง) — เลือกตัวที่มีสาขาก่อน
         for (var i=0; i<employees.length; i++) {
           if (_certEmpMatch(cp, employees[i].norm)) {
-            found = employees[i]; matchType = 'exact'; break;
+            if (!found) { found = employees[i]; matchType = 'exact'; }
+            if (employees[i].branch && String(employees[i].branch).trim()) { found = employees[i]; matchType = 'exact'; break; }
           }
         }
         // 2) Whitespace-stripped full-name compare (กัน zero-width/NBSP/อักขระเพี้ยน)
@@ -7383,7 +7384,7 @@ window.fhWhy = function(certName){
   console.log('[fhWhy] ผู้ที่ชื่อ/สกุลใกล้เคียงในทะเบียน:', cands.length);
   cands.slice(0,6).forEach(function(e){
     var ep=getParts(e.norm||e.name||'');
-    console.log('  ทะเบียน="'+(e.name)+'" first="'+ep.first+'"('+hex(ep.first)+') last="'+ep.last+'"('+hex(ep.last)+') · match='+_certEmpMatch(cp, e.norm||e.name||''));
+    console.log('  ทะเบียน="'+(e.name)+'" match='+_certEmpMatch(cp, e.norm||e.name||'')+' · สาขา="'+(e.branch||'')+'" แบรนด์="'+(e.sheet||'')+'"');
   });
   return cands.length + ' คนใกล้เคียง';
 };
@@ -7484,7 +7485,12 @@ function reMatchCerts() {
       md.forEach(function(d){
         var cp = getParts(d.certName || '');
         var found = null;
-        for (var i=0;i<emps.length;i++){ if(_certEmpMatch(cp, emps[i].norm||emps[i].name||'')){found=emps[i];break;} }
+        for (var i=0;i<emps.length;i++){
+          if(_certEmpMatch(cp, emps[i].norm||emps[i].name||'')){
+            if(!found) found = emps[i];
+            if(emps[i].branch && String(emps[i].branch).trim()){ found = emps[i]; break; }  // เลือกตัวที่มีสาขาก่อน
+          }
+        }
         if (found) {
           matched++;
           d.empName = found.norm || found.name || d.empName;
