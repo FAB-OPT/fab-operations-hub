@@ -6462,6 +6462,15 @@ function getParts(name) {
   var parts = rest.split(/\s+/);
   return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'' };
 }
+/* ตัดวรรณยุกต์/การันต์ (่ ้ ๊ ๋ ์ ็) ที่ OCR มักอ่านเพี้ยน/หาย — ใช้เทียบชื่อแบบยืดหยุ่น */
+function _thStrip(s){ return String(s||'').replace(/[็-๎]/g, ''); }
+/* ชื่อ cert ตรงกับชื่อในทะเบียนไหม (เทียบ first+last · exact หรือ ตัดวรรณยุกต์แล้วตรง) */
+function _certEmpMatch(certParts, empNorm){
+  var ep = getParts(empNorm);
+  if (!certParts.first || !certParts.last) return false;
+  if (certParts.first === ep.first && certParts.last === ep.last) return true;
+  return _thStrip(certParts.first) === _thStrip(ep.first) && _thStrip(certParts.last) === _thStrip(ep.last);
+}
 
 /* Parse a date string (Thai full, ISO, or DD/MM/YYYY) → Date object (Gregorian), or null */
 function parseAnyDate(s) {
@@ -6609,10 +6618,9 @@ function processMatch() {
       var found = null, matchType = 'notfound';
 
       if (employees.length > 0) {
-        // 1) Exact first+last
+        // 1) first+last (exact หรือ ตัดวรรณยุกต์/การันต์แล้วตรง)
         for (var i=0; i<employees.length; i++) {
-          var ep = getParts(employees[i].norm);
-          if (cp.first && cp.last && cp.first===ep.first && cp.last===ep.last) {
+          if (_certEmpMatch(cp, employees[i].norm)) {
             found = employees[i]; matchType = 'exact'; break;
           }
         }
@@ -7351,7 +7359,7 @@ window.fhDiagNames = function() {
   var hit = 0, samples = [];
   md.forEach(function(d){
     var c = getParts(d.certName || '');
-    var ok = emp.some(function(e){ var ep = getParts(e.norm || e.name || ''); return c.first && c.last && ep.first === c.first && ep.last === c.last; });
+    var ok = emp.some(function(e){ return _certEmpMatch(c, e.norm || e.name || ''); });
     if (ok) hit++; else if (samples.length < 5) samples.push(d.certName + ' (first=' + c.first + ' last=' + c.last + ')');
   });
   console.log('%c[fhDiag] จับคู่ได้ ' + hit + '/' + md.length, 'color:#16a34a;font-weight:bold');
@@ -7455,7 +7463,7 @@ function reMatchCerts() {
       md.forEach(function(d){
         var cp = getParts(d.certName || '');
         var found = null;
-        for (var i=0;i<emps.length;i++){ var ep=getParts(emps[i].norm||emps[i].name||''); if(cp.first&&cp.last&&ep.first===cp.first&&ep.last===cp.last){found=emps[i];break;} }
+        for (var i=0;i<emps.length;i++){ if(_certEmpMatch(cp, emps[i].norm||emps[i].name||'')){found=emps[i];break;} }
         if (found) {
           matched++;
           d.empName = found.norm || found.name || d.empName;
