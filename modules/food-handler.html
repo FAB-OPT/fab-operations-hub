@@ -6467,9 +6467,14 @@ function _thStrip(s){ return String(s||'').replace(/[็-๎]/g, ''); }
 /* ชื่อ cert ตรงกับชื่อในทะเบียนไหม (เทียบ first+last · exact หรือ ตัดวรรณยุกต์แล้วตรง) */
 function _certEmpMatch(certParts, empNorm){
   var ep = getParts(empNorm);
-  if (!certParts.first || !certParts.last) return false;
-  if (certParts.first === ep.first && certParts.last === ep.last) return true;
-  return _thStrip(certParts.first) === _thStrip(ep.first) && _thStrip(certParts.last) === _thStrip(ep.last);
+  if (certParts.first && certParts.last) {
+    if (certParts.first === ep.first && certParts.last === ep.last) return true;
+    if (_thStrip(certParts.first) === _thStrip(ep.first) && _thStrip(certParts.last) === _thStrip(ep.last)) return true;
+  }
+  // เทียบชื่อเต็มแบบตัดช่องว่าง+วรรณยุกต์ (กันนามสกุลถูกตัดคำ/เว้นวรรคต่าง เช่น สุวรรณกำไร ↔ สุวรรณ กำไร)
+  var cf = _thStrip((certParts.first||'') + (certParts.last||'')).replace(/\s/g,'');
+  var ef = _thStrip(String(empNorm||'').replace(/^(นางสาว|นาย|นาง)\s*/, '')).replace(/\s/g,'');
+  return cf.length >= 6 && cf === ef;
 }
 
 /* Parse a date string (Thai full, ISO, or DD/MM/YYYY) → Date object (Gregorian), or null */
