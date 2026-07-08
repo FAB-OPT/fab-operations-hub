@@ -6240,24 +6240,22 @@ function extractFromPDFText(text) {
   var expRe = new RegExp('(หมดอายุ|สิ้นสุด|ถึง(?:วันที่)?|สิ้นอายุ|expire)[^]{0,50}?(\\d{1,2})\\s*' + months + '\\s*(\\d{4})', 'i');
 
   var trainDate = '', expDate = '';
-  var em = text.match(expRe);
-  if (em) expDate = em[2] + ' ' + em[3] + ' ' + em[4];
-  // First date not equal to expire = train date
-  var dm;
+  // เก็บทุกวันที่ในเอกสาร → วันหมดอายุ = ปีมากสุด · วันอบรม = ปีน้อยสุด
+  // (ทนทานกว่าจับ keyword เพราะบางใบ OCR สลับ/ปน — เช่น ให้ไว้ 2569 หมดอายุ 2572)
+  var _allD = [], dm;
   anyDateRe.lastIndex = 0;
   while ((dm = anyDateRe.exec(text)) !== null) {
-    var d = dm[1] + ' ' + dm[2] + ' ' + dm[3];
-    if (d !== expDate) { trainDate = d; break; }
+    _allD.push({ str: dm[1] + ' ' + dm[2] + ' ' + dm[3], y: parseInt(dm[3], 10) || 0 });
   }
-  // Fallback: if no expire found but multiple dates, last date is expire
-  if (!expDate) {
-    var allDates = [];
-    anyDateRe.lastIndex = 0;
-    while ((dm = anyDateRe.exec(text)) !== null) {
-      allDates.push(dm[1] + ' ' + dm[2] + ' ' + dm[3]);
-    }
-    if (allDates.length >= 2) expDate = allDates[allDates.length - 1];
+  if (_allD.length) {
+    var _mx = _allD[0], _mn = _allD[0];
+    _allD.forEach(function(x){ if (x.y > _mx.y) _mx = x; if (x.y < _mn.y) _mn = x; });
+    expDate = _mx.str;
+    trainDate = (_mn.str !== _mx.str) ? _mn.str : '';
   }
+  // เผื่อ keyword "หมดอายุ" ชัดเจน + ปีตรงกับ max (กันเลือกผิดกรณีมีหลายวันปีเดียวกัน)
+  var em = text.match(expRe);
+  if (em) { var _ek = em[2] + ' ' + em[3] + ' ' + em[4]; if (parseInt(em[4],10) >= (_allD.length ? Math.max.apply(null,_allD.map(function(x){return x.y;})) : 0)) expDate = _ek; }
 
   // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
