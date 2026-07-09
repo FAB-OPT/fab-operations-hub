@@ -6233,9 +6233,16 @@ function extractFromPDFText(text) {
     course = 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
   }
 
+  // แปลงเลขไทย ๐-๙ → 0-9 ก่อนจับวันที่ (บางใบพิมพ์วันที่เป็นเลขไทย \d เลยจับไม่ติด → วันหมดอายุหาย)
+  var dtext = text.replace(/[๐-๙]/g, function(c){ return String(c.charCodeAt(0) - 0x0E50); });
+
   // Date patterns — lenient
   var months = '(มกราคม|กุมภาพันธ์|มีนาคม|เมษายน|พฤษภาคม|มิถุนายน|กรกฎาคม|สิงหาคม|กันยายน|ตุลาคม|พฤศจิกายน|ธันวาคม)';
+  // เดือนแบบย่อ (มี/ไม่มีจุด) → map เป็นชื่อเต็ม เพื่อให้ parseAnyDate/formatThaiDate อ่านได้ตรง · key = ตัดจุดแล้ว
+  var monShort = {'มค':'มกราคม','กพ':'กุมภาพันธ์','มีค':'มีนาคม','เมย':'เมษายน','พค':'พฤษภาคม','มิย':'มิถุนายน','กค':'กรกฎาคม','สค':'สิงหาคม','กย':'กันยายน','ตค':'ตุลาคม','พย':'พฤศจิกายน','ธค':'ธันวาคม'};
   var anyDateRe = new RegExp('(\\d{1,2})\\s*' + months + '\\s*(\\d{4})', 'g');
+  var shortDateRe = /(\d{1,2})\s*(ม\.?ค\.?|ก\.?พ\.?|มี\.?ค\.?|เม\.?ย\.?|พ\.?ค\.?|มิ\.?ย\.?|ก\.?ค\.?|ส\.?ค\.?|ก\.?ย\.?|ต\.?ค\.?|พ\.?ย\.?|ธ\.?ค\.?)\s*(\d{4})/g;
+  var numDateRe = /(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{4})/g;   // 04/07/2569
   // Expire keyword followed by date within ~50 chars
   var expRe = new RegExp('(หมดอายุ|สิ้นสุด|ถึง(?:วันที่)?|สิ้นอายุ|expire)[^]{0,50}?(\\d{1,2})\\s*' + months + '\\s*(\\d{4})', 'i');
 
@@ -6244,8 +6251,20 @@ function extractFromPDFText(text) {
   // (ทนทานกว่าจับ keyword เพราะบางใบ OCR สลับ/ปน — เช่น ให้ไว้ 2569 หมดอายุ 2572)
   var _allD = [], dm;
   anyDateRe.lastIndex = 0;
-  while ((dm = anyDateRe.exec(text)) !== null) {
+  while ((dm = anyDateRe.exec(dtext)) !== null) {
     _allD.push({ str: dm[1] + ' ' + dm[2] + ' ' + dm[3], y: parseInt(dm[3], 10) || 0 });
+  }
+  // เดือนย่อ → normalize เป็นชื่อเต็ม
+  shortDateRe.lastIndex = 0;
+  while ((dm = shortDateRe.exec(dtext)) !== null) {
+    var _sm = monShort[dm[2].replace(/\./g,'')];
+    if (_sm) _allD.push({ str: dm[1] + ' ' + _sm + ' ' + dm[3], y: parseInt(dm[3],10) || 0 });
+  }
+  // วันที่แบบตัวเลขล้วน dd/mm/yyyy (yyyy เป็น พ.ศ. เท่านั้น กันปนเลขอื่น)
+  numDateRe.lastIndex = 0;
+  while ((dm = numDateRe.exec(dtext)) !== null) {
+    var _ny = parseInt(dm[3],10) || 0;
+    if (_ny >= 2500 && _ny <= 2700) _allD.push({ str: dm[1] + '/' + dm[2] + '/' + dm[3], y: _ny });
   }
   if (_allD.length) {
     var _mx = _allD[0], _mn = _allD[0];
@@ -6254,7 +6273,7 @@ function extractFromPDFText(text) {
     trainDate = (_mn.str !== _mx.str) ? _mn.str : '';
   }
   // เผื่อ keyword "หมดอายุ" ชัดเจน + ปีตรงกับ max (กันเลือกผิดกรณีมีหลายวันปีเดียวกัน)
-  var em = text.match(expRe);
+  var em = dtext.match(expRe);
   if (em) { var _ek = em[2] + ' ' + em[3] + ' ' + em[4]; if (parseInt(em[4],10) >= (_allD.length ? Math.max.apply(null,_allD.map(function(x){return x.y;})) : 0)) expDate = _ek; }
 
   // Name patterns — try multiple in order, stop when one finds something
@@ -6453,16 +6472,36 @@ function normalizeName(n) {
     .replace(/\s+/g, ' ').trim();
 }
 
+/* ชุดคำนำหน้า/ยศ ที่ต้องตัดทิ้งก่อนเทียบชื่อ (เก็บแบบตัดจุด/ช่องว่างออกแล้ว)
+   เพราะทะเบียนมักมียศ (เช่น "ว่าที่ ร.ต. นันทฤทธิ์ ธรรมดา") แต่ใบรับรองมีแค่ "นันทฤทธิ์ ธรรมดา" */
+var TH_TITLES = {
+  'นาย':1,'นาง':1,'นางสาว':1,'นส':1,'น.ส':1,'น. ส':1,
+  'ดช':1,'ดญ':1,'เด็กชาย':1,'เด็กหญิง':1,
+  'ดร':1,'นพ':1,'พญ':1,'ทพ':1,'ทพญ':1,
+  'ว่าที่':1,'วาที่':1,
+  'ร้อยตรี':1,'ร้อยโท':1,'ร้อยเอก':1,'พันตรี':1,'พันโท':1,'พันเอก':1,
+  'พลตรี':1,'พลโท':1,'พลเอก':1,'จ่าสิบเอก':1,'จ่าสิบโท':1,'จ่าสิบตรี':1,'สิบเอก':1,'สิบโท':1,'สิบตรี':1,
+  'รต':1,'รท':1,'รอ':1,'พต':1,'พท':1,'พอ':1,'พลต':1,'พลท':1,'พลอ':1,
+  'จสอ':1,'จสท':1,'จสต':1,'พตท':1,'พตอ':1,'พตต':1,
+  'ร้อยตำรวจเอก':1,'ร้อยตำรวจโท':1,'ร้อยตำรวจตรี':1,'พันตำรวจเอก':1,'พันตำรวจโท':1,'พันตำรวจตรี':1
+};
+/* ตัดคำนำหน้า/ยศ นำหน้าออก (รองรับ "ว่าที่ ร.ต." หลายชั้น) → คืน tokens ของชื่อจริง */
+function _stripTitleTokens(n) {
+  var parts = n.split(/\s+/).filter(Boolean);
+  while (parts.length > 1) {
+    var key = parts[0].replace(/[.\s]/g, '');   // ตัดจุด/ช่องว่างในโทเคนก่อนเทียบ (ร.ต. → รต)
+    if (TH_TITLES[key] || TH_TITLES[parts[0]]) parts.shift();
+    else break;
+  }
+  return parts;
+}
 function getParts(name) {
   var n = normalizeName(name);
   // Normalize: ensure space after title (handle "นายอธิศ" → "นาย อธิศ")
   n = n.replace(/^(นางสาว|นาย|นาง)/, '$1 ').replace(/\s+/g, ' ').trim();
-  var prefixes = ['นางสาว ','นาย ','นาง '];
-  var prefix = '', rest = n;
-  for (var i=0; i<prefixes.length; i++) {
-    if (n.indexOf(prefixes[i])===0) { prefix=prefixes[i].trim(); rest=n.slice(prefixes[i].length).trim(); break; }
-  }
-  var parts = rest.split(/\s+/);
+  var stripped = _stripTitleTokens(n);
+  var prefix = n.slice(0, n.length - stripped.join(' ').length).trim();
+  var parts = stripped.length ? stripped : n.split(/\s+/);
   return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'' };
 }
 /* ตัดวรรณยุกต์/การันต์ (่ ้ ๊ ๋ ์ ็) ที่ OCR มักอ่านเพี้ยน/หาย — ใช้เทียบชื่อแบบยืดหยุ่น */
@@ -6476,7 +6515,7 @@ function _certEmpMatch(certParts, empNorm){
   }
   // เทียบชื่อเต็มแบบตัดช่องว่าง+วรรณยุกต์ (กันนามสกุลถูกตัดคำ/เว้นวรรคต่าง เช่น สุวรรณกำไร ↔ สุวรรณ กำไร)
   var cf = _thStrip((certParts.first||'') + (certParts.last||'')).replace(/\s/g,'');
-  var ef = _thStrip(String(empNorm||'').replace(/^(นางสาว|นาย|นาง)\s*/, '')).replace(/\s/g,'');
+  var ef = _thStrip(_stripTitleTokens(normalizeName(empNorm)).join('')).replace(/\s/g,'');
   return cf.length >= 6 && cf === ef;
 }
 
