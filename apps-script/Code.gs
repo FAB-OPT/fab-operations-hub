@@ -139,7 +139,10 @@ function clearCertificates() {
     var sh = ss.getSheetByName('Certificates');
     if (!sh) return { ok: true, cleared: 0 };
     var last = sh.getLastRow();
-    if (last > 1) sh.deleteRows(2, last - 1);   // ลบทุกแถว เว้นหัวตาราง (แถว 1)
+    // ล้างเนื้อหาแถวข้อมูลแทนการ deleteRows — กัน error "ลบทุกแถวที่ไม่ได้ตรึงไว้ไม่ได้"
+    // (แถว 1 ถูกตรึง → deleteRows(2, last-1) = ลบ non-frozen ทั้งหมด → Google โยน exception)
+    // getCertificates ข้ามแถวว่างอยู่แล้ว (row[0]&&row[1]) เลยเทียบเท่าการลบ
+    if (last > 1) sh.getRange(2, 1, last - 1, Math.max(1, sh.getLastColumn())).clearContent();
     CacheService.getScriptCache().remove('cert_v2');
     return { ok: true, cleared: last - 1 };
   } finally { lock.releaseLock(); }
