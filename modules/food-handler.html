@@ -6709,8 +6709,8 @@ function processMatch() {
     // (กันของเดิมหายตอน save ทับ · ใบใหม่ทับข้อมูลเดิมของคนเดิมได้ ถ้า key เดียวกัน)
     var totalPdf = raw.length;
     var _prev = Array.isArray(matchData) ? matchData : [];
-    var _mkey = function(d){ return (d.certName||'') + '|' + (d.expireDate||'') + '|' + (d.course||''); };
-    var _ck = function(d){ return (d.certName||'') + '|' + (d.course||''); };
+    var _ck = function(d){ return normalizeName(d.certName||'').replace(/\s+/g,'') + '|' + (d.course||''); };
+    var _mkey = function(d){ return _ck(d) + '|' + (d.expireDate||''); };
     var _hasExp = function(d){ return !!(d.expireDate && String(d.expireDate).trim()); };
     // ชื่อ+หลักสูตร ที่ "ใบใหม่" อ่านวันหมดอายุได้แล้ว → ใช้ทับใบเก่าที่วันว่าง
     // (กันซ้ำตอน re-upload เพื่อเติมวันหมดอายุ — เก่าวันว่าง+ใหม่มีวัน key ต่างกันเลยไม่ merge เอง)
@@ -7415,11 +7415,17 @@ function loadFromCloud() {
     })
     // เก็บทุกใบที่มีชื่อในใบรับรอง (รวม notfound ที่ยังไม่จับคู่ทะเบียน) — กันข้อมูลหายตอน reload
     .filter(function(d){ return !!(d.certName && String(d.certName).trim()); });
-    // ตัดซ้ำ ชื่อ+วันหมดอายุ+หลักสูตร (กัน sheet มีแถวซ้ำจากการ append)
+    // ตัดซ้ำ + ทิ้งใบ "วันว่าง" ถ้ามีใบ "มีวันหมดอายุ" ของคน+หลักสูตรเดียวกัน
+    // (ใช้ชื่อ normalize แล้ว กัน OCR อ่านช่องว่าง/อักขระต่างกันเล็กน้อยแล้วนับเป็นคนละใบ)
     (function(){
+      var _ckey = function(d){ return normalizeName(d.certName||'').replace(/\s+/g,'') + '|' + (d.course||''); };
+      var _hasExp = function(d){ return !!(d.expireDate && String(d.expireDate).trim()); };
+      var datedGroups = {};
+      matchData.forEach(function(d){ if (_hasExp(d)) datedGroups[_ckey(d)] = true; });
       var seen = {}, out = [];
       matchData.forEach(function(d){
-        var k = (d.certName||'') + '|' + (d.expireDate||'') + '|' + (d.course||'');
+        if (!_hasExp(d) && datedGroups[_ckey(d)]) return;      // ใบวันว่าง แต่มีใบมีวันแล้ว → ทิ้ง
+        var k = _ckey(d) + '|' + (d.expireDate||'');            // ตัดซ้ำ (รองรับ renewal คนละวัน)
         if (seen[k]) return; seen[k] = true; out.push(d);
       });
       matchData = out;
@@ -7434,6 +7440,14 @@ function loadFromCloud() {
     updateStats();
     renderTable();
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
+    // ถ้าตัดซ้ำ/ทิ้งใบวันว่างออกไป (Cloud มีของซ้ำค้าง) → บันทึกชุดที่สะอาดกลับ Cloud อัตโนมัติ
+    // (saveToCloud จะ loadFromCloud อีกรอบ แต่รอบนั้นไม่มีอะไรให้ตัดแล้ว เลยไม่วน)
+    if (matchData.length > 0 && matchData.length < records.length && !window._fhDedupSaving) {
+      window._fhDedupSaving = true;
+      document.getElementById('processInfo').textContent = 'พบใบซ้ำ ' + (records.length - matchData.length) + ' ใบ · กำลังล้างบน Cloud...';
+      setTimeout(function(){ try { saveToCloud(); } finally { setTimeout(function(){ window._fhDedupSaving = false; }, 4000); } }, 300);
+      return;
+    }
     document.getElementById('processInfo').textContent = '✓ โหลด ' + records.length + ' รายการจาก Cloud · ' + new Date().toLocaleTimeString('th-TH');
     document.getElementById('topStatus').textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
   })
