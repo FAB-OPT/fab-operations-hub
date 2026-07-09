@@ -6985,8 +6985,17 @@ function saveEmployeeRegistryToCloud(employees, replaceAll) {
   });
 }
 
+/* cache ในเครื่อง (localStorage) — แสดงทันทีตอนโหลด แล้วค่อยดึงของใหม่มาทับ */
+function _fhCacheSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
+function _fhCacheGet(k){ try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+
 function loadEmployeeRegistryFromCloud() {
   if (!SCRIPT_URL) return Promise.resolve();
+  // แสดงทะเบียนจาก cache ทันที (ถ้ายังไม่มี) แล้วค่อยดึงของใหม่มาทับ
+  if (!empData || !empData.length) {
+    var _ec = _fhCacheGet('fh_emp_v1');
+    if (_ec && _ec.length) { empData = _ec; if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e){} } }
+  }
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
   return fetch(SCRIPT_URL + '?action=employees', { method: 'GET' })
     .then(function(r){ return r.json(); })
@@ -7012,8 +7021,10 @@ function loadEmployeeRegistryFromCloud() {
           sheet: r.sheet || ''
         };
       });
+      _fhCacheSet('fh_emp_v1', empData);   // cache ไว้แสดงทันทีรอบหน้า
       setStatus('xlsx','done','✓ ใช้ทะเบียนในระบบ — ' + empData.length + ' คน (อัพโหลด Excel ใหม่เพื่ออัพเดต)');
-      document.getElementById('xlsxCard').classList.add('loaded');
+      var _xc = document.getElementById('xlsxCard'); if (_xc) _xc.classList.add('loaded');
+      if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e) {} }
       checkReady();
     })
     .catch(function(err){
@@ -7284,6 +7295,11 @@ function saveToCloud() {
 }
 
 function loadFromCloud() {
+  // แสดงจาก cache ทันที (ถ้ายังไม่มีข้อมูลในหน้า) แล้วค่อยดึงของใหม่มาทับ
+  if (!matchData || !matchData.length) {
+    var _cc = _fhCacheGet('fh_cert_v1');
+    if (_cc && _cc.length) { matchData = _cc; try { updateStats(); renderTable(); } catch(e){} }
+  }
   var btn = document.getElementById('loadBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
@@ -7342,6 +7358,7 @@ function loadFromCloud() {
     console.log('[DIAG LOAD] หลัง map+filter+dedup → matchData = ' + matchData.length);
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
+    _fhCacheSet('fh_cert_v1', matchData);   // cache ไว้แสดงทันทีรอบหน้า
     document.getElementById('exportBtn').disabled = false;
     document.getElementById('saveBtn').disabled = false;
     (document.getElementById('noteBar')||{classList:{add:function(){}}}).classList.add('show');
@@ -7991,10 +8008,14 @@ function showAdmSection(targetId) {
   });
   // Sync mobile section label
   if (typeof _updateMobileSectionLabel === 'function') _updateMobileSectionLabel(targetId);
-  // เปิดหน้าทะเบียน → โหลด/แสดงทะเบียน
+  // เปิดหน้าทะเบียน → แสดงจาก cache ทันที แล้วดึงของใหม่เบื้องหลัง
   if (targetId === 'adm-sec-registry') {
     if (typeof empData !== 'undefined' && empData && empData.length) { try { renderRegistryTable(); } catch(e) {} }
-    else { try { _reloadRegistry(); } catch(e) {} }
+    else {
+      var _ec = _fhCacheGet('fh_emp_v1');
+      if (_ec && _ec.length) { empData = _ec; try { renderRegistryTable(); } catch(e){} }
+      try { _reloadRegistry(); } catch(e) {}
+    }
   }
   // Persist + scroll to top
   try { sessionStorage.setItem(ADM_SEC_KEY, targetId); } catch(e) {}
