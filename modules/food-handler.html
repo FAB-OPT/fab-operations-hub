@@ -6290,7 +6290,8 @@ function extractFromPDFText(text) {
     var m;
     while ((m = re.exec(text)) !== null) {
       var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
-      if (fullname.length > 5 && fullname.length < 80) certNames.push(fullname);
+      fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตรที่ OCR กวาดมาต่อท้ายนามสกุล
+      if (fullname.length > 5 && fullname.length < 80 && fullname.split(' ').length >= 3) certNames.push(fullname);
       if (certNames.length > 200) break;
     }
   }
@@ -6474,6 +6475,13 @@ function normalizeName(n) {
     .replace(/ํ([่-๋]*)า/g, '$1ำ')   // ํ (+วรรณยุกต์) + า → (วรรณยุกต์)ำ
     .replace(/า([่-๋]*)ํ/g, '$1ำ')   // เผื่อสลับลำดับ า ... ํ
     .replace(/\s+/g, ' ').trim();
+}
+/* ตัดข้อความเอกสาร/หลักสูตร ที่ OCR กวาดมาต่อท้ายนามสกุล (ไม่มีช่องว่างคั่น)
+   เช่น "สมพงษ์ จันดำการสุขาภิบาลอาหาร" → "สมพงษ์ จันดำ" */
+function _cleanCertName(nm){
+  nm = String(nm||'').replace(/\s+/g,' ').trim();
+  nm = nm.replace(/(การสุขาภิบาล|ผ่านการอบรม|ผ่านการฝึกอบรม|หลักสูตร|ตามกฎกระทรวง|สำหรับผู้|ผู้สัมผัสอาหาร|ผู้ประกอบกิจการ|ขอรับรองว่า|ได้ผ่าน|เลขที่|บริษัท|จำกัด|กรุ๊ป).*$/, '').trim();
+  return nm;
 }
 
 /* ชุดคำนำหน้า/ยศ ที่ต้องตัดทิ้งก่อนเทียบชื่อ (เก็บแบบตัดจุด/ช่องว่างออกแล้ว)
@@ -7401,7 +7409,7 @@ function loadFromCloud() {
         else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
       }
       return {
-        certName: r['ชื่อในใบรับรอง'] || '',
+        certName: _cleanCertName(r['ชื่อในใบรับรอง'] || ''),   // ล้างชื่อเพี้ยนเก่า (นามสกุลติดคำหลักสูตร)
         course: r['หลักสูตร'] || '',
         trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
         expireDate: expireDate,
