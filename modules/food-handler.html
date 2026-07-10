@@ -7074,7 +7074,7 @@ function loadEmployeeRegistryFromCloud() {
     if (_ec && _ec.length) { empData = _ec; if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e){} } }
   }
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
-  return fetch(SCRIPT_URL + '?action=employees', { method: 'GET' })
+  return fetch(SCRIPT_URL + '?action=employees&_=' + Date.now(), { method: 'GET', cache: 'no-store' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (!res || !res.ok) {
@@ -7382,7 +7382,9 @@ function loadFromCloud() {
   btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
   document.getElementById('processInfo').textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
 
-  fetch(SCRIPT_URL, { method: 'GET' })
+  // กันเบราว์เซอร์แคช GET เก่า (ลบแล้วรีเฟรชข้อมูลกลับมา เพราะได้ response เก่าจาก cache)
+  var _bust = (SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
+  fetch(SCRIPT_URL + _bust, { method: 'GET', cache: 'no-store' })
   .then(function(r){ return r.json(); })
   .then(function(res){
     btn.disabled = false;
