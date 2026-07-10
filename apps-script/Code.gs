@@ -130,7 +130,8 @@ function dedupCertificates() {
   } finally { lock.releaseLock(); }
 }
 
-/* ลบใบรับรองทั้งหมด — ลบทุกแถวข้อมูล เก็บหัวตาราง (แถว 1) ไว้ */
+/* ลบใบรับรองทั้งหมด — ล้างทั้งชีตแล้วใส่หัวตารางกลับ (แบบเดียวกับ saveCertificates ที่ทำงานชัวร์)
+   ⚠️ ต้องมี sh.clear() + sh.appendRow(headers) — ถ้าขาดจะ "ตอบสำเร็จแต่ไม่ลบจริง" */
 function clearCertificates() {
   var lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -139,8 +140,6 @@ function clearCertificates() {
     var sh = ss.getSheetByName('Certificates');
     if (!sh) return { ok: true, cleared: 0 };
     var last = sh.getLastRow();
-    // ใช้ sh.clear() + ใส่หัวตารางกลับ (แบบเดียวกับ saveCertificates ที่ทำงานชัวร์)
-    // แทน deleteRows (เจอ error "ลบทุกแถวที่ไม่ได้ตรึงไว้ไม่ได้") และแทน clearContent (บาง edge ล้างไม่หมด)
     var headers = ['ชื่อในใบรับรอง','หลักสูตร','วันอบรม','วันหมดอายุ','สถานะใบรับรอง','ชื่อในระบบ','สาขา','ตำแหน่ง','Sheet','สถานะจับคู่'];
     sh.clear();
     sh.appendRow(headers);
