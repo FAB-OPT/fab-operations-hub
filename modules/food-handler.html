@@ -6487,6 +6487,30 @@ function _cleanCertName(nm){
   nm = nm.replace(/(การสุขาภิบาล|ผ่านการอบรม|ผ่านการฝึกอบรม|หลักสูตร|ตามกฎกระทรวง|สำหรับผู้|ผู้สัมผัสอาหาร|ผู้ประกอบกิจการ|ขอรับรองว่า|ได้ผ่าน|เลขที่|บริษัท|จำกัด|กรุ๊ป).*$/, '').trim();
   return nm;
 }
+/* คีย์รวมสาขาที่จริงคืออันเดียวกันแต่สะกดต่าง (ต่างแค่ช่องว่าง / ส↔ซ / วรรณยุกต์) */
+function _branchKey(s){
+  return String(s||'').replace(/\s+/g,'').replace(/ซ/g,'ส').replace(/[็-๎]/g,'').toLowerCase();
+}
+/* รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้ใช้สะกดเดียว (เลือกสะกดที่พบบ่อยสุด) — กัน dropdown/ตัวกรองขึ้นซ้ำ
+   เช่น "แฟชั่น ไอส์แลนด์" กับ "แฟชั่นไอซ์แลนด์" → ใช้อันเดียว */
+function _canonicalizeBranches(list){
+  if (!Array.isArray(list) || !list.length) return;
+  var groups = {};   // key → { สะกด: จำนวน }
+  list.forEach(function(d){
+    var b = d && d.branch; if (!b || b === '—') return;
+    var k = _branchKey(b);
+    (groups[k] = groups[k] || {})[b] = (groups[k][b] || 0) + 1;
+  });
+  var canon = {};
+  Object.keys(groups).forEach(function(k){
+    var best = null, bestN = -1;
+    Object.keys(groups[k]).forEach(function(sp){ if (groups[k][sp] > bestN) { bestN = groups[k][sp]; best = sp; } });
+    canon[k] = best;
+  });
+  list.forEach(function(d){
+    if (d && d.branch && d.branch !== '—') { var c = canon[_branchKey(d.branch)]; if (c) d.branch = c; }
+  });
+}
 
 /* ชุดคำนำหน้า/ยศ ที่ต้องตัดทิ้งก่อนเทียบชื่อ (เก็บแบบตัดจุด/ช่องว่างออกแล้ว)
    เพราะทะเบียนมักมียศ (เช่น "ว่าที่ ร.ต. นันทฤทธิ์ ธรรมดา") แต่ใบรับรองมีแค่ "นันทฤทธิ์ ธรรมดา" */
@@ -6740,6 +6764,7 @@ function processMatch() {
       _mseen[k] = true; _merged.push(d);
     });
     matchData = _merged;
+    _canonicalizeBranches(matchData);   // รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้เป็นอันเดียว
     var nMatched = raw.filter(function(d){ return d.matchType !== 'notfound'; }).length;
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
@@ -7446,6 +7471,7 @@ function loadFromCloud() {
       matchData = out;
     })();
     console.log('[DIAG LOAD] หลัง map+filter+dedup → matchData = ' + matchData.length);
+    _canonicalizeBranches(matchData);   // รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้เป็นอันเดียว
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
     _fhCacheSet('fh_cert_v1', matchData);   // cache ไว้แสดงทันทีรอบหน้า
