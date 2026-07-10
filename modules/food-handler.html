@@ -7455,15 +7455,10 @@ function loadFromCloud() {
     updateStats();
     renderTable();
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
-    // ถ้าตัดซ้ำ/ทิ้งใบวันว่างออกไป (Cloud มีของซ้ำค้าง) → บันทึกชุดที่สะอาดกลับ Cloud อัตโนมัติ
-    // (saveToCloud จะ loadFromCloud อีกรอบ แต่รอบนั้นไม่มีอะไรให้ตัดแล้ว เลยไม่วน)
-    if (matchData.length > 0 && matchData.length < records.length && !window._fhDedupSaving) {
-      window._fhDedupSaving = true;
-      document.getElementById('processInfo').textContent = 'พบใบซ้ำ ' + (records.length - matchData.length) + ' ใบ · กำลังล้างบน Cloud...';
-      setTimeout(function(){ try { saveToCloud(); } finally { setTimeout(function(){ window._fhDedupSaving = false; }, 4000); } }, 300);
-      return;
-    }
-    document.getElementById('processInfo').textContent = '✓ โหลด ' + records.length + ' รายการจาก Cloud · ' + new Date().toLocaleTimeString('th-TH');
+    // NOTE: ตัดซ้ำเฉพาะ "ตอนแสดง" — ไม่เขียนกลับ Cloud อัตโนมัติ (กัน race ชนกับปุ่มลบ)
+    // ถ้าอยากล้างของซ้ำบน Cloud จริง ให้กด "จับคู่ใบรับรองกับทะเบียน" หรือลบทั้งหมดแล้วอัปใหม่
+    var _dupN = records.length - matchData.length;
+    document.getElementById('processInfo').textContent = '✓ โหลด ' + matchData.length + ' รายการ' + (_dupN > 0 ? ' (ซ่อนใบซ้ำ/ไม่สมบูรณ์ ' + _dupN + ' ใบ)' : '') + ' · ' + new Date().toLocaleTimeString('th-TH');
     document.getElementById('topStatus').textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
   })
   .catch(function(err){
