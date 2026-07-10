@@ -6281,8 +6281,9 @@ function extractFromPDFText(text) {
   // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
   var nameRegexes = [
-    // 1) Strict: title + first(Thai ≥2) + space + last(Thai ≥2) — กัน "นาย น พ" (ตัวอักษรเดี่ยว)
-    /(นาย|นางสาว|นาง)\s*([฀-๿]{2,})\s+([฀-๿]{2,})/g
+    // title + first + คำไทยที่เหลือในบรรทัดเดียวกัน — จับหลายคำแล้วค่อยตัดคำเอกสารทีหลัง
+    // (กันนามสกุลที่ OCR เว้นวรรคผิด เช่น "เขี ยว" · และกันคำหลักสูตรที่ติดนามสกุล)
+    /(นาย|นางสาว|นาง)\s*([฀-๿]{2,})((?:[ \t]+[฀-๿]+)+)/g
   ];
   for (var ri = 0; ri < nameRegexes.length && certNames.length === 0; ri++) {
     var re = nameRegexes[ri];
@@ -6290,7 +6291,8 @@ function extractFromPDFText(text) {
     var m;
     while ((m = re.exec(text)) !== null) {
       var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
-      fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตรที่ OCR กวาดมาต่อท้ายนามสกุล
+      fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตร/เอกสารที่ OCR กวาดมาต่อท้ายนามสกุล
+      fullname = fullname.replace(/\s+([ัิ-ฺ็-๎])/g, '$1');   // รวมช่องว่างหน้าอักขระประสม เช่น "ทองสพรั ่ง"→"ทองสพรั่ง"
       if (fullname.length > 5 && fullname.length < 80 && fullname.split(' ').length >= 3) certNames.push(fullname);
       if (certNames.length > 200) break;
     }
@@ -6474,6 +6476,8 @@ function normalizeName(n) {
     // เช่น "อ ํ ่ า" (ช้างอํ่า) → "อ ่ ำ" (ช้างอ่ำ) · เก็บวรรณยุกต์ไว้ ย้าย ำ ไปท้าย
     .replace(/ํ([่-๋]*)า/g, '$1ำ')   // ํ (+วรรณยุกต์) + า → (วรรณยุกต์)ำ
     .replace(/า([่-๋]*)ํ/g, '$1ำ')   // เผื่อสลับลำดับ า ... ํ
+    // รวมช่องว่างที่ OCR แทรกหน้าอักขระประสม (สระบน/ล่าง/วรรณยุกต์) กลับ เช่น "ทองสพรั ่ง"→"ทองสพรั่ง"
+    .replace(/\s+([ัิ-ฺ็-๎])/g, '$1')
     .replace(/\s+/g, ' ').trim();
 }
 /* ตัดข้อความเอกสาร/หลักสูตร ที่ OCR กวาดมาต่อท้ายนามสกุล (ไม่มีช่องว่างคั่น)
@@ -6514,7 +6518,9 @@ function getParts(name) {
   var stripped = _stripTitleTokens(n);
   var prefix = n.slice(0, n.length - stripped.join(' ').length).trim();
   var parts = stripped.length ? stripped : n.split(/\s+/);
-  return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'' };
+  // ชื่อเต็ม: รวมทุกคำ (ตัดช่องว่าง+วรรณยุกต์) — กันนามสกุลที่ OCR แยกคำ/เว้นวรรคต่าง
+  var full = _thStrip(parts.join('')).replace(/\s/g,'');
+  return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'', full:full };
 }
 /* ตัดวรรณยุกต์/การันต์ (่ ้ ๊ ๋ ์ ็) ที่ OCR มักอ่านเพี้ยน/หาย — ใช้เทียบชื่อแบบยืดหยุ่น */
 function _thStrip(s){ return String(s||'').replace(/[็-๎]/g, ''); }
@@ -6525,10 +6531,9 @@ function _certEmpMatch(certParts, empNorm){
     if (certParts.first === ep.first && certParts.last === ep.last) return true;
     if (_thStrip(certParts.first) === _thStrip(ep.first) && _thStrip(certParts.last) === _thStrip(ep.last)) return true;
   }
-  // เทียบชื่อเต็มแบบตัดช่องว่าง+วรรณยุกต์ (กันนามสกุลถูกตัดคำ/เว้นวรรคต่าง เช่น สุวรรณกำไร ↔ สุวรรณ กำไร)
-  var cf = _thStrip((certParts.first||'') + (certParts.last||'')).replace(/\s/g,'');
-  var ef = _thStrip(_stripTitleTokens(normalizeName(empNorm)).join('')).replace(/\s/g,'');
-  return cf.length >= 6 && cf === ef;
+  // เทียบชื่อเต็มแบบตัดช่องว่าง+วรรณยุกต์ (กันนามสกุล OCR แยกคำ/เว้นวรรค เช่น "เฉลิมขวัญ เขี ยว"↔"เฉลิมขวัญ เขียว")
+  if (certParts.full && ep.full && certParts.full.length >= 6 && certParts.full === ep.full) return true;
+  return false;
 }
 
 /* Parse a date string (Thai full, ISO, or DD/MM/YYYY) → Date object (Gregorian), or null */
