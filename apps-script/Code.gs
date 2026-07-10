@@ -139,12 +139,13 @@ function clearCertificates() {
     var sh = ss.getSheetByName('Certificates');
     if (!sh) return { ok: true, cleared: 0 };
     var last = sh.getLastRow();
-    // ล้างเนื้อหาแถวข้อมูลแทนการ deleteRows — กัน error "ลบทุกแถวที่ไม่ได้ตรึงไว้ไม่ได้"
-    // (แถว 1 ถูกตรึง → deleteRows(2, last-1) = ลบ non-frozen ทั้งหมด → Google โยน exception)
-    // getCertificates ข้ามแถวว่างอยู่แล้ว (row[0]&&row[1]) เลยเทียบเท่าการลบ
-    if (last > 1) sh.getRange(2, 1, last - 1, Math.max(1, sh.getLastColumn())).clearContent();
+    // ใช้ sh.clear() + ใส่หัวตารางกลับ (แบบเดียวกับ saveCertificates ที่ทำงานชัวร์)
+    // แทน deleteRows (เจอ error "ลบทุกแถวที่ไม่ได้ตรึงไว้ไม่ได้") และแทน clearContent (บาง edge ล้างไม่หมด)
+    var headers = ['ชื่อในใบรับรอง','หลักสูตร','วันอบรม','วันหมดอายุ','สถานะใบรับรอง','ชื่อในระบบ','สาขา','ตำแหน่ง','Sheet','สถานะจับคู่'];
+    sh.clear();
+    sh.appendRow(headers);
     CacheService.getScriptCache().remove('cert_v2');
-    return { ok: true, cleared: last - 1 };
+    return { ok: true, cleared: last > 1 ? last - 1 : 0 };
   } finally { lock.releaseLock(); }
 }
 
