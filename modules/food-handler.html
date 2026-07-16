@@ -5351,17 +5351,19 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <span class="adm-side-icon">👥</span>
       <span class="adm-side-link-text">ทะเบียนรายชื่อ</span>
     </button>
-    <button class="adm-side-link" data-target="adm-sec-settings">
+    <button class="adm-side-link" data-fh-action="settings" data-target="adm-sec-settings">
       <span class="adm-side-icon">⚙️</span>
       <span class="adm-side-link-text">ตั้งค่า</span>
     </button>
 
-    <div class="adm-side-divider"></div>
-    <div class="adm-side-group-label">ลำดับการอัปโหลด</div>
-    <button class="adm-side-link adm-step-link" onclick="fhStepPopup(1)"><span class="adm-step-badge">1</span><span class="adm-side-link-text">อัปทะเบียนพนักงาน</span></button>
-    <button class="adm-side-link adm-step-link" onclick="fhStepPopup(2)"><span class="adm-step-badge">2</span><span class="adm-side-link-text">อัปใบรับรอง</span></button>
-    <button class="adm-side-link adm-step-link" onclick="fhStepPopup(3)"><span class="adm-step-badge">3</span><span class="adm-side-link-text">จับคู่ข้อมูล</span></button>
-    <button class="adm-side-link" data-fh-action="import-reqs" onclick="openImportRequestsModal()"><span class="adm-side-icon">📋</span><span class="adm-side-link-text">นำเข้าคำขออบรม</span></button>
+    <div class="adm-side-group" data-fh-group="upload">
+      <div class="adm-side-divider"></div>
+      <div class="adm-side-group-label">ลำดับการอัปโหลด</div>
+      <button class="adm-side-link adm-step-link" data-fh-action="upload-registry" onclick="fhStepPopup(1)"><span class="adm-step-badge">1</span><span class="adm-side-link-text">อัปทะเบียนพนักงาน</span></button>
+      <button class="adm-side-link adm-step-link" data-fh-action="upload-cert" onclick="fhStepPopup(2)"><span class="adm-step-badge">2</span><span class="adm-side-link-text">อัปใบรับรอง</span></button>
+      <button class="adm-side-link adm-step-link" data-fh-action="match-data" onclick="fhStepPopup(3)"><span class="adm-step-badge">3</span><span class="adm-side-link-text">จับคู่ข้อมูล</span></button>
+      <button class="adm-side-link" data-fh-action="import-reqs" onclick="openImportRequestsModal()"><span class="adm-side-icon">📋</span><span class="adm-side-link-text">นำเข้าคำขออบรม</span></button>
+    </div>
 
     <div class="adm-side-divider"></div>
     <div class="adm-side-group-label">การจัดการข้อมูล</div>
@@ -8225,6 +8227,15 @@ var ADM_SEC_KEY = 'fab_admin_section';
 var ADM_DEFAULT_SEC = 'adm-sec-cert';
 
 function showAdmSection(targetId) {
+  /* กันเข้าหน้าที่ไม่มีสิทธิ์ — ดักที่นี่จุดเดียวคุมได้ทุกทาง:
+     กดเมนู · กู้หน้าที่ค้างไว้จาก sessionStorage · หรือคนที่ปลดซ่อนปุ่มเองผ่าน devtools
+     สำคัญเป็นพิเศษกับ adm-sec-settings เพราะข้างในมีตัวแก้สิทธิ์อยู่ */
+  try {
+    if (typeof FH_SECTION_ACTION !== 'undefined' && FH_SECTION_ACTION[targetId]
+        && typeof fhCan === 'function' && !fhCan(FH_SECTION_ACTION[targetId])) {
+      targetId = ADM_DEFAULT_SEC;
+    }
+  } catch (e) {}
   // Toggle section visibility
   var sections = document.querySelectorAll('.admin-main > [id^="adm-sec-"]');
   sections.forEach(function(s){
@@ -8312,6 +8323,8 @@ function _loadFhUser() {
 /* ปุ่มที่คุมสิทธิ์ได้ — id ต้องตรงกับ data-fh-action ใน HTML
    roles = ตำแหน่งที่เห็นปุ่มนี้เป็นค่าตั้งต้น (แก้ได้ในหน้าจัดการสิทธิ์) */
 var FH_ACTIONS = [
+  { id:'settings',      label:'เข้าหน้าตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],  danger:true  },
+  { id:'upload-registry', label:'อัปทะเบียนพนักงาน',     roles:['admin'],            danger:false },
   { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
   { id:'match-data',    label:'จับคู่ข้อมูล',            roles:['admin'],            danger:false },
   { id:'export-excel',  label:'ส่งออก Excel (แบบฟอร์มขออบรม)', roles:['admin','coo','vp'], danger:false },
@@ -8373,15 +8386,24 @@ function applyFhPerms() {
     var id = el.getAttribute('data-fh-action');
     el.style.display = fhCan(id) ? '' : 'none';
   });
-  /* กลุ่มเมนูที่ลูกโดนซ่อนหมด → ซ่อนหัวข้อกลุ่มด้วย
+  /* กลุ่มเมนูที่ลูกโดนซ่อนหมด → ซ่อนทั้งกลุ่ม (รวมหัวข้อ/เส้นคั่น)
      ไม่งั้นกดหัวข้อแล้วกางออกมาว่างเปล่า ผู้ใช้จะนึกว่า "ปุ่มกดไม่ได้" */
-  document.querySelectorAll('.adm-side-collapsible').forEach(function(coll){
-    var kids = coll.querySelectorAll('.adm-side-children [data-fh-action]');
+  document.querySelectorAll('.adm-side-collapsible, .adm-side-group').forEach(function(grp){
+    var kids = grp.querySelectorAll('[data-fh-action]');
     if (!kids.length) return;   // กลุ่มที่ไม่ได้คุมสิทธิ์ ปล่อยไว้
     var anyVisible = Array.prototype.some.call(kids, function(k){ return k.style.display !== 'none'; });
-    coll.style.display = anyVisible ? '' : 'none';
+    grp.style.display = anyVisible ? '' : 'none';
   });
+
+  // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
+  var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');
+  if (cur && FH_SECTION_ACTION[cur.id] && !fhCan(FH_SECTION_ACTION[cur.id])) {
+    if (typeof showAdmSection === 'function') showAdmSection(ADM_DEFAULT_SEC);
+  }
 }
+
+/* หน้าที่ต้องมีสิทธิ์ถึงเข้าได้ — กันทั้งกดจากเมนู, กู้หน้าเดิมจาก session, และคนที่ปลดซ่อนปุ่มเอง */
+var FH_SECTION_ACTION = { 'adm-sec-settings': 'settings' };
 
 /* ─────────── หน้าจัดการสิทธิ์ (admin) ─────────── */
 var FH_PERM_ROLES = ['admin','coo','vp','bzm'];
