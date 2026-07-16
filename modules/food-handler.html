@@ -5380,7 +5380,12 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
         </button>
         <button class="adm-side-link adm-side-sub" data-fh-action="export-excel" onclick="exportTrainingForm()">
           <span class="adm-side-icon">📊</span>
-          <span class="adm-side-link-text">Excel</span>
+          <span class="adm-side-link-text">Excel (แบบฟอร์มขออบรม)</span>
+        </button>
+        <button class="adm-side-link adm-side-sub" data-fh-action="export-csv" onclick="exportCSV(true)"
+                title="ดาวน์โหลดทะเบียนใบรับรองทั้งหมดเป็น CSV — ใช้สำรองข้อมูลก่อนลบ">
+          <span class="adm-side-icon">🗂</span>
+          <span class="adm-side-link-text">CSV (สำรองทะเบียน)</span>
         </button>
       </div>
     </div>
@@ -7742,9 +7747,11 @@ function reMatchCerts() {
   });
 }
 
-function exportCSV() {
-  if (!matchData.length) return;
-  var filtered = getFiltered();
+/* all=true \u2192 \u0E2A\u0E48\u0E07\u0E2D\u0E2D\u0E01 "\u0E17\u0E38\u0E01\u0E41\u0E16\u0E27" \u0E44\u0E21\u0E48\u0E2A\u0E19\u0E15\u0E31\u0E27\u0E01\u0E23\u0E2D\u0E07 (\u0E43\u0E0A\u0E49\u0E2A\u0E33\u0E23\u0E2D\u0E07\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25\u0E01\u0E48\u0E2D\u0E19\u0E25\u0E1A)
+   all=false/undefined \u2192 \u0E2A\u0E48\u0E07\u0E2D\u0E2D\u0E01\u0E40\u0E09\u0E1E\u0E32\u0E30\u0E17\u0E35\u0E48\u0E01\u0E23\u0E2D\u0E07\u0E2D\u0E22\u0E39\u0E48 (\u0E1E\u0E24\u0E15\u0E34\u0E01\u0E23\u0E23\u0E21\u0E40\u0E14\u0E34\u0E21) */
+function exportCSV(all) {
+  if (!matchData.length) { showInfo('\u0E44\u0E21\u0E48\u0E21\u0E35\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25', '\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E21\u0E35\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E43\u0E2B\u0E49\u0E2A\u0E48\u0E07\u0E2D\u0E2D\u0E01'); return; }
+  var filtered = all ? matchData.slice() : getFiltered();
   var csv = '\uFEFF';
   csv += 'ลำดับ,ชื่อในใบรับรอง,หลักสูตร,วันที่อบรม,วันหมดอายุ,สถานะใบรับรอง,ชื่อในระบบ,สาขา,ตำแหน่ง,Sheet,สถานะจับคู่\n';
   filtered.forEach(function(d){
@@ -7754,9 +7761,13 @@ function exportCSV() {
   });
   var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);
-  var a = document.createElement('a'); a.href=url; a.download='training_report.csv';
+  var d0 = new Date();
+  var stamp = d0.getFullYear() + '-' + String(d0.getMonth()+1).padStart(2,'0') + '-' + String(d0.getDate()).padStart(2,'0');
+  var a = document.createElement('a'); a.href=url;
+  a.download = (all ? 'backup_ใบรับรองทั้งหมด_' : 'training_report_') + stamp + '.csv';
   document.body.appendChild(a); a.click();
   document.body.removeChild(a); URL.revokeObjectURL(url);
+  if (all) showInfo('สำรองข้อมูลแล้ว', 'ดาวน์โหลด ' + filtered.length + ' รายการเป็นไฟล์ CSV — เก็บไฟล์นี้ไว้ก่อนลบข้อมูล');
 }
 
 /* ═════════════════════ LOGIN / AUTH ═════════════════════ */
@@ -8303,7 +8314,8 @@ function _loadFhUser() {
 var FH_ACTIONS = [
   { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
   { id:'match-data',    label:'จับคู่ข้อมูล',            roles:['admin'],            danger:false },
-  { id:'export-excel',  label:'ส่งออก Excel',            roles:['admin','coo','vp'], danger:false },
+  { id:'export-excel',  label:'ส่งออก Excel (แบบฟอร์มขออบรม)', roles:['admin','coo','vp'], danger:false },
+  { id:'export-csv',    label:'ส่งออก CSV (สำรองทะเบียน)',      roles:['admin','coo','vp'], danger:false },
   { id:'export-pdf',    label:'ออกรายงาน PDF',           roles:['admin','coo','vp'], danger:false },
   { id:'import-reqs',   label:'นำเข้าคำขออบรม',          roles:['admin'],            danger:false },
   { id:'dedup-certs',   label:'ลบใบรับรองที่ซ้ำ',        roles:['admin'],            danger:true  },
