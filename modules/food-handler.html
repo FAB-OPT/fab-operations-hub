@@ -5437,11 +5437,17 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 
     <div class="fh-tabpanel" id="fhTab-perms">
       <div class="section-card" style="padding:18px 20px;margin-top:20px;">
-        <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px;">
-          ติ๊กตำแหน่งที่ให้เห็นปุ่มแต่ละอัน · ถ้าต้องการ<b>ยกเว้นเป็นรายคน</b> (ให้สิทธิ์พิเศษ หรือห้ามเฉพาะคน) กด <b>“ยกเว้นรายคน”</b> ท้ายแถว<br>
-          ลำดับการตัดสิน: <b>ห้ามรายคน</b> ชนะทุกอย่าง → <b>อนุญาตรายคน</b> → <b>ตำแหน่ง</b><br>
-          <span style="color:#b45309;">หมายเหตุ: คอลัมน์ <b>สาขา</b> ตั้งได้เฉพาะระดับตำแหน่ง — ยกเว้นรายคนไม่มีผลกับสาขา เพราะสาขาล็อกอินด้วยรหัสสาขา ไม่ใช่รายบุคคล ·
-          ปุ่มส่งรายชื่อยังขึ้นกับสวิตช์ <b>“รับรายชื่อ”</b> ในแท็บแรกด้วย (ปิดรับ = ส่งไม่ได้ ถึงจะติ๊กสิทธิ์ไว้)</span>
+        <div style="font-size:12.5px;color:var(--text3);margin-bottom:14px;">
+          ติ๊กตำแหน่งที่ให้เห็นปุ่ม · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อให้/ห้ามเฉพาะบุคคล
+          <button type="button" onclick="var h=document.getElementById('fhPermsHelp');h.style.display=h.style.display==='none'?'':'none';"
+                  style="margin-left:6px;border:none;background:none;color:var(--gold,#EA580C);font-weight:700;cursor:pointer;font-size:12.5px;font-family:inherit;padding:0;">
+            ดูรายละเอียด
+          </button>
+          <div id="fhPermsHelp" style="display:none;margin-top:8px;padding:10px 12px;background:var(--surface-2,#f8fafc);border:1px solid var(--border);border-radius:8px;line-height:1.7;">
+            • ลำดับตัดสิน: <b>ห้ามรายคน</b> → <b>อนุญาตรายคน</b> → <b>ตำแหน่ง</b><br>
+            • คอลัมน์ <b>สาขา</b> ตั้งได้เฉพาะระดับตำแหน่ง (สาขาล็อกอินด้วยรหัสสาขา ไม่ใช่รายบุคคล)<br>
+            • ปุ่มส่งรายชื่อขึ้นกับสวิตช์ <b>“รับรายชื่อ”</b> ในแท็บแรกด้วย — ปิดรับ = ส่งไม่ได้ ถึงจะติ๊กไว้
+          </div>
         </div>
         <div id="fhPermsEditor"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
@@ -8330,23 +8336,34 @@ function _loadFhUser() {
 
 /* ปุ่มที่คุมสิทธิ์ได้ — id ต้องตรงกับ data-fh-action ใน HTML
    roles = ตำแหน่งที่เห็นปุ่มนี้เป็นค่าตั้งต้น (แก้ได้ในหน้าจัดการสิทธิ์) */
+var FH_ACTION_GROUPS = [
+  { id:'menu',   label:'เมนูหลัก · เข้าหน้าไหนได้บ้าง' },
+  { id:'import',  label:'นำเข้า / จัดการข้อมูล' },
+  { id:'export',  label:'ออกรายงาน' },
+  { id:'danger',  label:'ลบข้อมูล — ทำแล้วกู้คืนไม่ได้' },
+  { id:'branch',  label:'ฝั่งสาขา' }
+];
 var FH_ACTIONS = [
-  { id:'submit-request', label:'ส่งรายชื่อขออบรม (ฝั่งสาขา)', roles:['branch'],       danger:false },
-  // ── เมนูหลัก (เข้าหน้าไหนได้บ้าง) ──
-  { id:'view-certs',    label:'เมนู · ข้อมูลใบรับรอง',   roles:['admin','coo','vp','bzm'], danger:false },
-  { id:'view-requests', label:'เมนู · คำขออบรม',         roles:['admin','coo','vp','bzm'], danger:false },
-  { id:'view-registry', label:'เมนู · ทะเบียนรายชื่อ',   roles:['admin','coo','vp','bzm'], danger:false },
-  { id:'settings',      label:'เมนู · ตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],  danger:true  },
-  { id:'upload-registry', label:'อัปทะเบียนพนักงาน',     roles:['admin'],            danger:false },
-  { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
-  { id:'match-data',    label:'จับคู่ข้อมูล',            roles:['admin'],            danger:false },
-  { id:'export-excel',  label:'ส่งออก Excel (แบบฟอร์มขออบรม)', roles:['admin','coo','vp'], danger:false },
-  { id:'export-csv',    label:'ส่งออก CSV (สำรองทะเบียน)',      roles:['admin','coo','vp'], danger:false },
-  { id:'export-pdf',    label:'ออกรายงาน PDF',           roles:['admin','coo','vp'], danger:false },
-  { id:'import-reqs',   label:'นำเข้าคำขออบรม',          roles:['admin'],            danger:false },
-  { id:'dedup-certs',   label:'ลบใบรับรองที่ซ้ำ',        roles:['admin'],            danger:true  },
-  { id:'clear-certs',   label:'ลบใบรับรองทั้งหมด',       roles:['admin'],            danger:true  },
-  { id:'clear-reqs',    label:'ลบคำขออบรมทั้งหมด',       roles:['admin'],            danger:true  }
+  // ── เมนูหลัก ──
+  { id:'view-certs',      group:'menu',   label:'ข้อมูลใบรับรอง',        roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'view-requests',   group:'menu',   label:'คำขออบรม',              roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'view-registry',   group:'menu',   label:'ทะเบียนรายชื่อ',        roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'settings',        group:'menu',   label:'ตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],           danger:true  },
+  // ── นำเข้า / จัดการข้อมูล ──
+  { id:'upload-registry', group:'import', label:'อัปทะเบียนพนักงาน',     roles:['admin'],                  danger:false },
+  { id:'upload-cert',     group:'import', label:'อัปโหลดใบรับรอง PDF',   roles:['admin'],                  danger:false },
+  { id:'match-data',      group:'import', label:'จับคู่ข้อมูล',           roles:['admin'],                  danger:false },
+  { id:'import-reqs',     group:'import', label:'นำเข้าคำขออบรม',        roles:['admin'],                  danger:false },
+  // ── ออกรายงาน ──
+  { id:'export-pdf',      group:'export', label:'รายงาน PDF',            roles:['admin','coo','vp'],       danger:false },
+  { id:'export-excel',    group:'export', label:'Excel (แบบฟอร์มขออบรม)', roles:['admin','coo','vp'],      danger:false },
+  { id:'export-csv',      group:'export', label:'CSV (สำรองทะเบียน)',    roles:['admin','coo','vp'],       danger:false },
+  // ── ลบข้อมูล ──
+  { id:'dedup-certs',     group:'danger', label:'ลบใบรับรองที่ซ้ำ',      roles:['admin'],                  danger:true  },
+  { id:'clear-certs',     group:'danger', label:'ลบใบรับรองทั้งหมด',     roles:['admin'],                  danger:true  },
+  { id:'clear-reqs',      group:'danger', label:'ลบคำขออบรมทั้งหมด',     roles:['admin'],                  danger:true  },
+  // ── ฝั่งสาขา ──
+  { id:'submit-request',  group:'branch', label:'ส่งรายชื่อขออบรม',      roles:['branch'],                 danger:false }
 ];
 
 /* สิทธิ์: { actionId: { roles:[...], allow:[code...], deny:[code...] } }
@@ -8482,13 +8499,26 @@ function renderFhPermsEditor() {
       '<th style="padding:8px 6px;border-bottom:2px solid var(--border);"></th>' +
     '</tr></thead><tbody>';
 
+  var _lastGroup = null;
   FH_ACTIONS.forEach(function(a){
+    // หัวข้อหมวด — คั่นให้เห็นว่าปุ่มไหนอยู่กลุ่มไหน
+    if (a.group !== _lastGroup) {
+      _lastGroup = a.group;
+      var g = FH_ACTION_GROUPS.filter(function(x){ return x.id === a.group; })[0];
+      var isDanger = a.group === 'danger';
+      html += '<tr><td colspan="' + (FH_PERM_ROLES.length + 2) + '" ' +
+        'style="padding:14px 10px 6px;font-size:11.5px;font-weight:800;letter-spacing:.4px;' +
+        'color:' + (isDanger ? '#b91c1c' : 'var(--text3)') + ';text-transform:uppercase;">' +
+        escapeHtml((g && g.label) || a.group) + '</td></tr>';
+    }
     var p = FH_PERMS[a.id] || { roles:[], allow:[], deny:[] };
     var nEx = (p.allow.length + p.deny.length);
     html += '<tr>' +
-      '<td style="padding:9px 10px;border-bottom:1px solid var(--border);font-weight:600;">' +
+      '<td style="padding:9px 10px 9px 22px;border-bottom:1px solid var(--border);font-weight:600;">' +
         escapeHtml(a.label) +
-        (a.danger ? ' <span style="font-size:10px;font-weight:800;color:#b91c1c;background:rgba(220,38,38,0.10);padding:1px 6px;border-radius:6px;">อันตราย</span>' : '') +
+        // ป้ายเตือนเฉพาะของอันตรายที่อยู่นอกหมวด "ลบข้อมูล" (ในหมวดนั้นหัวข้อบอกอยู่แล้ว)
+        ((a.danger && a.group !== 'danger')
+          ? ' <span style="font-size:10px;font-weight:800;color:#b91c1c;background:rgba(220,38,38,0.10);padding:1px 6px;border-radius:6px;">ระวัง</span>' : '') +
       '</td>';
     FH_PERM_ROLES.forEach(function(r){
       var on = p.roles.indexOf(r) >= 0;
