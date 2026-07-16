@@ -5343,15 +5343,15 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 
   <nav class="adm-side-nav">
     <div class="adm-side-group-label">เมนูหลัก</div>
-    <button class="adm-side-link" data-target="adm-sec-cert">
+    <button class="adm-side-link" data-fh-action="view-certs" data-target="adm-sec-cert">
       <span class="adm-side-icon">📜</span>
       <span class="adm-side-link-text">ข้อมูลใบรับรอง</span>
     </button>
-    <button class="adm-side-link" data-target="adm-sec-requests">
+    <button class="adm-side-link" data-fh-action="view-requests" data-target="adm-sec-requests">
       <span class="adm-side-icon">📋</span>
       <span class="adm-side-link-text">คำขออบรม</span>
     </button>
-    <button class="adm-side-link" data-target="adm-sec-registry">
+    <button class="adm-side-link" data-fh-action="view-registry" data-target="adm-sec-registry">
       <span class="adm-side-icon">👥</span>
       <span class="adm-side-link-text">ทะเบียนรายชื่อ</span>
     </button>
@@ -8239,9 +8239,11 @@ function showAdmSection(targetId) {
   try {
     if (typeof FH_SECTION_ACTION !== 'undefined' && FH_SECTION_ACTION[targetId]
         && typeof fhCan === 'function' && !fhCan(FH_SECTION_ACTION[targetId])) {
-      targetId = ADM_DEFAULT_SEC;
+      targetId = _fhFirstAllowedSection() || '';   // เด้งไปหน้าแรกที่ "มีสิทธิ์จริง" ไม่ใช่ default ดื้อๆ
+      if (!targetId) { _fhShowNoAccess(); return; }
     }
   } catch (e) {}
+  var na = document.getElementById('fhNoAccess'); if (na) na.style.display = 'none';
   // Toggle section visibility
   var sections = document.querySelectorAll('.admin-main > [id^="adm-sec-"]');
   sections.forEach(function(s){
@@ -8279,13 +8281,13 @@ function _initAdminSidebar() {
     });
   });
   // Restore last viewed section — must have BOTH a section element AND a nav button
-  var initial = ADM_DEFAULT_SEC;
+  var initial = (typeof _fhFirstAllowedSection === 'function' ? _fhFirstAllowedSection() : '') || ADM_DEFAULT_SEC;
   try {
     var saved = sessionStorage.getItem(ADM_SEC_KEY);
     if (saved
         && document.getElementById(saved)
         && document.querySelector('.adm-side-link[data-target="'+saved+'"]')) {
-      initial = saved;
+      initial = saved;   // showAdmSection จะกันเองถ้าไม่มีสิทธิ์กับหน้าที่ค้างไว้
     }
   } catch(e) {}
   showAdmSection(initial);
@@ -8330,7 +8332,11 @@ function _loadFhUser() {
    roles = ตำแหน่งที่เห็นปุ่มนี้เป็นค่าตั้งต้น (แก้ได้ในหน้าจัดการสิทธิ์) */
 var FH_ACTIONS = [
   { id:'submit-request', label:'ส่งรายชื่อขออบรม (ฝั่งสาขา)', roles:['branch'],       danger:false },
-  { id:'settings',      label:'เข้าหน้าตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],  danger:true  },
+  // ── เมนูหลัก (เข้าหน้าไหนได้บ้าง) ──
+  { id:'view-certs',    label:'เมนู · ข้อมูลใบรับรอง',   roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'view-requests', label:'เมนู · คำขออบรม',         roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'view-registry', label:'เมนู · ทะเบียนรายชื่อ',   roles:['admin','coo','vp','bzm'], danger:false },
+  { id:'settings',      label:'เมนู · ตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],  danger:true  },
   { id:'upload-registry', label:'อัปทะเบียนพนักงาน',     roles:['admin'],            danger:false },
   { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
   { id:'match-data',    label:'จับคู่ข้อมูล',            roles:['admin'],            danger:false },
@@ -8410,7 +8416,42 @@ function applyFhPerms() {
 }
 
 /* หน้าที่ต้องมีสิทธิ์ถึงเข้าได้ — กันทั้งกดจากเมนู, กู้หน้าเดิมจาก session, และคนที่ปลดซ่อนปุ่มเอง */
-var FH_SECTION_ACTION = { 'adm-sec-settings': 'settings' };
+var FH_SECTION_ACTION = {
+  'adm-sec-cert':     'view-certs',
+  'adm-sec-requests': 'view-requests',
+  'adm-sec-registry': 'view-registry',
+  'adm-sec-settings': 'settings'
+};
+
+/* หน้าแรกที่ผู้ใช้คนนี้เข้าได้จริง — ใช้แทน ADM_DEFAULT_SEC เวลาโดนตีกลับ
+   สำคัญ: default คือ adm-sec-cert ซึ่งก็คุมสิทธิ์ด้วย ถ้าคนนั้นไม่มีสิทธิ์เห็น
+   การเด้งไป default ดื้อๆ = พาเข้าหน้าที่ไม่ควรเห็น · คืน '' ถ้าไม่มีสิทธิ์เลยสักหน้า */
+function _fhFirstAllowedSection() {
+  var order = ['adm-sec-cert','adm-sec-requests','adm-sec-registry','adm-sec-settings'];
+  for (var i = 0; i < order.length; i++) {
+    var a = FH_SECTION_ACTION[order[i]];
+    if (!a || fhCan(a)) return order[i];
+  }
+  return '';
+}
+
+/* ไม่มีสิทธิ์เข้าหน้าไหนเลย → บอกให้ชัด ดีกว่าปล่อยจอว่างแล้วผู้ใช้นึกว่าระบบพัง */
+function _fhShowNoAccess() {
+  document.querySelectorAll('.admin-main > [id^="adm-sec-"]').forEach(function(s){ s.classList.remove('active'); });
+  document.querySelectorAll('.adm-side-link[data-target]').forEach(function(l){ l.classList.remove('active'); });
+  var box = document.getElementById('fhNoAccess');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'fhNoAccess';
+    box.style.cssText = 'padding:48px 24px;text-align:center;color:var(--text3);';
+    box.innerHTML = '<div style="font-size:40px;margin-bottom:12px;">🔒</div>' +
+      '<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;">ยังไม่ได้รับสิทธิ์ใช้งานส่วนนี้</div>' +
+      '<div style="font-size:13px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</div>';
+    var main = document.querySelector('.admin-main');
+    if (main) main.appendChild(box);
+  }
+  box.style.display = '';
+}
 
 /* ─────────── หน้าจัดการสิทธิ์ (admin) ─────────── */
 var FH_PERM_ROLES = ['admin','coo','vp','bzm','branch'];
