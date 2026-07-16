@@ -6505,10 +6505,29 @@ function _branchKey(s){
     .replace(/[็-๎]/g,'')                   // ตัดวรรณยุกต์/ไม้ไต่คู้
     .toLowerCase();
 }
+/* สาขาเดียวกันแต่สะกดคนละแบบจน normalize อัตโนมัติไม่ได้ (อังกฤษ/ไทย, คำหาย)
+   → บังคับใช้ "ชื่อมาตรฐาน" ตามทะเบียน BRANCHES  ·  ยืนยันโดยผู้ใช้แล้ว
+   เทียบด้วย "ชื่อเต็มรวมแบรนด์" เท่านั้น — กันไปชนสาขาแบรนด์อื่นที่ชื่อคล้ายกัน
+   (เช่น 4007 "เจ๊แดง จุ่มนัวร์ ซีคอน ศรีนครินทร์" ต้องไม่ถูกรวมกับ 5002 ของ Santa Fe) */
+var FH_BRANCH_ALIAS = [
+  { from: 'Santa Fe Cosmo บาซาร์',       to: 'Santa Fe คอสโม บาร์ซา' },              // 5068
+  { from: 'Santa Fe ซีคอนศรีนครินทร์',   to: 'Santa Fe ซีคอนสแควร์ ศรีนครินทร์' },   // 5002
+  { from: 'Santa Fe พัทยากลาง',          to: 'Santa Fe บิ๊กซี พัทยากลาง' }           // 5014
+];
+var _FH_ALIAS_MAP = {};
+try { FH_BRANCH_ALIAS.forEach(function(a){ _FH_ALIAS_MAP[_branchKey(a.from)] = a.to; }); } catch(e) {}
+
 /* รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้ใช้สะกดเดียว (เลือกสะกดที่พบบ่อยสุด) — กัน dropdown/ตัวกรองขึ้นซ้ำ
    เช่น "แฟชั่น ไอส์แลนด์" กับ "แฟชั่นไอซ์แลนด์" → ใช้อันเดียว */
 function _canonicalizeBranches(list){
   if (!Array.isArray(list) || !list.length) return;
+  // 1) alias ที่ยืนยันแล้ว — บังคับเป็นชื่อมาตรฐานก่อน (ไม่ปล่อยให้ "เสียงข้างมาก" ตัดสิน)
+  list.forEach(function(d){
+    if (!d || !d.branch || d.branch === '—') return;
+    var t = _FH_ALIAS_MAP[_branchKey(d.branch)];
+    if (t) d.branch = t;
+  });
+  // 2) ที่เหลือ รวมสะกดต่างเล็กน้อยด้วยเสียงข้างมาก
   var groups = {};   // key → { สะกด: จำนวน }
   list.forEach(function(d){
     var b = d && d.branch; if (!b || b === '—') return;
