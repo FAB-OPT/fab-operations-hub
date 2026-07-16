@@ -2943,8 +2943,21 @@ function loadUsersFromCloud() {
     .then(function(res){
       // Apps Script อาจยังไม่ขยาย users — ถ้ามีค่อยอัปเดต ไม่งั้นใช้ local
       if (res && res.ok && Array.isArray(res.users) && res.users.length > 0) {
-        USERS = res.users;
+        USERS = res.users;   // ★ ข้อมูล cloud ทับ local — ชื่อเก่าที่ผิดจะกลับมาตรงนี้
         saveUsersLocal();
+        /* ซิงค์ชื่อ built-in ให้ตรงโค้ด แล้วดันกลับขึ้น cloud ครั้งเดียว
+           ต้องทำ "หลัง" cloud ทับ ไม่งั้นแก้ local ไปก็โดนทับอยู่ดี
+           ตั้ง flag หลังเขียน cloud สำเร็จเท่านั้น — ถ้าเน็ตล่มจะได้ลองใหม่รอบหน้า */
+        if (migrateBuiltInUserNames()) {
+          return saveUsersToCloud()
+            .then(function(){
+              try { localStorage.setItem(USERS_MIGRATION_KEY, '1'); } catch (e) {}
+              console.log('[users] ซิงค์ชื่อขึ้น cloud สำเร็จ — ทุกระบบจะเห็นชื่อที่ถูกต้อง');
+              return USERS;
+            })
+            .catch(function(e){ console.warn('[users] ซิงค์ชื่อขึ้น cloud ไม่สำเร็จ จะลองใหม่รอบหน้า', e); return USERS; });
+        }
+        try { localStorage.setItem(USERS_MIGRATION_KEY, '1'); } catch (e) {}   // ตรงกันอยู่แล้ว = จบ
       }
       return USERS;
     })
@@ -2959,8 +2972,42 @@ function saveUsersToCloud() {
   .then(function(r){ return r.json(); })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
+
+/* ── Migration ครั้งเดียว: ซิงค์ชื่อ/นิค ของผู้ใช้ built-in ให้ตรงกับ DEFAULT_USERS ──
+   ทำไมต้องมี: ชื่อที่เคยผิดในโค้ดเก่า (เช่น 601183 = "Kantapon") ถูกเซฟลง
+   localStorage/Cloud ไปแล้ว · พอโค้ดแก้เป็น "กันตภณ ลาภมงคลนาวิน" ก็ไม่มีผล
+   เพราะ loadUsersLocal/loadUsersFromCloud เอาข้อมูลเก่ามาทับทุกครั้ง
+   → ชื่อผิดค้างทั้งระบบ (Hub popup, ทุกโมดูลที่อ่าน session)
+
+   แตะเฉพาะ name/nick ของ code ที่มีใน DEFAULT_USERS · ไม่ยุ่งกับ role/brand
+   และไม่ยุ่งกับผู้ใช้ที่ admin เพิ่มเอง · ตั้ง flag ให้ทำครั้งเดียว
+   เพื่อไม่ไปทับชื่อที่ admin ตั้งใจแก้ผ่าน UI ในอนาคต */
+var USERS_MIGRATION_KEY = 'fab_users_name_sync_v1';
+function _usersMigrationDone() {
+  try { return !!localStorage.getItem(USERS_MIGRATION_KEY); } catch (e) { return false; }
+}
+function migrateBuiltInUserNames() {
+  if (_usersMigrationDone()) return false;
+  var changed = false;
+  DEFAULT_USERS.forEach(function(d){
+    for (var i = 0; i < USERS.length; i++) {
+      var u = USERS[i];
+      if (String(u.code) !== String(d.code)) continue;
+      if (u.name !== d.name || u.nick !== d.nick) {
+        console.log('[users] ซิงค์ชื่อ ' + d.code + ': "' + u.name + '" → "' + d.name + '"');
+        u.name = d.name; u.nick = d.nick;
+        changed = true;
+      }
+      break;
+    }
+  });
+  if (changed) saveUsersLocal();
+  return changed;
+}
+
 // Init load จาก localStorage ทันที (cloud โหลดทีหลังตอนเปิดเมนู)
 loadUsersLocal();
+migrateBuiltInUserNames();
 
 /* ═══════════ ทะเบียนแบรนด์กลาง (admin เพิ่ม/แก้ได้ · sync cloud) ═══════════ */
 var DEFAULT_BRAND_REGISTRY = [
