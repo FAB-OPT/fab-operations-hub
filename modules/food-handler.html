@@ -5018,6 +5018,8 @@ function startFhConfigSync() {
       if (d.schedules) FH_CONFIG.schedules = d.schedules;
       if (d.branches)  FH_CONFIG.branches  = d.branches;
       if (d.brands)    FH_CONFIG.brands    = d.brands;
+      // สิทธิ์ปุ่ม — sync realtime เหมือน config อื่น (admin แก้ที่เครื่องหนึ่ง เครื่องอื่นเห็นทันที)
+      if (d.perms) { try { FH_PERMS = _normalizeFhPerms(d.perms); saveFhPermsLocal(); } catch (e) {} }
       applyFhConfigUI();
     }, function(e){ console.warn('fhConfig sync error', e); applyFhConfigUI(); });
   } catch (e) { console.warn(e); applyFhConfigUI(); }
@@ -5051,6 +5053,9 @@ function applyFhConfigUI() {
     } catch (e) {}
   }
   try { if (typeof renderFhBrandBranchEditor === 'function') renderFhBrandBranchEditor(); } catch (e) {}
+  // สิทธิ์ปุ่มอาจเพิ่งเปลี่ยนจาก cloud → ซ่อน/แสดงปุ่มใหม่ + รีเฟรชหน้าจัดการสิทธิ์ถ้าเปิดอยู่
+  try { if (typeof applyFhPerms === 'function') applyFhPerms(); } catch (e) {}
+  try { if (typeof renderFhPermsEditor === 'function') renderFhPermsEditor(); } catch (e) {}
 }
 function onFhSubmitToggle(checked) {
   saveFhConfig({ submitOpen: !!checked })
@@ -5356,7 +5361,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <button class="adm-side-link adm-step-link" onclick="fhStepPopup(1)"><span class="adm-step-badge">1</span><span class="adm-side-link-text">อัปทะเบียนพนักงาน</span></button>
     <button class="adm-side-link adm-step-link" onclick="fhStepPopup(2)"><span class="adm-step-badge">2</span><span class="adm-side-link-text">อัปใบรับรอง</span></button>
     <button class="adm-side-link adm-step-link" onclick="fhStepPopup(3)"><span class="adm-step-badge">3</span><span class="adm-side-link-text">จับคู่ข้อมูล</span></button>
-    <button class="adm-side-link" onclick="openImportRequestsModal()"><span class="adm-side-icon">📋</span><span class="adm-side-link-text">นำเข้าคำขออบรม</span></button>
+    <button class="adm-side-link" data-fh-action="import-reqs" onclick="openImportRequestsModal()"><span class="adm-side-icon">📋</span><span class="adm-side-link-text">นำเข้าคำขออบรม</span></button>
 
     <div class="adm-side-divider"></div>
     <div class="adm-side-group-label">การจัดการข้อมูล</div>
@@ -5369,11 +5374,11 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
         <span class="adm-side-chev">▾</span>
       </button>
       <div class="adm-side-children">
-        <button class="adm-side-link adm-side-sub" onclick="openExportPDFModal()">
+        <button class="adm-side-link adm-side-sub" data-fh-action="export-pdf" onclick="openExportPDFModal()">
           <span class="adm-side-icon">📄</span>
           <span class="adm-side-link-text">PDF</span>
         </button>
-        <button class="adm-side-link adm-side-sub" onclick="exportTrainingForm()">
+        <button class="adm-side-link adm-side-sub" data-fh-action="export-excel" onclick="exportTrainingForm()">
           <span class="adm-side-icon">📊</span>
           <span class="adm-side-link-text">Excel</span>
         </button>
@@ -5402,6 +5407,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="fh-tabs" role="tablist">
       <button type="button" class="fh-tab active" data-tab="submit" onclick="fhSetTab('submit')"><span class="tico">🔔</span>รับรายชื่อ</button>
       <button type="button" class="fh-tab" data-tab="schedule" onclick="fhSetTab('schedule')"><span class="tico">📅</span>ตารางอบรม</button>
+      <button type="button" class="fh-tab" data-tab="perms" onclick="fhSetTab('perms')"><span class="tico">🔐</span>สิทธิ์ปุ่ม</button>
     </div>
 
     <div class="fh-tabpanel active" id="fhTab-submit">
@@ -5417,6 +5423,23 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="fh-tabpanel" id="fhTab-schedule">
       <div id="fhScheduleEditor" style="margin-top:6px;"></div>
     </div>
+
+    <div class="fh-tabpanel" id="fhTab-perms">
+      <div class="section-card" style="padding:18px 20px;margin-top:20px;">
+        <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px;">
+          ติ๊กตำแหน่งที่ให้เห็นปุ่มแต่ละอัน · ถ้าต้องการ<b>ยกเว้นเป็นรายคน</b> (ให้สิทธิ์พิเศษ หรือห้ามเฉพาะคน) กด <b>“ยกเว้นรายคน”</b> ท้ายแถว<br>
+          ลำดับการตัดสิน: <b>ห้ามรายคน</b> ชนะทุกอย่าง → <b>อนุญาตรายคน</b> → <b>ตำแหน่ง</b>
+        </div>
+        <div id="fhPermsEditor"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
+          <button class="cleanup-btn" onclick="resetFhPerms()">↺ คืนค่าเริ่มต้น</button>
+          <button class="tbtn primary" id="fhPermsSaveBtn" onclick="saveFhPerms()"
+            style="padding:9px 18px;border:none;background:var(--gold,#EA580C);color:#fff;border-radius:8px;font-weight:700;cursor:pointer;font-family:inherit;font-size:13px;">
+            💾 บันทึกสิทธิ์
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </div>
 <!-- end adm-sec-settings -->
@@ -5429,7 +5452,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <div class="import-zone">
 
   <!-- PDF CARD -->
-  <div class="drop-card" id="pdfCard"
+  <div class="drop-card" id="pdfCard" data-fh-action="upload-cert"
        ondragover="dragOver(event,'pdfCard')"
        ondragleave="dragLeave('pdfCard')"
        ondrop="dropFile(event,'pdf')">
@@ -5536,8 +5559,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="cleanup-group filter-cleanup">
       <span class="cleanup-label">🧹 ล้างข้อมูลซ้ำ:</span>
       <button class="cleanup-btn cleanup-warn" onclick="dedupEmployeeRegistry()" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">ทะเบียนพนักงาน</button>
-      <button class="cleanup-btn cleanup-info" onclick="dedupCertificateRegistry()" title="ลบใบรับรองที่ซ้ำใน Cloud">ใบรับรอง</button>
-      <button class="cleanup-btn" onclick="clearAllCerts()" title="ลบใบรับรองทั้งหมดใน Cloud" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);">🗑 ลบใบรับรองทั้งหมด</button>
+      <button class="cleanup-btn cleanup-info" data-fh-action="dedup-certs" onclick="dedupCertificateRegistry()" title="ลบใบรับรองที่ซ้ำใน Cloud">ใบรับรอง</button>
+      <button class="cleanup-btn" data-fh-action="clear-certs" onclick="clearAllCerts()" title="ลบใบรับรองทั้งหมดใน Cloud" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);">🗑 ลบใบรับรองทั้งหมด</button>
     </div>
   </div>
   <!-- hidden state holders (kept for JS compatibility — getFiltered reads these) -->
@@ -5604,7 +5627,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
   <button class="req-filter-refresh" onclick="openAdminReqDupCheck()" title="ตรวจรายชื่อที่ส่งซ้ำ" style="background:rgba(245,158,11,0.1);color:#b45309;border-color:rgba(245,158,11,0.3);">🔍 ตรวจรายชื่อซ้ำ</button>
   <button class="req-filter-refresh" onclick="openAddRequest()" title="เพิ่มผู้เข้าอบรมด้วยตนเอง" style="background:rgba(16,185,129,0.12);color:#047857;border-color:rgba(16,185,129,0.35);font-weight:700;">➕ เพิ่มผู้เข้าอบรม</button>
-  <button class="req-filter-refresh" onclick="clearAllRequests()" title="ลบคำขออบรมทั้งหมด" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);font-weight:700;">🗑 ลบทั้งหมด</button>
+  <button class="req-filter-refresh" data-fh-action="clear-reqs" onclick="clearAllRequests()" title="ลบคำขออบรมทั้งหมด" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);font-weight:700;">🗑 ลบทั้งหมด</button>
 </div>
 
 <!-- Modal: รายชื่อซ้ำ -->
@@ -5673,7 +5696,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <input type="text" class="req-filter-search" id="registrySearch" placeholder="🔍 ค้นหา ชื่อ / รหัส / สาขา / ตำแหน่ง..." oninput="renderRegistryTable()" autocomplete="off">
       <span id="registryCount" style="font-size:12.5px;color:var(--text2);font-weight:700;white-space:nowrap;">—</span>
       <button class="req-filter-refresh" onclick="_reloadRegistry()" title="โหลดทะเบียนใหม่จาก Cloud">🔄 โหลดใหม่</button>
-      <button class="req-filter-refresh" onclick="reMatchCerts()" title="จับคู่ใบรับรองกับทะเบียน" style="background:rgba(234,88,12,0.12);color:#c2410c;border-color:rgba(234,88,12,0.35);font-weight:800;">🔗 จับคู่ข้อมูล</button>
+      <button class="req-filter-refresh" data-fh-action="match-data" onclick="reMatchCerts()" title="จับคู่ใบรับรองกับทะเบียน" style="background:rgba(234,88,12,0.12);color:#c2410c;border-color:rgba(234,88,12,0.35);font-weight:800;">🔗 จับคู่ข้อมูล</button>
       <button class="req-filter-refresh" onclick="clearRegistry()" title="ลบทะเบียนรายชื่อทั้งหมด" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);font-weight:700;">🗑 ลบทะเบียน</button>
     </div>
 
@@ -8254,10 +8277,232 @@ function _updateTopbarVisibility() {
   void aView; // referenced for future re-enable if needed
 }
 
+/* ═══════════ สิทธิ์การใช้ปุ่ม (role เป็นค่าตั้งต้น + ยกเว้นรายคนได้) ═══════════ */
+
+var FH_ROLE_LABEL = { admin:'Admin', coo:'COO', vp:'VP', bzm:'BZM', branch:'สาขา' };
+
+/* ผู้ใช้ที่ล็อกอินอยู่ — อ่านจาก fab_session ที่ Hub เขียนไว้ (localStorage, TTL 8 ชม.) */
+var FH_USER = { code:'', name:'', nick:'', role:'' };
+function _loadFhUser() {
+  try {
+    var s = JSON.parse(localStorage.getItem('fab_session') || '{}');
+    FH_USER = {
+      code: String(s.code || ''),
+      name: s.name || '',
+      nick: s.nick || '',
+      role: s.role || sessionStorage.getItem('fab_role') || ''
+    };
+  } catch (e) {
+    FH_USER = { code:'', name:'', nick:'', role: sessionStorage.getItem('fab_role') || '' };
+  }
+  return FH_USER;
+}
+
+/* ปุ่มที่คุมสิทธิ์ได้ — id ต้องตรงกับ data-fh-action ใน HTML
+   roles = ตำแหน่งที่เห็นปุ่มนี้เป็นค่าตั้งต้น (แก้ได้ในหน้าจัดการสิทธิ์) */
+var FH_ACTIONS = [
+  { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
+  { id:'match-data',    label:'จับคู่ข้อมูล',            roles:['admin'],            danger:false },
+  { id:'export-excel',  label:'ส่งออก Excel',            roles:['admin','coo','vp'], danger:false },
+  { id:'export-pdf',    label:'ออกรายงาน PDF',           roles:['admin','coo','vp'], danger:false },
+  { id:'import-reqs',   label:'นำเข้าคำขออบรม',          roles:['admin'],            danger:false },
+  { id:'dedup-certs',   label:'ลบใบรับรองที่ซ้ำ',        roles:['admin'],            danger:true  },
+  { id:'clear-certs',   label:'ลบใบรับรองทั้งหมด',       roles:['admin'],            danger:true  },
+  { id:'clear-reqs',    label:'ลบคำขออบรมทั้งหมด',       roles:['admin'],            danger:true  }
+];
+
+/* สิทธิ์: { actionId: { roles:[...], allow:[code...], deny:[code...] } }
+   allow/deny = ยกเว้นรายคน (deny ชนะทุกอย่าง) */
+var FH_PERMS = {};
+var FH_PERMS_KEY = 'fh_perms_v1';
+
+function _fhDefaultPerms() {
+  var o = {};
+  FH_ACTIONS.forEach(function(a){ o[a.id] = { roles: a.roles.slice(), allow: [], deny: [] }; });
+  return o;
+}
+function _normalizeFhPerms(p) {
+  var out = _fhDefaultPerms();
+  if (p && typeof p === 'object') {
+    FH_ACTIONS.forEach(function(a){
+      var src = p[a.id];
+      if (!src) return;
+      out[a.id] = {
+        roles: Array.isArray(src.roles) ? src.roles.slice() : a.roles.slice(),
+        allow: Array.isArray(src.allow) ? src.allow.map(String) : [],
+        deny:  Array.isArray(src.deny)  ? src.deny.map(String)  : []
+      };
+    });
+  }
+  return out;
+}
+function loadFhPermsLocal() {
+  try { FH_PERMS = _normalizeFhPerms(JSON.parse(localStorage.getItem(FH_PERMS_KEY) || 'null')); }
+  catch (e) { FH_PERMS = _fhDefaultPerms(); }
+  return FH_PERMS;
+}
+function saveFhPermsLocal() {
+  try { localStorage.setItem(FH_PERMS_KEY, JSON.stringify(FH_PERMS)); } catch (e) {}
+}
+
+/* เช็คสิทธิ์ของผู้ใช้ปัจจุบัน — ลำดับ: deny รายคน > allow รายคน > ตำแหน่ง */
+function fhCan(actionId) {
+  var p = FH_PERMS[actionId];
+  if (!p) return true;                                   // ไม่ได้กำหนด = ไม่คุม
+  var code = String(FH_USER.code || '');
+  if (code && p.deny.indexOf(code) >= 0) return false;    // ห้ามรายคน ชนะเสมอ
+  if (code && p.allow.indexOf(code) >= 0) return true;    // อนุญาตรายคน แม้ตำแหน่งไม่ผ่าน
+  return p.roles.indexOf(FH_USER.role) >= 0;
+}
+
+/* ซ่อน/แสดงปุ่มตามสิทธิ์ — เรียกซ้ำได้ทุกครั้งที่เรนเดอร์ใหม่ */
+function applyFhPerms() {
+  document.querySelectorAll('[data-fh-action]').forEach(function(el){
+    var id = el.getAttribute('data-fh-action');
+    el.style.display = fhCan(id) ? '' : 'none';
+  });
+}
+
+/* ─────────── หน้าจัดการสิทธิ์ (admin) ─────────── */
+var FH_PERM_ROLES = ['admin','coo','vp','bzm'];
+
+/* รายชื่อผู้ใช้ — Hub เขียนไว้ที่ localStorage.fab_users_v1 ตอนล็อกอิน */
+var FH_USERS = [];
+function loadFhUsers() {
+  try {
+    var a = JSON.parse(localStorage.getItem('fab_users_v1') || '[]');
+    FH_USERS = Array.isArray(a) ? a : [];
+  } catch (e) { FH_USERS = []; }
+  return FH_USERS;
+}
+function _fhUserLabel(u) {
+  return (u.nick ? u.nick + ' · ' : '') + (u.name || u.code) + ' (' + (FH_ROLE_LABEL[u.role] || u.role) + ')';
+}
+
+function renderFhPermsEditor() {
+  var box = document.getElementById('fhPermsEditor');
+  if (!box) return;
+  loadFhUsers();
+  var html = '<div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;font-size:13px;">' +
+    '<thead><tr>' +
+      '<th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--border);white-space:nowrap;">ปุ่ม</th>' +
+      FH_PERM_ROLES.map(function(r){
+        return '<th style="padding:8px 6px;border-bottom:2px solid var(--border);white-space:nowrap;">' + FH_ROLE_LABEL[r] + '</th>';
+      }).join('') +
+      '<th style="padding:8px 6px;border-bottom:2px solid var(--border);"></th>' +
+    '</tr></thead><tbody>';
+
+  FH_ACTIONS.forEach(function(a){
+    var p = FH_PERMS[a.id] || { roles:[], allow:[], deny:[] };
+    var nEx = (p.allow.length + p.deny.length);
+    html += '<tr>' +
+      '<td style="padding:9px 10px;border-bottom:1px solid var(--border);font-weight:600;">' +
+        escapeHtml(a.label) +
+        (a.danger ? ' <span style="font-size:10px;font-weight:800;color:#b91c1c;background:rgba(220,38,38,0.10);padding:1px 6px;border-radius:6px;">อันตราย</span>' : '') +
+      '</td>';
+    FH_PERM_ROLES.forEach(function(r){
+      var on = p.roles.indexOf(r) >= 0;
+      html += '<td style="padding:9px 6px;border-bottom:1px solid var(--border);text-align:center;">' +
+        '<input type="checkbox"' + (on ? ' checked' : '') +
+        ' onchange="toggleFhPermRole(\'' + a.id + '\',\'' + r + '\',this.checked)" style="width:16px;height:16px;cursor:pointer;"></td>';
+    });
+    html += '<td style="padding:9px 6px;border-bottom:1px solid var(--border);text-align:right;white-space:nowrap;">' +
+      '<button class="cleanup-btn" style="font-size:11.5px;padding:4px 9px;" onclick="toggleFhPermUsersRow(\'' + a.id + '\')">' +
+      'ยกเว้นรายคน' + (nEx ? ' (' + nEx + ')' : '') + '</button></td></tr>';
+
+    // แถวยกเว้นรายคน (ซ่อนไว้ก่อน)
+    html += '<tr id="fhPermUsers-' + a.id + '" style="display:none;"><td colspan="' + (FH_PERM_ROLES.length + 2) + '" ' +
+      'style="padding:10px 12px;background:var(--surface-2,#f8fafc);border-bottom:1px solid var(--border);">';
+    if (!FH_USERS.length) {
+      html += '<div style="font-size:12px;color:var(--text3);">ยังไม่มีรายชื่อผู้ใช้ในเครื่องนี้ — เข้าผ่านหน้า Hub หนึ่งครั้งเพื่อโหลดรายชื่อ</div>';
+    } else {
+      html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;">';
+      FH_USERS.forEach(function(u){
+        var code = String(u.code || '');
+        var mode = p.deny.indexOf(code) >= 0 ? 'deny' : (p.allow.indexOf(code) >= 0 ? 'allow' : 'default');
+        var byRole = p.roles.indexOf(u.role) >= 0;
+        html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 8px;background:#fff;border:1px solid var(--border);border-radius:7px;">' +
+          '<span style="font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">' + escapeHtml(_fhUserLabel(u)) + '</span>' +
+          '<span style="display:flex;gap:3px;flex-shrink:0;">' +
+            _fhModeBtn(a.id, code, 'default', mode, byRole ? 'ตามตำแหน่ง: เห็น' : 'ตามตำแหน่ง: ไม่เห็น') +
+            _fhModeBtn(a.id, code, 'allow', mode, 'อนุญาตเฉพาะคนนี้') +
+            _fhModeBtn(a.id, code, 'deny', mode, 'ห้ามเฉพาะคนนี้') +
+          '</span></div>';
+      });
+      html += '</div>';
+    }
+    html += '</td></tr>';
+  });
+
+  html += '</tbody></table></div>';
+  box.innerHTML = html;
+}
+
+function _fhModeBtn(actionId, code, mode, current, title) {
+  var on = current === mode;
+  var txt = mode === 'default' ? 'ปกติ' : (mode === 'allow' ? 'อนุญาต' : 'ห้าม');
+  var col = mode === 'allow' ? '#16a34a' : (mode === 'deny' ? '#dc2626' : '#64748b');
+  return '<button title="' + escapeAttr(title) + '" onclick="setFhPermUser(\'' + actionId + '\',\'' + code + '\',\'' + mode + '\')" ' +
+    'style="font-size:10.5px;font-weight:700;padding:3px 7px;border-radius:5px;cursor:pointer;' +
+    (on ? 'background:' + col + ';color:#fff;border:1px solid ' + col + ';' : 'background:#fff;color:' + col + ';border:1px solid var(--border);') +
+    '">' + txt + '</button>';
+}
+
+function toggleFhPermUsersRow(actionId) {
+  var r = document.getElementById('fhPermUsers-' + actionId);
+  if (r) r.style.display = (r.style.display === 'none' ? '' : 'none');
+}
+function toggleFhPermRole(actionId, role, on) {
+  var p = FH_PERMS[actionId]; if (!p) return;
+  var i = p.roles.indexOf(role);
+  if (on && i < 0) p.roles.push(role);
+  if (!on && i >= 0) p.roles.splice(i, 1);
+}
+function setFhPermUser(actionId, code, mode) {
+  var p = FH_PERMS[actionId]; if (!p) return;
+  p.allow = p.allow.filter(function(c){ return c !== code; });
+  p.deny  = p.deny.filter(function(c){ return c !== code; });
+  if (mode === 'allow') p.allow.push(code);
+  if (mode === 'deny')  p.deny.push(code);
+  renderFhPermsEditor();
+  var r = document.getElementById('fhPermUsers-' + actionId);
+  if (r) r.style.display = '';   // เปิดแถวเดิมค้างไว้หลังเรนเดอร์ใหม่
+}
+function resetFhPerms() {
+  customConfirm({
+    icon: (typeof ICON_TRASH !== 'undefined' ? ICON_TRASH : ''),
+    title: 'คืนค่าสิทธิ์เริ่มต้น?',
+    desc: 'สิทธิ์ทุกปุ่มจะกลับเป็นค่าตั้งต้น และการยกเว้นรายคนทั้งหมดจะถูกล้าง',
+    okText: 'คืนค่า', okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    FH_PERMS = _fhDefaultPerms();
+    renderFhPermsEditor();
+    saveFhPerms();
+  });
+}
+function saveFhPerms() {
+  var btn = document.getElementById('fhPermsSaveBtn');
+  var old = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...'; }
+  saveFhPermsLocal();
+  saveFhConfig({ perms: FH_PERMS })
+    .then(function(){
+      applyFhPerms();
+      showInfo('บันทึกสิทธิ์แล้ว', 'สิทธิ์ปุ่มถูกอัปเดตทุกเครื่องแล้ว');
+    })
+    .catch(function(e){
+      showInfo('บันทึกไม่สำเร็จ', escapeHtml(e.message || String(e)) + ' — สิทธิ์ถูกเก็บไว้ในเครื่องนี้ชั่วคราว');
+    })
+    .then(function(){ if (btn) { btn.disabled = false; btn.innerHTML = old; } });
+}
+
 window.addEventListener('DOMContentLoaded', function() {
   // Session handoff from Hub (../index.html)
   var role = sessionStorage.getItem('fab_role');
   if (!role) { window.location.href = '../index.html'; return; }
+  _loadFhUser();
+  loadFhPermsLocal();
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
   currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
   isAdminMode = (role === 'admin');
@@ -8266,8 +8511,8 @@ window.addEventListener('DOMContentLoaded', function() {
     document.getElementById('branchView').style.display = 'none';
     document.body.classList.add('is-admin');
     _initAdminSidebar();
-    // Sync user info in sidebar footer
-    var adminName = 'Kantapon';
+    // Sync user info in sidebar footer — ใช้ชื่อคนที่ล็อกอินจริงจาก fab_session (เดิมฮาร์ดโค้ด "Kantapon")
+    var adminName = (FH_USER.nick || FH_USER.name || 'Admin');
     var nameEl = document.getElementById('admUserName');
     var avEl = document.getElementById('admUserAvatar');
     var mUserEl = document.getElementById('admMobileUser');
@@ -8279,12 +8524,14 @@ window.addEventListener('DOMContentLoaded', function() {
     if (sUserNameEl) sUserNameEl.textContent = adminName;
     if (sUserAvEl) sUserAvEl.textContent = adminName.charAt(0).toUpperCase();
     var adminTag = document.getElementById('adminTag');
-    var adminTagHtml = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">Kantapon (Admin)</span></span>';
+    var adminTagHtml = '<span class="branch-chip"><span class="branch-chip-name" style="color:var(--red)">' +
+      escapeHtml(adminName) + ' (' + escapeHtml(FH_ROLE_LABEL[FH_USER.role] || 'Admin') + ')</span></span>';
     if (adminTag) adminTag.innerHTML = adminTagHtml;
     var adminTagInline = document.getElementById('adminTagInline');
     if (adminTagInline) adminTagInline.innerHTML = adminTagHtml;
     var mtbLabel = document.getElementById('mtbBranchLabel');
     if (mtbLabel) mtbLabel.textContent = 'Admin';
+    applyFhPerms();   // ซ่อนปุ่มตามสิทธิ์ที่ cache ไว้ทันที — startFhConfigSync จะ sync ค่าล่าสุดมาทับเอง
     // Auto-load existing records from cloud
     setTimeout(loadFromCloud, 100);
     setTimeout(loadAdminRequests, 200);
