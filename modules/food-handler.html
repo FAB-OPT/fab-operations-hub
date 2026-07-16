@@ -6583,9 +6583,24 @@ function parseAnyDate(s) {
   s = String(s).trim();
   if (!s || s === '—') return null;
   // ISO: "2570-07-21T17:00:00.000Z" or "2026-07-21" or "2026-05-25 14:32:15"
-  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?/);
+  var iso = s.match(/^(\d{4})-(\d{2})-(\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?)?(Z|[+-]\d{2}:?\d{2})?/);
   if (iso) {
     var y = parseInt(iso[1]);
+    /* มี timezone (Z / +07:00) → Sheets เก็บวันที่ไทยแล้วส่งกลับเป็น UTC (เลื่อน -7 ชม.)
+       ถ้าอ่านเลขวันจากสตริง UTC ตรงๆ จะเพี้ยนไป 1 วัน (6 พ.ย. ไทย = 5 พ.ย. 17:00Z)
+       จึงต้องแปลงเป็น instant จริงแล้วอ่านวันที่ "ตามเวลาไทย" (UTC+7) แบบตายตัว
+       — ไม่พึ่ง timezone ของเครื่องผู้ใช้ เพื่อให้ทุกเครื่องเห็นวันเดียวกัน */
+    if (iso[7]) {
+      var gy = y > 2500 ? y - 543 : y;
+      var inst = new Date(s.replace(/^\d{4}/, String(gy)));
+      if (!isNaN(inst)) {
+        var bkk = new Date(inst.getTime() + 7 * 3600000);   // เลื่อนเป็นเวลาไทย แล้วอ่านส่วน UTC
+        return new Date(
+          bkk.getUTCFullYear(), bkk.getUTCMonth(), bkk.getUTCDate(),
+          bkk.getUTCHours(), bkk.getUTCMinutes(), bkk.getUTCSeconds()
+        );
+      }
+    }
     if (y > 2500) y -= 543;
     return new Date(
       y, parseInt(iso[2]) - 1, parseInt(iso[3]),
