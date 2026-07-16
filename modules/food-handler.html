@@ -8373,6 +8373,14 @@ function applyFhPerms() {
     var id = el.getAttribute('data-fh-action');
     el.style.display = fhCan(id) ? '' : 'none';
   });
+  /* กลุ่มเมนูที่ลูกโดนซ่อนหมด → ซ่อนหัวข้อกลุ่มด้วย
+     ไม่งั้นกดหัวข้อแล้วกางออกมาว่างเปล่า ผู้ใช้จะนึกว่า "ปุ่มกดไม่ได้" */
+  document.querySelectorAll('.adm-side-collapsible').forEach(function(coll){
+    var kids = coll.querySelectorAll('.adm-side-children [data-fh-action]');
+    if (!kids.length) return;   // กลุ่มที่ไม่ได้คุมสิทธิ์ ปล่อยไว้
+    var anyVisible = Array.prototype.some.call(kids, function(k){ return k.style.display !== 'none'; });
+    coll.style.display = anyVisible ? '' : 'none';
+  });
 }
 
 /* ─────────── หน้าจัดการสิทธิ์ (admin) ─────────── */
