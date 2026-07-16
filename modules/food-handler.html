@@ -5032,9 +5032,13 @@ function saveFhConfig(patch) {
 // ปรับ UI ตาม config (ทั้งฝั่งสาขาและ admin)
 function applyFhConfigUI() {
   var open = FH_CONFIG.submitOpen !== false;
+  /* ปุ่มเริ่มส่งรายชื่อต้องผ่าน 2 ด่าน: สวิตช์ "รับรายชื่อ" เปิด + role นั้นมีสิทธิ์ส่ง
+     จงใจไม่ติด data-fh-action ที่ step1Cta เพราะ applyFhPerms จะไปเซ็ต display ทับ
+     แล้วเปิดปุ่มตอนที่สวิตช์ปิดอยู่ (= สาขาส่งได้ทั้งที่ปิดรับ) */
+  var canSubmit = (typeof fhCan === 'function') ? fhCan('submit-request') : true;
   var banner = document.getElementById('fhClosedBanner'); if (banner) banner.style.display = open ? 'none' : '';
-  var cta = document.getElementById('step1Cta');          if (cta) cta.style.display = open ? '' : 'none';
-  var step2 = document.getElementById('step2Section');    if (!open && step2) step2.style.display = 'none';
+  var cta = document.getElementById('step1Cta');          if (cta) cta.style.display = (open && canSubmit) ? '' : 'none';
+  var step2 = document.getElementById('step2Section');    if ((!open || !canSubmit) && step2) step2.style.display = 'none';
   var sbtn = document.getElementById('submitReqBtn');     if (sbtn) sbtn.disabled = !open;
   var tg = document.getElementById('fhSubmitToggle');     if (tg) tg.checked = open;
   var lbl = document.getElementById('fhSubmitToggleLabel');
@@ -5279,8 +5283,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <div class="req-container">
         <div id="requestList"></div>
         <div class="req-actions">
-          <button class="btn-add" onclick="addRequestRow()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรายชื่อ</button>
-          <button class="btn-submit" id="submitReqBtn" onclick="showSubmitSummary()"><svg class="ico"><use href="#i-send"/></svg> ส่งรายชื่อทั้งหมด</button>
+          <button class="btn-add" data-fh-action="submit-request" onclick="addRequestRow()"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรายชื่อ</button>
+          <button class="btn-submit" id="submitReqBtn" data-fh-action="submit-request" onclick="showSubmitSummary()"><svg class="ico"><use href="#i-send"/></svg> ส่งรายชื่อทั้งหมด</button>
         </div>
       </div>
       <div id="reqStatus" style="margin-top:14px;font-size:13px;"></div>
@@ -5435,7 +5439,9 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <div class="section-card" style="padding:18px 20px;margin-top:20px;">
         <div style="font-size:12.5px;color:var(--text3);line-height:1.6;margin-bottom:14px;">
           ติ๊กตำแหน่งที่ให้เห็นปุ่มแต่ละอัน · ถ้าต้องการ<b>ยกเว้นเป็นรายคน</b> (ให้สิทธิ์พิเศษ หรือห้ามเฉพาะคน) กด <b>“ยกเว้นรายคน”</b> ท้ายแถว<br>
-          ลำดับการตัดสิน: <b>ห้ามรายคน</b> ชนะทุกอย่าง → <b>อนุญาตรายคน</b> → <b>ตำแหน่ง</b>
+          ลำดับการตัดสิน: <b>ห้ามรายคน</b> ชนะทุกอย่าง → <b>อนุญาตรายคน</b> → <b>ตำแหน่ง</b><br>
+          <span style="color:#b45309;">หมายเหตุ: คอลัมน์ <b>สาขา</b> ตั้งได้เฉพาะระดับตำแหน่ง — ยกเว้นรายคนไม่มีผลกับสาขา เพราะสาขาล็อกอินด้วยรหัสสาขา ไม่ใช่รายบุคคล ·
+          ปุ่มส่งรายชื่อยังขึ้นกับสวิตช์ <b>“รับรายชื่อ”</b> ในแท็บแรกด้วย (ปิดรับ = ส่งไม่ได้ ถึงจะติ๊กสิทธิ์ไว้)</span>
         </div>
         <div id="fhPermsEditor"></div>
         <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:16px;flex-wrap:wrap;">
@@ -8323,6 +8329,7 @@ function _loadFhUser() {
 /* ปุ่มที่คุมสิทธิ์ได้ — id ต้องตรงกับ data-fh-action ใน HTML
    roles = ตำแหน่งที่เห็นปุ่มนี้เป็นค่าตั้งต้น (แก้ได้ในหน้าจัดการสิทธิ์) */
 var FH_ACTIONS = [
+  { id:'submit-request', label:'ส่งรายชื่อขออบรม (ฝั่งสาขา)', roles:['branch'],       danger:false },
   { id:'settings',      label:'เข้าหน้าตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],  danger:true  },
   { id:'upload-registry', label:'อัปทะเบียนพนักงาน',     roles:['admin'],            danger:false },
   { id:'upload-cert',   label:'อัปโหลดใบรับรอง PDF',    roles:['admin'],            danger:false },
@@ -8406,7 +8413,7 @@ function applyFhPerms() {
 var FH_SECTION_ACTION = { 'adm-sec-settings': 'settings' };
 
 /* ─────────── หน้าจัดการสิทธิ์ (admin) ─────────── */
-var FH_PERM_ROLES = ['admin','coo','vp','bzm'];
+var FH_PERM_ROLES = ['admin','coo','vp','bzm','branch'];
 
 /* รายชื่อผู้ใช้ — Hub เขียนไว้ที่ localStorage.fab_users_v1 ตอนล็อกอิน */
 var FH_USERS = [];
@@ -8530,7 +8537,7 @@ function saveFhPerms() {
   saveFhPermsLocal();
   saveFhConfig({ perms: FH_PERMS })
     .then(function(){
-      applyFhPerms();
+      applyFhConfigUI();   // เรียกตัวนี้ (ไม่ใช่ applyFhPerms ตรงๆ) เพราะปุ่มฝั่งสาขาต้องคิดร่วมกับสวิตช์รับรายชื่อ
       showInfo('บันทึกสิทธิ์แล้ว', 'สิทธิ์ปุ่มถูกอัปเดตทุกเครื่องแล้ว');
     })
     .catch(function(e){
@@ -8545,6 +8552,10 @@ window.addEventListener('DOMContentLoaded', function() {
   if (!role) { window.location.href = '../index.html'; return; }
   _loadFhUser();
   loadFhPermsLocal();
+  /* startFhConfigSync ผูก DOMContentLoaded ไว้ก่อนตัวนี้ → applyFhConfigUI อาจรันตอนที่ยัง
+     ไม่รู้ว่าใครล็อกอิน (FH_USER ว่าง) จึงต้องคำนวณ UI ใหม่ทันทีที่ได้ user/สิทธิ์แล้ว
+     สำคัญกับฝั่งสาขา เพราะปุ่มส่งรายชื่อขึ้นกับสิทธิ์ */
+  try { applyFhConfigUI(); } catch (e) {}
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
   currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
   isAdminMode = (role === 'admin');
