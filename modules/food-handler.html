@@ -5047,7 +5047,7 @@ function applyFhConfigUI() {
   if (Array.isArray(FH_CONFIG.branches) && typeof BRANCHES !== 'undefined') {
     try {
       FH_CONFIG.branches.forEach(function(b){ if (b && b.code) BRANCHES[String(b.code)] = b.name || ''; });
-      if (typeof _brCodeByNameG !== 'undefined') { _brCodeByNameG = {}; Object.keys(BRANCHES).forEach(function(c){ _brCodeByNameG[getBranchFullName(c)] = c; }); }
+      if (typeof _rebuildBranchCodeMaps === 'function') _rebuildBranchCodeMaps();   // admin แก้สาขา → รีเฟรช map รหัสด้วย
     } catch (e) {}
   }
   try { if (typeof renderFhBrandBranchEditor === 'function') renderFhBrandBranchEditor(); } catch (e) {}
@@ -6937,8 +6937,17 @@ function populateFilterDropdowns_() {
     var bd = _certBrand(d); if (bd && bd !== '—') bdSet[bd] = true;
   });
   var currBr = brSel.value, currCo = coSel.value;
-  brSel.innerHTML = '<option value="all">🏢 ทุกสาขา</option>' + Object.keys(brSet).sort().map(function(b){
-    return '<option value="'+escapeAttr(b)+'"'+(b===currBr?' selected':'')+'>'+escapeHtml(b)+'</option>';
+  /* โชว์ "รหัส · ชื่อสาขา" และเรียงตามรหัส (สาขาที่ไม่มีรหัสในทะเบียนไปท้ายสุด)
+     value ยังเป็น "ชื่อสาขา" เหมือนเดิม — ตัวกรอง (d.branch === brf) จึงทำงานปกติ */
+  brSel.innerHTML = '<option value="all">🏢 ทุกสาขา</option>' + Object.keys(brSet).sort(function(a, b){
+    var ca = _branchCodeOf(a), cb = _branchCodeOf(b);
+    if (ca && cb) return ca === cb ? a.localeCompare(b) : (ca < cb ? -1 : 1);
+    if (ca) return -1;
+    if (cb) return 1;
+    return a.localeCompare(b);
+  }).map(function(b){
+    var c = _branchCodeOf(b);
+    return '<option value="'+escapeAttr(b)+'"'+(b===currBr?' selected':'')+'>'+escapeHtml(c ? (c + ' · ' + b) : b)+'</option>';
   }).join('');
   coSel.innerHTML = '<option value="all">📚 ทุกหลักสูตร</option>' + Object.keys(coSet).sort().map(function(c){
     return '<option value="'+escapeAttr(c)+'"'+(c===currCo?' selected':'')+'>'+escapeHtml(_courseShort(c))+'</option>';
@@ -7779,7 +7788,26 @@ function getBranchFullName(code) {
 
 /* ─── แสดงสาขาแบบเดียวกับใน PDF: "รหัส ชื่อ" (ตัด Santa Fe / Santa Fe Easy · เก็บเจ๊แดง) ─── */
 var _brCodeByNameG = {};
-try { Object.keys(BRANCHES).forEach(function(c){ _brCodeByNameG[getBranchFullName(c)] = c; }); } catch(e) {}
+var _brCodeByKeyG = {};   // key ที่ normalize แล้ว → รหัส (ทนสะกดต่าง เช่น S Oasis / S-Oasis)
+function _rebuildBranchCodeMaps() {
+  _brCodeByNameG = {}; _brCodeByKeyG = {};
+  Object.keys(BRANCHES).forEach(function(c){
+    var full = getBranchFullName(c);
+    _brCodeByNameG[full] = c;
+    _brCodeByKeyG[_branchKey(full)] = c;
+  });
+}
+try { _rebuildBranchCodeMaps(); } catch(e) {}
+
+/* หารหัสสาขาจากชื่อ — ชื่อตรง → normalize → ตัวเลขที่ติดมาในชื่อ (คืน '' ถ้าไม่รู้จัก) */
+function _branchCodeOf(name) {
+  if (!name || name === '—') return '';
+  if (_brCodeByNameG[name]) return _brCodeByNameG[name];
+  var k = _branchKey(name);
+  if (_brCodeByKeyG[k]) return _brCodeByKeyG[k];
+  var m = String(name).match(/(\d{3,})/);
+  return (m && BRANCHES[m[1]]) ? m[1] : '';
+}
 function _brStripBrandG(s){ return String(s || '').replace(/^(Santa Fe Easy|Santa Fe)\s+/i, ''); }
 function _brDispG(name){
   name = String(name || '');
