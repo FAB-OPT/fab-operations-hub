@@ -5987,7 +5987,6 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   if (typeof pdfjsLib !== 'undefined') {
     pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   }
-  window._FH_NAME_DEBUG = true;   // TEMP: log Thai name extraction to console — เอาออกหลังแก้เสร็จ
 </script>
 <script>
 /* ─────────── CONFIG ─────────── */
@@ -6222,9 +6221,19 @@ function ocrPdfViaAppsScript(arrayBuffer, filename) {
 // Backwards-compat single-file (kept for safety)
 function processPDFFile(file) { processPDFFiles([file]); }
 
+/* ซ่อมข้อความไทยที่ pdf.js อ่านเพี้ยนเพราะฟอนต์ใบรับรองมี ToUnicode map ผิด
+   เคสจริง (ใบ BISMAN): ไม้เอก "่" (U+0E48) ถูก map เป็น comma → "ชื,นบาน" ทำให้ regex ตัดชื่อเหลือ "ชื"
+   ซ่อมเฉพาะ comma ที่ตามหลัง "สระบน" (ั ิ ี ึ ื) เท่านั้น — เป็นตำแหน่งที่วรรณยุกต์ต้องอยู่พอดี
+   จึงไม่กระทบ comma จริงที่ตามหลังพยัญชนะ (เช่น "จำกัด, บริษัท") */
+function _fhRepairThaiPdfText(t) {
+  if (!t) return t;
+  return t.replace(/([ัิ-ื])[ \t]*,/g, '$1่');
+}
+
 function extractFromPDFText(text) {
   var results = [];
   if (!text || text.length < 20) return results;
+  text = _fhRepairThaiPdfText(text);   // ซ่อมวรรณยุกต์ที่ฟอนต์ map เพี้ยน ก่อนแยกชื่อ/วันที่
 
   // Detect course type (default = generic)
   var course = 'การสุขาภิบาลอาหาร';
@@ -6286,31 +6295,14 @@ function extractFromPDFText(text) {
     // (กันนามสกุลที่ OCR เว้นวรรคผิด เช่น "เขี ยว" · และกันคำหลักสูตรที่ติดนามสกุล)
     /(นาย|นางสาว|นาง)\s*([฀-๿]{2,})((?:[ \t]+[฀-๿]+)+)/g
   ];
-  // ── DEBUG ชั่วคราว: ดูว่า pdf.js อ่านชื่อไทยออกมาเป็นอะไรจริงๆ (รหัสอักขระ) ──
-  if (typeof window !== 'undefined' && window._FH_NAME_DEBUG) {
-    var _dbgHex = function(s){ return Array.prototype.map.call(String(s), function(ch){ return ch + '=U+' + ch.charCodeAt(0).toString(16).toUpperCase().padStart(4,'0'); }).join(' '); };
-    var _ti = text.search(/นาย|นางสาว|นาง|ขอรับรอง/);
-    if (_ti >= 0) {
-      var _win = text.slice(_ti, _ti + 70);
-      console.log('[NAME DEBUG] raw window:', JSON.stringify(_win));
-      console.log('[NAME DEBUG] char codes:', _dbgHex(_win));
-    }
-  }
-
   for (var ri = 0; ri < nameRegexes.length && certNames.length === 0; ri++) {
     var re = nameRegexes[ri];
     re.lastIndex = 0;
     var m;
     while ((m = re.exec(text)) !== null) {
-      if (typeof window !== 'undefined' && window._FH_NAME_DEBUG) {
-        console.log('[NAME DEBUG] match g1=' + JSON.stringify(m[1]) + ' g2=' + JSON.stringify(m[2]) + ' g3=' + JSON.stringify(m[3]));
-      }
       var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
       fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตร/เอกสารที่ OCR กวาดมาต่อท้ายนามสกุล
       fullname = fullname.replace(/\s+([ัิ-ฺ็-๎])/g, '$1');   // รวมช่องว่างหน้าอักขระประสม เช่น "ทองสพรั ่ง"→"ทองสพรั่ง"
-      if (typeof window !== 'undefined' && window._FH_NAME_DEBUG) {
-        console.log('[NAME DEBUG] fullname =', JSON.stringify(fullname), '| len', fullname.length, '| parts', fullname.split(' ').length, '| pushed:', (fullname.length > 5 && fullname.length < 80 && fullname.split(' ').length >= 3));
-      }
       if (fullname.length > 5 && fullname.length < 80 && fullname.split(' ').length >= 3) certNames.push(fullname);
       if (certNames.length > 200) break;
     }
