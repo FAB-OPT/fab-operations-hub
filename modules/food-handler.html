@@ -5019,7 +5019,8 @@ function startFhConfigSync() {
       if (d.branches)  FH_CONFIG.branches  = d.branches;
       if (d.brands)    FH_CONFIG.brands    = d.brands;
       // สิทธิ์ปุ่ม — sync realtime เหมือน config อื่น (admin แก้ที่เครื่องหนึ่ง เครื่องอื่นเห็นทันที)
-      if (d.perms) { try { FH_PERMS = _normalizeFhPerms(d.perms); saveFhPermsLocal(); } catch (e) {} }
+      // HUB ชนะ Firestore — ถ้า HUB ตั้งสิทธิ์ไว้แล้ว snapshot ต้องไม่เขียนทับ
+      if (d.perms && !FH_PERMS_FROM_HUB) { try { FH_PERMS = _normalizeFhPerms(d.perms); saveFhPermsLocal(); } catch (e) {} }
       applyFhConfigUI();
     }, function(e){ console.warn('fhConfig sync error', e); applyFhConfigUI(); });
   } catch (e) { console.warn(e); applyFhConfigUI(); }
@@ -5144,7 +5145,7 @@ function startFhCertFilesSync() {
     }, function(e){ console.warn('fhCertFiles sync', e); });
   } catch (e) {}
 }
-window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); startFhCertFilesSync(); });
+window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); startFhCertFilesSync(); loadFhPermsFromHub(); });
 </script>
 </head>
 <body>
@@ -8411,6 +8412,26 @@ function fhCan(actionId) {
 }
 
 /* ซ่อน/แสดงปุ่มตามสิทธิ์ — เรียกซ้ำได้ทุกครั้งที่เรนเดอร์ใหม่ */
+/* ── สิทธิ์จากศูนย์กลาง (HUB ⚙️ → สิทธิ์ปุ่มแต่ละระบบ) ──
+   HUB ชนะ Firestore เสมอ · ถ้า HUB ยังไม่เคยตั้ง → ใช้ของเดิมใน Firestore ต่อ (ไม่มีอะไรหาย) */
+var FH_PERMS_FROM_HUB = false;
+function loadFhPermsFromHub() {
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if (res && res.ok && res.perms && res.perms.foodhandler) {
+        FH_PERMS = _normalizeFhPerms(res.perms.foodhandler);
+        FH_PERMS_FROM_HUB = true;
+        saveFhPermsLocal();
+        applyFhPerms();
+        console.log('[perms] ใช้สิทธิ์จาก HUB');
+      } else {
+        console.log('[perms] HUB ยังไม่ตั้งสิทธิ์ผู้สัมผัสอาหาร — ใช้ค่าเดิมจาก Firestore');
+      }
+    })
+    .catch(function(e){ console.warn('[perms] โหลดจาก HUB ไม่ได้ — ใช้ค่าเดิม', e); });
+}
+
 function applyFhPerms() {
   document.querySelectorAll('[data-fh-action]').forEach(function(el){
     var id = el.getAttribute('data-fh-action');
