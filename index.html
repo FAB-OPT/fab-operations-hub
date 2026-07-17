@@ -4979,6 +4979,12 @@ var PERM_ROLES = [
   { v: 'branch', label: 'สาขา' }
 ];
 var PERM_SYSTEMS = {
+  training: {
+    label: '🎓 Training Record',
+    mode: 'level',
+    groups: [{ id: 'pages', label: 'เมนู / หน้า — เลือกระดับได้' }],
+    actions: [{"id":"admin-dashboard","group":"pages","label":"🏠 แดชบอร์ด","roleLevels":{"admin":"full","coo":"full","vp":"full","bzm":"full"}},{"id":"admin-manage","group":"pages","label":"👥 จัดการสาขา & พนักงาน","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"full"}},{"id":"admin-trainings","group":"pages","label":"📚 บันทึกการสอน","roleLevels":{"admin":"full","coo":"full","vp":"full","bzm":"full"}},{"id":"admin-course-history","group":"pages","label":"🎓 ประวัติการอบรม","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"full"}},{"id":"admin-quiz","group":"pages","label":"📝 จัดการข้อสอบ","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"none"}},{"id":"exec-leaderboard","group":"pages","label":"🏆 อันดับโซน BZM","roleLevels":{"admin":"full","coo":"full","vp":"full","bzm":"none"}},{"id":"exec-alerts","group":"pages","label":"🚨 แจ้งเตือนสำคัญ","roleLevels":{"admin":"none","coo":"full","vp":"full","bzm":"full"}},{"id":"admin-cases","group":"pages","label":"📨 จัดการเคส","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"full"}},{"id":"admin-chat-logs","group":"pages","label":"💬 ประวัติแชตบอท","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"none"}},{"id":"admin-users","group":"pages","label":"🔐 จัดการผู้ใช้งาน","roleLevels":{"admin":"full","coo":"none","vp":"none","bzm":"none"}},{"id":"admin-reports","group":"pages","label":"📊 ออกรายงาน","roleLevels":{"admin":"full","coo":"full","vp":"full","bzm":"full"}}]
+  },
   foodhandler: {
     label: '🍽️ ผู้สัมผัสอาหาร',
     groups: [{"id":"menu","label":"เมนูหลัก · เข้าหน้าไหนได้บ้าง"},{"id":"import","label":"นำเข้า / จัดการข้อมูล"},{"id":"export","label":"ออกรายงาน"},{"id":"danger","label":"ลบข้อมูล — ทำแล้วกู้คืนไม่ได้"},{"id":"branch","label":"ฝั่งสาขา"}],
@@ -5007,10 +5013,25 @@ var PERM_SYSTEMS = {
 var PERMS_ALL = {};        // { sysKey: { actionId: {roles,allow,deny} } }
 var _permSys = 'checklist';
 
+/* 2 โหมด:
+   toggle (Checklist/ผู้สัมผัสอาหาร) = เห็น/ไม่เห็น → { roles:[], allow:[], deny:[] }
+   level  (Training)                = ซ่อน/ดู/เต็ม → { roleLevels:{role:lv}, userLevels:{code:lv} } */
+var PERM_LEVELS = [
+  { v: 'none', label: 'ซ่อน', color: 'var(--text3)' },
+  { v: 'view', label: 'ดู',   color: '#3B82F6' },
+  { v: 'full', label: 'เต็ม', color: 'var(--green)' }
+];
+function _permMode(sysKey) { return (PERM_SYSTEMS[sysKey] && PERM_SYSTEMS[sysKey].mode) || 'toggle'; }
+
 function _permDefaults(sysKey) {
   var o = {}, sys = PERM_SYSTEMS[sysKey];
   if (!sys) return o;
-  sys.actions.forEach(function(a){ o[a.id] = { roles: a.roles.slice(), allow: [], deny: [] }; });
+  var lv = _permMode(sysKey) === 'level';
+  sys.actions.forEach(function(a){
+    o[a.id] = lv
+      ? { roleLevels: Object.assign({}, a.roleLevels), userLevels: {} }
+      : { roles: a.roles.slice(), allow: [], deny: [] };
+  });
   return o;
 }
 function _permNormalize(sysKey, src) {
@@ -5019,11 +5040,18 @@ function _permNormalize(sysKey, src) {
     sys.actions.forEach(function(a){
       var x = src[a.id];
       if (!x) return;
-      out[a.id] = {
-        roles: Array.isArray(x.roles) ? x.roles.slice() : a.roles.slice(),
-        allow: Array.isArray(x.allow) ? x.allow.map(String) : [],
-        deny:  Array.isArray(x.deny)  ? x.deny.map(String)  : []
-      };
+      if (_permMode(sysKey) === 'level') {
+        out[a.id] = {
+          roleLevels: Object.assign({}, a.roleLevels, (x.roleLevels && typeof x.roleLevels === 'object') ? x.roleLevels : {}),
+          userLevels: (x.userLevels && typeof x.userLevels === 'object') ? Object.assign({}, x.userLevels) : {}
+        };
+      } else {
+        out[a.id] = {
+          roles: Array.isArray(x.roles) ? x.roles.slice() : a.roles.slice(),
+          allow: Array.isArray(x.allow) ? x.allow.map(String) : [],
+          deny:  Array.isArray(x.deny)  ? x.deny.map(String)  : []
+        };
+      }
     });
   }
   return out;
@@ -5077,6 +5105,7 @@ function closePermsModal() { var m = document.getElementById('permsModal'); if (
 function renderPermsUI() {
   var body = document.getElementById('permsBody'); if (!body) return;
   var sys = PERM_SYSTEMS[_permSys], perms = PERMS_ALL[_permSys] || {};
+  var isLevel = _permMode(_permSys) === 'level';
   var tabs = Object.keys(PERM_SYSTEMS).map(function(k){
     var on = k === _permSys;
     return '<button class="adm-btn-secondary" onclick="setPermSys(\'' + k + '\')" style="' +
@@ -5092,13 +5121,20 @@ function renderPermsUI() {
     rows += '<tr><td colspan="' + (PERM_ROLES.length + 2) + '" style="background:var(--bg3);font-size:11px;font-weight:700;color:' +
       (g.id === 'danger' ? 'var(--red)' : 'var(--text2)') + ';padding:6px 10px;">' + g.label + '</td></tr>';
     acts.forEach(function(a){
-      var p = perms[a.id] || { roles: [], allow: [], deny: [] };
-      var nEx = (p.allow.length + p.deny.length);
+      var p = perms[a.id] || {};
+      var nEx = isLevel ? Object.keys(p.userLevels || {}).length : ((p.allow || []).length + (p.deny || []).length);
       rows += '<tr><td style="font-size:13px;font-weight:600;">' + a.label +
         (a.danger ? ' <span style="font-size:10px;color:var(--red);background:rgba(239,68,68,.12);padding:1px 6px;border-radius:999px;">ระวัง</span>' : '') + '</td>' +
         PERM_ROLES.map(function(r){
+          if (isLevel) {
+            if (r.v === 'branch') return '<td style="text-align:center;color:var(--text3);font-size:11px;">—</td>';
+            var cur = (p.roleLevels && p.roleLevels[r.v]) || 'none';
+            return '<td style="text-align:center;"><select class="perm-lv" data-act="' + a.id + '" data-role="' + r.v + '" style="font-family:inherit;font-size:11px;padding:3px 4px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);">' +
+              PERM_LEVELS.map(function(L){ return '<option value="' + L.v + '"' + (cur === L.v ? ' selected' : '') + '>' + L.label + '</option>'; }).join('') +
+              '</select></td>';
+          }
           return '<td style="text-align:center;"><input type="checkbox" class="perm-chk" data-act="' + a.id + '" data-role="' + r.v + '"' +
-            (p.roles.indexOf(r.v) >= 0 ? ' checked' : '') + '></td>';
+            ((p.roles || []).indexOf(r.v) >= 0 ? ' checked' : '') + '></td>';
         }).join('') +
         '<td style="text-align:right;"><button class="adm-btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="openPermExcept(\'' + a.id + '\')">' +
           (nEx ? '⚠ ' + nEx + ' คน' : 'ยกเว้นรายคน') + '</button></td></tr>';
@@ -5106,7 +5142,9 @@ function renderPermsUI() {
   });
   body.innerHTML =
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' + tabs + '</div>' +
-    '<div class="adm-section-desc" style="margin-bottom:10px;">ติ๊กตำแหน่งที่ให้เห็นปุ่ม · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อให้/ห้ามเฉพาะบุคคล (ห้ามชนะเสมอ)</div>' +
+    '<div class="adm-section-desc" style="margin-bottom:10px;">' + (isLevel
+      ? '<b>ซ่อน</b> = ไม่เห็นเมนู · <b style="color:#3B82F6;">ดู</b> = อ่านอย่างเดียว · <b style="color:var(--green);">เต็ม</b> = แก้ไข/ลบได้ · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อตั้งเฉพาะบุคคล'
+      : 'ติ๊กตำแหน่งที่ให้เห็นปุ่ม · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อให้/ห้ามเฉพาะบุคคล (ห้ามชนะเสมอ)') + '</div>' +
     '<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:60vh;">' +
       '<table class="adm-table" style="margin:0;"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
 }
@@ -5116,8 +5154,20 @@ function setPermSys(k) { _permSys = k; renderPermsUI(); }
 function openPermExcept(actId) {
   var perms = PERMS_ALL[_permSys], p = perms[actId];
   var act = PERM_SYSTEMS[_permSys].actions.find(function(a){ return a.id === actId; });
+  var isLevel = _permMode(_permSys) === 'level';
   var rows = USERS.map(function(u){
     var code = String(u.code);
+    if (isLevel) {
+      var cur = (p.userLevels && p.userLevels[code]) || '';
+      return '<tr><td style="font-size:12px;font-family:monospace;">' + code + '</td>' +
+        '<td style="font-size:13px;">' + escapeHtml(u.name || '') + ' <span style="color:var(--text3);">(' + escapeHtml(u.nick || '') + ')</span></td>' +
+        '<td style="font-size:11px;color:var(--text3);">' + escapeHtml(u.role || '') + '</td>' +
+        '<td colspan="3" style="text-align:center;">' +
+          '<select class="perm-ex-lv" data-code="' + code + '" style="font-family:inherit;font-size:11px;padding:4px 8px;border-radius:6px;border:1px solid var(--border);background:var(--bg2);color:var(--text);">' +
+            '<option value=""' + (cur === '' ? ' selected' : '') + '>ตามตำแหน่ง</option>' +
+            PERM_LEVELS.map(function(L){ return '<option value="' + L.v + '"' + (cur === L.v ? ' selected' : '') + '>' + L.label + '</option>'; }).join('') +
+          '</select></td></tr>';
+    }
     var st = p.deny.indexOf(code) >= 0 ? 'deny' : (p.allow.indexOf(code) >= 0 ? 'allow' : '');
     return '<tr><td style="font-size:12px;font-family:monospace;">' + code + '</td>' +
       '<td style="font-size:13px;">' + escapeHtml(u.name || '') + ' <span style="color:var(--text3);">(' + escapeHtml(u.nick || '') + ')</span></td>' +
@@ -5141,6 +5191,13 @@ function openPermExcept(actId) {
 function closePermExcept() { var m = document.getElementById('permExModal'); if (m) m.classList.remove('show'); }
 function applyPermExcept(actId) {
   var p = PERMS_ALL[_permSys][actId];
+  if (_permMode(_permSys) === 'level') {
+    p.userLevels = {};
+    document.querySelectorAll('#permExModal .perm-ex-lv').forEach(function(sel){
+      if (sel.value) p.userLevels[sel.getAttribute('data-code')] = sel.value;
+    });
+    closePermExcept(); renderPermsUI(); return;
+  }
   p.allow = []; p.deny = [];
   USERS.forEach(function(u){
     var code = String(u.code);
@@ -5156,11 +5213,18 @@ function applyPermExcept(actId) {
 /* อ่านค่าติ๊กจากตาราง → PERMS_ALL แล้วบันทึกขึ้น cloud */
 function savePermsUI() {
   var perms = PERMS_ALL[_permSys];
-  PERM_SYSTEMS[_permSys].actions.forEach(function(a){ perms[a.id].roles = []; });
-  document.querySelectorAll('#permsBody .perm-chk:checked').forEach(function(c){
-    var a = c.getAttribute('data-act'), r = c.getAttribute('data-role');
-    if (perms[a] && perms[a].roles.indexOf(r) < 0) perms[a].roles.push(r);
-  });
+  if (_permMode(_permSys) === 'level') {
+    document.querySelectorAll('#permsBody .perm-lv').forEach(function(sel){
+      var a = sel.getAttribute('data-act'), r = sel.getAttribute('data-role');
+      if (perms[a]) perms[a].roleLevels[r] = sel.value;
+    });
+  } else {
+    PERM_SYSTEMS[_permSys].actions.forEach(function(a){ perms[a.id].roles = []; });
+    document.querySelectorAll('#permsBody .perm-chk:checked').forEach(function(c){
+      var a = c.getAttribute('data-act'), r = c.getAttribute('data-role');
+      if (perms[a] && perms[a].roles.indexOf(r) < 0) perms[a].roles.push(r);
+    });
+  }
   var el = document.getElementById('permsSync');
   if (el) { el.textContent = 'กำลังบันทึก...'; el.style.color = ''; }
   savePermsToCloud()
