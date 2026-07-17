@@ -2145,6 +2145,15 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           </div>
           <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
+        <button class="admin-tool-card" data-accent="blue" onclick="closeAdminToolsModal(); openPermsModal();">
+          <span class="admin-tool-stripe"></span>
+          <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="10" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <div class="admin-tool-text">
+            <div class="admin-tool-title">สิทธิ์ปุ่มแต่ละระบบ</div>
+            <div class="admin-tool-desc">คุมว่าใครเห็นปุ่มไหน · ตั้งที่นี่ที่เดียว</div>
+          </div>
+          <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
+        </button>
         <button class="admin-tool-card" data-accent="orange" onclick="closeAdminToolsModal(); openBranchMgmtModal();">
           <span class="admin-tool-stripe"></span>
           <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M9 21V12h6v9"/></svg>
@@ -4956,6 +4965,202 @@ function toggleBranchOpen(code) {
   saveBranchesToCloud()
     .then(function(){ if (sync) sync.textContent = '✓ ' + (wasOpen ? 'ปิดสาขา ' : 'เปิดสาขา ') + code + ' แล้ว — ทุกระบบจะเห็นตรงกัน'; })
     .catch(function(e){ if (sync) sync.textContent = '✗ บันทึกไม่สำเร็จ: ' + e.message; });
+}
+
+/* ══════════════ สิทธิ์ปุ่มแต่ละระบบ — ตั้งที่ HUB ที่เดียว ══════════════
+   เก็บใน Config.perms = { <systemKey>: { <actionId>: { roles[], allow[], deny[] } } }
+   ลำดับตัดสินฝั่งระบบปลายทาง: deny รายคน > allow รายคน > ตำแหน่ง
+   รายการ action ต้องตรงกับที่ระบบนั้นนิยามไว้ (CK_ACTIONS ใน Checklist ฯลฯ) */
+var PERM_ROLES = [
+  { v: 'admin',  label: 'Admin' },
+  { v: 'coo',    label: 'COO' },
+  { v: 'vp',     label: 'VP' },
+  { v: 'bzm',    label: 'BZM' },
+  { v: 'branch', label: 'สาขา' }
+];
+var PERM_SYSTEMS = {
+  checklist: {
+    label: '📋 Operations Checklist',
+    groups: [
+      { id: 'menu',   label: 'เมนูหลัก · เข้าหน้าไหนได้บ้าง' },
+      { id: 'export', label: 'ออกรายงาน' },
+      { id: 'danger', label: 'ลบข้อมูล — ทำแล้วกู้คืนไม่ได้' },
+      { id: 'branch', label: 'ฝั่งสาขา' }
+    ],
+    actions: [
+      { id: 'view-dash',    group: 'menu',   label: 'แดชบอร์ด (ซานตาเฟ่)', roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-daily',   group: 'menu',   label: 'ตรวจร้าน (ซานตาเฟ่)', roles: ['admin','coo','vp','bzm','branch'] },
+      { id: 'view-jd-dash', group: 'menu',   label: 'แดชบอร์ด (เจ๊แดง)',   roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-jd-hub',  group: 'menu',   label: 'ตรวจร้าน (เจ๊แดง)',   roles: ['admin','coo','vp','bzm','branch'] },
+      { id: 'print-detail', group: 'export', label: 'พิมพ์ผลตรวจ',         roles: ['admin','coo','vp','bzm'] },
+      { id: 'delete-daily', group: 'danger', label: 'ลบผลตรวจ (ซานตาเฟ่)', roles: ['admin'], danger: true },
+      { id: 'delete-jd',    group: 'danger', label: 'ลบผลตรวจ (เจ๊แดง)',   roles: ['admin'], danger: true },
+      { id: 'submit-check', group: 'branch', label: 'ส่งผลตรวจ',           roles: ['branch','admin'] }
+    ]
+  }
+};
+var PERMS_ALL = {};        // { sysKey: { actionId: {roles,allow,deny} } }
+var _permSys = 'checklist';
+
+function _permDefaults(sysKey) {
+  var o = {}, sys = PERM_SYSTEMS[sysKey];
+  if (!sys) return o;
+  sys.actions.forEach(function(a){ o[a.id] = { roles: a.roles.slice(), allow: [], deny: [] }; });
+  return o;
+}
+function _permNormalize(sysKey, src) {
+  var out = _permDefaults(sysKey), sys = PERM_SYSTEMS[sysKey];
+  if (src && typeof src === 'object' && sys) {
+    sys.actions.forEach(function(a){
+      var x = src[a.id];
+      if (!x) return;
+      out[a.id] = {
+        roles: Array.isArray(x.roles) ? x.roles.slice() : a.roles.slice(),
+        allow: Array.isArray(x.allow) ? x.allow.map(String) : [],
+        deny:  Array.isArray(x.deny)  ? x.deny.map(String)  : []
+      };
+    });
+  }
+  return out;
+}
+function loadPermsFromCloud() {
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      var src = (res && res.ok && res.perms) ? res.perms : {};
+      Object.keys(PERM_SYSTEMS).forEach(function(k){ PERMS_ALL[k] = _permNormalize(k, src[k]); });
+      return PERMS_ALL;
+    })
+    .catch(function(){
+      Object.keys(PERM_SYSTEMS).forEach(function(k){ if (!PERMS_ALL[k]) PERMS_ALL[k] = _permDefaults(k); });
+      return PERMS_ALL;
+    });
+}
+function savePermsToCloud() {
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify({ type: 'set-config', key: 'perms', value: PERMS_ALL })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+}
+
+function openPermsModal() {
+  var m = document.getElementById('permsModal');
+  if (!m) {
+    m = document.createElement('div');
+    m.id = 'permsModal';
+    m.className = 'adm-modal';
+    m.onclick = function(e){ if (e.target === m) closePermsModal(); };
+    document.body.appendChild(m);
+  }
+  m.innerHTML = '<div class="adm-modal-box" style="max-width:1000px;">' +
+    '<div class="adm-modal-header"><div class="adm-modal-title">🔐 สิทธิ์ปุ่มแต่ละระบบ</div>' +
+      '<button class="adm-modal-close" onclick="closePermsModal()"><svg class="ico"><use href="#i-x"/></svg></button></div>' +
+    '<div class="adm-modal-body" id="permsBody"><div style="padding:30px;text-align:center;color:var(--text2);">กำลังโหลด...</div></div>' +
+    '<div class="adm-modal-footer">' +
+      '<span id="permsSync" style="font-size:11px;color:var(--text2);margin-right:auto;"></span>' +
+      '<button class="adm-btn-secondary" onclick="closePermsModal()">ปิด</button>' +
+      '<button class="adm-btn-primary" onclick="savePermsUI()">บันทึก</button>' +
+    '</div></div>';
+  m.classList.add('show');
+  loadPermsFromCloud().then(renderPermsUI);
+}
+function closePermsModal() { var m = document.getElementById('permsModal'); if (m) m.classList.remove('show'); }
+
+function renderPermsUI() {
+  var body = document.getElementById('permsBody'); if (!body) return;
+  var sys = PERM_SYSTEMS[_permSys], perms = PERMS_ALL[_permSys] || {};
+  var tabs = Object.keys(PERM_SYSTEMS).map(function(k){
+    var on = k === _permSys;
+    return '<button class="adm-btn-secondary" onclick="setPermSys(\'' + k + '\')" style="' +
+      (on ? 'background:var(--gold);color:#111;border-color:var(--gold);font-weight:700;' : '') + '">' + PERM_SYSTEMS[k].label + '</button>';
+  }).join('');
+  var head = '<tr><th style="min-width:200px;">ปุ่ม / หน้า</th>' +
+    PERM_ROLES.map(function(r){ return '<th style="text-align:center;width:78px;">' + r.label + '</th>'; }).join('') +
+    '<th style="text-align:right;width:130px;">ยกเว้นรายคน</th></tr>';
+  var rows = '';
+  sys.groups.forEach(function(g){
+    var acts = sys.actions.filter(function(a){ return a.group === g.id; });
+    if (!acts.length) return;
+    rows += '<tr><td colspan="' + (PERM_ROLES.length + 2) + '" style="background:var(--bg3);font-size:11px;font-weight:700;color:' +
+      (g.id === 'danger' ? 'var(--red)' : 'var(--text2)') + ';padding:6px 10px;">' + g.label + '</td></tr>';
+    acts.forEach(function(a){
+      var p = perms[a.id] || { roles: [], allow: [], deny: [] };
+      var nEx = (p.allow.length + p.deny.length);
+      rows += '<tr><td style="font-size:13px;font-weight:600;">' + a.label +
+        (a.danger ? ' <span style="font-size:10px;color:var(--red);background:rgba(239,68,68,.12);padding:1px 6px;border-radius:999px;">ระวัง</span>' : '') + '</td>' +
+        PERM_ROLES.map(function(r){
+          return '<td style="text-align:center;"><input type="checkbox" class="perm-chk" data-act="' + a.id + '" data-role="' + r.v + '"' +
+            (p.roles.indexOf(r.v) >= 0 ? ' checked' : '') + '></td>';
+        }).join('') +
+        '<td style="text-align:right;"><button class="adm-btn-secondary" style="padding:4px 10px;font-size:11px;" onclick="openPermExcept(\'' + a.id + '\')">' +
+          (nEx ? '⚠ ' + nEx + ' คน' : 'ยกเว้นรายคน') + '</button></td></tr>';
+    });
+  });
+  body.innerHTML =
+    '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' + tabs + '</div>' +
+    '<div class="adm-section-desc" style="margin-bottom:10px;">ติ๊กตำแหน่งที่ให้เห็นปุ่ม · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อให้/ห้ามเฉพาะบุคคล (ห้ามชนะเสมอ)</div>' +
+    '<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:60vh;">' +
+      '<table class="adm-table" style="margin:0;"><thead>' + head + '</thead><tbody>' + rows + '</tbody></table></div>';
+}
+function setPermSys(k) { _permSys = k; renderPermsUI(); }
+
+/* ยกเว้นรายคน — allow (ให้เห็นแม้ตำแหน่งไม่ผ่าน) / deny (ห้ามเห็นแม้ตำแหน่งผ่าน) */
+function openPermExcept(actId) {
+  var perms = PERMS_ALL[_permSys], p = perms[actId];
+  var act = PERM_SYSTEMS[_permSys].actions.find(function(a){ return a.id === actId; });
+  var rows = USERS.map(function(u){
+    var code = String(u.code);
+    var st = p.deny.indexOf(code) >= 0 ? 'deny' : (p.allow.indexOf(code) >= 0 ? 'allow' : '');
+    return '<tr><td style="font-size:12px;font-family:monospace;">' + code + '</td>' +
+      '<td style="font-size:13px;">' + escapeHtml(u.name || '') + ' <span style="color:var(--text3);">(' + escapeHtml(u.nick || '') + ')</span></td>' +
+      '<td style="font-size:11px;color:var(--text3);">' + escapeHtml(u.role || '') + '</td>' +
+      '<td style="text-align:center;"><label style="cursor:pointer;font-size:11px;"><input type="radio" name="ex-' + code + '" value="" ' + (st === '' ? 'checked' : '') + '> ตามตำแหน่ง</label></td>' +
+      '<td style="text-align:center;"><label style="cursor:pointer;font-size:11px;color:var(--green);"><input type="radio" name="ex-' + code + '" value="allow" ' + (st === 'allow' ? 'checked' : '') + '> ให้เห็น</label></td>' +
+      '<td style="text-align:center;"><label style="cursor:pointer;font-size:11px;color:var(--red);"><input type="radio" name="ex-' + code + '" value="deny" ' + (st === 'deny' ? 'checked' : '') + '> ห้ามเห็น</label></td></tr>';
+  }).join('');
+  var m = document.getElementById('permExModal');
+  if (!m) { m = document.createElement('div'); m.id = 'permExModal'; m.className = 'adm-modal'; m.onclick = function(e){ if (e.target === m) closePermExcept(); }; document.body.appendChild(m); }
+  m.innerHTML = '<div class="adm-modal-box" style="max-width:760px;">' +
+    '<div class="adm-modal-header"><div class="adm-modal-title">ยกเว้นรายคน · ' + (act ? act.label : actId) + '</div>' +
+      '<button class="adm-modal-close" onclick="closePermExcept()"><svg class="ico"><use href="#i-x"/></svg></button></div>' +
+    '<div class="adm-modal-body"><div class="adm-section-desc" style="margin-bottom:10px;">“ห้ามเห็น” ชนะทุกอย่าง · “ให้เห็น” ใช้เมื่อตำแหน่งไม่ผ่านแต่อยากให้คนนี้เห็น</div>' +
+    '<div style="border:1px solid var(--border);border-radius:10px;overflow:auto;max-height:50vh;">' +
+    '<table class="adm-table" style="margin:0;"><thead><tr><th>รหัส</th><th>ชื่อ</th><th>ตำแหน่ง</th><th style="text-align:center;">ตามตำแหน่ง</th><th style="text-align:center;">ให้เห็น</th><th style="text-align:center;">ห้ามเห็น</th></tr></thead><tbody>' + rows + '</tbody></table></div></div>' +
+    '<div class="adm-modal-footer"><button class="adm-btn-secondary" onclick="closePermExcept()">ยกเลิก</button>' +
+    '<button class="adm-btn-primary" onclick="applyPermExcept(\'' + actId + '\')">ตกลง</button></div></div>';
+  m.classList.add('show');
+}
+function closePermExcept() { var m = document.getElementById('permExModal'); if (m) m.classList.remove('show'); }
+function applyPermExcept(actId) {
+  var p = PERMS_ALL[_permSys][actId];
+  p.allow = []; p.deny = [];
+  USERS.forEach(function(u){
+    var code = String(u.code);
+    var sel = document.querySelector('input[name="ex-' + code + '"]:checked');
+    if (!sel || !sel.value) return;
+    if (sel.value === 'allow') p.allow.push(code);
+    else if (sel.value === 'deny') p.deny.push(code);
+  });
+  closePermExcept();
+  renderPermsUI();
+}
+
+/* อ่านค่าติ๊กจากตาราง → PERMS_ALL แล้วบันทึกขึ้น cloud */
+function savePermsUI() {
+  var perms = PERMS_ALL[_permSys];
+  PERM_SYSTEMS[_permSys].actions.forEach(function(a){ perms[a.id].roles = []; });
+  document.querySelectorAll('#permsBody .perm-chk:checked').forEach(function(c){
+    var a = c.getAttribute('data-act'), r = c.getAttribute('data-role');
+    if (perms[a] && perms[a].roles.indexOf(r) < 0) perms[a].roles.push(r);
+  });
+  var el = document.getElementById('permsSync');
+  if (el) { el.textContent = 'กำลังบันทึก...'; el.style.color = ''; }
+  savePermsToCloud()
+    .then(function(){ if (el) { el.textContent = '✓ บันทึกแล้ว — ระบบปลายทางจะเห็นผลเมื่อรีเฟรช'; el.style.color = 'var(--green)'; } })
+    .catch(function(e){ if (el) { el.textContent = '✗ บันทึกไม่สำเร็จ: ' + e.message; el.style.color = 'var(--red)'; } });
 }
 
 function openAdminToolsModal() {
