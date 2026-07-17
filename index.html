@@ -2007,7 +2007,8 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
               <th style="position:sticky;top:0;background:var(--bg3);">ชื่อสาขา</th>
               <th style="position:sticky;top:0;background:var(--bg3);">แบรนด์</th>
               <th style="position:sticky;top:0;background:var(--bg3);">BZM</th>
-              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:130px;">จัดการ</th>
+              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:90px;">สถานะ</th>
+              <th style="position:sticky;top:0;background:var(--bg3);text-align:center;width:240px;">จัดการ</th>
             </tr>
           </thead>
           <tbody id="branchMgmtTbody"></tbody>
@@ -3108,6 +3109,12 @@ var BRANCH_BZM_MAP = {
 
 // แบรนด์ที่กำหนดเองต่อสาขา (override) — ถ้าไม่มี ใช้ตามเลขขึ้นต้นรหัส · ค่า = '50'|'55'|'40'
 var BRANCH_BRAND_MAP = {};
+/* สถานะสาขา — { code: 'closed' } · ไม่มีใน map = เปิด (เข้ากันได้กับข้อมูลเก่าที่ไม่มีฟิลด์นี้)
+   เก็บสาขาปิดไว้ (ไม่ลบทิ้ง) เพราะรายงาน/ประวัติย้อนหลังยังต้องอ้างถึงสาขานั้นได้ */
+var BRANCH_STATUS_MAP = {};
+function isBranchOpen(code) { return BRANCH_STATUS_MAP[code] !== 'closed'; }
+/* รายชื่อสาขาสำหรับ "ใช้งานประจำ" — เอาเฉพาะที่เปิด · ถ้าต้องการครบ (รวมปิด) ใช้ Object.keys(BRANCHES) */
+function openBranchCodes() { return Object.keys(BRANCHES).filter(isBranchOpen); }
 var DEFAULT_BRANCHES = Object.assign({}, BRANCHES);
 var DEFAULT_BRANCH_BZM_MAP = Object.assign({}, BRANCH_BZM_MAP);
 
@@ -3233,6 +3240,7 @@ function loadBranchesLocal() {
         BRANCHES = obj.branches;
         BRANCH_BZM_MAP = obj.bzmMap || {};
         BRANCH_BRAND_MAP = obj.brandMap || {};
+        BRANCH_STATUS_MAP = obj.statusMap || {};
       }
     }
   } catch (e) {}
@@ -3240,7 +3248,7 @@ function loadBranchesLocal() {
 function saveBranchesLocal() {
   try {
     localStorage.setItem('fab_branches_v1', JSON.stringify({
-      branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP
+      branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP, statusMap: BRANCH_STATUS_MAP
     }));
   } catch (e) {}
 }
@@ -3252,6 +3260,7 @@ function loadBranchesFromCloud() {
         BRANCHES = res.branches.branches;
         BRANCH_BZM_MAP = res.branches.bzmMap || {};
         BRANCH_BRAND_MAP = res.branches.brandMap || {};
+        BRANCH_STATUS_MAP = res.branches.statusMap || {};   // ไม่มี = สาขาเปิดทั้งหมด (เข้ากับข้อมูลเก่า)
         saveBranchesLocal();
       }
       return BRANCHES;
@@ -3264,7 +3273,7 @@ function saveBranchesToCloud() {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify({
       type: 'set-config', key: 'branches',
-      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP }
+      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP, statusMap: BRANCH_STATUS_MAP }
     })
   })
   .then(function(r){ return r.json(); })
@@ -4906,23 +4915,47 @@ function renderBranchMgmtList() {
         + '</span>'
       : '<span style="color:var(--text3);">—</span>';
     var brandColor = bp === '40' ? '#dc2626' : (bp === '55' ? '#ea580c' : (bp === '50' ? '#f97316' : '#9ca3af'));
-    html += '<tr>'
+    var isOpen = isBranchOpen(code);
+    var statusHtml = isOpen
+      ? '<span style="display:inline-block;padding:2px 8px;background:rgba(34,197,94,0.12);color:#16a34a;border-radius:999px;font-weight:700;font-size:11px;">เปิด</span>'
+      : '<span style="display:inline-block;padding:2px 8px;background:rgba(239,68,68,0.12);color:#dc2626;border-radius:999px;font-weight:700;font-size:11px;">ปิดแล้ว</span>';
+    html += '<tr'+(isOpen?'':' style="opacity:.62;"')+'>'
       + '<td style="font-weight:700;color:var(--gold);font-size:12px;">'+escapeHtml(code)+'</td>'
       + '<td style="font-weight:600;font-size:13px;">'+escapeHtml(name)+'</td>'
       + '<td><span style="display:inline-block;padding:2px 8px;background:'+brandColor+'1a;color:'+brandColor+';border-radius:999px;font-weight:700;font-size:11px;">'+escapeHtml(brand)+'</span></td>'
       + '<td>'+bzmHtml+'</td>'
+      + '<td style="text-align:center;">'+statusHtml+'</td>'
       + '<td style="text-align:center;white-space:nowrap;">'
       +   '<button class="adm-btn-secondary" style="padding:5px 10px;font-size:11px;margin-right:4px;" onclick="openBranchEditModal(\''+escapeAttr(code)+'\')" title="แก้ไข">✏️ แก้ไข</button>'
-      +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteBranch(\''+escapeAttr(code)+'\')" title="ลบ">🗑</button>'
+      +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;margin-right:4px;" onclick="toggleBranchOpen(\''+escapeAttr(code)+'\')" title="'+(isOpen?'ทำเครื่องหมายว่าปิดสาขา (เก็บประวัติไว้)':'เปิดสาขานี้อีกครั้ง')+'">'+(isOpen?'⏸ ปิดสาขา':'▶ เปิดสาขา')+'</button>'
+      +   '<button class="adm-btn-secondary" style="padding:5px 8px;font-size:11px;background:rgba(239,68,68,0.08);color:var(--red);border-color:rgba(239,68,68,0.25);" onclick="quickDeleteBranch(\''+escapeAttr(code)+'\')" title="ลบถาวร (ประวัติจะอ้างสาขาไม่เจอ — ถ้าแค่ปิดสาขาให้ใช้ ⏸ ปิดสาขา)">🗑</button>'
       + '</td>'
       + '</tr>';
   });
   if (!html) {
-    html = '<tr><td colspan="5" style="text-align:center;padding:30px;color:var(--text3);">'+(search||filter?'ไม่พบสาขาที่ตรงกับเงื่อนไข':'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง')+'</td></tr>';
+    html = '<tr><td colspan="6" style="text-align:center;padding:30px;color:var(--text3);">'+(search||filter?'ไม่พบสาขาที่ตรงกับเงื่อนไข':'ยังไม่มีสาขา — กด "+ เพิ่มสาขาใหม่" เพื่อสร้าง')+'</td></tr>';
   }
   tbody.innerHTML = html;
   var nEl = document.getElementById('branchMgmtCount');
-  if (nEl) nEl.textContent = Object.keys(BRANCHES).length;
+  if (nEl) {
+    var total = Object.keys(BRANCHES).length, open = openBranchCodes().length;
+    nEl.innerHTML = open + (total > open ? ' <span style="color:var(--text3);font-weight:500;">(+ ปิดแล้ว ' + (total - open) + ')</span>' : '');
+  }
+}
+
+/* สลับสถานะเปิด/ปิดสาขา — ปิด = ซ่อนจากการใช้งานประจำ แต่ยังอยู่ในระบบให้ดูย้อนหลังได้ */
+function toggleBranchOpen(code) {
+  if (!BRANCHES[code]) return;
+  var wasOpen = isBranchOpen(code);
+  if (wasOpen) BRANCH_STATUS_MAP[code] = 'closed';
+  else delete BRANCH_STATUS_MAP[code];
+  saveBranchesLocal();
+  renderBranchMgmtList();
+  var sync = document.getElementById('branchMgmtSync');
+  if (sync) sync.textContent = 'กำลังบันทึก...';
+  saveBranchesToCloud()
+    .then(function(){ if (sync) sync.textContent = '✓ ' + (wasOpen ? 'ปิดสาขา ' : 'เปิดสาขา ') + code + ' แล้ว — ทุกระบบจะเห็นตรงกัน'; })
+    .catch(function(e){ if (sync) sync.textContent = '✗ บันทึกไม่สำเร็จ: ' + e.message; });
 }
 
 function openAdminToolsModal() {
