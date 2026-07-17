@@ -396,17 +396,22 @@ function getConfig() {
   var usrCached = cache.get('cfg_users_v2');
   var brCached  = cache.get('cfg_branches_v2');
   var jdCached  = cache.get('cfg_jaedaengBranches_v2');
+  var prmCached = cache.get('cfg_perms_v2');
   var systems          = sysCached ? JSON.parse(sysCached) : readConfig_('systems', []);
   var announcements    = annCached ? JSON.parse(annCached) : readConfig_('announcements', []);
   var users            = usrCached ? JSON.parse(usrCached) : readConfig_('users', null);
   var branches         = brCached  ? JSON.parse(brCached)  : readConfig_('branches', null);
   var jaedaengBranches = jdCached  ? JSON.parse(jdCached)  : readConfig_('jaedaengBranches', null);
+  // สิทธิ์ปุ่มของแต่ละระบบ — { checklist:{...}, foodhandler:{...}, training:{...} }
+  // null = ยังไม่เคยตั้ง → ให้ client ใช้ค่า default ในโค้ดตัวเอง
+  var perms            = prmCached ? JSON.parse(prmCached) : readConfig_('perms', null);
   if (!sysCached) try { cache.put('cfg_systems_v2', JSON.stringify(systems), CACHE_SEC); } catch(e) {}
   if (!annCached) try { cache.put('cfg_announcements_v2', JSON.stringify(announcements), CACHE_SEC); } catch(e) {}
   if (!usrCached) try { cache.put('cfg_users_v2', JSON.stringify(users), CACHE_SEC); } catch(e) {}
   if (!brCached)  try { cache.put('cfg_branches_v2', JSON.stringify(branches), CACHE_SEC); } catch(e) {}
   if (!jdCached)  try { cache.put('cfg_jaedaengBranches_v2', JSON.stringify(jaedaengBranches), CACHE_SEC); } catch(e) {}
-  return { ok: true, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches };
+  if (!prmCached) try { cache.put('cfg_perms_v2', JSON.stringify(perms), CACHE_SEC); } catch(e) {}
+  return { ok: true, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches, perms: perms };
 }
 
 // อ่าน config ทีละ key · dflt = ค่า default ถ้าไม่เจอ/parse ไม่ได้
