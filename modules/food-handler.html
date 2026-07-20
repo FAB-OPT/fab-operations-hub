@@ -9494,6 +9494,19 @@ function logout() {
   window.location.href = '../index.html';
 }
 
+/* ─── จำกัดข้อมูลให้เห็นเฉพาะสาขาที่ล็อกอิน (ใช้เฉพาะ branchView = ฝั่งสาขา) ───
+   ใช้ matchesCurrentBranch_ ตัวเดียวกับช่องเลือกชื่อในฟอร์มขออบรม → ตรรกะตรงกันทั้งระบบ
+   (matchesCurrentBranch_ คืน true เมื่อ isAdminMode → admin/BZM เห็นทั้งหมดอยู่แล้ว)
+   ถ้าไม่รู้ว่าสาขาไหน (ไม่มี pin/ชื่อ) จะไม่กรอง เพื่อกันเผลอซ่อนหมด */
+function _fhScopeRecordsToBranch(records) {
+  if (!Array.isArray(records)) return [];
+  if (isAdminMode) return records;
+  if (!String(branchPin || '').trim() && !String(currentBranchName || '').trim()) return records;
+  return records.filter(function(r){
+    return matchesCurrentBranch_((r && (r['สาขา'] || r.branch)) || '');
+  });
+}
+
 function loadRecordsForSearch() {
   var info = document.getElementById('branchSearchInfo');
   function _renderCerts() {
@@ -9501,17 +9514,18 @@ function loadRecordsForSearch() {
     updateBranchStats();
     branchSearch();
   }
-  // 1) โชว์จากแคชทันที
+  // 1) โชว์จากแคชทันที (cache เก็บชุดเต็ม → กรองตอนใช้เท่านั้น)
   var _c = _fhCacheGet('fh_certs_v1');
-  if (_c && _c.length) { allRecords = _c; _renderCerts(); }
+  if (_c && _c.length) { allRecords = _fhScopeRecordsToBranch(_c); _renderCerts(); }
   else if (info) info.textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
-  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช
+  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช (เก็บชุดเต็ม แล้วค่อยกรองเข้า allRecords)
   fetch(SCRIPT_URL, { method:'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (res.ok) {
-        allRecords = res.records || [];
-        _fhCacheSet('fh_certs_v1', allRecords);
+        var _raw = res.records || [];
+        _fhCacheSet('fh_certs_v1', _raw);
+        allRecords = _fhScopeRecordsToBranch(_raw);
         _renderCerts();
         if (_adminRowCache && _adminRowCache.length) { _adminCertIdx = buildCertIndex(); if (typeof _applyAdminReqFilters === 'function') _applyAdminReqFilters(); }
       } else if (!_c && info) {
