@@ -1716,6 +1716,9 @@ input[type=file] { display:none; }
   box-shadow: 0 3px 10px -6px rgba(15,23,42,0.14), inset 0 1px 0 rgba(255,255,255,0.8);
 }
 .adm-side-userbadge-name { font-size: 15.5px; font-weight: 800; color: #1e293b; letter-spacing: -0.2px; }
+/* ชื่อสาขายาวกว่าชื่อคน (เช่น "Santa Fe แฟชั่นไอส์แลนด์") — ให้ขึ้นบรรทัดใหม่แทนถูกตัดด้วย ... */
+#branchSidebar .adm-side-userbadge { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
+#branchSidebar .adm-side-userbadge-name { font-size: 14px; word-break: break-word; }
 .adm-side-userbadge-role { font-size: 14px; font-weight: 700; color: #64748b; }
 
 /* Footer buttons — full-width colored cards */
@@ -4932,6 +4935,37 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   .req-action-buttons .btn-refresh { flex: 0 0 auto; min-width: 42px; }
 }
 
+
+/* ─── Mobile: ตารางใบรับรองฝั่งสาขา → การ์ด (ชุดเดียวกับ #mainTable แต่แยก selector) ─── */
+@media (max-width: 768px) {
+  #branchCertTable thead { display: none; }
+  #branchCertTable, #branchCertTable tbody, #branchCertTable tr { display: block; width: 100%; }
+  #branchCertTable tr {
+    background: #fff;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+    position: relative;
+  }
+  #branchCertTable td[data-label="ลำดับ"] { display: none !important; }
+  #branchCertTable td[data-label] {
+    display: flex; align-items: flex-start; gap: 10px;
+    padding: 7px 0;
+    border: none;
+    border-bottom: 1px dashed rgba(15,23,42,0.06);
+    font-size: 13.5px; line-height: 1.5; color: var(--text);
+    text-align: left !important; white-space: normal !important; max-width: none !important;
+  }
+  #branchCertTable td[data-label="ใบเซอร์"] { border-bottom: none; padding-bottom: 0; }
+  #branchCertTable td[data-label]::before {
+    content: attr(data-icon) ' ' attr(data-label);
+    color: var(--text3); font-size: 11.5px; font-weight: 700;
+    flex-shrink: 0; min-width: 95px;
+  }
+  #branchCertTable td.cert-name { font-weight: 800; font-size: 15px; }
+}
 </style>
 <!-- ปุ่มสวิตช์ (toggle) สำหรับหน้า admin -->
 <style>
@@ -5294,7 +5328,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
         <input type="text" id="branchSearchQ" placeholder="พิมพ์ชื่อพนักงาน, สาขา, หรือตำแหน่งเพื่อค้นหา..." oninput="branchSearch()">
       </div>
       <div id="branchSearchInfo" style="font-size:12px;color:var(--text2);">กำลังโหลดข้อมูล...</div>
-      <div id="branchResults" class="result-grid"></div>
+      <div id="branchResults"></div>
       <div id="fhClosedBanner" style="display:none;margin-top:14px;padding:16px;background:#FEF2F2;border:1px solid #FCA5A5;border-radius:12px;color:#B91C1C;font-weight:700;text-align:center;line-height:1.5;">🔒 ขณะนี้ปิดรับการส่งรายชื่อชั่วคราว<br><span style="font-weight:600;font-size:13px;">กรุณาติดต่อผู้ดูแลระบบ หรือรอประกาศเปิดรับรอบถัดไป</span></div>
       <div class="step1-cta" id="step1Cta">
         <button type="button" class="btn-reveal-step2" onclick="revealStep2()">
@@ -9620,9 +9654,8 @@ function _fhScopeRecordsToBranch(records) {
 function loadRecordsForSearch() {
   var info = document.getElementById('branchSearchInfo');
   function _renderCerts() {
-    if (info) info.textContent = 'พบข้อมูลในระบบ ' + allRecords.length + ' รายการ — พิมพ์เพื่อค้นหา';
     updateBranchStats();
-    branchSearch();
+    branchSearch();   // แสดงรายการทั้งหมดทันที (branchSearch ตั้งข้อความสรุปเอง)
   }
   // 1) โชว์จากแคชทันที (cache เก็บชุดเต็ม → กรองตอนใช้เท่านั้น)
   var _c = _fhCacheGet('fh_certs_v1');
@@ -9664,33 +9697,54 @@ function updateBranchStats() {
 }
 
 function branchSearch() {
-  var q = document.getElementById('branchSearchQ').value.trim().toLowerCase();
+  var q = (document.getElementById('branchSearchQ') || { value: '' }).value.trim().toLowerCase();
   var grid = document.getElementById('branchResults');
-  if (typeof updateStepper === 'function') updateStepper();
-  if (!q) {
-    grid.innerHTML = '<div class="empty-state">&#9757; พิมพ์ชื่อหรือสาขาเพื่อค้นหาข้อมูล</div>';
-    return;
-  }
-  var results = allRecords.filter(function(r){
-    var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'')).toLowerCase();
+  if (!grid) return;
+  // ไม่พิมพ์อะไร = โชว์ทั้งหมดของสาขา (ข้อมูลถูกกรองเหลือเฉพาะสาขาตัวเองแล้ว จึงไม่เยอะ)
+  var results = !q ? (allRecords || []) : (allRecords || []).filter(function(r){
+    var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'') + ' ' + (r['หลักสูตร']||'')).toLowerCase();
     return hay.indexOf(q) >= 0;
   });
-  if (results.length === 0) {
-    grid.innerHTML = '<div class="empty-state">ไม่พบข้อมูลที่ค้นหา</div>';
+
+  var info = document.getElementById('branchSearchInfo');
+  if (info) {
+    info.innerHTML = !q
+      ? 'แสดงทั้งหมด <strong>' + results.length + '</strong> รายการ — พิมพ์เพื่อค้นหา'
+      : 'พบ <strong>' + results.length + '</strong> รายการ จากทั้งหมด ' + (allRecords || []).length;
+  }
+
+  if (!results.length) {
+    grid.innerHTML = '<div class="table-container"><table><tbody><tr><td class="empty">' +
+      '<div style="font-size:44px;margin-bottom:10px;">📂</div>' +
+      '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + (q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีใบรับรองของสาขานี้') + '</div>' +
+      '<div style="font-size:12px;color:var(--text3);">' + (q ? 'ลองพิมพ์คำอื่น' : 'กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม') + '</div>' +
+      '</td></tr></tbody></table></div>';
     return;
   }
-  grid.innerHTML = results.slice(0, 60).map(function(r){
+
+  var MAX = 300;
+  var rows = results.slice(0, MAX).map(function(r, i){
     var status = r['สถานะใบรับรอง'] || 'unknown';
-    var statusClass = status==='expired' ? 'rc-over' : status==='warning' ? 'rc-warn' : status==='valid' ? 'rc-ok' : '';
-    return '<div class="result-card '+statusClass+'">'
-      +'<div class="rc-name">'+escapeHtml(r['ชื่อในใบรับรอง']||'—')+'</div>'
-      +'<div class="rc-meta"><strong>สาขา:</strong> '+escapeHtml(r['สาขา']||'—')+'</div>'
-      +'<div class="rc-meta rc-course"><strong>หลักสูตร:</strong> '+escapeHtml(r['หลักสูตร']||'—')+'</div>'
-      +'<div class="rc-meta"><strong>วันหมดอายุ:</strong> '+escapeHtml(formatThaiDate(r['วันหมดอายุ']))+'</div>'
-      +'<div class="rc-badge">'+getExpBadge(status)+'</div>'
-      + ((_fhCertUrl(r['ชื่อในใบรับรอง'], r['หลักสูตร'])) ? '<a href="'+_fhCertUrl(r['ชื่อในใบรับรอง'], r['หลักสูตร'])+'" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;margin-top:10px;padding:7px 14px;background:var(--accent);color:#fff;border-radius:8px;text-decoration:none;font-size:13px;font-weight:700;">⬇️ ดาวน์โหลดใบเซอร์</a>' : '')
-      +'</div>';
-  }).join('') + (results.length > 60 ? '<div class="empty-state">แสดง 60 รายการแรกจาก '+results.length+' (พิมพ์เพิ่มเติมเพื่อแคบลง)</div>' : '');
+    var url = _fhCertUrl(r['ชื่อในใบรับรอง'], r['หลักสูตร']);
+    return '<tr>'
+      + '<td class="no-txt" data-label="ลำดับ" data-icon="🔢">' + (i + 1) + '</td>'
+      + '<td class="cert-name" data-label="ชื่อ" data-icon="📜">' + escapeHtml(r['ชื่อในใบรับรอง'] || '—') + '</td>'
+      + '<td data-label="ตำแหน่ง" data-icon="👤" style="font-size:12px;color:var(--text2);">' + escapeHtml(r['ตำแหน่ง'] || '—') + '</td>'
+      + '<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">' + escapeHtml(_courseShort(r['หลักสูตร'] || '')) + '</td>'
+      + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
+      + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
+      + '<td data-label="ใบเซอร์" data-icon="⚙️" class="td-row-actions">'
+      +   (url ? '<a class="btn-row-view" href="' + url + '" target="_blank" rel="noopener" title="ดาวน์โหลดใบเซอร์" style="text-decoration:none;">⬇️</a>' : '<span style="color:var(--text3)">—</span>')
+      + '</td>'
+      + '</tr>';
+  }).join('');
+
+  grid.innerHTML = '<div class="table-container">'
+    + '<table id="branchCertTable"><thead><tr>'
+    +   '<th>ลำดับ</th><th>ชื่อ</th><th>ตำแหน่ง</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบเซอร์</th>'
+    + '</tr></thead><tbody>' + rows + '</tbody></table>'
+    + (results.length > MAX ? '<div class="count-line">แสดง ' + MAX + ' รายการแรกจาก ' + results.length + ' · พิมพ์เพื่อกรองให้แคบลง</div>' : '')
+    + '</div>';
 }
 
 function addRequestRow() {
