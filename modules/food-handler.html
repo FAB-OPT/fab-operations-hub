@@ -1719,9 +1719,8 @@ input[type=file] { display:none; }
 /* ชื่อสาขายาวกว่าชื่อคน (เช่น "Santa Fe แฟชั่นไอส์แลนด์") — ให้ขึ้นบรรทัดใหม่แทนถูกตัดด้วย ... */
 #branchSidebar .adm-side-userbadge { white-space: normal; overflow: visible; text-overflow: clip; line-height: 1.35; }
 #branchSidebar .adm-side-userbadge-name { font-size: 14px; word-break: break-word; display: block; }
-#branchSidebar .br-badge-brand { display: block; font-size: 14.5px; font-weight: 800; color: #1e293b; line-height: 1.25; }
-#branchSidebar .br-badge-name  { display: block; font-size: 12.5px; font-weight: 700; color: var(--text2); line-height: 1.3; margin-top: 2px; }
-#branchSidebar .br-badge-role  { font-size: 11px; font-weight: 600; color: var(--text3); }
+#branchSidebar .br-badge-brand { display: block; font-size: 17px; font-weight: 800; color: #1e293b; line-height: 1.25; }
+#branchSidebar .br-badge-name  { display: block; font-size: 15px; font-weight: 700; color: #334155; line-height: 1.35; margin-top: 3px; }
 .adm-side-userbadge-role { font-size: 14px; font-weight: 700; color: #64748b; }
 
 /* Footer buttons — full-width colored cards */
@@ -4446,53 +4445,10 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 
 /* ─── Step 1 → Step 2 reveal button ─── */
-.step1-cta {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px dashed rgba(15,23,42,0.1);
-  display: flex !important;
-  justify-content: center !important;
-  align-items: center;
-  text-align: center;
-  width: 100%;
-}
-.btn-reveal-step2 {
-  display: inline-flex; align-items: center; gap: 10px;
-  padding: 14px 26px;
-  background: linear-gradient(135deg, var(--gold), var(--gold2));
-  color: #ffffff;
-  border: none;
-  border-radius: 14px;
-  font-family: 'Sarabun', sans-serif;
-  font-size: 15px;
-  font-weight: 800;
-  cursor: pointer;
-  box-shadow: 0 8px 22px rgba(234,88,12,0.32);
-  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-  letter-spacing: 0.2px;
-  text-align: center;
-  line-height: 1.4;
-}
 .cta-text-short { display: none; }
 @media (max-width: 768px) {
-  .step1-cta { width: 100%; padding-top: 16px; }
-  .btn-reveal-step2 {
-    width: 100%;
-    padding: 14px 16px;
-    font-size: 14.5px;
-    gap: 8px;
-    justify-content: center;
-  }
   .cta-text-full { display: none; }
   .cta-text-short { display: inline; }
-}
-.btn-reveal-step2:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 12px 30px rgba(234,88,12,0.5);
-}
-.btn-reveal-step2 .cta-arrow {
-  font-size: 18px;
-  animation: bounceDown 1.8s ease-in-out infinite;
 }
 @keyframes bounceDown {
   0%, 100% { transform: translateY(0); }
@@ -5056,18 +5012,22 @@ function saveFhConfig(patch) {
 // ปรับ UI ตาม config (ทั้งฝั่งสาขาและ admin)
 function applyFhConfigUI() {
   var open = FH_CONFIG.submitOpen !== false;
-  /* ปุ่มเริ่มส่งรายชื่อต้องผ่าน 2 ด่าน: สวิตช์ "รับรายชื่อ" เปิด + role นั้นมีสิทธิ์ส่ง
-     จงใจไม่ติด data-fh-action ที่ step1Cta เพราะ applyFhPerms จะไปเซ็ต display ทับ
-     แล้วเปิดปุ่มตอนที่สวิตช์ปิดอยู่ (= สาขาส่งได้ทั้งที่ปิดรับ) */
+  /* ส่งรายชื่อได้ต้องผ่าน 2 ด่าน: สวิตช์ "รับรายชื่อ" เปิด + role นั้นมีสิทธิ์ส่ง */
   var canSubmit = (typeof fhCan === 'function') ? fhCan('submit-request') : true;
   var banner = document.getElementById('fhClosedBanner'); if (banner) banner.style.display = open ? 'none' : '';
-  var cta = document.getElementById('step1Cta');          if (cta) cta.style.display = (open && canSubmit) ? '' : 'none';
+  // ทางเข้าหน้าส่งรายชื่อมีทางเดียว = เมนูข้าง (คุมด้านล่าง) · ปุ่มในหน้าค้นหาถูกเอาออกแล้ว
   // ปิดรับรายชื่อ → ซ่อนเมนูส่งรายชื่อ + ถ้าค้างอยู่หน้านั้นให้เด้งกลับหน้าค้นหา
+  /* เมนู "ส่งรายชื่ออบรม" = ทางเข้าเดียวของหน้าส่งรายชื่อแล้ว (ปุ่มในหน้าค้นหาถูกเอาออก)
+     จึงต้องสลับสองทาง — เดิมซ่อนอย่างเดียว พอ admin เปิดรับ เมนูไม่กลับมาจนกว่าจะรีเฟรช
+     ตั้งค่าตรงนี้ทีหลัง applyFhPerms เสมอ จึงถือเป็นตัวตัดสินสุดท้าย */
   var brNav = document.getElementById('brNavSubmit');
-  if (brNav && (!open || !canSubmit)) {
-    brNav.style.display = 'none';
-    var cur = document.getElementById('adm-sec-br-submit');
-    if (cur && cur.classList.contains('active') && typeof showBrSection === 'function') showBrSection('adm-sec-br-search');
+  if (brNav) {
+    var allowSubmit = open && canSubmit;
+    brNav.style.display = allowSubmit ? '' : 'none';
+    if (!allowSubmit) {
+      var cur = document.getElementById('adm-sec-br-submit');
+      if (cur && cur.classList.contains('active') && typeof showBrSection === 'function') showBrSection('adm-sec-br-search');
+    }
   }
   var sbtn = document.getElementById('submitReqBtn');     if (sbtn) sbtn.disabled = !open;
   var tg = document.getElementById('fhSubmitToggle');     if (tg) tg.checked = open;
@@ -5303,13 +5263,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <!-- ปิดรับรายชื่อ -->
     <div id="fhClosedBanner" style="display:none;margin-top:4px;padding:14px 16px;background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);border-left:3px solid var(--red);border-radius:10px;color:#B91C1C;font-size:13px;font-weight:700;text-align:center;line-height:1.6;">🔒 ขณะนี้ปิดรับการส่งรายชื่อชั่วคราว<br><span style="font-weight:500;font-size:12px;color:var(--text2);">กรุณาติดต่อผู้ดูแลระบบ หรือรอประกาศเปิดรับรอบถัดไป</span></div>
 
-    <!-- ปุ่มไปหน้าส่งรายชื่อ -->
-    <div class="step1-cta" id="step1Cta">
-      <button type="button" class="btn-reveal-step2" onclick="revealStep2()">
-        📋 ส่งรายชื่อเข้าอบรม
-        <span class="cta-arrow">→</span>
-      </button>
-    </div>
+
   </div>
 
   <!-- ── ส่งรายชื่ออบรม ── -->
@@ -8093,7 +8047,7 @@ function _initBranchSidebar() {
     if (!rest) { rest = brand; brand = ''; }   // มีแค่ชื่อเดียว → ไม่ต้องแยกบรรทัด
     nameEl.innerHTML =
       (brand ? '<span class="br-badge-brand">' + escapeHtml(brand) + '</span>' : '') +
-      '<span class="br-badge-name">' + escapeHtml(rest) + ' <span class="br-badge-role">(สาขา)</span></span>';
+      '<span class="br-badge-name">' + escapeHtml(rest) + '</span>';
   }
   showBrSection('adm-sec-br-search');
 }
@@ -11488,20 +11442,6 @@ function exportTrainingForm() {
 }
 
 /* Reveal step 2 (form) — called when user clicks the CTA in step 1 */
-function revealStep2() {
-  if (typeof FH_CONFIG !== 'undefined' && FH_CONFIG.submitOpen === false) { alert('ขณะนี้ปิดรับการส่งรายชื่อชั่วคราว'); return; }
-  showBrSection('adm-sec-br-submit');
-  // Swap topbar back buttons
-  var tm = document.getElementById('topMenuBtn'); if (tm) tm.style.display = 'none';
-  var tb = document.getElementById('topBackToStep1Btn'); if (tb) tb.style.display = '';
-  var mtbBack = document.getElementById('mtbBack'); if (mtbBack) mtbBack.style.display = 'none';
-  var mtbStep1 = document.getElementById('mtbBackStep1'); if (mtbStep1) mtbStep1.style.display = '';
-  // Initialize first row if empty
-  if (!requestRows || requestRows.length === 0) addRequestRow();
-  setTimeout(function(){ window.scrollTo({ top: 0, behavior: 'smooth' }); }, 40);
-  if (typeof updateStepper === 'function') updateStepper();
-}
-
 /* Back to step 1 from step 2 */
 function backToStep1() {
   showBrSection('adm-sec-br-search');
