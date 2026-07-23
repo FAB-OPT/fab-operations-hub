@@ -256,6 +256,42 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .syncnote{display:flex;align-items:flex-start;gap:10px;background:var(--blue-light);border:1px solid rgba(29,78,216,.18);color:var(--text2);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
 .syncnote b{color:var(--blue)}
 
+/* ---------- BRAND GATE (เลือกแบรนด์ก่อนเข้าใช้งาน) ---------- */
+#brandGate{position:fixed;inset:0;z-index:250;display:none;align-items:center;justify-content:center;padding:24px;overflow:auto;
+  background:radial-gradient(ellipse 60% 50% at 15% 25%,rgba(255,183,122,.5),transparent 60%),
+             radial-gradient(ellipse 55% 45% at 88% 18%,rgba(147,197,253,.45),transparent 60%),
+             radial-gradient(ellipse 60% 50% at 12% 88%,rgba(252,165,165,.45),transparent 60%),
+             radial-gradient(ellipse 55% 45% at 90% 90%,rgba(196,181,253,.4),transparent 60%),
+             linear-gradient(135deg,#F8FBFF 0%,#FFF8F3 100%)}
+#brandGate.on{display:flex}
+body.dark-mode #brandGate{background:radial-gradient(ellipse 60% 50% at 15% 25%,rgba(255,107,26,.18),transparent 60%),
+  radial-gradient(ellipse 55% 45% at 88% 18%,rgba(96,165,250,.14),transparent 60%),linear-gradient(135deg,#0F0F12 0%,#18181D 100%)}
+.bg-card{width:100%;max-width:560px;background:var(--surface);border-radius:24px;padding:34px 30px 28px;text-align:center;
+  box-shadow:0 24px 60px rgba(0,0,0,.12),0 0 0 1px rgba(255,255,255,.6)}
+body.dark-mode .bg-card{box-shadow:0 24px 70px rgba(0,0,0,.55)}
+.bg-eyebrow{font-size:11px;font-weight:700;letter-spacing:1.2px;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.bg-card h1{font-size:23px;font-weight:800;letter-spacing:-.5px;line-height:1.35;margin-bottom:6px}
+.bg-card p{font-size:13.5px;color:var(--text2);margin:0 0 22px;font-weight:500}
+.bg-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px}
+.brand-btn{background:var(--surface);border:1.5px solid var(--border);border-radius:18px;padding:20px 16px;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;min-height:172px;transition:.18s}
+.brand-btn:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 12px 28px rgba(255,107,26,.18)}
+.brand-btn .b-logo{width:100%;height:96px;display:flex;align-items:center;justify-content:center}
+.brand-btn .b-logo img{max-width:100%;max-height:96px;object-fit:contain;mix-blend-mode:multiply}
+body.dark-mode .brand-btn .b-logo img{mix-blend-mode:screen;filter:invert(1) hue-rotate(180deg)}
+.brand-btn .b-emoji{font-size:40px;line-height:1}
+.brand-btn .b-name{font-size:15.5px;font-weight:800;color:var(--text);letter-spacing:-.2px}
+.brand-btn .b-desc{font-size:12px;color:var(--text3);font-weight:500}
+.brand-btn.all{min-height:auto;flex-direction:row;grid-column:1/-1;padding:13px 16px;background:var(--surface2)}
+.brand-btn.all .b-emoji{font-size:19px}
+.bg-foot{margin-top:20px;font-size:12px;color:var(--text3);display:flex;gap:14px;justify-content:center;flex-wrap:wrap;align-items:center}
+.bg-foot a{cursor:pointer;font-weight:600}
+.brandchip{display:flex;align-items:center;gap:8px;margin:0 14px 12px;padding:8px 10px;border:1px solid var(--border);
+  border-radius:10px;background:var(--surface2);font-size:12.5px;color:var(--text2)}
+.brandchip b{color:var(--text);font-weight:700;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.brandchip button{border:0;background:none;color:var(--accent);font-size:12px;font-weight:700;cursor:pointer;padding:2px 4px;white-space:nowrap}
+.brandchip button:hover{text-decoration:underline}
+
 @media(max-width:1080px){
   .layout{grid-template-columns:1fr}
   .side{position:fixed;left:0;top:0;width:252px;z-index:100;transform:translateX(-100%);transition:.22s}
@@ -281,13 +317,33 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 </head>
 <body>
 
-<div id="app">
+<!-- ---------- BRAND GATE ---------- -->
+<div id="brandGate">
+  <div class="bg-card">
+    <div class="bg-eyebrow">FAB Operations · ระบบตรวจสาขา</div>
+    <h1>เลือกแบรนด์ที่ต้องการบันทึกผลตรวจ</h1>
+    <p>ข้อมูลการตรวจ รายชื่อสาขา และฐานข้อมูลอ้างอิงของแต่ละแบรนด์แยกกันคนละชุด</p>
+    <div class="bg-grid" id="brandGrid"></div>
+    <div id="brandGateEmpty"></div>
+    <div class="bg-foot">
+      <a onclick="Hub.back()">← กลับหน้าหลัก</a>
+      <a onclick="Theme.toggle()" id="bgTheme">สลับโหมดสี</a>
+    </div>
+  </div>
+</div>
+
+<div id="app" style="display:none">
 <div class="layout">
 
   <aside class="side" id="side">
     <div class="brandbar">
       <div class="dot">FQA</div>
-      <div><b>ระบบตรวจสาขา</b><span>ร้านส้มตำเจ๊แดง</span></div>
+      <div><b>ระบบตรวจสาขา</b><span id="sfBrand">—</span></div>
+    </div>
+
+    <div class="brandchip" id="brandChip" style="display:none">
+      <span>แบรนด์</span><b id="bBrand">—</b>
+      <button onclick="Brand.change()">เปลี่ยน</button>
     </div>
 
     <div class="navwrap">
@@ -557,25 +613,119 @@ const LIST_META = {
 
 const TYPE_LABEL = {FQA:'ฟอร์ม FQA', FSQ:'FSQ กรณี Complaint', VISIT:'ฟอร์ม Visit'};
 
-/* ---------- ชั้นจัดเก็บข้อมูล (จุดเดียวที่ต้องแก้หากจะต่อ Google Sheets) ---------- */
+/* =======================================================================
+   BRAND — แยกแบรนด์ก่อนเข้าใช้งาน (ข้อมูลแต่ละแบรนด์แยกคนละชุด)
+   ======================================================================= */
+const BRAND_LOGO = { jaedaeng:'../icons/brand-jaedaeng.png', santafe:'../icons/brand-santafe.jpg' };
+const BRAND_FALLBACK = [
+  {key:'jaedaeng', name:'เจ๊แดง',   emoji:'🌶️', desc:'ร้านส้มตำเจ๊แดง'},
+  {key:'santafe',  name:'Santa Fe', emoji:'🥩', desc:'ซานตาเฟ่'}
+];
+const Brand = {
+  cur:null,
+  /* ทะเบียนแบรนด์กลางของฮับ (localStorage 'fab_brands_v1') → ถ้าไม่มีใช้ค่าเริ่มต้น */
+  list(){
+    let reg=null; try{ reg=JSON.parse(localStorage.getItem('fab_brands_v1')||'null'); }catch(e){}
+    const src = (Array.isArray(reg)&&reg.length)? reg : BRAND_FALLBACK;
+    return src.map(b=>{
+      const d=BRAND_FALLBACK.find(x=>x.key===b.key)||{};
+      return {key:b.key, name:b.name||d.name||b.key, emoji:d.emoji||'🏷️',
+              desc:b.tagline||d.desc||'', logo:b.logo||BRAND_LOGO[b.key]||''};
+    });
+  },
+  info(k){ return this.list().find(b=>b.key===k) || {key:k,name:k,emoji:'🏷️',desc:''}; },
+  /* สิทธิ์แบรนด์จาก session ของฮับ — admin / crossBrand เห็นทุกแบรนด์ */
+  allowed(){
+    const s=Hub.session();
+    if(!s) return this.list().map(b=>b.key);
+    if(s.role==='admin' || s.crossBrand) return this.list().map(b=>b.key);
+    if(s.brand) return [s.brand];
+    return this.list().map(b=>b.key);
+  },
+  multi(){ return this.allowed().length>1; },
+
+  start(){
+    Theme.init();
+    const ok=this.allowed(), vis=this.list().filter(b=>ok.includes(b.key));
+    if(vis.length===1) return this.pick(vis[0].key);   // มีสิทธิ์แบรนด์เดียว → เข้าเลย
+    this.show(vis);
+  },
+  show(vis){
+    vis = vis || this.list().filter(b=>this.allowed().includes(b.key));
+    document.getElementById('app').style.display='none';
+    document.getElementById('brandGate').classList.add('on');
+    document.getElementById('brandGrid').innerHTML = vis.map(b=>
+      `<button class="brand-btn" onclick="Brand.pick('${attr(b.key)}')" title="${attr(b.name)}">
+        ${b.logo? `<span class="b-logo"><img src="${attr(b.logo)}" alt="${attr(b.name)}"
+              onerror="this.parentNode.innerHTML='<span class=\\'b-emoji\\'>${b.emoji}</span>'"></span>`
+                : `<span class="b-emoji">${b.emoji}</span>`}
+        <span class="b-name">${esc(b.name)}</span>
+        ${b.desc? `<span class="b-desc">${esc(b.desc)}</span>`:''}
+      </button>`).join('');
+    document.getElementById('brandGateEmpty').innerHTML = vis.length? ''
+      : '<div style="margin-top:12px;color:var(--text2);font-size:13.5px;line-height:1.6">ยังไม่มีแบรนด์สำหรับผู้ใช้ของคุณ<br>โปรดติดต่อผู้ดูแลระบบ</div>';
+  },
+  pick(key){
+    if(!this.allowed().includes(key)) return;
+    this.cur=key;
+    const b=this.info(key);
+    document.getElementById('brandGate').classList.remove('on');
+    document.getElementById('app').style.display='';
+    document.getElementById('bBrand').textContent=b.name;
+    document.getElementById('brandChip').style.display = this.multi()? '' : 'none';
+    document.getElementById('sfBrand').textContent = b.name;
+    document.title = `${b.name} — ระบบตรวจสาขา FQA / FSQ / Visit`;
+    Form.drafts={};
+    App.boot();
+  },
+  change(){
+    if(!this.multi()) return;
+    this.cur=null; Form.drafts={};
+    this.show();
+  }
+};
+
+/* ค่าตั้งต้นของข้อมูลหลักแยกตามแบรนด์ —
+   วัตถุดิบ/เมนูอ้างอิงชุดที่ฝังมาเป็นของเจ๊แดง แบรนด์อื่นจึงเริ่มจากศูนย์ */
+function defaultMaster(brand){
+  const m=JSON.parse(JSON.stringify(DEFAULT_MASTER));
+  m.branches=[]; m.bzms=[];              // สาขา/เขต ดึงจากฮับเสมอ
+  if(brand!=='jaedaeng'){ m.materials=[]; m.menus=[]; m.trainers=[]; }
+  return m;
+}
+
+/* ---------- ชั้นจัดเก็บข้อมูล (จุดเดียวที่ต้องแก้หากจะต่อ Google Sheets) ----------
+   แยกคีย์ตามแบรนด์ → รายการตรวจและข้อมูลหลักของแต่ละแบรนด์ไม่ปนกัน */
 const DB = (()=>{
-  const KEY='fqa_system_v2'; let mem=null; let usable=true;
+  const KEY = ()=> 'fqa_system_v2_' + (Brand.cur || 'jaedaeng');
+  const LEGACY_KEY = 'fqa_system_v2';   // ข้อมูลก่อนแยกแบรนด์ = ของเจ๊แดง
+  const mem={}; let usable=true;
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ usable=false; }
-  const fresh = ()=>({records:[], master:JSON.parse(JSON.stringify(DEFAULT_MASTER))});
+  const fresh = ()=>({records:[], master:defaultMaster(Brand.cur)});
+  function raw(){
+    const k=KEY();
+    let s=localStorage.getItem(k);
+    if(s==null && Brand.cur==='jaedaeng'){          // ย้ายข้อมูลเดิมมาไว้ใต้คีย์ของเจ๊แดงครั้งเดียว
+      const old=localStorage.getItem(LEGACY_KEY);
+      if(old!=null){ localStorage.setItem(k,old); s=old; }
+    }
+    return s;
+  }
   function read(){
-    if(!usable) return mem || (mem=fresh());
+    if(!usable) return mem[Brand.cur] || (mem[Brand.cur]=fresh());
     try{
-      const d=JSON.parse(localStorage.getItem(KEY));
+      const d=JSON.parse(raw());
       if(!d) return fresh();
-      if(!d.master) d.master=JSON.parse(JSON.stringify(DEFAULT_MASTER));
-      for(const k in DEFAULT_MASTER) if(d.master[k]===undefined) d.master[k]=JSON.parse(JSON.stringify(DEFAULT_MASTER[k]));
+      const def=defaultMaster(Brand.cur);
+      if(!d.master) d.master=def;
+      for(const k in def) if(d.master[k]===undefined) d.master[k]=JSON.parse(JSON.stringify(def[k]));
       for(const k in DEFAULT_MASTER.lists) if(!d.master.lists[k]) d.master.lists[k]=[...DEFAULT_MASTER.lists[k]];
       return d;
     }catch(e){ return fresh(); }
   }
   function write(d){
-    if(!usable){ mem=d; return true; }
-    try{ localStorage.setItem(KEY, JSON.stringify(d)); return true; }
+    if(!usable){ mem[Brand.cur]=d; return true; }
+    try{ localStorage.setItem(KEY(), JSON.stringify(d)); return true; }
     catch(e){ App.toast('พื้นที่จัดเก็บเต็ม — กรุณาส่งออกไฟล์สำรองแล้วล้างข้อมูลเก่า'); return false; }
   }
   return {
@@ -654,73 +804,106 @@ const Theme = {
 };
 
 /* =======================================================================
-   HUB BRANCHES — สาขาเจ๊แดงใช้ชุดเดียวกับฮับ (key: jaedaengBranches)
+   HUB BRANCHES — รายชื่อสาขาใช้ชุดเดียวกับฮับ แยกตามแบรนด์
+     · เจ๊แดง  → config.jaedaengBranches  (cache: fab_jaedaeng_branches_v1)
+     · Santa Fe → config.branches         (cache: fab_branches_v1) เฉพาะรหัส 50/55 ที่ยังเปิด
    ฮับเป็นเจ้าของข้อมูล · โมดูลนี้ดึงมาใช้อย่างเดียว ไม่เขียนกลับ
    ======================================================================= */
 const HUB_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
-const HUB_BRANCH_KEY = 'fab_jaedaeng_branches_v1';
+const JD_BRANCH_KEY = 'fab_jaedaeng_branches_v1';
+const SF_BRANCH_KEY = 'fab_branches_v1';
+/* รหัสขึ้นต้นของแต่ละแบรนด์ในทะเบียนสาขา Santa Fe ของฮับ */
+const BRAND_PREFIX = { santafe:['50','55'], jaedaeng:['40'] };
 
 const HubBranches = {
-  lastSync:null,
-  /* ชื่อผู้จัดการเขตแบบเต็ม: "คุณ นุชจรินทร์ (พี่กัส)" — รูปแบบเดียวกับที่โมดูลใช้เดิม */
+  lastSync:{},
+
+  /* ---- เจ๊แดง: [{name, manager, managerNick}] ---- */
   zoneName(b){
     const nm=(b.manager||'').trim(), nick=(b.managerNick||'').trim();
     if(!nm && !nick) return '';
     return nick ? `คุณ ${nm} (${nick})`.replace(/\s+/g,' ').trim() : `คุณ ${nm}`;
   },
-  /* อ่านจาก localStorage ที่ฮับเขียนไว้ (แชร์ origin เดียวกัน) */
+  jdMap(arr){
+    if(!Array.isArray(arr)) return null;
+    return arr.filter(b=>b && b.name).map(b=>({name:String(b.name).trim(), bzm:this.zoneName(b)}));
+  },
+
+  /* ---- Santa Fe: {branches:{code:name}, bzmMap:{code:nick}, statusMap:{code:'closed'}} ---- */
+  sfMap(obj){
+    if(!obj || !obj.branches) return null;
+    const names=obj.branches, bz=obj.bzmMap||{}, st=obj.statusMap||{};
+    const pre=BRAND_PREFIX[Brand.cur]||[];
+    return Object.keys(names)
+      .filter(c=> pre.some(p=>String(c).startsWith(p)) && st[c]!=='closed')
+      .sort()
+      .map(c=>({name:`${c} ${names[c]}`.trim(), bzm:(bz[c]||'').trim()}));
+  },
+
+  /* แปลงข้อมูลดิบของฮับ → [{name,bzm}] ตามแบรนด์ปัจจุบัน */
+  shape(raw){ return Brand.cur==='jaedaeng' ? this.jdMap(raw) : this.sfMap(raw); },
+
+  /* อ่านจาก localStorage ที่ฮับเขียนไว้ (origin เดียวกัน) */
   local(){
-    try{ const a=JSON.parse(localStorage.getItem(HUB_BRANCH_KEY)||'null');
-      return Array.isArray(a)? a : null; }catch(e){ return null; }
+    const k = Brand.cur==='jaedaeng' ? JD_BRANCH_KEY : SF_BRANCH_KEY;
+    try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; }
   },
   cloud(){
     return fetch(HUB_SCRIPT_URL+'?action=config&_='+Date.now())
       .then(r=>r.json())
       .then(res=>{
-        if(res && res.ok && Array.isArray(res.jaedaengBranches)){
-          try{ localStorage.setItem(HUB_BRANCH_KEY, JSON.stringify(res.jaedaengBranches)); }catch(e){}
-          return res.jaedaengBranches;
-        }
-        return null;
+        if(!res || !res.ok) return null;
+        const jd=res.jaedaengBranches, sf=res.branches;
+        try{
+          if(Array.isArray(jd)) localStorage.setItem(JD_BRANCH_KEY, JSON.stringify(jd));
+          if(sf && sf.branches)  localStorage.setItem(SF_BRANCH_KEY, JSON.stringify(sf));
+        }catch(e){}
+        return Brand.cur==='jaedaeng' ? (Array.isArray(jd)?jd:null) : (sf||null);
       });
   },
-  /* เขียนรายชื่อสาขา + ผู้จัดการเขตจากฮับลงข้อมูลหลักของโมดูล
-     คืนค่า {branches, zones, renamed} · ไม่แตะรายการตรวจที่บันทึกไว้แล้ว */
-  applyTo(list){
-    if(!Array.isArray(list) || !list.length) return null;
-    const branches = list.filter(b=>b && b.name).map(b=>({name:String(b.name).trim(), bzm:this.zoneName(b)}));
-    if(!branches.length) return null;
-    const zones = [...new Set(branches.map(b=>b.bzm).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
+
+  /* เขียนรายชื่อสาขา + ผู้จัดการเขตลงข้อมูลหลักของแบรนด์ปัจจุบัน
+     ไม่แตะรายการตรวจที่บันทึกไว้แล้ว นอกจากปรับชื่อเขตให้ตรงกับสาขา */
+  applyTo(raw){
+    const branches=this.shape(raw);
+    if(!branches || !branches.length) return null;
+    const zones=[...new Set(branches.map(b=>b.bzm).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
     const m=M.m;
-    m.branches = branches;
-    m.bzms = zones;
+    m.branches=branches;
+    m.bzms=zones;
     DB.setMaster(m);
-    /* รายการตรวจเดิม: อัปเดตชื่อเขตให้ตรงกับสาขา (กรณีฮับย้ายสาขาข้ามเขต) */
     const map={}; branches.forEach(b=>map[b.name]=b.bzm);
     const rs=DB.all(); let c=0;
     rs.forEach(r=>{ const z=map[r.branch]; if(z && r.bzm!==z){ r.bzm=z; c++; } });
     if(c) DB.setAll(rs);
-    this.lastSync=new Date();
+    this.lastSync[Brand.cur]=new Date();
     Filters.fill();
     return {branches:branches.length, zones:zones.length, fixed:c};
   },
+  syncedAt(){ return this.lastSync[Brand.cur]||null; },
+
   /* ตอนเปิดแอป — ใช้ค่าที่ฮับ cache ไว้ก่อน แล้วค่อยดึง cloud ทับเงียบๆ */
   boot(){
+    const brand=Brand.cur;
     const l=this.local();
     if(l) this.applyTo(l);
-    this.cloud().then(a=>{
-      if(!a) return;
-      const r=this.applyTo(a);
-      if(r && App.view==='master') Master.render();
-      if(r && App.view==='dash') Dash.render();
+    this.cloud().then(raw=>{
+      if(!raw || Brand.cur!==brand) return;   // ผู้ใช้สลับแบรนด์ระหว่างรอ → ทิ้งผลลัพธ์
+      const r=this.applyTo(raw);
+      if(!r) return;
+      if(App.view==='master') Master.render();
+      if(App.view==='dash') Dash.render();
     }).catch(()=>{});
   },
+
   /* ปุ่ม "ซิงค์จากฮับ" ในหน้าข้อมูลหลัก */
   resync(){
+    const brand=Brand.cur;
     App.toast('กำลังดึงรายชื่อสาขาจากฮับ...');
-    this.cloud().then(a=>{
-      const r=this.applyTo(a || this.local());
-      if(!r) return App.toast('ไม่พบรายชื่อสาขาจากฮับ');
+    this.cloud().then(raw=>{
+      if(Brand.cur!==brand) return;
+      const r=this.applyTo(raw || this.local());
+      if(!r) return App.toast('ไม่พบรายชื่อสาขาของแบรนด์นี้ในฮับ');
       Master.render(); Dash.render();
       App.toast(`ซิงค์แล้ว — ${r.branches} สาขา · ${r.zones} เขต${r.fixed?` · ปรับเขตในรายการตรวจ ${r.fixed} รายการ`:''}`);
     }).catch(()=>App.toast('เชื่อมต่อฮับไม่สำเร็จ — ใช้ข้อมูลที่ดาวน์โหลดไว้ล่าสุด'));
@@ -1260,8 +1443,8 @@ const Master = {
   branchPane(){
     const bs=M.branches(), zs=M.bzms();
     const byZone={}; bs.forEach(b=>byZone[b.bzm]=(byZone[b.bzm]||0)+1);
-    const stamp=HubBranches.lastSync
-      ? HubBranches.lastSync.toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : 'ยังไม่ได้ซิงค์';
+    const sy=HubBranches.syncedAt();
+    const stamp=sy? sy.toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : 'ยังไม่ได้ซิงค์';
     return `
     <div style="padding:18px 22px;border-bottom:1px solid var(--border);background:var(--surface2)">
       <div class="syncnote">
@@ -1708,6 +1891,7 @@ const IO = {
     s.onerror=()=>rej(new Error('โหลดไลบรารี Excel ไม่สำเร็จ — ต้องเชื่อมต่ออินเทอร์เน็ตครั้งแรก (ใช้ปุ่มส่งออก CSV แทนได้)'));
     document.head.appendChild(s); }); },
   stamp(){ return new Date().toISOString().slice(0,10).replace(/-/g,''); },
+  bTag(){ return Brand.info(Brand.cur).name.replace(/[\\/:*?"<>|\s]+/g,''); },
   dl(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); },
 
   sheets(){
@@ -1747,7 +1931,7 @@ const IO = {
         XLSX.utils.book_append_sheet(wb,ws,name); };
       add('สรุปรายการตรวจ',d.summary); add('FQA วัตถุดิบ',d.fqaItem); add('FQA เมนู',d.fqaMenu);
       add('Complaint',d.comp); add('Visit',d.visit); add('ข้อมูลสาขา',d.master);
-      XLSX.writeFile(wb,`FQA_รายงานการตรวจสาขา_${this.stamp()}.xlsx`);
+      XLSX.writeFile(wb,`FQA_รายงานการตรวจสาขา_${this.bTag()}_${this.stamp()}.xlsx`);
       App.toast('ส่งออกไฟล์ Excel แล้ว');
     }).catch(e=>App.toast(e.message));
   },
@@ -1756,17 +1940,17 @@ const IO = {
     if(!d.length) return App.toast('ยังไม่มีข้อมูลให้ส่งออก');
     const cols=Object.keys(d[0]), q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
     const csv='\uFEFF'+[cols.join(','),...d.map(r=>cols.map(c=>q(r[c])).join(','))].join('\r\n');
-    this.dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),`FQA_สรุปรายการตรวจ_${this.stamp()}.csv`);
+    this.dl(new Blob([csv],{type:'text/csv;charset=utf-8'}),`FQA_สรุปรายการตรวจ_${this.bTag()}_${this.stamp()}.csv`);
     App.toast('ส่งออกไฟล์ CSV แล้ว');
   },
   exportJson(){
-    this.dl(new Blob([JSON.stringify({app:'FQA System',version:2,exportedAt:new Date().toISOString(),
-      master:M.m, records:DB.all()})],{type:'application/json'}),`FQA_backup_${this.stamp()}.json`);
+    this.dl(new Blob([JSON.stringify({app:'FQA System',version:3,brand:Brand.cur,exportedAt:new Date().toISOString(),
+      master:M.m, records:DB.all()})],{type:'application/json'}),`FQA_backup_${this.bTag()}_${this.stamp()}.json`);
     App.toast('สำรองข้อมูลเรียบร้อย');
   },
   exportMaster(){
-    this.dl(new Blob([JSON.stringify({app:'FQA System',version:2,masterOnly:true,master:M.m})],{type:'application/json'}),
-      `FQA_master_${this.stamp()}.json`);
+    this.dl(new Blob([JSON.stringify({app:'FQA System',version:3,brand:Brand.cur,masterOnly:true,master:M.m})],{type:'application/json'}),
+      `FQA_master_${this.bTag()}_${this.stamp()}.json`);
     App.toast('ส่งออกข้อมูลหลักแล้ว');
   },
 
@@ -1780,7 +1964,7 @@ const IO = {
         try{
           const p=JSON.parse(e.target.result);
           if(p.master && confirm('ไฟล์นี้มีข้อมูลหลัก (ผู้ตรวจ / วัตถุดิบ / เมนู / ตัวเลือกในฟอร์ม) ต้องการนำเข้าทับข้อมูลหลักปัจจุบันหรือไม่?\n\nหมายเหตุ: รายชื่อสาขาและผู้จัดการเขตจะไม่ถูกทับ เพราะผูกกับฮับ')){
-            const m=JSON.parse(JSON.stringify(DEFAULT_MASTER));
+            const m=defaultMaster(Brand.cur);
             Object.keys(m).forEach(k=>{ if(p.master[k]) m[k]=p.master[k]; });
             if(p.master.lists) Object.keys(m.lists).forEach(k=>{ if(p.master.lists[k]) m.lists[k]=p.master.lists[k]; });
             /* สาขา / ผู้จัดการเขต = ฮับเป็นเจ้าของ → คงของเดิมไว้เสมอ */
@@ -1842,21 +2026,21 @@ const IO = {
   },
   resetMaster(){
     if(!confirm('คืนค่าผู้ตรวจ วัตถุดิบ เมนู และตัวเลือกในฟอร์ม กลับเป็นค่าตั้งต้น?\n\n(รายชื่อสาขาและผู้จัดการเขตจะดึงจากฮับใหม่อีกครั้ง)')) return;
-    M.commit(JSON.parse(JSON.stringify(DEFAULT_MASTER)));
+    M.commit(defaultMaster(Brand.cur));
     HubBranches.applyTo(HubBranches.local());
     Form.drafts={}; Master.render(); this.stats(); Dash.render(); App.toast('คืนค่าข้อมูลหลักแล้ว');
   },
   wipe(){
     if(!confirm('ล้างข้อมูลทั้งหมดในเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
     if(!confirm('ยืนยันอีกครั้ง — คุณสำรองไฟล์ .json ไว้แล้วใช่หรือไม่?')) return;
-    DB.setAll([]); M.commit(JSON.parse(JSON.stringify(DEFAULT_MASTER)));
+    DB.setAll([]); M.commit(defaultMaster(Brand.cur));
     HubBranches.applyTo(HubBranches.local());
     Form.drafts={}; this.stats(); Dash.render(); Rec.render(); Master.render(); App.toast('ล้างข้อมูลเรียบร้อย');
   }
 };
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ App.closeModal(); document.getElementById('zoom').classList.remove('on'); } });
-if(Hub.guard()) App.boot();
+if(Hub.guard()) Brand.start();
 </script>
 </body>
 </html>
