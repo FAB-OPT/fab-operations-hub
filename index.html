@@ -3852,6 +3852,17 @@ function goToExamApp() {
   window.location.href = 'modules/online-exam.html?v=' + Date.now();
 }
 
+function goToFqaApp() {
+  // Hand off session to FQA / FSQ / Visit module
+  sessionStorage.setItem('fab_role', isAdminMode ? 'admin' : 'branch');
+  sessionStorage.setItem('fab_branch_pin', branchPin || '');
+  sessionStorage.setItem('fab_branch_name', currentBranchName || '');
+  try {
+    if (branchPin) saveFabSession(isAdminMode ? 'tm' : 'branch', branchPin, branchPin, currentBranchName);
+  } catch (e) {}
+  window.location.href = 'modules/fqa-visit.html?v=' + Date.now();
+}
+
 function goToMenu() {
   document.getElementById('branchView').style.display = 'none';
   document.getElementById('adminView').style.display = 'none';
@@ -3932,6 +3943,17 @@ var DEFAULT_SYSTEMS = [{
   name: 'ระบบสอบออนไลน์',
   desc: 'ทำข้อสอบสำหรับสาขา + จัดการชุดข้อสอบและผลสอบ (Admin)',
   url: '',                       // internal route → modules/online-exam.html
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  id: 'fqa-visit',
+  emoji: '🔎',
+  icon: 'icons/checklist.png',
+  name: 'ระบบตรวจสาขา FQA / FSQ / Visit',
+  desc: 'บันทึกผลตรวจวัตถุดิบ · เคส Complaint · การเข้าพบสาขา + แดชบอร์ดสรุป',
+  url: '',                       // internal route → modules/fqa-visit.html
   visibleBranches: [],
   startDate: '',
   endDate: '',
@@ -4415,6 +4437,7 @@ function openSystem(systemId) {
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'online-exam') { goToExamApp(); return; }
+  if (systemId === 'fqa-visit') { goToFqaApp(); return; }
   if (systemId === 'santafe-sales-report') {
     // SSO: re-save session → navigate same-tab → Santa Fe Sales Report อ่าน fab_session
     try {
