@@ -7150,6 +7150,7 @@ function _TABLE_PER_PAGE() { return window.innerWidth <= 768 ? 10 : 20; }
 function renderTable() {
   // อัปเดต 4 กล่อง + chips ก่อน render (เผื่อ user เพิ่งเปลี่ยน dropdown สาขา/หลักสูตร)
   if (typeof updateStats === 'function') updateStats();
+  _fhResetSelIfFilterChanged('ad');   // เปลี่ยนตัวกรอง → ล้างที่ติ๊กไว้ก่อนวาดช่องติ๊ก
   var filtered = getFiltered();
   var tbody = document.getElementById('tableBody');
   var perPage = _TABLE_PER_PAGE();
@@ -7218,6 +7219,7 @@ function gotoTablePage(p) {
    scope 'ad' = ตารางฝั่งแอดมิน (#mainTable) · 'br' = ตารางฝั่งสาขา (#branchCertTable)
    เก็บที่เลือกด้วย key(ชื่อ|หลักสูตร) → ติ๊กค้างข้ามหน้า/ข้ามการกรองได้ */
 var _certSel = { ad: {}, br: {} };
+var _selSig  = { ad: null, br: null };   // ลายเซ็นตัวกรองล่าสุด — เปลี่ยนกรอง = ล้างที่เลือก
 var _brLastResults = [];   // ผลค้นหาล่าสุดฝั่งสาขา (ใช้ตอนกด "เลือกทั้งหมด")
 
 function _fhSelStore(scope) { return _certSel[scope === 'br' ? 'br' : 'ad']; }
@@ -7276,7 +7278,23 @@ function _fhSyncChkBoxes(scope) {
   var boxes = tbl.querySelectorAll('tbody input.chk-cert[data-k]');
   for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!store[boxes[i].getAttribute('data-k')];
 }
+/* ลายเซ็นของตัวกรองปัจจุบัน — ใช้เช็กว่าผู้ใช้เปลี่ยนเงื่อนไขหรือยัง */
+function _fhCurSig(scope) {
+  var g = function(id){ return (document.getElementById(id) || { value:'' }).value; };
+  if (scope === 'br') return 'br|' + g('branchSearchQ').trim().toLowerCase();
+  return ['ad', g('searchQ').trim().toLowerCase(), g('matchFilter'), g('expFilter'),
+          g('sheetFilter'), g('branchFilter'), g('courseFilter'), g('brandFilter')].join('|');
+}
+/* เปลี่ยนตัวกรอง/คำค้น = เริ่มเลือกใหม่ (กันของที่ติ๊กค้างจากชุดก่อนหน้ามานับรวม)
+   เปลี่ยนหน้า (pagination) ลายเซ็นไม่เปลี่ยน → ที่ติ๊กไว้ยังอยู่ */
+function _fhResetSelIfFilterChanged(scope) {
+  var key = scope === 'br' ? 'br' : 'ad';
+  var sig = _fhCurSig(scope);
+  if (_selSig[key] !== null && _selSig[key] !== sig) _certSel[key] = {};
+  _selSig[key] = sig;
+}
 function fhUpdateSelBar(scope) {
+  _fhResetSelIfFilterChanged(scope);
   var ids = _fhSelIds(scope);
   var store = _fhSelStore(scope);
   var n = Object.keys(store).length;
@@ -9877,6 +9895,7 @@ function branchSearch() {
   var q = (document.getElementById('branchSearchQ') || { value: '' }).value.trim().toLowerCase();
   var grid = document.getElementById('branchResults');
   if (!grid) return;
+  _fhResetSelIfFilterChanged('br');   // เปลี่ยนคำค้น → ล้างที่ติ๊กไว้ก่อนวาดช่องติ๊ก
   // ไม่พิมพ์อะไร = โชว์ทั้งหมดของสาขา (ข้อมูลถูกกรองเหลือเฉพาะสาขาตัวเองแล้ว จึงไม่เยอะ)
   var results = !q ? (allRecords || []) : (allRecords || []).filter(function(r){
     var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'') + ' ' + (r['หลักสูตร']||'')).toLowerCase();
