@@ -361,6 +361,7 @@ table.pdftb tr{page-break-inside:avoid}
   .side{display:none}
   .topback{display:inline-flex}
   .botnav{display:flex}
+  .top .nomob{display:none}   /* ปุ่ม Excel/PDF ไม่แสดงบนหัวมือถือ (ใช้จากหน้านำเข้า/ส่งออกแทน) */
   .kpis{grid-template-columns:repeat(2,1fr)}
   .g3,.g4{grid-template-columns:repeat(2,1fr)}
   .wrap{padding:18px 16px 92px}
@@ -1059,7 +1060,8 @@ const Cloud = {
   },
 
   post(body){
-    return fetch(this.URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)})
+    return fetch(this.URL, {method:'POST', mode:'cors', redirect:'follow',
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)})
       .then(r=>r.json());
   },
 
@@ -1097,7 +1099,7 @@ const Cloud = {
         throw new Error((res && res.error) || 'sync failed');
       });
     };
-    return Promise.resolve().then(step).catch(()=>{ this.syncing=false; this.setStatus('error'); });
+    return Promise.resolve().then(step).catch(e=>{ this.syncing=false; this.lastErr=(e&&e.message)||String(e); this.setStatus('error'); });
   },
 
   /* ดึงจาก cloud → รวมกับของในเครื่อง (ใหม่กว่าชนะ) · คืน true ถ้ามีการเปลี่ยน */
@@ -1128,10 +1130,12 @@ const Cloud = {
   syncNow(){
     if(!this.enabled()) return App.toast('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์');
     if(!navigator.onLine) return App.toast('อุปกรณ์ออฟไลน์ — จะซิงค์อัตโนมัติเมื่อกลับมาออนไลน์');
+    this.lastErr='';
     App.toast('กำลังซิงค์...');
     this.flush().then(()=>this.pull()).then(changed=>{
       if(changed){ Dash.render(); Rec.render(); if(App.view==='io') IO.stats(); }
-      App.toast(this.pending()? 'ยังมีบางรายการรอส่ง จะลองใหม่' : 'ซิงค์เรียบร้อย');
+      if(this.pending()) App.toast('ซิงค์ไม่สำเร็จ'+(this.lastErr?(' — '+this.lastErr):'')+' (ค้าง '+this.pending()+')');
+      else App.toast('ซิงค์เรียบร้อย');
     });
   },
 
@@ -1298,8 +1302,8 @@ const App = {
     const actions =
       (v==='fqa'||v==='fsq'||v==='visit')
         ? `<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button><button class="btn pri" onclick="Form.submit()">บันทึกผลการตรวจ</button>`
-        : (v==='dash' ? `<button class="btn" onclick="IO.exportXlsx()">Excel</button><button class="btn" onclick="PDF.dashboard()">PDF</button>`
-        : (v==='list' ? `<button class="btn" onclick="IO.exportXlsx()">Excel</button><button class="btn" onclick="PDF.summary()">PDF</button>` : ''));
+        : (v==='dash' ? `<button class="btn nomob" onclick="IO.exportXlsx()">Excel</button><button class="btn nomob" onclick="PDF.dashboard()">PDF</button>`
+        : (v==='list' ? `<button class="btn nomob" onclick="IO.exportXlsx()">Excel</button><button class="btn nomob" onclick="PDF.summary()">PDF</button>` : ''));
     document.getElementById('topActions').innerHTML = actions;
     if(v==='dash') Dash.render();
     if(v==='list') Rec.render();
