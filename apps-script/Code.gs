@@ -24,6 +24,7 @@ function doGet(e) {
     if (action === 'config')       return jsonOut(getConfig());
     if (action === 'exams')        return jsonOut(getExams());
     if (action === 'exam-results') return jsonOut(getExamResults());
+    if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || ''));
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
   } catch (err) {
@@ -48,6 +49,9 @@ function doPost(e) {
     if (data.type === 'save-exam')          return jsonOut(saveExam(data.exam));
     if (data.type === 'delete-exam')        return jsonOut(deleteExam(data.id));
     if (data.type === 'submit-exam-result') return jsonOut(saveExamResult(data.result));
+    if (data.type === 'save-fqa-record')    return jsonOut(saveFqaRecord(data.record));
+    if (data.type === 'delete-fqa-record')  return jsonOut(deleteFqaRecord(data.id));
+    if (data.type === 'upload-fqa-photo')   return jsonOut(uploadFqaPhoto(data.base64, data.filename));
     if (data.type === 'clear-cache')        return jsonOut(clearAllCacheReturn());
     if (data.type === 'ocr-image')          return ocrImage(data.imageBase64, data.filename, data.mimeType);
     return jsonOut({ ok: false, error: 'unknown type: ' + data.type });
@@ -643,4 +647,100 @@ function getExamResults() {
     results.push(rec);
   }
   return { ok: true, results: results };
+}
+
+/* ──────────────── FQA / FSQ / VISIT — รายการตรวจสาขา ────────────────
+   ชีต FqaRecords: 1 แถว = 1 รายการตรวจ · เก็บ JSON ทั้งก้อนในคอลัมน์ json
+   รูปภาพไม่เก็บที่นี่ — อัปโหลดขึ้น Drive แล้วเก็บเป็น URL ในตัว record
+   (กัน JSON เกินลิมิต 50,000 ตัวอักษร/ช่องของ Google Sheets) */
+var FQA_HEADERS = ['id','brand','type','date','branch','updatedAt','json'];
+
+function getFqaRecords(brand) {
+  var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { ok: true, records: [] };
+  var headers = values[0].map(function(h){ return String(h).trim(); });
+  var brandCol = headers.indexOf('brand'), jsonCol = headers.indexOf('json');
+  var records = [];
+  for (var i = 1; i < values.length; i++) {
+    if (brand && String(values[i][brandCol]) !== String(brand)) continue;
+    var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
+    if (!raw) continue;
+    try { records.push(JSON.parse(raw)); } catch (e) {}
+  }
+  return { ok: true, records: records };
+}
+
+function _fqaToRow(rec, headers) {
+  var map = {
+    id: rec.id || '',
+    brand: rec.brand || '',
+    type: rec.type || '',
+    date: rec.date || '',
+    branch: rec.branch || '',
+    updatedAt: rec.updatedAt || new Date().toISOString(),
+    json: JSON.stringify(rec)
+  };
+  return headers.map(function(h){ return map.hasOwnProperty(h) ? map[h] : ''; });
+}
+
+function saveFqaRecord(rec) {
+  if (!rec || !rec.id) return { ok: false, error: 'invalid record' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+    rec.updatedAt = rec.updatedAt || new Date().toISOString();
+    var values = sh.getDataRange().getValues();
+    var headers = values[0].map(function(h){ return String(h).trim(); });
+    var idCol = headers.indexOf('id');
+    var rowArr = _fqaToRow(rec, headers);
+    for (var i = 1; i < values.length; i++) {
+      if (String(values[i][idCol]) === String(rec.id)) {
+        sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
+        return { ok: true, id: rec.id, updated: true };
+      }
+    }
+    sh.appendRow(rowArr);
+    return { ok: true, id: rec.id, updated: false };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteFqaRecord(id) {
+  if (!id) return { ok: false, error: 'no id' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+    var values = sh.getDataRange().getValues();
+    var headers = values[0].map(function(h){ return String(h).trim(); });
+    var idCol = headers.indexOf('id');
+    for (var i = values.length - 1; i >= 1; i--) {
+      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); return { ok: true }; }
+    }
+    return { ok: true, notFound: true };
+  } finally { lock.releaseLock(); }
+}
+
+/* รูปประกอบการตรวจ → เก็บใน Drive folder "FQA Photos" → คืน URL แบบดูได้สาธารณะ */
+function uploadFqaPhoto(base64, filename) {
+  try {
+    if (!base64) return { ok: false, error: 'no image data' };
+    var folderName = 'FQA Photos';
+    var it = DriveApp.getFoldersByName(folderName);
+    var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
+    var raw = String(base64);
+    var mime = 'image/jpeg';
+    var mm = raw.match(/^data:([^;]+);base64,/);
+    if (mm) mime = mm[1];
+    var b64 = raw.indexOf(',') >= 0 ? raw.split(',')[1] : raw;
+    var bytes = Utilities.base64Decode(b64);
+    var ext = mime.indexOf('png') >= 0 ? '.png' : '.jpg';
+    var blob = Utilities.newBlob(bytes, mime, filename || ('fqa-' + Date.now() + ext));
+    var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return { ok: true, url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1200', id: file.getId() };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
 }

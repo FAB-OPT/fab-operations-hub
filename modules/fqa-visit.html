@@ -265,6 +265,7 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .zoom.on{display:flex} .zoom img{max-width:100%;max-height:100%;border-radius:10px}
 .syncnote{display:flex;align-items:flex-start;gap:10px;background:var(--blue-light);border:1px solid rgba(29,78,216,.18);color:var(--text2);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
 .syncnote b{color:var(--blue)}
+.syncdot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;vertical-align:middle;flex:none}
 .tb td>.tdv{min-width:0}
 
 /* ---------- MOBILE: ฉากหลังทึบตอนเปิดเมนู · แถบปุ่มล่างจอ · ปุ่มพับตัวกรอง ---------- */
@@ -648,6 +649,19 @@ table.pdftb tr{page-break-inside:avoid}
           </div>
         </div>
         <div class="card">
+          <div class="hd"><span class="sec-no">⇄</span><h3>การซิงค์ข้ามอุปกรณ์</h3><div class="sp"></div>
+            <span class="note" id="ioSync">—</span></div>
+          <div class="bd">
+            <div class="syncnote">
+              <span style="font-size:16px;line-height:1">☁️</span>
+              <div><b>รายการตรวจซิงค์อัตโนมัติผ่าน FAB Operations Hub</b><br>
+                บันทึกจากเครื่องไหนก็เห็นครบทุกเครื่อง · รูปภาพเก็บบน Google Drive ·
+                ถ้าออฟไลน์ ระบบจะเก็บไว้แล้วส่งให้เองเมื่อกลับมาออนไลน์</div>
+            </div>
+            <div style="margin-top:14px"><button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button></div>
+          </div>
+        </div>
+        <div class="card">
           <div class="hd"><span class="sec-no">⚙</span><h3>ข้อมูลในระบบ</h3></div>
           <div class="bd">
             <div class="grid g3" id="ioStats"></div>
@@ -773,6 +787,9 @@ const DB = (()=>{
     all(){ return read().records; },
     save(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       rec.updatedAt=new Date().toISOString();
+      if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
+    /* upsert เฉพาะในเครื่อง โดยไม่แตะ updatedAt — ใช้ตอนซิงค์ (เช่น แทน base64 ด้วย URL รูป) */
+    writeRecord(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
     remove(id){ const d=read(); d.records=d.records.filter(r=>r.id!==id); write(d); },
     setAll(list){ const d=read(); d.records=list; write(d); },
@@ -952,6 +969,145 @@ const HubBranches = {
 };
 
 /* =======================================================================
+   CLOUD — ซิงค์รายการตรวจข้ามอุปกรณ์ผ่าน Apps Script (ชีต FqaRecords)
+     · บันทึก/ลบ → เข้าคิวใน localStorage แล้วส่งขึ้น cloud (กันหลุดตอนออฟไลน์)
+     · รูปภาพ base64 → อัปโหลดขึ้น Drive ก่อนส่ง แล้วเก็บเป็น URL แทน
+     · เปิดแอป → ดึงจาก cloud รวมกับของในเครื่อง (updatedAt ใหม่กว่าชนะ)
+   ======================================================================= */
+const Cloud = {
+  URL: HUB_SCRIPT_URL,
+  syncing:false,
+  lastStatus:'',
+
+  enabled(){ return !!this.URL; },
+  qKey(){ return 'fqa_sync_queue_'+(Brand.cur||'jaedaeng'); },
+  queue(){ try{ return JSON.parse(localStorage.getItem(this.qKey())||'[]'); }catch(e){ return []; } },
+  setQueue(q){ try{ localStorage.setItem(this.qKey(), JSON.stringify(q)); }catch(e){} },
+  pending(){ return this.queue().length; },
+
+  /* ลงคิว 1 งาน (บันทึก/ลบ) — งานใหม่ของ id เดิมทับของเก่า แล้วเริ่มส่ง */
+  enqueue(op, id){
+    if(!this.enabled()) return;
+    const q=this.queue().filter(x=>x.id!==id);
+    q.push({op, id});
+    this.setQueue(q);
+    this.paint();
+    this.flush();
+  },
+
+  post(body){
+    return fetch(this.URL, {method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)})
+      .then(r=>r.json());
+  },
+
+  /* อัปโหลดรูป base64 ทุกใบ → แทนด้วย URL → เขียนกลับในเครื่อง (กันอัปซ้ำ) */
+  uploadPhotos(rec){
+    const ph=(rec.photos||[]).filter(p=>p && typeof p.data==='string' && p.data.indexOf('data:')===0);
+    if(!ph.length) return Promise.resolve(rec);
+    return ph.reduce((chain,p)=>chain.then(()=>
+      this.post({type:'upload-fqa-photo', base64:p.data, filename:'fqa-'+rec.id+'-'+Math.random().toString(36).slice(2,7)+'.jpg'})
+        .then(res=>{ if(res && res.ok && res.url) p.data=res.url; })
+    ), Promise.resolve()).then(()=>{ DB.writeRecord(rec); return rec; });
+  },
+
+  /* ส่งงานในคิวทีละชิ้นจนหมด · ออฟไลน์/ล้มเหลว = คงคิวไว้ ลองใหม่รอบหน้า */
+  flush(){
+    if(this.syncing || !this.enabled()) return Promise.resolve();
+    if(!navigator.onLine){ this.setStatus('offline'); return Promise.resolve(); }
+    if(!this.queue().length){ this.setStatus('synced'); return Promise.resolve(); }
+    this.syncing=true; this.setStatus('syncing');
+    const brand=Brand.cur;
+    const step=()=>{
+      const q=this.queue();
+      if(!q.length || brand!==Brand.cur){ this.syncing=false; this.setStatus('synced'); return; }
+      const item=q[0];
+      let job;
+      if(item.op==='delete'){
+        job=this.post({type:'delete-fqa-record', id:item.id});
+      }else{
+        const rec=DB.all().find(r=>r.id===item.id);
+        if(!rec){ job=Promise.resolve({ok:true}); }
+        else job=this.uploadPhotos(rec).then(r2=>{ r2.brand=brand; return this.post({type:'save-fqa-record', record:r2}); });
+      }
+      return job.then(res=>{
+        if(res && res.ok){ this.setQueue(this.queue().filter(x=>!(x.id===item.id && x.op===item.op))); this.paint(); return step(); }
+        throw new Error((res && res.error) || 'sync failed');
+      });
+    };
+    return Promise.resolve().then(step).catch(()=>{ this.syncing=false; this.setStatus('error'); });
+  },
+
+  /* ดึงจาก cloud → รวมกับของในเครื่อง (ใหม่กว่าชนะ) · คืน true ถ้ามีการเปลี่ยน */
+  pull(){
+    if(!this.enabled() || !navigator.onLine) return Promise.resolve(false);
+    const brand=Brand.cur;
+    this.setStatus('syncing');
+    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now())
+      .then(r=>r.json())
+      .then(res=>{
+        if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
+        const local=DB.all(), byId={}; local.forEach(r=>byId[r.id]=r);
+        const pendingDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
+        let changed=false;
+        res.records.forEach(cr=>{
+          if(!cr || !cr.id || pendingDel.has(cr.id)) return;         // กำลังจะลบ → อย่าเพิ่งดึงกลับ
+          const lr=byId[cr.id];
+          if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
+        });
+        if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
+        this.setStatus('synced');
+        return changed;
+      })
+      .catch(()=>{ this.setStatus('error'); return false; });
+  },
+
+  /* ปุ่ม "ซิงค์เดี๋ยวนี้" */
+  syncNow(){
+    if(!this.enabled()) return App.toast('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์');
+    if(!navigator.onLine) return App.toast('อุปกรณ์ออฟไลน์ — จะซิงค์อัตโนมัติเมื่อกลับมาออนไลน์');
+    App.toast('กำลังซิงค์...');
+    this.flush().then(()=>this.pull()).then(changed=>{
+      if(changed){ Dash.render(); Rec.render(); if(App.view==='io') IO.stats(); }
+      App.toast(this.pending()? 'ยังมีบางรายการรอส่ง จะลองใหม่' : 'ซิงค์เรียบร้อย');
+    });
+  },
+
+  /* เปิดแอป — ดึงก่อน แล้วส่งคิวที่ค้าง */
+  boot(){
+    if(!this.enabled()){ this.setStatus('local'); return; }
+    if(!this._bound){
+      window.addEventListener('online', ()=>{ this.setStatus('syncing'); this.flush(); });
+      window.addEventListener('offline', ()=>this.setStatus('offline'));
+      this._bound=true;
+    }
+    this.paint();
+    this.pull().then(changed=>{
+      if(changed){ Dash.render(); if(App.view==='list') Rec.render(); }
+      return this.flush();
+    });
+  },
+
+  /* ---------- ตัวบอกสถานะบนหน้าจอ ---------- */
+  STAT:{
+    local:  {t:'บันทึกในเครื่องนี้', c:'var(--text3)', d:'#B0B0B0'},
+    synced: {t:'ซิงค์ข้ามอุปกรณ์แล้ว', c:'var(--green)', d:'var(--green)'},
+    syncing:{t:'กำลังซิงค์...', c:'var(--accent)', d:'var(--accent)'},
+    offline:{t:'ออฟไลน์ — รอซิงค์', c:'var(--yellow)', d:'var(--yellow)'},
+    error:  {t:'ซิงค์ไม่สำเร็จ จะลองใหม่', c:'var(--red)', d:'var(--red)'}
+  },
+  setStatus(k){ this.lastStatus=k; this.paint(); },
+  paint(){
+    const s=this.STAT[this.lastStatus] || this.STAT.local;
+    const pend=this.pending();
+    const label = pend && this.lastStatus!=='syncing' ? `${s.t} · ค้าง ${pend}` : s.t;
+    const el=document.getElementById('sfStore');
+    if(el){ el.innerHTML=`<span class="syncdot" style="background:${s.d}"></span>${esc(label)}`; }
+    const io=document.getElementById('ioSync');
+    if(io) io.textContent = this.enabled()? (pend? `ค้างส่ง ${pend} รายการ` : label) : 'ปิดการซิงค์';
+  }
+};
+
+/* =======================================================================
    MOBILE — แถบปุ่มล่างจอ · ป้ายกำกับช่องตารางเวลาแสดงเป็นการ์ด · ตัวนับตัวกรอง
    ======================================================================= */
 const Mobile = {
@@ -1023,11 +1179,10 @@ const App = {
   boot(){
     Theme.init();
     document.getElementById('sfUser').textContent = Hub.who();
-    document.getElementById('sfStore').textContent =
-      DB.persistent() ? 'ข้อมูลบันทึกในเครื่องนี้' : 'โหมดชั่วคราว — ไม่บันทึกถาวร';
     document.querySelectorAll('.nav[data-v]').forEach(b=> b.onclick=()=>this.go(b.dataset.v));
     Mobile.init();
     HubBranches.boot();
+    Cloud.boot();
     Filters.init(); this.go('dash');
     if(!DB.persistent()) setTimeout(()=>this.toast('เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกถาวร — ข้อมูลจะอยู่แค่ระหว่างเปิดหน้านี้'),900);
   },
@@ -1443,7 +1598,9 @@ const Form = {
     if(s.type==='FQA' && !s.checks.some(c=>c.result)) return App.toast('กรุณาให้ผลตรวจอย่างน้อย 1 หัวข้อ');
     if(s.type==='FSQ' && !s.complaint.trim()) return App.toast('กรุณากรอกรายละเอียด Complaint');
     if(s.type==='VISIT' && !s.topics.some(t=>t.topic.trim())) return App.toast('กรุณากรอกหัวข้อการอบรมอย่างน้อย 1 หัวข้อ');
-    if(DB.save(JSON.parse(JSON.stringify(s)))){
+    const rec=JSON.parse(JSON.stringify(s));
+    if(DB.save(rec)){
+      Cloud.enqueue('save', rec.id);
       App.toast('บันทึกผลการตรวจเรียบร้อย');
       this.drafts[this.type]=this.blank(this.type);
       App.go('list');
@@ -1507,7 +1664,7 @@ const Rec = {
           <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
         </td></tr>`).join('')}</tbody></table>`;
   },
-  del(id){ if(confirm('ลบรายการตรวจนี้?')){ DB.remove(id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); } },
+  del(id){ if(confirm('ลบรายการตรวจนี้?')){ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); } },
   edit(id){ const r=DB.all().find(x=>x.id===id); Form.open(r.type,r);
     App.go(r.type==='FQA'?'fqa':r.type==='FSQ'?'fsq':'visit'); },
   view(id){
@@ -2292,14 +2449,16 @@ const IO = {
     }
   },
   merge(inc,mode){
+    let synced=[];
     if(mode==='replace'){
       if(!confirm(`แทนที่รายการตรวจเดิมทั้งหมดด้วย ${inc.length} รายการจากไฟล์นี้?`)) return;
-      DB.setAll(inc); App.toast(`นำเข้า ${inc.length} รายการแล้ว`);
+      DB.setAll(inc); synced=inc; App.toast(`นำเข้า ${inc.length} รายการแล้ว`);
     } else {
       const cur=DB.all(), ids=new Set(cur.map(r=>r.id)), add=inc.filter(r=>!ids.has(r.id));
-      DB.setAll([...add,...cur]);
+      DB.setAll([...add,...cur]); synced=add;
       App.toast(`นำเข้า ${add.length} รายการ (ข้ามซ้ำ ${inc.length-add.length} รายการ)`);
     }
+    synced.forEach(r=>{ if(r && r.id) Cloud.enqueue('save', r.id); });   // ส่งรายการที่นำเข้าขึ้น cloud ด้วย
     this.stats(); Dash.render(); Rec.render();
   },
 
@@ -2313,10 +2472,12 @@ const IO = {
         <div class="d">${M.bzms().length} เขต · ${M.trainers().length} ผู้ตรวจ · ${M.materials().length} วัตถุดิบ · ${M.menus().length} เมนู</div></div>
       <div class="kpi ${size>4?'wn':'nu'}"><div class="k">ขนาดข้อมูล</div><div class="v">${size}<small>MB</small></div>
         <div class="d">${ph} รูป · ${DB.persistent()?'บันทึกถาวรในเครื่องนี้ (จำกัดราว 5 MB)':'โหมดชั่วคราว'}</div></div>`;
+    Cloud.paint();
   },
   wipeRecords(){
-    if(!confirm('ล้างเฉพาะรายการตรวจทั้งหมด? (ข้อมูลหลักยังอยู่)')) return;
-    DB.setAll([]); this.stats(); Dash.render(); Rec.render(); App.toast('ล้างรายการตรวจแล้ว');
+    if(!confirm('ล้างรายการตรวจในเครื่องนี้?\n\n(รายการที่ซิงค์ขึ้น cloud แล้วจะไม่ถูกลบ และจะถูกดึงกลับมาเมื่อซิงค์ครั้งต่อไป — หากต้องการลบถาวรให้ลบทีละรายการ)')) return;
+    DB.setAll([]); Cloud.setQueue([]); this.stats(); Dash.render(); Rec.render(); Cloud.paint();
+    App.toast('ล้างรายการในเครื่องแล้ว'); Cloud.boot();
   },
   resetMaster(){
     if(!confirm('คืนค่าผู้ตรวจ วัตถุดิบ เมนู และตัวเลือกในฟอร์ม กลับเป็นค่าตั้งต้น?\n\n(รายชื่อสาขาและผู้จัดการเขตจะดึงจากฮับใหม่อีกครั้ง)')) return;
@@ -2327,9 +2488,9 @@ const IO = {
   wipe(){
     if(!confirm('ล้างข้อมูลทั้งหมดในเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
     if(!confirm('ยืนยันอีกครั้ง — คุณสำรองไฟล์ .json ไว้แล้วใช่หรือไม่?')) return;
-    DB.setAll([]); M.commit(defaultMaster(Brand.cur));
+    DB.setAll([]); Cloud.setQueue([]); M.commit(defaultMaster(Brand.cur));
     HubBranches.applyTo(HubBranches.local());
-    Form.drafts={}; this.stats(); Dash.render(); Rec.render(); Master.render(); App.toast('ล้างข้อมูลเรียบร้อย');
+    Form.drafts={}; this.stats(); Dash.render(); Rec.render(); Master.render(); Cloud.paint(); App.toast('ล้างข้อมูลเรียบร้อย');
   }
 };
 
