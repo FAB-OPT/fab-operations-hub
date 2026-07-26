@@ -283,6 +283,26 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .botnav button.mid .bi{width:38px;height:38px;margin-top:-16px;border-radius:50%;background:var(--accent);color:#fff;
   display:grid;place-items:center;font-size:22px;box-shadow:0 4px 14px rgba(214,20,43,.4)}
 .botnav button.mid.on .bi{background:var(--accent-hover)}
+
+/* ปุ่มกลับหน้าหลัก (บนซ้าย) + จุดสถานะซิงค์ (บนขวา) — เฉพาะมือถือ */
+.topback{display:none;align-items:center;gap:5px;color:var(--accent);border-color:var(--accent-light);background:var(--accent-light);font-weight:700;flex:none}
+.synctop{display:none;align-items:center;font-size:11px;color:var(--text3);gap:4px;white-space:nowrap}
+
+/* Bottom sheet (ตัวเลือกจากแถบล่าง) */
+#sheet{position:fixed;inset:0;z-index:160;display:none}
+#sheet.on{display:block}
+#sheet .sh-scrim{position:absolute;inset:0;background:rgba(0,0,0,.45)}
+#sheet .sh-panel{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:20px 20px 0 0;
+  padding:6px 12px calc(14px + env(safe-area-inset-bottom));box-shadow:0 -12px 44px rgba(0,0,0,.28);
+  transform:translateY(100%);transition:transform .26s cubic-bezier(.2,.8,.3,1)}
+#sheet.on .sh-panel{transform:translateY(0)}
+#sheet .sh-handle{width:40px;height:4px;border-radius:2px;background:var(--border2);margin:9px auto 6px}
+#sheet .sh-title{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.5px;padding:6px 8px 8px}
+.sheet-item{display:flex;align-items:center;gap:14px;width:100%;background:none;border:0;border-radius:13px;padding:14px 12px;cursor:pointer;text-align:left;color:var(--text)}
+.sheet-item:active{background:var(--surface2)}
+.sheet-item .si-ic{width:42px;height:42px;border-radius:12px;background:var(--accent-light);color:var(--accent);display:grid;place-items:center;font-size:20px;font-weight:700;flex:none}
+.sheet-item .si-tx{flex:1;min-width:0;font-size:16px;font-weight:700}
+.sheet-item .si-sub{font-size:12.5px;font-weight:500;color:var(--text3);margin-top:2px}
 .filttog{display:none;width:100%;align-items:center;gap:8px;background:none;border:0;padding:14px 16px;cursor:pointer;
   font-size:14px;font-weight:700;color:var(--text);text-align:left}
 .filttog .cnt:empty{display:none}
@@ -328,14 +348,15 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfkpi .kpi .v{font-size:20px;color:#111} .pdfkpi .kpi .k{color:#777;font-size:11px} .pdfkpi .kpi .d{color:#888;font-size:10px}
 
 @media(max-width:1080px){
+  /* มือถือ/แท็บเล็ต: ไม่มีเมนูข้าง — ใช้แถบล่างจอแทน · ปุ่มกลับหน้าหลักอยู่บนซ้าย */
   .layout{grid-template-columns:1fr}
-  .side{position:fixed;left:0;top:0;width:min(280px,84vw);z-index:100;transform:translateX(-100%);transition:transform .22s}
-  .side.open{transform:none;box-shadow:var(--shadow-lg)}
+  .side{display:none}
+  .topback{display:inline-flex}
+  .botnav{display:flex}
   .kpis{grid-template-columns:repeat(2,1fr)}
   .g3,.g4{grid-template-columns:repeat(2,1fr)}
-  .wrap{padding:18px 16px 60px}
-  .top{padding:12px 14px}
-  #burger{display:inline-flex!important}
+  .wrap{padding:18px 16px 92px}
+  .top{padding:10px 12px}
   .grid[style*="1.6fr"]{grid-template-columns:1fr!important}
 }
 
@@ -450,14 +471,22 @@ table.pdftb tr{page-break-inside:avoid}
 </head>
 <body>
 
-<div id="scrim" onclick="App.drawer(false)"></div>
 <nav class="botnav noprint" id="botnav">
   <button data-v="dash" onclick="App.go('dash')"><span class="bi">◧</span>แดชบอร์ด</button>
   <button data-v="list" onclick="App.go('list')"><span class="bi">☰</span>รายการ</button>
-  <button data-v="fqa" class="mid" onclick="App.go('fqa')"><span class="bi">＋</span>บันทึก</button>
+  <button class="mid" onclick="App.newSheet()"><span class="bi">＋</span>บันทึก</button>
   <button data-v="master" onclick="App.go('master')"><span class="bi">▤</span>ข้อมูลหลัก</button>
-  <button onclick="App.drawer(true)"><span class="bi">☰</span>เมนู</button>
+  <button onclick="App.moreSheet()"><span class="bi">⋯</span>เพิ่มเติม</button>
 </nav>
+
+<div id="sheet" class="noprint">
+  <div class="sh-scrim" onclick="App.closeSheet()"></div>
+  <div class="sh-panel">
+    <div class="sh-handle"></div>
+    <div class="sh-title" id="sheetTitle"></div>
+    <div id="sheetBody"></div>
+  </div>
+</div>
 
 <div id="app">
 <div class="layout">
@@ -492,12 +521,13 @@ table.pdftb tr{page-break-inside:avoid}
 
   <div class="main">
     <header class="top">
-      <button class="btn sm" id="burger" style="display:none" onclick="App.drawer()" aria-label="เมนู">☰</button>
+      <button class="btn sm topback noprint" onclick="Hub.back()" aria-label="กลับหน้าหลัก">‹ หน้าหลัก</button>
       <div>
         <div class="crumb" id="crumb">ภาพรวม</div>
         <h2 id="pageTitle">แดชบอร์ด</h2>
       </div>
       <div class="sp"></div>
+      <span class="synctop noprint" id="syncTop"></span>
       <div id="topActions"></div>
     </header>
 
@@ -1122,6 +1152,9 @@ const Cloud = {
     const label = pend && this.lastStatus!=='syncing' ? `${s.t} · ค้าง ${pend}` : s.t;
     const el=document.getElementById('sfStore');
     if(el){ el.innerHTML=`<span class="syncdot" style="background:${s.d}"></span>${esc(label)}`; }
+    /* จุดสถานะซิงค์บนหัวจอ (มือถือ — เพราะไม่มีเมนูข้างแล้ว) */
+    const top=document.getElementById('syncTop');
+    if(top){ top.innerHTML=`<span class="syncdot" style="background:${s.d}"></span>${pend?`<b style="color:${s.d}">${pend}</b>`:''}`; }
     const io=document.getElementById('ioSync');
     if(io) io.textContent = this.enabled()? (pend? `ค้างส่ง ${pend} รายการ` : label) : 'ปิดการซิงค์';
   }
@@ -1195,14 +1228,34 @@ const App = {
     Filters.init(); this.go('dash');
     if(!DB.persistent()) setTimeout(()=>this.toast('เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกถาวร — ข้อมูลจะอยู่แค่ระหว่างเปิดหน้านี้'),900);
   },
-  /* ---------- ลิ้นชักเมนูบนมือถือ ---------- */
-  drawer(open){
-    const s=document.getElementById('side');
-    const on = (open===undefined)? !s.classList.contains('open') : !!open;
-    s.classList.toggle('open', on);
-    document.getElementById('scrim').classList.toggle('on', on);
-    document.body.style.overflow = on? 'hidden' : '';
+  /* ---------- Bottom sheet (ตัวเลือกจากแถบล่างจอ — มือถือ) ---------- */
+  sheet(title, items){
+    document.getElementById('sheetTitle').textContent = title;
+    const body=document.getElementById('sheetBody');
+    body.innerHTML='';
+    items.forEach(it=>{
+      const btn=document.createElement('button');
+      btn.className='sheet-item';
+      btn.innerHTML=`<span class="si-ic">${it.icon}</span><span class="si-tx">${esc(it.label)}${it.sub?`<div class="si-sub">${esc(it.sub)}</div>`:''}</span>`;
+      btn.onclick=()=>{ this.closeSheet(); it.run(); };
+      body.appendChild(btn);
+    });
+    document.getElementById('sheet').classList.add('on');
+    document.body.style.overflow='hidden';
   },
+  closeSheet(){ document.getElementById('sheet').classList.remove('on'); document.body.style.overflow=''; },
+  /* ปุ่ม ＋ : เลือกชนิดฟอร์มที่จะบันทึก */
+  newSheet(){ this.sheet('บันทึกการตรวจแบบใด', [
+    {icon:'✓', label:'ฟอร์ม FQA', sub:'ตรวจวัตถุดิบและเมนู', run:()=>this.go('fqa')},
+    {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq')},
+    {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit')}
+  ]); },
+  /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แทนเมนูข้าง) */
+  moreSheet(){ const dark=document.body.classList.contains('dark-mode');
+    this.sheet('เพิ่มเติม', [
+    {icon:'⇅', label:'นำเข้า / ส่งออก', sub:'สำรอง กู้คืน และซิงค์ข้อมูล', run:()=>this.go('io')},
+    {icon: dark?'☀️':'🌙', label: dark?'โหมดสว่าง':'โหมดมืด', run:()=>{ Theme.toggle(); }}
+  ]); },
   /* ---------- พับ/กางการ์ดตัวกรอง ---------- */
   filters(id){ document.getElementById(id).classList.toggle('open'); },
 
@@ -1212,7 +1265,7 @@ const App = {
     document.querySelectorAll('#botnav [data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
     document.querySelectorAll('.view').forEach(s=>s.classList.remove('on'));
     document.getElementById('v-'+v).classList.add('on');
-    this.drawer(false);
+    this.closeSheet();
     const meta={
       dash:['ภาพรวม','แดชบอร์ด'], list:['ภาพรวม','รายการตรวจทั้งหมด'],
       fqa:['บันทึกการตรวจ','แบบฟอร์มการตรวจ Food Quality Assurance (FQA)'],
