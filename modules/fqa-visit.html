@@ -106,6 +106,7 @@ a{color:var(--accent);text-decoration:none}
 .top h2{font-size:24px;font-weight:800;letter-spacing:-.5px;line-height:1.15}
 .top .crumb{font-size:11px;color:var(--accent);letter-spacing:1.2px;font-weight:700;text-transform:uppercase;margin-bottom:2px}
 .top .sp{flex:1}
+.top .tophd{min-width:0}
 .top #topActions{display:flex;gap:8px;flex-wrap:wrap}
 .wrap{padding:28px 36px 70px;max-width:1320px;width:100%}
 
@@ -262,6 +263,9 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .sug{font-size:12px;color:var(--accent);cursor:pointer;margin-top:4px;display:inline-block;font-weight:600}
 .sug:hover{text-decoration:underline}
 .view{display:none} .view.on{display:block}
+/* สิทธิ์: ผู้ที่ไม่ใช่แอดมิน ไม่เห็นเมนู "ข้อมูลหลัก" */
+body.not-admin .nav[data-v="master"],
+body.not-admin #botnav [data-v="master"]{display:none}
 .zoom{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:400;display:none;align-items:center;justify-content:center;padding:26px;cursor:zoom-out}
 .zoom.on{display:flex} .zoom img{max-width:100%;max-height:100%;border-radius:10px}
 .syncnote{display:flex;align-items:flex-start;gap:10px;background:var(--blue-light);border:1px solid rgba(29,78,216,.18);color:var(--text2);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
@@ -284,8 +288,12 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
   display:grid;place-items:center;font-size:22px;box-shadow:0 4px 14px rgba(214,20,43,.4)}
 .botnav button.mid.on .bi{background:var(--accent-hover)}
 
-/* ปุ่มกลับหน้าหลัก (บนซ้าย) + จุดสถานะซิงค์ (บนขวา) — เฉพาะมือถือ */
-.topback{display:none;align-items:center;gap:5px;color:var(--accent);border-color:var(--accent-light);background:var(--accent-light);font-weight:700;flex:none}
+/* ปุ่มกลับหน้าหลัก (บนขวา · pill สีแบรนด์) + จุดสถานะซิงค์ — เฉพาะมือถือ */
+.topback{display:none;align-items:center;gap:6px;flex:none;border:0;cursor:pointer;font-family:inherit;
+  font-size:13px;font-weight:700;color:#fff;background:var(--accent);border-radius:999px;padding:9px 15px;
+  box-shadow:0 3px 12px rgba(214,20,43,.3);transition:.15s}
+.topback:active{transform:scale(.95)}
+.topback svg{flex:none}
 .synctop{display:none;align-items:center;font-size:11px;color:var(--text3);gap:4px;white-space:nowrap}
 
 /* Bottom sheet (ตัวเลือกจากแถบล่าง) */
@@ -521,13 +529,16 @@ table.pdftb tr{page-break-inside:avoid}
 
   <div class="main">
     <header class="top">
-      <button class="btn sm topback noprint" onclick="Hub.back()" aria-label="กลับหน้าหลัก">‹ หน้าหลัก</button>
-      <div>
+      <div class="tophd">
         <div class="crumb" id="crumb">ภาพรวม</div>
         <h2 id="pageTitle">แดชบอร์ด</h2>
       </div>
       <div class="sp"></div>
       <span class="synctop noprint" id="syncTop"></span>
+      <button class="topback noprint" onclick="Hub.back()" aria-label="กลับหน้าหลัก">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
+        <span>หน้าหลัก</span>
+      </button>
       <div id="topActions"></div>
     </header>
 
@@ -888,6 +899,8 @@ const Hub = {
     const role=(s && s.role ? String(s.role).toUpperCase() : '');
     return name ? (role? `${name} (${role})` : name) : 'FAB Group · Operations';
   },
+  /* ผู้ดูแลระบบเท่านั้น — ใช้คุมสิทธิ์เข้าถึง "ข้อมูลหลัก" */
+  isAdmin(){ const s=this.session(); return !!(s && s.role==='admin') || this.role()==='admin'; },
   back(){ window.location.href='../index.html'; }
 };
 
@@ -1222,11 +1235,17 @@ const App = {
     Theme.init();
     document.getElementById('sfUser').textContent = Hub.who();
     document.querySelectorAll('.nav[data-v]').forEach(b=> b.onclick=()=>this.go(b.dataset.v));
+    this.applyPerms();
     Mobile.init();
     HubBranches.boot();
     Cloud.boot();
     Filters.init(); this.go('dash');
     if(!DB.persistent()) setTimeout(()=>this.toast('เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกถาวร — ข้อมูลจะอยู่แค่ระหว่างเปิดหน้านี้'),900);
+  },
+  /* ---------- สิทธิ์: "ข้อมูลหลัก" เฉพาะผู้ดูแลระบบ ---------- */
+  applyPerms(){
+    const admin=Hub.isAdmin();
+    document.body.classList.toggle('not-admin', !admin);   // CSS ซ่อนเมนู master ตาม class นี้
   },
   /* ---------- Bottom sheet (ตัวเลือกจากแถบล่างจอ — มือถือ) ---------- */
   sheet(title, items){
@@ -1260,6 +1279,7 @@ const App = {
   filters(id){ document.getElementById(id).classList.toggle('open'); },
 
   go(v){
+    if(v==='master' && !Hub.isAdmin()){ this.toast('เฉพาะผู้ดูแลระบบเท่านั้นที่เข้าข้อมูลหลักได้'); v='dash'; }
     this.view=v;
     document.querySelectorAll('.nav[data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
     document.querySelectorAll('#botnav [data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
