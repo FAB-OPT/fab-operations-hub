@@ -609,7 +609,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
 <nav class="botnav noprint" id="botnav">
   <button data-v="dash" onclick="App.go('dash')"><span class="bi">◧</span>แดชบอร์ด</button>
   <button data-v="list" onclick="App.go('list')"><span class="bi">☰</span>รายการ</button>
-  <button class="mid" onclick="App.newSheet()"><span class="bi">＋</span>บันทึก</button>
+  <button class="mid" id="btnNew" onclick="App.newTap()"><span class="bi">＋</span><span class="bi-tx">บันทึก</span></button>
   <button data-v="plan" onclick="App.go('plan')"><span class="bi">🗓</span>แผน</button>
   <button id="btnMore" onclick="App.moreTap()"><span class="bi">⋯</span><span class="bi-tx">เพิ่มเติม</span></button>
 </nav>
@@ -1108,12 +1108,20 @@ function fvApplyPerms(){
   /* หัวข้อ "ตั้งค่า" โชว์เฉพาะเมื่อเมนูจัดการฐานข้อมูลใช้ได้ (เป็นแอดมิน + มีสิทธิ์) */
   const g=document.getElementById('navgrpSettings');
   if(g) g.style.display = (Hub.isAdmin() && fvCan('view-master')) ? '' : 'none';
-  /* ปุ่มล่างขวา (มือถือ): ไม่ใช่แอดมิน → เปลี่ยนเป็น "ออกรายงาน" */
+  /* แถบล่างมือถือ: ไม่ใช่แอดมิน → ปุ่มกลาง "＋ บันทึก" กลายเป็น "ออกรายงาน" · ซ่อนปุ่มเพิ่มเติมที่ซ้ำ */
+  const admin=Hub.isAdmin();
+  const bn=document.getElementById('btnNew');
+  if(bn){
+    bn.querySelector('.bi').textContent = admin?'＋':'📄';
+    bn.querySelector('.bi-tx').textContent = admin?'บันทึก':'ออกรายงาน';
+    if(admin) bn.removeAttribute('data-v'); else bn.setAttribute('data-v','report');
+  }
   const mb=document.getElementById('btnMore');
-  if(mb){ const admin=Hub.isAdmin();
-    mb.querySelector('.bi').textContent = admin?'⋯':'📄';
-    mb.querySelector('.bi-tx').textContent = admin?'เพิ่มเติม':'ออกรายงาน';
-    if(admin) mb.removeAttribute('data-v'); else mb.setAttribute('data-v','report');
+  if(mb){
+    mb.style.display = admin?'':'none';   // ไม่ใช่แอดมิน: ย้ายออกรายงานไปปุ่มกลางแล้ว จึงซ่อนปุ่มนี้
+    mb.querySelector('.bi').textContent = '⋯';
+    mb.querySelector('.bi-tx').textContent = 'เพิ่มเติม';
+    mb.removeAttribute('data-v');
   }
 }
 
@@ -1525,6 +1533,8 @@ const App = {
     {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq'},
     {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit'}
   ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]))); },
+  /* ปุ่มกลาง (＋): แอดมิน = เลือกฟอร์มบันทึก · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
+  newTap(){ if(Hub.isAdmin()) this.newSheet(); else this.go('report'); },
   /* ปุ่มล่างขวา: แอดมิน = เปิดเมนูเพิ่มเติม · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
   moreTap(){ if(Hub.isAdmin()) this.moreSheet(); else this.go('report'); },
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
