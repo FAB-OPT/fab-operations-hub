@@ -772,16 +772,19 @@ table.pdftb tr{page-break-inside:avoid}
 
       <!-- ---------- REPORT (ออกรายงาน) ---------- -->
       <section class="view" id="v-report">
-        <div class="dsec"><span>รายงาน PDF</span></div>
+        <div class="dsec"><span>ตัวกรองรายงาน</span></div>
+        <div id="reportFilter"></div>
+
+        <div class="dsec"><span>ออกรายงานภาพรวม (ตามตัวกรองด้านบน)</span></div>
         <div class="iogrid">
-          <button class="iotile" onclick="PDF.summary()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>ตารางสรุปรายการตรวจ</b><span>ตามตัวกรองในหน้ารายการตรวจ</span></div></button>
-          <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>รายงานภาพรวม (แดชบอร์ด)</b><span>ตามช่วงเวลาที่เลือกในหน้าแดชบอร์ด</span></div></button>
+          <button class="iotile" onclick="Report.pdf()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>ตารางสรุปรายการตรวจ</b><span>รายงานภาพรวมตามตัวกรอง</span></div></button>
+          <button class="iotile" onclick="Report.excel()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel — ทุกฟอร์มแยกชีต</b><span>ตามตัวกรอง · เอาไปทำ Pivot</span></div></button>
+          <button class="iotile" onclick="Report.csv()"><span class="io-ic" style="background:#2E7D32;">CSV</span><div><b>CSV — ตารางสรุป</b><span>ตามตัวกรอง</span></div></button>
         </div>
 
-        <div class="dsec"><span>ตาราง (Excel / CSV)</span></div>
+        <div class="dsec"><span>รายงานกราฟภาพรวม</span></div>
         <div class="iogrid">
-          <button class="iotile" onclick="IO.exportXlsx()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel — ทุกฟอร์มแยกชีต</b><span>เอาไปทำ Pivot / วิเคราะห์ต่อ</span></div></button>
-          <button class="iotile" onclick="IO.exportCsv()"><span class="io-ic" style="background:#2E7D32;">CSV</span><div><b>CSV — ตารางสรุป</b><span>เปิดในโปรแกรมตารางทั่วไป</span></div></button>
+          <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>แดชบอร์ด (กราฟภาพรวม)</b><span>ตามช่วง/ประเภทที่ตั้งในหน้าแดชบอร์ด</span></div></button>
         </div>
 
         <div class="dsec"><span>สำรองข้อมูล (Backup)</span></div>
@@ -1509,6 +1512,7 @@ const App = {
     if(v==='dash') Dash.render();
     if(v==='list') Rec.render();
     if(v==='io')   IO.stats();
+    if(v==='report') Report.render();
     if(v==='master') Master.render();
     if(v==='plan') Plan.render();
     if(v==='fqa'||v==='fsq'||v==='visit') Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':'VISIT');
@@ -1897,20 +1901,75 @@ const Form = {
   },
   pickVisit(i){ this.s.visitType=M.list('visitTypes')[i]; this.render(); },
 
-  submit(){
-    const s=this.s;
-    if(!s.branch) return App.toast('กรุณาเลือกสาขาก่อนบันทึก');
-    if(!s.date)   return App.toast('กรุณาระบุวันที่ตรวจ');
-    if(s.type==='FQA' && !s.checks.some(c=>c.result)) return App.toast('กรุณาให้ผลตรวจอย่างน้อย 1 หัวข้อ');
-    if(s.type==='FSQ' && !s.complaint.trim()) return App.toast('กรุณากรอกรายละเอียด Complaint');
-    if(s.type==='VISIT' && !s.topics.some(t=>t.topic.trim())) return App.toast('กรุณากรอกหัวข้อการอบรมอย่างน้อย 1 หัวข้อ');
+  /* ตรวจว่ากรอกครบทุกช่อง — คืนข้อความ error ช่องแรกที่ยังไม่กรอก หรือ '' ถ้าครบ */
+  validate(){
+    const s=this.s, need=v=>!String(v==null?'':v).trim();
+    if(need(s.date))    return 'กรุณาระบุวันที่ตรวจ';
+    if(need(s.time))    return 'กรุณาระบุเวลาที่ตรวจ';
+    if(need(s.branch))  return 'กรุณาเลือกสาขา';
+    if(need(s.trainer)) return 'กรุณาเลือกผู้ตรวจ';
+
+    if(s.type==='FQA'){
+      if(!(s.materials||[]).length) return 'กรุณาสุ่มวัตถุดิบอย่างน้อย 1 รายการ';
+      for(let i=0;i<s.checks.length;i++){ const c=s.checks[i];
+        if(need(c.result)) return `กรุณาให้ผลตรวจหัวข้อ "${c.item}" ให้ครบทุกหัวข้อ`;
+        if(c.result==='ไม่ผ่าน'){
+          if(need(c.detail)) return `หัวข้อ "${c.item}" ไม่ผ่าน — กรุณากรอกสิ่งที่พบ`;
+          if(need(c.fix))    return `หัวข้อ "${c.item}" ไม่ผ่าน — กรุณากรอกวิธีแก้ไข`;
+        }
+      }
+      for(let i=0;i<s.menus.length;i++){ const m=s.menus[i];
+        if(![m.menu,m.cook,m.taste,m.detail,m.fix].some(v=>String(v||'').trim())) continue; // แถวว่าง = ข้าม
+        if(need(m.menu))  return `สุ่มเมนูแถวที่ ${i+1} — กรุณากรอกชื่อเมนู`;
+        if(need(m.cook))  return `เมนู "${m.menu}" — กรุณาให้ผลขั้นตอนการปรุง`;
+        if(need(m.taste)) return `เมนู "${m.menu}" — กรุณาให้ผลหน้าตา/รสชาติ`;
+        if(m.cook==='ไม่ผ่าน'||m.taste==='ไม่ผ่าน'){
+          if(need(m.detail)) return `เมนู "${m.menu}" ไม่ผ่าน — กรุณากรอกสิ่งที่พบ`;
+          if(need(m.fix))    return `เมนู "${m.menu}" ไม่ผ่าน — กรุณากรอกวิธีแก้ไข`;
+        }
+      }
+    }
+
+    if(s.type==='FSQ'){
+      if(need(s.complaint)) return 'กรุณากรอกเรื่องที่ลูกค้าร้องเรียน';
+      if(need(s.menu))      return 'กรุณากรอกเมนูที่เกี่ยวข้อง';
+      if(need(s.category))  return 'กรุณาเลือกประเภท Complaint';
+      if(/อื่น/.test(s.category) && need(s.categoryOther)) return 'กรุณาระบุประเภทอื่นๆ';
+      if(need(s.channel))   return 'กรุณาเลือกช่องทางที่รับบริการ';
+      if(need(s.severity))  return 'กรุณาเลือกความรุนแรง';
+      const keys=['problem','immediate','cause','prevention','advice'];
+      if(!s.issues.some(x=>keys.some(k=>String(x[k]||'').trim()))) return 'กรุณากรอกแนวทางการแก้ไขอย่างน้อย 1 ประเด็น';
+      const lbl={problem:'ปัญหาที่พบ',immediate:'การแก้ไขเบื้องต้น',cause:'สาเหตุ',prevention:'แนวทางการป้องกัน',advice:'ข้อแนะนำเพิ่มเติม'};
+      for(let i=0;i<s.issues.length;i++){ const x=s.issues[i];
+        if(!keys.some(k=>String(x[k]||'').trim())) continue;
+        for(const k of keys) if(need(x[k])) return `ประเด็นที่ ${i+1} — กรุณากรอก${lbl[k]}`;
+      }
+    }
+
+    if(s.type==='VISIT'){
+      if(need(s.visitType)) return 'กรุณาเลือกประเภทการเข้าพบ';
+      const keys=['topic','problem','advice'];
+      if(!s.topics.some(x=>keys.some(k=>String(x[k]||'').trim()))) return 'กรุณากรอกหัวข้อการอบรมอย่างน้อย 1 หัวข้อ';
+      const lbl={topic:'หัวข้อการอบรม',problem:'ปัญหาที่พบ',advice:'ข้อแนะนำ'};
+      for(let i=0;i<s.topics.length;i++){ const x=s.topics[i];
+        if(!keys.some(k=>String(x[k]||'').trim())) continue;
+        for(const k of keys) if(need(x[k])) return `หัวข้อที่ ${i+1} — กรุณากรอก${lbl[k]}`;
+      }
+    }
+
     const noCap=(s.photos||[]).findIndex(p=>!(p.caption||'').trim());
-    if(noCap>=0) return App.toast(`กรุณาใส่คำอธิบายรูปที่ ${noCap+1} ก่อนบันทึก`);
-    const rec=JSON.parse(JSON.stringify(s));
+    if(noCap>=0) return `กรุณาใส่คำอธิบายรูปที่ ${noCap+1}`;
+    return '';
+  },
+  submit(){
+    const err=this.validate();
+    if(err) return App.toast(err);
+    const rec=JSON.parse(JSON.stringify(this.s));
     if(DB.save(rec)){
       Cloud.enqueue('save', rec.id);
       App.toast('บันทึกผลการตรวจเรียบร้อย');
-      this.drafts[this.type]=this.blank(this.type);
+      this.drafts[this.type]=this.blank(this.type);   // ล้างฟอร์มเสมอหลังบันทึก
+      this.matSub='';
       this.persist();
       App.go('list');
     }
@@ -2785,9 +2844,9 @@ const PDF = {
   },
 
   /* ---------- 2) ตารางสรุปรายการตรวจ (ตามตัวกรองหน้ารายการ) ---------- */
-  summary(){
-    const list=Rec.filtered();
-    if(!list.length) return App.toast('ไม่มีรายการในตัวกรองปัจจุบัน');
+  summary(list, sub){
+    list = list || Rec.filtered();
+    if(!list.length) return App.toast('ไม่มีรายการตามตัวกรอง');
     const rows=list.map(r=>`<tr>
       <td>${esc(r.date)}<div class="sm">${esc(r.time)}</div></td>
       <td>${esc(r.type)}</td>
@@ -2803,7 +2862,7 @@ const PDF = {
       <table class="pdftb"><thead><tr>
         <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>สรุปสิ่งที่พบ</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th>
       </tr></thead><tbody>${rows.join('')}</tbody></table>`;
-    return this.render(this.wrap('สรุปรายการตรวจ', `${list.length} รายการ`, body),
+    return this.render(this.wrap('สรุปรายการตรวจ', (sub?sub+' · ':'')+`${list.length} รายการ`, body),
       this.name('สรุปรายการตรวจ'));
   },
 
@@ -2826,6 +2885,66 @@ const PDF = {
   }
 };
 
+/* =======================================================================
+   REPORT — ออกรายงานภาพรวม กรองตามช่วงวันที่ / ประเภท / สาขา / เขต / ผู้ตรวจ
+   ======================================================================= */
+const Report = {
+  f:{from:'',to:'',type:'',branch:'',bzm:'',trainer:''},
+  filtered(){
+    const f=this.f;
+    return inspections().filter(r=>{
+      if(f.from && (r.date||'') < f.from) return false;
+      if(f.to   && (r.date||'') > f.to)   return false;
+      if(f.type && r.type!==f.type) return false;
+      if(f.branch && r.branch!==f.branch) return false;
+      if(f.bzm && r.bzm!==f.bzm) return false;
+      if(f.trainer && r.trainer!==f.trainer) return false;
+      return true;
+    }).sort((a,b)=>((b.date||'')+(b.time||'')).localeCompare((a.date||'')+(a.time||'')));
+  },
+  label(){
+    const f=this.f, p=[];
+    if(f.from||f.to) p.push(`${f.from||'เริ่มต้น'} ถึง ${f.to||'ปัจจุบัน'}`);
+    if(f.type)    p.push({FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'}[f.type]||f.type);
+    if(f.branch)  p.push(f.branch);
+    if(f.bzm)     p.push('เขต '+f.bzm);
+    if(f.trainer) p.push('ผู้ตรวจ '+f.trainer);
+    return p.length? p.join(' · ') : 'ทั้งหมด';
+  },
+  set(k,v){ this.f[k]=v; this.paint(); },
+  clear(){ this.f={from:'',to:'',type:'',branch:'',bzm:'',trainer:''}; this.render(); },
+  paint(){ const el=document.getElementById('rpCount'); if(el) el.textContent=`พบ ${this.filtered().length} รายการ`; },
+  render(){
+    const host=document.getElementById('reportFilter'); if(!host) return;
+    const f=this.f;
+    const sel=(k,arr,ph)=>`<select class="inp" onchange="Report.set('${k}',this.value)">
+      <option value="">${ph}</option>${arr.map(v=>`<option ${v===f[k]?'selected':''}>${esc(v)}</option>`).join('')}</select>`;
+    host.innerHTML=`<div class="card"><div class="bd">
+      <div class="grid g3" style="gap:12px">
+        <div class="fld"><label class="lbl">ตั้งแต่วันที่</label><input type="date" class="inp" value="${attr(f.from)}" onchange="Report.set('from',this.value)"></div>
+        <div class="fld"><label class="lbl">ถึงวันที่</label><input type="date" class="inp" value="${attr(f.to)}" onchange="Report.set('to',this.value)"></div>
+        <div class="fld"><label class="lbl">ประเภทการตรวจ</label>
+          <select class="inp" onchange="Report.set('type',this.value)">
+            <option value="">— ทั้งหมด —</option>
+            <option value="FQA" ${f.type==='FQA'?'selected':''}>FQA</option>
+            <option value="FSQ" ${f.type==='FSQ'?'selected':''}>Complaint</option>
+            <option value="VISIT" ${f.type==='VISIT'?'selected':''}>Visit</option>
+          </select></div>
+        <div class="fld"><label class="lbl">สาขา</label>${sel('branch',M.branches().map(b=>b.name),'— ทุกสาขา —')}</div>
+        <div class="fld"><label class="lbl">ผู้จัดการเขต (BZM)</label>${sel('bzm',M.bzms(),'— ทุกเขต —')}</div>
+        <div class="fld"><label class="lbl">ผู้ตรวจ</label>${sel('trainer',M.trainers(),'— ทุกคน —')}</div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;flex-wrap:wrap;gap:8px">
+        <span id="rpCount" style="font-weight:800;color:var(--accent)">พบ ${this.filtered().length} รายการ</span>
+        <button class="btn sm gho" onclick="Report.clear()">ล้างตัวกรอง</button>
+      </div>
+    </div></div>`;
+  },
+  pdf(){   const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); PDF.summary(l, this.label()); },
+  excel(){ const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportXlsx(l); },
+  csv(){   const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportCsv(l); }
+};
+
 const IO = {
   lib(){ return new Promise((res,rej)=>{
     if(window.XLSX) return res(window.XLSX);
@@ -2838,8 +2957,8 @@ const IO = {
   bTag(){ return Brand.info(Brand.cur).name.replace(/[\\/:*?"<>|\s]+/g,''); },
   dl(blob,name){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name; a.click(); URL.revokeObjectURL(a.href); },
 
-  sheets(){
-    const rows=inspections();
+  sheets(rows){
+    rows=rows||inspections();
     const summary=rows.map(r=>({
       'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
       'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
@@ -2864,10 +2983,11 @@ const IO = {
     return {summary,fqaItem,fqaMenu,comp,visit,master};
   },
 
-  exportXlsx(){
-    if(!DB.all().length) return App.toast('ยังไม่มีข้อมูลให้ส่งออก');
+  exportXlsx(rows){
+    rows=rows||inspections();
+    if(!rows.length) return App.toast('ยังไม่มีข้อมูลให้ส่งออก');
     this.lib().then(XLSX=>{
-      const d=this.sheets(), wb=XLSX.utils.book_new();
+      const d=this.sheets(rows), wb=XLSX.utils.book_new();
       const add=(name,arr)=>{ if(!arr.length) return;
         const ws=XLSX.utils.json_to_sheet(arr);
         ws['!cols']=Object.keys(arr[0]).map(k=>({wch:Math.min(46,Math.max(12,k.length+6))}));
@@ -2878,8 +2998,8 @@ const IO = {
       App.toast('ส่งออกไฟล์ Excel แล้ว');
     }).catch(e=>App.toast(e.message));
   },
-  exportCsv(){
-    const d=this.sheets().summary;
+  exportCsv(rows){
+    const d=this.sheets(rows||inspections()).summary;
     if(!d.length) return App.toast('ยังไม่มีข้อมูลให้ส่งออก');
     const cols=Object.keys(d[0]), q=v=>`"${String(v==null?'':v).replace(/"/g,'""')}"`;
     const csv='\uFEFF'+[cols.join(','),...d.map(r=>cols.map(c=>q(r[c])).join(','))].join('\r\n');
