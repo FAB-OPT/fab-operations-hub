@@ -768,6 +768,13 @@ table.pdftb tr{page-break-inside:avoid}
           <button class="mtab" data-t="lists" onclick="Master.tab('lists')"><span>⚙️</span>ตัวเลือกในฟอร์ม</button>
         </div>
         <div class="card" style="margin-top:14px"><div class="bd" id="mBodyPane" style="padding:0"></div></div>
+
+        <div class="dsec"><span>สำรองข้อมูล (Backup)</span></div>
+        <div class="iogrid">
+          <button class="iotile" onclick="IO.exportJson()"><span class="io-ic" style="background:#455A64;">JSON</span><div><b>สำรองข้อมูลทั้งหมด</b><span>กันข้อมูลหาย · รวมรูปภาพ · เก็บไฟล์ .json ไว้</span></div></button>
+          <button class="iotile" onclick="IO.exportMaster()"><span class="io-ic" style="background:#607D8B;">JSON</span><div><b>เฉพาะข้อมูลหลัก</b><span>ผู้ตรวจ วัตถุดิบ เมนู ตัวเลือกในฟอร์ม</span></div></button>
+        </div>
+        <p class="hint" style="margin-top:12px">แนะนำให้ดาวน์โหลดไฟล์สำรอง (.json) เก็บไว้เป็นระยะ กันข้อมูลหาย</p>
       </section>
 
       <!-- ---------- REPORT (ออกรายงาน) ---------- -->
@@ -775,24 +782,15 @@ table.pdftb tr{page-break-inside:avoid}
         <div class="dsec"><span>ตัวกรองรายงาน</span></div>
         <div id="reportFilter"></div>
 
-        <div class="dsec"><span>ออกรายงานภาพรวม (ตามตัวกรองด้านบน)</span></div>
+        <div class="dsec"><span>ออกรายงานภาพรวม (สรุปทั้งชุด ตามตัวกรอง)</span></div>
         <div class="iogrid">
           <button class="iotile" onclick="Report.pdf()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>ตารางสรุปรายการตรวจ</b><span>รายงานภาพรวมตามตัวกรอง</span></div></button>
           <button class="iotile" onclick="Report.excel()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel — ทุกฟอร์มแยกชีต</b><span>ตามตัวกรอง · เอาไปทำ Pivot</span></div></button>
-          <button class="iotile" onclick="Report.csv()"><span class="io-ic" style="background:#2E7D32;">CSV</span><div><b>CSV — ตารางสรุป</b><span>ตามตัวกรอง</span></div></button>
-        </div>
-
-        <div class="dsec"><span>รายงานกราฟภาพรวม</span></div>
-        <div class="iogrid">
           <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>แดชบอร์ด (กราฟภาพรวม)</b><span>ตามช่วง/ประเภทที่ตั้งในหน้าแดชบอร์ด</span></div></button>
         </div>
 
-        <div class="dsec"><span>สำรองข้อมูล (Backup)</span></div>
-        <div class="iogrid">
-          <button class="iotile" onclick="IO.exportJson()"><span class="io-ic" style="background:#455A64;">JSON</span><div><b>สำรองข้อมูลทั้งหมด</b><span>กันข้อมูลหาย · รวมรูปภาพ</span></div></button>
-          <button class="iotile" onclick="IO.exportMaster()"><span class="io-ic" style="background:#607D8B;">JSON</span><div><b>เฉพาะข้อมูลหลัก</b><span>ผู้ตรวจ วัตถุดิบ เมนู</span></div></button>
-        </div>
-        <p class="hint" style="margin-top:14px">อยากได้ PDF ใบตรวจรายฉบับ? เปิดรายการนั้นในหน้า "รายการตรวจทั้งหมด" แล้วกดปุ่มบันทึก PDF</p>
+        <div class="dsec"><span>ออกรายงานรายครั้ง (เจาะแต่ละใบ)</span></div>
+        <div class="card"><div class="bd" style="padding:0"><div class="tw" id="reportList"></div></div></div>
       </section>
 
       <!-- ---------- IMPORT (นำเข้าข้อมูล) ---------- -->
@@ -2592,23 +2590,26 @@ const Dash = {
    PLAN — ตารางนัดตรวจสาขา (เก็บเป็น record type=PLAN · ซิงค์ผ่าน cloud เดิม)
    ======================================================================= */
 const PLAN_TYPE = {FQA:'FQA', FSQ:'Complaint', VISIT:'Visit'};
+const PLAN_TYPE_COLOR = {FQA:'#D6142B', FSQ:'#E8820C', VISIT:'#1E63D6'};
+const planType = p => p==='FSQ'?'FSQ':p==='VISIT'?'VISIT':'FQA';
+const planTypeTag = t => { const k=planType(t), c=PLAN_TYPE_COLOR[k]; return `<span class="tag" style="background:${c}18;color:${c};border:1px solid ${c}55;font-weight:700">${PLAN_TYPE[k]}</span>`; };
 const Plan = {
   view:'cal', calMonth: todayISO().slice(0,7),
   selBzm:'', draft:[], pDate: todayISO(), pTrainer:'', pType:'FQA',
-  fMonth:'', fStatus:'',
+  fMonth:'', fType:'',
 
   render(){
     const bs=M.branches(), zs=M.bzms(), ts=M.trainers();
     const all=plans();
-    const g={done:0,overdue:0,upcoming:0}; all.forEach(p=>g[planState(p).s]++);
+    const bt={FQA:0,FSQ:0,VISIT:0}; all.forEach(p=>bt[planType(p.ptype)]++);
     const branchList = this.selBzm? bs.filter(b=>b.bzm===this.selBzm) : bs;
 
     document.getElementById('v-plan').innerHTML=`
       <div class="kpis">
         <div class="kpi nu"><div class="k">แผนทั้งหมด</div><div class="v">${all.length}<small>แผน</small></div></div>
-        <div class="kpi ok"><div class="k">ตรวจแล้ว</div><div class="v">${g.done}</div></div>
-        <div class="kpi wn"><div class="k">รอตรวจ</div><div class="v">${g.upcoming}</div></div>
-        <div class="kpi"><div class="k">เกินกำหนด</div><div class="v">${g.overdue}</div></div>
+        <div class="kpi"><div class="k">FQA</div><div class="v" style="color:${PLAN_TYPE_COLOR.FQA}">${bt.FQA}</div></div>
+        <div class="kpi"><div class="k">Complaint</div><div class="v" style="color:${PLAN_TYPE_COLOR.FSQ}">${bt.FSQ}</div></div>
+        <div class="kpi"><div class="k">Visit</div><div class="v" style="color:${PLAN_TYPE_COLOR.VISIT}">${bt.VISIT}</div></div>
       </div>
 
       <div class="card">
@@ -2631,7 +2632,7 @@ const Plan = {
           ${this.draft.length?`
             <div class="tw" style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
               <table class="tb"><thead><tr><th>วันที่</th><th>สาขา</th><th>ประเภท</th><th>ผู้ตรวจ</th><th style="width:60px"></th></tr></thead><tbody>
-                ${this.draft.map((d,i)=>`<tr><td class="mono" style="white-space:nowrap">${esc(d.date)}</td><td>${esc(d.branch)}</td><td><span class="tag">${PLAN_TYPE[d.ptype]||'FQA'}</span></td><td style="font-size:12.5px">${esc(d.trainer||'—')}</td>
+                ${this.draft.map((d,i)=>`<tr><td class="mono" style="white-space:nowrap">${esc(d.date)}</td><td>${esc(d.branch)}</td><td>${planTypeTag(d.ptype)}</td><td style="font-size:12.5px">${esc(d.trainer||'—')}</td>
                   <td class="rowact"><button class="btn sm dgr" onclick="Plan.rmDraft(${i})">ลบ</button></td></tr>`).join('')}
               </tbody></table></div>
             <div style="margin-top:14px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
@@ -2689,7 +2690,8 @@ const Plan = {
       const iso=ym+'-'+String(d).padStart(2,'0'), ps=byDay[iso]||[];
       cells+=`<div class="cal-cell${iso===today?' today':''}" onclick="Plan.dayAdd('${iso}')">
         <div class="cal-d">${d}</div>
-        ${ps.slice(0,3).map(p=>{const st=planState(p).s;return `<div class="cal-ev ${st}" onclick="event.stopPropagation();Plan.inspect('${p.id}')" title="${attr(p.branch)} · ${PLAN_BADGE[st][0]}">${esc(p.branch.replace(/^ร้านส้มตำเจ๊แดง\s*\(?/,'').replace(/\)$/,''))}</div>`;}).join('')}
+        ${ps.slice(0,3).map(p=>{const k=planType(p.ptype), c=PLAN_TYPE_COLOR[k], nm=p.branch.replace(/^ร้านส้มตำเจ๊แดง\s*\(?/,'').replace(/\)$/,'');
+          return `<div class="cal-ev" style="background:${c}18;color:${c};border-left:3px solid ${c}" onclick="event.stopPropagation();Plan.inspect('${p.id}')" title="${attr(p.branch)} · ${PLAN_TYPE[k]}${p.trainer?' · '+attr(p.trainer):''}"><b style="font-weight:800">${PLAN_TYPE[k]}</b> ${esc(nm)}${p.trainer?` · ${esc(p.trainer)}`:''}</div>`;}).join('')}
         ${ps.length>3?`<div class="cal-more">+${ps.length-3} เพิ่มเติม</div>`:''}
       </div>`;
     }
@@ -2698,10 +2700,10 @@ const Plan = {
         <b>${mLabel(ym)}</b>
         <button class="btn sm" onclick="Plan.shiftMonth(1)">›</button>
         <div class="sp" style="flex:1"></div>
-        <span class="lg" style="margin:0"><span><i style="background:var(--green)"></i>ตรวจแล้ว</span><span><i style="background:var(--yellow)"></i>รอตรวจ</span><span><i style="background:var(--red)"></i>เกินกำหนด</span></span>
+        <span class="lg" style="margin:0"><span><i style="background:${PLAN_TYPE_COLOR.FQA}"></i>FQA</span><span><i style="background:${PLAN_TYPE_COLOR.FSQ}"></i>Complaint</span><span><i style="background:${PLAN_TYPE_COLOR.VISIT}"></i>Visit</span></span>
       </div>
       <div class="cal-grid">${cells}</div>
-      <p class="hint">แตะช่องวันเพื่อเพิ่มแผนวันนั้น · แตะรายการเพื่อเปิดฟอร์มตรวจ</p>`;
+      <p class="hint">แตะช่องวันเพื่อเพิ่มแผนวันนั้น · แตะรายการเพื่อเปิดฟอร์มตรวจ · สีแยกตามประเภทการตรวจ</p>`;
   },
   shiftMonth(n){ const [y,mo]=this.calMonth.split('-').map(Number); const d=new Date(y,mo-1+n,1); this.calMonth=d.toISOString().slice(0,7); this.render(); },
   dayAdd(iso){ this.pDate=iso; const el=document.getElementById('plDate'); if(el) el.value=iso; App.toast('ตั้งวันที่นัด '+iso+' — เลือกสาขาแล้วกดเพิ่มแผน'); window.scrollTo({top:0,behavior:'smooth'}); },
@@ -2709,28 +2711,29 @@ const Plan = {
   /* ---------- รายการ ---------- */
   listView(){
     const months=[...new Set(plans().map(p=>(p.date||'').slice(0,7)).filter(Boolean))].sort().reverse();
-    let list=plans().slice().sort((a,b)=>(a.date||'').localeCompare(b.date||'')).map(p=>({p, st:planState(p).s}));
-    if(this.fMonth) list=list.filter(x=>(x.p.date||'').slice(0,7)===this.fMonth);
-    if(this.fStatus) list=list.filter(x=>x.st===this.fStatus);
+    let list=plans().slice().sort((a,b)=>(a.date||'').localeCompare(b.date||''));
+    if(this.fMonth) list=list.filter(p=>(p.date||'').slice(0,7)===this.fMonth);
+    if(this.fType)  list=list.filter(p=>planType(p.ptype)===this.fType);
+    const dowTH=['อา','จ','อ','พ','พฤ','ศ','ส'];
+    const dow=iso=>{ try{ return dowTH[new Date(iso+'T00:00:00').getDay()]; }catch(e){ return ''; } };
     return `<div style="padding:12px 14px;display:flex;gap:9px;flex-wrap:wrap;border-bottom:1px solid var(--border)">
         <select class="inp" style="width:auto;min-width:120px" onchange="Plan.setFilter('fMonth',this.value)">
           <option value="">ทุกเดือน</option>${months.map(m=>`<option value="${m}" ${m===this.fMonth?'selected':''}>${mLabel(m)}</option>`).join('')}</select>
-        <select class="inp" style="width:auto;min-width:120px" onchange="Plan.setFilter('fStatus',this.value)">
-          <option value="">ทุกสถานะ</option>
-          <option value="upcoming" ${this.fStatus==='upcoming'?'selected':''}>รอตรวจ</option>
-          <option value="overdue" ${this.fStatus==='overdue'?'selected':''}>เกินกำหนด</option>
-          <option value="done" ${this.fStatus==='done'?'selected':''}>ตรวจแล้ว</option></select>
+        <select class="inp" style="width:auto;min-width:120px" onchange="Plan.setFilter('fType',this.value)">
+          <option value="">ทุกประเภท</option>
+          <option value="FQA" ${this.fType==='FQA'?'selected':''}>FQA</option>
+          <option value="FSQ" ${this.fType==='FSQ'?'selected':''}>Complaint</option>
+          <option value="VISIT" ${this.fType==='VISIT'?'selected':''}>Visit</option></select>
       </div>
       <div class="tw">${ list.length
-        ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>สาขา</th><th>ประเภท</th><th>ผู้ตรวจ</th><th>สถานะ</th><th></th></tr></thead><tbody>
-          ${list.map(({p,st})=>`<tr>
-            <td class="mono" style="white-space:nowrap">${esc(p.date)}</td>
+        ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภทการตรวจ</th><th>สาขา</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
+          ${list.map(p=>`<tr>
+            <td class="mono" style="white-space:nowrap">${esc(p.date)}<div style="font-size:11px;color:var(--text3)">${dow(p.date)}</div></td>
+            <td>${planTypeTag(p.ptype)}</td>
             <td>${esc(p.branch)}<div style="font-size:11px;color:var(--text3)">${esc(p.bzm||'')}</div></td>
-            <td><span class="tag">${PLAN_TYPE[p.ptype]||'FQA'}</span></td>
-            <td style="font-size:12.5px">${esc(p.trainer||'—')}</td>
-            <td>${planBadge(st)}</td>
+            <td style="font-size:13px;font-weight:600">${esc(p.trainer||'—')}</td>
             <td class="rowact noprint">
-              ${st!=='done'?`<button class="btn sm pri" onclick="Plan.inspect('${p.id}')">ตรวจ</button>`:''}
+              <button class="btn sm pri" onclick="Plan.inspect('${p.id}')">ตรวจ</button>
               <button class="btn sm dgr" onclick="Plan.del('${p.id}')">ลบ</button></td></tr>`).join('')}
           </tbody></table>`
         : `<div class="empty"><div class="big">🗓</div><h4>ยังไม่มีแผนตามตัวกรอง</h4><p>เพิ่มแผนจากช่องด้านบน</p></div>` }</div>`;
@@ -2911,10 +2914,26 @@ const Report = {
     if(f.trainer) p.push('ผู้ตรวจ '+f.trainer);
     return p.length? p.join(' · ') : 'ทั้งหมด';
   },
-  set(k,v){ this.f[k]=v; this.paint(); },
+  set(k,v){ this.f[k]=v; this.paint(); this.renderList(); },
   clear(){ this.f={from:'',to:'',type:'',branch:'',bzm:'',trainer:''}; this.render(); },
   paint(){ const el=document.getElementById('rpCount'); if(el) el.textContent=`พบ ${this.filtered().length} รายการ`; },
+  renderList(){
+    const host=document.getElementById('reportList'); if(!host) return;
+    const list=this.filtered();
+    if(!list.length){ host.innerHTML=`<div class="empty" style="padding:26px 16px"><div class="big">▤</div><h4>ไม่มีรายการตามตัวกรอง</h4><p>ปรับตัวกรองด้านบน</p></div>`; return; }
+    const TL={FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'};
+    host.innerHTML=`<table class="tb"><thead><tr><th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th>สรุปสิ่งที่พบ</th><th></th></tr></thead><tbody>
+      ${list.map(r=>`<tr>
+        <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time||'')}</div></td>
+        <td><span class="tag">${esc(TL[r.type]||r.type)}</span></td>
+        <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
+        <td style="font-size:12.5px">${esc(r.trainer||'—')}</td>
+        <td style="max-width:280px;color:var(--text2)">${esc(summaryLine(r))}</td>
+        <td class="rowact noprint"><button class="btn sm pri" onclick="PDF.record('${r.id}')">PDF ใบนี้</button></td></tr>`).join('')}
+    </tbody></table>`;
+  },
   render(){
+    this.renderList();
     const host=document.getElementById('reportFilter'); if(!host) return;
     const f=this.f;
     const sel=(k,arr,ph)=>`<select class="inp" onchange="Report.set('${k}',this.value)">
@@ -2941,8 +2960,7 @@ const Report = {
     </div></div>`;
   },
   pdf(){   const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); PDF.summary(l, this.label()); },
-  excel(){ const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportXlsx(l); },
-  csv(){   const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportCsv(l); }
+  excel(){ const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportXlsx(l); }
 };
 
 const IO = {
