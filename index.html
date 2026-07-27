@@ -2059,6 +2059,15 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           <div style="font-size:11px;color:var(--text3);margin-top:4px;">สำหรับ map รหัสสาขา→แบรนด์นี้</div>
         </div>
         <div class="adm-section">
+          <label class="adm-label">สีประจำแบรนด์ <span style="font-weight:500;color:var(--text3);">— ใช้กับป้ายแบรนด์ทั่วระบบ</span></label>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+            <input type="color" id="brandRegColor" value="#0ea5e9" oninput="_brandColorPreview()"
+                   style="width:52px;height:38px;padding:2px;border:1px solid var(--border);border-radius:9px;background:var(--bg3);cursor:pointer;">
+            <div id="brandRegColorSwatches" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+            <span id="brandRegColorChip" style="margin-left:auto;"></span>
+          </div>
+        </div>
+        <div class="adm-section">
           <label class="adm-label">โลโก้ (PNG พื้นใสสวยสุด)</label>
           <input type="file" accept="image/*" id="brandRegLogoFile" class="adm-input" onchange="onBrandLogoPick(event)">
           <div id="brandRegLogoPreview" style="margin-top:8px;"></div>
@@ -3032,8 +3041,8 @@ migrateBuiltInUserNames();
 
 /* ═══════════ ทะเบียนแบรนด์กลาง (admin เพิ่ม/แก้ได้ · sync cloud) ═══════════ */
 var DEFAULT_BRAND_REGISTRY = [
-  { key:'santafe',  name:'Santa Fe', prefixes:['50','55'] },
-  { key:'jaedaeng', name:'เจ๊แดง',    prefixes:['40'] }
+  { key:'santafe',  name:'Santa Fe', prefixes:['50','55'], color:'#f97316' },
+  { key:'jaedaeng', name:'เจ๊แดง',    prefixes:['40'],      color:'#dc2626' }
 ];
 var BRAND_REGISTRY = DEFAULT_BRAND_REGISTRY.map(function(b){ return Object.assign({}, b); });
 var BRANDS_KEY = 'fab_brands_v1';
@@ -4684,6 +4693,25 @@ var ROLE_LABELS = {
   bzm:       { label: 'BZM',       color: '#f59e0b' },
   support:   { label: 'Support Team', color: '#10b981' }
 };
+/* สีของแบรนด์ — ลำดับ: ที่ admin ตั้งไว้ในทะเบียนแบรนด์ > ค่าเดิมที่ hardcode > สีอัตโนมัติจาก key
+   (สีอัตโนมัติทำให้แบรนด์ใหม่ไม่ออกมาเป็นสีเทาทึบ ๆ ตั้งแต่แรก) */
+var BRAND_AUTO_COLORS = ['#0ea5e9','#8b5cf6','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#84cc16'];
+function brandAutoColor(key) {
+  var s = String(key || ''), h = 0;
+  for (var i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0;
+  return BRAND_AUTO_COLORS[h % BRAND_AUTO_COLORS.length];
+}
+function brandColor(key) {
+  var b = brandByKey(key);
+  if (b && b.color) return b.color;
+  if (BRAND_LABELS[key] && BRAND_LABELS[key].color) return BRAND_LABELS[key].color;
+  return brandAutoColor(key);
+}
+function brandLabelOf(key) {
+  var b = brandByKey(key);
+  if (b && b.name) return b.name;
+  return (BRAND_LABELS[key] && BRAND_LABELS[key].label) || key || '-';
+}
 var BRAND_LABELS = {
   santafe:  { label: 'Santa Fe',  color: '#f97316' },
   jaedaeng: { label: 'เจ๊แดง',     color: '#dc2626' }
@@ -4705,8 +4733,8 @@ function _brandChipsHTML(user) {
   if (!keys.length) return '<span style="color:#888;font-size:11px;">-</span>';
   var all = BRAND_REGISTRY.length && keys.length >= BRAND_REGISTRY.length;
   return keys.map(function(key){
-    var bl = BRAND_LABELS[key] || { label: (brandByKey(key) && brandByKey(key).name) || key, color: '#888' };
-    return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;margin:1px 2px 1px 0;">'+bl.label+'</span>';
+    var col = brandColor(key);
+    return '<span style="display:inline-block;padding:2px 8px;background:'+col+'1a;color:'+col+';border-radius:999px;font-weight:700;font-size:11px;margin:1px 2px 1px 0;">'+escapeHtml(brandLabelOf(key))+'</span>';
   }).join('') + (all && keys.length > 1
     ? '<span style="display:inline-block;padding:2px 7px;background:rgba(148,163,184,.15);color:var(--text2);border-radius:999px;font-weight:700;font-size:10px;margin:1px 0;">ทุกแบรนด์</span>' : '');
 }
@@ -5594,10 +5622,14 @@ function renderBrandRegList(){
       ? '<img src="'+b.logo+'" style="width:42px;height:42px;object-fit:contain;border-radius:8px;background:#fff;padding:3px;border:1px solid var(--border);">'
       : '<div style="width:42px;height:42px;border-radius:8px;background:var(--bg3);display:grid;place-items:center;font-size:18px;">🏷️</div>';
     var pfx = (b.prefixes&&b.prefixes.length)? ' · รหัส '+b.prefixes.join(',') : '';
-    return '<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;">'+
+    var col = brandColor(b.key);
+    var auto = b.color ? '' : ' <span style="color:var(--text3);">(สีอัตโนมัติ)</span>';
+    return '<div style="display:flex;align-items:center;gap:12px;border:1px solid var(--border);border-radius:12px;padding:10px 12px;border-left:4px solid '+col+';">'+
       logo+
-      '<div style="flex:1;min-width:0;"><div style="font-weight:700;">'+escapeHtml(b.name)+'</div>'+
-      '<div style="font-size:11px;color:var(--text3);">key: '+escapeHtml(b.key)+pfx+'</div></div>'+
+      '<div style="flex:1;min-width:0;">'+
+        '<div style="font-weight:700;display:flex;align-items:center;gap:7px;">'+escapeHtml(b.name)+
+          '<span style="width:12px;height:12px;border-radius:4px;background:'+col+';display:inline-block;"></span></div>'+
+      '<div style="font-size:11px;color:var(--text3);">key: '+escapeHtml(b.key)+pfx+auto+'</div></div>'+
       '<button class="adm-btn-secondary" style="padding:6px 12px;font-size:12px;" onclick="openBrandEdit(\''+escapeHtml(b.key)+'\')">แก้ไข</button>'+
       '<button class="adm-btn-secondary" style="padding:6px 10px;font-size:12px;background:rgba(239,68,68,0.1);color:var(--red);border-color:rgba(239,68,68,0.3);" onclick="deleteBrand(\''+escapeHtml(b.key)+'\')">ลบ</button>'+
     '</div>';
@@ -5612,11 +5644,35 @@ function openBrandEdit(key){
   keyEl.value = b ? b.key : '';
   keyEl.readOnly = !!b;
   document.getElementById('brandRegPrefixes').value = (b && b.prefixes) ? b.prefixes.join(',') : '';
+  document.getElementById('brandRegColor').value = (b && b.color) || brandAutoColor(b ? b.key : String(Date.now()));
+  _renderBrandColorSwatches();
+  _brandColorPreview();
   document.getElementById('brandRegLogoFile').value = '';
   document.getElementById('brandRegLogoPreview').innerHTML = (b && b.logo)
     ? '<img src="'+b.logo+'" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">' : '';
   document.getElementById('brandRegForm').style.display='';
   document.getElementById('brandRegSaveBtn').style.display='';
+}
+/* สีแนะนำ — กดเลือกเร็ว ๆ ไม่ต้องเปิด color picker */
+var BRAND_COLOR_PRESETS = ['#f97316','#dc2626','#0ea5e9','#8b5cf6','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#84cc16','#64748b','#0f172a'];
+function _renderBrandColorSwatches(){
+  var box = document.getElementById('brandRegColorSwatches'); if(!box) return;
+  box.innerHTML = BRAND_COLOR_PRESETS.map(function(c){
+    return '<button type="button" title="'+c+'" onclick="_pickBrandColor(\''+c+'\')" '+
+      'style="width:22px;height:22px;border-radius:6px;background:'+c+';border:1px solid rgba(0,0,0,.15);cursor:pointer;padding:0;"></button>';
+  }).join('');
+}
+function _pickBrandColor(c){
+  var el = document.getElementById('brandRegColor'); if(!el) return;
+  el.value = c; _brandColorPreview();
+}
+function _brandColorPreview(){
+  var el = document.getElementById('brandRegColor'), chip = document.getElementById('brandRegColorChip');
+  if(!el || !chip) return;
+  var c = el.value || '#64748b';
+  var nm = (document.getElementById('brandRegName').value || 'ตัวอย่าง').trim() || 'ตัวอย่าง';
+  chip.innerHTML = '<span style="display:inline-block;padding:3px 10px;background:'+c+'1a;color:'+c+
+    ';border-radius:999px;font-weight:700;font-size:11.5px;">'+escapeHtml(nm)+'</span>';
 }
 function onBrandLogoPick(ev){
   var f = ev.target.files && ev.target.files[0]; if(!f) return;
@@ -5633,7 +5689,9 @@ function saveBrandEdit(){
   if(!_editingBrandKey && brandByKey(key)){ showInfo('⚠️ รหัสซ้ำ','key <b>'+escapeHtml(key)+'</b> ถูกใช้แล้ว'); return; }
   var existing = _editingBrandKey ? brandByKey(_editingBrandKey) : null;
   var logo = _brandLogoData || (existing && existing.logo) || '';
+  var color = (document.getElementById('brandRegColor').value || '').trim();
   var obj = { key: (existing? existing.key : key), name: name, prefixes: prefixes };
+  if(color) obj.color = color;
   if(logo) obj.logo = logo;
   if(existing){ var i=BRAND_REGISTRY.findIndex(function(b){return b.key===existing.key;}); if(i>=0) BRAND_REGISTRY[i]=obj; }
   else BRAND_REGISTRY.push(obj);
