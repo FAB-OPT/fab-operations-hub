@@ -450,8 +450,8 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
 <section id="adminView" class="hidden">
   <div class="shell">
     <div class="tabs">
-      <button class="tab active" id="tabExams" onclick="switchTab('exams')">📚 ชุดข้อสอบ</button>
-      <button class="tab" id="tabResults" onclick="switchTab('results')">📊 ผลสอบ</button>
+      <button class="tab active" id="tabExams" data-oe-action="view-exams" onclick="switchTab('exams')">📚 ชุดข้อสอบ</button>
+      <button class="tab" id="tabResults" data-oe-action="view-results" onclick="switchTab('results')">📊 ผลสอบ</button>
     </div>
 
     <!-- exams tab -->
@@ -463,7 +463,7 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
         </div>
         <div style="display:flex;gap:10px">
           <button class="btn btn-soft btn-sm" onclick="loadExams(true)"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> รีเฟรช</button>
-          <button class="btn btn-primary" onclick="openExamEditor(null)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> สร้างชุดข้อสอบ</button>
+          <button class="btn btn-primary" data-oe-action="exam-create" onclick="openExamEditor(null)"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> สร้างชุดข้อสอบ</button>
         </div>
       </div>
       <div id="adminExamList"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></div>
@@ -568,7 +568,7 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 0 14px">
           <button class="btn btn-soft btn-sm" onclick="examTab(1)"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg> ตั้งค่า</button>
           <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <button class="btn btn-soft btn-sm" onclick="toggleImportPanel()"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าหลายข้อ</button>
+            <button class="btn btn-soft btn-sm" data-oe-action="exam-import" onclick="toggleImportPanel()"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าหลายข้อ</button>
             <button class="btn btn-primary btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถามเอง</button>
           </div>
         </div>
@@ -837,6 +837,44 @@ function apiPost(body){
   }).then(function(r){ return r.json(); });
 }
 
+/* ═══ สิทธิ์จาก HUB — ตั้งที่ ⚙️ → สิทธิ์ปุ่มแต่ละระบบ → 📝 ระบบสอบออนไลน์ ═══
+   HUB ยังไม่เคยตั้ง (ไม่มี perms.onlineexam) = ไม่คุมอะไร ใช้ได้เหมือนเดิม
+   ลำดับตัดสิน: ห้ามรายคน > อนุญาตรายคน > ตำแหน่ง */
+var OE_PERM_KEY = 'fab_onlineexam_perms_v1';
+var OE_PERMS = null;
+function oeLoadPermsCache(){
+  try{ OE_PERMS = JSON.parse(localStorage.getItem(OE_PERM_KEY) || 'null'); }catch(e){ OE_PERMS = null; }
+}
+function oeLoadPermsFromHub(){
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(res){
+      if(res && res.ok && res.perms && res.perms.onlineexam){
+        OE_PERMS = res.perms.onlineexam;
+        try{ localStorage.setItem(OE_PERM_KEY, JSON.stringify(OE_PERMS)); }catch(e){}
+        oeApplyPerms();
+      }
+    })
+    .catch(function(e){ console.warn('[perms] โหลดสิทธิ์จาก HUB ไม่ได้ — ใช้ค่าเดิม', e); });
+}
+function oeCan(actionId){
+  if(!OE_PERMS || !actionId) return true;
+  var p = OE_PERMS[actionId];
+  if(!p) return true;
+  var s = getHubSession() || {};
+  var code = String(s.code || '');
+  if(code && (p.deny  || []).indexOf(code) >= 0) return false;
+  if(code && (p.allow || []).indexOf(code) >= 0) return true;
+  var role = s.role || sessionStorage.getItem('fab_role') || '';
+  return (p.roles || []).indexOf(role) >= 0;
+}
+/* ซ่อนแท็บ/ปุ่มที่ไม่มีสิทธิ์ — ใส่ data-oe-action ไว้ที่ element ที่ต้องการคุม */
+function oeApplyPerms(){
+  document.querySelectorAll('[data-oe-action]').forEach(function(el){
+    el.style.display = oeCan(el.getAttribute('data-oe-action')) ? '' : 'none';
+  });
+}
+
 /* ═════════════════════ BOOT ═════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
   var role = sessionStorage.getItem('fab_role');
@@ -853,6 +891,9 @@ window.addEventListener('DOMContentLoaded', function(){
   } else {
     $('userChip').textContent = (_sess && (_sess.nick || _sess.name)) || currentBranchName || ('สาขา '+branchPin);
   }
+  oeLoadPermsCache();      // ใช้ค่าที่แคชไว้ก่อน แล้วค่อยอัปเดตจากฮับ
+  oeApplyPerms();
+  oeLoadPermsFromHub();
   if(!isAdminMode && maybePwaGate()) return;   // ผู้ทำข้อสอบบนมือถือ-เบราว์เซอร์: บังคับติดตั้งก่อน
   showBrandGate();         // เลือกแบรนด์ (กรองตามสิทธิ์ผู้ใช้)
 });

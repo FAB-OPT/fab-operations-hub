@@ -747,7 +747,7 @@ body.is-admin .adm-only { display: flex; }
 
 .adm-only-block { display: none; }
 body.is-admin .adm-only-block { display: block; }
-/* admin-role-only: เฉพาะ role=admin (ไม่รวม vp/coo/bzm/franchise) */
+/* admin-role-only: เฉพาะ role=admin (ไม่รวม vp/coo/bzm/support) */
 .admin-role-only { display: none !important; }
 body.is-admin-role .admin-role-only { display: inline-flex !important; }
 
@@ -1949,6 +1949,7 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
               <option value="vp">VP (รองประธาน)</option>
               <option value="coo">COO (ประธานปฎิบัติการ)</option>
               <option value="bzm" selected>BZM (ผู้จัดการเขต)</option>
+              <option value="support">Support Team (ทีมสนับสนุน)</option>
             </select>
           </div>
           <div>
@@ -2206,6 +2207,7 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           <option value="admin">Admin</option>
           <option value="vp">VP</option>
           <option value="coo">COO</option>
+          <option value="support">Support Team</option>
         </select>
         <button class="adm-btn-secondary" style="padding:8px 12px;font-size:13px;" onclick="loadAccessLog()">รีเฟรช</button>
       </div>
@@ -3573,13 +3575,13 @@ function saveFabSession(role, pin, branchCode, branchName) {
   } else {
     // Team Management: lookup จาก USERS database
     var user = findUserByCode(pin);
-    var roleTitle = { admin:'Admin', coo:'COO', vp:'VP', bzm:'BZM', franchise:'Franchise' };
+    var roleTitle = { admin:'Admin', coo:'COO', vp:'VP', bzm:'BZM', support:'Support' };
     if (user) {
       session = {
         code: user.code,
         name: user.name,
         nick: user.nick || '',
-        role: user.role,                          // 'admin' | 'vp' | 'coo' | 'bzm' | 'franchise'
+        role: user.role,                          // 'admin' | 'vp' | 'coo' | 'bzm' | 'support'
         title: roleTitle[user.role] || user.role || '',
         brand: user.brand || null,
         crossBrand: !!user.crossBrand,
@@ -4677,7 +4679,7 @@ var ROLE_LABELS = {
   vp:        { label: 'VP',        color: '#3b82f6' },
   coo:       { label: 'COO',       color: '#06b6d4' },
   bzm:       { label: 'BZM',       color: '#f59e0b' },
-  franchise: { label: 'Franchise', color: '#10b981' }
+  support:   { label: 'Support Team', color: '#10b981' }
 };
 var BRAND_LABELS = {
   santafe:  { label: 'Santa Fe',  color: '#f97316' },
@@ -4705,7 +4707,7 @@ function populateUserVisibility(selectedUsers, hideFromAll) {
   //           มี items → check เฉพาะที่ระบุ
   var allChecked = !hideFromAll && selectedUsers.length === 0;
   // sort: admin first, then by brand (santafe → jaedaeng), then role priority, then nick
-  var ROLE_ORDER = { admin: 0, vp: 1, coo: 2, bzm: 3, franchise: 4 };
+  var ROLE_ORDER = { admin: 0, vp: 1, coo: 2, bzm: 3, support: 4 };
   var sorted = USERS.slice().sort(function(a, b){
     if ((a.role === 'admin') !== (b.role === 'admin')) return a.role === 'admin' ? -1 : 1;
     if (a.brand !== b.brand) return (a.brand || '') < (b.brand || '') ? -1 : 1;
@@ -4744,7 +4746,7 @@ function toggleAllUsers(checked) {
 var _editingUserCode = null;  // null = adding new
 
 function _sortedUsers() {
-  var ROLE_ORDER = { admin: 0, vp: 1, coo: 2, bzm: 3, franchise: 4 };
+  var ROLE_ORDER = { admin: 0, vp: 1, coo: 2, bzm: 3, support: 4 };
   return USERS.slice().sort(function(a, b){
     if ((a.role === 'admin') !== (b.role === 'admin')) return a.role === 'admin' ? -1 : 1;
     if (a.brand !== b.brand) return (a.brand || '') < (b.brand || '') ? -1 : 1;
@@ -4998,8 +5000,9 @@ var PERM_ROLES = [
   { v: 'admin',  label: 'Admin' },
   { v: 'coo',    label: 'COO' },
   { v: 'vp',     label: 'VP' },
-  { v: 'bzm',    label: 'BZM' },
-  { v: 'branch', label: 'สาขา' }
+  { v: 'bzm',     label: 'BZM' },
+  { v: 'support', label: 'Support Team' },
+  { v: 'branch',  label: 'สาขา' }
 ];
 var PERM_SYSTEMS = {
   training: {
@@ -5030,6 +5033,45 @@ var PERM_SYSTEMS = {
       { id: 'delete-daily', group: 'danger', label: 'ลบผลตรวจ (ซานตาเฟ่)', roles: ['admin'], danger: true },
       { id: 'delete-jd',    group: 'danger', label: 'ลบผลตรวจ (เจ๊แดง)',   roles: ['admin'], danger: true },
       { id: 'submit-check', group: 'branch', label: 'ส่งผลตรวจ',           roles: ['branch','admin'] }
+    ]
+  },
+  /* ค่าตั้งต้นด้านล่าง = พฤติกรรมเดิมของโมดูลก่อนมีหน้าสิทธิ์นี้
+     (ทุกตำแหน่งใน Team Management ใช้ได้ · จัดการฐานข้อมูลเฉพาะ admin)
+     Support Team ยังไม่ได้ให้สิทธิ์อะไร — ไปติ๊กเพิ่มเองที่หน้านี้ */
+  fqavisit: {
+    label: '🔎 ตรวจสาขา FQA / Visit',
+    groups: [
+      { id: 'menu',   label: 'ภาพรวม · เข้าหน้าไหนได้บ้าง' },
+      { id: 'form',   label: 'บันทึกการตรวจ — ฟอร์มที่กรอกได้' },
+      { id: 'data',   label: 'รายงาน / นำเข้าข้อมูล' },
+      { id: 'danger', label: 'ตั้งค่าระบบ — ระวัง' }
+    ],
+    actions: [
+      { id: 'view-dash',   group: 'menu',   label: '◧ แดชบอร์ด',             roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-list',   group: 'menu',   label: '☰ รายการตรวจทั้งหมด',    roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-plan',   group: 'menu',   label: '🗓 แผนการตรวจสาขา',      roles: ['admin','coo','vp','bzm'] },
+      { id: 'form-fqa',    group: 'form',   label: '✓ ฟอร์ม FQA',            roles: ['admin','coo','vp','bzm'] },
+      { id: 'form-fsq',    group: 'form',   label: '! FSQ กรณี Complaint',   roles: ['admin','coo','vp','bzm'] },
+      { id: 'form-visit',  group: 'form',   label: '◎ ฟอร์ม Visit',          roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-report', group: 'data',   label: '📄 ออกรายงาน',           roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-io',     group: 'data',   label: '⬆ นำเข้าข้อมูล',         roles: ['admin','bzm'] },
+      { id: 'view-master', group: 'danger', label: '🔒 จัดการฐานข้อมูล',     roles: ['admin'], danger: true }
+    ]
+  },
+  onlineexam: {
+    label: '📝 ระบบสอบออนไลน์',
+    groups: [
+      { id: 'menu',   label: 'เมนูหลัก · เข้าหน้าไหนได้บ้าง' },
+      { id: 'manage', label: 'จัดการชุดข้อสอบ' },
+      { id: 'branch', label: 'ฝั่งสาขา' }
+    ],
+    actions: [
+      { id: 'view-exams',   group: 'menu',   label: '📚 ชุดข้อสอบ (หน้าแอดมิน)', roles: ['admin','coo','vp','bzm'] },
+      { id: 'view-results', group: 'menu',   label: '📊 ผลสอบ',                  roles: ['admin','coo','vp','bzm'] },
+      { id: 'exam-create',  group: 'manage', label: '➕ สร้าง / แก้ไขชุดข้อสอบ',  roles: ['admin'] },
+      { id: 'exam-import',  group: 'manage', label: '⬆ นำเข้าข้อสอบหลายข้อ',     roles: ['admin'] },
+      { id: 'exam-delete',  group: 'manage', label: '🗑 ลบชุดข้อสอบ',            roles: ['admin'], danger: true },
+      { id: 'take-exam',    group: 'branch', label: '✍ ทำข้อสอบ',               roles: ['branch'] }
     ]
   }
 };
@@ -5318,13 +5360,13 @@ function _sessDurSec(r) {
   return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime())/1000));
 }
 function _roleColor(role) {
-  return ({ admin:'#e11d48', coo:'#7c3aed', vp:'#2563eb', bzm:'#0e7490', branch:'#16a34a', franchise:'#10b981' })[role] || '#64748b';
+  return ({ admin:'#e11d48', coo:'#7c3aed', vp:'#2563eb', bzm:'#0e7490', branch:'#16a34a', support:'#10b981' })[role] || '#64748b';
 }
 function renderAccessLog() {
   var box = document.getElementById('accessLogList');
   var q = (document.getElementById('accessLogSearch').value || '').trim().toLowerCase();
   var roleF = document.getElementById('accessLogRole').value || '';
-  var roleLabel = { branch:'สาขา', bzm:'BZM', admin:'Admin', vp:'VP', coo:'COO', franchise:'Franchise' };
+  var roleLabel = { branch:'สาขา', bzm:'BZM', admin:'Admin', vp:'VP', coo:'COO', support:'Support Team' };
   var rows = _accessLogData.filter(function(r){
     if (roleF && r.role !== roleF) return false;
     if (!q) return true;
