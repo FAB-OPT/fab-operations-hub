@@ -1086,6 +1086,15 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 .brand-pick:hover { border-color: var(--gold); }
 .brand-pick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
 .brand-pick:has(input:checked) { border-color: var(--gold); background: rgba(234,88,12,.08); }
+/* จานสีแบรนด์ — แถวละ 8 สี ตามโทน */
+.brand-swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; max-width: 340px; }
+.brand-swatch {
+  aspect-ratio: 1/1; width: 100%; border-radius: 7px; padding: 0; cursor: pointer;
+  border: 1px solid rgba(0,0,0,.14); transition: transform .12s, box-shadow .12s;
+}
+.brand-swatch:hover { transform: scale(1.14); }
+.brand-swatch.on { box-shadow: 0 0 0 2px var(--bg2), 0 0 0 4px var(--gold); transform: scale(1.08); }
+@media (max-width: 560px) { .brand-swatches { grid-template-columns: repeat(8, 1fr); max-width: none; gap: 4px; } }
 .brand-pick-all { margin-top: 6px; width: 100%; font-weight: 700; }
 .brand-pick-all span { font-size: 12px; color: var(--text2); font-weight: 600; }
 
@@ -2060,12 +2069,13 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
         </div>
         <div class="adm-section">
           <label class="adm-label">สีประจำแบรนด์ <span style="font-weight:500;color:var(--text3);">— ใช้กับป้ายแบรนด์ทั่วระบบ</span></label>
-          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px;">
             <input type="color" id="brandRegColor" value="#0ea5e9" oninput="_brandColorPreview()"
                    style="width:52px;height:38px;padding:2px;border:1px solid var(--border);border-radius:9px;background:var(--bg3);cursor:pointer;">
-            <div id="brandRegColorSwatches" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+            <span style="font-size:11px;color:var(--text3);">เลือกเองได้ทุกสี หรือกดจากจานสีด้านล่าง</span>
             <span id="brandRegColorChip" style="margin-left:auto;"></span>
           </div>
+          <div id="brandRegColorSwatches" class="brand-swatches"></div>
         </div>
         <div class="adm-section">
           <label class="adm-label">โลโก้ (PNG พื้นใสสวยสุด)</label>
@@ -5653,13 +5663,25 @@ function openBrandEdit(key){
   document.getElementById('brandRegForm').style.display='';
   document.getElementById('brandRegSaveBtn').style.display='';
 }
-/* สีแนะนำ — กดเลือกเร็ว ๆ ไม่ต้องเปิด color picker */
-var BRAND_COLOR_PRESETS = ['#f97316','#dc2626','#0ea5e9','#8b5cf6','#10b981','#f59e0b','#ec4899','#14b8a6','#6366f1','#84cc16','#64748b','#0f172a'];
+/* จานสีแนะนำ — เรียงเป็นแถวตามโทน (แดง→ส้ม→เหลือง→เขียว→ฟ้า→น้ำเงิน→ม่วง→ชมพู→กลาง)
+   แถวละ 8 สี · กดเลือกได้เลยไม่ต้องเปิด color picker */
+var BRAND_COLOR_PRESETS = [
+  '#f87171','#ef4444','#dc2626','#b91c1c','#fb923c','#f97316','#ea580c','#c2410c',
+  '#fbbf24','#f59e0b','#d97706','#a16207','#a3e635','#84cc16','#65a30d','#4d7c0f',
+  '#4ade80','#22c55e','#16a34a','#15803d','#2dd4bf','#14b8a6','#0d9488','#0f766e',
+  '#22d3ee','#06b6d4','#0891b2','#0e7490','#38bdf8','#0ea5e9','#0284c7','#0369a1',
+  '#60a5fa','#3b82f6','#2563eb','#1d4ed8','#818cf8','#6366f1','#4f46e5','#4338ca',
+  '#a78bfa','#8b5cf6','#7c3aed','#6d28d9','#c084fc','#a855f7','#9333ea','#7e22ce',
+  '#e879f9','#d946ef','#c026d3','#a21caf','#f472b6','#ec4899','#db2777','#be185d',
+  '#a8a29e','#78716c','#57534e','#44403c','#94a3b8','#64748b','#475569','#1e293b'
+];
 function _renderBrandColorSwatches(){
   var box = document.getElementById('brandRegColorSwatches'); if(!box) return;
+  var cur = (document.getElementById('brandRegColor') || {}).value || '';
   box.innerHTML = BRAND_COLOR_PRESETS.map(function(c){
-    return '<button type="button" title="'+c+'" onclick="_pickBrandColor(\''+c+'\')" '+
-      'style="width:22px;height:22px;border-radius:6px;background:'+c+';border:1px solid rgba(0,0,0,.15);cursor:pointer;padding:0;"></button>';
+    var on = c.toLowerCase() === String(cur).toLowerCase();
+    return '<button type="button" class="brand-swatch'+(on?' on':'')+'" data-c="'+c+'" title="'+c+'" '+
+      'onclick="_pickBrandColor(\''+c+'\')" style="background:'+c+';"></button>';
   }).join('');
 }
 function _pickBrandColor(c){
@@ -5670,6 +5692,10 @@ function _brandColorPreview(){
   var el = document.getElementById('brandRegColor'), chip = document.getElementById('brandRegColorChip');
   if(!el || !chip) return;
   var c = el.value || '#64748b';
+  // ไฮไลต์ช่องสีในจานที่ตรงกับสีปัจจุบัน
+  document.querySelectorAll('.brand-swatch').forEach(function(b){
+    b.classList.toggle('on', String(b.dataset.c).toLowerCase() === String(c).toLowerCase());
+  });
   var nm = (document.getElementById('brandRegName').value || 'ตัวอย่าง').trim() || 'ตัวอย่าง';
   chip.innerHTML = '<span style="display:inline-block;padding:3px 10px;background:'+c+'1a;color:'+c+
     ';border-radius:999px;font-weight:700;font-size:11.5px;">'+escapeHtml(nm)+'</span>';
