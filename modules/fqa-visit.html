@@ -1585,6 +1585,7 @@ const App = {
     document.getElementById('mBody').innerHTML=html;
     const p=document.getElementById('mPdf');
     p.style.display = recId? '' : 'none';
+    p.textContent = (typeof Mobile!=='undefined' && Mobile.on())? '📤 แชร์ / บันทึก PDF' : 'บันทึก PDF';
     p.onclick = recId? (()=>PDF.record(recId)) : null;
     document.getElementById('modal').classList.add('on');
   },
@@ -2936,9 +2937,12 @@ const PDF = {
     let cleaned=false;
     const cleanup=()=>{ if(cleaned) return; cleaned=true; host.remove(); document.title=oldTitle; window.removeEventListener('afterprint',cleanup); };
     window.addEventListener('afterprint',cleanup);
+    const mob=(typeof Mobile!=='undefined' && Mobile.on());
     const fontsReady=(document.fonts&&document.fonts.ready)?document.fonts.ready:Promise.resolve();
     return fontsReady.then(()=>{
-      App.toast('เปิดหน้าต่างบันทึก PDF — เลือกปลายทางเป็น "บันทึกเป็น PDF / Save as PDF"');
+      App.toast(mob
+        ? 'เปิดตัวอย่าง PDF แล้ว — กดปุ่ม "แชร์" (ไอคอนมุมขวาบน) เพื่อส่งเข้า LINE / อีเมล หรือบันทึกลงเครื่อง'
+        : 'เปิดหน้าต่างบันทึก PDF — เลือกปลายทางเป็น "บันทึกเป็น PDF / Save as PDF"');
       setTimeout(()=>{
         try{ window.print(); }
         catch(e){ App.toast('เบราว์เซอร์ไม่รองรับการพิมพ์'); cleanup(); return; }
