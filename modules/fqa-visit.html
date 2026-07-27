@@ -380,6 +380,21 @@ body.not-admin #botnav [data-v="master"]{display:none}
 .filttog .car{margin-left:auto;color:var(--text3);transition:transform .18s}
 .filtercard.open .filttog .car{transform:rotate(180deg)}
 
+/* ---------- หน้าดูรายงานผ่านลิงก์แชร์ (สาธารณะ) ---------- */
+body.repmode{background:#EDEDEE}
+body.repmode>*:not(#repview){display:none!important}
+.repview{min-height:100vh}
+.rep-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:#111;color:#fff;padding:11px 16px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
+.rep-bar .rep-ttl{font-weight:800;font-size:14px;letter-spacing:.3px}
+.rep-bar .btn{min-height:40px}
+.rep-load{padding:70px 20px;text-align:center;color:#666;font-size:15px}
+.rep-paper{display:flex;justify-content:center;padding:20px 14px 60px}
+.rep-paper .pdfdoc{width:760px;max-width:100%;background:#fff;border-radius:10px;
+  box-shadow:0 6px 26px rgba(0,0,0,.13);padding:26px 24px}
+.rep-paper .pdfdoc .pdfpage{padding:0}
+@media screen and (max-width:820px){ .rep-paper{padding:12px 8px 44px} .rep-paper .pdfdoc{padding:18px 15px} }
+
 /* ---------- เอกสาร PDF (วาดนอกจอ · โทนสว่างเสมอ ไม่อิงธีมหน้าจอ) ---------- */
 .printhost{display:none}
 .pdfdoc{width:760px;margin:0 auto}
@@ -1585,8 +1600,9 @@ const App = {
     document.getElementById('mBody').innerHTML=html;
     const p=document.getElementById('mPdf');
     p.style.display = recId? '' : 'none';
-    p.textContent = (typeof Mobile!=='undefined' && Mobile.on())? '📤 แชร์ / บันทึก PDF' : 'บันทึก PDF';
-    p.onclick = recId? (()=>PDF.record(recId)) : null;
+    const mob=(typeof Mobile!=='undefined' && Mobile.on());
+    p.textContent = mob? '🔗 แชร์ลิงก์รายงาน' : 'บันทึก PDF';
+    p.onclick = recId? (()=> mob? PDF.share(recId) : PDF.record(recId)) : null;
     document.getElementById('modal').classList.add('on');
   },
   closeModal(){ document.getElementById('modal').classList.remove('on'); },
@@ -2952,10 +2968,11 @@ const PDF = {
 
   name(kind){ return `FQA_${kind}_${IO.bTag()}_${IO.stamp()}.pdf`; },
 
-  /* ---------- 1) ใบตรวจรายฉบับ ---------- */
-  record(id){
-    const r=DB.all().find(x=>x.id===id);
-    if(!r) return App.toast('ไม่พบรายการตรวจนี้');
+  /* ชื่อไฟล์ใบตรวจรายฉบับ */
+  recordFile(r){ return `FQA_ใบตรวจ_${(r.branch||'').replace(/[\\/:*?"<>|\s]+/g,'')}_${r.date}.pdf`; },
+
+  /* สร้าง HTML เอกสารใบตรวจจากเรคคอร์ด — ใช้ทั้งตอนบันทึกเป็นไฟล์ PDF และหน้าดูรายงานผ่านลิงก์แชร์ */
+  recordDoc(r){
     const kv=(k,v)=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v||'—')}</b></div>`;
     const sec=(t,b)=>`<div class="pdfsec"><h2>${esc(t)}</h2>${b}</div>`;
     const pill=v=>`<span class="pd-pill ${v==='ผ่าน'?'ok':v==='ไม่ผ่าน'?'no':'na'}">${esc(v||'—')}</span>`;
@@ -3010,8 +3027,38 @@ const PDF = {
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
         `<figure><img src="${p.data}" alt=""><figcaption>${esc(p.caption||'')}</figcaption></figure>`).join('')}</div>`);
 
-    return this.render(this.wrap(TYPE_LABEL[r.type], '', b),
-      `FQA_ใบตรวจ_${(r.branch||'').replace(/[\\/:*?"<>|\s]+/g,'')}_${r.date}.pdf`);
+    return this.wrap(TYPE_LABEL[r.type], '', b);
+  },
+
+  /* ---------- 1) ใบตรวจรายฉบับ → บันทึกเป็นไฟล์ PDF ---------- */
+  record(id){
+    const r=DB.all().find(x=>x.id===id);
+    if(!r) return App.toast('ไม่พบรายการตรวจนี้');
+    return this.render(this.recordDoc(r), this.recordFile(r));
+  },
+
+  /* ---------- แชร์ใบตรวจเป็น "ลิงก์" — เปิดดู/บันทึกได้ทุกเครื่อง (แก้ปัญหา Android กดแล้วเงียบ) ---------- */
+  share(id){
+    const r=DB.all().find(x=>x.id===id);
+    if(!r) return App.toast('ไม่พบรายการตรวจนี้');
+    const go=()=>{
+      const base=location.origin+location.pathname;
+      const url=base+'#report='+encodeURIComponent(Brand.cur||'jaedaeng')+'~'+encodeURIComponent(r.id);
+      const title=`${TYPE_LABEL[r.type]||'รายงานการตรวจ'} · ${r.branch||''}`.trim();
+      if(navigator.share){
+        navigator.share({title, text:title, url}).catch(()=>{});
+      }else if(navigator.clipboard && navigator.clipboard.writeText){
+        navigator.clipboard.writeText(url)
+          .then(()=>App.toast('คัดลอกลิงก์รายงานแล้ว — วางส่งใน LINE / อีเมลได้เลย'))
+          .catch(()=>{ try{ window.prompt('คัดลอกลิงก์นี้เพื่อแชร์', url); }catch(e){} });
+      }else{ try{ window.prompt('คัดลอกลิงก์นี้เพื่อแชร์', url); }catch(e){} }
+    };
+    /* ยังไม่ขึ้นคลาวด์ → ดันขึ้นก่อน เพื่อให้ผู้รับเปิดลิงก์แล้วเห็นรายงาน */
+    if(Cloud.enabled() && !Cloud.synced().has(id)){
+      App.toast('กำลังอัปโหลดรายงานขึ้นคลาวด์ก่อนแชร์…');
+      Cloud.enqueue('save', id);
+      Cloud.flush().then(go).catch(go);
+    }else go();
   },
 
   /* ---------- 2) ตารางสรุปรายการตรวจ (ตามตัวกรองหน้ารายการ) ---------- */
@@ -3329,7 +3376,48 @@ const IO = {
 };
 
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ App.closeModal(); document.getElementById('zoom').classList.remove('on'); const c=document.getElementById('cfm'); if(c.classList.contains('on')){ c.classList.remove('on'); document.body.style.overflow=''; } } });
-if(Hub.guard()) App.boot();
+
+/* =======================================================================
+   REPORT VIEW — หน้าดูรายงานแบบสาธารณะผ่านลิงก์แชร์
+   เปิดจากลิงก์ #report=<brand>~<id> · ไม่ต้องล็อกอิน · ดึงรายงานจากคลาวด์มาแสดง
+   → เปิดได้ทุกเครื่อง/ทุกเบราว์เซอร์ แล้วผู้รับกด "บันทึกเป็น PDF" เองได้
+   ======================================================================= */
+const ReportView = {
+  _rec:null,
+  parseHash(){
+    const m=(location.hash||'').match(/[#&]report=([^~&]+)~([^&]+)/);
+    if(!m) return null;
+    try{ return {brand:decodeURIComponent(m[1]), id:decodeURIComponent(m[2])}; }
+    catch(e){ return {brand:m[1], id:m[2]}; }
+  },
+  open(brand, id){
+    Brand.cur=brand||'jaedaeng';
+    document.body.classList.add('repmode');
+    const host=document.createElement('div'); host.id='repview'; host.className='repview';
+    host.innerHTML=`<div class="rep-load">กำลังโหลดรายงาน…</div>`;
+    document.body.appendChild(host);
+    if(!Cloud.enabled()){ host.innerHTML=`<div class="rep-load">ไม่สามารถโหลดรายงานได้</div>`; return; }
+    fetch(HUB_SCRIPT_URL+'?action=fqa-records&brand='+encodeURIComponent(Brand.cur)+'&_='+Date.now())
+      .then(r=>r.json())
+      .then(res=>{
+        const rec=((res&&res.records)||[]).find(x=>x&&String(x.id)===String(id));
+        const del=new Set(((res&&res.deleted)||[]).map(String));
+        if(!rec || del.has(String(id))){ host.innerHTML=`<div class="rep-load">ไม่พบรายงานนี้ (อาจถูกลบไปแล้ว)</div>`; return; }
+        this._rec=rec;
+        host.innerHTML=`<div class="rep-bar">
+            <div class="rep-ttl">รายงานการตรวจสาขา · เจ๊แดง</div>
+            <button class="btn pri" onclick="ReportView.print()">⬇️ บันทึกเป็น PDF</button>
+          </div>
+          <div class="rep-paper"><div class="pdfdoc">${PDF.recordDoc(rec)}</div></div>`;
+      })
+      .catch(()=>{ host.innerHTML=`<div class="rep-load">โหลดรายงานไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่</div>`; });
+  },
+  print(){ if(this._rec) PDF.render(PDF.recordDoc(this._rec), PDF.recordFile(this._rec)); }
+};
+
+const _repReq = ReportView.parseHash();
+if(_repReq){ ReportView.open(_repReq.brand, _repReq.id); }
+else if(Hub.guard()){ App.boot(); }
 </script>
 </body>
 </html>
