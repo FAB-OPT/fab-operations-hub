@@ -285,9 +285,11 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .sug{font-size:12px;color:var(--accent);cursor:pointer;margin-top:4px;display:inline-block;font-weight:600}
 .sug:hover{text-decoration:underline}
 .view{display:none} .view.on{display:block}
-/* สิทธิ์: ผู้ที่ไม่ใช่แอดมิน ไม่เห็นเมนู "ข้อมูลหลัก" */
+/* สิทธิ์: ผู้ที่ไม่ใช่แอดมิน ไม่เห็นเมนู "ข้อมูลหลัก" และหัวข้อ "ตั้งค่า" */
 body.not-admin .nav[data-v="master"],
+body.not-admin #navgrpSettings,
 body.not-admin #botnav [data-v="master"]{display:none}
+.btn-logout{flex:0 0 auto;color:var(--red);border-color:var(--red-light)}
 .zoom{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:400;display:none;align-items:center;justify-content:center;padding:26px;cursor:zoom-out}
 .zoom.on{display:flex} .zoom img{max-width:100%;max-height:100%;border-radius:10px}
 .syncnote{display:flex;align-items:flex-start;gap:10px;background:var(--blue-light);border:1px solid rgba(29,78,216,.18);color:var(--text2);border-radius:10px;padding:12px 14px;font-size:12.5px;line-height:1.6}
@@ -606,13 +608,14 @@ table.pdftb tr{page-break-inside:avoid}
       <button class="nav" data-v="report"><span class="ic">📄</span> ออกรายงาน</button>
       <button class="nav" data-v="io"><span class="ic">⬆</span> นำเข้าข้อมูล</button>
 
-      <div class="navgrp">ตั้งค่า</div>
+      <div class="navgrp" id="navgrpSettings">ตั้งค่า</div>
       <button class="nav" data-v="master"><span class="ic">🔒</span> จัดการฐานข้อมูล</button>
     </div>
 
     <div class="side-foot">
       <div class="userbox"><b id="sfUser">FAB Group · Operations</b><span id="sfStore">—</span></div>
       <button class="btn-hub-nav" onclick="Hub.back()">← กลับหน้าหลัก</button>
+      <button class="btn-hub-nav btn-logout" onclick="Hub.logout()">🚪 ออกจากระบบ</button>
     </div>
   </aside>
 
@@ -687,43 +690,67 @@ table.pdftb tr{page-break-inside:avoid}
           </div>
         </div>
 
-        <div class="dsec"><span>คุณภาพวัตถุดิบและเมนู</span></div>
-        <div class="grid g2">
-          <div class="card">
-            <div class="hd"><h3>เรดาร์ผลตรวจวัตถุดิบ 9 หัวข้อ</h3><div class="sp"></div><span class="note">% ที่ผ่าน</span></div>
-            <div class="bd"><div id="chRadar"></div></div>
+        <!-- FQA เท่านั้น -->
+        <div class="dgrp" data-t="FQA">
+          <div class="dsec"><span>คุณภาพวัตถุดิบและเมนู (FQA)</span></div>
+          <div class="grid g2">
+            <div class="card">
+              <div class="hd"><h3>เรดาร์ผลตรวจวัตถุดิบ 9 หัวข้อ</h3><div class="sp"></div><span class="note">% ที่ผ่าน</span></div>
+              <div class="bd"><div id="chRadar"></div></div>
+            </div>
+            <div class="card">
+              <div class="hd"><h3>หัวข้อที่ไม่ผ่านบ่อยที่สุด</h3></div>
+              <div class="bd"><div id="chItems"></div></div>
+            </div>
+          </div>
+          <div class="grid g2">
+            <div class="card">
+              <div class="hd"><h3>สาขาที่พบปัญหาสูงสุด</h3><div class="sp"></div><span class="note">10 อันดับแรก</span></div>
+              <div class="bd"><div id="chBranch"></div></div>
+            </div>
+            <div class="card">
+              <div class="hd"><h3>วัตถุดิบและเมนูที่ถูกตรวจบ่อย</h3></div>
+              <div class="bd"><div id="chTopItem"></div></div>
+            </div>
           </div>
           <div class="card">
-            <div class="hd"><h3>หัวข้อที่ไม่ผ่านบ่อยที่สุด</h3></div>
-            <div class="bd"><div id="chItems"></div></div>
+            <div class="hd"><h3>ตารางความร้อน — ประเด็นที่พบรายสาขา / รายเดือน</h3><div class="sp"></div><span class="note">สีเข้ม = พบประเด็นมาก</span></div>
+            <div class="bd" style="overflow-x:auto"><div id="chHeat"></div></div>
           </div>
-        </div>
-        <div class="grid g2">
-          <div class="card">
-            <div class="hd"><h3>สาขาที่พบปัญหาสูงสุด</h3><div class="sp"></div><span class="note">10 อันดับแรก</span></div>
-            <div class="bd"><div id="chBranch"></div></div>
-          </div>
-          <div class="card">
-            <div class="hd"><h3>วัตถุดิบและเมนูที่ถูกตรวจบ่อย</h3></div>
-            <div class="bd"><div id="chTopItem"></div></div>
-          </div>
-        </div>
-        <div class="card">
-          <div class="hd"><h3>ตารางความร้อน — ประเด็นที่พบรายสาขา / รายเดือน</h3><div class="sp"></div><span class="note">สีเข้ม = พบประเด็นมาก</span></div>
-          <div class="bd" style="overflow-x:auto"><div id="chHeat"></div></div>
         </div>
 
-        <div class="dsec"><span>Complaint และผลงานผู้ตรวจ</span></div>
-        <div class="grid g2">
-          <div class="card">
-            <div class="hd"><h3>Complaint แยกตามประเภท</h3></div>
-            <div class="bd"><div id="chCat"></div></div>
-          </div>
-          <div class="card">
-            <div class="hd"><h3>ช่องทางและระดับความรุนแรง</h3></div>
-            <div class="bd"><div id="chMix"></div></div>
+        <!-- Complaint เท่านั้น -->
+        <div class="dgrp" data-t="FSQ">
+          <div class="dsec"><span>Complaint (ข้อร้องเรียน)</span></div>
+          <div class="grid g2">
+            <div class="card">
+              <div class="hd"><h3>Complaint แยกตามประเภท</h3></div>
+              <div class="bd"><div id="chCat"></div></div>
+            </div>
+            <div class="card">
+              <div class="hd"><h3>ช่องทางและระดับความรุนแรง</h3></div>
+              <div class="bd"><div id="chMix"></div></div>
+            </div>
           </div>
         </div>
+
+        <!-- Visit เท่านั้น -->
+        <div class="dgrp" data-t="VISIT">
+          <div class="dsec"><span>Visit (การเข้าพบและอบรม)</span></div>
+          <div class="grid g2">
+            <div class="card">
+              <div class="hd"><h3>ประเภทการเข้าพบ</h3></div>
+              <div class="bd"><div id="chVisitType"></div></div>
+            </div>
+            <div class="card">
+              <div class="hd"><h3>หัวข้อการอบรมที่พบบ่อย</h3></div>
+              <div class="bd"><div id="chVisitTopics"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ผลงานผู้ตรวจ (ทุกประเภท) -->
+        <div class="dsec"><span>ผลงานผู้ตรวจ</span></div>
         <div class="card">
           <div class="hd"><h3>ผลงานรายผู้ตรวจ</h3></div>
           <div class="bd"><div id="chTrainer"></div></div>
@@ -775,6 +802,18 @@ table.pdftb tr{page-break-inside:avoid}
           <button class="iotile" onclick="IO.exportMaster()"><span class="io-ic" style="background:#607D8B;">JSON</span><div><b>เฉพาะข้อมูลหลัก</b><span>ผู้ตรวจ วัตถุดิบ เมนู ตัวเลือกในฟอร์ม</span></div></button>
         </div>
         <p class="hint" style="margin-top:12px">แนะนำให้ดาวน์โหลดไฟล์สำรอง (.json) เก็บไว้เป็นระยะ กันข้อมูลหาย</p>
+
+        <div class="dsec"><span>ข้อมูลในระบบ</span></div>
+        <div class="grid g3" id="ioStats"></div>
+        <div class="card" style="border-color:var(--red-light)"><div class="bd">
+          <div style="font-size:12px;font-weight:800;color:var(--red);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">⚠ ล้างข้อมูล — ใช้ด้วยความระวัง</div>
+          <div style="display:flex;gap:9px;flex-wrap:wrap">
+            <button class="btn dgr" onclick="IO.wipeRecords()">ล้างเฉพาะรายการตรวจ</button>
+            <button class="btn dgr" onclick="IO.resetMaster()">คืนค่าข้อมูลหลักเป็นค่าตั้งต้น</button>
+            <button class="btn dgr" onclick="IO.wipe()">ล้างข้อมูลทั้งหมด</button>
+          </div>
+          <p class="hint">แนะนำให้ดาวน์โหลดไฟล์สำรอง (.json) ด้านบน ก่อนล้างข้อมูลทุกครั้ง</p>
+        </div></div>
       </section>
 
       <!-- ---------- REPORT (ออกรายงาน) ---------- -->
@@ -810,18 +849,6 @@ table.pdftb tr{page-break-inside:avoid}
               <option value="merge">เพิ่มเข้ากับข้อมูลเดิม (ข้ามรายการซ้ำ)</option>
               <option value="replace">แทนที่รายการตรวจเดิมทั้งหมด</option>
             </select></div>
-        </div></div>
-
-        <div class="dsec"><span>ข้อมูลในระบบ</span></div>
-        <div class="grid g3" id="ioStats"></div>
-        <div class="card" style="border-color:var(--red-light)"><div class="bd">
-          <div style="font-size:12px;font-weight:800;color:var(--red);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">⚠ ล้างข้อมูล — ใช้ด้วยความระวัง</div>
-          <div style="display:flex;gap:9px;flex-wrap:wrap">
-            <button class="btn dgr" onclick="IO.wipeRecords()">ล้างเฉพาะรายการตรวจ</button>
-            <button class="btn dgr" onclick="IO.resetMaster()">คืนค่าข้อมูลหลักเป็นค่าตั้งต้น</button>
-            <button class="btn dgr" onclick="IO.wipe()">ล้างข้อมูลทั้งหมด</button>
-          </div>
-          <p class="hint">แนะนำให้ไปที่เมนู "ออกรายงาน" ดาวน์โหลดไฟล์สำรอง (.json) ก่อนล้างข้อมูลทุกครั้ง</p>
         </div></div>
       </section>
 
@@ -1007,7 +1034,11 @@ const Hub = {
   },
   /* ผู้ดูแลระบบเท่านั้น — ใช้คุมสิทธิ์เข้าถึง "ข้อมูลหลัก" */
   isAdmin(){ const s=this.session(); return !!(s && s.role==='admin') || this.role()==='admin'; },
-  back(){ window.location.href='../index.html'; }
+  back(){ window.location.href='../index.html'; },
+  logout(){ App.confirm({icon:'🚪', title:'ออกจากระบบ', msg:'ต้องการออกจากระบบใช่หรือไม่?', okText:'ออกจากระบบ', danger:false, onOk:()=>{
+    try{ localStorage.removeItem('fab_session'); sessionStorage.removeItem('fab_role'); sessionStorage.removeItem('fab_branch_name'); sessionStorage.removeItem('fab_branch_pin'); sessionStorage.removeItem('fab_branch_code'); }catch(e){}
+    window.location.href='../index.html';
+  }}); }
 };
 
 /* =======================================================================
@@ -1467,10 +1498,11 @@ const App = {
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
   moreSheet(){
     const items=[
-      {icon:'📄', label:'ออกรายงาน', sub:'PDF · Excel · สำรองข้อมูล', run:()=>this.go('report'), v:'report'},
+      {icon:'📄', label:'ออกรายงาน', sub:'PDF · Excel · เจาะรายครั้ง', run:()=>this.go('report'), v:'report'},
       {icon:'⬆', label:'นำเข้าข้อมูล', sub:'นำผลตรวจเดิมเข้าระบบ (มีเทมเพลต)', run:()=>this.go('io'), v:'io'}
     ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]));
-    if(Hub.isAdmin() && fvCan('view-master')) items.push({icon:'🔒', label:'จัดการฐานข้อมูล', sub:'สาขา ผู้ตรวจ วัตถุดิบ เมนู (ต้องใส่รหัส)', run:()=>this.go('master')});
+    if(Hub.isAdmin() && fvCan('view-master')) items.push({icon:'🔒', label:'จัดการฐานข้อมูล', sub:'สาขา ผู้ตรวจ วัตถุดิบ เมนู · ข้อมูลในระบบ · สำรอง (ต้องใส่รหัส)', run:()=>this.go('master')});
+    items.push({icon:'🚪', label:'ออกจากระบบ', sub:'ออกและกลับไปหน้าเข้าสู่ระบบ', run:()=>Hub.logout()});
     this.sheet('เพิ่มเติม', items);
   },
   /* ---------- พับ/กางการ์ดตัวกรอง ---------- */
@@ -1509,9 +1541,8 @@ const App = {
     document.getElementById('formbar').innerHTML = isForm? formBtns : '';
     if(v==='dash') Dash.render();
     if(v==='list') Rec.render();
-    if(v==='io')   IO.stats();
     if(v==='report') Report.render();
-    if(v==='master') Master.render();
+    if(v==='master'){ Master.render(); IO.stats(); }
     if(v==='plan') Plan.render();
     if(v==='fqa'||v==='fsq'||v==='visit') Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':'VISIT');
     window.scrollTo(0,0);
@@ -2549,6 +2580,21 @@ const Dash = {
       return {k:t, v:mine.length, t:`${mine.length} ครั้ง · พบ ${mine.reduce((a,r)=>a+failCount(r),0)} ประเด็น`};
     }).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
     document.getElementById('chTrainer').innerHTML = trows.length? hbars(trows,RED[1]) : emptyBox();
+
+    /* ---- 11 Visit: ประเภทการเข้าพบ + หัวข้อการอบรม ---- */
+    const vt=cnt(vis,r=>r.visitType);
+    document.getElementById('chVisitType').innerHTML = vt.length? donut(vt,'ครั้ง') : emptyBox('ยังไม่มีข้อมูล Visit');
+    const topicC={}; vis.forEach(r=>(r.topics||[]).forEach(t=>{ if(t.topic&&t.topic.trim()) topicC[t.topic.trim()]=(topicC[t.topic.trim()]||0)+1; }));
+    const topTopics=Object.entries(topicC).map(([k,v])=>({k,v,t:v+' ครั้ง'})).sort((a,b)=>b.v-a.v).slice(0,8);
+    document.getElementById('chVisitTopics').innerHTML = topTopics.length? hbars(topTopics,RED[1]) : emptyBox('ยังไม่มีหัวข้อการอบรม');
+
+    this.applyType();
+  },
+  /* ซ่อน/แสดงกรอบตามประเภทที่เลือก — เลือก FQA จะไม่โชว์กรอบ Complaint/Visit ฯลฯ */
+  applyType(){
+    document.querySelectorAll('#v-dash .dgrp').forEach(g=>{
+      g.style.display = (!this.type || g.dataset.t===this.type) ? '' : 'none';
+    });
   },
 
   /* ---------- ความคืบหน้าตามแผน + แผนที่ต้องตรวจ ---------- */
@@ -2691,7 +2737,7 @@ const Plan = {
       cells+=`<div class="cal-cell${iso===today?' today':''}" onclick="Plan.dayAdd('${iso}')">
         <div class="cal-d">${d}</div>
         ${ps.slice(0,3).map(p=>{const k=planType(p.ptype), c=PLAN_TYPE_COLOR[k], nm=p.branch.replace(/^ร้านส้มตำเจ๊แดง\s*\(?/,'').replace(/\)$/,'');
-          return `<div class="cal-ev" style="background:${c}18;color:${c};border-left:3px solid ${c}" onclick="event.stopPropagation();Plan.inspect('${p.id}')" title="${attr(p.branch)} · ${PLAN_TYPE[k]}${p.trainer?' · '+attr(p.trainer):''}"><b style="font-weight:800">${PLAN_TYPE[k]}</b> ${esc(nm)}${p.trainer?` · ${esc(p.trainer)}`:''}</div>`;}).join('')}
+          return `<div class="cal-ev" style="background:${c}18;color:${c};border-left:3px solid ${c}" onclick="event.stopPropagation();Plan.detail('${p.id}')" title="${attr(p.branch)} · ${PLAN_TYPE[k]}${p.trainer?' · '+attr(p.trainer):''}"><b style="font-weight:800">${PLAN_TYPE[k]}</b> ${esc(nm)}${p.trainer?` · ${esc(p.trainer)}`:''}</div>`;}).join('')}
         ${ps.length>3?`<div class="cal-more">+${ps.length-3} เพิ่มเติม</div>`:''}
       </div>`;
     }
@@ -2733,7 +2779,7 @@ const Plan = {
             <td>${esc(p.branch)}<div style="font-size:11px;color:var(--text3)">${esc(p.bzm||'')}</div></td>
             <td style="font-size:13px;font-weight:600">${esc(p.trainer||'—')}</td>
             <td class="rowact noprint">
-              <button class="btn sm pri" onclick="Plan.inspect('${p.id}')">ตรวจ</button>
+              <button class="btn sm" onclick="Plan.detail('${p.id}')">ดู</button>
               <button class="btn sm dgr" onclick="Plan.del('${p.id}')">ลบ</button></td></tr>`).join('')}
           </tbody></table>`
         : `<div class="empty"><div class="big">🗓</div><h4>ยังไม่มีแผนตามตัวกรอง</h4><p>เพิ่มแผนจากช่องด้านบน</p></div>` }</div>`;
@@ -2741,6 +2787,25 @@ const Plan = {
   setFilter(k,v){ this[k]=v; this.render(); },
 
   del(id){ App.confirm({icon:'🗑', title:'ลบแผนการตรวจ', msg:'ต้องการลบแผนการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์', okText:'ลบแผน', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); if(App.view==='dash') Dash.render(); App.toast('ลบแผนแล้ว'); }}); },
+  /* ดูรายละเอียดแผน (ไม่เด้งไปหน้าตรวจ) — มีปุ่มให้เปิดฟอร์มตรวจถ้าต้องการ */
+  detail(id){
+    const p=DB.all().find(r=>r.id===id); if(!p) return;
+    const k=planType(p.ptype), c=PLAN_TYPE_COLOR[k];
+    const dowTH=['อาทิตย์','จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์'];
+    let dl=''; try{ dl='วัน'+dowTH[new Date(p.date+'T00:00:00').getDay()]; }catch(e){}
+    const kv=(label,val)=>`<div style="display:flex;justify-content:space-between;gap:14px;padding:11px 2px;border-bottom:1px solid var(--border)"><span style="color:var(--text3)">${label}</span><b style="text-align:right">${esc(val||'—')}</b></div>`;
+    const html=`
+      <div style="display:inline-flex;align-items:center;gap:8px;background:${c}18;color:${c};border:1px solid ${c}55;font-weight:800;padding:6px 14px;border-radius:999px;margin-bottom:6px">${PLAN_TYPE[k]}</div>
+      ${kv('วันที่นัดตรวจ', p.date+(dl?` (${dl})`:''))}
+      ${kv('สาขา', p.branch)}
+      ${kv('ผู้จัดการเขต (BZM)', p.bzm)}
+      ${kv('ผู้ตรวจ', p.trainer)}
+      <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn gho" onclick="App.closeModal()">ปิด</button>
+        <button class="btn pri" onclick="App.closeModal();Plan.inspect('${p.id}')">เปิดฟอร์มตรวจ →</button>
+      </div>`;
+    App.modal('รายละเอียดแผนการตรวจ', html);
+  },
   inspect(id){
     const p=DB.all().find(r=>r.id===id); if(!p) return;
     const view = p.ptype==='FSQ'?'fsq' : p.ptype==='VISIT'?'visit' : 'fqa';
