@@ -717,8 +717,9 @@ table.pdftb tr{page-break-inside:avoid}
             <div class="syncnote">
               <span style="font-size:16px;line-height:1">☁️</span>
               <div><b>รายการตรวจซิงค์อัตโนมัติผ่าน FAB Operations Hub</b><br>
-                บันทึกจากเครื่องไหนก็เห็นครบทุกเครื่อง · รูปภาพเก็บบน Google Drive ·
-                ถ้าออฟไลน์ ระบบจะเก็บไว้แล้วส่งให้เองเมื่อกลับมาออนไลน์</div>
+                บันทึกจากเครื่องไหนก็เห็นครบทุกเครื่อง · ดึงข้อมูลใหม่ให้เองทุกไม่กี่วินาทีและทุกครั้งที่กลับเข้าแอป ·
+                รูปภาพเก็บบน Google Drive · ออฟไลน์ก็บันทึกได้ แล้วส่งให้เองเมื่อกลับมาออนไลน์<br>
+                <span style="color:var(--text3)">ปุ่มด้านล่างใช้เมื่ออยากซิงค์ทันที ไม่จำเป็นต้องกดเอง</span></div>
             </div>
             <div style="margin-top:14px"><button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button></div>
           </div>
@@ -1143,11 +1144,32 @@ const Cloud = {
     });
   },
 
-  /* เปิดแอป — ดึงก่อน แล้วส่งคิวที่ค้าง */
+  /* ดึง+ส่ง แล้ววาดหน้าใหม่ถ้ามีการเปลี่ยน (ไม่รบกวนตอนกำลังกรอกฟอร์ม) */
+  refresh(){
+    if(!this.enabled() || !navigator.onLine || this.syncing) return Promise.resolve();
+    return this.pull().then(changed=>{
+      if(changed){
+        if(App.view==='dash') Dash.render();
+        else if(App.view==='list') Rec.render();
+        else if(App.view==='io') IO.stats();
+      }
+      return this.flush();
+    });
+  },
+  AUTO_MS: 45000,   // ดึงข้อมูลใหม่จากเครื่องอื่นทุก 45 วินาที
+  startAuto(){
+    if(this._timer) return;
+    this._timer=setInterval(()=>this.refresh(), this.AUTO_MS);
+    /* สลับกลับมาที่แอป / โฟกัสหน้าต่าง = ซิงค์ทันที ไม่ต้องรอรอบ */
+    document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) this.refresh(); });
+    window.addEventListener('focus', ()=>this.refresh());
+  },
+
+  /* เปิดแอป — ดึงก่อน แล้วส่งคิวที่ค้าง + เริ่มซิงค์อัตโนมัติ */
   boot(){
     if(!this.enabled()){ this.setStatus('local'); return; }
     if(!this._bound){
-      window.addEventListener('online', ()=>{ this.setStatus('syncing'); this.flush(); });
+      window.addEventListener('online', ()=>{ this.setStatus('syncing'); this.refresh(); });
       window.addEventListener('offline', ()=>this.setStatus('offline'));
       this._bound=true;
     }
@@ -1156,6 +1178,7 @@ const Cloud = {
       if(changed){ Dash.render(); if(App.view==='list') Rec.render(); }
       return this.flush();
     });
+    this.startAuto();
   },
 
   /* ---------- ตัวบอกสถานะบนหน้าจอ ---------- */
