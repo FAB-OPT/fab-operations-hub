@@ -370,8 +370,22 @@ body.not-admin #botnav [data-v="master"]{display:none}
 .filtercard.open .filttog .car{transform:rotate(180deg)}
 
 /* ---------- เอกสาร PDF (วาดนอกจอ · โทนสว่างเสมอ ไม่อิงธีมหน้าจอ) ---------- */
-.pdfdoc{position:fixed;left:0;top:0;width:820px;z-index:-1;pointer-events:none}
-.pdfdoc .pdfpage{width:820px;background:#fff;color:#111;font-family:'Sarabun',sans-serif;font-size:12.5px;line-height:1.55;padding:4px 2px}
+.printhost{display:none}
+.pdfdoc{width:760px;margin:0 auto}
+.pdfdoc .pdfpage{width:100%;background:#fff;color:#111;font-family:'Sarabun',sans-serif;font-size:12.5px;line-height:1.55;padding:4px 2px}
+/* พิมพ์เป็น PDF ด้วยเบราว์เซอร์ — ซ่อนหน้าจอแอป แสดงเฉพาะเอกสาร (ข้อความไทยวาดถูกต้อง) */
+@media screen{.printhost{display:none!important}}
+@media print{
+  @page{size:A4 portrait;margin:12mm}
+  html,body{background:#fff!important;margin:0!important;padding:0!important}
+  body>*:not(.printhost){display:none!important}
+  .printhost{display:block!important}
+  .printhost .pdfdoc{width:auto!important;margin:0!important}
+  .printhost .pdfpage{width:auto!important;padding:0!important;box-shadow:none!important;margin:0!important}
+  .pdftb tr,.pdfsec,.pdfcard,.pdfsign,figure{page-break-inside:avoid}
+  h1,h2{page-break-after:avoid}
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+}
 .pdfdoc h1{font-size:21px;font-weight:800;color:#111;letter-spacing:normal;margin:2px 0 0}
 .pdfdoc h2{font-size:13.5px;font-weight:800;color:#111;letter-spacing:normal;margin:0 0 7px;padding-bottom:5px;border-bottom:1.5px solid #D6142B}
 .pdfhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111;padding-bottom:11px;margin-bottom:15px}
@@ -2582,21 +2596,10 @@ const Plan = {
    ======================================================================= */
 /* =======================================================================
    PDF — ส่งออกเป็นไฟล์ PDF (ใบตรวจรายฉบับ / ตารางสรุป / แดชบอร์ด)
-   วาดเอกสารด้วย HTML โทนสว่างเสมอ แล้วให้ html2pdf แปลงเป็นไฟล์
+   วาดเอกสารด้วย HTML โทนสว่าง แล้วใช้ระบบพิมพ์ของเบราว์เซอร์ (Save as PDF)
+   → ข้อความไทยถูกต้องเสมอ, คมชัด, คัดลอกได้, ไฟล์เล็ก
    ======================================================================= */
 const PDF = {
-  CDN:'https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js',
-  lib(){
-    return new Promise((res,rej)=>{
-      if(window.html2pdf) return res(window.html2pdf);
-      const s=document.createElement('script');
-      s.src=this.CDN;
-      s.onload=()=>res(window.html2pdf);
-      s.onerror=()=>rej(new Error('โหลดไลบรารี PDF ไม่สำเร็จ — ต้องเชื่อมต่ออินเทอร์เน็ตครั้งแรก (ใช้ปุ่มพิมพ์แทนได้)'));
-      document.head.appendChild(s);
-    });
-  },
-
   /* กรอบเอกสาร A4 โทนสว่าง — ไม่อิงธีมของหน้าจอ เพื่อให้ PDF อ่านง่ายเสมอ */
   wrap(title, sub, body){
     return `<div class="pdfpage">
@@ -2613,48 +2616,28 @@ const PDF = {
     </div>`;
   },
 
-  /* วาดลงกล่องนอกจอ → แปลงเป็นไฟล์ → เก็บกวาด
-     รับ blob เองแทน .save() เพื่อคุมการดาวน์โหลดบน iOS ได้ */
-  render(html, filename, opt){
-    App.toast('กำลังสร้างไฟล์ PDF...');
-    return this.lib().then(async html2pdf=>{
-      const width=(opt&&opt.docWidth)||715;
-      const host=document.createElement('div');
-      host.className='pdfdoc';
-      host.style.width=width+'px';
-      host.innerHTML=html;
-      document.body.appendChild(host);
-      host.firstElementChild.style.width=width+'px';
-      /* รอฟอนต์ตัวหนา Sarabun โหลดจริงก่อนแปลง — กันสระ/วรรณยุกต์ไทยลอยจากการ faux-bold */
-      try{ await Promise.all([document.fonts.load('800 21px Sarabun'),document.fonts.load('700 12px Sarabun'),document.fonts.load('400 12px Sarabun')]); await document.fonts.ready; }catch(_){ }
-      const o=Object.assign({
-        margin:[10,10,12,10],
-        filename,
-        image:{type:'jpeg',quality:0.95},
-        jsPDF:{unit:'mm',format:'a4',orientation:'portrait'},
-        pagebreak:{mode:['css','legacy']}
-      }, opt||{});
-      o.html2canvas=Object.assign({scale:3,useCORS:true,backgroundColor:'#FFFFFF'}, o.html2canvas||{}, {windowWidth:width, x:0, y:0, scrollX:0, scrollY:0});
-      delete o.docWidth;
-      return html2pdf().set(o).from(host.firstElementChild).outputPdf('blob')
-        .then(blob=>{ host.remove(); this.save(blob,filename); })
-        .catch(e=>{ host.remove(); throw e; });
-    }).catch(e=>App.toast(e.message||'สร้าง PDF ไม่สำเร็จ'));
-  },
-  /* iOS Safari บางรุ่นไม่ดาวน์โหลด blob ตรงๆ → เปิดแท็บใหม่ให้กดแชร์/บันทึกลง Files แทน */
-  save(blob, filename){
-    const url=URL.createObjectURL(blob);
-    const a=document.createElement('a');
-    const canDownload='download' in a && !/iP(hone|od)/.test(navigator.userAgent);
-    if(canDownload){
-      a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove();
-      setTimeout(()=>URL.revokeObjectURL(url),4000);
-      App.toast('บันทึกไฟล์ PDF แล้ว');
-    }else{
-      const w=window.open(url,'_blank');
-      App.toast(w? 'เปิดไฟล์ PDF แล้ว — กดปุ่มแชร์เพื่อบันทึกลงเครื่อง' : 'เบราว์เซอร์บล็อกการเปิดไฟล์ — อนุญาตป๊อปอัปแล้วลองใหม่');
-      setTimeout(()=>URL.revokeObjectURL(url),60000);
-    }
+  /* สร้าง PDF ด้วยระบบพิมพ์ของเบราว์เซอร์ (Save as PDF)
+     เบราว์เซอร์วาดข้อความไทยด้วยตัวเอง → สระ/วรรณยุกต์ถูกต้องเสมอ, ตัวหนังสือคมชัด,
+     คัดลอกได้, ไฟล์เล็ก และกราฟ/รูปคมกว่าการแปลงเป็นภาพ */
+  render(html, filename){
+    const host=document.createElement('div');
+    host.className='printhost';
+    host.innerHTML=`<div class="pdfdoc">${html}</div>`;
+    document.body.appendChild(host);
+    const oldTitle=document.title;
+    document.title=(filename||'report').replace(/\.pdf$/i,'');
+    let cleaned=false;
+    const cleanup=()=>{ if(cleaned) return; cleaned=true; host.remove(); document.title=oldTitle; window.removeEventListener('afterprint',cleanup); };
+    window.addEventListener('afterprint',cleanup);
+    const fontsReady=(document.fonts&&document.fonts.ready)?document.fonts.ready:Promise.resolve();
+    return fontsReady.then(()=>{
+      App.toast('เปิดหน้าต่างบันทึก PDF — เลือกปลายทางเป็น "บันทึกเป็น PDF / Save as PDF"');
+      setTimeout(()=>{
+        try{ window.print(); }
+        catch(e){ App.toast('เบราว์เซอร์ไม่รองรับการพิมพ์'); cleanup(); return; }
+        setTimeout(cleanup, 60000); /* เผื่อ afterprint ไม่ทำงานบางเบราว์เซอร์ */
+      }, 150);
+    });
   },
 
   name(kind){ return `FQA_${kind}_${IO.bTag()}_${IO.stamp()}.pdf`; },
