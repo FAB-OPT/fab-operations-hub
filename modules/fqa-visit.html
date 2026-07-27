@@ -415,9 +415,25 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfphotos figure{margin:0;border:1px solid #E5E5E5;border-radius:7px;overflow:hidden;page-break-inside:avoid}
 .pdfphotos img{width:100%;height:120px;object-fit:cover;display:block}
 .pdfphotos figcaption{font-size:10px;padding:5px 7px;color:#555}
-.pdfsign{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:26px;page-break-inside:avoid}
+.pdfsign{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:30px;page-break-inside:avoid}
 .pdfsign div{text-align:center;font-size:11px;color:#555}
 .pdfsign span{display:block;border-bottom:1px dotted #888;height:34px;margin-bottom:5px}
+/* ---- ใบตรวจรายฉบับ: กล่องข้อมูล / ชิป / แถวไม่ผ่าน (ปรับเลย์เอาต์) ---- */
+.pdfinfo{border:1px solid #E3E3E3;border-radius:11px;overflow:hidden;margin-bottom:17px}
+.pdfinfo .pi-top{display:flex;justify-content:space-between;align-items:center;gap:12px;background:#FAFAFA;padding:11px 15px;border-bottom:1px solid #EDEDED}
+.pdfinfo .pi-branch{font-size:14.5px;font-weight:800;color:#111}
+.pdfinfo .pi-branch small{display:block;font-size:10px;font-weight:600;color:#999;margin-top:1px}
+.pdfinfo .pi-badge{font-size:11px;font-weight:800;padding:5px 13px;border-radius:999px;white-space:nowrap}
+.pdfinfo .pi-badge.ok{background:#ECFDF3;color:#16A34A;border:1px solid #B7EBC6}
+.pdfinfo .pi-badge.no{background:#FEF2F2;color:#DC2626;border:1px solid #F6C9C9}
+.pdfinfo .pi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px;padding:13px 15px}
+.pdfinfo .pi-grid .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.pdfinfo .pi-grid .kv b{font-size:12.5px;font-weight:700;color:#111}
+.pdfchips{display:flex;flex-wrap:wrap;gap:6px}
+.pdfchips span{background:#F3F4F6;border:1px solid #E5E7EB;color:#374151;font-size:11px;font-weight:600;padding:3px 11px;border-radius:6px}
+table.pdftb tr.rowbad td{background:#FEF6F6}
+table.pdftb td.c{text-align:center;white-space:nowrap}
+.pdflabel{font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin:0 0 3px;font-weight:700}
 .pdfcard{border:1px solid #E5E5E5;border-radius:9px;padding:13px 15px;margin-bottom:12px;page-break-inside:avoid}
 .pdfkpi{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 .pdfkpi .kpi{border:1px solid #E5E5E5;border-radius:8px;padding:11px 13px;box-shadow:none;background:#fff}
@@ -2873,33 +2889,51 @@ const PDF = {
     const kv=(k,v)=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v||'—')}</b></div>`;
     const sec=(t,b)=>`<div class="pdfsec"><h2>${esc(t)}</h2>${b}</div>`;
     const pill=v=>`<span class="pd-pill ${v==='ผ่าน'?'ok':v==='ไม่ผ่าน'?'no':'na'}">${esc(v||'—')}</span>`;
-    const tbl=(head,rows)=>`<table class="pdftb"><thead><tr>${head.map(h=>`<th>${esc(h)}</th>`).join('')}</tr></thead>
+    /* ตารางแบบกำหนดความกว้างคอลัมน์ + ไฮไลต์แถวไม่ผ่าน */
+    const tbl=(cols,rows)=>`<table class="pdftb">
+      <colgroup>${cols.map(c=>`<col style="width:${c.w}">`).join('')}</colgroup>
+      <thead><tr>${cols.map(c=>`<th${c.c?' class="c"':''}>${esc(c.h)}</th>`).join('')}</tr></thead>
       <tbody>${rows.join('')}</tbody></table>`;
+    const bad = c => (c==='ไม่ผ่าน');
 
-    let b=`<div class="kvgrid">${kv('วันที่',r.date)}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}
-      ${kv('สาขา',r.branch)}${kv('ผู้จัดการเขต',r.bzm)}</div>`;
+    /* ---- กล่องข้อมูลการตรวจ ---- */
+    const fails=failCount(r);
+    const badge = fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`;
+    let b=`<div class="pdfinfo">
+      <div class="pi-top">
+        <div class="pi-branch">${esc(r.branch||'—')}<small>${esc(r.bzm||'')}</small></div>
+        ${badge}
+      </div>
+      <div class="pi-grid">
+        ${kv('วันที่',r.date)}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}
+      </div>
+    </div>`;
 
     if(r.type==='FQA'){
       if((r.materials||[]).length)
-        b+=sec('วัตถุดิบที่สุ่มตรวจ',`<p class="pdftext">${esc(r.materials.join(' · '))}</p>`);
+        b+=sec('วัตถุดิบที่สุ่มตรวจ',`<div class="pdfchips">${r.materials.map(m=>`<span>${esc(m)}</span>`).join('')}</div>`);
       const cs=r.checks.filter(c=>c.result||c.detail);
-      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(['รายการตรวจ','ผล','สิ่งที่พบ','การแก้ไข'],
-        cs.map(c=>`<tr><td>${esc(c.item)}</td><td>${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
+      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(
+        [{h:'รายการตรวจ',w:'26%'},{h:'ผล',w:'12%',c:1},{h:'สิ่งที่พบ',w:'31%'},{h:'การแก้ไข',w:'31%'}],
+        cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
       const mm=(r.menus||[]).filter(m=>m.menu);
-      if(mm.length) b+=sec('สุ่มเมนู', tbl(['เมนู','ขั้นตอนการปรุง','หน้าตา/รสชาติ','สิ่งที่พบ','การแก้ไข'],
-        mm.map(m=>`<tr><td>${esc(m.menu)}</td><td>${pill(m.cook)}</td><td>${pill(m.taste)}</td><td>${esc(m.detail)}</td><td>${esc(m.fix)}</td></tr>`)));
+      if(mm.length) b+=sec('สุ่มเมนู', tbl(
+        [{h:'เมนู',w:'18%'},{h:'การปรุง',w:'12%',c:1},{h:'หน้าตา/รสชาติ',w:'14%',c:1},{h:'สิ่งที่พบ',w:'28%'},{h:'การแก้ไข',w:'28%'}],
+        mm.map(m=>`<tr class="${bad(m.cook)||bad(m.taste)?'rowbad':''}"><td>${esc(m.menu)}</td><td class="c">${pill(m.cook)}</td><td class="c">${pill(m.taste)}</td><td>${esc(m.detail)}</td><td>${esc(m.fix)}</td></tr>`)));
     }
     if(r.type==='FSQ'){
       b+=sec('รายละเอียด Complaint',
-        `<p class="pdftext">${esc(r.complaint)}</p>
-         <div class="kvgrid">${kv('เมนูที่เกี่ยวข้อง',r.menu)}${kv('ประเภท',/อื่น/.test(r.category)?(r.categoryOther||r.category):r.category)}
+        `<p class="pdflabel">เรื่องที่ลูกค้าร้องเรียน</p><p class="pdftext" style="margin-bottom:12px">${esc(r.complaint)}</p>
+         <div class="pi-grid" style="padding:0;grid-template-columns:repeat(4,1fr)">${kv('เมนูที่เกี่ยวข้อง',r.menu)}${kv('ประเภท',/อื่น/.test(r.category)?(r.categoryOther||r.category):r.category)}
          ${kv('ช่องทาง',r.channel)}${kv('ความรุนแรง',r.severity)}</div>`);
-      b+=sec('แนวทางการแก้ไข', tbl(['ปัญหาที่พบ','การแก้ไขเบื้องต้น','สาเหตุ','การป้องกัน','ข้อแนะนำ'],
+      b+=sec('แนวทางการแก้ไข', tbl(
+        [{h:'ปัญหาที่พบ',w:'22%'},{h:'การแก้ไขเบื้องต้น',w:'20%'},{h:'สาเหตุ',w:'19%'},{h:'การป้องกัน',w:'20%'},{h:'ข้อแนะนำ',w:'19%'}],
         r.issues.map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`)));
     }
     if(r.type==='VISIT'){
-      b+=sec('ประเภทการเข้าพบ',`<p class="pdftext">${esc(r.visitType)}</p>`);
-      b+=sec('หัวข้อการอบรม', tbl(['หัวข้อ','ปัญหาที่พบ','ข้อแนะนำ'],
+      b+=sec('ประเภทการเข้าพบ',`<div class="pdfchips"><span>${esc(r.visitType||'—')}</span></div>`);
+      b+=sec('หัวข้อการอบรม', tbl(
+        [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
     }
     if((r.photos||[]).length)
