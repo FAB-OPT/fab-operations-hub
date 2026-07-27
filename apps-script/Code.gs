@@ -655,10 +655,22 @@ function getExamResults() {
    (กัน JSON เกินลิมิต 50,000 ตัวอักษร/ช่องของ Google Sheets) */
 var FQA_HEADERS = ['id','brand','type','date','branch','updatedAt','json'];
 
+var FQA_DEL_HEADERS = ['id','deletedAt'];
+
+/* รายการ id ที่ถูกลบ (tombstone) — ให้ทุกเครื่องลบตามแบบเด็ดขาด ไม่เด้งกลับ */
+function _fqaDeletedIds() {
+  var sh = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
+  var values = sh.getDataRange().getValues();
+  var ids = [];
+  for (var i = 1; i < values.length; i++) { if (values[i][0]) ids.push(String(values[i][0])); }
+  return ids;
+}
+
 function getFqaRecords(brand) {
   var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
   var values = sh.getDataRange().getValues();
-  if (values.length < 2) return { ok: true, records: [] };
+  var deleted = _fqaDeletedIds();
+  if (values.length < 2) return { ok: true, records: [], deleted: deleted };
   var headers = values[0].map(function(h){ return String(h).trim(); });
   var brandCol = headers.indexOf('brand'), jsonCol = headers.indexOf('json');
   var records = [];
@@ -668,7 +680,7 @@ function getFqaRecords(brand) {
     if (!raw) continue;
     try { records.push(JSON.parse(raw)); } catch (e) {}
   }
-  return { ok: true, records: records };
+  return { ok: true, records: records, deleted: deleted };
 }
 
 function _fqaToRow(rec, headers) {
@@ -695,6 +707,7 @@ function saveFqaRecord(rec) {
     var headers = values[0].map(function(h){ return String(h).trim(); });
     var idCol = headers.indexOf('id');
     var rowArr = _fqaToRow(rec, headers);
+    _removeFqaTombstone(rec.id);   // บันทึกใหม่ด้วย id เดิม = ยกเลิกสถานะลบ (กันโดนลบซ้ำ)
     for (var i = 1; i < values.length; i++) {
       if (String(values[i][idCol]) === String(rec.id)) {
         sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
@@ -716,10 +729,26 @@ function deleteFqaRecord(id) {
     var headers = values[0].map(function(h){ return String(h).trim(); });
     var idCol = headers.indexOf('id');
     for (var i = values.length - 1; i >= 1; i--) {
-      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); return { ok: true }; }
+      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); }
     }
-    return { ok: true, notFound: true };
+    _addFqaTombstone(id);   // จำ id ที่ลบไว้ ให้เครื่องอื่นลบตาม ไม่เด้งกลับ
+    return { ok: true };
   } finally { lock.releaseLock(); }
+}
+
+/* บันทึก tombstone (กันซ้ำ) */
+function _addFqaTombstone(id) {
+  var ts = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
+  var tv = ts.getDataRange().getValues();
+  for (var j = 1; j < tv.length; j++) { if (String(tv[j][0]) === String(id)) return; }
+  ts.appendRow([String(id), new Date().toISOString()]);
+}
+
+/* ลบ tombstone ออก (เมื่อมีการบันทึก id เดิมใหม่) */
+function _removeFqaTombstone(id) {
+  var ts = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
+  var tv = ts.getDataRange().getValues();
+  for (var j = tv.length - 1; j >= 1; j--) { if (String(tv[j][0]) === String(id)) ts.deleteRow(j + 1); }
 }
 
 /* รูปประกอบการตรวจ → เก็บใน Drive folder "FQA Photos" → คืน URL แบบดูได้สาธารณะ */

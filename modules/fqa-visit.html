@@ -1186,6 +1186,7 @@ const Cloud = {
       .then(res=>{
         if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
         const cloudIds=new Set(res.records.map(r=>r&&r.id).filter(Boolean));
+        const deletedIds=new Set(Array.isArray(res.deleted)? res.deleted.map(String) : []);  // tombstone จากเซิร์ฟเวอร์
         const pend=new Set(this.queue().map(x=>x.id));
         const pendingDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
         const seen=this.synced();
@@ -1193,15 +1194,20 @@ const Cloud = {
         let changed=false;
         /* 1) รวมของจาก cloud (ใหม่กว่าชนะ) + จำว่า id นี้อยู่บน cloud แล้ว */
         res.records.forEach(cr=>{
-          if(!cr || !cr.id || pendingDel.has(cr.id)) return;      // กำลังจะลบ → ไม่ดึงกลับ
+          if(!cr || !cr.id || pendingDel.has(cr.id) || deletedIds.has(cr.id)) return;   // กำลังจะลบ/ถูกลบแล้ว → ไม่ดึงกลับ
           const lr=byId[cr.id];
           if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
           seen.add(cr.id);
         });
         /* 2) รายการในเครื่องที่หายไปจาก cloud */
         DB.all().forEach(r=>{
-          if(!r || !r.id || cloudIds.has(r.id) || pend.has(r.id)) return;
-          if(seen.has(r.id)){ delete byId[r.id]; changed=true; }   // เคยอยู่บน cloud แต่หายไป = ถูกลบจากอีกเครื่อง → ลบตาม
+          if(!r || !r.id) return;
+          if(deletedIds.has(r.id)){                                 // มี tombstone = ถูกลบแน่นอน → ลบตาม ไม่มีวันเด้งกลับ
+            if(byId[r.id]){ delete byId[r.id]; changed=true; }
+            return;
+          }
+          if(cloudIds.has(r.id) || pend.has(r.id)) return;
+          if(seen.has(r.id)){ delete byId[r.id]; changed=true; }    // สำรอง (เผื่อเซิร์ฟเวอร์ยังไม่อัปเดต tombstone)
           else this.enqueue('save', r.id);                          // ยังไม่เคยส่งขึ้น (เก่า/ออฟไลน์) → ส่งขึ้น
         });
         this.saveSynced(seen);
