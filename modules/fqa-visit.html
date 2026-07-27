@@ -548,6 +548,17 @@ table.pdftb tr{page-break-inside:avoid}
   body{background:#fff}
   .card{box-shadow:none;break-inside:avoid}
 }
+/* ---------- กล่องยืนยัน (แทน confirm ของเบราว์เซอร์) ---------- */
+.cfm{position:fixed;inset:0;z-index:2000;display:none;align-items:center;justify-content:center;padding:20px}
+.cfm.on{display:flex}
+.cfm-scrim{position:absolute;inset:0;background:rgba(18,18,22,.55)}
+.cfm-box{position:relative;background:var(--surface);border:1px solid var(--border);border-radius:18px;max-width:400px;width:100%;padding:26px 24px 20px;box-shadow:0 24px 60px rgba(0,0,0,.32);text-align:center;animation:cfmpop .16s ease}
+@keyframes cfmpop{from{transform:scale(.93);opacity:0}to{transform:scale(1);opacity:1}}
+.cfm-ic{font-size:40px;line-height:1;margin-bottom:10px}
+.cfm-title{font-size:19px;font-weight:800;color:var(--text);margin-bottom:8px}
+.cfm-msg{font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:22px}
+.cfm-act{display:flex;gap:10px}
+.cfm-act .btn{flex:1;justify-content:center;padding:12px 10px;font-size:15px;font-weight:800}
 </style>
 </head>
 <body>
@@ -591,9 +602,12 @@ table.pdftb tr{page-break-inside:avoid}
       <button class="nav" data-v="fsq"><span class="ic">!</span> FSQ กรณี Complaint</button>
       <button class="nav" data-v="visit"><span class="ic">◎</span> ฟอร์ม Visit</button>
 
+      <div class="navgrp">รายงานและข้อมูล</div>
+      <button class="nav" data-v="report"><span class="ic">📄</span> ออกรายงาน</button>
+      <button class="nav" data-v="io"><span class="ic">⬆</span> นำเข้าข้อมูล</button>
+
       <div class="navgrp">ตั้งค่า</div>
       <button class="nav" data-v="master"><span class="ic">🔒</span> จัดการฐานข้อมูล</button>
-      <button class="nav" data-v="io"><span class="ic">⇅</span> นำเข้า / ส่งออก</button>
     </div>
 
     <div class="side-foot">
@@ -756,37 +770,38 @@ table.pdftb tr{page-break-inside:avoid}
         <div class="card" style="margin-top:14px"><div class="bd" id="mBodyPane" style="padding:0"></div></div>
       </section>
 
-      <!-- ---------- IMPORT / EXPORT ---------- -->
-      <section class="view" id="v-io">
-        <!-- ซิงค์: สถานะเด่นบนสุด -->
-        <div class="synccard" id="ioSyncCard">
-          <div class="sc-ic">☁️</div>
-          <div class="sc-body">
-            <div class="sc-title">ซิงค์ข้ามอุปกรณ์อัตโนมัติ</div>
-            <div class="sc-sub">บันทึกจากเครื่องไหนก็เห็นครบทุกเครื่อง · รูปภาพเก็บบน Google Drive · ออฟไลน์ก็บันทึกได้แล้วส่งให้เองเมื่อออนไลน์</div>
-            <div class="sc-status" id="ioSync">—</div>
-          </div>
-          <button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button>
+      <!-- ---------- REPORT (ออกรายงาน) ---------- -->
+      <section class="view" id="v-report">
+        <div class="dsec"><span>รายงาน PDF</span></div>
+        <div class="iogrid">
+          <button class="iotile" onclick="PDF.summary()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>ตารางสรุปรายการตรวจ</b><span>ตามตัวกรองในหน้ารายการตรวจ</span></div></button>
+          <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>รายงานภาพรวม (แดชบอร์ด)</b><span>ตามช่วงเวลาที่เลือกในหน้าแดชบอร์ด</span></div></button>
         </div>
 
-        <!-- นำออก (ส่งออกเป็นไฟล์) -->
-        <div class="iohead out"><span class="io-dir">⬇ นำออก</span><b>ส่งข้อมูลออกเป็นไฟล์</b><span>ดาวน์โหลดเก็บไว้ / เปิดในโปรแกรมอื่น</span></div>
+        <div class="dsec"><span>ตาราง (Excel / CSV)</span></div>
         <div class="iogrid">
-          <button class="iotile" onclick="IO.exportXlsx()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel</b><span>ทุกฟอร์มแยกชีต · เอาไปทำ Pivot</span></div></button>
-          <button class="iotile" onclick="PDF.summary()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>PDF ตารางสรุป</b><span>ตามตัวกรองหน้ารายการตรวจ</span></div></button>
-          <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>PDF แดชบอร์ด</b><span>รายงานภาพรวมตามช่วงที่เลือก</span></div></button>
+          <button class="iotile" onclick="IO.exportXlsx()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel — ทุกฟอร์มแยกชีต</b><span>เอาไปทำ Pivot / วิเคราะห์ต่อ</span></div></button>
+          <button class="iotile" onclick="IO.exportCsv()"><span class="io-ic" style="background:#2E7D32;">CSV</span><div><b>CSV — ตารางสรุป</b><span>เปิดในโปรแกรมตารางทั่วไป</span></div></button>
+        </div>
+
+        <div class="dsec"><span>สำรองข้อมูล (Backup)</span></div>
+        <div class="iogrid">
           <button class="iotile" onclick="IO.exportJson()"><span class="io-ic" style="background:#455A64;">JSON</span><div><b>สำรองข้อมูลทั้งหมด</b><span>กันข้อมูลหาย · รวมรูปภาพ</span></div></button>
-          <button class="iotile" onclick="IO.exportCsv()"><span class="io-ic" style="background:#2E7D32;">CSV</span><div><b>CSV</b><span>ตารางสรุปรายการตรวจ</span></div></button>
           <button class="iotile" onclick="IO.exportMaster()"><span class="io-ic" style="background:#607D8B;">JSON</span><div><b>เฉพาะข้อมูลหลัก</b><span>ผู้ตรวจ วัตถุดิบ เมนู</span></div></button>
         </div>
+        <p class="hint" style="margin-top:14px">อยากได้ PDF ใบตรวจรายฉบับ? เปิดรายการนั้นในหน้า "รายการตรวจทั้งหมด" แล้วกดปุ่มบันทึก PDF</p>
+      </section>
 
-        <!-- นำเข้า (เอาไฟล์เข้าระบบ) -->
-        <div class="iohead in"><span class="io-dir">⬆ นำเข้า</span><b>เอาไฟล์เข้าระบบ (กู้คืน)</b><span>ใช้ไฟล์สำรอง .json หรือ .xlsx ที่เคยส่งออก</span></div>
+      <!-- ---------- IMPORT (นำเข้าข้อมูล) ---------- -->
+      <section class="view" id="v-io">
+        <div class="dsec"><span>นำเข้าผลตรวจเดิม</span></div>
         <div class="card"><div class="bd">
+          <p style="margin:0 0 14px;color:var(--text2);font-size:13.5px;line-height:1.6">นำผลตรวจเดิม (ที่บันทึกไว้ก่อนเริ่มใช้ระบบ) เข้ามาเก็บในระบบ<br><b>ขั้นตอน:</b> ดาวน์โหลดเทมเพลต → กรอกข้อมูลใน Excel → อัปโหลดไฟล์กลับเข้ามา</p>
+          <button class="btn pri" style="margin-bottom:16px" onclick="IO.template()">⬇ ดาวน์โหลดเทมเพลต (Excel)</button>
           <div class="drop" onclick="document.getElementById('impFile').click()">
             <div style="font-size:28px;margin-bottom:6px">⬆️</div>
             <b style="font-size:15px;color:var(--text)">คลิกเพื่อเลือกไฟล์นำเข้า</b>
-            <div style="margin-top:3px;font-size:12.5px">รองรับ .json (ไฟล์สำรอง) หรือ .xlsx</div>
+            <div style="margin-top:3px;font-size:12.5px">ไฟล์เทมเพลต .xlsx ที่กรอกแล้ว (หรือไฟล์สำรอง .json)</div>
           </div>
           <input type="file" id="impFile" accept=".json,.xlsx,.xls" style="display:none" onchange="IO.importFile(this)">
           <div class="fld" style="margin-top:14px;max-width:420px"><label class="lbl">วิธีรวมข้อมูลกับของเดิม</label>
@@ -796,7 +811,6 @@ table.pdftb tr{page-break-inside:avoid}
             </select></div>
         </div></div>
 
-        <!-- ข้อมูลในระบบ -->
         <div class="dsec"><span>ข้อมูลในระบบ</span></div>
         <div class="grid g3" id="ioStats"></div>
         <div class="card" style="border-color:var(--red-light)"><div class="bd">
@@ -806,7 +820,7 @@ table.pdftb tr{page-break-inside:avoid}
             <button class="btn dgr" onclick="IO.resetMaster()">คืนค่าข้อมูลหลักเป็นค่าตั้งต้น</button>
             <button class="btn dgr" onclick="IO.wipe()">ล้างข้อมูลทั้งหมด</button>
           </div>
-          <p class="hint">แนะนำให้ดาวน์โหลดไฟล์สำรอง (.json) ก่อนล้างข้อมูลทุกครั้ง</p>
+          <p class="hint">แนะนำให้ไปที่เมนู "ออกรายงาน" ดาวน์โหลดไฟล์สำรอง (.json) ก่อนล้างข้อมูลทุกครั้ง</p>
         </div></div>
       </section>
 
@@ -821,6 +835,15 @@ table.pdftb tr{page-break-inside:avoid}
   <button class="btn sm gho" onclick="App.closeModal()">ปิด</button></div>
   <div class="mb" id="mBody"></div></div></div>
 <div class="zoom" id="zoom" onclick="this.classList.remove('on')"><img id="zoomImg" alt=""></div>
+<div class="cfm" id="cfm">
+  <div class="cfm-scrim"></div>
+  <div class="cfm-box">
+    <div class="cfm-ic">⚠️</div>
+    <div class="cfm-title"></div>
+    <div class="cfm-msg"></div>
+    <div class="cfm-act"><button class="btn gho cfm-cancel">ยกเลิก</button><button class="btn dgr cfm-ok">ยืนยัน</button></div>
+  </div>
+</div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -985,6 +1008,52 @@ const Hub = {
   isAdmin(){ const s=this.session(); return !!(s && s.role==='admin') || this.role()==='admin'; },
   back(){ window.location.href='../index.html'; }
 };
+
+/* =======================================================================
+   สิทธิ์จาก HUB — ตั้งที่ ⚙️ → สิทธิ์ปุ่มแต่ละระบบ → 🔎 ตรวจสาขา FQA / Visit
+   · HUB ยังไม่เคยตั้ง (ไม่มี perms.fqavisit) = ไม่คุมอะไรเลย ใช้ได้เหมือนเดิม
+   · ลำดับตัดสิน: ห้ามรายคน > อนุญาตรายคน > ตำแหน่ง (เหมือนโมดูลอื่น)
+   ======================================================================= */
+const FV_PERM_KEY = 'fab_fqavisit_perms_v1';
+let FV_PERMS = null;
+/* view (data-v) → action id ในตารางสิทธิ์ของฮับ */
+const FV_VIEW_ACTION = {
+  dash:'view-dash', list:'view-list', plan:'view-plan',
+  fqa:'form-fqa', fsq:'form-fsq', visit:'form-visit',
+  report:'view-report', io:'view-io', master:'view-master'
+};
+function fvLoadPermsCache(){
+  try{ FV_PERMS = JSON.parse(localStorage.getItem(FV_PERM_KEY) || 'null'); }catch(e){ FV_PERMS = null; }
+}
+function fvLoadPermsFromHub(){
+  return fetch(HUB_SCRIPT_URL + '?action=config&_=' + Date.now())
+    .then(r => r.json())
+    .then(res => {
+      if(res && res.ok && res.perms && res.perms.fqavisit){
+        FV_PERMS = res.perms.fqavisit;
+        try{ localStorage.setItem(FV_PERM_KEY, JSON.stringify(FV_PERMS)); }catch(e){}
+        fvApplyPerms();
+      }
+    })
+    .catch(e => console.warn('[perms] โหลดสิทธิ์จาก HUB ไม่ได้ — ใช้ค่าเดิม', e));
+}
+function fvCan(actionId){
+  if(!FV_PERMS || !actionId) return true;          // ฮับยังไม่ตั้ง = ไม่คุม
+  const p = FV_PERMS[actionId];
+  if(!p) return true;                              // ไม่ได้นิยาม action นี้ = ไม่คุม
+  const s = Hub.session() || {};
+  const code = String(s.code || '');
+  if(code && (p.deny  || []).indexOf(code) >= 0) return false;
+  if(code && (p.allow || []).indexOf(code) >= 0) return true;
+  return (p.roles || []).indexOf(s.role || Hub.role() || '') >= 0;
+}
+/* ซ่อนเมนูที่ไม่มีสิทธิ์ — เรียกซ้ำได้ทุกครั้งที่เรนเดอร์เมนูใหม่ */
+function fvApplyPerms(){
+  document.querySelectorAll('.nav[data-v], #botnav [data-v]').forEach(el => {
+    const act = FV_VIEW_ACTION[el.dataset.v];
+    el.style.display = (!act || fvCan(act)) ? '' : 'none';
+  });
+}
 
 
 /* =======================================================================
@@ -1356,7 +1425,9 @@ const App = {
     const uName=(Hub.session()&&(Hub.session().nick||Hub.session().name))||Hub.branchName()||'ผู้ใช้';
     document.getElementById('topUser').textContent = uName;
     document.querySelectorAll('.nav[data-v]').forEach(b=> b.onclick=()=>this.go(b.dataset.v));
+    fvLoadPermsCache();          // ใช้ค่าที่แคชไว้ก่อน แล้วค่อยอัปเดตจากฮับ
     this.applyPerms();
+    fvLoadPermsFromHub();
     Form.load();
     Mobile.init();
     HubBranches.boot();
@@ -1364,10 +1435,11 @@ const App = {
     Filters.init(); this.go('dash');
     if(!DB.persistent()) setTimeout(()=>this.toast('เบราว์เซอร์นี้ไม่อนุญาตให้บันทึกถาวร — ข้อมูลจะอยู่แค่ระหว่างเปิดหน้านี้'),900);
   },
-  /* ---------- สิทธิ์: "ข้อมูลหลัก" เฉพาะผู้ดูแลระบบ ---------- */
+  /* ---------- สิทธิ์: "ข้อมูลหลัก" เฉพาะผู้ดูแลระบบ + สิทธิ์รายเมนูจาก HUB ---------- */
   applyPerms(){
     const admin=Hub.isAdmin();
     document.body.classList.toggle('not-admin', !admin);   // CSS ซ่อนเมนู master ตาม class นี้
+    fvApplyPerms();                                        // ซ่อนเมนูที่ HUB ไม่ให้สิทธิ์
   },
   /* ---------- Bottom sheet (ตัวเลือกจากแถบล่างจอ — มือถือ) ---------- */
   sheet(title, items){
@@ -1387,15 +1459,17 @@ const App = {
   closeSheet(){ document.getElementById('sheet').classList.remove('on'); document.body.style.overflow=''; },
   /* ปุ่ม ＋ : เลือกชนิดฟอร์มที่จะบันทึก */
   newSheet(){ this.sheet('บันทึกการตรวจแบบใด', [
-    {icon:'✓', label:'ฟอร์ม FQA', sub:'ตรวจวัตถุดิบและเมนู', run:()=>this.go('fqa')},
-    {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq')},
-    {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit')}
-  ]); },
+    {icon:'✓', label:'ฟอร์ม FQA', sub:'ตรวจวัตถุดิบและเมนู', run:()=>this.go('fqa'), v:'fqa'},
+    {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq'},
+    {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit'}
+  ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]))); },
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
   moreSheet(){
-    const items=[];
-    if(Hub.isAdmin()) items.push({icon:'🔒', label:'จัดการฐานข้อมูล', sub:'สาขา ผู้ตรวจ วัตถุดิบ เมนู (ต้องใส่รหัส)', run:()=>this.go('master')});
-    items.push({icon:'⇅', label:'นำเข้า / ส่งออก', sub:'สำรอง กู้คืน และซิงค์ข้อมูล', run:()=>this.go('io')});
+    const items=[
+      {icon:'📄', label:'ออกรายงาน', sub:'PDF · Excel · สำรองข้อมูล', run:()=>this.go('report'), v:'report'},
+      {icon:'⬆', label:'นำเข้าข้อมูล', sub:'นำผลตรวจเดิมเข้าระบบ (มีเทมเพลต)', run:()=>this.go('io'), v:'io'}
+    ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]));
+    if(Hub.isAdmin() && fvCan('view-master')) items.push({icon:'🔒', label:'จัดการฐานข้อมูล', sub:'สาขา ผู้ตรวจ วัตถุดิบ เมนู (ต้องใส่รหัส)', run:()=>this.go('master')});
     this.sheet('เพิ่มเติม', items);
   },
   /* ---------- พับ/กางการ์ดตัวกรอง ---------- */
@@ -1405,6 +1479,11 @@ const App = {
     if(v==='master'){
       if(!Hub.isAdmin()){ this.toast('เฉพาะผู้ดูแลระบบเท่านั้นที่เข้าจัดการฐานข้อมูลได้'); v='dash'; }
       else if(!Master.unlock()){ this.closeSheet(); return; }   // ต้องใส่รหัสก่อน — ยังไม่ผ่านก็อยู่หน้าเดิม
+    }
+    /* กันเข้าหน้าที่ HUB ไม่ให้สิทธิ์ (เช่นพิมพ์ URL หรือกดจาก sheet) */
+    if(v!=='dash' && !fvCan(FV_VIEW_ACTION[v])){
+      this.toast('ไม่มีสิทธิ์เข้าหน้านี้ — ติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์');
+      v='dash';
     }
     this.view=v;
     document.querySelectorAll('.nav[data-v]').forEach(b=>b.classList.toggle('on', b.dataset.v===v));
@@ -1418,16 +1497,13 @@ const App = {
       dash:'แดชบอร์ด', list:'รายการตรวจทั้งหมด',
       fqa:'แบบฟอร์มการตรวจ Food Quality Assurance (FQA)',
       fsq:'แบบฟอร์ม Food and Service Quality กรณี Complaint',
-      visit:'แบบฟอร์ม Visit', plan:'แผนการตรวจสาขา',
-      master:'จัดการฐานข้อมูล', io:'นำเข้า / ส่งออกไฟล์'
+      visit:'แบบฟอร์ม Visit', plan:'แผนการตรวจสาขา', report:'ออกรายงาน',
+      master:'จัดการฐานข้อมูล', io:'นำเข้าข้อมูล'
     }[v];
     document.getElementById('pageTitle').textContent=meta;
     const formBtns=`<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button><button class="btn pri" onclick="Form.submit()">บันทึกผลการตรวจ</button>`;
-    /* ปุ่มส่งออกโชว์เฉพาะหน้ารายงาน (แดชบอร์ด) — ที่อื่นให้ไปหน้านำเข้า/ส่งออก */
-    const actions =
-      isForm ? formBtns
-        : (v==='dash' ? `<button class="btn nomob" onclick="IO.exportXlsx()">Excel</button><button class="btn nomob" onclick="PDF.dashboard()">PDF</button>` : '');
-    document.getElementById('topActions').innerHTML = actions;
+    /* ปุ่มส่งออกทั้งหมดย้ายไปเมนู "ออกรายงาน" แล้ว — หัวจอเหลือเฉพาะปุ่มฟอร์ม */
+    document.getElementById('topActions').innerHTML = isForm? formBtns : '';
     /* มือถือ: ปุ่มฟอร์ม (ล้าง/บันทึก) ย้ายไปแถบล่างสุด */
     document.getElementById('formbar').innerHTML = isForm? formBtns : '';
     if(v==='dash') Dash.render();
@@ -1440,6 +1516,21 @@ const App = {
   },
   toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
     clearTimeout(this._tt); this._tt=setTimeout(()=>t.classList.remove('on'),3200); },
+  /* กล่องยืนยันแบบสวย (แทน window.confirm) — o={title,msg,okText,cancelText,danger,icon,onOk} */
+  confirm(o){
+    o=o||{};
+    const el=document.getElementById('cfm');
+    el.querySelector('.cfm-ic').textContent=o.icon||'⚠️';
+    el.querySelector('.cfm-title').textContent=o.title||'ยืนยัน';
+    el.querySelector('.cfm-msg').innerHTML=String(o.msg||'').split('\n').map(esc).join('<br>');
+    const ok=el.querySelector('.cfm-ok'), cx=el.querySelector('.cfm-cancel'), scrim=el.querySelector('.cfm-scrim');
+    ok.textContent=o.okText||'ยืนยัน';
+    ok.className='btn cfm-ok '+(o.danger===false?'pri':'dgr');
+    cx.textContent=o.cancelText||'ยกเลิก';
+    const done=(v)=>{ el.classList.remove('on'); document.body.style.overflow=''; ok.onclick=cx.onclick=scrim.onclick=null; if(v&&o.onOk) o.onOk(); };
+    ok.onclick=()=>done(true); cx.onclick=()=>done(false); scrim.onclick=()=>done(false);
+    el.classList.add('on'); document.body.style.overflow='hidden';
+  },
   modal(title, html, recId){
     document.getElementById('mTitle').textContent=title;
     document.getElementById('mBody').innerHTML=html;
@@ -1513,8 +1604,8 @@ const Form = {
     const old={}; d.checks.forEach(c=>old[c.item]=c);
     d.checks=M.list('fqaItems').map(i=> old[i] || {item:i,result:'',detail:'',fix:''});
   },
-  reset(){ if(!confirm('ล้างข้อมูลที่กรอกไว้ในฟอร์มนี้ทั้งหมด?')) return;
-    this.drafts[this.type]=this.blank(this.type); this.render(); this.persist(); App.toast('ล้างฟอร์มแล้ว'); },
+  reset(){ App.confirm({icon:'🧹', title:'ล้างฟอร์ม', msg:'ล้างข้อมูลที่กรอกไว้ในฟอร์มนี้ทั้งหมด?', okText:'ล้างฟอร์ม', onOk:()=>{
+    this.drafts[this.type]=this.blank(this.type); this.render(); this.persist(); App.toast('ล้างฟอร์มแล้ว'); }}); },
 
   get s(){ return this.drafts[this.type]; },
 
@@ -1562,10 +1653,10 @@ const Form = {
       </div></div>`;
   },
 
-  photoBlock(n){
+  photoBlock(n, title){
     const ps=this.s.photos;
     return `<div class="card">
-      <div class="hd"><span class="sec-no">${n}</span><h3>รูปประกอบการตรวจ</h3><div class="sp"></div>
+      <div class="hd"><span class="sec-no">${n}</span><h3>${esc(title||'รูปประกอบการตรวจ')}</h3><div class="sp"></div>
         <span class="note">${ps.length} รูป · ย่อขนาดอัตโนมัติก่อนบันทึก</span></div>
       <div class="bd">
         <div class="drop" onclick="document.getElementById('phInput').click()">
@@ -1745,8 +1836,10 @@ const Form = {
       </div>
     </div>
 
+    ${this.photoBlock(3, 'แนบรูป Complaint (รูปปัญหา / หลักฐาน)')}
+
     <div class="card">
-      <div class="hd"><span class="sec-no">3</span><h3>แนวทางการแก้ไขปัญหา</h3><div class="sp"></div>
+      <div class="hd"><span class="sec-no">4</span><h3>แนวทางการแก้ไขปัญหา</h3><div class="sp"></div>
         <button class="btn sm" onclick="Form.addRow('issues')">＋ เพิ่มประเด็น</button></div>
       <div class="bd">
         ${s.issues.map((x,i)=>`
@@ -1770,8 +1863,7 @@ const Form = {
           </div>
         </div>`).join('')}
       </div>
-    </div>
-    ${this.photoBlock(4)}`;
+    </div>`;
   },
 
   /* ===== VISIT ===== */
@@ -1893,7 +1985,7 @@ const Rec = {
           <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
         </td></tr>`).join('')}</tbody></table>`;
   },
-  del(id){ if(confirm('ลบรายการตรวจนี้?')){ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); } },
+  del(id){ App.confirm({icon:'🗑', title:'ลบรายการตรวจ', msg:'ต้องการลบรายการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์ และย้อนกลับไม่ได้', okText:'ลบรายการ', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); }}); },
   edit(id){ const r=DB.all().find(x=>x.id===id); Form.open(r.type,r);
     App.go(r.type==='FQA'?'fqa':r.type==='FSQ'?'fsq':'visit'); },
   view(id){
@@ -2057,8 +2149,8 @@ const Master = {
   },
   delTrainer(i){
     const t=M.trainers()[i]; if(!t) return; const n=this.used('trainer',t);
-    if(!confirm(n?`ผู้ตรวจคนนี้มีรายการตรวจ ${n} รายการ (รายการจะยังอยู่) ยืนยันลบออกจากรายชื่อ?`:`ลบ ${t}?`)) return;
-    this.save(m=>m.trainers.splice(i,1)); App.toast('ลบผู้ตรวจแล้ว');
+    App.confirm({icon:'🗑', title:'ลบผู้ตรวจ', msg:n?`ผู้ตรวจ "${t}" มีรายการตรวจ ${n} รายการ (รายการจะยังอยู่)\nยืนยันลบออกจากรายชื่อ?`:`ลบ "${t}" ออกจากรายชื่อผู้ตรวจ?`, okText:'ลบ', onOk:()=>{
+      this.save(m=>m.trainers.splice(i,1)); App.toast('ลบผู้ตรวจแล้ว'); }});
   },
 
   /* ---------- วัตถุดิบ / เมนู ---------- */
@@ -2094,8 +2186,8 @@ const Master = {
   setRef(kind,i,k,v){ this.save(m=>m[kind][i][k]=v.trim()); },
   delRef(kind,i){
     const x=(kind==='materials'?M.materials():M.menus())[i]; if(!x) return;
-    if(!confirm(`ลบ "${x.name}" ออกจากฐานข้อมูลอ้างอิง?`)) return;
-    this.save(m=>m[kind].splice(i,1)); App.toast('ลบรายการแล้ว');
+    App.confirm({icon:'🗑', title:'ลบรายการ', msg:`ลบ "${x.name}" ออกจากฐานข้อมูลอ้างอิง?`, okText:'ลบ', onOk:()=>{
+      this.save(m=>m[kind].splice(i,1)); App.toast('ลบรายการแล้ว'); }});
   },
 
   /* ---------- ตัวเลือกในฟอร์ม ---------- */
@@ -2133,8 +2225,9 @@ const Master = {
     this.save(m=>{ const a=m.lists[k]; [a[i],a[j]]=[a[j],a[i]]; }); Form.syncChecks(); },
   delListItem(k,i){
     if(M.list(k).length<2) return App.toast('ต้องเหลืออย่างน้อย 1 ตัวเลือก');
-    if(!confirm(`ลบ "${M.list(k)[i]}"?`)) return;
-    this.save(m=>m.lists[k].splice(i,1)); Form.syncChecks(); App.toast('ลบตัวเลือกแล้ว');
+    const nm=M.list(k)[i];
+    App.confirm({icon:'🗑', title:'ลบตัวเลือก', msg:`ลบ "${nm}" ออกจากตัวเลือกในฟอร์ม?`, okText:'ลบ', onOk:()=>{
+      this.save(m=>m.lists[k].splice(i,1)); Form.syncChecks(); App.toast('ลบตัวเลือกแล้ว'); }});
   }
 };
 </script>
@@ -2585,7 +2678,7 @@ const Plan = {
   },
   setFilter(k,v){ this[k]=v; this.render(); },
 
-  del(id){ if(!confirm('ลบแผนนี้?')) return; DB.remove(id); Cloud.enqueue('delete', id); this.render(); if(App.view==='dash') Dash.render(); App.toast('ลบแผนแล้ว'); },
+  del(id){ App.confirm({icon:'🗑', title:'ลบแผนการตรวจ', msg:'ต้องการลบแผนการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์', okText:'ลบแผน', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); if(App.view==='dash') Dash.render(); App.toast('ลบแผนแล้ว'); }}); },
   inspect(id){
     const p=DB.all().find(r=>r.id===id); if(!p) return;
     const view = p.ptype==='FSQ'?'fsq' : p.ptype==='VISIT'?'visit' : 'fqa';
@@ -2831,20 +2924,57 @@ const IO = {
         const rd=new FileReader();
         rd.onload=e=>{
           const wb=XLSX.read(new Uint8Array(e.target.result),{type:'array'});
-          /* ไม่นำเข้าชีต “ข้อมูลสาขา” — รายชื่อสาขาผูกกับฮับ ให้ซิงค์จากหน้าข้อมูลหลักแทน */
-          const name=wb.SheetNames.find(n=>n.includes('สรุป'))||wb.SheetNames[0];
+          /* เลือกชีต: เทมเพลต "ผลตรวจ" ก่อน แล้วค่อยชีตสรุปจากไฟล์สำรอง */
+          const name=wb.SheetNames.find(n=>/ผลตรวจ/.test(n)) || wb.SheetNames.find(n=>n.indexOf('สรุป')>=0) || wb.SheetNames[0];
           const rows=XLSX.utils.sheet_to_json(wb.Sheets[name]);
-          const inc=rows.filter(r=>r['สาขา']&&r['เลขที่']).map(r=>{
-            const type=r['รหัสประเภท']||'FQA', base=Form.blank(type);
-            return Object.assign(base,{ id:r['เลขที่']||base.id, date:String(r['วันที่']||todayISO()).slice(0,10),
-              time:r['เวลา']||'', branch:r['สาขา'], bzm:r['ผู้จัดการเขต']||(M.branchOf(r['สาขา'])||{}).bzm||'',
-              trainer:r['ผู้ตรวจ']||'' });
-          });
-          if(inc.length) this.merge(inc,mode); else { this.stats(); Dash.render(); }
+          const inc=this.parseRows(rows);
+          if(inc.length) this.merge(inc,mode); else App.toast('ไม่พบข้อมูลในไฟล์ — ต้องมีคอลัมน์ "สาขา" และกรอกอย่างน้อย 1 แถว');
         };
         rd.readAsArrayBuffer(f);
       }).catch(err=>App.toast(err.message));
     }
+  },
+  /* แปลงแถวจาก Excel (เทมเพลตผลตรวจเดิม หรือไฟล์สำรอง) → record ในระบบ */
+  parseRows(rows){
+    const pickType=v=>{ v=String(v||'').toUpperCase(); if(v.indexOf('COMPLAINT')>=0||v==='FSQ') return 'FSQ'; if(v.indexOf('VISIT')>=0) return 'VISIT'; return 'FQA'; };
+    const col=(r,names)=>{ for(const n of names){ for(const k of Object.keys(r)){ if(String(k).replace(/\s|\(.*?\)/g,'').indexOf(n)>=0) return r[k]; } } return ''; };
+    return rows.map(r=>{
+      const branch=String(col(r,['สาขา'])||'').trim(); if(!branch) return null;
+      const type=pickType(col(r,['ประเภท','รหัสประเภท']));
+      const base=Form.blank(type);
+      const idFromFile=String(col(r,['เลขที่'])||'').trim(); if(idFromFile) base.id=idFromFile;
+      base.date=String(col(r,['วันที่'])||todayISO()).slice(0,10);
+      base.time=String(col(r,['เวลา'])||'');
+      base.branch=branch;
+      base.bzm=col(r,['ผู้จัดการเขต'])||(M.branchOf(branch)||{}).bzm||'';
+      base.trainer=String(col(r,['ผู้ตรวจ'])||'');
+      base.updatedAt=Date.now();
+      const topic=String(col(r,['หัวข้อ','เมนู'])||'').trim();
+      const found=String(col(r,['สิ่งที่พบ','รายละเอียด','Complaint'])||'').trim();
+      const fix=String(col(r,['การแก้ไข'])||'').trim();
+      if(type==='FQA'){ base.checks=[{item:topic||'รายการตรวจ', result:(found?'ไม่ผ่าน':'ผ่าน'), detail:found, fix:fix}]; if(topic) base.materials=[topic]; }
+      else if(type==='FSQ'){ base.complaint=found||topic; base.menu=topic; base.issues=[{problem:found,immediate:fix,cause:'',prevention:'',advice:''}]; }
+      else { base.topics=[{topic:topic, problem:found, advice:fix}]; }
+      return base;
+    }).filter(Boolean);
+  },
+  /* ดาวน์โหลดเทมเพลต Excel สำหรับกรอกผลตรวจเดิม */
+  template(){
+    this.lib().then(XLSX=>{
+      const H=['ประเภท (FQA/Complaint/Visit)','วันที่ (2026-07-27)','เวลา','สาขา','ผู้ตรวจ','หัวข้อ/เมนู','สิ่งที่พบ','การแก้ไข'];
+      const br=(M.branches()[0]||{}).name||'', tr=M.trainers()[0]||'';
+      const row=(t,d,tm,tp,fd,fx)=>{ const o={}; o[H[0]]=t; o[H[1]]=d; o[H[2]]=tm; o[H[3]]=br; o[H[4]]=tr; o[H[5]]=tp; o[H[6]]=fd; o[H[7]]=fx; return o; };
+      const ex=[
+        row('FQA','2026-07-01','10:00','อุณหภูมิตู้เย็น','อุณหภูมิสูงกว่ามาตรฐาน','ปรับตั้งอุณหภูมิใหม่'),
+        row('Complaint','2026-07-02','12:30','ส้มตำไทย','ลูกค้าแจ้งรสจัดเกินไป','สอนพนักงานปรุงตามสูตร'),
+        row('Visit','2026-07-03','09:00','อบรมสุขอนามัย','พนักงานยังไม่สวมถุงมือ','กำชับให้สวมทุกครั้ง')
+      ];
+      const ws=XLSX.utils.json_to_sheet(ex,{header:H});
+      ws['!cols']=H.map(h=>({wch:Math.max(14,h.length+2)}));
+      const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'ผลตรวจ');
+      XLSX.writeFile(wb,'เทมเพลตนำเข้าผลตรวจ_Visitสาขา.xlsx');
+      App.toast('ดาวน์โหลดเทมเพลตแล้ว — กรอกข้อมูลแล้วอัปโหลดกลับ');
+    }).catch(e=>App.toast(e.message));
   },
   merge(inc,mode){
     let synced=[];
@@ -2873,26 +3003,25 @@ const IO = {
     Cloud.paint();
   },
   wipeRecords(){
-    if(!confirm('ล้างรายการตรวจในเครื่องนี้?\n\n(รายการที่ซิงค์ขึ้น cloud แล้วจะไม่ถูกลบ และจะถูกดึงกลับมาเมื่อซิงค์ครั้งต่อไป — หากต้องการลบถาวรให้ลบทีละรายการ)')) return;
-    DB.setAll([]); Cloud.setQueue([]); this.stats(); Dash.render(); Rec.render(); Cloud.paint();
-    App.toast('ล้างรายการในเครื่องแล้ว'); Cloud.boot();
+    App.confirm({icon:'🧹', title:'ล้างเฉพาะรายการตรวจ', msg:'ล้างรายการตรวจในเครื่องนี้?\n(รายการที่ซิงค์ขึ้น cloud แล้วจะถูกดึงกลับเมื่อซิงค์ครั้งต่อไป — หากต้องการลบถาวรให้ลบทีละรายการ)', okText:'ล้างรายการ', onOk:()=>{
+      DB.setAll([]); Cloud.setQueue([]); this.stats(); Dash.render(); Rec.render(); Cloud.paint();
+      App.toast('ล้างรายการในเครื่องแล้ว'); Cloud.boot(); }});
   },
   resetMaster(){
-    if(!confirm('คืนค่าผู้ตรวจ วัตถุดิบ เมนู และตัวเลือกในฟอร์ม กลับเป็นค่าตั้งต้น?\n\n(รายชื่อสาขาและผู้จัดการเขตจะดึงจากฮับใหม่อีกครั้ง)')) return;
-    M.commit(defaultMaster(Brand.cur));
-    HubBranches.applyTo(HubBranches.local());
-    Form.drafts={}; Master.render(); this.stats(); Dash.render(); App.toast('คืนค่าข้อมูลหลักแล้ว');
+    App.confirm({icon:'↺', title:'คืนค่าข้อมูลหลัก', msg:'คืนค่าผู้ตรวจ วัตถุดิบ เมนู และตัวเลือกในฟอร์ม กลับเป็นค่าตั้งต้น?\n(รายชื่อสาขาและผู้จัดการเขตจะดึงจากฮับใหม่อีกครั้ง)', okText:'คืนค่า', onOk:()=>{
+      M.commit(defaultMaster(Brand.cur));
+      HubBranches.applyTo(HubBranches.local());
+      Form.drafts={}; Master.render(); this.stats(); Dash.render(); App.toast('คืนค่าข้อมูลหลักแล้ว'); }});
   },
   wipe(){
-    if(!confirm('ล้างข้อมูลทั้งหมดในเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้')) return;
-    if(!confirm('ยืนยันอีกครั้ง — คุณสำรองไฟล์ .json ไว้แล้วใช่หรือไม่?')) return;
-    DB.setAll([]); Cloud.setQueue([]); M.commit(defaultMaster(Brand.cur));
-    HubBranches.applyTo(HubBranches.local());
-    Form.drafts={}; this.stats(); Dash.render(); Rec.render(); Master.render(); Cloud.paint(); App.toast('ล้างข้อมูลเรียบร้อย');
+    App.confirm({icon:'⚠️', title:'ล้างข้อมูลทั้งหมด', msg:'ล้างข้อมูลทั้งหมดในเครื่องนี้? การกระทำนี้ย้อนกลับไม่ได้\nคุณสำรองไฟล์ .json ไว้แล้วใช่หรือไม่?', okText:'ล้างทั้งหมด', onOk:()=>{
+      DB.setAll([]); Cloud.setQueue([]); M.commit(defaultMaster(Brand.cur));
+      HubBranches.applyTo(HubBranches.local());
+      Form.drafts={}; this.stats(); Dash.render(); Rec.render(); Master.render(); Cloud.paint(); App.toast('ล้างข้อมูลเรียบร้อย'); }});
   }
 };
 
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ App.closeModal(); document.getElementById('zoom').classList.remove('on'); } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ App.closeModal(); document.getElementById('zoom').classList.remove('on'); const c=document.getElementById('cfm'); if(c.classList.contains('on')){ c.classList.remove('on'); document.body.style.overflow=''; } } });
 if(Hub.guard()) App.boot();
 </script>
 </body>
