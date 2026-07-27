@@ -245,6 +245,16 @@ table.tb tbody tr:hover{background:var(--surface2)}
 
 /* ---------- CHARTS ---------- */
 svg.ch{width:100%;height:auto;display:block;overflow:visible}
+#chMonth svg.ch{max-width:600px;margin:0 auto}
+/* การ์ดรายการตรวจ (มือถือ) */
+.reclist{display:flex;flex-direction:column;gap:11px}
+.reccard{border:1px solid var(--border);border-radius:14px;padding:14px;background:var(--surface)}
+.reccard .rc-top{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.reccard .rc-branch{flex:1;font-size:15px;font-weight:700;line-height:1.3;min-width:0}
+.reccard .rc-sum{font-size:13.5px;color:var(--text2);margin-bottom:10px;line-height:1.5}
+.reccard .rc-meta{display:flex;flex-wrap:wrap;gap:5px 16px;font-size:12px;color:var(--text3);margin-bottom:12px}
+.reccard .rc-act{display:flex;gap:8px}
+.reccard .rc-act .btn{flex:1;justify-content:center}
 .lg{display:flex;flex-wrap:wrap;gap:9px 16px;margin-top:12px;font-size:12px;color:var(--text2)}
 .lg i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
 .hbar{margin-bottom:10px}
@@ -266,7 +276,7 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .tab.on{color:var(--accent);border-bottom-color:var(--accent);font-weight:700;background:var(--surface)}
 
 /* ---------- MODAL / MISC ---------- */
-.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;display:none;align-items:flex-start;justify-content:center;padding:34px 18px;overflow:auto;backdrop-filter:blur(2px)}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:150;display:none;align-items:center;justify-content:center;padding:34px 18px;overflow:auto;backdrop-filter:blur(2px)}
 .modal.on{display:flex}
 .modal .mc{background:var(--surface);border:1px solid var(--border);border-radius:16px;width:100%;max-width:900px;box-shadow:var(--shadow-lg)}
 .modal .mh{padding:17px 22px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
@@ -412,7 +422,7 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfstats b{display:block;font-size:19px;font-weight:800;color:#111;line-height:1.1}
 .pdfphotos{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
 .pdfphotos figure{margin:0;border:1px solid #E5E5E5;border-radius:8px;overflow:hidden;page-break-inside:avoid}
-.pdfphotos img{width:100%;height:auto;display:block}
+.pdfphotos img{width:100%;height:190px;object-fit:contain;background:#F7F7F7;display:block}
 .pdfphotos figcaption{font-size:10.5px;padding:6px 9px;color:#555;border-top:1px solid #F0F0F0}
 .pdfsign{display:grid;grid-template-columns:repeat(3,1fr);gap:26px;margin-top:30px;page-break-inside:avoid}
 .pdfsign div{text-align:center;font-size:11px;color:#555}
@@ -439,7 +449,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
 .pdfkpi .kpi{border:1px solid #E5E5E5;border-radius:8px;padding:11px 13px;box-shadow:none;background:#fff}
 .pdfkpi .kpi .v{font-size:20px;color:#111} .pdfkpi .kpi .k{color:#777;font-size:11px} .pdfkpi .kpi .d{color:#888;font-size:10px}
 
-@media(max-width:1080px){
+@media screen and (max-width:1080px){
   /* มือถือ/แท็บเล็ต: ไม่มีเมนูข้าง — ใช้แถบล่างจอแทน · ปุ่มกลับหน้าหลักอยู่บนซ้าย */
   .layout{grid-template-columns:1fr}
   .side{display:none}
@@ -459,7 +469,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
   body.form-view .wrap{padding-bottom:150px}
 }
 
-@media(max-width:700px){
+@media screen and (max-width:700px){
   /* --- ตัวอักษร 16px กันเบราว์เซอร์ iOS ซูมอัตโนมัติตอนแตะช่องกรอก --- */
   .inp,select.inp,textarea.inp,.tb input.cell,.tb select.cell,.tb textarea.cell{font-size:16px}
   .inp,select.inp{min-height:46px}
@@ -586,7 +596,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
   <button data-v="list" onclick="App.go('list')"><span class="bi">☰</span>รายการ</button>
   <button class="mid" onclick="App.newSheet()"><span class="bi">＋</span>บันทึก</button>
   <button data-v="plan" onclick="App.go('plan')"><span class="bi">🗓</span>แผน</button>
-  <button onclick="App.moreSheet()"><span class="bi">⋯</span>เพิ่มเติม</button>
+  <button id="btnMore" onclick="App.moreTap()"><span class="bi">⋯</span><span class="bi-tx">เพิ่มเติม</span></button>
 </nav>
 
 <div class="formbar noprint" id="formbar"></div>
@@ -631,7 +641,6 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
     <div class="side-foot">
       <div class="userbox"><b id="sfUser">FAB Group · Operations</b><span id="sfStore">—</span></div>
       <button class="btn-hub-nav" onclick="Hub.back()">← กลับหน้าหลัก</button>
-      <button class="btn-hub-nav" onclick="Hub.logout()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>ออกจากระบบ</button>
     </div>
   </aside>
 
@@ -856,7 +865,6 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
 
 <div class="modal" id="modal"><div class="mc"><div class="mh"><h3 id="mTitle">รายละเอียด</h3><div style="flex:1"></div>
   <button class="btn sm pri noprint" id="mPdf" style="display:none">บันทึก PDF</button>
-  <button class="btn sm noprint" onclick="window.print()">พิมพ์</button>
   <button class="btn sm gho" onclick="App.closeModal()">ปิด</button></div>
   <div class="mb" id="mBody"></div></div></div>
 <div class="zoom" id="zoom" onclick="this.classList.remove('on')"><img id="zoomImg" alt=""></div>
@@ -1085,6 +1093,13 @@ function fvApplyPerms(){
   /* หัวข้อ "ตั้งค่า" โชว์เฉพาะเมื่อเมนูจัดการฐานข้อมูลใช้ได้ (เป็นแอดมิน + มีสิทธิ์) */
   const g=document.getElementById('navgrpSettings');
   if(g) g.style.display = (Hub.isAdmin() && fvCan('view-master')) ? '' : 'none';
+  /* ปุ่มล่างขวา (มือถือ): ไม่ใช่แอดมิน → เปลี่ยนเป็น "ออกรายงาน" */
+  const mb=document.getElementById('btnMore');
+  if(mb){ const admin=Hub.isAdmin();
+    mb.querySelector('.bi').textContent = admin?'⋯':'📄';
+    mb.querySelector('.bi-tx').textContent = admin?'เพิ่มเติม':'ออกรายงาน';
+    if(admin) mb.removeAttribute('data-v'); else mb.setAttribute('data-v','report');
+  }
 }
 
 
@@ -1495,6 +1510,8 @@ const App = {
     {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq'},
     {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit'}
   ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]))); },
+  /* ปุ่มล่างขวา: แอดมิน = เปิดเมนูเพิ่มเติม · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
+  moreTap(){ if(Hub.isAdmin()) this.moreSheet(); else this.go('report'); },
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
   moreSheet(){
     const items=[
@@ -1502,7 +1519,6 @@ const App = {
       {icon:'⬆', label:'นำเข้าข้อมูล', sub:'นำผลตรวจเดิมเข้าระบบ (มีเทมเพลต)', run:()=>this.go('io'), v:'io'}
     ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]));
     if(Hub.isAdmin() && fvCan('view-master')) items.push({icon:'🔒', label:'จัดการฐานข้อมูล', sub:'สาขา ผู้ตรวจ วัตถุดิบ เมนู · ข้อมูลในระบบ · สำรอง (ต้องใส่รหัส)', run:()=>this.go('master')});
-    items.push({icon:'🚪', label:'ออกจากระบบ', sub:'ออกและกลับไปหน้าเข้าสู่ระบบ', run:()=>Hub.logout()});
     this.sheet('เพิ่มเติม', items);
   },
   /* ---------- พับ/กางการ์ดตัวกรอง ---------- */
@@ -2058,6 +2074,7 @@ const Rec = {
     document.getElementById('recCount').textContent=`รายการตรวจ (${list.length} รายการ)`;
     const host=document.getElementById('recTable');
     if(!list.length){ host.innerHTML=`<div class="empty"><div class="big">▤</div><h4>ยังไม่มีรายการตรวจ</h4><p>เริ่มบันทึกได้จากเมนู “ฟอร์ม FQA” ทางซ้าย</p></div>`; return; }
+    if(Mobile.on()){ host.innerHTML=this.cardList(list); return; }
     host.innerHTML=`<table class="tb"><thead><tr>
       <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>สรุปสิ่งที่พบ</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
       ${list.map(r=>`<tr>
@@ -2072,6 +2089,22 @@ const Rec = {
           <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
           <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
         </td></tr>`).join('')}</tbody></table>`;
+  },
+  /* การ์ดรายการตรวจสำหรับมือถือ — อ่านง่าย เน้นสาขา/ผล */
+  cardList(list){
+    const TL={FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'};
+    return `<div class="reclist">${list.map(r=>{ const f=failCount(r);
+      return `<div class="reccard">
+        <div class="rc-top"><span class="tag">${esc(TL[r.type]||r.type)}</span>
+          <b class="rc-branch">${esc(r.branch)}</b>
+          <span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span></div>
+        <div class="rc-sum">${esc(summaryLine(r))}</div>
+        <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span><span>👤 ${esc(r.trainer||'—')}</span></div>
+        <div class="rc-act">
+          <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
+          <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
+          <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
+        </div></div>`; }).join('')}</div>`;
   },
   del(id){ App.confirm({icon:'🗑', title:'ลบรายการตรวจ', msg:'ต้องการลบรายการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์ และย้อนกลับไม่ได้', okText:'ลบรายการ', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); }}); },
   edit(id){ const r=DB.all().find(x=>x.id===id); Form.open(r.type,r);
@@ -2109,7 +2142,7 @@ const Rec = {
     if(r.photos.length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
       <div class="ph"><img src="${p.data}" onclick="App.zoom(this.src)" alt="">
       <div class="cap" style="font-size:12px;padding:8px;color:var(--text2)">${esc(p.caption||'—')}</div></div>`).join('')}</div>`);
-    App.modal(TYPE_LABEL[r.type]+' — '+r.branch, h, r.id);
+    App.modal(TYPE_LABEL[r.type], h, r.id);
   }
 };
 
