@@ -390,10 +390,11 @@ body.repmode>*:not(#repview){display:none!important}
 .rep-bar .btn{min-height:40px}
 .rep-load{padding:70px 20px;text-align:center;color:#666;font-size:15px}
 .rep-paper{display:flex;justify-content:center;padding:20px 14px 60px}
-.rep-paper .pdfdoc{width:760px;max-width:100%;background:#fff;border-radius:10px;
+/* ความกว้างคงที่ 760px เสมอ — เอกสารหน้าตาเหมือนกัน 100% ทุกอุปกรณ์
+   (มือถือย่อทั้งหน้าให้พอดีจอผ่าน viewport=840 · ไม่ยืด/หดคอลัมน์) */
+.rep-paper .pdfdoc{width:760px;background:#fff;border-radius:10px;
   box-shadow:0 6px 26px rgba(0,0,0,.13);padding:26px 24px}
 .rep-paper .pdfdoc .pdfpage{padding:0}
-@media screen and (max-width:820px){ .rep-paper{padding:12px 8px 44px} .rep-paper .pdfdoc{padding:18px 15px} }
 
 /* ---------- เอกสาร PDF (วาดนอกจอ · โทนสว่างเสมอ ไม่อิงธีมหน้าจอ) ---------- */
 .printhost{display:none}
@@ -609,7 +610,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
 <nav class="botnav noprint" id="botnav">
   <button data-v="dash" onclick="App.go('dash')"><span class="bi">◧</span>แดชบอร์ด</button>
   <button data-v="list" onclick="App.go('list')"><span class="bi">☰</span>รายการ</button>
-  <button class="mid" id="btnNew" onclick="App.newTap()"><span class="bi">＋</span><span class="bi-tx">บันทึก</span></button>
+  <button class="mid" id="btnNew" onclick="App.newSheet()"><span class="bi">＋</span><span class="bi-tx">บันทึก</span></button>
   <button data-v="plan" onclick="App.go('plan')"><span class="bi">🗓</span>แผน</button>
   <button id="btnMore" onclick="App.moreTap()"><span class="bi">⋯</span><span class="bi-tx">เพิ่มเติม</span></button>
 </nav>
@@ -1108,20 +1109,13 @@ function fvApplyPerms(){
   /* หัวข้อ "ตั้งค่า" โชว์เฉพาะเมื่อเมนูจัดการฐานข้อมูลใช้ได้ (เป็นแอดมิน + มีสิทธิ์) */
   const g=document.getElementById('navgrpSettings');
   if(g) g.style.display = (Hub.isAdmin() && fvCan('view-master')) ? '' : 'none';
-  /* แถบล่างมือถือ: ไม่ใช่แอดมิน → ปุ่มกลาง "＋ บันทึก" กลายเป็น "ออกรายงาน" · ซ่อนปุ่มเพิ่มเติมที่ซ้ำ */
-  const admin=Hub.isAdmin();
-  const bn=document.getElementById('btnNew');
-  if(bn){
-    bn.querySelector('.bi').textContent = admin?'＋':'📄';
-    bn.querySelector('.bi-tx').textContent = admin?'บันทึก':'ออกรายงาน';
-    if(admin) bn.removeAttribute('data-v'); else bn.setAttribute('data-v','report');
-  }
+  /* ปุ่มล่างขวา (มือถือ): ไม่ใช่แอดมิน → เปลี่ยนเป็น "ออกรายงาน" (ปุ่มกลาง "＋ บันทึก" คงไว้เสมอ) */
   const mb=document.getElementById('btnMore');
-  if(mb){
-    mb.style.display = admin?'':'none';   // ไม่ใช่แอดมิน: ย้ายออกรายงานไปปุ่มกลางแล้ว จึงซ่อนปุ่มนี้
-    mb.querySelector('.bi').textContent = '⋯';
-    mb.querySelector('.bi-tx').textContent = 'เพิ่มเติม';
-    mb.removeAttribute('data-v');
+  if(mb){ const admin=Hub.isAdmin();
+    mb.style.display='';
+    mb.querySelector('.bi').textContent = admin?'⋯':'📄';
+    mb.querySelector('.bi-tx').textContent = admin?'เพิ่มเติม':'ออกรายงาน';
+    if(admin) mb.removeAttribute('data-v'); else mb.setAttribute('data-v','report');
   }
 }
 
@@ -1533,8 +1527,6 @@ const App = {
     {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq'},
     {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit'}
   ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]))); },
-  /* ปุ่มกลาง (＋): แอดมิน = เลือกฟอร์มบันทึก · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
-  newTap(){ if(Hub.isAdmin()) this.newSheet(); else this.go('report'); },
   /* ปุ่มล่างขวา: แอดมิน = เปิดเมนูเพิ่มเติม · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
   moreTap(){ if(Hub.isAdmin()) this.moreSheet(); else this.go('report'); },
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
@@ -3403,6 +3395,9 @@ const ReportView = {
   open(brand, id){
     Brand.cur=brand||'jaedaeng';
     document.body.classList.add('repmode');
+    /* ตรึงความกว้างหน้าให้เท่ากับเอกสาร → ทุกอุปกรณ์ย่อทั้งหน้าเท่ากัน เห็นเหมือนกัน 100% */
+    const vp=document.querySelector('meta[name=viewport]');
+    if(vp) vp.setAttribute('content','width=840');
     const host=document.createElement('div'); host.id='repview'; host.className='repview';
     host.innerHTML=`<div class="rep-load">กำลังโหลดรายงาน…</div>`;
     document.body.appendChild(host);
