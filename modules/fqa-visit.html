@@ -1023,6 +1023,15 @@ const Cloud = {
   setQueue(q){ try{ localStorage.setItem(this.qKey(), JSON.stringify(q)); }catch(e){} },
   pending(){ return this.queue().length; },
 
+  /* id ที่ "เคยอยู่บน cloud แล้ว" (เคยส่งขึ้นหรือดึงลงมา) — ใช้แยกว่า
+     รายการในเครื่องที่หายจาก cloud คือ "ถูกลบจากอีกเครื่อง" (ต้องลบตาม)
+     หรือ "ยังไม่เคยส่งขึ้น" (ต้องส่งขึ้น) → กันปัญหาลบแล้วเด้งกลับ */
+  skKey(){ return 'fqa_synced_ids_'+(Brand.cur||'jaedaeng'); },
+  synced(){ try{ return new Set(JSON.parse(localStorage.getItem(this.skKey())||'[]')); }catch(e){ return new Set(); } },
+  saveSynced(set){ try{ localStorage.setItem(this.skKey(), JSON.stringify([...set])); }catch(e){} },
+  markSynced(ids){ const s=this.synced(); (Array.isArray(ids)?ids:[ids]).forEach(id=>id&&s.add(id)); this.saveSynced(s); },
+  unmarkSynced(id){ const s=this.synced(); s.delete(id); this.saveSynced(s); },
+
   /* ลงคิว 1 งาน (บันทึก/ลบ) — งานใหม่ของ id เดิมทับของเก่า แล้วเริ่มส่ง */
   enqueue(op, id){
     if(!this.enabled()) return;
@@ -1060,16 +1069,19 @@ const Cloud = {
       const q=this.queue();
       if(!q.length || brand!==Brand.cur){ this.syncing=false; this.setStatus('synced'); return; }
       const item=q[0];
-      let job;
+      let job, isSave=item.op!=='delete';
       if(item.op==='delete'){
         job=this.post({type:'delete-fqa-record', id:item.id});
       }else{
         const rec=DB.all().find(r=>r.id===item.id);
-        if(!rec){ job=Promise.resolve({ok:true}); }
+        if(!rec){ job=Promise.resolve({ok:true}); isSave=false; }
         else job=this.uploadPhotos(rec).then(r2=>{ r2.brand=brand; return this.post({type:'save-fqa-record', record:r2}); });
       }
       return job.then(res=>{
-        if(res && res.ok){ this.setQueue(this.queue().filter(x=>!(x.id===item.id && x.op===item.op))); this.paint(); return step(); }
+        if(res && res.ok){
+          if(isSave) this.markSynced(item.id); else this.unmarkSynced(item.id);   // บันทึกสถานะ "อยู่บน cloud แล้ว"
+          this.setQueue(this.queue().filter(x=>!(x.id===item.id && x.op===item.op))); this.paint(); return step();
+        }
         throw new Error((res && res.error) || 'sync failed');
       });
     };
@@ -1085,19 +1097,27 @@ const Cloud = {
       .then(r=>r.json())
       .then(res=>{
         if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
-        const local=DB.all(), byId={}; local.forEach(r=>byId[r.id]=r);
-        const pendingDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
-        let changed=false;
-        res.records.forEach(cr=>{
-          if(!cr || !cr.id || pendingDel.has(cr.id)) return;         // กำลังจะลบ → อย่าเพิ่งดึงกลับ
-          const lr=byId[cr.id];
-          if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
-        });
-        if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
-        /* ส่งรายการในเครื่องที่ยังไม่มีบน cloud ขึ้นไป (เช่น บันทึกไว้ก่อนเปิดใช้ระบบซิงค์) */
         const cloudIds=new Set(res.records.map(r=>r&&r.id).filter(Boolean));
         const pend=new Set(this.queue().map(x=>x.id));
-        DB.all().forEach(r=>{ if(r&&r.id && !cloudIds.has(r.id) && !pend.has(r.id)) this.enqueue('save', r.id); });
+        const pendingDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
+        const seen=this.synced();
+        const byId={}; DB.all().forEach(r=>byId[r.id]=r);
+        let changed=false;
+        /* 1) รวมของจาก cloud (ใหม่กว่าชนะ) + จำว่า id นี้อยู่บน cloud แล้ว */
+        res.records.forEach(cr=>{
+          if(!cr || !cr.id || pendingDel.has(cr.id)) return;      // กำลังจะลบ → ไม่ดึงกลับ
+          const lr=byId[cr.id];
+          if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
+          seen.add(cr.id);
+        });
+        /* 2) รายการในเครื่องที่หายไปจาก cloud */
+        DB.all().forEach(r=>{
+          if(!r || !r.id || cloudIds.has(r.id) || pend.has(r.id)) return;
+          if(seen.has(r.id)){ delete byId[r.id]; changed=true; }   // เคยอยู่บน cloud แต่หายไป = ถูกลบจากอีกเครื่อง → ลบตาม
+          else this.enqueue('save', r.id);                          // ยังไม่เคยส่งขึ้น (เก่า/ออฟไลน์) → ส่งขึ้น
+        });
+        this.saveSynced(seen);
+        if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
         this.setStatus('synced');
         return changed;
       })
