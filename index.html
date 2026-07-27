@@ -1075,6 +1075,19 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 .adm-input:focus, .adm-textarea:focus { border-color: var(--gold); }
 .adm-input-group { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 .adm-label { font-size: 12px; font-weight: 600; color: var(--text2); margin-bottom: 5px; display: block; }
+/* เลือกแบรนด์ได้หลายอัน — ติ๊กทีละแบรนด์ หรือกด "ทุกแบรนด์" */
+.brand-picks { display: flex; flex-wrap: wrap; gap: 6px; }
+.brand-pick {
+  display: flex; align-items: center; gap: 7px; cursor: pointer;
+  padding: 8px 12px; border: 1px solid var(--border); border-radius: 10px;
+  background: var(--bg3); font-size: 13px; font-weight: 600; color: var(--text);
+  transition: border-color .15s, background .15s;
+}
+.brand-pick:hover { border-color: var(--gold); }
+.brand-pick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
+.brand-pick:has(input:checked) { border-color: var(--gold); background: rgba(234,88,12,.08); }
+.brand-pick-all { margin-top: 6px; width: 100%; font-weight: 700; }
+.brand-pick-all span { font-size: 12px; color: var(--text2); font-weight: 600; }
 
 .adm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .adm-table th { text-align: left; padding: 9px 10px; background: var(--bg3); color: var(--text2); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; }
@@ -1953,22 +1966,16 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
             </select>
           </div>
           <div>
-            <label class="adm-label">แบรนด์ <span style="color:var(--red);">*</span></label>
-            <select class="adm-input" id="userEditBrand">
-              <option value="santafe" selected>Santa Fe</option>
-              <option value="jaedaeng">เจ๊แดง</option>
-            </select>
+            <label class="adm-label">แบรนด์ที่ดูแล <span style="color:var(--red);">*</span>
+              <span id="userEditBrandHint" style="font-weight:500;color:var(--text2);font-size:11px;margin-left:6px;"></span>
+            </label>
+            <div id="userEditBrands" class="brand-picks"></div>
+            <label class="brand-pick brand-pick-all">
+              <input type="checkbox" id="userEditBrandAll" onchange="toggleAllBrands(this.checked)">
+              <span>ทุกแบรนด์ — รวมแบรนด์ที่เพิ่มใหม่ในอนาคต</span>
+            </label>
           </div>
         </div>
-      </div>
-      <div class="adm-section">
-        <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px 12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border);">
-          <input type="checkbox" id="userEditCrossBrand" style="width:18px;height:18px;cursor:pointer;">
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:700;color:var(--text);font-size:13px;">Cross-Brand (เห็นทุกแบรนด์)</div>
-            <div style="font-size:11px;color:var(--text2);margin-top:2px;">เปิดสำหรับ Admin/COO ที่ดูแลทั้ง 2 แบรนด์</div>
-          </div>
-        </label>
       </div>
     </div>
     <div class="adm-modal-footer">
@@ -3049,11 +3056,6 @@ function saveBrandsToCloud(){
 loadBrandsLocal();
 function brandByKey(k){ return BRAND_REGISTRY.find(function(b){ return b.key===k; }) || null; }
 function brandDisplayName(k){ var b=brandByKey(k); return b? b.name : (k||''); }
-function populateBrandOptions(sel){
-  if(!sel) return; var cur=sel.value;
-  sel.innerHTML = BRAND_REGISTRY.map(function(b){ return '<option value="'+escapeHtml(b.key)+'">'+escapeHtml(b.name)+'</option>'; }).join('');
-  if(cur) sel.value=cur;
-}
 
 function findUserByCode(code) {
   if (!code) return null;
@@ -3583,8 +3585,9 @@ function saveFabSession(role, pin, branchCode, branchName) {
         nick: user.nick || '',
         role: user.role,                          // 'admin' | 'vp' | 'coo' | 'bzm' | 'support'
         title: roleTitle[user.role] || user.role || '',
-        brand: user.brand || null,
-        crossBrand: !!user.crossBrand,
+        brand: user.brand || null,                // แบรนด์หลัก (ของเดิม — ระบบปลายทางยังใช้อยู่)
+        brands: userBrands(user),                 // ทุกแบรนด์ที่ดูแล
+        crossBrand: userBrands(user).length > 1,  // ดูแลมากกว่า 1 แบรนด์ = ข้ามแบรนด์
         branchCode: undefined,
         branchName: undefined,
         loggedInAt: new Date().toISOString()
@@ -4686,16 +4689,51 @@ var BRAND_LABELS = {
   jaedaeng: { label: 'เจ๊แดง',     color: '#dc2626' }
 };
 
-/* render brand chip — ถ้า crossBrand → แสดงทั้ง 2 แบรนด์ */
+/* แบรนด์ที่ผู้ใช้ดูแล — รองรับทั้งข้อมูลเก่า (brand เดี่ยว + crossBrand) และใหม่ (brands หลายอัน)
+   crossBrand เก่า = ทุกแบรนด์ · ข้อมูลใหม่เก็บเป็น array ชื่อ brands */
+function userBrands(user) {
+  if (!user) return [];
+  if (Array.isArray(user.brands) && user.brands.length) return user.brands.slice();
+  if (user.crossBrand) return BRAND_REGISTRY.map(function(b){ return b.key; });
+  return user.brand ? [user.brand] : [];
+}
+function userHasBrand(user, key) { return userBrands(user).indexOf(key) >= 0; }
+
+/* render brand chip — แสดงทุกแบรนด์ที่ผู้ใช้ดูแล */
 function _brandChipsHTML(user) {
-  if (user && user.crossBrand) {
-    return Object.keys(BRAND_LABELS).map(function(key){
-      var bl = BRAND_LABELS[key];
-      return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;margin:1px 2px 1px 0;">'+bl.label+'</span>';
-    }).join('');
-  }
-  var bl = BRAND_LABELS[user && user.brand] || { label: (user && user.brand) || '-', color: '#888' };
-  return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;">'+bl.label+'</span>';
+  var keys = userBrands(user);
+  if (!keys.length) return '<span style="color:#888;font-size:11px;">-</span>';
+  var all = BRAND_REGISTRY.length && keys.length >= BRAND_REGISTRY.length;
+  return keys.map(function(key){
+    var bl = BRAND_LABELS[key] || { label: (brandByKey(key) && brandByKey(key).name) || key, color: '#888' };
+    return '<span style="display:inline-block;padding:2px 8px;background:'+bl.color+'1a;color:'+bl.color+';border-radius:999px;font-weight:700;font-size:11px;margin:1px 2px 1px 0;">'+bl.label+'</span>';
+  }).join('') + (all && keys.length > 1
+    ? '<span style="display:inline-block;padding:2px 7px;background:rgba(148,163,184,.15);color:var(--text2);border-radius:999px;font-weight:700;font-size:10px;margin:1px 0;">ทุกแบรนด์</span>' : '');
+}
+
+/* ---- ตัวเลือกแบรนด์ในฟอร์มผู้ใช้ (ติ๊กได้หลายอัน) ---- */
+function renderUserBrandChecks(selected) {
+  var box = document.getElementById('userEditBrands');
+  if (!box) return;
+  var sel = selected || [];
+  box.innerHTML = BRAND_REGISTRY.map(function(b){
+    return '<label class="brand-pick"><input type="checkbox" class="userBrandChk" value="' + escapeHtml(b.key) + '"' +
+      (sel.indexOf(b.key) >= 0 ? ' checked' : '') + ' onchange="syncBrandPicks()"><span>' + escapeHtml(b.name) + '</span></label>';
+  }).join('');
+  syncBrandPicks();
+}
+function _brandChkList() { return Array.prototype.slice.call(document.querySelectorAll('.userBrandChk')); }
+function syncBrandPicks() {
+  var chks = _brandChkList();
+  var n = chks.filter(function(c){ return c.checked; }).length;
+  var all = document.getElementById('userEditBrandAll');
+  if (all) all.checked = chks.length > 0 && n === chks.length;
+  var hint = document.getElementById('userEditBrandHint');
+  if (hint) hint.textContent = !n ? '— ยังไม่ได้เลือก —' : (n === chks.length ? 'ทุกแบรนด์ (' + n + ')' : 'เลือก ' + n + ' แบรนด์');
+}
+function toggleAllBrands(on) {
+  _brandChkList().forEach(function(c){ c.checked = on; });
+  syncBrandPicks();
 }
 
 function populateUserVisibility(selectedUsers, hideFromAll) {
@@ -4786,8 +4824,9 @@ function renderUserMgmtList() {
   }
   tbody.innerHTML = html;
   // counts
-  var nSF = USERS.filter(function(u){ return u.brand === 'santafe'; }).length;
-  var nJD = USERS.filter(function(u){ return u.brand === 'jaedaeng'; }).length;
+  // ดูแลหลายแบรนด์ = นับในทุกแบรนด์ที่ดูแล
+  var nSF = USERS.filter(function(u){ return userHasBrand(u, 'santafe'); }).length;
+  var nJD = USERS.filter(function(u){ return userHasBrand(u, 'jaedaeng'); }).length;
   var nC = document.getElementById('userMgmtCount');
   var nS = document.getElementById('userMgmtCountSantaFe');
   var nJ = document.getElementById('userMgmtCountJaedaeng');
@@ -4815,9 +4854,8 @@ function openUserEditModal(code) {
   document.getElementById('userEditName').value = u ? (u.name || '') : '';
   document.getElementById('userEditNick').value = u ? (u.nick || '') : '';
   document.getElementById('userEditRole').value = u ? (u.role || 'bzm') : 'bzm';
-  populateBrandOptions(document.getElementById('userEditBrand'));
-  document.getElementById('userEditBrand').value = u ? (u.brand || 'santafe') : 'santafe';
-  document.getElementById('userEditCrossBrand').checked = !!(u && u.crossBrand);
+  var defBrand = (BRAND_REGISTRY[0] && BRAND_REGISTRY[0].key) || 'santafe';
+  renderUserBrandChecks(u ? userBrands(u) : [defBrand]);
   var delBtn = document.getElementById('userEditDeleteBtn');
   if (delBtn) {
     var isMe = u && u.code === branchPin;
@@ -4837,13 +4875,13 @@ function saveUserEdit() {
   var name = document.getElementById('userEditName').value.trim();
   var nick = document.getElementById('userEditNick').value.trim();
   var role = document.getElementById('userEditRole').value;
-  var brand = document.getElementById('userEditBrand').value;
-  var crossBrand = document.getElementById('userEditCrossBrand').checked;
+  var brands = _brandChkList().filter(function(c){ return c.checked; }).map(function(c){ return c.value; });
+  var brand = brands[0] || '';
 
   if (!/^\d{6}$/.test(code)) { showInfo('⚠️ รหัสไม่ถูกต้อง', 'รหัสผ่านต้องเป็นตัวเลข 6 หลักเท่านั้น'); return; }
   if (!name) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณากรอกชื่อ-นามสกุล'); return; }
   if (!role) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือกตำแหน่ง'); return; }
-  if (!brand) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือกแบรนด์'); return; }
+  if (!brands.length) { showInfo('⚠️ ข้อมูลไม่ครบ', 'กรุณาเลือกแบรนด์ที่ดูแลอย่างน้อย 1 แบรนด์'); return; }
 
   // ตรวจ duplicate code — เช็คทั้งตอน add และตอน edit (ยกเว้นตัวเอง)
   if (USERS.some(function(u){ return u.code === code && u.code !== _editingUserCode; })) {
@@ -4853,8 +4891,10 @@ function saveUserEdit() {
   // ถ้ากำลังแก้รหัสของตัวเอง (ที่ login อยู่) → อัปเดต session
   var changingOwnCode = (_editingUserCode && _editingUserCode === branchPin && code !== _editingUserCode);
 
-  var newUser = { code: code, name: name, nick: nick, role: role, brand: brand };
-  if (crossBrand) newUser.crossBrand = true;
+  // เก็บ brands (หลายแบรนด์) เป็นหลัก · ยังเขียน brand/crossBrand แบบเดิมไว้ด้วย
+  // เพราะระบบปลายทาง (สอบออนไลน์ ฯลฯ) อ่าน 2 ฟิลด์นี้จาก session อยู่
+  var newUser = { code: code, name: name, nick: nick, role: role, brands: brands, brand: brand };
+  if (brands.length > 1) newUser.crossBrand = true;
 
   if (_editingUserCode) {
     var idx = USERS.findIndex(function(u){ return u.code === _editingUserCode; });
@@ -5691,7 +5731,7 @@ function _getJdBzmOptions() {
   var seen = {};
   var opts = [];
   USERS.filter(function(u){
-    return u.role === 'bzm' && (u.brand === 'jaedaeng' || u.crossBrand);
+    return u.role === 'bzm' && userHasBrand(u, 'jaedaeng');
   }).forEach(function(u){
     var nick = u.nick || u.name;
     if (!nick || seen[nick]) return;
