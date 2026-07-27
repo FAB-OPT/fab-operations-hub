@@ -704,7 +704,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
             <div class="bd"><div id="chPlan"></div></div>
           </div>
           <div class="card">
-            <div class="hd"><h3>แผนที่ต้องตรวจ</h3><div class="sp"></div><span class="note">ใกล้ถึง / เกินกำหนด</span></div>
+            <div class="hd"><h3>แผนที่ต้องตรวจ</h3><div class="sp"></div><span class="note">ที่ยังไม่ได้ตรวจ</span></div>
             <div class="bd" style="padding:0"><div class="tw" id="planDue"></div></div>
           </div>
         </div>
@@ -2664,28 +2664,27 @@ const Dash = {
     if(!mPlans.length){
       document.getElementById('chPlan').innerHTML = emptyBox('ยังไม่มีแผนตรวจเดือนนี้ — เพิ่มได้ที่หน้า “แผนการตรวจสาขา”');
     }else{
-      const g={done:0,overdue:0,upcoming:0}; mPlans.forEach(p=>g[planState(p).s]++);
       const pct=Math.round(mDone/mPlans.length*100);
+      const bt={FQA:0,FSQ:0,VISIT:0}; mPlans.forEach(p=>bt[planType(p.ptype)]++);
       document.getElementById('chPlan').innerHTML =
         gauge(pct, `ตรวจแล้ว ${mDone} จาก ${mPlans.length} แผน`) + `<div class="divider"></div>` +
         hbars([
-          {k:'ตรวจแล้ว', v:g.done, t:g.done+' แผน'},
-          {k:'รอตรวจ', v:g.upcoming, t:g.upcoming+' แผน'},
-          {k:'เกินกำหนด', v:g.overdue, t:g.overdue+' แผน'}
+          {k:'FQA', v:bt.FQA, t:bt.FQA+' แผน'},
+          {k:'Complaint', v:bt.FSQ, t:bt.FSQ+' แผน'},
+          {k:'Visit', v:bt.VISIT, t:bt.VISIT+' แผน'}
         ]);
     }
-    /* แผนที่ต้องตรวจ: เกินกำหนด + ใกล้ถึงใน 14 วัน */
-    const soon=addDaysISO(todayISO(),14);
+    /* แผนที่ยังไม่ได้ตรวจ (เรียงตามวันที่ · แสดงประเภทแทนสถานะ) */
     const due=plans().map(p=>({p, st:planState(p).s}))
-      .filter(x=> x.st==='overdue' || (x.st==='upcoming' && x.p.date<=soon))
-      .sort((a,b)=> (a.st===b.st? a.p.date.localeCompare(b.p.date) : (a.st==='overdue'?-1:1)));
+      .filter(x=> x.st!=='done')
+      .sort((a,b)=> (a.p.date||'').localeCompare(b.p.date||''));
     document.getElementById('planDue').innerHTML = due.length
-      ? `<table class="tb"><thead><tr><th>วันที่</th><th>สาขา</th><th>ผู้ตรวจ</th><th>สถานะ</th><th></th></tr></thead><tbody>
-        ${due.slice(0,10).map(({p,st})=>`<tr>
+      ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
+        ${due.slice(0,10).map(({p})=>`<tr>
           <td class="mono" style="white-space:nowrap">${esc(p.date)}</td>
+          <td>${planTypeTag(p.ptype)}</td>
           <td>${esc(p.branch)}</td>
           <td style="font-size:12.5px">${esc(p.trainer||'—')}</td>
-          <td>${planBadge(st)}</td>
           <td class="rowact noprint"><button class="btn sm pri" onclick="Plan.inspect('${p.id}')">ตรวจ</button></td></tr>`).join('')}
         </tbody></table>`
       : `<div class="empty"><div class="big">✓</div><h4>ไม่มีแผนค้าง</h4><p>ทุกแผนที่ถึงกำหนดตรวจครบแล้ว</p></div>`;
