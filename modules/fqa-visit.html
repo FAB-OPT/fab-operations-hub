@@ -1120,6 +1120,10 @@ const Cloud = {
           if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
         });
         if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
+        /* ส่งรายการในเครื่องที่ยังไม่มีบน cloud ขึ้นไป (เช่น บันทึกไว้ก่อนเปิดใช้ระบบซิงค์) */
+        const cloudIds=new Set(res.records.map(r=>r&&r.id).filter(Boolean));
+        const pend=new Set(this.queue().map(x=>x.id));
+        DB.all().forEach(r=>{ if(r&&r.id && !cloudIds.has(r.id) && !pend.has(r.id)) this.enqueue('save', r.id); });
         this.setStatus('synced');
         return changed;
       })
@@ -1132,7 +1136,7 @@ const Cloud = {
     if(!navigator.onLine) return App.toast('อุปกรณ์ออฟไลน์ — จะซิงค์อัตโนมัติเมื่อกลับมาออนไลน์');
     this.lastErr='';
     App.toast('กำลังซิงค์...');
-    this.flush().then(()=>this.pull()).then(changed=>{
+    this.pull().then(()=>this.flush()).then(()=>this.pull()).then(changed=>{
       if(changed){ Dash.render(); Rec.render(); if(App.view==='io') IO.stats(); }
       if(this.pending()) App.toast('ซิงค์ไม่สำเร็จ'+(this.lastErr?(' — '+this.lastErr):'')+' (ค้าง '+this.pending()+')');
       else App.toast('ซิงค์เรียบร้อย');
