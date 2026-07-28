@@ -1055,8 +1055,13 @@ const Hub = {
     const role=(s && s.role ? String(s.role).toUpperCase() : '');
     return name ? (role? `${name} (${role})` : name) : 'FAB Group · Operations';
   },
-  /* ผู้ดูแลระบบเท่านั้น — ใช้คุมสิทธิ์เข้าถึง "ข้อมูลหลัก" */
-  isAdmin(){ const s=this.session(); return !!(s && s.role==='admin') || this.role()==='admin'; },
+  /* ผู้ดูแลระบบเท่านั้น — ใช้คุมสิทธิ์เข้าถึง "ข้อมูลหลัก"
+     สำคัญ: ฮับตั้ง sessionStorage.fab_role='admin' ให้ทีมบริหารทุกคน (support/bzm/vp/coo) เพื่อความเข้ากันได้
+     จึงเชื่อ fab_role ไม่ได้ — ต้องยึด role จริงจาก fab_session ก่อนเสมอ ถ้ามี session */
+  isAdmin(){ const s=this.session();
+    if(s && s.role) return s.role==='admin';   // มี session = ใช้ role จริง (support/bzm/vp/coo ≠ admin)
+    return this.role()==='admin';              // ไม่มี session = ใช้ fab_role สำรอง
+  },
   back(){ window.location.href='../index.html'; },
   logout(){ App.confirm({icon:'🚪', title:'ออกจากระบบ', msg:'ต้องการออกจากระบบใช่หรือไม่?', okText:'ออกจากระบบ', danger:false, onOk:()=>{
     try{ localStorage.removeItem('fab_session'); sessionStorage.removeItem('fab_role'); sessionStorage.removeItem('fab_branch_name'); sessionStorage.removeItem('fab_branch_pin'); sessionStorage.removeItem('fab_branch_code'); }catch(e){}
@@ -1484,7 +1489,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.07.28-3';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.07.28-4';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
