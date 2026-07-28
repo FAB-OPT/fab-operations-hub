@@ -3713,6 +3713,66 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; font-size: 12px; }
   .count-line { font-size: 12px; padding: 0 8px 8px; }
 }
+
+/* ─── โครงโหลด (skeleton) รายการใบรับรอง — ใบรับรองจาก Cloud ใช้เวลานาน
+   ถ้าไม่มีอะไรขึ้นเลยผู้ใช้จะนึกว่า "ไม่มีข้อมูล" ─── */
+.cert-skel-wrap { display: flex; flex-direction: column; gap: 11px; margin: 4px 0; }
+.cert-skel {
+  position: relative; overflow: hidden;
+  background: #fff;
+  border: 1px solid rgba(15,23,42,0.08);
+  border-radius: 14px;
+  padding: 15px 16px 14px 21px;
+  box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+}
+.cert-skel::before {          /* แถบสีซ้าย (เทา) ตำแหน่งเดียวกับการ์ดจริง */
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 5px; background: #e2e8f0;
+}
+.cert-skel::after {           /* คลื่นแสงวิ่ง */
+  content: ''; position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 20%, rgba(255,255,255,0.9) 50%, transparent 80%);
+  transform: translateX(-100%);
+  animation: certSkelShimmer 1.3s ease-in-out infinite;
+}
+@keyframes certSkelShimmer { to { transform: translateX(100%); } }
+@media (prefers-reduced-motion: reduce) { .cert-skel::after { animation: none; } }
+.skel-line { height: 12px; border-radius: 6px; background: #eef2f7; margin-bottom: 10px; }
+.skel-line.t { height: 17px; width: 54%; margin-bottom: 14px; }
+.skel-line.w70 { width: 70%; }
+.skel-line.w58 { width: 58%; }
+.skel-line.w42 { width: 42%; margin-bottom: 0; }
+.cert-load-note {
+  text-align: center;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 12.5px; font-weight: 600;
+  color: var(--text3);
+  padding: 8px 12px 2px;
+  line-height: 1.6;
+}
+.cert-load-fail {
+  background: #fff;
+  border: 1px solid rgba(220,38,38,0.25);
+  border-left: 4px solid var(--red);
+  border-radius: 14px;
+  padding: 18px 16px;
+  text-align: center;
+  font-family: 'Sarabun', sans-serif;
+  font-size: 13px; font-weight: 700;
+  color: #b91c1c;
+  line-height: 1.7;
+}
+.cert-load-fail span { display: block; font-weight: 500; font-size: 12px; color: var(--text2); margin-top: 4px; }
+.cert-retry-btn {
+  margin-top: 12px;
+  padding: 10px 22px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff; border: 0; border-radius: 11px;
+  font-family: 'Sarabun', sans-serif; font-size: 13.5px; font-weight: 800;
+  cursor: pointer;
+  box-shadow: 0 6px 16px rgba(234,88,12,0.28);
+}
+.cert-retry-btn:active { transform: scale(0.97); }
 .match-chip {
   display: inline-flex;
   align-items: center;
@@ -5861,6 +5921,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- CERT TABLE -->
 <div class="table-container tc-cards">
   <div class="count-line" id="countLine"></div>
+  <!-- โครงโหลด/ข้อความผิดพลาด — แทนที่ตารางระหว่างดึงใบรับรองจาก Cloud -->
+  <div id="certLoading" style="display:none"></div>
   <table id="mainTable">
     <thead>
       <tr>
@@ -7949,12 +8011,54 @@ function saveToCloud() {
   });
 }
 
+/* ═══════════ โครงโหลดรายการใบรับรอง ═══════════
+   ?action=certificates ใช้เวลาหลายสิบวินาที — ถ้าปล่อยให้จอว่างหรือขึ้น "ยังไม่มีข้อมูล"
+   ผู้ใช้จะเข้าใจผิดว่าไม่มีใบรับรองในระบบ */
+function certSkelHtml(n, note) {
+  var one = '<div class="cert-skel">'
+    +   '<div class="skel-line t"></div>'
+    +   '<div class="skel-line w70"></div>'
+    +   '<div class="skel-line w58"></div>'
+    +   '<div class="skel-line w42"></div>'
+    + '</div>';
+  var h = '';
+  for (var i = 0; i < (n || 3); i++) h += one;
+  return '<div class="cert-skel-wrap">' + h
+    + '<div class="cert-load-note">' + (note || 'กำลังโหลดใบรับรองจาก Cloud…<br>ครั้งแรกอาจใช้เวลาสักครู่ ครั้งต่อไปจะขึ้นทันทีจากเครื่อง') + '</div>'
+    + '</div>';
+}
+/* กล่อง "โหลดไม่สำเร็จ" + ปุ่มลองใหม่ (retryCall = โค้ดที่จะเรียกเมื่อกด) */
+function certFailHtml(msg, retryCall) {
+  return '<div class="cert-load-fail">✗ ' + escapeHtml(msg)
+    + '<span>ตรวจสอบอินเทอร์เน็ตแล้วกดลองใหม่</span>'
+    + '<button type="button" class="cert-retry-btn" onclick="' + retryCall + '">🔄 ลองใหม่</button>'
+    + '</div>';
+}
+/* on=true → แทนตารางด้วยโครงโหลด · on=false → คืนตาราง · failMsg → แสดงกล่องข้อผิดพลาดแทน */
+function fhCertLoading(on, failMsg) {
+  var box = document.getElementById('certLoading');
+  var tbl = document.getElementById('mainTable');
+  var cnt = document.getElementById('countLine');
+  var pag = document.getElementById('tablePagination');
+  if (!box) return;
+  var hide = !!(on || failMsg);
+  box.innerHTML = failMsg ? certFailHtml(failMsg, 'loadFromCloud()')
+    : (on ? certSkelHtml(4) : '');
+  box.style.display = hide ? '' : 'none';
+  if (tbl) tbl.style.display = hide ? 'none' : '';
+  if (cnt) cnt.style.display = hide ? 'none' : '';
+  if (pag) pag.style.display = hide ? 'none' : '';
+}
+
 function loadFromCloud() {
   // แสดงจาก cache ทันที (ถ้ายังไม่มีข้อมูลในหน้า) แล้วค่อยดึงของใหม่มาทับ
   if (!matchData || !matchData.length) {
     var _cc = _fhCacheGet('fh_cert_v1');
     if (_cc && _cc.length) { matchData = _cc; try { updateStats(); renderTable(); } catch(e){} }
   }
+  // ไม่มีทั้งข้อมูลบนจอและในแคช → โชว์โครงโหลดไว้ก่อน
+  var _hadData = !!(matchData && matchData.length);
+  if (!_hadData) fhCertLoading(true);
   var btn = document.getElementById('loadBtn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
@@ -7969,8 +8073,10 @@ function loadFromCloud() {
     btn.innerHTML = '&#9729; โหลดจาก Cloud';
     if (!res.ok) {
       document.getElementById('processInfo').textContent = '✗ โหลดล้มเหลว: ' + (res.error || 'unknown');
+      fhCertLoading(false, _hadData ? '' : ('โหลดใบรับรองไม่สำเร็จ: ' + (res.error || 'unknown')));
       return;
     }
+    fhCertLoading(false);
     var records = res.records || [];
     console.log('[DIAG LOAD] records จาก Cloud = ' + records.length);
     if (records.length === 0) {
@@ -8044,6 +8150,8 @@ function loadFromCloud() {
     btn.disabled = false;
     btn.innerHTML = '&#9729; โหลดจาก Cloud';
     document.getElementById('processInfo').textContent = '✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message;
+    // มีข้อมูลจากแคชอยู่แล้ว → ปล่อยให้ใช้ต่อได้ · ไม่มีเลย → บอกให้ชัดว่าโหลดไม่ผ่าน
+    fhCertLoading(false, _hadData ? '' : ('เชื่อมต่อ Cloud ไม่ได้: ' + err.message));
   });
 }
 
@@ -10074,7 +10182,18 @@ function loadRecordsForSearch() {
   // 1) โชว์จากแคชทันที (cache เก็บชุดเต็ม → กรองตอนใช้เท่านั้น)
   var _c = _fhCacheGet('fh_certs_v1');
   if (_c && _c.length) { allRecords = _fhScopeRecordsToBranch(_c); _renderCerts(); }
-  else if (info) info.textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+  else {
+    // ไม่มีแคช → โครงโหลด (การดึงใบรับรองจาก Cloud ใช้เวลานาน จอว่างจะดูเหมือนไม่มีข้อมูล)
+    if (info) info.textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+    var _g = document.getElementById('branchResults');
+    if (_g && typeof certSkelHtml === 'function') _g.innerHTML = certSkelHtml(3);
+  }
+  function _failCerts(msg) {
+    if (_c && _c.length) return;   // มีแคชอยู่แล้ว ใช้ต่อได้ ไม่ต้องทับด้วยข้อความ error
+    if (info) info.innerHTML = '<span style="color:var(--red)">' + escapeHtml(msg) + '</span>';
+    var g = document.getElementById('branchResults');
+    if (g) g.innerHTML = certFailHtml(msg, 'loadRecordsForSearch()');
+  }
   // 2) ดึงสดเบื้องหลัง + อัปเดตแคช (เก็บชุดเต็ม แล้วค่อยกรองเข้า allRecords)
   fetch(SCRIPT_URL, { method:'GET' })
     .then(function(r){ return r.json(); })
@@ -10085,11 +10204,11 @@ function loadRecordsForSearch() {
         allRecords = _fhScopeRecordsToBranch(_raw);
         _renderCerts();
         if (_adminRowCache && _adminRowCache.length) { _adminCertIdx = buildCertIndex(); if (typeof _applyAdminReqFilters === 'function') _applyAdminReqFilters(); }
-      } else if (!_c && info) {
-        info.innerHTML = '<span style="color:var(--red)">โหลดข้อมูลไม่ได้: '+(res.error||'unknown')+'</span>';
+      } else {
+        _failCerts('โหลดข้อมูลไม่ได้: ' + (res.error || 'unknown'));
       }
     })
-    .catch(function(err){ if (!_c && info) info.innerHTML = '<span style="color:var(--red)">เชื่อมต่อ Cloud ไม่ได้: '+err.message+'</span>'; });
+    .catch(function(err){ _failCerts('เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
 }
 
 /* สรุปสั้นในหัวข้อ + เตือนเฉพาะใบที่ต้องลงมือ (ใกล้หมด/หมดอายุ)
