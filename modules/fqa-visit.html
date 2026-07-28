@@ -2072,10 +2072,13 @@ const plans = ()=> DB.all().filter(r=>r.type==='PLAN');
 
 /* ---------- สถานะของแผนแต่ละรายการ ---------- */
 const addDaysISO = (iso,n)=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
+/* คีย์เทียบสาขา — ยึด "รหัสสาขา" นำหน้า (เช่น 4005) ถ้ามี ไม่งั้นใช้ชื่อแบบตัดช่องว่าง
+   กันปัญหาชื่อสะกดต่างเล็กน้อยระหว่างแผนกับผลตรวจ เช่น "จุ่มนัว" vs "จุ่มนัวร์" */
+const branchKey = name => { const s=String(name||'').trim(); const m=s.match(/^(\d{3,6})\b/); return m ? 'c'+m[1] : s.replace(/\s+/g,'').toLowerCase(); };
 /* แผน "ตรวจแล้ว" = มีผลตรวจสาขานั้นในช่วง [วันแผน, วันแผน+30วัน] · เลยกำหนดแต่ยังไม่ตรวจ = เกินกำหนด · อนาคต = รอตรวจ */
 function planState(p){
-  const end=addDaysISO(p.date,30);
-  const hit=inspections().filter(r=>r.branch===p.branch && (!p.ptype || r.type===p.ptype))
+  const end=addDaysISO(p.date,30), pk=branchKey(p.branch);
+  const hit=inspections().filter(r=>branchKey(r.branch)===pk && (!p.ptype || r.type===p.ptype))
     .find(r=>r.date>=p.date && r.date<=end);
   if(hit) return {s:'done', on:hit.date, id:hit.id};
   return { s: p.date < todayISO() ? 'overdue' : 'upcoming' };
