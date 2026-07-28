@@ -2864,6 +2864,7 @@ const Plan = {
             <td style="font-size:13px;font-weight:600">${esc(p.trainer||'—')}</td>
             <td class="rowact noprint">
               <button class="btn sm" onclick="Plan.detail('${p.id}')">ดู</button>
+              <button class="btn sm" onclick="Plan.edit('${p.id}')">แก้ไข</button>
               <button class="btn sm dgr" onclick="Plan.del('${p.id}')">ลบ</button></td></tr>`).join('')}
           </tbody></table>`
         : `<div class="empty"><div class="big">🗓</div><h4>ยังไม่มีแผนตามตัวกรอง</h4><p>เพิ่มแผนจากช่องด้านบน</p></div>` }</div>`;
@@ -2886,6 +2887,7 @@ const Plan = {
         <span style="background:${c}18;color:${c};border:1px solid ${c}55;font-weight:800;font-size:11px;padding:5px 12px;border-radius:999px;white-space:nowrap">${PLAN_TYPE[k]}</span>
         <div style="flex:1;min-width:0"><b>${esc(p.branch)}</b><div style="font-size:12px;color:var(--text3);margin-top:1px">ผู้ตรวจ: ${esc(p.trainer||'—')}${p.bzm?' · '+esc(p.bzm):''}</div></div>
         <button class="btn sm pri" onclick="App.closeModal();Plan.inspect('${p.id}')">ตรวจ</button>
+        <button class="btn sm" onclick="App.closeModal();Plan.edit('${p.id}')">แก้ไข</button>
         <button class="btn sm dgr" onclick="Plan.del('${p.id}');App.closeModal()">ลบ</button>
       </div>`; }).join('');
     App.modal(`แผนการตรวจ · ${iso}${dl}`,
@@ -2910,9 +2912,42 @@ const Plan = {
       ${kv('ผู้ตรวจ', p.trainer)}
       <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
         <button class="btn gho" onclick="App.closeModal()">ปิด</button>
+        <button class="btn" onclick="App.closeModal();Plan.edit('${p.id}')">✎ แก้ไข</button>
         <button class="btn pri" onclick="App.closeModal();Plan.inspect('${p.id}')">เปิดฟอร์มตรวจ →</button>
       </div>`;
     App.modal('รายละเอียดแผนการตรวจ', html);
+  },
+  /* ---------- แก้ไขแผน ---------- */
+  edit(id){
+    const p=DB.all().find(r=>r.id===id); if(!p) return;
+    const bs=M.branches(), ts=M.trainers(), cur=planType(p.ptype);
+    const html=`
+      <div class="grid" style="grid-template-columns:1fr;gap:13px">
+        <div class="fld"><label class="lbl">วันที่นัดตรวจ</label>
+          <input type="date" class="inp" id="peDate" value="${attr(p.date)}"></div>
+        <div class="fld"><label class="lbl">สาขา</label>
+          <select class="inp" id="peBranch"><option value="">— เลือกสาขา —</option>${bs.map(b=>`<option ${b.name===p.branch?'selected':''}>${esc(b.name)}</option>`).join('')}</select></div>
+        <div class="fld"><label class="lbl">ประเภทการตรวจ</label>
+          <select class="inp" id="peType">${Object.keys(PLAN_TYPE).map(t=>`<option value="${t}" ${t===cur?'selected':''}>${PLAN_TYPE[t]}</option>`).join('')}</select></div>
+        <div class="fld"><label class="lbl">ผู้ตรวจ</label>
+          <select class="inp" id="peTrainer"><option value="">— ยังไม่ระบุ —</option>${ts.map(t=>`<option ${t===p.trainer?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+      </div>
+      <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
+        <button class="btn gho" onclick="App.closeModal()">ยกเลิก</button>
+        <button class="btn pri" onclick="Plan.saveEdit('${p.id}')">บันทึกการแก้ไข</button>
+      </div>`;
+    App.modal('แก้ไขแผนการตรวจ', html);
+  },
+  saveEdit(id){
+    const p=DB.all().find(r=>r.id===id); if(!p) return;
+    const g=x=>((document.getElementById(x)||{}).value||'').trim();
+    const date=g('peDate'), branch=g('peBranch'), ptype=g('peType')||'FQA', trainer=g('peTrainer');
+    if(!date) return App.toast('เลือกวันที่นัดตรวจ');
+    if(!branch) return App.toast('เลือกสาขา');
+    const upd=Object.assign({}, p, { date, branch, ptype, trainer, bzm:(M.branchOf(branch)||{}).bzm||p.bzm||'' });
+    DB.save(upd); Cloud.enqueue('save', id);   // DB.save อัปเดต updatedAt ให้เอง → ซิงค์ทับของเก่าทุกอุปกรณ์
+    App.closeModal(); this.render(); if(App.view==='dash') Dash.render();
+    App.toast('แก้ไขแผนแล้ว');
   },
   inspect(id){
     const p=DB.all().find(r=>r.id===id); if(!p) return;
