@@ -4454,6 +4454,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   .mtb-icon { font-size: 18px; display: inline-flex; align-items: center; justify-content: center; height: 22px; }
   .mtb-icon svg { width: 20px; height: 20px; stroke-width: 2.2; }
   .mtb-label { white-space: nowrap; }
+  .mtb-item.active { background: rgba(234,88,12,0.10); color: var(--gold); }
+  .mtb-item.active .mtb-icon svg { stroke-width: 2.6; }
   .mtb-logout { color: var(--red); }
   .mtb-logout:hover { background: rgba(239,68,68,0.06); color: var(--red); }
   #mtbBranch { color: var(--text); pointer-events: none; }
@@ -6278,6 +6280,10 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <button class="mtb-item" id="mtbBackStep1" onclick="backToStep1()" style="display:none">
     <span class="mtb-icon"><svg class="ico"><use href="#i-arrow-left"/></svg></span>
     <span class="mtb-label">ย้อนกลับไปค้นหา</span>
+  </button>
+  <button class="mtb-item" id="mtbCerts" onclick="fhGoCerts()">
+    <span class="mtb-icon"><svg class="ico"><use href="#i-file"/></svg></span>
+    <span class="mtb-label">ใบรับรอง</span>
   </button>
   <button class="mtb-item mtb-logout" onclick="logout()">
     <span class="mtb-icon"><svg class="ico"><use href="#i-logout"/></svg></span>
@@ -8764,6 +8770,8 @@ function showAdmSection(targetId) {
   });
   // Sync mobile section label
   if (typeof _updateMobileSectionLabel === 'function') _updateMobileSectionLabel(targetId);
+  // Sync ปุ่ม "ใบรับรอง" ในแถบล่างมือถือ
+  if (typeof fhSyncTabbar === 'function') fhSyncTabbar();
   // เปิดหน้าทะเบียน → แสดงจาก cache ทันที แล้วดึงของใหม่เบื้องหลัง
   if (targetId === 'adm-sec-registry') {
     if (typeof empData !== 'undefined' && empData && empData.length) { try { renderRegistryTable(); } catch(e) {} }
@@ -8776,6 +8784,36 @@ function showAdmSection(targetId) {
   // Persist + scroll to top
   try { sessionStorage.setItem(ADM_SEC_KEY, targetId); } catch(e) {}
   window.scrollTo({ top: 0, behavior: 'instant' });
+}
+
+/* ═══════════ แถบล่างมือถือ: ปุ่มกลาง "ใบรับรอง" ═══════════
+   แอดมิน → ฐานข้อมูลใบรับรอง (adm-sec-cert) · สาขา → ค้นหาใบรับรอง (adm-sec-br-search) */
+function fhCertSectionId() {
+  var isAdmin = document.body.classList.contains('is-admin');
+  var first  = isAdmin ? 'adm-sec-cert' : 'adm-sec-br-search';
+  var second = isAdmin ? 'adm-sec-br-search' : 'adm-sec-cert';
+  var el = document.getElementById(first);
+  // ต้องมีทั้ง section และปุ่มเมนูข้างที่ชี้ไปหน้านั้น (ฝั่งสาขาไม่มี adm-sec-cert)
+  if (el && document.querySelector('.adm-side-link[data-target="' + first + '"]')) return first;
+  return document.getElementById(second) ? second : first;
+}
+function fhGoCerts() {
+  if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
+  if (typeof showAdmSection === 'function') showAdmSection(fhCertSectionId());
+}
+/* ไฮไลต์เมื่ออยู่หน้าใบรับรอง + ซ่อนปุ่มถ้าไม่มีสิทธิ์เข้าหน้านั้น */
+function fhSyncTabbar() {
+  var btn = document.getElementById('mtbCerts');
+  if (!btn) return;
+  var id = fhCertSectionId();
+  var allowed = true;
+  try {
+    var act = (typeof FH_SECTION_ACTION !== 'undefined') ? FH_SECTION_ACTION[id] : null;
+    if (act && typeof fhCan === 'function') allowed = fhCan(act);
+  } catch (e) {}
+  btn.style.display = allowed ? '' : 'none';
+  var sec = document.getElementById(id);
+  btn.classList.toggle('active', !!(sec && sec.classList.contains('active')));
 }
 
 function _initAdminSidebar() {
