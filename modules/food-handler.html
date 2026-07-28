@@ -3249,12 +3249,18 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   flex-wrap: wrap;
   align-items: center;
 }
-/* Section divider — vertical line between groups (status | dropdowns | cleanup) */
-.filter-row-chips > select.filter-sel-pretty:first-of-type {
+/* กลุ่มค้นหา + ปุ่มตัวกรอง (desktop: อยู่ในแถวเดียวกับ dropdown) */
+.fb-search-wrap { display: flex; align-items: center; gap: 6px; flex: 0 1 300px; min-width: 0; }
+.fb-search-wrap .req-filter-search { flex: 1 1 auto; min-width: 0; }
+.fb-filter-btn { display: none; }
+/* กลุ่ม dropdown + cleanup (ย้ายเข้า bottom sheet บนมือถือ) */
+.fb-movable { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; flex: 1 1 auto; min-width: 0; }
+/* Section divider — vertical line between groups (search | dropdowns | cleanup) */
+.fb-movable > select.filter-sel-pretty:first-of-type {
   margin-left: 8px;
   position: relative;
 }
-.filter-row-chips > select.filter-sel-pretty:first-of-type::before {
+.fb-movable > select.filter-sel-pretty:first-of-type::before {
   content: '';
   position: absolute; left: -8px; top: 50%;
   transform: translateY(-50%);
@@ -3353,7 +3359,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 
 @media (max-width: 768px) {
   .flex-break { display: block; flex-basis: 100%; height: 0; }
-  .filter-bar { padding: 10px 12px; gap: 8px; }
+  .filter-bar { margin: 12px; padding: 10px 12px; gap: 8px; }
   .filter-row-chips {
     gap: 6px;
     justify-content: center;
@@ -3361,22 +3367,117 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   .exp-status-chip { padding: 8px 10px; font-size: 12px; gap: 5px; }
   .exp-status-chip .esc-label { display: none; }
   .exp-status-chip[data-ef="all"] .esc-label { display: inline; }
-  /* dropdown สาขา/หลักสูตร บรรทัดเดียวกัน กึ่งกลาง */
-  .filter-sel-pretty {
-    flex: 1 1 0;
-    max-width: 48%;
-    min-width: 0;
-    font-size: 12.5px;
-    padding: 9px 12px;
+  /* แถบบนสุด = ช่องค้นหา + ปุ่มตัวกรอง (dropdown ทั้งหมดย้ายเข้าชีต) */
+  .fb-search-wrap { flex: 1 1 100%; gap: 8px; }
+  .fb-filter-btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    flex: 0 0 auto;
+    padding: 9px 13px;
+    background: #fff;
+    border: 1.5px solid rgba(15,23,42,0.12);
+    border-radius: 11px;
+    font-family: 'Sarabun', sans-serif; font-size: 12.5px; font-weight: 800;
+    color: var(--text2);
+    cursor: pointer;
+    white-space: nowrap;
   }
-  /* cleanup ลงบรรทัด 3 จัดกลางจริงๆ */
-  .filter-row-chips .filter-cleanup {
-    margin-left: auto !important;
-    margin-right: auto !important;
-    margin-top: 4px;
-    justify-content: center;
+  .fb-filter-btn:active { transform: scale(0.97); }
+  .fb-filter-btn.has-active { border-color: var(--gold); color: #c2410c; background: #fff7ed; }
+  .fb-badge {
+    display: inline-flex; align-items: center; justify-content: center;
+    min-width: 18px; height: 18px; padding: 0 5px;
+    background: linear-gradient(135deg, var(--gold), var(--gold2));
+    color: #fff; border-radius: 999px;
+    font-size: 11px; font-weight: 800;
   }
+  .fb-badge[hidden] { display: none; }
+  /* กลุ่ม dropdown ซ่อนจากแถบ — โผล่เฉพาะตอนอยู่ในชีต */
+  #fhFilterInline > #fhFilterMovable { display: none; }
   .cleanup-group { justify-content: center; flex-wrap: wrap; }
+}
+
+/* ─── Bottom sheet: ตัวกรอง (มือถือ) ─── */
+.fb-sheet-backdrop {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(15,23,42,0.42);
+  backdrop-filter: blur(2px);
+  z-index: 9000;
+}
+.fb-sheet-backdrop.show { display: block; }
+.fb-sheet {
+  display: none;
+  position: fixed; left: 0; right: 0; bottom: 0;
+  z-index: 9001;
+  background: #fff;
+  border-radius: 20px 20px 0 0;
+  box-shadow: 0 -12px 40px -8px rgba(15,23,42,0.28);
+  max-height: 82vh;
+  flex-direction: column;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+.fb-sheet.show { display: flex; }
+.fb-sheet-grip { width: 42px; height: 4px; border-radius: 999px; background: rgba(15,23,42,0.15); margin: 9px auto 2px; flex: none; }
+.fb-sheet-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 8px 18px 12px;
+  border-bottom: 1px solid rgba(15,23,42,0.07);
+  flex: none;
+}
+.fb-sheet-title { font-family: 'Sarabun', sans-serif; font-size: 15.5px; font-weight: 800; color: var(--text); }
+.fb-sheet-x {
+  margin-left: auto;
+  width: 32px; height: 32px;
+  border: 0; border-radius: 10px;
+  background: rgba(15,23,42,0.05); color: var(--text2);
+  font-size: 15px; cursor: pointer;
+}
+.fb-sheet-body { padding: 14px 18px 4px; overflow-y: auto; flex: 1 1 auto; }
+#fbSheetBody > #fhFilterMovable {
+  display: flex !important;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+#fbSheetBody .filter-sel-pretty {
+  width: 100%; max-width: none; min-width: 0;
+  margin-left: 0 !important;
+  padding: 12px 14px;
+  font-size: 14px; font-weight: 700;
+  background: #f8fafc;
+  border: 1.5px solid rgba(15,23,42,0.10);
+  border-radius: 12px;
+}
+#fbSheetBody .filter-sel-pretty::before { display: none; }
+#fbSheetBody .filter-cleanup {
+  margin: 6px 0 0 !important; padding: 12px 0 0;
+  border-top: 1px dashed rgba(15,23,42,0.10);
+  justify-content: flex-start;
+}
+#fbSheetBody .filter-cleanup::before { display: none; }
+#fbSheetBody .cleanup-label { width: 100%; margin-bottom: 2px; }
+#fbSheetBody .cleanup-btn { padding: 9px 13px; font-size: 12.5px; }
+.fb-sheet-foot {
+  display: flex; gap: 10px;
+  padding: 12px 18px 16px;
+  border-top: 1px solid rgba(15,23,42,0.07);
+  flex: none;
+}
+.fb-sheet-reset {
+  flex: 0 0 auto; padding: 12px 18px;
+  background: #fff; color: var(--text2);
+  border: 1.5px solid rgba(15,23,42,0.12); border-radius: 12px;
+  font-family: 'Sarabun', sans-serif; font-size: 13.5px; font-weight: 700; cursor: pointer;
+}
+.fb-sheet-done {
+  flex: 1 1 auto; padding: 12px 18px;
+  background: linear-gradient(135deg, var(--gold), var(--gold2));
+  color: #fff; border: 0; border-radius: 12px;
+  font-family: 'Sarabun', sans-serif; font-size: 14px; font-weight: 800; cursor: pointer;
+  box-shadow: 0 6px 16px rgba(234,88,12,0.30);
+}
+@media (min-width: 769px) {
+  .fb-sheet, .fb-sheet-backdrop { display: none !important; }
 }
 
 /* ─── Table pagination ─── */
@@ -3417,79 +3518,197 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   background: var(--bg3);
 }
 
-/* ─── Mobile: cert table → card layout (เฉพาะ 4 ฟิลด์: ชื่อ/หลักสูตร/วัน/สถานะ) ─── */
+/* ─── Mobile: การ์ดใบรับรอง "นำด้วยสถานะ" (ใช้ชุดเดียวกัน admin #mainTable + สาขา #branchCertTable)
+   โครงการ์ด:  ▎☑  ชื่อ .................. [ป้ายสถานะ]
+               ▎   📚 หลักสูตร
+               ▎   🏢 สาขา ................ แบรนด์
+               ▎   ⏰ หมดอายุ 4 ก.ค. 2569
+               ▎                        👁  ⬇  🗑
+   ▎ = แถบสีซ้ายตาม data-st บน <tr> (เขียว/ส้ม/แดง)                       ─── */
 @media (max-width: 768px) {
-  #mainTable thead { display: none; }
-  #mainTable, #mainTable tbody, #mainTable tr { display: block; width: 100%; }
-  #mainTable tr {
+  #mainTable thead, #branchCertTable thead { display: none; }
+  #mainTable, #mainTable tbody,
+  #branchCertTable, #branchCertTable tbody { display: block; width: 100%; }
+
+  #mainTable tr, #branchCertTable tr {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    position: relative;
+    width: 100%;
     background: #fff;
     border: 1px solid rgba(15,23,42,0.08);
     border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
+    padding: 13px 15px 12px 44px;
+    margin-bottom: 11px;
     box-shadow: 0 4px 12px rgba(15,23,42,0.05);
-    position: relative;
+    overflow: hidden;
   }
-  /* ซ่อน column ที่ไม่จำเป็นบนมือถือ */
-  #mainTable td[data-label="#"],
-  #mainTable td[data-label="Sheet"],
-  #mainTable td[data-label="จับคู่"] { display: none !important; }
-  /* td ที่เหลือ → block layout */
-  #mainTable td[data-label="สาขา"],
-  #mainTable td[data-label="ชื่อในใบรับรอง"],
-  #mainTable td[data-label="หลักสูตร"],
-  #mainTable td[data-label="วันหมดอายุ"],
-  #mainTable td[data-label="สถานะ"] {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 7px 0;
+  /* แถบสีซ้าย = สถานะใบรับรอง */
+  #mainTable tr[data-st]::before, #branchCertTable tr[data-st]::before {
+    content: '';
+    position: absolute; left: 0; top: 0; bottom: 0;
+    width: 5px;
+    background: #cbd5e1;
+  }
+  #mainTable tr[data-st="valid"]::before,
+  #branchCertTable tr[data-st="valid"]::before   { background: linear-gradient(180deg,#4ade80,#16a34a); }
+  #mainTable tr[data-st="warning"]::before,
+  #branchCertTable tr[data-st="warning"]::before { background: linear-gradient(180deg,#fb923c,#ea580c); }
+  #mainTable tr[data-st="expired"]::before,
+  #branchCertTable tr[data-st="expired"]::before { background: linear-gradient(180deg,#f87171,#dc2626); }
+  /* แถวว่าง (ไม่มีข้อมูล) — ไม่ต้องมีแถบสี/เยื้องซ้าย */
+  #mainTable tr:not([data-st]), #branchCertTable tr:not([data-st]) { padding-left: 15px; }
+  #mainTable td.empty, #branchCertTable td.empty { flex: 1 1 100%; display: block; }
+
+  /* ซ่อนคอลัมน์ที่ไม่ต้องใช้บนการ์ด */
+  #mainTable td[data-label="ลำดับ"],
+  #branchCertTable td[data-label="ลำดับ"] { display: none !important; }
+
+  /* ── ช่องติ๊ก — ลอยมุมซ้ายบน ── */
+  #mainTable td.td-chk, #branchCertTable td.td-chk {
+    position: absolute; top: 14px; left: 13px;
+    order: 0;
+    padding: 0 !important; border: none !important; background: none;
+    display: block !important; width: auto !important; height: auto !important;
+    z-index: 3;
+  }
+
+  /* ── บรรทัดที่ 1: ชื่อ + ป้ายสถานะ ── */
+  #mainTable td.cert-name, #branchCertTable td.cert-name {
+    display: block;
+    order: 1;
+    flex: 1 1 55%;
+    min-width: 0;
+    padding: 0 8px 0 0 !important;
     border: none;
-    border-bottom: 1px dashed rgba(15,23,42,0.06);
-    font-size: 13.5px;
-    line-height: 1.5;
-    color: var(--text);
+    font-size: 15.5px !important;
+    font-weight: 800;
+    line-height: 1.35;
+    color: var(--text) !important;
     text-align: left !important;
     white-space: normal !important;
     max-width: none !important;
+    word-break: break-word;
   }
-  #mainTable td[data-label="สถานะ"] { border-bottom: none; padding-bottom: 0; }
-  #mainTable td[data-label]::before {
-    content: attr(data-icon) ' ' attr(data-label);
-    color: var(--text3);
-    font-size: 11.5px;
-    font-weight: 700;
-    flex-shrink: 0;
-    min-width: 95px;
-  }
-  #mainTable td.cert-name {
-    font-weight: 800;
-    color: var(--text);
-    font-size: 15px;
-    padding-right: 76px !important;  /* เว้นที่ให้ปุ่มลบ+ดู */
-    padding-bottom: 10px !important;
-    border-bottom: 2px solid rgba(234,88,12,0.18) !important;
-    margin-bottom: 4px;
-  }
-  #mainTable td.cert-name::before { color: var(--gold); }
-  /* ปุ่ม view + ลบ ลอยอยู่มุมขวาบนของ card */
-  #mainTable td[data-label="จัดการ"] {
-    position: absolute;
-    top: 10px; right: 10px;
-    padding: 0; border: none; background: none;
+  #mainTable td[data-label="สถานะ"], #branchCertTable td[data-label="สถานะ"] {
     display: block;
-    width: auto !important;
-    height: auto !important;
-    z-index: 2;
-    flex: 0 0 auto !important;
-  }
-  #mainTable td[data-label="จัดการ"]::before { display: none; }
-  #mainTable td[data-label="จัดการ"] button {
-    width: 28px !important;
-    height: 28px !important;
-    font-size: 13px !important;
+    order: 2;
+    flex: 0 0 auto;
+    margin-left: auto;
     padding: 0 !important;
-    border-radius: 7px !important;
+    border: none;
+    text-align: right !important;
+    white-space: nowrap !important;
   }
-  #mainTable td > * { flex: 1; }
+
+  /* ── บรรทัดข้อมูลย่อย (ไอคอนนำ ไม่มี label ยาว) ── */
+  #mainTable td[data-label="หลักสูตร"],
+  #mainTable td[data-label="สาขา"],
+  #mainTable td[data-label="แบรนด์"],
+  #mainTable td[data-label="วันหมดอายุ"],
+  #branchCertTable td[data-label="หลักสูตร"],
+  #branchCertTable td[data-label="วันหมดอายุ"] {
+    display: flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 3px 0 !important;   /* ทับ tbody td { padding: 13px 14px !important } */
+    border: none;
+    font-size: 13px !important;
+    line-height: 1.5;
+    color: var(--text2) !important;
+    text-align: left !important;
+    white-space: normal !important;
+    max-width: none !important;
+    word-break: break-word;
+  }
+  #mainTable td[data-label]::before, #branchCertTable td[data-label]::before {
+    content: attr(data-icon);
+    flex: 0 0 auto;
+    font-size: 12.5px;
+    color: var(--text3);
+    opacity: 0.8;
+  }
+  /* ช่องที่ไม่ต้องมีไอคอนนำ */
+  #mainTable td.cert-name::before, #branchCertTable td.cert-name::before,
+  #mainTable td.td-chk::before, #branchCertTable td.td-chk::before,
+  #mainTable td[data-label="สถานะ"]::before, #branchCertTable td[data-label="สถานะ"]::before,
+  #mainTable td[data-label="แบรนด์"]::before,
+  #mainTable td[data-label="จัดการ"]::before,
+  #branchCertTable td[data-label="ใบเซอร์"]::before { display: none !important; }
+
+  /* หลักสูตร = บรรทัดแรกของบล็อกข้อมูล → ขีดคั่นใต้ชื่อ */
+  #mainTable td[data-label="หลักสูตร"], #branchCertTable td[data-label="หลักสูตร"] {
+    order: 3; flex: 1 1 100%;
+    margin-top: 9px;
+    padding-top: 9px !important;
+    border-top: 1px dashed rgba(15,23,42,0.09);
+  }
+  #mainTable td[data-label="สาขา"]  { order: 4; flex: 1 1 auto; }
+  #mainTable td[data-label="แบรนด์"] {
+    order: 5; flex: 0 0 auto;
+    margin-left: auto;
+    justify-content: flex-end;
+    padding-left: 8px !important;
+  }
+  #mainTable td[data-label="วันหมดอายุ"], #branchCertTable td[data-label="วันหมดอายุ"] {
+    order: 6; flex: 1 1 100%;
+  }
+  #mainTable td[data-label="วันหมดอายุ"]::before,
+  #branchCertTable td[data-label="วันหมดอายุ"]::before {
+    content: attr(data-icon) ' หมดอายุ';
+    font-size: 11.5px; font-weight: 700;
+  }
+
+  /* ── บรรทัดปุ่ม — ชิดขวา แตะง่าย ── */
+  #mainTable td[data-label="จัดการ"], #branchCertTable td[data-label="ใบเซอร์"] {
+    display: flex !important;
+    order: 7;
+    flex: 1 1 100% !important;
+    justify-content: flex-end;
+    align-items: center;
+    gap: 8px;
+    position: static !important;
+    width: auto !important; height: auto !important;
+    margin-top: 8px;
+    padding: 8px 0 0 !important;
+    border: none;
+    border-top: 1px dashed rgba(15,23,42,0.09);
+    background: none;
+  }
+  #mainTable td[data-label="จัดการ"] .btn-row-view,
+  #mainTable td[data-label="จัดการ"] .btn-del-row,
+  #branchCertTable td[data-label="ใบเซอร์"] .btn-row-view {
+    display: inline-flex !important;
+    align-items: center; justify-content: center;
+    flex: 0 0 auto !important;
+    width: 38px !important; height: 38px !important;
+    padding: 0 !important;
+    font-size: 15px !important;
+    border-radius: 10px !important;
+  }
+
+  /* กล่องนอกไม่ต้องเป็นการ์ดซ้อนการ์ด — ปล่อยให้แถวเป็นการ์ดอย่างเดียว */
+  .table-container.tc-cards {
+    background: transparent !important;
+    border: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none;
+    padding: 0 !important;
+    margin: 12px 12px 18px !important;
+    overflow-x: visible;
+  }
+  .tc-cards::after { display: none !important; }   /* การ์ดไม่ต้องเลื่อนซ้าย-ขวา */
+  .tc-cards .count-line { padding: 0 4px 8px; }
+  /* กล่องนอกโปร่ง → สถานะ "ไม่มีข้อมูล" ต้องมีการ์ดของตัวเอง */
+  .tc-cards td.empty {
+    background: #fff;
+    border: 1px solid rgba(15,23,42,0.08);
+    border-radius: 14px;
+    padding: 28px 16px !important;
+    box-shadow: 0 4px 12px rgba(15,23,42,0.05);
+  }
+
   .table-pagination { padding: 12px 6px; gap: 4px; }
   .pg-btn { min-width: 32px; height: 32px; padding: 0 8px; font-size: 12px; }
   .count-line { font-size: 12px; padding: 0 8px 8px; }
@@ -4881,36 +5100,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 
 
-/* ─── Mobile: ตารางใบรับรองฝั่งสาขา → การ์ด (ชุดเดียวกับ #mainTable แต่แยก selector) ─── */
-@media (max-width: 768px) {
-  #branchCertTable thead { display: none; }
-  #branchCertTable, #branchCertTable tbody, #branchCertTable tr { display: block; width: 100%; }
-  #branchCertTable tr {
-    background: #fff;
-    border: 1px solid rgba(15,23,42,0.08);
-    border-radius: 14px;
-    padding: 14px 16px;
-    margin-bottom: 12px;
-    box-shadow: 0 4px 12px rgba(15,23,42,0.05);
-    position: relative;
-  }
-  #branchCertTable td[data-label="ลำดับ"] { display: none !important; }
-  #branchCertTable td[data-label] {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 7px 0;
-    border: none;
-    border-bottom: 1px dashed rgba(15,23,42,0.06);
-    font-size: 13.5px; line-height: 1.5; color: var(--text);
-    text-align: left !important; white-space: normal !important; max-width: none !important;
-  }
-  #branchCertTable td[data-label="ใบเซอร์"] { border-bottom: none; padding-bottom: 0; }
-  #branchCertTable td[data-label]::before {
-    content: attr(data-icon) ' ' attr(data-label);
-    color: var(--text3); font-size: 11.5px; font-weight: 700;
-    flex-shrink: 0; min-width: 95px;
-  }
-  #branchCertTable td.cert-name { font-weight: 800; font-size: 15px; }
-}
+/* Mobile: ตารางใบรับรองฝั่งสาขา ใช้การ์ดชุดเดียวกับ #mainTable
+   (ดูบล็อก "Mobile: การ์ดใบรับรอง นำด้วยสถานะ" ด้านบน) */
 
 /* ─── ติ๊กเลือกหลายใบ → ดาวน์โหลดรวมเป็น PDF เดียว ─── */
 .chk-cert { width: 17px; height: 17px; cursor: pointer; accent-color: #EA580C; }
@@ -4950,14 +5141,7 @@ th.th-chk, td.td-chk { width: 38px; text-align: center; padding-left: 8px !impor
   .sel-bar-sp { display: none; }
   .sel-bar-txt { width: 100%; }
   .btn-sel-dl { flex: 1 1 auto; justify-content: center; }
-  /* การ์ดมือถือ: ช่องติ๊กลอยมุมซ้ายบน */
-  #mainTable td.td-chk, #branchCertTable td.td-chk {
-    position: absolute; top: 13px; left: 12px;
-    padding: 0 !important; border: none !important; background: none;
-    display: block !important; width: auto !important; z-index: 3;
-  }
-  #mainTable td.td-chk::before, #branchCertTable td.td-chk::before { display: none !important; }
-  #mainTable tr, #branchCertTable tr { padding: 14px 16px 14px 44px; }
+  /* ตำแหน่ง/ขนาดช่องติ๊กบนการ์ด — จัดไว้ในบล็อกการ์ดใบรับรองด้านบนแล้ว */
   .chk-cert { width: 20px; height: 20px; }
 }
 </style>
@@ -5625,33 +5809,38 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 
 <!-- FILTER BAR — chips + dropdowns + cleanup group ทั้งหมดอยู่บรรทัดเดียว -->
 <div class="filter-bar" id="matchChips" style="display:none">
-  <div class="filter-row-chips">
-    <!-- ดรอปดาว: หลักสูตร · แบรนด์ · สาขา · ค้นหา (+ สถานะท้ายสุด) -->
-    <select class="filter-sel-pretty" id="courseFilter" onchange="_tablePage=1;renderTable()">
-      <option value="all">📚 ทุกหลักสูตร</option>
-    </select>
-    <select class="filter-sel-pretty" id="brandFilter" onchange="_tablePage=1;renderTable()">
-      <option value="all">🏷️ ทุกแบรนด์</option>
-    </select>
-    <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
-      <option value="all">🏢 ทุกสาขา</option>
-    </select>
-    <input type="text" class="req-filter-search" id="searchQ" placeholder="🔍 ค้นหา ชื่อ / สาขา / หลักสูตร / ตำแหน่ง..." oninput="_tablePage=1;renderTable()" autocomplete="off" style="max-width:300px">
-    <div class="flex-break"></div>
-    <select class="filter-sel-pretty" id="expFilter" onchange="setExpFilter(this.value)">
-      <option value="all">📋 ทั้งหมด</option>
-      <option value="valid">✓ ยังมีผล</option>
-      <option value="warning">⚠ ใกล้หมดอายุ</option>
-      <option value="expired">✗ หมดอายุ</option>
-    </select>
-    <!-- บนมือถือ flex-break บังคับให้ cleanup ลงบรรทัดใหม่ -->
-    <div class="flex-break"></div>
-    <!-- cleanup group ดันไปขวาสุด (desktop) / center (mobile) -->
-    <div class="cleanup-group filter-cleanup">
-      <span class="cleanup-label">🧹 ล้างข้อมูลซ้ำ:</span>
-      <button class="cleanup-btn cleanup-warn" onclick="dedupEmployeeRegistry()" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">ทะเบียนพนักงาน</button>
-      <button class="cleanup-btn cleanup-info" data-fh-action="dedup-certs" onclick="dedupCertificateRegistry()" title="ลบใบรับรองที่ซ้ำใน Cloud">ใบรับรอง</button>
-      <button class="cleanup-btn" data-fh-action="clear-certs" onclick="clearAllCerts()" title="ลบใบรับรองทั้งหมดใน Cloud" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);">🗑 ลบใบรับรองทั้งหมด</button>
+  <div class="filter-row-chips" id="fhFilterInline">
+    <!-- ค้นหา + ปุ่มเปิดชีตตัวกรอง (ปุ่มโผล่เฉพาะมือถือ) -->
+    <div class="fb-search-wrap">
+      <input type="text" class="req-filter-search" id="searchQ" placeholder="🔍 ค้นหา ชื่อ / สาขา / หลักสูตร / ตำแหน่ง..." oninput="_tablePage=1;renderTable()" autocomplete="off">
+      <button type="button" class="fb-filter-btn" onclick="fhOpenFilterSheet()" aria-label="ตัวกรอง">
+        <span class="fb-filter-ic">⚙️</span><span class="fb-filter-tx">ตัวกรอง</span><span class="fb-badge" id="fbBadge" hidden>0</span>
+      </button>
+    </div>
+    <!-- กลุ่มที่ย้ายเข้า bottom sheet บนมือถือ: หลักสูตร · แบรนด์ · สาขา · สถานะ · ล้างข้อมูลซ้ำ -->
+    <div class="fb-movable" id="fhFilterMovable">
+      <select class="filter-sel-pretty" id="courseFilter" onchange="_tablePage=1;renderTable()">
+        <option value="all">📚 ทุกหลักสูตร</option>
+      </select>
+      <select class="filter-sel-pretty" id="brandFilter" onchange="_tablePage=1;renderTable()">
+        <option value="all">🏷️ ทุกแบรนด์</option>
+      </select>
+      <select class="filter-sel-pretty" id="branchFilter" onchange="_tablePage=1;renderTable()">
+        <option value="all">🏢 ทุกสาขา</option>
+      </select>
+      <select class="filter-sel-pretty" id="expFilter" onchange="setExpFilter(this.value)">
+        <option value="all">📋 ทั้งหมด</option>
+        <option value="valid">✓ ยังมีผล</option>
+        <option value="warning">⚠ ใกล้หมดอายุ</option>
+        <option value="expired">✗ หมดอายุ</option>
+      </select>
+      <!-- cleanup group ดันไปขวาสุด (desktop) / เต็มแถว (ในชีตมือถือ) -->
+      <div class="cleanup-group filter-cleanup">
+        <span class="cleanup-label">🧹 ล้างข้อมูลซ้ำ:</span>
+        <button class="cleanup-btn cleanup-warn" onclick="dedupEmployeeRegistry()" title="ลบรายชื่อพนักงานที่ซ้ำใน Cloud">ทะเบียนพนักงาน</button>
+        <button class="cleanup-btn cleanup-info" data-fh-action="dedup-certs" onclick="dedupCertificateRegistry()" title="ลบใบรับรองที่ซ้ำใน Cloud">ใบรับรอง</button>
+        <button class="cleanup-btn" data-fh-action="clear-certs" onclick="clearAllCerts()" title="ลบใบรับรองทั้งหมดใน Cloud" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);">🗑 ลบใบรับรองทั้งหมด</button>
+      </div>
     </div>
   </div>
   <!-- hidden state holders (kept for JS compatibility — getFiltered reads these) -->
@@ -5668,7 +5857,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 </div>
 
 <!-- CERT TABLE -->
-<div class="table-container">
+<div class="table-container tc-cards">
   <div class="count-line" id="countLine"></div>
   <table id="mainTable">
     <thead>
@@ -7166,10 +7355,11 @@ function renderTable() {
     tbody.innerHTML='<tr><td colspan="9" class="empty">ไม่พบข้อมูลที่ค้นหา</td></tr>';
     renderTablePagination_(totalPages);
     fhUpdateSelBar('ad');
+    if (typeof fhUpdateFilterBadge === 'function') fhUpdateFilterBadge();
     return;
   }
   tbody.innerHTML = pageRows.map(function(d){
-    return '<tr>'
+    return '<tr data-st="'+escapeAttr(d.expStatus || 'unknown')+'">'
       +'<td class="td-chk" data-label="เลือก" data-icon="☑️">'+_fhChkHtml('ad', d.certName, d.course)+'</td>'
       +'<td class="no-txt" data-label="ลำดับ" data-icon="🔢">'+d.no+'</td>'
       +'<td data-label="แบรนด์" data-icon="🏷">'+_certBrandTag(d)+'</td>'
@@ -7187,6 +7377,7 @@ function renderTable() {
   }).join('');
   renderTablePagination_(totalPages);
   fhUpdateSelBar('ad');
+  if (typeof fhUpdateFilterBadge === 'function') fhUpdateFilterBadge();
 }
 function renderTablePagination_(totalPages) {
   var pagEl = document.getElementById('tablePagination');
@@ -9911,7 +10102,7 @@ function branchSearch() {
   }
 
   if (!results.length) {
-    grid.innerHTML = '<div class="table-container"><table><tbody><tr><td class="empty">' +
+    grid.innerHTML = '<div class="table-container tc-cards"><table><tbody><tr><td class="empty">' +
       '<div style="font-size:44px;margin-bottom:10px;">📂</div>' +
       '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + (q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีใบรับรองของสาขานี้') + '</div>' +
       '<div style="font-size:12px;color:var(--text3);">' + (q ? 'ลองพิมพ์คำอื่น' : 'กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม') + '</div>' +
@@ -9925,7 +10116,7 @@ function branchSearch() {
   var rows = results.slice(0, MAX).map(function(r, i){
     var status = r['สถานะใบรับรอง'] || 'unknown';
     var url = _fhCertUrl(r['ชื่อในใบรับรอง'], r['หลักสูตร']);
-    return '<tr>'
+    return '<tr data-st="' + escapeAttr(status) + '">'
       + '<td class="td-chk" data-label="เลือก" data-icon="☑️">' + _fhChkHtml('br', r['ชื่อในใบรับรอง'], r['หลักสูตร']) + '</td>'
       + '<td class="no-txt" data-label="ลำดับ" data-icon="🔢">' + (i + 1) + '</td>'
       + '<td class="cert-name" data-label="ชื่อ" data-icon="📜">' + escapeHtml(r['ชื่อในใบรับรอง'] || '—') + '</td>'
@@ -9938,7 +10129,7 @@ function branchSearch() {
       + '</tr>';
   }).join('');
 
-  grid.innerHTML = '<div class="table-container">'
+  grid.innerHTML = '<div class="table-container tc-cards">'
     + '<table id="branchCertTable"><thead><tr>'
     +   '<th class="th-chk"><input type="checkbox" class="chk-cert" id="brChkAll" onclick="fhSelectAllCerts(\'br\', this.checked)" title="เลือกทุกรายการที่แสดงอยู่"></th>'
     +   '<th>ลำดับ</th><th>ชื่อ</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบเซอร์</th>'
@@ -12489,6 +12680,76 @@ function buildInfoModal() {
   document.body.insertAdjacentHTML('beforeend', html);
 }
 
+/* ═══════════ มือถือ: bottom sheet ตัวกรองใบรับรอง ═══════════
+   ย้าย #fhFilterMovable (หลักสูตร/แบรนด์/สาขา/สถานะ + ล้างข้อมูลซ้ำ) เข้า-ออกจากชีต
+   — ย้ายทั้งก้อน ไม่ได้ clone → id/onchange เดิมใช้ได้ทั้งหมด */
+var _FB_SELS = ['courseFilter','brandFilter','branchFilter','expFilter'];
+function fhFilterSheetOpen_() {
+  var sh = document.getElementById('fbSheet');
+  return !!(sh && sh.classList.contains('show'));
+}
+function fhOpenFilterSheet() {
+  var mv = document.getElementById('fhFilterMovable');
+  var body = document.getElementById('fbSheetBody');
+  if (mv && body && mv.parentNode !== body) body.appendChild(mv);
+  var sh = document.getElementById('fbSheet'), bd = document.getElementById('fbSheetBackdrop');
+  if (sh) sh.classList.add('show');
+  if (bd) bd.classList.add('show');
+  document.body.style.overflow = 'hidden';
+}
+function fhCloseFilterSheet() {
+  var sh = document.getElementById('fbSheet'), bd = document.getElementById('fbSheetBackdrop');
+  if (sh) sh.classList.remove('show');
+  if (bd) bd.classList.remove('show');
+  document.body.style.overflow = '';
+  // คืนกลุ่มตัวกรองกลับแถบเดิม (desktop ใช้ตำแหน่งนี้)
+  var mv = document.getElementById('fhFilterMovable');
+  var inline = document.getElementById('fhFilterInline');
+  if (mv && inline && mv.parentNode !== inline) inline.appendChild(mv);
+  fhUpdateFilterBadge();
+}
+function fhResetFilters() {
+  _FB_SELS.forEach(function(id){ var el = document.getElementById(id); if (el) el.value = 'all'; });
+  var q = document.getElementById('searchQ'); if (q) q.value = '';
+  if (typeof setExpFilter === 'function') setExpFilter('all');
+  else if (typeof renderTable === 'function') { _tablePage = 1; renderTable(); }
+  fhUpdateFilterBadge();
+}
+/* ตัวเลขบนปุ่ม "ตัวกรอง" = จำนวนตัวกรองที่ไม่ใช่ "ทั้งหมด" */
+function fhUpdateFilterBadge() {
+  var n = 0;
+  _FB_SELS.forEach(function(id){
+    var el = document.getElementById(id);
+    if (el && el.value && el.value !== 'all') n++;
+  });
+  var b = document.getElementById('fbBadge');
+  if (b) { b.textContent = n; b.hidden = (n === 0); }
+  var btn = document.querySelector('.fb-filter-btn');
+  if (btn) btn.classList.toggle('has-active', n > 0);
+  return n;
+}
+document.addEventListener('keydown', function(e){
+  if (e.key === 'Escape' && fhFilterSheetOpen_()) fhCloseFilterSheet();
+});
+window.addEventListener('resize', function(){
+  if (window.innerWidth > 768 && fhFilterSheetOpen_()) fhCloseFilterSheet();
+});
+
 </script>
+
+<!-- ── มือถือ: bottom sheet ตัวกรองใบรับรอง ── -->
+<div class="fb-sheet-backdrop" id="fbSheetBackdrop" onclick="fhCloseFilterSheet()"></div>
+<div class="fb-sheet" id="fbSheet" role="dialog" aria-modal="true" aria-label="ตัวกรองใบรับรอง">
+  <div class="fb-sheet-grip"></div>
+  <div class="fb-sheet-head">
+    <span class="fb-sheet-title">⚙️ ตัวกรอง</span>
+    <button type="button" class="fb-sheet-x" onclick="fhCloseFilterSheet()" aria-label="ปิด">✕</button>
+  </div>
+  <div class="fb-sheet-body" id="fbSheetBody"></div>
+  <div class="fb-sheet-foot">
+    <button type="button" class="fb-sheet-reset" onclick="fhResetFilters()">ล้างตัวกรอง</button>
+    <button type="button" class="fb-sheet-done" onclick="fhCloseFilterSheet()">ดูผลลัพธ์</button>
+  </div>
+</div>
 </body>
 </html>
