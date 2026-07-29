@@ -988,6 +988,33 @@ function _brandKey(s){
     .replace(/[็-๎]/g,'')
     .toLowerCase();
 }
+/* ชื่อเรียกอื่นของแต่ละแบรนด์ — ทะเบียนแบรนด์เปลี่ยนชื่อได้ (เคสจริง: "เจ๊แดง" → "Jaedang_Samyan")
+   แต่ชุดข้อสอบเก่าเก็บชื่อ ณ ตอนสร้างไว้ ถ้าเทียบชื่อตรงๆ ข้อสอบเก่าจะหายทันทีที่เปลี่ยนชื่อแบรนด์ */
+var BRAND_ALIASES = {
+  jaedaeng: ['เจ๊แดง','เจแดง','เจ๊แดง จุ่มนัวร์','เจ๊แดง สามย่าน','jaedaeng','jaedang','jae daeng','jaedang samyan','jaedaeng samyan'],
+  santafe:  ['ซานตาเฟ่','ซานตาเฟ','santafe','santa fe','santa fe steak']
+};
+/* ชุดชื่อที่ยอมรับได้ของแบรนด์ที่เลือก: ชื่อในทะเบียน + คีย์ + คำโปรย + ชื่อ default + alias */
+function _brandNameSet(info){
+  var out = [info.name, info.key, info.desc];
+  var def = DEFAULT_EXAM_BRANDS.find(function(d){ return d.key===info.key; });
+  if(def) out.push(def.name, def.desc);
+  var group = BRAND_ALIASES[info.key];
+  if(!group){
+    // ทะเบียนใช้คีย์อื่น → หากลุ่ม alias จากชื่อ/คีย์ที่เห็นแทน
+    Object.keys(BRAND_ALIASES).forEach(function(k){
+      var hit = BRAND_ALIASES[k].some(function(a){
+        var ka=_brandKey(a);
+        return ka && ([info.name, info.key].some(function(v){
+          var kv=_brandKey(v); return kv && (kv===ka || kv.indexOf(ka)>=0 || ka.indexOf(kv)>=0);
+        }));
+      });
+      if(hit) group = BRAND_ALIASES[k];
+    });
+  }
+  if(group) out = out.concat(group);
+  return out.map(_brandKey).filter(Boolean);
+}
 function brandMatch(ex){
   if(!currentBrand || currentBrand==='all') return true;
   var info = BRANDS.find(function(x){ return x.key===currentBrand; });
@@ -999,9 +1026,11 @@ function brandMatch(ex){
   }
   var b = (ex.brand||'').trim();
   if(!b) return true;
-  var kb = _brandKey(b), ks = _brandKey(info.name);
-  var ok = kb===ks || kb.indexOf(ks)>=0 || ks.indexOf(kb)>=0;
-  if(!ok) console.warn('[EXAM] ซ่อนชุดข้อสอบ "'+ex.title+'" — แบรนด์ในข้อสอบ "'+b+'" ไม่ตรงกับแบรนด์ที่เลือก "'+info.name+'"');
+  var kb = _brandKey(b);
+  var ok = _brandNameSet(info).some(function(ks){
+    return kb===ks || kb.indexOf(ks)>=0 || ks.indexOf(kb)>=0;
+  });
+  if(!ok) console.warn('[EXAM] ซ่อนชุดข้อสอบ "'+ex.title+'" — แบรนด์ในข้อสอบ "'+b+'" ไม่ตรงกับแบรนด์ที่เลือก "'+info.name+'" (คีย์ '+info.key+') · ถ้าควรตรงกันให้แจ้งเพื่อเพิ่มใน BRAND_ALIASES');
   return ok;
 }
 
