@@ -3608,6 +3608,7 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
   #mainTable td[data-label="แบรนด์"],
   #mainTable td[data-label="วันหมดอายุ"],
   #branchCertTable td[data-label="หลักสูตร"],
+  #branchCertTable td[data-label="สาขา"],
   #branchCertTable td[data-label="วันหมดอายุ"] {
     display: flex;
     align-items: baseline;
@@ -3644,7 +3645,8 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
     padding-top: 9px !important;
     border-top: 1px dashed rgba(15,23,42,0.09);
   }
-  #mainTable td[data-label="สาขา"]  { order: 4; flex: 1 1 auto; }
+  #mainTable td[data-label="สาขา"],
+  #branchCertTable td[data-label="สาขา"] { order: 4; flex: 1 1 auto; }
   #mainTable td[data-label="แบรนด์"] {
     order: 5; flex: 0 0 auto;
     margin-left: auto;
@@ -5533,7 +5535,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <div class="page-hero-row">
         <div class="page-hero-ic">📜</div>
         <div class="page-hero-body">
-          <div class="page-hero-title">ใบรับรองของสาขา</div>
+          <div class="page-hero-title">ฐานข้อมูลใบรับรอง · ทุกสาขา</div>
           <div class="page-hero-sub" id="branchHeroSub">กำลังโหลด...</div>
         </div>
         <!-- เตือนเฉพาะเมื่อมีใบใกล้หมด/หมดอายุจริง (ไม่มี = ไม่ต้องรก) -->
@@ -5545,7 +5547,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="filter-bar" style="padding:10px 14px;">
       <div class="search-big" style="margin-bottom:0;background:transparent;border:none;padding:4px 2px;">
         <svg class="ico ico-lg" style="color:var(--text3)"><use href="#i-search"/></svg>
-        <input type="text" id="branchSearchQ" placeholder="พิมพ์ชื่อพนักงาน, ตำแหน่ง หรือหลักสูตร..." oninput="branchSearch()">
+        <input type="text" id="branchSearchQ" placeholder="พิมพ์ชื่อพนักงาน, สาขา, ตำแหน่ง หรือหลักสูตร..." oninput="branchSearch()">
       </div>
     </div>
 
@@ -10164,7 +10166,14 @@ function logout() {
    ใช้ matchesCurrentBranch_ ตัวเดียวกับช่องเลือกชื่อในฟอร์มขออบรม → ตรรกะตรงกันทั้งระบบ
    (matchesCurrentBranch_ คืน true เมื่อ isAdminMode → admin/BZM เห็นทั้งหมดอยู่แล้ว)
    ถ้าไม่รู้ว่าสาขาไหน (ไม่มี pin/ชื่อ) จะไม่กรอง เพื่อกันเผลอซ่อนหมด */
+/* เดิมกรองให้สาขาเห็นเฉพาะใบรับรองของตัวเอง — ตอนนี้ทุกสาขาเห็นข้อมูลทั้งหมด
+   (คงฟังก์ชันไว้เพราะมีที่เรียกหลายจุด และเผื่อกลับมาจำกัดขอบเขตทีหลัง) */
 function _fhScopeRecordsToBranch(records) {
+  if (!Array.isArray(records)) return [];
+  return records;
+}
+/* นับเฉพาะใบของสาขาที่ล็อกอินอยู่ — ใช้กับกล่องเตือน "ต้องลงมือ" ให้ยังตรงกับสาขาตัวเอง */
+function _fhOwnBranchRecords(records) {
   if (!Array.isArray(records)) return [];
   if (isAdminMode) return records;
   if (!String(branchPin || '').trim() && !String(currentBranchName || '').trim()) return records;
@@ -10216,15 +10225,19 @@ function loadRecordsForSearch() {
 function updateBranchStats() {
   var subEl = document.getElementById('branchHeroSub');
   var alertEl = document.getElementById('branchAlert');
+  // รายการแสดงทุกสาขา แต่กล่องเตือน "ต้องลงมือ" นับเฉพาะสาขาตัวเอง — ไม่งั้นตัวเลขของสาขาอื่นจะทำให้เข้าใจผิด
+  var own = _fhOwnBranchRecords(allRecords || []);
   var warn = 0, exp = 0;
-  (allRecords || []).forEach(function(r){
+  own.forEach(function(r){
     var st = r['สถานะใบรับรอง'];
     if (st === 'warning' || st === 'ใกล้หมดอายุ') warn++;
     else if (st === 'expired' || st === 'หมดอายุ') exp++;
   });
   if (subEl) {
-    subEl.textContent = (currentBranchName ? currentBranchName + ' · ' : '')
-      + ((allRecords || []).length ? 'มีใบรับรอง ' + allRecords.length + ' ใบ' : 'ยังไม่มีใบรับรองในระบบ');
+    var total = (allRecords || []).length;
+    subEl.textContent = !total ? 'ยังไม่มีใบรับรองในระบบ'
+      : ('ทุกสาขา ' + total + ' ใบ'
+         + (!isAdminMode && currentBranchName ? ' · ' + currentBranchName + ' ' + own.length + ' ใบ' : ''));
   }
   if (!alertEl) return;
   if (!warn && !exp) { alertEl.style.display = 'none'; alertEl.innerHTML = ''; return; }
@@ -10244,7 +10257,7 @@ function branchSearch() {
   var grid = document.getElementById('branchResults');
   if (!grid) return;
   _fhResetSelIfFilterChanged('br');   // เปลี่ยนคำค้น → ล้างที่ติ๊กไว้ก่อนวาดช่องติ๊ก
-  // ไม่พิมพ์อะไร = โชว์ทั้งหมดของสาขา (ข้อมูลถูกกรองเหลือเฉพาะสาขาตัวเองแล้ว จึงไม่เยอะ)
+  // ไม่พิมพ์อะไร = โชว์ทุกสาขา (ตัดที่ MAX ด้านล่าง แล้วบอกให้พิมพ์กรองให้แคบลง)
   var results = !q ? (allRecords || []) : (allRecords || []).filter(function(r){
     var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'') + ' ' + (r['หลักสูตร']||'')).toLowerCase();
     return hay.indexOf(q) >= 0;
@@ -10261,7 +10274,7 @@ function branchSearch() {
   if (!results.length) {
     grid.innerHTML = '<div class="table-container tc-cards"><table><tbody><tr><td class="empty">' +
       '<div style="font-size:44px;margin-bottom:10px;">📂</div>' +
-      '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + (q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีใบรับรองของสาขานี้') + '</div>' +
+      '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + (q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีใบรับรองในระบบ') + '</div>' +
       '<div style="font-size:12px;color:var(--text3);">' + (q ? 'ลองพิมพ์คำอื่น' : 'กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม') + '</div>' +
       '</td></tr></tbody></table></div>';
     fhUpdateSelBar('br');
@@ -10277,6 +10290,7 @@ function branchSearch() {
       + '<td class="td-chk" data-label="เลือก" data-icon="☑️">' + _fhChkHtml('br', r['ชื่อในใบรับรอง'], r['หลักสูตร']) + '</td>'
       + '<td class="no-txt" data-label="ลำดับ" data-icon="🔢">' + (i + 1) + '</td>'
       + '<td class="cert-name" data-label="ชื่อ" data-icon="📜">' + escapeHtml(r['ชื่อในใบรับรอง'] || '—') + '</td>'
+      + '<td data-label="สาขา" data-icon="🏢" class="branch-txt">' + escapeHtml(r['สาขา'] || '—') + '</td>'
       + '<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">' + escapeHtml(_courseShort(r['หลักสูตร'] || '')) + '</td>'
       + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
       + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
@@ -10289,7 +10303,7 @@ function branchSearch() {
   grid.innerHTML = '<div class="table-container tc-cards">'
     + '<table id="branchCertTable"><thead><tr>'
     +   '<th class="th-chk"><input type="checkbox" class="chk-cert" id="brChkAll" onclick="fhSelectAllCerts(\'br\', this.checked)" title="เลือกทุกรายการที่แสดงอยู่"></th>'
-    +   '<th>ลำดับ</th><th>ชื่อ</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบเซอร์</th>'
+    +   '<th>ลำดับ</th><th>ชื่อ</th><th>สาขา</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบเซอร์</th>'
     + '</tr></thead><tbody>' + rows + '</tbody></table>'
     + (results.length > MAX ? '<div class="count-line">แสดง ' + MAX + ' รายการแรกจาก ' + results.length + ' · พิมพ์เพื่อกรองให้แคบลง</div>' : '')
     + '</div>';
