@@ -980,12 +980,29 @@ function pickBrand(key){
   }
 }
 // กรองชุดข้อสอบตามแบรนด์ที่เลือก (แบรนด์ว่าง = ใช้ได้ทุกแบรนด์)
+/* คีย์เทียบชื่อแบรนด์ — ตัดช่องว่าง/ขีด/วงเล็บ/วรรณยุกต์ ให้ "เจ๊แดง" = "เจ๊ แดง" = "เจแดง"
+   (วิธีเดียวกับ _branchKey ในระบบใบรับรอง ที่แก้ปัญหาชื่อสาขาสะกดต่างกัน) */
+function _brandKey(s){
+  return String(s||'')
+    .replace(/[\s\-–—_.,'"()\[\]/]+/g,'')
+    .replace(/[็-๎]/g,'')
+    .toLowerCase();
+}
 function brandMatch(ex){
   if(!currentBrand || currentBrand==='all') return true;
-  var sel = brandInfo(currentBrand).name;
+  var info = BRANDS.find(function(x){ return x.key===currentBrand; });
+  // แบรนด์ที่เลือกไม่มีในทะเบียน (ทะเบียนแบรนด์ถูกแก้/session ค้างคีย์เก่า)
+  // → ห้ามเอา label สำรอง 'ทุกแบรนด์' ไปเทียบ ไม่งั้นข้อสอบหายหมด · ปล่อยผ่านไว้ก่อน
+  if(!info){
+    console.warn('[EXAM] ไม่รู้จักแบรนด์คีย์ "'+currentBrand+'" (ทะเบียนมี: '+BRANDS.map(function(x){return x.key;}).join(', ')+') → ไม่กรองตามแบรนด์');
+    return true;
+  }
   var b = (ex.brand||'').trim();
   if(!b) return true;
-  return b===sel || b.indexOf(sel)>=0 || sel.indexOf(b)>=0;
+  var kb = _brandKey(b), ks = _brandKey(info.name);
+  var ok = kb===ks || kb.indexOf(ks)>=0 || ks.indexOf(kb)>=0;
+  if(!ok) console.warn('[EXAM] ซ่อนชุดข้อสอบ "'+ex.title+'" — แบรนด์ในข้อสอบ "'+b+'" ไม่ตรงกับแบรนด์ที่เลือก "'+info.name+'"');
+  return ok;
 }
 
 /* ═════════════════════ ADMIN: TABS ═════════════════════ */
