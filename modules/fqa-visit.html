@@ -1745,7 +1745,9 @@ const Form = {
   nsList(){ if(!this.s.newStaff) this.s.newStaff=[this.staffRow()]; return this.s.newStaff; },
   addStaff(){ this.nsList().push(this.staffRow()); this.render(); },
   delStaff(i){ const a=this.nsList(); a.splice(i,1); if(!a.length) a.push(this.staffRow()); this.render(); },
-  setStaff(i,k,v){ this.nsList()[i][k]=v; this.persist(); },
+  setStaff(i,k,v){ const st=this.nsList()[i]; st[k]=v;
+    if(k==='startDate'){ st.tenure=tenureText(v, this.s.date); this.render(); return; }   // คำนวณอายุงานจากวันเริ่มงาน
+    this.persist(); },
   addEval(si){ this.nsList()[si].evals.push(this.evalRow()); this.render(); },
   delEval(si,ei){ const ev=this.nsList()[si].evals; ev.splice(ei,1); if(!ev.length) ev.push(this.evalRow()); this.render(); },
   setEval(si,ei,k,v){ const e=this.nsList()[si].evals[ei]; e[k]=v; if(k==='main'){ e.sub=''; this.render(); } else this.persist(); },
@@ -2038,9 +2040,9 @@ const Form = {
             <div class="fld"><label class="lbl">ชื่อ-นามสกุล</label>
               <input class="inp" value="${attr(st.name)}" oninput="Form.setStaff(${si},'name',this.value)"></div>
             <div class="fld"><label class="lbl">วันเริ่มงาน</label>
-              <input type="date" class="inp" value="${attr(st.startDate)}" oninput="Form.setStaff(${si},'startDate',this.value)"></div>
-            <div class="fld"><label class="lbl">อายุงาน</label>
-              <input class="inp" placeholder="เช่น 15 วัน / 2 เดือน" value="${attr(st.tenure)}" oninput="Form.setStaff(${si},'tenure',this.value)"></div>
+              <input type="date" class="inp" value="${attr(st.startDate)}" onchange="Form.setStaff(${si},'startDate',this.value)"></div>
+            <div class="fld"><label class="lbl">อายุงาน${st.startDate?' <span style="color:var(--text3);font-weight:400">(คำนวณอัตโนมัติ)</span>':''}</label>
+              <input class="inp" ${st.startDate?'readonly style="background:var(--surface2,#00000008)"':''} placeholder="เช่น 15 วัน / 2 เดือน" value="${attr(st.tenure)}" oninput="Form.setStaff(${si},'tenure',this.value)"></div>
           </div>
           <div style="margin:12px 0 4px;display:flex;align-items:center;gap:8px">
             <b style="font-size:12.5px;color:var(--text2)">หัวข้อที่ประเมิน</b><div class="sp" style="flex:1"></div>
@@ -2532,6 +2534,20 @@ const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มี
 const mLabel = m => { const [y,mo]=String(m).split('-').map(Number); return (TH_MONTHS[((mo-1)%12+12)%12]||'')+' '+y; };
 /* วันที่แบบเต็ม: 22 กรกฎาคม 2026 */
 const dLabel = iso => { const [y,mo,d]=String(iso).split('-').map(Number); if(!y||!mo||!d) return iso||'—'; return d+' '+(TH_MONTHS[((mo-1)%12+12)%12]||'')+' '+y; };
+/* คำนวณอายุงานจากวันเริ่มงานถึงวันอ้างอิง (ค่าเริ่มต้น = วันนี้) → "1 ปี 2 เดือน 5 วัน" */
+function tenureText(startISO, refISO){
+  if(!startISO) return '';
+  const s=new Date(startISO+'T00:00:00'), r=new Date((refISO||todayISO())+'T00:00:00');
+  if(isNaN(s.getTime())||isNaN(r.getTime())||r<s) return '';
+  let months=(r.getFullYear()-s.getFullYear())*12+(r.getMonth()-s.getMonth());
+  let days=r.getDate()-s.getDate();
+  if(days<0){ months--; days+=new Date(r.getFullYear(), r.getMonth(), 0).getDate(); }
+  const y=Math.floor(months/12), mo=months%12, parts=[];
+  if(y) parts.push(y+' ปี');
+  if(mo) parts.push(mo+' เดือน');
+  if(days||!parts.length) parts.push(days+' วัน');
+  return parts.join(' ');
+}
 
 function hbars(rows,color){
   if(!rows.length) return emptyBox();
