@@ -1681,7 +1681,7 @@ const Form = {
       trainer:(M.trainers()[0]||''), photos:[], createdAt:new Date().toISOString() };
     if(type==='FQA'){ r.materials=[]; r.checks=M.list('fqaItems').map(i=>({item:i,result:'',detail:'',fix:''})); r.menus=[this.menuRow()]; }
     if(type==='FSQ'){ Object.assign(r,{complaint:'',menu:'',category:'',categoryOther:'',channel:'',severity:''}); r.issues=[this.issueRow()]; }
-    if(type==='VISIT'){ r.visitType=(M.list('visitTypes')[0]||''); r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
+    if(type==='VISIT'){ r.visitType=[]; r.visitTypeOther=''; r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     return r;
   },
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
@@ -1994,10 +1994,15 @@ const Form = {
   /* ===== VISIT ===== */
   visitBody(){
     const s=this.s;
+    if(!Array.isArray(s.visitType)) s.visitType = s.visitType? [s.visitType] : [];   // รองรับข้อมูลเก่า (เดิมเป็นค่าเดียว)
+    const sel=s.visitType, hasOther=sel.includes('อื่นๆ');
     return `
     <div class="card">
-      <div class="hd"><span class="sec-no">2</span><h3>ประเภทการเข้าพบ</h3></div>
-      <div class="bd"><div class="chipbar">${M.list('visitTypes').map((v,i)=>`<span class="chip ${s.visitType===v?'on':''}" onclick="Form.pickVisit(${i})">${esc(v)}</span>`).join('')}</div></div>
+      <div class="hd"><span class="sec-no">2</span><h3>ประเภทการเข้าพบ</h3><div class="sp"></div><span class="note">เลือกได้มากกว่า 1</span></div>
+      <div class="bd"><div class="chipbar">${M.list('visitTypes').map((v,i)=>`<span class="chip ${sel.includes(v)?'on':''}" onclick="Form.toggleVisit(${i})">${esc(v)}</span>`).join('')}</div>
+        ${hasOther?`<div class="fld" style="margin-top:12px"><label class="lbl">ระบุประเภทอื่นๆ <span style="color:var(--red)">*</span></label>
+          <input class="inp" value="${attr(s.visitTypeOther)}" oninput="Form.set('visitTypeOther',this.value)" placeholder="ระบุประเภทการเข้าพบ"></div>`:''}
+      </div>
     </div>
     <div class="card">
       <div class="hd"><span class="sec-no">3</span><h3>หัวข้อการอบรมและข้อแนะนำ</h3><div class="sp"></div>
@@ -2021,7 +2026,11 @@ const Form = {
     ${this.newStaffCard(4)}
     ${this.photoBlock(5)}`;
   },
-  pickVisit(i){ this.s.visitType=M.list('visitTypes')[i]; this.render(); },
+  toggleVisit(i){ const v=M.list('visitTypes')[i];
+    let arr=Array.isArray(this.s.visitType)? this.s.visitType : (this.s.visitType?[this.s.visitType]:[]);
+    const idx=arr.indexOf(v); if(idx>=0) arr.splice(idx,1); else arr.push(v);
+    this.s.visitType=arr; if(!arr.includes('อื่นๆ')) this.s.visitTypeOther='';   // เลิกเลือกอื่นๆ = ล้างข้อความ
+    this.render(); },
 
   /* ===== การ์ดประเมินพนักงานใหม่ ===== */
   newStaffCard(no){
@@ -2116,7 +2125,8 @@ const Form = {
     }
 
     if(s.type==='VISIT'){
-      if(need(s.visitType)) return 'กรุณาเลือกประเภทการเข้าพบ';
+      if(!(Array.isArray(s.visitType)?s.visitType:[s.visitType]).filter(Boolean).length) return 'กรุณาเลือกประเภทการเข้าพบอย่างน้อย 1 อย่าง';
+      if((Array.isArray(s.visitType)?s.visitType:[]).includes('อื่นๆ') && need(s.visitTypeOther)) return 'กรุณาระบุประเภทการเข้าพบ (อื่นๆ)';
       const keys=['topic','problem','advice'];
       if(!s.topics.some(x=>keys.some(k=>String(x[k]||'').trim()))) return 'กรุณากรอกหัวข้อการอบรมอย่างน้อย 1 หัวข้อ';
       const lbl={topic:'หัวข้อการอบรม',problem:'ปัญหาที่พบ',advice:'ข้อแนะนำ'};
@@ -2156,10 +2166,10 @@ const Form = {
    RECORDS
    ======================================================================= */
 function failCount(r){
-  if(r.type==='FQA') return r.checks.filter(c=>c.result==='ไม่ผ่าน').length
-    + r.menus.filter(m=>m.cook==='ไม่ผ่าน'||m.taste==='ไม่ผ่าน').length;
-  if(r.type==='FSQ') return r.issues.filter(i=>i.problem.trim()).length;
-  return r.topics.filter(t=>t.problem.trim()).length;
+  if(r.type==='FQA') return (r.checks||[]).filter(c=>c.result==='ไม่ผ่าน').length
+    + (r.menus||[]).filter(m=>m.cook==='ไม่ผ่าน'||m.taste==='ไม่ผ่าน').length;
+  if(r.type==='FSQ') return (r.issues||[]).filter(i=>(i.problem||'').trim()).length;
+  return (r.topics||[]).filter(t=>(t.problem||'').trim()).length;
 }
 function summaryLine(r){
   if(r.type==='FQA'){
@@ -2169,6 +2179,10 @@ function summaryLine(r){
   if(r.type==='FSQ') return r.complaint.slice(0,80)+(r.complaint.length>80?'…':'');
   return r.topics.map(t=>t.topic).filter(Boolean).slice(0,2).join(' · ');
 }
+/* ประเภทการเข้าพบ (Visit) — รองรับทั้งแบบหลายค่า (array) และข้อมูลเก่า (string) · แทน "อื่นๆ" ด้วยข้อความที่ระบุ */
+function visitTypeArr(r){ const v=r&&r.visitType; return Array.isArray(v)? v.filter(Boolean) : (v? [v] : []); }
+function visitTypeList(r){ return visitTypeArr(r).map(v=> v==='อื่นๆ' ? ('อื่นๆ'+(r.visitTypeOther?': '+r.visitTypeOther:'')) : v); }
+function visitTypeLabel(r){ const a=visitTypeList(r); return a.length? a.join(', ') : '—'; }
 /* รายการตรวจจริง (ไม่รวมแผน type=PLAN) · แผนการตรวจแยกออกไป */
 const inspections = ()=> DB.all().filter(r=>r.type!=='PLAN');
 const plans = ()=> DB.all().filter(r=>r.type==='PLAN');
@@ -2273,7 +2287,7 @@ const Rec = {
         ${r.issues.map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
     }
     if(r.type==='VISIT'){
-      h+=box('ประเภทการเข้าพบ',`<span class="tag">${esc(r.visitType)}</span>`);
+      h+=box('ประเภทการเข้าพบ', visitTypeList(r).map(v=>`<span class="tag">${esc(v)}</span>`).join(' ')||'<span style="color:var(--text3)">—</span>');
       h+=box('หัวข้อการอบรม',`<table class="tb"><thead><tr><th>หัวข้อ</th><th>ปัญหาที่พบ</th><th>ข้อแนะนำ</th></tr></thead><tbody>
         ${r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
       if((r.newStaff||[]).length) h+=box('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
@@ -2804,7 +2818,8 @@ const Dash = {
     document.getElementById('chTrainer').innerHTML = trows.length? hbars(trows,RED[1]) : emptyBox();
 
     /* ---- 11 Visit: ประเภทการเข้าพบ + หัวข้อการอบรม ---- */
-    const vt=cnt(vis,r=>r.visitType);
+    const vtc={}; vis.forEach(r=>visitTypeList(r).forEach(v=>{ if(v) vtc[v]=(vtc[v]||0)+1; }));
+    const vt=Object.entries(vtc).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
     document.getElementById('chVisitType').innerHTML = vt.length? donut(vt,'ครั้ง') : emptyBox('ยังไม่มีข้อมูล Visit');
     const topicC={}; vis.forEach(r=>(r.topics||[]).forEach(t=>{ if(t.topic&&t.topic.trim()) topicC[t.topic.trim()]=(topicC[t.topic.trim()]||0)+1; }));
     const topTopics=Object.entries(topicC).map(([k,v])=>({k,v,t:v+' ครั้ง'})).sort((a,b)=>b.v-a.v).slice(0,8);
@@ -3216,7 +3231,7 @@ const PDF = {
         r.issues.map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`)));
     }
     if(r.type==='VISIT'){
-      b+=`<p style="margin:0 0 15px;font-size:13px"><span style="color:#999;font-weight:700">ประเภทการเข้าพบ: </span><b style="color:#111">${esc(r.visitType||'—')}</b></p>`;
+      b+=`<p style="margin:0 0 15px;font-size:13px"><span style="color:#999;font-weight:700">ประเภทการเข้าพบ: </span><b style="color:#111">${esc(visitTypeLabel(r))}</b></p>`;
       b+=sec('หัวข้อการอบรม', tbl(
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
@@ -3420,7 +3435,7 @@ const IO = {
         'ช่องทาง':r.channel,'ความรุนแรง':r.severity,'ปัญหาที่พบ':x.problem,'การแก้ไขเบื้องต้น':x.immediate,'สาเหตุ':x.cause,
         'แนวทางการป้องกัน':x.prevention,'ข้อแนะนำเพิ่มเติม':x.advice}));
       if(r.type==='VISIT') r.topics.forEach(x=>visit.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
-        'ประเภทการเข้าพบ':r.visitType,'หัวข้อการอบรม':x.topic,'ปัญหาที่พบ':x.problem,'ข้อแนะนำ':x.advice}));
+        'ประเภทการเข้าพบ':visitTypeLabel(r),'หัวข้อการอบรม':x.topic,'ปัญหาที่พบ':x.problem,'ข้อแนะนำ':x.advice}));
     });
     const master=M.branches().map((b,i)=>({'ลำดับ':i+1,'สาขา':b.name,'ผู้จัดการเขต':b.bzm}));
     return {summary,fqaItem,fqaMenu,comp,visit,master};
