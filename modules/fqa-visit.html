@@ -1687,8 +1687,8 @@ const Form = {
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
   issueRow(){ return {problem:'',immediate:'',cause:'',prevention:'',advice:''}; },
   topicRow(){ return {topic:'',problem:'',advice:''}; },
-  staffRow(){ return {name:'',tenure:'',evals:[this.evalRow()]}; },
-  evalRow(){ return {main:'',sub:'',method:'',score:''}; },
+  staffRow(){ return {name:'',startDate:'',tenure:'',evals:[this.evalRow()]}; },
+  evalRow(){ return {main:'',sub:'',method:'',score:'',detail:''}; },
 
   open(type, rec){
     this.type=type;
@@ -1710,7 +1710,7 @@ const Form = {
     if(d.type==='FQA') return (d.materials&&d.materials.length>0) || (d.checks||[]).some(c=>c.result||c.detail||c.fix) || (d.menus||[]).some(m=>(m.menu||'').trim()||m.detail||m.fix);
     if(d.type==='FSQ') return (d.complaint||'').trim() || (d.menu||'').trim() || (d.issues||[]).some(i=>i.problem||i.immediate||i.cause||i.prevention||i.advice);
     if(d.type==='VISIT') return (d.topics||[]).some(t=>(t.topic||'').trim()||t.problem||t.advice)
-      || (d.newStaff||[]).some(st=>(st.name||'').trim()||(st.evals||[]).some(e=>e.main||e.sub||e.method||e.score));
+      || (d.newStaff||[]).some(st=>(st.name||'').trim()||(st.startDate||'').trim()||(st.evals||[]).some(e=>e.main||e.sub||e.method||e.score||e.detail));
     return false;
   },
   /* หัวข้อ FQA อาจถูกแก้ในหน้าข้อมูลหลัก — ปรับร่างให้ตรงกันโดยคงคำตอบเดิม */
@@ -2034,9 +2034,11 @@ const Form = {
         <div class="rep">
           <div class="rn">พนักงานคนที่ ${si+1}</div>
           <button class="btn sm dgr rmv" onclick="Form.delStaff(${si})">ลบ</button>
-          <div class="grid g2">
+          <div class="grid g3">
             <div class="fld"><label class="lbl">ชื่อ-นามสกุล</label>
               <input class="inp" value="${attr(st.name)}" oninput="Form.setStaff(${si},'name',this.value)"></div>
+            <div class="fld"><label class="lbl">วันเริ่มงาน</label>
+              <input type="date" class="inp" value="${attr(st.startDate)}" oninput="Form.setStaff(${si},'startDate',this.value)"></div>
             <div class="fld"><label class="lbl">อายุงาน</label>
               <input class="inp" placeholder="เช่น 15 วัน / 2 เดือน" value="${attr(st.tenure)}" oninput="Form.setStaff(${si},'tenure',this.value)"></div>
           </div>
@@ -2058,6 +2060,8 @@ const Form = {
               <div class="fld"><label class="lbl">คะแนน</label>
                 <select class="inp" onchange="Form.setEval(${si},${ei},'score',this.value)"><option value="">— เลือก —</option>${opt(NS_SCORES, e.score)}</select></div>
             </div>
+            <div class="fld" style="margin-top:10px"><label class="lbl">รายละเอียดการสอน</label>
+              <textarea class="inp" rows="2" oninput="Form.setEval(${si},${ei},'detail',this.value)">${esc(e.detail)}</textarea></div>
           </div>`).join('')}
         </div>`).join('')}
       </div>
@@ -2130,8 +2134,8 @@ const Form = {
     const rec=JSON.parse(JSON.stringify(this.s));
     /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
     if(rec.newStaff) rec.newStaff = rec.newStaff
-      .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score)}))
-      .filter(st=>(st.name||'').trim() || st.evals.length);
+      .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score||e.detail)}))
+      .filter(st=>(st.name||'').trim() || (st.startDate||'').trim() || st.evals.length);
     if(DB.save(rec)){
       Cloud.enqueue('save', rec.id);
       App.toast('บันทึกผลการตรวจเรียบร้อย');
@@ -2226,9 +2230,9 @@ const Rec = {
   cardList(list){
     return `<div class="reclist">${list.map(r=>{ const f=failCount(r);
       return `<div class="reccard">
-        <div class="rc-top">${planTypeTag(r.type)}
-          <b class="rc-branch">${esc(r.branch)}</b>
+        <div class="rc-top">${planTypeTag(r.type)}<div class="sp" style="flex:1"></div>
           <span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span></div>
+        <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
         <div class="rc-sum">${esc(summaryLine(r))}</div>
         <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
@@ -2272,10 +2276,10 @@ const Rec = {
         ${r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
       if((r.newStaff||[]).length) h+=box('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
         <div style="margin-bottom:14px">
-          <div style="font-weight:600;margin-bottom:6px">👤 ${esc(st.name||'—')}${st.tenure?` <span style="color:var(--text3);font-weight:400">· อายุงาน ${esc(st.tenure)}</span>`:''}</div>
-          <table class="tb"><thead><tr><th>หัวข้อหลัก</th><th>หัวข้อย่อย</th><th>วิธีประเมิน</th><th>คะแนน</th></tr></thead><tbody>
-            ${(st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td>${esc(e.score)}</td></tr>`).join('')}</tbody></table>
-        </div>`).join(''));
+          <div style="font-weight:600;margin-bottom:6px">👤 ${esc(st.name||'—')}<span style="color:var(--text3);font-weight:400">${st.startDate?` · เริ่มงาน ${esc(st.startDate)}`:''}${st.tenure?` · อายุงาน ${esc(st.tenure)}`:''}</span></div>
+          <table class="tb"><thead><tr><th>หัวข้อหลัก</th><th>หัวข้อย่อย</th><th>วิธีประเมิน</th><th>คะแนน</th><th>รายละเอียดการสอน</th></tr></thead><tbody>
+            ${(st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td>${esc(e.score)}</td><td>${esc(e.detail)}</td></tr>`).join('')}</tbody></table>
+        </div>`).join('')+`<p style="font-size:11.5px;color:var(--text3);margin:2px 0 0">${NS_SCORES.map(s=>s[1]).join(' · ')}</p>`);
     }
     if(r.photos.length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
       <div class="ph"><img src="${p.data}" onclick="App.zoom(this.src)" alt="">
@@ -2526,6 +2530,8 @@ const RED=['#D6142B','#6B7280','#1D4ED8','#B45309','#6B21A8','#0F766E'];
 const OKC='var(--green)', WARNC='var(--yellow)', BADC='var(--red)', GRID='var(--border)', AXIS='var(--text3)';
 const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 const mLabel = m => { const [y,mo]=String(m).split('-').map(Number); return (TH_MONTHS[((mo-1)%12+12)%12]||'')+' '+y; };
+/* วันที่แบบเต็ม: 22 กรกฎาคม 2026 */
+const dLabel = iso => { const [y,mo,d]=String(iso).split('-').map(Number); if(!y||!mo||!d) return iso||'—'; return d+' '+(TH_MONTHS[((mo-1)%12+12)%12]||'')+' '+y; };
 
 function hbars(rows,color){
   if(!rows.length) return emptyBox();
@@ -2821,7 +2827,7 @@ const Dash = {
     document.getElementById('planDue').innerHTML = due.length
       ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th></tr></thead><tbody>
         ${due.slice(0,10).map(({p})=>`<tr>
-          <td class="mono" style="white-space:nowrap">${esc(p.date)}</td>
+          <td style="white-space:nowrap">${dLabel(p.date)}</td>
           <td>${planTypeTag(p.ptype)}</td>
           <td>${esc(p.branch)}</td>
           <td style="font-size:12.5px">${esc(p.trainer||'—')}</td></tr>`).join('')}
@@ -2837,9 +2843,11 @@ const PLAN_TYPE = {FQA:'FQA', FSQ:'Complaint', VISIT:'Visit'};
 const PLAN_TYPE_COLOR = {FQA:'#D6142B', FSQ:'#E8820C', VISIT:'#1E63D6'};
 const planType = p => p==='FSQ'?'FSQ':p==='VISIT'?'VISIT':'FQA';
 const planTypeTag = t => { const k=planType(t), c=PLAN_TYPE_COLOR[k]; return `<span class="tag" style="background:${c}18;color:${c};border:1px solid ${c}55;font-weight:700">${PLAN_TYPE[k]}</span>`; };
-/* ป้ายผู้ตรวจ — สีคราม (ต่างจากป้ายประเภทที่เป็นแดง/ส้ม/น้ำเงิน) */
-const TRAINER_COLOR = '#6D28D9';
-const trainerTag = n => n ? `<span class="tag" style="background:${TRAINER_COLOR}14;color:${TRAINER_COLOR};border:1px solid ${TRAINER_COLOR}44;font-weight:600">${esc(n)}</span>` : `<span style="color:var(--text3)">—</span>`;
+/* ป้ายผู้ตรวจ — แต่ละคนสีต่างกัน (คงที่ต่อชื่อ) เพื่อแยกผู้ตรวจได้ง่ายทั้งคอมและมือถือ */
+const TRAINER_PALETTE = ['#6D28D9','#0E7490','#B45309','#BE185D','#15803D','#1D4ED8','#9333EA','#C2410C','#0F766E','#7C3AED','#A16207','#DB2777'];
+function trainerColor(name){ let h=0; const s=String(name||''); for(let i=0;i<s.length;i++) h=(h*31+s.charCodeAt(i))>>>0; return TRAINER_PALETTE[h%TRAINER_PALETTE.length]; }
+const trainerTag = n => { if(!n) return `<span style="color:var(--text3)">—</span>`; const c=trainerColor(n);
+  return `<span class="tag" style="background:${c}14;color:${c};border:1px solid ${c}44;font-weight:600">${esc(n)}</span>`; };
 const Plan = {
   view:'cal', calMonth: todayISO().slice(0,7),
   selBzm:'', draft:[], pDate: todayISO(), pTrainer:'', pType:'FQA',
@@ -2988,7 +2996,7 @@ const Plan = {
       <div class="tw">${ list.length
         ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภทการตรวจ</th><th>สาขา</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
           ${list.map(p=>`<tr>
-            <td class="mono" style="white-space:nowrap">${esc(p.date)}<div style="font-size:11px;color:var(--text3)">${dow(p.date)}</div></td>
+            <td style="white-space:nowrap">${dLabel(p.date)}<div style="font-size:11px;color:var(--text3)">${dow(p.date)}</div></td>
             <td>${planTypeTag(p.ptype)}</td>
             <td>${esc(p.branch)}<div style="font-size:11px;color:var(--text3)">${esc(p.bzm||'')}</div></td>
             <td style="font-size:13px;font-weight:600">${esc(p.trainer||'—')}</td>
@@ -3196,12 +3204,17 @@ const PDF = {
       b+=sec('หัวข้อการอบรม', tbl(
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
-      if((r.newStaff||[]).length) b+=sec('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
-        <div style="margin-bottom:11px">
-          <p style="margin:0 0 5px;font-weight:700;font-size:12.5px">${esc(st.name||'—')}${st.tenure?` <span style="color:#888;font-weight:400">· อายุงาน ${esc(st.tenure)}</span>`:''}</p>
-          ${tbl([{h:'หัวข้อหลัก',w:'28%'},{h:'หัวข้อย่อย',w:'30%'},{h:'วิธีประเมิน',w:'27%'},{h:'คะแนน',w:'15%',c:1}],
-            (st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td class="c">${esc(e.score)}</td></tr>`))}
-        </div>`).join(''));
+      if((r.newStaff||[]).length){
+        const legend=`<div style="margin-top:9px;border:1px solid #E5E5E5;border-radius:7px;padding:8px 11px;font-size:10px;color:#666;line-height:1.7">
+          <b style="color:#444">เกณฑ์คะแนน:</b> ${NS_SCORES.map(s=>esc(s[1])).join(' &nbsp;·&nbsp; ')}<br>
+          <b style="color:#444">วิธีการประเมิน:</b> ${NS_METHODS.map(m=>esc(m)).join(' &nbsp;·&nbsp; ')}</div>`;
+        b+=sec('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
+          <div style="margin-bottom:11px">
+            <p style="margin:0 0 5px;font-weight:700;font-size:12.5px">${esc(st.name||'—')}<span style="color:#888;font-weight:400">${st.startDate?` · เริ่มงาน ${esc(st.startDate)}`:''}${st.tenure?` · อายุงาน ${esc(st.tenure)}`:''}</span></p>
+            ${tbl([{h:'หัวข้อหลัก',w:'22%'},{h:'หัวข้อย่อย',w:'23%'},{h:'วิธีประเมิน',w:'20%'},{h:'คะแนน',w:'10%',c:1},{h:'รายละเอียดการสอน',w:'25%'}],
+              (st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td class="c">${esc(e.score)}</td><td>${esc(e.detail)}</td></tr>`))}
+          </div>`).join('')+legend);
+      }
     }
     if((r.photos||[]).length)
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
