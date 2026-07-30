@@ -480,9 +480,10 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
   .grid[style*="1.6fr"]{grid-template-columns:1fr!important}
   /* ระหว่างกรอกฟอร์ม: ปุ่มล้าง/บันทึกไปอยู่แถบล่างสุด · ซ่อนปุ่มหน้าหลัก · ขยายที่ด้านล่างให้พ้นแถบ */
   body.form-view .formbar{display:flex;bottom:calc(56px + env(safe-area-inset-bottom))}
+  body.form-view .botnav .mid{display:none}   /* ซ่อนปุ่ม ＋ ที่เด้งขึ้นมาชนแถบฟอร์ม */
   body.form-view .topback{display:none}
   body.form-view .top #topActions{display:none}
-  body.form-view .wrap{padding-bottom:150px}
+  body.form-view .wrap{padding-bottom:170px}
 }
 
 @media screen and (max-width:700px){
@@ -1589,7 +1590,12 @@ const App = {
     const formBtns = (isForm && !Form.editing ? `<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button>` : '')
       + (isForm ? `<button class="btn pri" onclick="Form.submit()">บันทึกผลการตรวจ</button>` : '');
     document.getElementById('topActions').innerHTML = isForm? formBtns : '';   /* ปุ่มส่งออกย้ายไปเมนูออกรายงานแล้ว */
-    document.getElementById('formbar').innerHTML = isForm? formBtns : '';       /* มือถือ: ปุ่มฟอร์มไปแถบล่างสุด */
+    const fb=document.getElementById('formbar');
+    fb.innerHTML = isForm? formBtns : '';                                      /* มือถือ: ปุ่มฟอร์มไปแถบล่างสุด */
+    /* วางแถบฟอร์มให้พอดีเหนือแถบเมนูล่าง (วัดความสูงจริง กันซ้อนทุกเครื่อง) */
+    if(isForm){ const bn=document.getElementById('botnav');
+      if(bn && getComputedStyle(bn).display!=='none') fb.style.bottom=(bn.offsetHeight+8)+'px'; else fb.style.bottom='';
+    } else fb.style.bottom='';
     window.scrollTo(0,0);
   },
   toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
@@ -2040,6 +2046,7 @@ const Form = {
           </div>
           ${st.evals.map((e,ei)=>`
           <div class="rep" style="margin-top:8px;background:var(--surface2,#00000005)">
+            <div class="rn">หัวข้อที่ ${ei+1}</div>
             <button class="btn sm dgr rmv" onclick="Form.delEval(${si},${ei})">ลบ</button>
             <div class="grid g4">
               <div class="fld"><label class="lbl">หัวข้อหลัก</label>
