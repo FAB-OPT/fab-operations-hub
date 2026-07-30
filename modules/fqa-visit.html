@@ -2194,6 +2194,8 @@ const addDaysISO = (iso,n)=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.get
 const branchKey = name => { const s=String(name||'').trim(); const m=s.match(/^(\d{3,6})\b/); return m ? 'c'+m[1] : s.replace(/\s+/g,'').toLowerCase(); };
 /* ใครเห็น "แผนการตรวจสาขา" บนแดชบอร์ด — เฉพาะ admin / coo / Support Team (ยึด role จริงจาก session) */
 function canSeePlan(){ const r=(Hub.session()&&Hub.session().role)||Hub.role()||''; return ['admin','coo','support'].indexOf(String(r).toLowerCase())>=0; }
+/* ใครแก้ไข/ลบข้อมูลได้ — เฉพาะ admin / Support Team */
+function canEdit(){ const r=(Hub.session()&&Hub.session().role)||Hub.role()||''; return ['admin','support'].indexOf(String(r).toLowerCase())>=0; }
 /* แผน "ตรวจแล้ว" = มีผลตรวจสาขานั้นในช่วง [วันแผน, วันแผน+30วัน] · เลยกำหนดแต่ยังไม่ตรวจ = เกินกำหนด · อนาคต = รอตรวจ */
 function planState(p){
   const end=addDaysISO(p.date,30), pk=branchKey(p.branch);
@@ -2234,12 +2236,12 @@ const Rec = {
         <td>${planTypeTag(r.type)}</td>
         <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
         <td style="max-width:300px;color:var(--text2)">${esc(summaryLine(r))}</td>
-        <td>${failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`}</td>
+        <td>${r.type==='VISIT'?'<span style="color:var(--text3)">—</span>':(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`)}</td>
         <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
         <td class="rowact noprint">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
-          <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
-          <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
+          ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
+          <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>`:''}
         </td></tr>`).join('')}</tbody></table>`;
   },
   /* การ์ดรายการตรวจสำหรับมือถือ — อ่านง่าย เน้นสาขา/ผล */
@@ -2247,18 +2249,20 @@ const Rec = {
     return `<div class="reclist">${list.map(r=>{ const f=failCount(r);
       return `<div class="reccard">
         <div class="rc-top">${planTypeTag(r.type)}<div class="sp" style="flex:1"></div>
-          <span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span></div>
+          ${r.type==='VISIT'?'':`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`}</div>
         <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
         <div class="rc-sum">${esc(summaryLine(r))}</div>
         <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
-          <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
-          <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>
+          ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
+          <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>`:''}
         </div></div>`; }).join('')}</div>`;
   },
-  del(id){ App.confirm({icon:'🗑', title:'ลบรายการตรวจ', msg:'ต้องการลบรายการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์ และย้อนกลับไม่ได้', okText:'ลบรายการ', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); }}); },
-  edit(id){ const r=DB.all().find(x=>x.id===id); if(!r) return;
+  del(id){ if(!canEdit()) return App.toast('เฉพาะแอดมิน / Support Team เท่านั้นที่ลบได้');
+    App.confirm({icon:'🗑', title:'ลบรายการตรวจ', msg:'ต้องการลบรายการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์ และย้อนกลับไม่ได้', okText:'ลบรายการ', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); }}); },
+  edit(id){ if(!canEdit()) return App.toast('เฉพาะแอดมิน / Support Team เท่านั้นที่แก้ไขได้');
+    const r=DB.all().find(x=>x.id===id); if(!r) return;
     Form.pendingEdit=r;   // App.go จะส่งให้ Form.open เอง (โหมดแก้ไข — ไม่ถามทำต่อ · ซ่อนปุ่มล้างฟอร์ม)
     App.go(r.type==='FQA'?'fqa':r.type==='FSQ'?'fsq':'visit'); },
   view(id){
@@ -3033,14 +3037,15 @@ const Plan = {
             <td style="font-size:13px;font-weight:600">${esc(p.trainer||'—')}</td>
             <td class="rowact noprint">
               <button class="btn sm" onclick="Plan.detail('${p.id}')">ดู</button>
-              <button class="btn sm" onclick="Plan.edit('${p.id}')">แก้ไข</button>
-              <button class="btn sm dgr" onclick="Plan.del('${p.id}')">ลบ</button></td></tr>`).join('')}
+              ${canEdit()?`<button class="btn sm" onclick="Plan.edit('${p.id}')">แก้ไข</button>
+              <button class="btn sm dgr" onclick="Plan.del('${p.id}')">ลบ</button>`:''}</td></tr>`).join('')}
           </tbody></table>`
         : `<div class="empty"><div class="big">🗓</div><h4>ยังไม่มีแผนตามตัวกรอง</h4><p>เพิ่มแผนจากช่องด้านบน</p></div>` }</div>`;
   },
   setFilter(k,v){ this[k]=v; this.render(); },
 
-  del(id){ App.confirm({icon:'🗑', title:'ลบแผนการตรวจ', msg:'ต้องการลบแผนการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์', okText:'ลบแผน', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); if(App.view==='dash') Dash.render(); App.toast('ลบแผนแล้ว'); }}); },
+  del(id){ if(!canEdit()) return App.toast('เฉพาะแอดมิน / Support Team เท่านั้นที่ลบได้');
+    App.confirm({icon:'🗑', title:'ลบแผนการตรวจ', msg:'ต้องการลบแผนการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์', okText:'ลบแผน', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); if(App.view==='dash') Dash.render(); App.toast('ลบแผนแล้ว'); }}); },
   /* กดช่องวันในปฏิทิน — มีแผน = โชว์ทั้งวัน · ไม่มี = ตั้งวันเพื่อเพิ่ม */
   dayClick(iso){
     if(plans().some(p=>p.date===iso)) this.dayDetail(iso); else this.dayAdd(iso);
@@ -3056,8 +3061,8 @@ const Plan = {
         <span style="background:${c}18;color:${c};border:1px solid ${c}55;font-weight:800;font-size:11px;padding:5px 12px;border-radius:999px;white-space:nowrap">${PLAN_TYPE[k]}</span>
         <div style="flex:1;min-width:0"><b>${esc(p.branch)}</b><div style="font-size:12px;color:var(--text3);margin-top:1px">ผู้ตรวจ: ${esc(p.trainer||'—')}${p.bzm?' · '+esc(p.bzm):''}</div></div>
         <button class="btn sm pri" onclick="App.closeModal();Plan.inspect('${p.id}')">ตรวจ</button>
-        <button class="btn sm" onclick="App.closeModal();Plan.edit('${p.id}')">แก้ไข</button>
-        <button class="btn sm dgr" onclick="Plan.del('${p.id}');App.closeModal()">ลบ</button>
+        ${canEdit()?`<button class="btn sm" onclick="App.closeModal();Plan.edit('${p.id}')">แก้ไข</button>
+        <button class="btn sm dgr" onclick="Plan.del('${p.id}');App.closeModal()">ลบ</button>`:''}
       </div>`; }).join('');
     App.modal(`แผนการตรวจ · ${iso}${dl}`,
       `<div style="font-size:12.5px;color:var(--text3);margin-bottom:4px">มี ${ps.length} แผนในวันนี้</div>${rows}
@@ -3081,13 +3086,14 @@ const Plan = {
       ${kv('ผู้ตรวจ', p.trainer)}
       <div style="margin-top:18px;display:flex;gap:9px;justify-content:flex-end;flex-wrap:wrap">
         <button class="btn gho" onclick="App.closeModal()">ปิด</button>
-        <button class="btn" onclick="App.closeModal();Plan.edit('${p.id}')">✎ แก้ไข</button>
+        ${canEdit()?`<button class="btn" onclick="App.closeModal();Plan.edit('${p.id}')">✎ แก้ไข</button>`:''}
         <button class="btn pri" onclick="App.closeModal();Plan.inspect('${p.id}')">เปิดฟอร์มตรวจ →</button>
       </div>`;
     App.modal('รายละเอียดแผนการตรวจ', html);
   },
   /* ---------- แก้ไขแผน ---------- */
   edit(id){
+    if(!canEdit()) return App.toast('เฉพาะแอดมิน / Support Team เท่านั้นที่แก้ไขได้');
     const p=DB.all().find(r=>r.id===id); if(!p) return;
     const bs=M.branches(), ts=M.trainers(), cur=planType(p.ptype);
     const html=`
@@ -3198,7 +3204,7 @@ const PDF = {
 
     /* ---- กล่องข้อมูลการตรวจ ---- */
     const fails=failCount(r);
-    const badge = fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`;
+    const badge = r.type==='VISIT' ? '' : (fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`);
     let b=`<div class="pdfinfo">
       <div class="pi-top">
         <div class="pi-branch">${esc(r.branch||'—')}<small>${esc(r.bzm||'')}</small></div>
