@@ -713,6 +713,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
           <div class="bd"><div id="chMonth"></div></div>
         </div>
 
+        <div id="dashPlanSec">
         <div class="dsec"><span>แผนการตรวจสาขา</span><a class="dsec-link" onclick="App.go('plan')">จัดการแผน →</a></div>
         <div class="grid" style="grid-template-columns:1fr 1.6fr">
           <div class="card">
@@ -723,6 +724,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
             <div class="hd"><h3>แผนที่ต้องตรวจ</h3><div class="sp"></div><span class="note">ที่ยังไม่ได้ตรวจ</span></div>
             <div class="bd" style="padding:0"><div class="tw" id="planDue"></div></div>
           </div>
+        </div>
         </div>
 
         <!-- FQA เท่านั้น -->
@@ -805,6 +807,9 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
               <div class="fld"><label class="lbl">ค้นหา</label><input class="inp" id="qText" placeholder="สาขา / เมนู / ปัญหา" oninput="Rec.render()"></div>
               <div class="fld"><label class="lbl">ประเภทฟอร์ม</label><select class="inp" id="qType" onchange="Rec.render()"><option value="">ทั้งหมด</option><option value="FQA">FQA</option><option value="FSQ">FSQ Complaint</option><option value="VISIT">Visit</option></select></div>
               <div class="fld"><label class="lbl">สาขา</label><select class="inp" id="qBranch" onchange="Rec.render()"></select></div>
+              <div class="fld"><label class="lbl">ตั้งแต่วันที่</label><input type="date" class="inp" id="qFrom" onchange="Rec.render()"></div>
+              <div class="fld"><label class="lbl">ถึงวันที่</label><input type="date" class="inp" id="qTo" onchange="Rec.render()"></div>
+              <div class="fld" style="align-self:end"><button class="btn gho" style="width:100%" onclick="Rec.clearFilters()">ล้างตัวกรอง</button></div>
             </div>
           </div>
         </div>
@@ -1574,22 +1579,22 @@ const App = {
       master:'จัดการฐานข้อมูล', io:'นำเข้าข้อมูล'
     }[v];
     document.getElementById('pageTitle').textContent=meta;
-    const formBtns=`<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button><button class="btn pri" onclick="Form.submit()">บันทึกผลการตรวจ</button>`;
-    /* ปุ่มส่งออกทั้งหมดย้ายไปเมนู "ออกรายงาน" แล้ว — หัวจอเหลือเฉพาะปุ่มฟอร์ม */
-    document.getElementById('topActions').innerHTML = isForm? formBtns : '';
-    /* มือถือ: ปุ่มฟอร์ม (ล้าง/บันทึก) ย้ายไปแถบล่างสุด */
-    document.getElementById('formbar').innerHTML = isForm? formBtns : '';
     if(v==='dash') Dash.render();
     if(v==='list') Rec.render();
     if(v==='report') Report.render();
     if(v==='master') Master.render();
     if(v==='plan') Plan.render();
-    if(v==='fqa'||v==='fsq'||v==='visit') Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':'VISIT');
+    if(isForm){ Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':'VISIT', Form.pendingEdit); Form.pendingEdit=null; }
+    /* ปุ่มฟอร์ม — ตอน "แก้ไข" รายการเดิม ไม่ต้องมีปุ่ม "ล้างฟอร์ม" */
+    const formBtns = (isForm && !Form.editing ? `<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button>` : '')
+      + (isForm ? `<button class="btn pri" onclick="Form.submit()">บันทึกผลการตรวจ</button>` : '');
+    document.getElementById('topActions').innerHTML = isForm? formBtns : '';   /* ปุ่มส่งออกย้ายไปเมนูออกรายงานแล้ว */
+    document.getElementById('formbar').innerHTML = isForm? formBtns : '';       /* มือถือ: ปุ่มฟอร์มไปแถบล่างสุด */
     window.scrollTo(0,0);
   },
   toast(msg){ const t=document.getElementById('toast'); t.textContent=msg; t.classList.add('on');
     clearTimeout(this._tt); this._tt=setTimeout(()=>t.classList.remove('on'),3200); },
-  /* กล่องยืนยันแบบสวย (แทน window.confirm) — o={title,msg,okText,cancelText,danger,icon,onOk} */
+  /* กล่องยืนยันแบบสวย (แทน window.confirm) — o={title,msg,okText,cancelText,danger,icon,onOk,onCancel} */
   confirm(o){
     o=o||{};
     const el=document.getElementById('cfm');
@@ -1600,8 +1605,9 @@ const App = {
     ok.textContent=o.okText||'ยืนยัน';
     ok.className='btn cfm-ok '+(o.danger===false?'pri':'dgr');
     cx.textContent=o.cancelText||'ยกเลิก';
-    const done=(v)=>{ el.classList.remove('on'); document.body.style.overflow=''; ok.onclick=cx.onclick=scrim.onclick=null; if(v&&o.onOk) o.onOk(); };
-    ok.onclick=()=>done(true); cx.onclick=()=>done(false); scrim.onclick=()=>done(false);
+    const done=(v)=>{ el.classList.remove('on'); document.body.style.overflow=''; ok.onclick=cx.onclick=scrim.onclick=null;
+      if(v===true){ if(o.onOk) o.onOk(); } else if(v===false){ if(o.onCancel) o.onCancel(); } };
+    ok.onclick=()=>done(true); cx.onclick=()=>done(false); scrim.onclick=()=>done(null);   /* แตะนอกกล่อง = ปิดเฉยๆ ไม่ทำอะไร */
     el.classList.add('on'); document.body.style.overflow='hidden';
   },
   modal(title, html, recId){
@@ -1609,9 +1615,8 @@ const App = {
     document.getElementById('mBody').innerHTML=html;
     const p=document.getElementById('mPdf');
     p.style.display = recId? '' : 'none';
-    const mob=(typeof Mobile!=='undefined' && Mobile.on());
-    p.textContent = mob? '🔗 แชร์ลิงก์รายงาน' : 'บันทึก PDF';
-    p.onclick = recId? (()=> mob? PDF.share(recId) : PDF.record(recId)) : null;
+    p.textContent = '🔗 แชร์ลิงก์รายงาน';
+    p.onclick = recId? (()=>PDF.share(recId)) : null;   /* ทั้งคอมและมือถือ = แชร์เป็นลิงก์ */
     document.getElementById('modal').classList.add('on');
   },
   closeModal(){ document.getElementById('modal').classList.remove('on'); },
@@ -1651,27 +1656,56 @@ const Filters = {
 /* =======================================================================
    FORM — FQA / FSQ Complaint / Visit
    ======================================================================= */
+/* ===== หัวข้อประเมินพนักงานใหม่ (New Staff Training) — จากไฟล์ New Staff Training JD ===== */
+const NS_TOPICS = {
+  'ปฐมนิเทศ (Orientation)': ['ความเป็นมา เจ๊แดงสามย่าน','กฎระเบียบ / สวัสดิการ','แผนการฝึกอบรมและโอกาสก้าวหน้า','แนะนำพื้นที่/อุปกรณ์ภายในร้าน'],
+  'ความปลอดภัยอาหาร (Food Safety)': ['ความสำคัญการดูแลอาหาร','เรื่องของจุลินทรีย์','กลุ่มคนที่สามารถแพร่เชื้อโรคสู่ผู้อื่น','การปนเปื้อนข้าม','สุขอนามัยของพนักงาน','การล้างมือ','การใช้ถุงมือ','การรับและการจัดเก็บสินค้า','การทำความสะอาดอุปกรณ์ในร้าน','การจัดการสัตว์รบกวน','การใช้น้ำยาทำความสะอาด','การใช้งานของผ้า','สารก่อภูมิแพ้'],
+  'ลักษณะวัตถุดิบ (Ingredient Specification)': ['หมวดเนื้อสัตว์','หมวดผัก','หมวดเครื่องปรุงรส','หมวดเครื่องดื่ม'],
+  'การเตรียมวัตถุดิบ (Product Preparation)': ['ส้มตำ - เตรียมผัก','ส้มตำ - เตรียมเนื้อสัตว์','ส้มตำ - เตรียมเครื่องปรุงรส','ย่าง ทอด - เตรียมผัก','ย่าง ทอด - เตรียมเนื้อสัตว์','ย่าง ทอด - เตรียมเครื่องปรุงรส','ต้ม ลาบ น้ำตก ยำ - เตรียมผัก','ต้ม ลาบ น้ำตก ยำ - เตรียมเนื้อสัตว์','ต้ม ลาบ น้ำตก ยำ - เตรียมเครื่องปรุง','หมวด ข้าว เส้น น้ำจิ้ม น้ำยำ','หมวด อาหารจานเดียว']
+};
+const NS_MAINS = Object.keys(NS_TOPICS);
+const NS_METHODS = ['A = สังเกตการณ์','B = การสัมภาษณ์','C = ตรวจงาน','D = การทดสอบ','E = บันทึกผลการปฏิบัติงาน','F = การรายงานตัวเอง'];
+const NS_SCORES = [['1','1 = ยังทำไม่ได้ตามมาตรฐาน (0-49%)'],['2','2 = ทำได้บางส่วน (50-69%)'],['3','3 = ทำได้ตามมาตรฐาน (70-79%)'],['4','4 = สูงกว่ามาตรฐาน (80-89%)'],['5','5 = สูงกว่ามาตรฐานมาก (90-100%)']];
+
 const Form = {
-  drafts:{}, type:null,
+  drafts:{}, type:null, pendingEdit:null, editing:false,
 
   blank(type){
     const r={ id:uid(), type, date:todayISO(), time:nowHM(), branch:'', bzm:'',
       trainer:(M.trainers()[0]||''), photos:[], createdAt:new Date().toISOString() };
     if(type==='FQA'){ r.materials=[]; r.checks=M.list('fqaItems').map(i=>({item:i,result:'',detail:'',fix:''})); r.menus=[this.menuRow()]; }
     if(type==='FSQ'){ Object.assign(r,{complaint:'',menu:'',category:'',categoryOther:'',channel:'',severity:''}); r.issues=[this.issueRow()]; }
-    if(type==='VISIT'){ r.visitType=(M.list('visitTypes')[0]||''); r.topics=[this.topicRow()]; }
+    if(type==='VISIT'){ r.visitType=(M.list('visitTypes')[0]||''); r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     return r;
   },
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
   issueRow(){ return {problem:'',immediate:'',cause:'',prevention:'',advice:''}; },
   topicRow(){ return {topic:'',problem:'',advice:''}; },
+  staffRow(){ return {name:'',tenure:'',evals:[this.evalRow()]}; },
+  evalRow(){ return {main:'',sub:'',method:'',score:''}; },
 
   open(type, rec){
     this.type=type;
-    if(rec) this.drafts[type]=JSON.parse(JSON.stringify(rec));
-    else if(!this.drafts[type]) this.drafts[type]=this.blank(type);
-    else if(type==='FQA') this.syncChecks();
-    this.render();
+    this.editing=!!rec;
+    if(rec){ this.drafts[type]=JSON.parse(JSON.stringify(rec)); this.render(); return; }   // แก้ไขรายการเดิม
+    if(!this.drafts[type]){ this.drafts[type]=this.blank(type); this.render(); return; }    // ไม่มีร่างค้าง → ฟอร์มเปล่า
+    if(type==='FQA') this.syncChecks();
+    this.render();                                                                          // มีร่างค้าง → โชว์ไว้ก่อน
+    if(this.hasContent(this.drafts[type])){                                                 // แล้วถามว่าจะทำต่อหรือเริ่มใหม่
+      App.confirm({icon:'📝', title:'ทำแบบฟอร์มต่อ?', danger:false, okText:'ทำต่อ', cancelText:'เริ่มใหม่',
+        msg:`มี${TYPE_LABEL[type]||'ฟอร์ม'}ที่กรอกค้างไว้ ยังไม่ได้บันทึก\nต้องการทำต่อ หรือเริ่มกรอกใหม่?`,
+        onCancel:()=>{ this.drafts[type]=this.blank(type); this.persist(); if(this.type===type) this.render(); }});
+    }
+  },
+  /* ร่างมีข้อมูลที่ผู้ใช้กรอกไว้จริงหรือยัง (ไม่นับวันที่/เวลา/ผู้ตรวจที่เติมอัตโนมัติ) */
+  hasContent(d){
+    if(!d) return false;
+    if((d.branch||'').trim()) return true;
+    if(d.type==='FQA') return (d.materials&&d.materials.length>0) || (d.checks||[]).some(c=>c.result||c.detail||c.fix) || (d.menus||[]).some(m=>(m.menu||'').trim()||m.detail||m.fix);
+    if(d.type==='FSQ') return (d.complaint||'').trim() || (d.menu||'').trim() || (d.issues||[]).some(i=>i.problem||i.immediate||i.cause||i.prevention||i.advice);
+    if(d.type==='VISIT') return (d.topics||[]).some(t=>(t.topic||'').trim()||t.problem||t.advice)
+      || (d.newStaff||[]).some(st=>(st.name||'').trim()||(st.evals||[]).some(e=>e.main||e.sub||e.method||e.score));
+    return false;
   },
   /* หัวข้อ FQA อาจถูกแก้ในหน้าข้อมูลหลัก — ปรับร่างให้ตรงกันโดยคงคำตอบเดิม */
   syncChecks(){
@@ -1701,6 +1735,14 @@ const Form = {
   setRow(arr,i,k,v){ this.s[arr][i][k]=v; this.persist(); },
   addRow(arr){ const mk={menus:'menuRow',issues:'issueRow',topics:'topicRow'}[arr]; this.s[arr].push(this[mk]()); this.render(); },
   delRow(arr,i){ this.s[arr].splice(i,1); if(!this.s[arr].length) this.addRow(arr); else this.render(); },
+  /* ---- ประเมินพนักงานใหม่ (หลายคน · แต่ละคนมีหลายหัวข้อ) ---- */
+  nsList(){ if(!this.s.newStaff) this.s.newStaff=[this.staffRow()]; return this.s.newStaff; },
+  addStaff(){ this.nsList().push(this.staffRow()); this.render(); },
+  delStaff(i){ const a=this.nsList(); a.splice(i,1); if(!a.length) a.push(this.staffRow()); this.render(); },
+  setStaff(i,k,v){ this.nsList()[i][k]=v; this.persist(); },
+  addEval(si){ this.nsList()[si].evals.push(this.evalRow()); this.render(); },
+  delEval(si,ei){ const ev=this.nsList()[si].evals; ev.splice(ei,1); if(!ev.length) ev.push(this.evalRow()); this.render(); },
+  setEval(si,ei,k,v){ const e=this.nsList()[si].evals[ei]; e[k]=v; if(k==='main'){ e.sub=''; this.render(); } else this.persist(); },
 
   header(){
     const s=this.s;
@@ -1968,9 +2010,52 @@ const Form = {
         </div>`).join('')}
       </div>
     </div>
-    ${this.photoBlock(4)}`;
+    ${this.newStaffCard(4)}
+    ${this.photoBlock(5)}`;
   },
   pickVisit(i){ this.s.visitType=M.list('visitTypes')[i]; this.render(); },
+
+  /* ===== การ์ดประเมินพนักงานใหม่ ===== */
+  newStaffCard(no){
+    const staff=this.nsList();
+    const opt=(arr,val)=>arr.map(o=>{ const v=Array.isArray(o)?o[0]:o, t=Array.isArray(o)?o[1]:o;
+      return `<option value="${attr(v)}" ${String(val)===String(v)?'selected':''}>${esc(t)}</option>`; }).join('');
+    return `<div class="card">
+      <div class="hd"><span class="sec-no">${no}</span><h3>ประเมินพนักงานใหม่ (New Staff)</h3><div class="sp"></div>
+        <button class="btn sm" onclick="Form.addStaff()">＋ เพิ่มพนักงาน</button></div>
+      <div class="bd">
+        ${staff.map((st,si)=>`
+        <div class="rep">
+          <div class="rn">พนักงานคนที่ ${si+1}</div>
+          <button class="btn sm dgr rmv" onclick="Form.delStaff(${si})">ลบ</button>
+          <div class="grid g2">
+            <div class="fld"><label class="lbl">ชื่อ-นามสกุล</label>
+              <input class="inp" value="${attr(st.name)}" oninput="Form.setStaff(${si},'name',this.value)"></div>
+            <div class="fld"><label class="lbl">อายุงาน</label>
+              <input class="inp" placeholder="เช่น 15 วัน / 2 เดือน" value="${attr(st.tenure)}" oninput="Form.setStaff(${si},'tenure',this.value)"></div>
+          </div>
+          <div style="margin:12px 0 4px;display:flex;align-items:center;gap:8px">
+            <b style="font-size:12.5px;color:var(--text2)">หัวข้อที่ประเมิน</b><div class="sp" style="flex:1"></div>
+            <button class="btn sm gho" onclick="Form.addEval(${si})">＋ เพิ่มหัวข้อ</button>
+          </div>
+          ${st.evals.map((e,ei)=>`
+          <div class="rep" style="margin-top:8px;background:var(--surface2,#00000005)">
+            <button class="btn sm dgr rmv" onclick="Form.delEval(${si},${ei})">ลบ</button>
+            <div class="grid g4">
+              <div class="fld"><label class="lbl">หัวข้อหลัก</label>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'main',this.value)"><option value="">— เลือก —</option>${opt(NS_MAINS, e.main)}</select></div>
+              <div class="fld"><label class="lbl">หัวข้อย่อย</label>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'sub',this.value)" ${e.main?'':'disabled'}><option value="">${e.main?'— เลือก —':'เลือกหัวข้อหลักก่อน'}</option>${e.main?opt(NS_TOPICS[e.main]||[], e.sub):''}</select></div>
+              <div class="fld"><label class="lbl">วิธีการประเมิน</label>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'method',this.value)"><option value="">— เลือก —</option>${opt(NS_METHODS, e.method)}</select></div>
+              <div class="fld"><label class="lbl">คะแนน</label>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'score',this.value)"><option value="">— เลือก —</option>${opt(NS_SCORES, e.score)}</select></div>
+            </div>
+          </div>`).join('')}
+        </div>`).join('')}
+      </div>
+    </div>`;
+  },
 
   /* ตรวจว่ากรอกครบทุกช่อง — คืนข้อความ error ช่องแรกที่ยังไม่กรอก หรือ '' ถ้าครบ */
   validate(){
@@ -2036,11 +2121,16 @@ const Form = {
     const err=this.validate();
     if(err) return App.toast(err);
     const rec=JSON.parse(JSON.stringify(this.s));
+    /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
+    if(rec.newStaff) rec.newStaff = rec.newStaff
+      .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score)}))
+      .filter(st=>(st.name||'').trim() || st.evals.length);
     if(DB.save(rec)){
       Cloud.enqueue('save', rec.id);
       App.toast('บันทึกผลการตรวจเรียบร้อย');
-      this.drafts[this.type]=this.blank(this.type);   // ล้างฟอร์มเสมอหลังบันทึก
+      this.drafts[this.type]=this.blank(this.type);   // ล้างฟอร์มเสมอหลังบันทึก (ทั้ง 3 ฟอร์ม)
       this.matSub='';
+      this.editing=false;
       this.persist();
       App.go('list');
     }
@@ -2075,6 +2165,8 @@ const addDaysISO = (iso,n)=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.get
 /* คีย์เทียบสาขา — ยึด "รหัสสาขา" นำหน้า (เช่น 4005) ถ้ามี ไม่งั้นใช้ชื่อแบบตัดช่องว่าง
    กันปัญหาชื่อสะกดต่างเล็กน้อยระหว่างแผนกับผลตรวจ เช่น "จุ่มนัว" vs "จุ่มนัวร์" */
 const branchKey = name => { const s=String(name||'').trim(); const m=s.match(/^(\d{3,6})\b/); return m ? 'c'+m[1] : s.replace(/\s+/g,'').toLowerCase(); };
+/* ใครเห็น "แผนการตรวจสาขา" บนแดชบอร์ด — เฉพาะ admin / coo / Support Team (ยึด role จริงจาก session) */
+function canSeePlan(){ const r=(Hub.session()&&Hub.session().role)||Hub.role()||''; return ['admin','coo','support'].indexOf(String(r).toLowerCase())>=0; }
 /* แผน "ตรวจแล้ว" = มีผลตรวจสาขานั้นในช่วง [วันแผน, วันแผน+30วัน] · เลยกำหนดแต่ยังไม่ตรวจ = เกินกำหนด · อนาคต = รอตรวจ */
 function planState(p){
   const end=addDaysISO(p.date,30), pk=branchKey(p.branch);
@@ -2088,16 +2180,20 @@ const planBadge = s => `<span class="pill ${PLAN_BADGE[s][1]}">${PLAN_BADGE[s][0
 
 const Rec = {
   filtered(){
-    const q=document.getElementById('qText').value.trim().toLowerCase();
-    const t=document.getElementById('qType').value, br=document.getElementById('qBranch').value;
+    const g=id=>{ const el=document.getElementById(id); return el? el.value : ''; };
+    const q=g('qText').trim().toLowerCase();
+    const t=g('qType'), br=g('qBranch'), from=g('qFrom'), to=g('qTo');
     return inspections().filter(r=>{
       if(t && r.type!==t) return false;
       if(br && r.branch!==br) return false;
+      if(from && (r.date||'') < from) return false;
+      if(to   && (r.date||'') > to)   return false;
       if(q && !JSON.stringify({a:r.branch,b:r.complaint||'',c:summaryLine(r),d:r.trainer,
         e:(r.menus||[]).map(m=>m.menu).join(' '),f:(r.materials||[]).join(' ')}).toLowerCase().includes(q)) return false;
       return true;
     }).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
   },
+  clearFilters(){ ['qText','qType','qBranch','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); this.render(); },
   render(){
     const list=this.filtered();
     document.getElementById('recCount').textContent=`รายการตรวจ (${list.length} รายการ)`;
@@ -2108,11 +2204,11 @@ const Rec = {
       <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>สรุปสิ่งที่พบ</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
       ${list.map(r=>`<tr>
         <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
-        <td><span class="tag">${esc(r.type)}</span></td>
+        <td>${planTypeTag(r.type)}</td>
         <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
         <td style="max-width:300px;color:var(--text2)">${esc(summaryLine(r))}</td>
         <td>${failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`}</td>
-        <td style="font-size:12.5px">${esc(r.trainer)}</td>
+        <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
         <td class="rowact noprint">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
@@ -2121,14 +2217,13 @@ const Rec = {
   },
   /* การ์ดรายการตรวจสำหรับมือถือ — อ่านง่าย เน้นสาขา/ผล */
   cardList(list){
-    const TL={FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'};
     return `<div class="reclist">${list.map(r=>{ const f=failCount(r);
       return `<div class="reccard">
-        <div class="rc-top"><span class="tag">${esc(TL[r.type]||r.type)}</span>
+        <div class="rc-top">${planTypeTag(r.type)}
           <b class="rc-branch">${esc(r.branch)}</b>
           <span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span></div>
         <div class="rc-sum">${esc(summaryLine(r))}</div>
-        <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span><span>👤 ${esc(r.trainer||'—')}</span></div>
+        <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           <button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
@@ -2136,7 +2231,8 @@ const Rec = {
         </div></div>`; }).join('')}</div>`;
   },
   del(id){ App.confirm({icon:'🗑', title:'ลบรายการตรวจ', msg:'ต้องการลบรายการตรวจนี้ใช่หรือไม่?\nการลบจะมีผลกับทุกอุปกรณ์ และย้อนกลับไม่ได้', okText:'ลบรายการ', onOk:()=>{ DB.remove(id); Cloud.enqueue('delete', id); this.render(); Dash.render(); App.toast('ลบรายการแล้ว'); }}); },
-  edit(id){ const r=DB.all().find(x=>x.id===id); Form.open(r.type,r);
+  edit(id){ const r=DB.all().find(x=>x.id===id); if(!r) return;
+    Form.pendingEdit=r;   // App.go จะส่งให้ Form.open เอง (โหมดแก้ไข — ไม่ถามทำต่อ · ซ่อนปุ่มล้างฟอร์ม)
     App.go(r.type==='FQA'?'fqa':r.type==='FSQ'?'fsq':'visit'); },
   view(id){
     const r=DB.all().find(x=>x.id===id);
@@ -2167,6 +2263,12 @@ const Rec = {
       h+=box('ประเภทการเข้าพบ',`<span class="tag">${esc(r.visitType)}</span>`);
       h+=box('หัวข้อการอบรม',`<table class="tb"><thead><tr><th>หัวข้อ</th><th>ปัญหาที่พบ</th><th>ข้อแนะนำ</th></tr></thead><tbody>
         ${r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
+      if((r.newStaff||[]).length) h+=box('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
+        <div style="margin-bottom:14px">
+          <div style="font-weight:600;margin-bottom:6px">👤 ${esc(st.name||'—')}${st.tenure?` <span style="color:var(--text3);font-weight:400">· อายุงาน ${esc(st.tenure)}</span>`:''}</div>
+          <table class="tb"><thead><tr><th>หัวข้อหลัก</th><th>หัวข้อย่อย</th><th>วิธีประเมิน</th><th>คะแนน</th></tr></thead><tbody>
+            ${(st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td>${esc(e.score)}</td></tr>`).join('')}</tbody></table>
+        </div>`).join(''));
     }
     if(r.photos.length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
       <div class="ph"><img src="${p.data}" onclick="App.zoom(this.src)" alt="">
@@ -2415,7 +2517,8 @@ const Master = {
 /* จานสีกราฟ — โทนเดียวกับ Training Record (ส้มเป็นสีหลัก) */
 const RED=['#D6142B','#6B7280','#1D4ED8','#B45309','#6B21A8','#0F766E'];
 const OKC='var(--green)', WARNC='var(--yellow)', BADC='var(--red)', GRID='var(--border)', AXIS='var(--text3)';
-const mLabel = m => m.slice(5)+'/'+m.slice(2,4);
+const TH_MONTHS = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const mLabel = m => { const [y,mo]=String(m).split('-').map(Number); return (TH_MONTHS[((mo-1)%12+12)%12]||'')+' '+y; };
 
 function hbars(rows,color){
   if(!rows.length) return emptyBox();
@@ -2589,8 +2692,10 @@ const Dash = {
       <div class="kpi ${mPlans.length? (planPct>=80?'ok':planPct>=50?'wn':''):'nu'}"><div class="k">ตรวจตามแผนเดือนนี้</div><div class="v">${mPlans.length?planPct:'—'}<small>${mPlans.length?'%':''}</small></div>
         <div class="d">${mPlans.length? `ตรวจแล้ว ${mDone} จาก ${mPlans.length} แผน` : 'ยังไม่มีแผนเดือนนี้'}</div></div>`;
 
-    /* ---- แผนการตรวจ ---- */
-    this.renderPlan(thisMonth, mPlans, mDone);
+    /* ---- แผนการตรวจ (เห็นเฉพาะ admin / coo / Support Team) ---- */
+    const planSec=document.getElementById('dashPlanSec');
+    if(planSec) planSec.style.display = canSeePlan()? '' : 'none';
+    if(canSeePlan()) this.renderPlan(thisMonth, mPlans, mDone);
 
     /* ---- 1 เกจ ---- */
     document.getElementById('chGauge').innerHTML = tot
@@ -2707,13 +2812,12 @@ const Dash = {
       .filter(x=> x.st!=='done')
       .sort((a,b)=> (a.p.date||'').localeCompare(b.p.date||''));
     document.getElementById('planDue').innerHTML = due.length
-      ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
+      ? `<table class="tb"><thead><tr><th>วันที่นัด</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th></tr></thead><tbody>
         ${due.slice(0,10).map(({p})=>`<tr>
           <td class="mono" style="white-space:nowrap">${esc(p.date)}</td>
           <td>${planTypeTag(p.ptype)}</td>
           <td>${esc(p.branch)}</td>
-          <td style="font-size:12.5px">${esc(p.trainer||'—')}</td>
-          <td class="rowact noprint"><button class="btn sm pri" onclick="Plan.inspect('${p.id}')">ตรวจ</button></td></tr>`).join('')}
+          <td style="font-size:12.5px">${esc(p.trainer||'—')}</td></tr>`).join('')}
         </tbody></table>`
       : `<div class="empty"><div class="big">✓</div><h4>ไม่มีแผนค้าง</h4><p>ทุกแผนที่ถึงกำหนดตรวจครบแล้ว</p></div>`;
   }
@@ -2726,6 +2830,9 @@ const PLAN_TYPE = {FQA:'FQA', FSQ:'Complaint', VISIT:'Visit'};
 const PLAN_TYPE_COLOR = {FQA:'#D6142B', FSQ:'#E8820C', VISIT:'#1E63D6'};
 const planType = p => p==='FSQ'?'FSQ':p==='VISIT'?'VISIT':'FQA';
 const planTypeTag = t => { const k=planType(t), c=PLAN_TYPE_COLOR[k]; return `<span class="tag" style="background:${c}18;color:${c};border:1px solid ${c}55;font-weight:700">${PLAN_TYPE[k]}</span>`; };
+/* ป้ายผู้ตรวจ — สีคราม (ต่างจากป้ายประเภทที่เป็นแดง/ส้ม/น้ำเงิน) */
+const TRAINER_COLOR = '#6D28D9';
+const trainerTag = n => n ? `<span class="tag" style="background:${TRAINER_COLOR}14;color:${TRAINER_COLOR};border:1px solid ${TRAINER_COLOR}44;font-weight:600">${esc(n)}</span>` : `<span style="color:var(--text3)">—</span>`;
 const Plan = {
   view:'cal', calMonth: todayISO().slice(0,7),
   selBzm:'', draft:[], pDate: todayISO(), pTrainer:'', pType:'FQA',
@@ -2838,7 +2945,7 @@ const Plan = {
       <div class="cal-grid">${cells}</div>
       <p class="hint">แตะช่องวันเพื่อเพิ่มแผนวันนั้น · แตะรายการเพื่อเปิดฟอร์มตรวจ · สีแยกตามประเภทการตรวจ</p>`;
   },
-  shiftMonth(n){ const [y,mo]=this.calMonth.split('-').map(Number); const d=new Date(y,mo-1+n,1); this.calMonth=d.toISOString().slice(0,7); this.render(); },
+  shiftMonth(n){ let [y,mo]=this.calMonth.split('-').map(Number); let idx=(mo-1)+n; y+=Math.floor(idx/12); idx=((idx%12)+12)%12; this.calMonth=y+'-'+String(idx+1).padStart(2,'0'); this.render(); },
   dayAdd(iso){ this.pDate=iso; const el=document.getElementById('plDate'); if(el) el.value=iso; App.toast('ตั้งวันที่นัด '+iso+' — เลือกสาขาแล้วกดเพิ่มแผน'); window.scrollTo({top:0,behavior:'smooth'}); },
 
   /* ---------- รายการ ---------- */
@@ -3069,6 +3176,12 @@ const PDF = {
       b+=sec('หัวข้อการอบรม', tbl(
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
+      if((r.newStaff||[]).length) b+=sec('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
+        <div style="margin-bottom:11px">
+          <p style="margin:0 0 5px;font-weight:700;font-size:12.5px">${esc(st.name||'—')}${st.tenure?` <span style="color:#888;font-weight:400">· อายุงาน ${esc(st.tenure)}</span>`:''}</p>
+          ${tbl([{h:'หัวข้อหลัก',w:'28%'},{h:'หัวข้อย่อย',w:'30%'},{h:'วิธีประเมิน',w:'27%'},{h:'คะแนน',w:'15%',c:1}],
+            (st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td class="c">${esc(e.score)}</td></tr>`))}
+        </div>`).join(''));
     }
     if((r.photos||[]).length)
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
