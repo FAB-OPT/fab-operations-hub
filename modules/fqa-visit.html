@@ -1583,7 +1583,7 @@ const App = {
     if(v==='list') Rec.render();
     if(v==='report') Report.render();
     if(v==='master') Master.render();
-    if(v==='plan') Plan.render();
+    if(v==='plan') Plan.open();
     if(isForm){ Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':'VISIT', Form.pendingEdit); Form.pendingEdit=null; }
     /* ปุ่มฟอร์ม — ตอน "แก้ไข" รายการเดิม ไม่ต้องมีปุ่ม "ล้างฟอร์ม" */
     const formBtns = (isForm && !Form.editing ? `<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button>` : '')
@@ -2837,6 +2837,19 @@ const Plan = {
   view:'cal', calMonth: todayISO().slice(0,7),
   selBzm:'', draft:[], pDate: todayISO(), pTrainer:'', pType:'FQA',
   fMonth:'', fType:'',
+
+  /* เปิดหน้าแผน — ถ้าเดือนที่ปฏิทินเปิดอยู่ไม่มีแผน แต่มีแผนเดือนอื่น → เด้งไปเดือนที่มีแผนใกล้ปัจจุบันสุด */
+  open(){
+    const ps=plans();
+    const mi=s=>{ const [y,mo]=String(s).split('-').map(Number); return y*12+(mo-1); };
+    if(ps.length && !ps.some(p=>String(p.date||'').slice(0,7)===this.calMonth)){
+      const now=mi(todayISO());
+      const months=[...new Set(ps.map(p=>String(p.date||'').slice(0,7)).filter(Boolean))];
+      months.sort((a,b)=>{ const da=Math.abs(mi(a)-now), db=Math.abs(mi(b)-now); return da-db || (mi(b)-mi(a)); });
+      this.calMonth=months[0];
+    }
+    this.render();
+  },
 
   render(){
     const bs=M.branches(), zs=M.bzms(), ts=M.trainers();
