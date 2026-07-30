@@ -382,7 +382,7 @@ body.not-admin #botnav [data-v="master"]{display:none}
 
 /* ---------- หน้าดูรายงานผ่านลิงก์แชร์ (สาธารณะ) ---------- */
 body.repmode{background:#EDEDEE}
-body.repmode>*:not(#repview){display:none!important}
+body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยกเว้น printhost เพื่อให้พิมพ์ PDF จากหน้าลิงก์ได้ */
 .repview{min-height:100vh}
 .rep-bar{position:sticky;top:0;z-index:5;display:flex;align-items:center;justify-content:space-between;gap:12px;
   background:#111;color:#fff;padding:11px 16px;box-shadow:0 2px 10px rgba(0,0,0,.18)}
@@ -2281,7 +2281,7 @@ const Rec = {
           <div style="font-weight:600;margin-bottom:6px">👤 ${esc(st.name||'—')}<span style="color:var(--text3);font-weight:400">${st.startDate?` · เริ่มงาน ${esc(st.startDate)}`:''}${st.tenure?` · อายุงาน ${esc(st.tenure)}`:''}</span></div>
           <table class="tb"><thead><tr><th>หัวข้อหลัก</th><th>หัวข้อย่อย</th><th>วิธีประเมิน</th><th>คะแนน</th><th>รายละเอียดการสอน</th></tr></thead><tbody>
             ${(st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td>${esc(e.score)}</td><td>${esc(e.detail)}</td></tr>`).join('')}</tbody></table>
-        </div>`).join('')+`<p style="font-size:11.5px;color:var(--text3);margin:2px 0 0">${NS_SCORES.map(s=>s[1]).join(' · ')}</p>`);
+        </div>`).join('')+`<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 12px;font-size:11.5px;color:var(--text3);margin-top:4px"><b>เกณฑ์คะแนน:</b>${NS_SCORES.map(s=>`<span style="white-space:nowrap">${esc(s[1])}</span>`).join('')}</div>`);
     }
     if(r.photos.length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
       <div class="ph"><img src="${p.data}" onclick="App.zoom(this.src)" alt="">
@@ -3221,9 +3221,10 @@ const PDF = {
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
       if((r.newStaff||[]).length){
-        const legend=`<div style="margin-top:9px;border:1px solid #E5E5E5;border-radius:7px;padding:8px 11px;font-size:10px;color:#666;line-height:1.7">
-          <b style="color:#444">เกณฑ์คะแนน:</b> ${NS_SCORES.map(s=>esc(s[1])).join(' &nbsp;·&nbsp; ')}<br>
-          <b style="color:#444">วิธีการประเมิน:</b> ${NS_METHODS.map(m=>esc(m)).join(' &nbsp;·&nbsp; ')}</div>`;
+        const legRow=(label,items)=>`<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 12px;margin-bottom:3px">
+          <b style="color:#444;white-space:nowrap">${label}</b>${items.map(t=>`<span style="white-space:nowrap">${esc(t)}</span>`).join('')}</div>`;
+        const legend=`<div style="margin-top:9px;border:1px solid #E5E5E5;border-radius:7px;padding:9px 12px;font-size:10px;color:#666;line-height:1.5">
+          ${legRow('เกณฑ์คะแนน:', NS_SCORES.map(s=>s[1]))}${legRow('วิธีการประเมิน:', NS_METHODS)}</div>`;
         b+=sec('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
           <div style="margin-bottom:11px">
             <p style="margin:0 0 5px;font-weight:700;font-size:12.5px">${esc(st.name||'—')}<span style="color:#888;font-weight:400">${st.startDate?` · เริ่มงาน ${esc(st.startDate)}`:''}${st.tenure?` · อายุงาน ${esc(st.tenure)}`:''}</span></p>
