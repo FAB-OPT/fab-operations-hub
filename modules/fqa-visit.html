@@ -2144,6 +2144,7 @@ const Form = {
     const err=this.validate();
     if(err) return App.toast(err);
     const rec=JSON.parse(JSON.stringify(this.s));
+    if(!rec.createdBy) rec.createdBy = Hub.who();   // จำผู้บันทึกครั้งแรก → ใช้เป็น "ผู้ออกรายงาน" ในใบตรวจ (คงที่ทุกคนที่เปิดดู)
     /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
     if(rec.newStaff) rec.newStaff = rec.newStaff
       .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score||e.detail)}))
@@ -2236,7 +2237,7 @@ const Rec = {
         <td>${planTypeTag(r.type)}</td>
         <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
         <td style="max-width:300px;color:var(--text2)">${esc(summaryLine(r))}</td>
-        <td>${r.type==='VISIT'?'<span style="color:var(--text3)">—</span>':(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`)}</td>
+        <td>${r.type==='FQA'?(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`):'<span style="color:var(--text3)">—</span>'}</td>
         <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
         <td class="rowact noprint">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
@@ -2249,7 +2250,7 @@ const Rec = {
     return `<div class="reclist">${list.map(r=>{ const f=failCount(r);
       return `<div class="reccard">
         <div class="rc-top">${planTypeTag(r.type)}<div class="sp" style="flex:1"></div>
-          ${r.type==='VISIT'?'':`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`}</div>
+          ${r.type==='FQA'?`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`:''}</div>
         <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
         <div class="rc-sum">${esc(summaryLine(r))}</div>
         <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
@@ -3142,8 +3143,9 @@ const Plan = {
    → ข้อความไทยถูกต้องเสมอ, คมชัด, คัดลอกได้, ไฟล์เล็ก
    ======================================================================= */
 const PDF = {
-  /* กรอบเอกสาร A4 โทนสว่าง — ไม่อิงธีมของหน้าจอ เพื่อให้ PDF อ่านง่ายเสมอ */
-  wrap(title, sub, body){
+  /* กรอบเอกสาร A4 โทนสว่าง — ไม่อิงธีมของหน้าจอ เพื่อให้ PDF อ่านง่ายเสมอ
+     issuedBy: ผู้ออกรายงาน (ใบตรวจ = คนที่บันทึกตอนแรก · ถ้าไม่ส่งมาใช้ผู้ใช้ปัจจุบัน สำหรับรายงานสรุป/แดชบอร์ด) */
+  wrap(title, sub, body, issuedBy){
     return `<div class="pdfpage">
       <div class="pdfhead">
         <div>
@@ -3152,7 +3154,7 @@ const PDF = {
           ${sub? `<div class="pdfsub">${esc(sub)}</div>`:''}
         </div>
         <div class="pdfstamp">ออกรายงาน ${esc(new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}))}<br>
-          ผู้ออกรายงาน ${esc(Hub.who())}</div>
+          ผู้ออกรายงาน ${esc(issuedBy || Hub.who())}</div>
       </div>
       ${body}
     </div>`;
@@ -3204,7 +3206,7 @@ const PDF = {
 
     /* ---- กล่องข้อมูลการตรวจ ---- */
     const fails=failCount(r);
-    const badge = r.type==='VISIT' ? '' : (fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`);
+    const badge = r.type==='FQA' ? (fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`) : '';
     let b=`<div class="pdfinfo">
       <div class="pi-top">
         <div class="pi-branch">${esc(r.branch||'—')}<small>${esc(r.bzm||'')}</small></div>
@@ -3258,7 +3260,7 @@ const PDF = {
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
         `<figure><img src="${p.data}" alt=""><figcaption>${esc(p.caption||'')}</figcaption></figure>`).join('')}</div>`);
 
-    return this.wrap(TYPE_LABEL[r.type], '', b);
+    return this.wrap(TYPE_LABEL[r.type], '', b, r.createdBy || r.trainer || Hub.who());
   },
 
   /* ---------- 1) ใบตรวจรายฉบับ → บันทึกเป็นไฟล์ PDF ---------- */
