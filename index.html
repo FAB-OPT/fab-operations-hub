@@ -4250,8 +4250,27 @@ function normalizeSystem(s) {
   return s;
 }
 
+/* ระบบนี้ผูกกับแบรนด์ไหน — ใช้ค่า s.brand ถ้าตั้งไว้ ไม่งั้นเดาจาก id
+   (เช่น checklist-jaedaeng → เจ๊แดง) · คืน null = ใช้ได้ทุกแบรนด์ */
+function systemBrand(s) {
+  if (s && s.brand) return s.brand;
+  var id = String((s && s.id) || '').toLowerCase();
+  for (var i = 0; i < BRAND_REGISTRY.length; i++) {
+    var k = String(BRAND_REGISTRY[i].key || '').toLowerCase();
+    if (k && id.indexOf(k) >= 0) return BRAND_REGISTRY[i].key;
+  }
+  return null;
+}
+
 function isSystemVisibleToBranch(s, branchCode) {
   if (s.hideFromAllBranches) return false;
+  // สาขาต้องไม่เห็นระบบของแบรนด์อื่น — เช็คตั้งแต่เรนเดอร์รอบแรก
+  // ไม่ต้องรอ config จาก cloud (เดิมรอ ทำให้ไทล์แบรนด์อื่นโผล่แล้วค่อยหาย)
+  var sb = systemBrand(s);
+  if (sb) {
+    var bb = _deriveBrand(branchCode);
+    if (bb && sb !== bb) return false;
+  }
   if (s.visibleBranches && s.visibleBranches.length > 0 && s.visibleBranches.indexOf(branchCode) < 0) return false;
   var today = todayIso();
   if (s.startDate && today < s.startDate) return false;
@@ -4264,6 +4283,12 @@ function isSystemVisibleToUser(s, userCode) {
   var u = findUserByCode(userCode);
   if (u && u.role === 'admin') return true;  // 👑 admin เห็นทุกระบบเสมอ
   if (s.hideFromAllUsers) return false;
+  // ผู้ใช้ที่ดูแลเฉพาะบางแบรนด์ ไม่ต้องเห็นระบบของแบรนด์ที่ไม่ได้ดูแล
+  var _sb = systemBrand(s);
+  if (_sb && u) {
+    var _ub = userBrands(u);
+    if (_ub.length && _ub.indexOf(_sb) < 0) return false;
+  }
   if (s.visibleUsers && s.visibleUsers.length > 0 && s.visibleUsers.indexOf(String(userCode)) < 0) return false;
   var today = todayIso();
   if (s.startDate && today < s.startDate) return false;
