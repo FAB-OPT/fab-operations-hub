@@ -4,6 +4,38 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>FAB Operations &amp; Training Hub</title>
+<script>
+/* ══════ สแกน QR เข้าจาก LINE บน Android → เด้งไปเปิดด้วย Chrome ให้เอง ══════
+   LINE ฝั่ง Android ใช้ Android WebView ซึ่ง "ไม่เปิดสิทธิ์กล้อง" ให้หน้าเว็บ
+   (แอปแม่ต้องเขียนรับ onPermissionRequest เอง ซึ่ง LINE ไม่ได้ทำ)
+   → ระบบเช็คลิสต์ที่ต้องถ่ายรูปสดจึงใช้ไม่ได้เลยถ้าอยู่ใน LINE
+   iPhone ไม่ต้องเด้ง — LINE ใช้ WKWebView ที่กล้องทำงานได้ตามปกติ
+   openExternalBrowser=1 เป็นพารามิเตอร์ของ LINE เอง (เบราว์เซอร์อื่นไม่สนใจ)
+   ทำที่นี่เพื่อไม่ต้องแก้ QR ที่สาขาติดไว้แล้ว */
+(function () {
+  try {
+    var ua = navigator.userAgent || '';
+    if (!/\bLine\//i.test(ua) || !/Android/i.test(ua)) return;
+    if (!/[?&]openExternalBrowser=1/.test(location.search)) {
+      location.replace(location.href + (location.search ? '&' : '?') + 'openExternalBrowser=1');
+      return;
+    }
+    // สั่งแล้วแต่ยังอยู่ใน LINE (บางรุ่นไม่ทำตาม) → ขึ้นแถบบอกวิธีทำเอง
+    var show = function () {
+      if (document.getElementById('lineBar')) return;
+      var b = document.createElement('div');
+      b.id = 'lineBar';
+      b.setAttribute('style', 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#b45309;color:#fff;' +
+        'font:600 12.5px/1.5 Sarabun,sans-serif;padding:8px 12px;text-align:center;');
+      b.innerHTML = 'ถ่ายรูปใน LINE ไม่ได้ — กดปุ่ม <b>⋯</b> มุมขวาบน แล้วเลือก <b>“เปิดในเบราว์เซอร์”</b>' +
+        '<span style="margin-left:10px;text-decoration:underline;" onclick="this.parentNode.remove()">ปิด</span>';
+      document.body.appendChild(b);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
+    else show();
+  } catch (e) {}
+})();
+</script>
 <!-- PWA: เพิ่มลงหน้าจอโฮม → เปิดแบบเต็มจอ (ไม่มีแถบเบราว์เซอร์) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ea580c">
