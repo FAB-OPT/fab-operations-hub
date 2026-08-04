@@ -2276,12 +2276,12 @@ const Rec = {
     let h=`<div class="grid g4" style="margin-bottom:18px">${kv('วันที่',r.date)}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}</div>
       <div class="grid g2" style="margin-bottom:18px">${kv('สาขา',r.branch)}${kv('ผู้จัดการเขต',r.bzm)}</div>`;
     if(r.type==='FQA'){
-      if(r.materials.length) h+=box('วัตถุดิบที่สุ่มตรวจ',`<div class="chipbar">${r.materials.map(m=>`<span class="tag">${esc(m)}</span>`).join('')}</div>`);
+      if((r.materials||[]).length) h+=box('วัตถุดิบที่สุ่มตรวจ',`<div class="chipbar">${r.materials.map(m=>`<span class="tag">${esc(m)}</span>`).join('')}</div>`);
       h+=box('ผลตรวจวัตถุดิบ',`<table class="tb"><thead><tr><th>รายการตรวจ</th><th>ผล</th><th>สิ่งที่พบ</th><th>การแก้ไข</th></tr></thead><tbody>
-        ${r.checks.filter(c=>c.result||c.detail).map(c=>`<tr><td>${esc(c.item)}</td>
+        ${(r.checks||[]).filter(c=>c.result||c.detail).map(c=>`<tr><td>${esc(c.item)}</td>
         <td><span class="pill ${c.result==='ผ่าน'?'p-pass':c.result==='ไม่ผ่าน'?'p-fail':'p-na'}">${esc(c.result||'—')}</span></td>
         <td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`).join('')}</tbody></table>`);
-      const mm=r.menus.filter(m=>m.menu);
+      const mm=(r.menus||[]).filter(m=>m.menu);
       if(mm.length) h+=box('สุ่มเมนู',`<table class="tb"><thead><tr><th>เมนู</th><th>ขั้นตอนการปรุง</th><th>หน้าตา/รสชาติ</th><th>สิ่งที่พบ</th><th>การแก้ไข</th></tr></thead><tbody>
         ${mm.map(m=>`<tr><td>${esc(m.menu)}</td>
         <td><span class="pill ${m.cook==='ผ่าน'?'p-pass':m.cook==='ไม่ผ่าน'?'p-fail':'p-na'}">${esc(m.cook||'—')}</span></td>
@@ -2292,12 +2292,12 @@ const Rec = {
       h+=box('รายละเอียด Complaint',`<p style="margin:0 0 12px">${esc(r.complaint)}</p>
         <div class="grid g4">${kv('เมนูที่เกี่ยวข้อง',r.menu)}${kv('ประเภท',/อื่น/.test(r.category)?(r.categoryOther||r.category):r.category)}${kv('ช่องทาง',r.channel)}${kv('ความรุนแรง',r.severity)}</div>`);
       h+=box('แนวทางการแก้ไข',`<table class="tb"><thead><tr><th>ปัญหาที่พบ</th><th>การแก้ไขเบื้องต้น</th><th>สาเหตุ</th><th>การป้องกัน</th><th>ข้อแนะนำ</th></tr></thead><tbody>
-        ${r.issues.map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
+        ${(r.issues||[]).map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
     }
     if(r.type==='VISIT'){
       h+=box('ประเภทการเข้าพบ', visitTypeList(r).map(v=>`<span class="tag">${esc(v)}</span>`).join(' ')||'<span style="color:var(--text3)">—</span>');
       h+=box('หัวข้อการอบรม',`<table class="tb"><thead><tr><th>หัวข้อ</th><th>ปัญหาที่พบ</th><th>ข้อแนะนำ</th></tr></thead><tbody>
-        ${r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
+        ${(r.topics||[]).map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
       if((r.newStaff||[]).length) h+=box('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
         <div style="margin-bottom:14px">
           <div style="font-weight:600;margin-bottom:6px">👤 ${esc(st.name||'—')}<span style="color:var(--text3);font-weight:400">${st.startDate?` · เริ่มงาน ${esc(st.startDate)}`:''}${st.tenure?` · อายุงาน ${esc(st.tenure)}`:''}</span></div>
@@ -2305,7 +2305,7 @@ const Rec = {
             ${(st.evals||[]).map(e=>`<tr><td>${esc(e.main)}</td><td>${esc(e.sub)}</td><td>${esc(e.method)}</td><td>${esc(e.score)}</td><td>${esc(e.detail)}</td></tr>`).join('')}</tbody></table>
         </div>`).join('')+`<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 12px;font-size:11.5px;color:var(--text3);margin-top:4px"><b>เกณฑ์คะแนน:</b>${NS_SCORES.map(s=>`<span style="white-space:nowrap">${esc(s[1])}</span>`).join('')}</div>`);
     }
-    if(r.photos.length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
+    if((r.photos||[]).length) h+=box('รูปประกอบการตรวจ',`<div class="phg">${r.photos.map(p=>`
       <div class="ph"><img src="${p.data}" onclick="App.zoom(this.src)" alt="">
       <div class="cap" style="font-size:12px;padding:8px;color:var(--text2)">${esc(p.caption||'—')}</div></div>`).join('')}</div>`);
     App.modal(TYPE_LABEL[r.type], h, r.id);
@@ -3223,7 +3223,7 @@ const PDF = {
     if(r.type==='FQA'){
       if((r.materials||[]).length)
         b+=sec('วัตถุดิบที่สุ่มตรวจ',`<div class="pdfchips">${r.materials.map(m=>`<span>${esc(m)}</span>`).join('')}</div>`);
-      const cs=r.checks.filter(c=>c.result||c.detail);
+      const cs=(r.checks||[]).filter(c=>c.result||c.detail);
       if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(
         [{h:'รายการตรวจ',w:'26%'},{h:'ผล',w:'12%',c:1},{h:'สิ่งที่พบ',w:'31%'},{h:'การแก้ไข',w:'31%'}],
         cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
@@ -3239,13 +3239,13 @@ const PDF = {
          ${kv('ช่องทาง',r.channel)}${kv('ความรุนแรง',r.severity)}</div>`);
       b+=sec('แนวทางการแก้ไข', tbl(
         [{h:'ปัญหาที่พบ',w:'22%'},{h:'การแก้ไขเบื้องต้น',w:'20%'},{h:'สาเหตุ',w:'19%'},{h:'การป้องกัน',w:'20%'},{h:'ข้อแนะนำ',w:'19%'}],
-        r.issues.map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`)));
+        (r.issues||[]).map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`)));
     }
     if(r.type==='VISIT'){
       b+=`<p style="margin:0 0 15px;font-size:13px"><span style="color:#999;font-weight:700">ประเภทการเข้าพบ: </span><b style="color:#111">${esc(visitTypeLabel(r))}</b></p>`;
       b+=sec('หัวข้อการอบรม', tbl(
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
-        r.topics.map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
+        (r.topics||[]).map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
       if((r.newStaff||[]).length){
         const legRow=(label,items)=>`<div style="display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 12px;margin-bottom:3px">
           <b style="color:#444;white-space:nowrap">${label}</b>${items.map(t=>`<span style="white-space:nowrap">${esc(t)}</span>`).join('')}</div>`;
@@ -3643,13 +3643,15 @@ const ReportView = {
         const del=new Set(((res&&res.deleted)||[]).map(String));
         if(!rec || del.has(String(id))){ host.innerHTML=`<div class="rep-load">ไม่พบรายงานนี้ (อาจถูกลบไปแล้ว)</div>`; return; }
         this._rec=rec;
+        let doc; try{ doc=PDF.recordDoc(rec); }
+        catch(e){ console.error('[ReportView] recordDoc error', e, rec); host.innerHTML=`<div class="rep-load">แสดงรายงานไม่ได้ — ข้อมูลบางส่วนไม่สมบูรณ์</div>`; return; }
         host.innerHTML=`<div class="rep-bar">
             <div class="rep-ttl">รายงานการตรวจสาขา · เจ๊แดง</div>
             <button class="btn pri" onclick="ReportView.print()">⬇️ บันทึกเป็น PDF</button>
           </div>
-          <div class="rep-paper"><div class="pdfdoc">${PDF.recordDoc(rec)}</div></div>`;
+          <div class="rep-paper"><div class="pdfdoc">${doc}</div></div>`;
       })
-      .catch(()=>{ host.innerHTML=`<div class="rep-load">โหลดรายงานไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่</div>`; });
+      .catch(e=>{ console.error('[ReportView] load error', e); host.innerHTML=`<div class="rep-load">โหลดรายงานไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่</div>`; });
   },
   print(){
     if(!this._rec) return;
