@@ -11,7 +11,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 var CACHE_SEC = 300;
-var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note'];
+// 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
+var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note','round'];
 var EMP_HEADERS = ['name','empId','idCard','branch','position','sheet'];
 
 /* ───────────────────────── ROUTER ───────────────────────── */
@@ -42,6 +43,9 @@ function doPost(e) {
     if (data.type === 'request')            return jsonOut(saveRequests(data.records));  // alias กัน client เก่า
     if (data.type === 'delete-request')     return jsonOut(deleteRequest(data.key));
     if (data.type === 'update-request')     return jsonOut(updateRequest(data.key, data.record));
+    // งานหมู่: อ่านชีตครั้งเดียว เขียนครั้งเดียว — เร็วกว่ายิงทีละแถวหลายสิบเท่า
+    if (data.type === 'bulk-update-requests') return jsonOut(bulkUpdateRequests(data.updates));
+    if (data.type === 'bulk-delete-requests') return jsonOut(bulkDeleteRequests(data.keys));
     if (data.type === 'dedup-employees')    return jsonOut(dedupEmployees());
     if (data.type === 'dedup-certificates') return jsonOut(dedupCertificates());
     if (data.type === 'clear-certificates') return jsonOut(clearCertificates());
@@ -257,6 +261,17 @@ function clearReqCache_() {
   // cache ราย branch จะ expire ตาม TTL 5 นาที
 }
 
+/* เติมหัวคอลัมน์ที่เพิ่มใหม่ (เช่น round) ให้ชีตเดิมที่สร้างไว้ก่อนหน้า */
+function ensureReqHeaders_(sh) {
+  try {
+    var lastCol = sh.getLastColumn();
+    if (lastCol >= REQ_HEADERS.length) return;
+    var have = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (var i = lastCol; i < REQ_HEADERS.length; i++) have.push(REQ_HEADERS[i]);
+    sh.getRange(1, 1, 1, REQ_HEADERS.length).setValues([have]);
+  } catch (e) {}
+}
+
 function saveRequests(records) {
   if (!Array.isArray(records) || records.length === 0) return { ok: false, error: 'no records' };
   var lock = LockService.getScriptLock();
@@ -265,6 +280,7 @@ function saveRequests(records) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName('Requests') || ss.insertSheet('Requests');
     if (sh.getLastRow() === 0) sh.appendRow(REQ_HEADERS);
+    else ensureReqHeaders_(sh);   // ชีตเดิมยังไม่มีคอลัมน์ round → เติมหัวให้
     var ts = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
     var rows = records.map(function(r){
       return REQ_HEADERS.map(function(h){
@@ -382,14 +398,134 @@ function updateRequest(key, record) {
     }
 
     if (rowToUpdate < 2) return { ok: false, error: 'not found' };
+    ensureReqHeaders_(sh);
     var existingTs = values[rowToUpdate - 1][0];
-    var newRow = REQ_HEADERS.map(function(h){
+    var oldRow = values[rowToUpdate - 1];
+    var newRow = REQ_HEADERS.map(function(h, j){
       if (h === 'timestamp') return existingTs;
-      return record[h] != null ? record[h] : '';
+      // ไม่ได้ส่ง field นี้มา → คงค่าเดิมไว้ (กัน client เก่าล้าง round/คอลัมน์ใหม่ทิ้ง)
+      if (record[h] == null) return oldRow[j] != null ? oldRow[j] : '';
+      return record[h];
     });
     sh.getRange(rowToUpdate, 1, 1, REQ_HEADERS.length).setValues([newRow]);
     clearReqCache_();
     return { ok: true, updated: rowToUpdate };
+  } finally { lock.releaseLock(); }
+}
+
+/* ═══════════ งานหมู่ (bulk) — อ่านชีตครั้งเดียว เขียนครั้งเดียว ═══════════
+   เดิมฝั่งหน้าเว็บวนยิง update/delete ทีละแถว แถวละ 1 HTTP + อ่านชีตทั้งใบ + จับ lock
+   195 คน = 195 รอบ ≈ หลายนาที · ทำเป็นก้อนเดียวเหลือไม่กี่วินาที */
+
+/* หา index ของแถว (0-based ใน values) จาก key — ไล่จาก rowIndex → timestamp+name → name+idCard → name */
+function _findReqRow_(values, key, usedRows) {
+  if (!key) return -1;
+  function taken(i) { return usedRows && usedRows[i]; }
+  // 1) rowIndex + verify name
+  if (key.rowIndex && key.rowIndex >= 2 && key.rowIndex <= values.length) {
+    var i0 = key.rowIndex - 1;
+    if (!taken(i0) && String(values[i0][1] || '') === String(key.name || '')) return i0;
+  }
+  var i;
+  // 2) timestamp + name
+  if (key.timestamp) {
+    for (i = 1; i < values.length; i++) {
+      if (taken(i)) continue;
+      var tsCell = values[i][0];
+      var ts = (tsCell instanceof Date)
+        ? Utilities.formatDate(tsCell, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss')
+        : String(tsCell);
+      if (ts === String(key.timestamp) && String(values[i][1] || '') === String(key.name || '')) return i;
+    }
+  }
+  // 3) name + idCard
+  var keyId = String(key.idCard || '').replace(/\D/g, '');
+  if (keyId) {
+    for (i = 1; i < values.length; i++) {
+      if (taken(i)) continue;
+      if (String(values[i][1] || '') === String(key.name || '')
+          && String(values[i][3] || '').replace(/\D/g, '') === keyId) return i;
+    }
+  }
+  // 4) name อย่างเดียว
+  for (i = 1; i < values.length; i++) {
+    if (taken(i)) continue;
+    if (String(values[i][1] || '').trim() === String(key.name || '').trim()) return i;
+  }
+  return -1;
+}
+
+function bulkUpdateRequests(updates) {
+  if (!Array.isArray(updates) || updates.length === 0) return { ok: false, error: 'no updates' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName('Requests');
+    if (!sh) return { ok: false, error: 'sheet not found' };
+    ensureReqHeaders_(sh);
+    var values = sh.getDataRange().getValues();
+    if (values.length < 2) return { ok: false, error: 'no data' };
+    var cols = REQ_HEADERS.length;
+
+    // ปรับทุกแถวให้กว้างเท่า REQ_HEADERS ก่อน แล้วค่อยแก้เฉพาะแถวที่ตรง key
+    var out = values.map(function(row){
+      return REQ_HEADERS.map(function(h, j){ return row[j] != null ? row[j] : ''; });
+    });
+    for (var j = 0; j < cols; j++) if (!out[0][j]) out[0][j] = REQ_HEADERS[j];
+
+    var used = {}, updated = 0, notFound = 0;
+    updates.forEach(function(u){
+      if (!u || !u.record) { notFound++; return; }
+      var idx = _findReqRow_(values, u.key, used);
+      if (idx < 1) { notFound++; return; }
+      used[idx] = true;
+      var oldRow = out[idx];
+      out[idx] = REQ_HEADERS.map(function(h, k){
+        if (h === 'timestamp') return oldRow[0];                             // เวลาส่งเดิมห้ามเปลี่ยน
+        if (u.record[h] == null) return oldRow[k] != null ? oldRow[k] : '';  // ไม่ได้ส่งมา = คงเดิม
+        return u.record[h];
+      });
+      updated++;
+    });
+
+    sh.getRange(1, 1, out.length, cols).setValues(out);
+    clearReqCache_();
+    return { ok: true, updated: updated, notFound: notFound };
+  } finally { lock.releaseLock(); }
+}
+
+function bulkDeleteRequests(keys) {
+  if (!Array.isArray(keys) || keys.length === 0) return { ok: false, error: 'no keys' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var sh = ss.getSheetByName('Requests');
+    if (!sh) return { ok: false, error: 'sheet not found' };
+    var values = sh.getDataRange().getValues();
+    if (values.length < 2) return { ok: true, deleted: 0, notFound: keys.length };
+    var cols = Math.max(sh.getLastColumn(), REQ_HEADERS.length);
+
+    var kill = {}, deleted = 0, notFound = 0;
+    keys.forEach(function(k){
+      var idx = _findReqRow_(values, k, kill);
+      if (idx < 1) { notFound++; return; }
+      kill[idx] = true; deleted++;
+    });
+    if (!deleted) return { ok: true, deleted: 0, notFound: notFound };
+
+    var keep = values.filter(function(row, i){ return i === 0 || !kill[i]; })
+                     .map(function(row){
+                       var r = [];
+                       for (var j2 = 0; j2 < cols; j2++) r.push(row[j2] != null ? row[j2] : '');
+                       return r;
+                     });
+    sh.getRange(1, 1, keep.length, cols).setValues(keep);
+    var extra = values.length - keep.length;
+    if (extra > 0) sh.deleteRows(keep.length + 1, extra);   // ตัดแถวท้ายที่เหลือทิ้งทีเดียว
+    clearReqCache_();
+    return { ok: true, deleted: deleted, notFound: notFound };
   } finally { lock.releaseLock(); }
 }
 

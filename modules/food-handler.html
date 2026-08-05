@@ -8054,31 +8054,10 @@ function adminReqDupDeleteSelected() {
     if (!ok) return;
     var btn = document.getElementById('adminReqDupDeleteBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังลบ... 0/' + records.length; }
-    var done = 0, failed = 0;
-    var seq = Promise.resolve();
-    records.forEach(function(rec){
-      seq = seq.then(function(){
-        var key = {
-          rowIndex: rec._rowIndex,
-          name: rec.name,
-          idCard: rec.idCard,
-          timestamp: rec.timestamp
-        };
-        return fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ type: 'delete-request', key: key })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(res){
-          if (res && res.ok) done++; else failed++;
-          if (btn) btn.textContent = 'กำลังลบ... ' + (done+failed) + '/' + records.length;
-        })
-        .catch(function(){ failed++; });
-      });
-    });
-    seq.then(function(){
-      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>' + done + '</b> รายการ' + (failed ? ' · ✗ ล้มเหลว ' + failed + ' รายการ' : ''));
+    _fhBulkDelete(records, function(n, total){
+      if (btn) btn.textContent = 'กำลังลบ... ' + n + '/' + total;
+    }).then(function(r){
+      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>' + r.done + '</b> รายการ' + (r.failed ? ' · ✗ ล้มเหลว ' + r.failed + ' รายการ' : ''));
       closeAdminReqDupModal();
       _fhBustRequests();
       loadAdminRequests();
@@ -11442,31 +11421,22 @@ function saveAdminReqRounds() {
       // เขียนรอบเวลาแบบ normalize กลับไปด้วย — ล้างของที่พิมพ์เว้นวรรคไม่เท่ากันให้ตรงกันทั้งกลุ่ม
       c.g.rows.forEach(function(rec){ jobs.push({ rec: rec, round: c.round, slot: c.g.slot }); });
     });
-    var done = 0, failed = 0, total = jobs.length;
-    showLoadingOverlay('กำลังบันทึกรุ่นที่...', '0/' + total);
-    var seq = Promise.resolve();
-    jobs.forEach(function(j){
-      seq = seq.then(function(){
-        var rec = j.rec;
-        var key = { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
-        var record = {
-          name: rec.name || '', empId: rec.empId || '', idCard: rec.idCard || '',
-          branch: rec.branch || '', position: rec.position || '', course: rec.course || '',
-          trainDate: rec.trainDate || '', timeSlot: j.slot || rec.timeSlot || '', note: rec.note || '',
-          round: j.round
-        };
-        return fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ type: 'update-request', key: key, record: record })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(res){ if (res && res.ok) done++; else failed++; })
-        .catch(function(){ failed++; })
-        .then(function(){ showLoadingOverlay('กำลังบันทึกรุ่นที่...', (done + failed) + '/' + total); });
-      });
+    // ส่ง record เต็มทุก field — backend รุ่นเก่าที่ยังไม่มีคอลัมน์ round จะได้ไม่ล้างข้อมูลอื่นทิ้ง
+    var payload = jobs.map(function(j){
+      var rec = j.rec;
+      return { rec: rec, record: {
+        name: rec.name || '', empId: rec.empId || '', idCard: rec.idCard || '',
+        branch: rec.branch || '', position: rec.position || '', course: rec.course || '',
+        trainDate: rec.trainDate || '', timeSlot: j.slot || rec.timeSlot || '', note: rec.note || '',
+        round: j.round
+      } };
     });
-    seq.then(function(){
+    var done = 0, failed = 0;
+    showLoadingOverlay('กำลังบันทึกรุ่นที่...', '0/' + payload.length);
+    _fhBulkUpdate(payload, function(n, total){
+      showLoadingOverlay('กำลังบันทึกรุ่นที่...', n + '/' + total);
+    }).then(function(r){
+      done = r.done; failed = r.failed;
       hideLoadingOverlay();
       _fhBustRequests();
       return loadAdminRequests();
@@ -11479,7 +11449,7 @@ function saveAdminReqRounds() {
         showInfo('⚠️ บันทึกแล้วแต่รุ่นไม่ติด',
           'ส่งขึ้น Cloud สำเร็จ <b>' + done + '</b> รายการ แต่ยังอ่านรุ่นกลับมาไม่ได้<br><br>'
           + 'แปลว่า <b>Apps Script ยังไม่ได้ deploy เวอร์ชันใหม่</b> (ชีต Requests ยังไม่มีคอลัมน์ round)<br>'
-          + 'ก๊อป <b>AppsScript-Code.gs</b> ทับ → Save → Deploy → New version แล้วกำหนดรุ่นอีกครั้งครับ');
+          + 'ก๊อป <b>apps-script/Code.gs</b> ทับ → Save → Deploy → New version แล้วกำหนดรุ่นอีกครั้งครับ');
         return;
       }
       showInfo('สรุปผลการบันทึก', '✓ บันทึกสำเร็จ <b>' + done + '</b> รายการ' + (failed ? ' · ✗ ล้มเหลว ' + failed + ' รายการ' : ''));
@@ -11487,7 +11457,78 @@ function saveAdminReqRounds() {
   });
 }
 
-/* Admin: ลบคำขออบรมทั้งหมด (loop delete-request จากแถวล่างขึ้นบน กันดัชนีเลื่อน) */
+/* ═══ งานหมู่: ยิงก้อนเดียว ไม่วนทีละแถว ═══
+   เดิม 195 คน = 195 HTTP request ต่อคิวกัน แต่ละอัน Apps Script อ่านชีตทั้งใบ + จับ lock ≈ หลายนาที
+   ตอนนี้ส่งทั้งก้อนไปครั้งเดียว · backend ที่ยังไม่ได้ deploy จะตอบ unknown type → ถอยไปใช้วิธีเดิมอัตโนมัติ */
+function _fhPost(payload) {
+  return fetch(SCRIPT_URL, {
+    method: 'POST', mode: 'cors',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(payload)
+  }).then(function(r){ return r.json(); });
+}
+function _fhReqKey(rec) {
+  return { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
+}
+function _fhIsUnknownType(res) {
+  return !!(res && !res.ok && String(res.error || '').indexOf('unknown type') >= 0);
+}
+/* ยิงทีละอัน (ของเดิม) — ใช้เป็นทางถอยเมื่อ backend ยังไม่รองรับ bulk
+   onProgress(done, total) ถูกเรียกทุกครั้งที่จบ 1 รายการ */
+function _fhSeqPost(items, buildPayload, onProgress) {
+  var done = 0, failed = 0, total = items.length;
+  var seq = Promise.resolve();
+  items.forEach(function(it){
+    seq = seq.then(function(){
+      return _fhPost(buildPayload(it))
+        .then(function(res){ if (res && res.ok) done++; else failed++; })
+        .catch(function(){ failed++; })
+        .then(function(){ if (onProgress) onProgress(done + failed, total); });
+    });
+  });
+  return seq.then(function(){ return { done: done, failed: failed }; });
+}
+/* ลบหลายรายการ → คืน {done, failed} */
+function _fhBulkDelete(records, onProgress) {
+  if (!records.length) return Promise.resolve({ done: 0, failed: 0 });
+  if (onProgress) onProgress(0, records.length);
+  return _fhPost({ type: 'bulk-delete-requests', keys: records.map(_fhReqKey) })
+    .then(function(res){
+      if (_fhIsUnknownType(res)) {
+        return _fhSeqPost(records, function(rec){ return { type: 'delete-request', key: _fhReqKey(rec) }; }, onProgress);
+      }
+      if (!res || !res.ok) throw new Error((res && res.error) || 'bulk delete failed');
+      if (onProgress) onProgress(records.length, records.length);
+      return { done: res.deleted || 0, failed: res.notFound || 0 };
+    })
+    .catch(function(){
+      // เน็ตหลุด/ตอบไม่เป็น JSON → ถอยไปวิธีเดิม ดีกว่าล้มทั้งงาน
+      return _fhSeqPost(records, function(rec){ return { type: 'delete-request', key: _fhReqKey(rec) }; }, onProgress);
+    });
+}
+/* แก้หลายรายการ · jobs = [{rec, record}] → คืน {done, failed} */
+function _fhBulkUpdate(jobs, onProgress) {
+  if (!jobs.length) return Promise.resolve({ done: 0, failed: 0 });
+  if (onProgress) onProgress(0, jobs.length);
+  var seqFallback = function(){
+    return _fhSeqPost(jobs, function(j){
+      return { type: 'update-request', key: _fhReqKey(j.rec), record: j.record };
+    }, onProgress);
+  };
+  return _fhPost({
+    type: 'bulk-update-requests',
+    updates: jobs.map(function(j){ return { key: _fhReqKey(j.rec), record: j.record }; })
+  })
+    .then(function(res){
+      if (_fhIsUnknownType(res)) return seqFallback();
+      if (!res || !res.ok) throw new Error((res && res.error) || 'bulk update failed');
+      if (onProgress) onProgress(jobs.length, jobs.length);
+      return { done: res.updated || 0, failed: res.notFound || 0 };
+    })
+    .catch(seqFallback);
+}
+
+/* Admin: ลบคำขออบรมทั้งหมด (ส่งก้อนเดียว) */
 function clearAllRequests() {
   var records = (Array.isArray(_adminRowCache) ? _adminRowCache.slice() : [])
     .sort(function(a,b){ return (b._rowIndex||0) - (a._rowIndex||0); });
@@ -11499,28 +11540,14 @@ function clearAllRequests() {
     okText: 'ลบทั้งหมด', okIsPrimary: true
   }).then(function(ok){
     if (!ok) return;
-    var done = 0, failed = 0, total = records.length;
-    showLoadingOverlay('กำลังลบคำขออบรม...', '0/' + total);
-    var seq = Promise.resolve();
-    records.forEach(function(rec){
-      seq = seq.then(function(){
-        var key = { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
-        return fetch(SCRIPT_URL, {
-          method: 'POST', mode: 'cors',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ type: 'delete-request', key: key })
-        })
-        .then(function(r){ return r.json(); })
-        .then(function(res){ if (res && res.ok) done++; else failed++; })
-        .catch(function(){ failed++; })
-        .then(function(){ showLoadingOverlay('กำลังลบคำขออบรม...', (done+failed) + '/' + total); });
-      });
-    });
-    seq.then(function(){
+    showLoadingOverlay('กำลังลบคำขออบรม...', '0/' + records.length);
+    _fhBulkDelete(records, function(n, total){
+      showLoadingOverlay('กำลังลบคำขออบรม...', n + '/' + total);
+    }).then(function(r){
       hideLoadingOverlay();
       _fhBustRequests();
       loadAdminRequests();
-      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>'+done+'</b> รายการ' + (failed ? ' · ✗ ล้มเหลว '+failed+' รายการ' : ''));
+      showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>'+r.done+'</b> รายการ' + (r.failed ? ' · ✗ ล้มเหลว '+r.failed+' รายการ' : ''));
     });
   });
 }
