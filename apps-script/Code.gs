@@ -800,21 +800,28 @@ function uploadFqaPhoto(base64, filename) {
    · setupDailyBackup() = ตั้งให้รันอัตโนมัติทุกวันตี 2 (รันครั้งเดียวจาก editor)
    เก็บย้อนหลัง 30 วัน (ไฟล์เก่ากว่านั้นลบทิ้ง)
    ======================================================================= */
+/* SPREADSHEET_ID ของ "FAB Operations & Training Hub" — ใช้ openById ให้ backup อ่านชีตถูกตัวแน่นอน
+   ทั้งตอน run เองและตอน trigger รัน (getActiveSpreadsheet() คืน null/ผิดตัวได้ตอน run นอก web app) */
+var FQA_SPREADSHEET_ID = '1KESJdDqyXlFoR9pjDwCEZqJbB7YHZ_Fi_t3I5ZOrY1o';
+
 function backupFqaDaily() {
-  var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
-  var values = sh.getDataRange().getValues();
+  var ss = SpreadsheetApp.openById(FQA_SPREADSHEET_ID);
+  var sh = ss.getSheetByName('FqaRecords');
   var records = [];
-  if (values.length >= 2) {
-    var jsonCol = values[0].map(function(h){ return String(h).trim(); }).indexOf('json');
-    for (var i = 1; i < values.length; i++) {
-      var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
-      if (raw) { try { records.push(JSON.parse(raw)); } catch (e) {} }
+  if (sh) {
+    var values = sh.getDataRange().getValues();
+    if (values.length >= 2) {
+      var jsonCol = values[0].map(function(h){ return String(h).trim(); }).indexOf('json');
+      for (var i = 1; i < values.length; i++) {
+        var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
+        if (raw) { try { records.push(JSON.parse(raw)); } catch (e) {} }
+      }
     }
   }
   var folderName = 'FQA Backups';
   var it = DriveApp.getFoldersByName(folderName);
   var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
-  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var stamp = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd');
   var name = 'fqa-backup-' + stamp + '.json';
   var ex = folder.getFilesByName(name); while (ex.hasNext()) ex.next().setTrashed(true);   // กันซ้ำวันเดียวกัน
   folder.createFile(name, JSON.stringify({ exportedAt: new Date().toISOString(), count: records.length, records: records }), 'application/json');
