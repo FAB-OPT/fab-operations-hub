@@ -5265,6 +5265,33 @@ th.th-chk, td.td-chk { width: 38px; text-align: center; padding-left: 8px !impor
 #adm-sec-settings .fh-tabpanel.active{display:block;animation:fhFade .22s ease;}
 @keyframes fhFade{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:none;}}
 @media(max-width:560px){#adm-sec-settings .fh-tab{font-size:12px;padding:9px 4px;flex-direction:column;gap:3px;}#adm-sec-settings .fh-tab .tico{font-size:17px;}}
+/* ── ตารางอบรม: การ์ดหลักสูตร + ตัวเลือกวันที่ ── */
+#adm-sec-settings .fh-course-block{display:flex;flex-direction:column;}
+#adm-sec-settings .fh-card-h .fh-chip{margin-left:auto;flex:none;font-size:11px;font-weight:800;color:#EA580C;background:#fff7ed;border:1px solid #fed7aa;border-radius:999px;padding:3px 10px;white-space:nowrap;}
+#adm-sec-settings input.fh-date{cursor:pointer;}
+#adm-sec-settings input.fh-date::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.5;transition:opacity .15s;}
+#adm-sec-settings input.fh-date:hover::-webkit-calendar-picker-indicator{opacity:1;}
+#adm-sec-settings .fh-date-prev{margin-top:9px;display:flex;flex-wrap:wrap;gap:7px;}
+#adm-sec-settings .fh-date-prev span{font-size:12.5px;font-weight:700;color:#0f172a;background:#f8fafc;border:1px solid #e2e8f0;border-radius:9px;padding:5px 11px;}
+#adm-sec-settings .fh-date-prev span.muted{color:#94a3b8;font-weight:600;background:#fff;border-style:dashed;}
+#adm-sec-settings .fh-sec-label{display:flex;align-items:center;gap:9px;font-size:11.5px;font-weight:700;color:#64748b;letter-spacing:.2px;margin:18px 0 0;}
+#adm-sec-settings .fh-sec-label:after{content:"";flex:1;height:1px;background:var(--border);}
+#adm-sec-settings .fh-slots{display:flex;flex-direction:column;gap:8px;margin:10px 0 12px;}
+#adm-sec-settings .fh-slot-row{display:flex;gap:8px;align-items:center;margin:0;}
+#adm-sec-settings .fh-slot-n{flex:none;width:24px;height:24px;border-radius:7px;background:#f1f5f9;color:#64748b;font-size:11.5px;font-weight:800;display:flex;align-items:center;justify-content:center;}
+#adm-sec-settings .fh-slot-row .fh-slot-time{flex:1;min-width:0;}
+#adm-sec-settings .fh-slot-row .fh-slot-round{width:118px;flex:none;}
+#adm-sec-settings .fh-slot-del{flex:none;width:34px;height:34px;border:1.5px solid #fecaca;background:#fff;color:#dc2626;border-radius:9px;cursor:pointer;font-weight:800;font-size:13px;line-height:1;font-family:inherit;transition:.15s;}
+#adm-sec-settings .fh-slot-del:hover{background:#fef2f2;border-color:#f87171;}
+#adm-sec-settings .fh-slot-empty{border:1.5px dashed #e2e8f0;border-radius:11px;padding:15px;text-align:center;font-size:12.5px;color:#94a3b8;background:#fafbfc;}
+#adm-sec-settings .fh-course-block .btn-add{margin-top:auto;align-self:flex-start;}
+#adm-sec-settings .fh-save-hint{font-size:12px;color:var(--text3);margin-right:auto;align-self:center;line-height:1.5;}
+@media(max-width:560px){
+  #adm-sec-settings .fh-slot-row{flex-wrap:wrap;}
+  #adm-sec-settings .fh-slot-row .fh-slot-round{width:auto;flex:1;}
+  #adm-sec-settings .fh-save-hint{margin:0 0 10px;}
+  #adm-sec-settings input.fh-date{font-size:16px !important;}  /* กัน iOS ซูมตอนแตะช่องวันที่ */
+}
 </style></style>
 <!-- Firebase — เก็บ config กลางของ Food Handler (sync ทุกสาขา) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
@@ -12140,6 +12167,23 @@ function fhSetTab(name){
   wrap.querySelectorAll('.fh-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===name); });
   wrap.querySelectorAll('.fh-tabpanel').forEach(function(p){ p.classList.toggle('active', p.id==='fhTab-'+name); });
 }
+// วันที่ไทย: ISO (ค.ศ.) ⇄ ข้อความไทย (พ.ศ.)
+var FH_TH_MON = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+var FH_TH_MON_SHORT = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+function _fhIsoToThai(iso, short){
+  var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(iso == null ? '' : iso).trim());
+  if (!m) return '';
+  var mi = parseInt(m[2], 10) - 1;
+  if (!(mi >= 0 && mi <= 11)) return '';
+  return parseInt(m[3], 10) + ' ' + (short ? FH_TH_MON_SHORT[mi] : FH_TH_MON[mi]) + ' ' + (parseInt(m[1], 10) + 543);
+}
+function _fhToIso(s){
+  var d = null;
+  try { d = (typeof parseAnyDate === 'function') ? parseAnyDate(s) : null; } catch (e) {}
+  if (!d || isNaN(d.getTime())) return '';
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
 function renderFhScheduleEditor() {
   var box = document.getElementById('fhScheduleEditor'); if (!box) return;
   var sch = (typeof COURSE_SCHEDULES !== 'undefined') ? COURSE_SCHEDULES : {};
@@ -12148,42 +12192,85 @@ function renderFhScheduleEditor() {
     var c = sch[cname] || {};
     var slots = Array.isArray(c.slots) ? c.slots : [];
     var rounds = c.rounds || {};
-    var slotRows = slots.map(function(s){
-      return _fhSlotRowHtml(s, rounds[s] || '');
-    }).join('');
-    return '<div class="section-card fh-course-block" data-cname="'+_fhEsc(cname)+'" style="padding:18px 20px;margin:0;">'
-      + '<div class="fh-card-h"><span class="cico">📚</span><span style="min-width:0;">'+_fhEsc(cname)+'</span></div>'
-      + '<label style="font-size:12px;color:var(--text2);display:block;">วันที่อบรม</label>'
-      + '<input class="form-input fh-course-date" value="'+_fhEsc(c.date||'')+'" placeholder="เช่น 10 มิถุนายน 2569" style="margin-bottom:8px;">'
-      + '<label style="font-size:12px;color:var(--text2);display:block;">วันที่ (แบบสั้น)</label>'
-      + '<input class="form-input fh-course-dateshort" value="'+_fhEsc(c.dateShort||'')+'" placeholder="เช่น 10 มิ.ย. 2569">'
-      + '<div style="font-size:12px;color:var(--text2);margin-top:12px;font-weight:700;">รอบเวลา + รุ่น</div>'
+    var iso = _fhToIso(c.dateISO || '') || _fhToIso(c.date || '');
+    var slotRows = slots.map(function(s, i){
+      return _fhSlotRowHtml(s, rounds[s] || '', i + 1);
+    }).join('') || _fhSlotEmptyHtml();
+    return '<div class="section-card fh-course-block" data-cname="'+_fhEsc(cname)+'"'
+      + ' data-olddate="'+_fhEsc(c.date||'')+'" data-oldshort="'+_fhEsc(c.dateShort||'')+'"'
+      + ' style="padding:18px 20px;margin:0;">'
+      + '<div class="fh-card-h"><span class="cico">📚</span><span style="min-width:0;">'+_fhEsc(cname)+'</span>'
+      +   '<span class="fh-chip">'+(slots.length ? slots.length + ' รอบ' : 'ยังไม่มีรอบ')+'</span></div>'
+      + '<label>วันที่อบรม</label>'
+      + '<input type="date" class="form-input fh-date" value="'+_fhEsc(iso)+'" onchange="_fhOnDateChange(this)" oninput="_fhOnDateChange(this)">'
+      + '<div class="fh-date-prev">'+_fhDatePrevHtml(iso)+'</div>'
+      + '<div class="fh-sec-label"><span>รอบเวลา + รุ่น</span></div>'
       + '<div class="fh-slots">'+slotRows+'</div>'
-      + '<button type="button" class="btn-add" onclick="_fhAddSlot(this)" style="margin-top:8px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรอบเวลา</button>'
+      + '<button type="button" class="btn-add" onclick="_fhAddSlot(this)"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มรอบเวลา</button>'
       + '</div>';
   }).join('');
   box.innerHTML = '<div class="fh-grid2">' + html + '</div>'
-    + '<div class="fh-save-row"><button type="button" class="btn-submit" onclick="saveFhSchedules()"><svg class="ico"><use href="#i-send"/></svg> บันทึกตารางอบรม</button></div>';
-}
-function _fhSlotRowHtml(time, round){
-  return '<div class="fh-slot-row" style="display:flex;gap:8px;margin-top:8px;align-items:center;">'
-    + '<input class="form-input fh-slot-time" value="'+_fhEsc(time)+'" placeholder="เวลา เช่น 9.00-13.00" style="flex:1;margin:0;">'
-    + '<input class="form-input fh-slot-round" value="'+_fhEsc(round)+'" placeholder="รุ่น เช่น 2/2569" style="width:130px;margin:0;">'
-    + '<button type="button" onclick="this.closest(\'.fh-slot-row\').remove()" title="ลบ" style="flex:none;width:34px;height:34px;border:1px solid #FCA5A5;background:#FEF2F2;color:#dc2626;border-radius:8px;cursor:pointer;font-weight:800;">✕</button>'
+    + '<div class="fh-save-row">'
+    +   '<div class="fh-save-hint">ตารางนี้ใช้ร่วมกันทุกสาขา — กดบันทึกแล้วมีผลทันที</div>'
+    +   '<button type="button" class="btn-submit" onclick="saveFhSchedules()"><svg class="ico"><use href="#i-send"/></svg> บันทึกตารางอบรม</button>'
     + '</div>';
+}
+function _fhDatePrevHtml(iso){
+  var full = _fhIsoToThai(iso, false);
+  if (!full) return '<span class="muted">ยังไม่ได้เลือกวันที่อบรม</span>';
+  return '<span>📅 '+_fhEsc(full)+'</span><span>ย่อ: '+_fhEsc(_fhIsoToThai(iso, true))+'</span>';
+}
+function _fhOnDateChange(inp){
+  var block = inp.closest('.fh-course-block'); if (!block) return;
+  var prev = block.querySelector('.fh-date-prev');
+  if (prev) prev.innerHTML = _fhDatePrevHtml(inp.value || '');
+}
+function _fhSlotEmptyHtml(){
+  return '<div class="fh-slot-empty">ยังไม่มีรอบเวลา — กด “เพิ่มรอบเวลา” ด้านล่าง</div>';
+}
+function _fhSlotRowHtml(time, round, n){
+  return '<div class="fh-slot-row">'
+    + '<span class="fh-slot-n">'+(n || 1)+'</span>'
+    + '<input class="form-input fh-slot-time" value="'+_fhEsc(time)+'" placeholder="เวลา เช่น 09.00-12.00">'
+    + '<input class="form-input fh-slot-round" value="'+_fhEsc(round)+'" placeholder="รุ่น เช่น 2/2569">'
+    + '<button type="button" class="fh-slot-del" onclick="_fhDelSlot(this)" title="ลบรอบนี้">✕</button>'
+    + '</div>';
+}
+// เรียงเลขรอบใหม่ + อัปเดตป้ายจำนวน/ข้อความว่าง
+function _fhRefreshSlots(block){
+  if (!block) return;
+  var wrap = block.querySelector('.fh-slots'); if (!wrap) return;
+  var rows = wrap.querySelectorAll('.fh-slot-row');
+  rows.forEach(function(r, i){ var n = r.querySelector('.fh-slot-n'); if (n) n.textContent = i + 1; });
+  var empty = wrap.querySelector('.fh-slot-empty');
+  if (rows.length && empty) empty.remove();
+  if (!rows.length && !empty) wrap.insertAdjacentHTML('beforeend', _fhSlotEmptyHtml());
+  var chip = block.querySelector('.fh-chip');
+  if (chip) chip.textContent = rows.length ? rows.length + ' รอบ' : 'ยังไม่มีรอบ';
 }
 function _fhAddSlot(btn){
   var block = btn.closest('.fh-course-block'); if (!block) return;
-  var slots = block.querySelector('.fh-slots');
-  if (slots) slots.insertAdjacentHTML('beforeend', _fhSlotRowHtml('', ''));
+  var wrap = block.querySelector('.fh-slots'); if (!wrap) return;
+  var empty = wrap.querySelector('.fh-slot-empty'); if (empty) empty.remove();
+  wrap.insertAdjacentHTML('beforeend', _fhSlotRowHtml('', '', wrap.querySelectorAll('.fh-slot-row').length + 1));
+  _fhRefreshSlots(block);
+  var last = wrap.querySelectorAll('.fh-slot-row .fh-slot-time');
+  if (last.length) last[last.length - 1].focus();
+}
+function _fhDelSlot(btn){
+  var block = btn.closest('.fh-course-block');
+  var row = btn.closest('.fh-slot-row'); if (row) row.remove();
+  _fhRefreshSlots(block);
 }
 function saveFhSchedules(){
   var blocks = document.querySelectorAll('#fhScheduleEditor .fh-course-block');
-  var out = {};
+  var out = {}, missingDate = [];
   blocks.forEach(function(b){
     var cname = b.getAttribute('data-cname'); if (!cname) return;
-    var date = (b.querySelector('.fh-course-date')||{}).value || '';
-    var dateShort = (b.querySelector('.fh-course-dateshort')||{}).value || '';
+    var iso = ((b.querySelector('.fh-date')||{}).value || '').trim();
+    // เลือกจากปฏิทิน → สร้างข้อความไทยให้เอง · ไม่ได้เลือก → คงค่าเดิมไว้
+    var date = iso ? _fhIsoToThai(iso, false) : (b.getAttribute('data-olddate') || '');
+    var dateShort = iso ? _fhIsoToThai(iso, true) : (b.getAttribute('data-oldshort') || '');
     var slots = [], rounds = {};
     b.querySelectorAll('.fh-slot-row').forEach(function(r){
       var t = ((r.querySelector('.fh-slot-time')||{}).value || '').trim();
@@ -12191,8 +12278,13 @@ function saveFhSchedules(){
       if (!t) return;
       slots.push(t); if (rd) rounds[t] = rd;
     });
-    out[cname] = { date: date.trim(), dateShort: dateShort.trim(), slots: slots, rounds: rounds };
+    if (slots.length && !date) missingDate.push(cname);
+    out[cname] = { date: date.trim(), dateShort: dateShort.trim(), dateISO: iso, slots: slots, rounds: rounds };
   });
+  if (missingDate.length) {
+    showInfo('⚠️ ยังไม่ได้เลือกวันที่', 'หลักสูตรนี้มีรอบเวลาแล้วแต่ยังไม่ได้เลือกวันที่อบรม<br><b>' + missingDate.map(escapeHtml).join('<br>') + '</b>');
+    return;
+  }
   saveFhConfig({ schedules: out })
     .then(function(){ showInfo('✓ บันทึกแล้ว', 'บันทึกตารางอบรมแล้ว — สาขาจะเห็นตารางใหม่ทันที'); })
     .catch(function(e){ showInfo('✗ บันทึกไม่สำเร็จ', escapeHtml(e && e.message ? e.message : String(e))); });
