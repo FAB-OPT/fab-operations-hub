@@ -25,7 +25,7 @@ function doGet(e) {
     if (action === 'config')       return jsonOut(getConfig());
     if (action === 'exams')        return jsonOut(getExams());
     if (action === 'exam-results') return jsonOut(getExamResults());
-    if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || ''));
+    if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || '', (e && e.parameter && e.parameter.since) || ''));
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
   } catch (err) {
@@ -667,11 +667,12 @@ function _fqaDeletedIds() {
   return ids;
 }
 
-function getFqaRecords(brand) {
+function getFqaRecords(brand, since) {
   var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
   var values = sh.getDataRange().getValues();
   var deleted = _fqaDeletedIds();
-  if (values.length < 2) return { ok: true, records: [], deleted: deleted };
+  var now = new Date().toISOString();
+  if (values.length < 2) return { ok: true, records: [], deleted: deleted, now: now };
   var headers = values[0].map(function(h){ return String(h).trim(); });
   var brandCol = headers.indexOf('brand'), jsonCol = headers.indexOf('json');
   var records = [];
@@ -679,9 +680,14 @@ function getFqaRecords(brand) {
     if (brand && String(values[i][brandCol]) !== String(brand)) continue;
     var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
     if (!raw) continue;
-    try { records.push(JSON.parse(raw)); } catch (e) {}
+    try {
+      var rec = JSON.parse(raw);
+      /* ซิงค์แบบ incremental (ถ้าส่ง since มา) — ส่งเฉพาะที่เปลี่ยนหลัง since */
+      if (since && rec && rec.updatedAt && String(rec.updatedAt) <= String(since)) continue;
+      records.push(rec);
+    } catch (e) {}
   }
-  return { ok: true, records: records, deleted: deleted };
+  return { ok: true, records: records, deleted: deleted, now: now };
 }
 
 function _fqaToRow(rec, headers) {
@@ -697,8 +703,21 @@ function _fqaToRow(rec, headers) {
   return headers.map(function(h){ return map.hasOwnProperty(h) ? map[h] : ''; });
 }
 
+/* กันเรคคอร์ดพัง (ด่านหลังบ้าน): ตัดรูป base64 ที่หลุดมา + กัน json เกินลิมิตเซลล์ Sheet (~50k) */
+function _fqaSanitize(rec) {
+  if (rec && rec.photos && rec.photos.length) {
+    rec.photos = rec.photos.filter(function(p){
+      return p && typeof p.data === 'string' && p.data.indexOf('data:') !== 0;  // เก็บเฉพาะรูปที่เป็น URL
+    });
+  }
+  if (JSON.stringify(rec).length > 48000) rec.photos = [];   // ยังใหญ่ → ตัดรูปทั้งหมด คงข้อความไว้
+  return rec;
+}
+
 function saveFqaRecord(rec) {
   if (!rec || !rec.id) return { ok: false, error: 'invalid record' };
+  rec = _fqaSanitize(rec);
+  if (JSON.stringify(rec).length > 49000) return { ok: false, error: 'record too large' };  // กันเขียนของที่จะถูกตัด
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -773,4 +792,40 @@ function uploadFqaPhoto(base64, filename) {
   } catch (err) {
     return { ok: false, error: String(err) };
   }
+}
+
+/* =======================================================================
+   สำรองข้อมูลอัตโนมัติ (Auto-backup)
+   · backupFqaDaily()   = ดัมพ์ข้อมูลตรวจทั้งหมดเป็นไฟล์ .json ลง Drive โฟลเดอร์ "FQA Backups"
+   · setupDailyBackup() = ตั้งให้รันอัตโนมัติทุกวันตี 2 (รันครั้งเดียวจาก editor)
+   เก็บย้อนหลัง 30 วัน (ไฟล์เก่ากว่านั้นลบทิ้ง)
+   ======================================================================= */
+function backupFqaDaily() {
+  var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+  var values = sh.getDataRange().getValues();
+  var records = [];
+  if (values.length >= 2) {
+    var jsonCol = values[0].map(function(h){ return String(h).trim(); }).indexOf('json');
+    for (var i = 1; i < values.length; i++) {
+      var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
+      if (raw) { try { records.push(JSON.parse(raw)); } catch (e) {} }
+    }
+  }
+  var folderName = 'FQA Backups';
+  var it = DriveApp.getFoldersByName(folderName);
+  var folder = it.hasNext() ? it.next() : DriveApp.createFolder(folderName);
+  var stamp = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd');
+  var name = 'fqa-backup-' + stamp + '.json';
+  var ex = folder.getFilesByName(name); while (ex.hasNext()) ex.next().setTrashed(true);   // กันซ้ำวันเดียวกัน
+  folder.createFile(name, JSON.stringify({ exportedAt: new Date().toISOString(), count: records.length, records: records }), 'application/json');
+  var cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 30);
+  var files = folder.getFiles();
+  while (files.hasNext()) { var f = files.next(); if (f.getDateCreated() < cutoff) f.setTrashed(true); }
+  return { ok: true, file: name, count: records.length };
+}
+
+function setupDailyBackup() {
+  ScriptApp.getProjectTriggers().forEach(function(t){ if (t.getHandlerFunction() === 'backupFqaDaily') ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger('backupFqaDaily').timeBased().everyDays(1).atHour(2).create();
+  return 'ตั้งสำรองอัตโนมัติทุกวันตี 2 เรียบร้อย';
 }
