@@ -3052,6 +3052,47 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 }
 .round-chip-none { background: rgba(148,163,184,0.12); color: #94a3b8; border-color: rgba(148,163,184,0.3); font-weight: 700; }
 
+/* ── มุมมองรุ่น: การ์ดรุ่น + แถบกลับ ── */
+.rbatch-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.rbatch {
+  background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-lg);
+  padding: 16px 18px 14px; cursor: pointer; transition: .18s ease; position: relative; overflow: hidden;
+  box-shadow: 0 1px 3px rgba(15,23,42,0.04);
+}
+.rbatch::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: linear-gradient(180deg, #a78bfa, #7c3aed); }
+.rbatch.rb-none::before { background: linear-gradient(180deg, #fbbf24, #d97706); }
+.rbatch:hover { transform: translateY(-2px); border-color: rgba(139,92,246,0.4); box-shadow: 0 8px 22px -8px rgba(139,92,246,0.35); }
+.rbatch-top { display: flex; align-items: center; gap: 10px; margin-bottom: 9px; }
+.rbatch-round {
+  font-size: 15px; font-weight: 800; color: #6d28d9; letter-spacing: -0.2px;
+  background: rgba(139,92,246,0.1); border: 1px solid rgba(139,92,246,0.26);
+  border-radius: 9px; padding: 4px 11px; white-space: nowrap;
+}
+.rbatch.rb-none .rbatch-round { color: #b45309; background: rgba(245,158,11,0.11); border-color: rgba(245,158,11,0.3); font-size: 13px; }
+.rbatch-n { margin-left: auto; font-size: 13px; font-weight: 800; color: var(--text); white-space: nowrap; }
+.rbatch-n span { font-size: 11.5px; font-weight: 600; color: var(--text3); margin-left: 2px; }
+.rbatch-course { font-size: 13px; font-weight: 700; color: var(--text); line-height: 1.45; margin-bottom: 8px; }
+.rbatch-meta { display: flex; flex-wrap: wrap; gap: 5px 14px; font-size: 12.5px; color: var(--text2); }
+.rbatch-meta b { color: var(--text); font-weight: 700; }
+.rbatch-foot {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  margin-top: 11px; padding-top: 10px; border-top: 1px dashed var(--border);
+  font-size: 12px; color: var(--text3);
+}
+.rbatch-go { font-weight: 800; color: #6d28d9; white-space: nowrap; }
+.rbatch:hover .rbatch-go { text-decoration: underline; }
+.rbatch-empty { grid-column: 1/-1; padding: 34px; text-align: center; color: var(--text3); font-size: 13.5px; border: 1.5px dashed var(--border); border-radius: var(--radius-lg); }
+
+.rbatch-back { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; padding: 12px 16px; background: #ffffff; border: 1px solid var(--border); border-radius: var(--radius-lg); }
+.rbatch-back-btn { flex: none; border: 1.5px solid var(--border2); background: var(--bg3); color: var(--text2); border-radius: 10px; padding: 8px 14px; font-family: inherit; font-size: 13px; font-weight: 700; cursor: pointer; transition: .15s; }
+.rbatch-back-btn:hover { border-color: #8b5cf6; color: #6d28d9; background: #faf5ff; }
+.rbatch-back-info { flex: 1; min-width: 200px; font-size: 13px; color: var(--text2); line-height: 1.5; }
+.rbatch-back-info b { color: var(--text); }
+@media(max-width:640px){
+  .rbatch-grid { grid-template-columns: 1fr; gap: 11px; }
+  .rbatch-back-btn { width: 100%; }
+}
+
 /* ── ตัวกำหนดรุ่นทีละกลุ่ม ── */
 .rgrp { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#fff; margin-bottom:9px; }
 .rgrp + .rgrp { margin-top:0; }
@@ -6088,7 +6129,12 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   </div>
 </div>
 
-<div class="table-container" style="margin-bottom:14px;">
+<!-- มุมมองรุ่น: การ์ดรุ่น → กดเข้าไปดูรายชื่อในรุ่นนั้น -->
+<div id="adminReqBatchInfo" style="font-size:13px;color:var(--text2);margin:0 2px 10px;">กำลังโหลด...</div>
+<div id="adminReqBatchWrap" class="rbatch-grid"></div>
+<div id="adminReqBackBar" class="rbatch-back" style="display:none;"></div>
+
+<div class="table-container" id="adminReqTableWrap" style="margin-bottom:14px;">
   <div id="adminReqInfo" style="font-size:13px;color:var(--text2);margin-bottom:10px;">กำลังโหลด...</div>
   <div class="req-history-wrap">
     <table class="req-history-table req-history-sortable" id="adminReqTable">
@@ -10809,6 +10855,15 @@ function _applyAdminReqFilters() {
       return tb > ta ? 1 : tb < ta ? -1 : 0;
     });
   }
+  // มุมมองรุ่น: ยังไม่ได้เลือกรุ่น → โชว์การ์ดรุ่นแทนตาราง · เลือกแล้ว → กรองเหลือรุ่นนั้น
+  var batches = _buildReqBatches(rows);
+  if (_reqBatchKey) {
+    var cur = batches.filter(function(b){ return b.key === _reqBatchKey; })[0];
+    if (!cur) { _reqBatchKey = null; }        // รุ่นที่เปิดอยู่หายไปจากตัวกรอง → เด้งกลับหน้ารุ่น
+    else rows = cur.rows;
+  }
+  _renderReqBatchView(batches, rows);
+
   // Render
   if (rows.length === 0) {
     body.innerHTML = '<tr><td colspan="9" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ไม่พบรายการตามตัวกรอง</td></tr>';
@@ -10817,7 +10872,10 @@ function _applyAdminReqFilters() {
   }
   if (info) {
     var totalAll = (_adminRowCache || []).length;
-    if (rows.length === totalAll) {
+    if (!_reqBatchKey) {
+      // หน้ารายการรุ่น — info อยู่ในกล่องตารางที่ถูกซ่อน แต่คงข้อความให้ตรงไว้
+      info.innerHTML = 'พบ <strong>'+batches.length+'</strong> รุ่น · รวม <strong>'+rows.length+'</strong> รายชื่อ';
+    } else if (rows.length === totalAll) {
       info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
     } else {
       info.innerHTML = 'แสดง <strong>'+rows.length+'</strong> จาก '+totalAll+' รายการ';
@@ -10828,6 +10886,105 @@ function _applyAdminReqFilters() {
   _updateSortIndicators();
 }
 
+/* ═══ มุมมอง "รุ่น" — 1 รุ่น = หลักสูตร + วันอบรม + รอบเวลา (ตรงกับ 1 ใบทะเบียน) ═══ */
+var _reqBatchKey = null;   // null = อยู่หน้ารายการรุ่น · มีค่า = เปิดรุ่นนั้นอยู่
+
+function _buildReqBatches(rows) {
+  var map = {}, out = [];
+  (rows || []).forEach(function(r){
+    var p = _prepReqFields(r);
+    var slot = _normSlot(p.slot);
+    var key = [p.course, p.trainDate, slot].join('|');
+    if (!map[key]) {
+      map[key] = { key: key, course: p.course, trainDate: p.trainDate, slot: slot, round: p.round || '', branches: {}, rows: [] };
+      out.push(map[key]);
+    }
+    if (!map[key].round && p.round) map[key].round = p.round;
+    map[key].branches[p.branch] = 1;
+    map[key].rows.push(r);
+  });
+  out.forEach(function(b){ b.branchCount = Object.keys(b.branches).length; });
+  // วันอบรมใหม่ก่อน → หลักสูตร → รอบเวลา
+  out.sort(function(a, b){
+    var da = parseAnyDate(a.trainDate), db = parseAnyDate(b.trainDate);
+    if (da && db && da.getTime() !== db.getTime()) return db - da;
+    if (!da && db) return 1;
+    if (da && !db) return -1;
+    if (a.course !== b.course) return a.course < b.course ? -1 : 1;
+    return a.slot < b.slot ? -1 : a.slot > b.slot ? 1 : 0;
+  });
+  return out;
+}
+
+function _renderReqBatchView(batches, rows) {
+  var grid = document.getElementById('adminReqBatchWrap');
+  var back = document.getElementById('adminReqBackBar');
+  var tableWrap = document.getElementById('adminReqTableWrap');
+  var bInfo = document.getElementById('adminReqBatchInfo');
+  if (!grid || !back || !tableWrap) return;
+
+  if (_reqBatchKey) {
+    // อยู่ในรุ่นแล้ว → ซ่อนการ์ด โชว์ตาราง + แถบกลับ
+    var b = batches.filter(function(x){ return x.key === _reqBatchKey; })[0] || {};
+    grid.style.display = 'none';
+    if (bInfo) bInfo.style.display = 'none';
+    tableWrap.style.display = '';
+    back.style.display = '';
+    back.innerHTML = '<button class="rbatch-back-btn" onclick="_closeReqBatch()">← ทุกรุ่น</button>'
+      + '<div class="rbatch-back-info">'
+      +   (b.round ? '<span class="round-chip">รุ่น ' + escapeHtml(b.round) + '</span> ' : '<span class="round-chip round-chip-none">ยังไม่ระบุรุ่น</span> ')
+      +   '<b>' + escapeHtml(b.course || '') + '</b><br>'
+      +   '📅 ' + escapeHtml(formatThaiDate(b.trainDate) || '— ไม่ระบุวัน')
+      +   ' · 🕐 ' + escapeHtml(b.slot || '— ไม่ระบุรอบ')
+      +   ' · 👥 <b>' + ((b.rows && b.rows.length) || 0) + '</b> คน จาก ' + (b.branchCount || 0) + ' สาขา'
+      + '</div>'
+      + '<button class="rbatch-back-btn" onclick="openAdminReqRoundTool()" title="กำหนดรุ่นให้กลุ่มนี้">🏷️ กำหนดรุ่น</button>';
+    return;
+  }
+
+  // หน้ารายการรุ่น → ซ่อนตาราง โชว์การ์ด
+  back.style.display = 'none';
+  tableWrap.style.display = 'none';
+  grid.style.display = '';
+  var noRound = batches.filter(function(x){ return !x.round; }).length;
+  if (bInfo) {
+    bInfo.style.display = '';
+    bInfo.innerHTML = 'พบ <strong>' + batches.length + '</strong> รุ่น · รวม <strong>' + (rows || []).length + '</strong> รายชื่อ'
+      + (noRound ? ' · <span style="color:#b45309;font-weight:700;">' + noRound + ' รุ่นยังไม่ระบุเลขรุ่น</span>' : '');
+  }
+  if (!batches.length) {
+    grid.innerHTML = '<div class="rbatch-empty">ไม่พบรายการตามตัวกรอง</div>';
+    return;
+  }
+  grid.innerHTML = batches.map(function(b){
+    return '<div class="rbatch' + (b.round ? '' : ' rb-none') + '" onclick="_openReqBatch(\'' + escapeAttr(encodeURIComponent(b.key)) + '\')">'
+      + '<div class="rbatch-top">'
+      +   '<div class="rbatch-round">' + (b.round ? 'รุ่น ' + escapeHtml(b.round) : 'ยังไม่ระบุรุ่น') + '</div>'
+      +   '<div class="rbatch-n">' + b.rows.length + '<span>คน</span></div>'
+      + '</div>'
+      + '<div class="rbatch-course">📚 ' + escapeHtml(b.course || '— ไม่ระบุหลักสูตร') + '</div>'
+      + '<div class="rbatch-meta">'
+      +   '<span>📅 <b>' + escapeHtml(formatThaiDate(b.trainDate) || '— ไม่ระบุวัน') + '</b></span>'
+      +   '<span>🕐 <b>' + escapeHtml(b.slot || '— ไม่ระบุรอบ') + '</b></span>'
+      + '</div>'
+      + '<div class="rbatch-foot"><span>🏬 ' + b.branchCount + ' สาขา</span><span class="rbatch-go">ดูรายชื่อ →</span></div>'
+      + '</div>';
+  }).join('');
+}
+
+function _openReqBatch(encKey) {
+  try { _reqBatchKey = decodeURIComponent(encKey); } catch (e) { _reqBatchKey = encKey; }
+  _applyAdminReqFilters();
+  var el = document.getElementById('adminReqBackBar');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function _closeReqBatch() {
+  _reqBatchKey = null;
+  _applyAdminReqFilters();
+  var el = document.getElementById('adminReqBatchWrap');
+  if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
 function _setCourseFilter(course, encoded) {
   if (encoded && course !== 'all') {
     try { course = decodeURIComponent(course); } catch(e) {}
@@ -10835,12 +10992,14 @@ function _setCourseFilter(course, encoded) {
   // Toggle: คลิก chip ที่ active อยู่ → ยกเลิก (กลับเป็น all)
   if (_adminReqFilters.course === course) course = 'all';
   _adminReqFilters.course = course;
+  _reqBatchKey = null;   // เปลี่ยนหลักสูตร → กลับไปหน้ารายการรุ่น
   var sel = document.getElementById('adminReqCourseFilter');
   if (sel) sel.value = course;
   _applyAdminReqFilters();
 }
 function _clearAdminReqFilters() {
   _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', trainDate: 'all', slot: 'all', search: '', sort: 'date_desc' };
+  _reqBatchKey = null;
   var c = document.getElementById('adminReqCourseFilter'); if (c) c.value = 'all';
   var z = document.getElementById('adminReqZoneFilter');   if (z) z.value = 'all';
   var b = document.getElementById('adminReqBranchFilter'); if (b) b.value = 'all';
@@ -10873,6 +11032,8 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         _adminRowCache = [];
         var bar = document.getElementById('adminReqCountBar'); if (bar) bar.innerHTML = '';
         _populateAdminReqFilterOptions([]);
+        _reqBatchKey = null;
+        _renderReqBatchView([], []);   // ล้างการ์ดรุ่นค้าง
       }
       body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
       return;
