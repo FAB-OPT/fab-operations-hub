@@ -1310,7 +1310,18 @@ const Cloud = {
       }else{
         const rec=DB.all().find(r=>r.id===item.id);
         if(!rec){ job=Promise.resolve({ok:true}); isSave=false; }
-        else job=this.uploadPhotos(rec).then(r2=>{ r2.brand=brand; return this.post({type:'save-fqa-record', record:r2}); });
+        else job=this.uploadPhotos(rec).then(r2=>{
+          /* --- กันเรคคอร์ดพัง: ห้ามส่ง base64/ของใหญ่เกินขึ้น Sheet (ลิมิตเซลล์ ~50k → ถูกตัด ข้อมูลหาย) --- */
+          const b64=(r2.photos||[]).filter(p=>p&&typeof p.data==='string'&&p.data.indexOf('data:')===0);
+          if(b64.length && (item.n||0)<2){                 // รูปอัปโหลดพลาด (เน็ตสะดุด) → ลองใหม่อีก 2 รอบก่อน
+            item.n=(item.n||0)+1; this.setQueue(q); throw new Error('retry-upload');
+          }
+          const clean=JSON.parse(JSON.stringify(r2));
+          clean.photos=(clean.photos||[]).filter(p=>p&&!(typeof p.data==='string'&&p.data.indexOf('data:')===0)); // ตัด base64 ที่ยังค้าง
+          if(JSON.stringify(clean).length>45000) clean.photos=[];  // ด่านสุดท้าย: ถ้ายังใหญ่ ตัดรูปทั้งหมด (คงข้อความไว้)
+          if(b64.length) App.toast('ซิงค์ข้อความเรียบร้อย · บางรูปอัปโหลดไม่สำเร็จ ลองบันทึกซ้ำภายหลัง');
+          clean.brand=brand; return this.post({type:'save-fqa-record', record:clean});
+        });
       }
       return job.then(res=>{
         if(res && res.ok){
@@ -1807,10 +1818,10 @@ const Form = {
       rd.onload=e=>{
         const img=new Image();
         img.onload=()=>{
-          const max=1100, sc=Math.min(1,max/Math.max(img.width,img.height));
-          const c=document.createElement('canvas'); c.width=img.width*sc; c.height=img.height*sc;
+          const max=1000, sc=Math.min(1,max/Math.max(img.width,img.height));
+          const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
           c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-          this.s.photos.push({group:(M.list('photoGroups')[0]||'ทั่วไป'),caption:'',data:c.toDataURL('image/jpeg',0.72)});
+          this.s.photos.push({group:(M.list('photoGroups')[0]||'ทั่วไป'),caption:'',data:c.toDataURL('image/jpeg',0.68)});
           this.render();
         }; img.src=e.target.result;
       }; rd.readAsDataURL(f);
