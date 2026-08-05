@@ -6118,7 +6118,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     <div class="adm-modal-body">
       <div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:12px;">
         จัดกลุ่มตาม <b>หลักสูตร + วันอบรม + รอบเวลา</b> — กรอกรุ่นแล้วกดบันทึก จะเขียนลงทุกคนในกลุ่มนั้น<br>
-        รุ่นที่กำหนดจะ <b>ติดอยู่กับรายชื่อถาวร</b> แก้ตารางอบรมทีหลังก็ไม่เปลี่ยนตาม
+        รุ่นที่กำหนดจะ <b>ติดอยู่กับรายชื่อถาวร</b> แก้ตารางอบรมทีหลังก็ไม่เปลี่ยนตาม ·
+        บันทึกแล้วระบบจะจัดรูปแบบรอบเวลาในกลุ่มให้ตรงกันด้วย
       </div>
       <div id="adminReqRoundBody"></div>
     </div>
@@ -10629,13 +10630,14 @@ var _adminCertIdx = {};
 var _adminReqFilters = { course: 'all', zone: 'all', branch: 'all', trainDate: 'all', slot: 'all', search: '', sort: 'date_desc' };
 
 function _getRowCourse(r) {
-  return String(r.course || r['หลักสูตร'] || '').trim() || '— ไม่ระบุ';
+  return _normCourseName_(r.course || r['หลักสูตร'] || '') || '— ไม่ระบุ';
 }
 function _getRowBranch(r) {
   return String(r.branch || r['สาขา'] || '').trim() || '— ไม่ระบุ';
 }
 function _getRowTrainDate(r) {
-  return String(_prepReqFields(r).trainDate || '').trim() || '— ไม่ระบุ';
+  // normalize ก่อน — ไม่งั้น "12 มิถุนายน 2569" กับ "12 มิ.ย. 2569" โผล่เป็น 2 ตัวเลือกในดรอปดาวน์
+  return _normDateKey_(_prepReqFields(r).trainDate) || '— ไม่ระบุ';
 }
 // รวมรอบเวลาที่เขียนต่างกันให้เป็นรูปแบบเดียว (เว้นวรรค/ชนิดขีดต่างกัน = รอบเดียวกัน)
 function _normSlot(s) {
@@ -10645,6 +10647,28 @@ function _normSlot(s) {
 }
 function _getRowSlot(r) {
   return _normSlot(_prepReqFields(r).slot) || '— ไม่ระบุ';
+}
+/* ═══ คีย์จัดกลุ่ม "1 รุ่น" ═══
+   ข้อมูลจริงเขียนไม่เหมือนกัน (เวลาเว้นวรรคไม่เท่ากัน · วันเขียนเต็ม/ย่อ · ชื่อหลักสูตรมีช่องว่างเกิน)
+   ถ้าเอาข้อความดิบมาเทียบตรง ๆ รอบเดียวกันจะโดนแตกเป็นหลายรุ่น — ต้อง normalize ก่อนเสมอ */
+function _normCourseName_(s) {
+  return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+}
+function _normDateKey_(s) {
+  var raw = String(s == null ? '' : s).trim();
+  if (!raw || raw === '—') return '';
+  var d = null;
+  try { d = parseAnyDate(raw); } catch (e) {}
+  if (!d || isNaN(d.getTime())) return raw.replace(/\s+/g, ' ');   // อ่านไม่ออกก็ใช้ข้อความที่บีบช่องว่างแล้ว
+  var p = function(n){ return (n < 10 ? '0' : '') + n; };
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+function _reqGroupOf_(r) {
+  var p = _prepReqFields(r);
+  var course = _normCourseName_(p.course);
+  var dateKey = _normDateKey_(p.trainDate);
+  var slot = _normSlot(p.slot);
+  return { p: p, course: course, dateKey: dateKey, slot: slot, key: course + '|' + dateKey + '|' + slot };
 }
 /* Zone derivation — keyword-based mapping from branch name (BZM = Branch Zone Map).
    Edit the BRANCH_ZONE_RULES list to adjust grouping for your business. */
@@ -10892,11 +10916,10 @@ var _reqBatchKey = null;   // null = อยู่หน้ารายการ�
 function _buildReqBatches(rows) {
   var map = {}, out = [];
   (rows || []).forEach(function(r){
-    var p = _prepReqFields(r);
-    var slot = _normSlot(p.slot);
-    var key = [p.course, p.trainDate, slot].join('|');
+    var g = _reqGroupOf_(r), p = g.p;
+    var key = g.key;
     if (!map[key]) {
-      map[key] = { key: key, course: p.course, trainDate: p.trainDate, slot: slot, round: p.round || '', branches: {}, rows: [] };
+      map[key] = { key: key, course: g.course, trainDate: p.trainDate, slot: g.slot, round: p.round || '', branches: {}, rows: [] };
       out.push(map[key]);
     }
     if (!map[key].round && p.round) map[key].round = p.round;
@@ -11341,10 +11364,10 @@ var _reqRoundGroups = [];
 function _reqRoundGroupsFrom(rows) {
   var map = {}, out = [];
   (rows || []).forEach(function(r){
-    var p = _prepReqFields(r);
-    var key = [p.course, p.trainDate, p.slot].join('|');
+    var g = _reqGroupOf_(r), p = g.p;
+    var key = g.key;
     if (!map[key]) {
-      map[key] = { key: key, course: p.course, trainDate: p.trainDate, slot: p.slot, round: '', rows: [] };
+      map[key] = { key: key, course: g.course, trainDate: p.trainDate, slot: g.slot, round: '', rows: [] };
       out.push(map[key]);
     }
     // รุ่นของกลุ่ม = ค่าที่บันทึกไว้จริงตัวแรกที่เจอ (ไม่เอาค่าที่เดาจากตาราง)
@@ -11416,7 +11439,8 @@ function saveAdminReqRounds() {
     // ส่ง record เต็มทุก field — backend รุ่นเก่าที่ยังไม่มีคอลัมน์ round จะได้ไม่ล้างข้อมูลอื่นทิ้ง
     var jobs = [];
     changed.forEach(function(c){
-      c.g.rows.forEach(function(rec){ jobs.push({ rec: rec, round: c.round }); });
+      // เขียนรอบเวลาแบบ normalize กลับไปด้วย — ล้างของที่พิมพ์เว้นวรรคไม่เท่ากันให้ตรงกันทั้งกลุ่ม
+      c.g.rows.forEach(function(rec){ jobs.push({ rec: rec, round: c.round, slot: c.g.slot }); });
     });
     var done = 0, failed = 0, total = jobs.length;
     showLoadingOverlay('กำลังบันทึกรุ่นที่...', '0/' + total);
@@ -11428,7 +11452,7 @@ function saveAdminReqRounds() {
         var record = {
           name: rec.name || '', empId: rec.empId || '', idCard: rec.idCard || '',
           branch: rec.branch || '', position: rec.position || '', course: rec.course || '',
-          trainDate: rec.trainDate || '', timeSlot: rec.timeSlot || '', note: rec.note || '',
+          trainDate: rec.trainDate || '', timeSlot: j.slot || rec.timeSlot || '', note: rec.note || '',
           round: j.round
         };
         return fetch(SCRIPT_URL, {
@@ -11794,9 +11818,10 @@ function exportTrainingPDF(preloadedReqs, opts) {
         // Normalize slot: ลบ whitespace + normalize dash → 9.00-13.00
         var canonicalSlot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
         // วัน+รุ่น อยู่ใน key ด้วย — คนละรอบอบรม (คนละวัน/คนละรุ่น) ห้ามรวมหน้าเดียวกันแม้เวลาซ้ำ
+        // วันที่ต้อง normalize ก่อน ไม่งั้น "12 มิถุนายน 2569" กับ "12 มิ.ย. 2569" กลายเป็นคนละใบ
         var gDate = r.trainDate || r['วันอบรม'] || '';
         var gRound = _recRound_(r);
-        var k = canonicalCourse + '|' + canonicalSlot + '|' + gDate + '|' + gRound;
+        var k = canonicalCourse + '|' + canonicalSlot + '|' + _normDateKey_(gDate) + '|' + gRound;
         if (!groups[k]) groups[k] = { course: canonicalCourse, slot: canonicalSlot, trainDate: gDate, round: gRound, rows: [] };
         groups[k].rows.push(r);
       });
@@ -12261,8 +12286,8 @@ function exportTrainingForm() {
       }
       var slot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
       var round = _recRound_(r);
-      // คนละวัน/คนละรุ่น = คนละใบ แม้เวลาจะซ้ำกัน
-      var key = course + '|' + slot + '|' + trainDate + '|' + round;
+      // คนละวัน/คนละรุ่น = คนละใบ แม้เวลาจะซ้ำกัน · วันที่ normalize ก่อน กันเขียนเต็ม/ย่อแล้วแตกใบ
+      var key = course + '|' + slot + '|' + _normDateKey_(trainDate) + '|' + round;
       if (!groups[key]) groups[key] = { course: course, slot: slot, trainDate: trainDate, round: round, rows: [] };
       groups[key].rows.push(r);
     });
