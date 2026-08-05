@@ -3044,6 +3044,31 @@ tbody td { font-size: 14px !important; padding: 13px 14px !important; }
 .rcc-teal   .req-count-card-num,   .rcc-teal   .req-count-card-pct { color: #14b8a6; }
 .rcc-pink   .req-count-card-num,   .rcc-pink   .req-count-card-pct { color: #ec4899; }
 
+/* ── ป้ายรุ่นที่ ในตารางคำขออบรม ── */
+.round-chip {
+  display: inline-block; margin-left: 4px; padding: 2px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 800; white-space: nowrap;
+  background: rgba(139,92,246,0.11); color: #6d28d9; border: 1px solid rgba(139,92,246,0.28);
+}
+.round-chip-none { background: rgba(148,163,184,0.12); color: #94a3b8; border-color: rgba(148,163,184,0.3); font-weight: 700; }
+
+/* ── ตัวกำหนดรุ่นทีละกลุ่ม ── */
+.rgrp { display:flex; align-items:center; gap:12px; padding:12px 14px; border:1px solid var(--border); border-radius:12px; background:#fff; margin-bottom:9px; }
+.rgrp + .rgrp { margin-top:0; }
+.rgrp-main { flex:1; min-width:0; }
+.rgrp-course { font-size:13px; font-weight:700; color:var(--text); margin-bottom:3px; }
+.rgrp-meta { font-size:12px; color:var(--text3); display:flex; flex-wrap:wrap; gap:5px 12px; }
+.rgrp-meta b { color:var(--text2); font-weight:700; }
+.rgrp-in { width:130px; flex:none; padding:9px 11px; border:1.5px solid #e2e8f0; border-radius:9px; font-family:inherit; font-size:13px; color:#0f172a; outline:none; }
+.rgrp-in:focus { border-color:#8b5cf6; box-shadow:0 0 0 3px rgba(139,92,246,.14); }
+.rgrp-in.changed { border-color:#8b5cf6; background:#faf5ff; font-weight:700; }
+.rgrp-n { flex:none; font-size:12px; font-weight:800; color:#6d28d9; background:rgba(139,92,246,0.1); border-radius:8px; padding:6px 10px; white-space:nowrap; }
+@media(max-width:640px){
+  .rgrp { flex-wrap:wrap; }
+  .rgrp-main { flex-basis:100%; }
+  .rgrp-in { flex:1; width:auto; }
+}
+
 /* Sortable header (คลิกที่หัวตารางเพื่อเรียงลำดับ) */
 .req-history-sortable thead th.sortable {
   cursor: pointer;
@@ -6009,6 +6034,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
   <button class="req-filter-refresh" onclick="loadAdminRequests()" title="โหลดข้อมูลใหม่">🔄 รีเฟรช</button>
   <button class="req-filter-refresh" onclick="openAdminReqDupCheck()" title="ตรวจรายชื่อที่ส่งซ้ำ" style="background:rgba(245,158,11,0.1);color:#b45309;border-color:rgba(245,158,11,0.3);">🔍 ตรวจรายชื่อซ้ำ</button>
   <button class="req-filter-refresh" onclick="openAddRequest()" title="เพิ่มผู้เข้าอบรมด้วยตนเอง" style="background:rgba(16,185,129,0.12);color:#047857;border-color:rgba(16,185,129,0.35);font-weight:700;">➕ เพิ่มผู้เข้าอบรม</button>
+  <button class="req-filter-refresh" onclick="openAdminReqRoundTool()" title="กำหนด/แก้รุ่นที่ ทีละกลุ่ม" style="background:rgba(139,92,246,0.12);color:#6d28d9;border-color:rgba(139,92,246,0.35);font-weight:700;">🏷️ กำหนดรุ่น</button>
   <button class="req-filter-refresh" data-fh-action="clear-reqs" onclick="clearAllRequests()" title="ลบคำขออบรมทั้งหมด" style="background:rgba(220,38,38,0.10);color:#b91c1c;border-color:rgba(220,38,38,0.30);font-weight:700;">🗑 ลบทั้งหมด</button>
 </div>
 
@@ -6037,6 +6063,27 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
       <button class="adm-btn-secondary" onclick="closeAdminReqDupModal()">ปิด</button>
       <button class="adm-btn-secondary" id="adminReqDupKeepOldestBtn" onclick="adminReqDupAutoSelect('keep-oldest')" style="background:rgba(59,130,246,0.08);color:#1d4ed8;border-color:rgba(59,130,246,0.25);">เลือกซ้ำอัตโนมัติ (เก็บอันแรก)</button>
       <button class="adm-btn-primary" id="adminReqDupDeleteBtn" onclick="adminReqDupDeleteSelected()" style="background:linear-gradient(135deg,#dc2626,#991b1b);">🗑 ลบที่เลือก (<span id="adminReqDupSelCount">0</span>)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: กำหนดรุ่นที่ ทีละกลุ่ม (ย้อนหลังได้) -->
+<div class="adm-modal" id="adminReqRoundModal">
+  <div class="adm-modal-box" style="max-width:820px;">
+    <div class="adm-modal-header">
+      <div class="adm-modal-title">🏷️ กำหนดรุ่นที่</div>
+      <button class="adm-modal-close" onclick="closeAdminReqRoundTool()"><svg class="ico"><use href="#i-x"/></svg></button>
+    </div>
+    <div class="adm-modal-body">
+      <div style="font-size:12.5px;color:var(--text2);line-height:1.6;margin-bottom:12px;">
+        จัดกลุ่มตาม <b>หลักสูตร + วันอบรม + รอบเวลา</b> — กรอกรุ่นแล้วกดบันทึก จะเขียนลงทุกคนในกลุ่มนั้น<br>
+        รุ่นที่กำหนดจะ <b>ติดอยู่กับรายชื่อถาวร</b> แก้ตารางอบรมทีหลังก็ไม่เปลี่ยนตาม
+      </div>
+      <div id="adminReqRoundBody"></div>
+    </div>
+    <div class="adm-modal-footer">
+      <button class="adm-btn-secondary" onclick="closeAdminReqRoundTool()">ปิด</button>
+      <button class="adm-btn-primary" onclick="saveAdminReqRounds()">💾 บันทึกรุ่นที่แก้</button>
     </div>
   </div>
 </div>
@@ -10470,6 +10517,9 @@ function _renderAdminReqRow(r, certIdx, showCourseCol) {
   }
   var dateSlot = escapeHtml(formatThaiDate(p.trainDate));
   if (p.slot) dateSlot += ' <span style="color:var(--text3);font-weight:600;">(' + escapeHtml(p.slot) + ')</span>';
+  dateSlot += p.round
+    ? ' <span class="round-chip">รุ่น ' + escapeHtml(p.round) + '</span>'
+    : ' <span class="round-chip round-chip-none" title="ยังไม่ระบุรุ่น — ใช้ปุ่ม 🏷️ กำหนดรุ่น">ไม่ระบุรุ่น</span>';
   html += '<td data-label="วันอบรม / รอบเวลา" data-icon="📅">'+dateSlot+'</td>'
     +'<td data-label="ใบรับรอง" data-icon="📜">'+certBadgeHtml(p.name, certIdx)+'</td>'
     +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(p.tsFmt)+'</td>'
@@ -10851,8 +10901,8 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   if (_cached && _cached.length) { _process(_cached); }
   else { info.textContent = 'กำลังโหลด...'; if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...'; }
 
-  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช + re-render
-  fetch(SCRIPT_URL + '?action=requests&_=' + Date.now(), { method: 'GET' })
+  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช + re-render (คืน promise ไว้ให้คนที่ต้องรอผลสด)
+  return fetch(SCRIPT_URL + '?action=requests&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
       if (!res.ok) { if (!_cached) info.innerHTML = '<span style="color:var(--red)">โหลดไม่สำเร็จ: '+(res.error||'unknown')+'</span>'; return; }
@@ -10866,7 +10916,7 @@ function loadMyRequests() {
   loadRequests(currentBranchName, 'myRequestsInfo', 'myRequestsBody', false);
 }
 function loadAdminRequests() {
-  loadRequests('', 'adminReqInfo', 'adminReqBody', true);
+  return loadRequests('', 'adminReqInfo', 'adminReqBody', true);
 }
 /* Re-render admin requests with current matchData (no re-fetch).
    Called after PDF match / Cloud load so ใบรับรอง column reflects fresh cert data. */
@@ -11121,6 +11171,135 @@ function doDeleteRequest(keyData, btn, tr) {
         hideCancel: true
       });
     });
+}
+
+/* ═══ Admin: กำหนด "รุ่นที่" ทีละกลุ่ม (เติมย้อนหลังให้รายชื่อเก่าที่ยังไม่มีรุ่น) ═══
+   จัดกลุ่มตาม หลักสูตร + วันอบรม + รอบเวลา — 1 กลุ่ม = 1 ใบทะเบียน = 1 รุ่น */
+var _reqRoundGroups = [];
+
+function _reqRoundGroupsFrom(rows) {
+  var map = {}, out = [];
+  (rows || []).forEach(function(r){
+    var p = _prepReqFields(r);
+    var key = [p.course, p.trainDate, p.slot].join('|');
+    if (!map[key]) {
+      map[key] = { key: key, course: p.course, trainDate: p.trainDate, slot: p.slot, round: '', rows: [] };
+      out.push(map[key]);
+    }
+    // รุ่นของกลุ่ม = ค่าที่บันทึกไว้จริงตัวแรกที่เจอ (ไม่เอาค่าที่เดาจากตาราง)
+    var saved = String(r.round || r['รุ่น'] || r['รุ่นที่'] || '').trim();
+    if (saved && !map[key].round) map[key].round = saved;
+    map[key].rows.push(r);
+  });
+  // เรียง: วันอบรมใหม่ก่อน แล้วตามรอบเวลา
+  out.sort(function(a, b){
+    var da = parseAnyDate(a.trainDate), db = parseAnyDate(b.trainDate);
+    if (da && db && da.getTime() !== db.getTime()) return db - da;
+    if (a.course !== b.course) return a.course < b.course ? -1 : 1;
+    return a.slot < b.slot ? -1 : a.slot > b.slot ? 1 : 0;
+  });
+  return out;
+}
+
+function openAdminReqRoundTool() {
+  var rows = Array.isArray(_adminRowCache) ? _adminRowCache : [];
+  if (!rows.length) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีคำขออบรมในระบบ — กดรีเฟรชก่อน'); return; }
+  _reqRoundGroups = _reqRoundGroupsFrom(rows);
+  var box = document.getElementById('adminReqRoundBody');
+  box.innerHTML = _reqRoundGroups.map(function(g, i){
+    var sch = _findCourseSchedule_(g.course);
+    var suggest = _findRoundForSlot_(sch, g.slot) || '';   // รุ่นจากตารางปัจจุบัน — ไว้กดใส่เร็ว ๆ
+    var hint = (!g.round && suggest && String(sch && sch.date || '').trim() === String(g.trainDate).trim())
+      ? ' <span style="color:#6d28d9;">· ตารางปัจจุบันคือรุ่น ' + escapeHtml(suggest) + '</span>' : '';
+    return '<div class="rgrp">'
+      + '<div class="rgrp-main">'
+      +   '<div class="rgrp-course">📚 ' + escapeHtml(g.course) + '</div>'
+      +   '<div class="rgrp-meta">'
+      +     '<span>📅 <b>' + escapeHtml(formatThaiDate(g.trainDate) || '— ไม่ระบุวัน') + '</b></span>'
+      +     '<span>🕐 <b>' + escapeHtml(g.slot || '— ไม่ระบุรอบ') + '</b></span>'
+      +     '<span>' + (g.round ? 'รุ่นปัจจุบัน: <b>' + escapeHtml(g.round) + '</b>' : '<b style="color:#b45309;">ยังไม่มีรุ่น</b>' + hint) + '</span>'
+      +   '</div>'
+      + '</div>'
+      + '<div class="rgrp-n">' + g.rows.length + ' คน</div>'
+      + '<input class="rgrp-in" data-rgrp="' + i + '" value="' + escapeAttr(g.round) + '" placeholder="' + (suggest ? escapeAttr(suggest) : 'เช่น 2/2569') + '" oninput="_onRoundInput(this)">'
+      + '</div>';
+  }).join('');
+  document.getElementById('adminReqRoundModal').classList.add('show');
+}
+function _onRoundInput(inp) {
+  var g = _reqRoundGroups[parseInt(inp.getAttribute('data-rgrp'), 10)];
+  inp.classList.toggle('changed', !!g && inp.value.trim() !== String(g.round || '').trim());
+}
+function closeAdminReqRoundTool() {
+  document.getElementById('adminReqRoundModal').classList.remove('show');
+}
+
+function saveAdminReqRounds() {
+  var changed = [];
+  document.querySelectorAll('#adminReqRoundBody .rgrp-in').forEach(function(inp){
+    var g = _reqRoundGroups[parseInt(inp.getAttribute('data-rgrp'), 10)];
+    if (!g) return;
+    var v = inp.value.trim();
+    if (v !== String(g.round || '').trim()) changed.push({ g: g, round: v });
+  });
+  if (!changed.length) { showInfo('ไม่มีอะไรเปลี่ยน', 'ยังไม่ได้แก้รุ่นของกลุ่มไหนเลย'); return; }
+  var totalRows = changed.reduce(function(n, c){ return n + c.g.rows.length; }, 0);
+  customConfirm({
+    icon: ICON_WARN,
+    title: 'บันทึกรุ่นที่?',
+    desc: 'จะเขียนรุ่นใหม่ลง <strong>' + changed.length + '</strong> กลุ่ม รวม <strong>' + totalRows + '</strong> รายชื่อ',
+    okText: 'บันทึก', okIsPrimary: true
+  }).then(function(ok){
+    if (!ok) return;
+    closeAdminReqRoundTool();
+    // ส่ง record เต็มทุก field — backend รุ่นเก่าที่ยังไม่มีคอลัมน์ round จะได้ไม่ล้างข้อมูลอื่นทิ้ง
+    var jobs = [];
+    changed.forEach(function(c){
+      c.g.rows.forEach(function(rec){ jobs.push({ rec: rec, round: c.round }); });
+    });
+    var done = 0, failed = 0, total = jobs.length;
+    showLoadingOverlay('กำลังบันทึกรุ่นที่...', '0/' + total);
+    var seq = Promise.resolve();
+    jobs.forEach(function(j){
+      seq = seq.then(function(){
+        var rec = j.rec;
+        var key = { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
+        var record = {
+          name: rec.name || '', empId: rec.empId || '', idCard: rec.idCard || '',
+          branch: rec.branch || '', position: rec.position || '', course: rec.course || '',
+          trainDate: rec.trainDate || '', timeSlot: rec.timeSlot || '', note: rec.note || '',
+          round: j.round
+        };
+        return fetch(SCRIPT_URL, {
+          method: 'POST', mode: 'cors',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ type: 'update-request', key: key, record: record })
+        })
+        .then(function(r){ return r.json(); })
+        .then(function(res){ if (res && res.ok) done++; else failed++; })
+        .catch(function(){ failed++; })
+        .then(function(){ showLoadingOverlay('กำลังบันทึกรุ่นที่...', (done + failed) + '/' + total); });
+      });
+    });
+    seq.then(function(){
+      hideLoadingOverlay();
+      _fhBustRequests();
+      return loadAdminRequests();
+    }).then(function(){
+      // เช็คว่า backend เก็บ round ให้จริงไหม — ยังไม่ได้ deploy Apps Script ใหม่ = ค่าจะหายเงียบ ๆ
+      var saved = (Array.isArray(_adminRowCache) ? _adminRowCache : []).some(function(r){
+        return String(r.round || '').trim();
+      });
+      if (!saved && done) {
+        showInfo('⚠️ บันทึกแล้วแต่รุ่นไม่ติด',
+          'ส่งขึ้น Cloud สำเร็จ <b>' + done + '</b> รายการ แต่ยังอ่านรุ่นกลับมาไม่ได้<br><br>'
+          + 'แปลว่า <b>Apps Script ยังไม่ได้ deploy เวอร์ชันใหม่</b> (ชีต Requests ยังไม่มีคอลัมน์ round)<br>'
+          + 'ก๊อป <b>AppsScript-Code.gs</b> ทับ → Save → Deploy → New version แล้วกำหนดรุ่นอีกครั้งครับ');
+        return;
+      }
+      showInfo('สรุปผลการบันทึก', '✓ บันทึกสำเร็จ <b>' + done + '</b> รายการ' + (failed ? ' · ✗ ล้มเหลว ' + failed + ' รายการ' : ''));
+    });
+  });
 }
 
 /* Admin: ลบคำขออบรมทั้งหมด (loop delete-request จากแถวล่างขึ้นบน กันดัชนีเลื่อน) */
