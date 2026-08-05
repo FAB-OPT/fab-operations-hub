@@ -10416,6 +10416,7 @@ function _prepReqFields(r) {
   var trainDate = r['trainDate'] || r['วันอบรม'] || '';
   var slot = r['timeSlot'] || r['รอบ'] || '';
   var note = r['note'] || r['หมายเหตุ'] || '';
+  var round = String(r['round'] || r['รุ่น'] || r['รุ่นที่'] || '').trim();
   if (course && course !== '—' && typeof COURSE_SCHEDULES !== 'undefined') {
     var sch = null;
     var keys = Object.keys(COURSE_SCHEDULES);
@@ -10427,8 +10428,10 @@ function _prepReqFields(r) {
       if (uniq && String(course).indexOf(uniq) >= 0) { sch = COURSE_SCHEDULES[key]; break; }
     }
     if (sch) {
-      trainDate = sch.date || trainDate;
+      // เติมเฉพาะตอนเรคคอร์ดไม่มีค่าของตัวเอง — ห้ามทับ! ไม่งั้นแก้ตารางอบรมทีเดียว รายชื่อเก่าย้ายวัน/ย้ายรุ่นตามทั้งหมด
+      if (!trainDate) trainDate = sch.date || '';
       if (!slot && sch.slots && sch.slots.length === 1) slot = sch.slots[0];
+      if (!round) round = _roundIfSameDay_(sch, trainDate, slot);
     }
   }
   if ((!trainDate || !slot) && course && course !== '—') {
@@ -10445,7 +10448,7 @@ function _prepReqFields(r) {
   }
   return {
     ts: ts, name: name, idCard: idCard, branch: branch, pos: pos, course: course,
-    trainDate: trainDate, slot: slot, note: note,
+    trainDate: trainDate, slot: slot, note: note, round: round,
     tsFmt: ts ? formatThaiDateTime(ts) : '—',
     empId: r.empId || r['รหัสพนักงาน'] || '',
     rowIdx: r._rowIndex || r.rowIndex || '',
@@ -10517,6 +10520,7 @@ function _openMyReqDetail(idx) {
       { label: 'หลักสูตร',          value: p.course },
       { label: 'วันอบรม',           value: formatThaiDate(p.trainDate) || '—' },
       { label: 'รอบ',               value: p.slot || '—' },
+      { label: 'รุ่นที่',            value: p.round || '—' },
       { section: 'การส่ง' },
       { label: 'วันที่ส่ง',          value: p.tsFmt },
       { label: 'หมายเหตุ',          value: p.note || '—' },
@@ -10874,6 +10878,7 @@ function _refreshAdminReqCerts() {
 
 /* ─── Edit request (admin only) ─── */
 var _editingKey = null;
+var _editingOrig = null;   // ค่าเดิมของเรคคอร์ดที่กำลังแก้ (course/timeSlot/trainDate/round)
 var _addMode = false;
 var _adminRowCache = []; // last loaded admin requests for lookup
 
@@ -10893,13 +10898,19 @@ function _fillRequestForm(rec) {
   courseSel.innerHTML = '<option value="">-- เลือก --</option>' + COURSE_OPTIONS.map(function(c){
     return '<option value="'+escapeAttr(c)+'"'+(c === rec.course ? ' selected':'')+'>'+escapeHtml(c)+'</option>';
   }).join('');
+  // จำค่าเดิมของเรคคอร์ดไว้ — ไม่แตะหลักสูตร/รอบ = วันอบรม+รุ่นเดิมต้องอยู่เหมือนเดิม
+  _editingOrig = { course: rec.course || '', timeSlot: rec.timeSlot || '', trainDate: rec.trainDate || '', round: rec.round || '' };
   function updateSlots() {
     var sel = courseSel.value;
     var sch = COURSE_SCHEDULES[sel];
     var slotSel = document.getElementById('edt-timeSlot');
-    document.getElementById('edt-trainDate').value = sch ? sch.date : (rec.trainDate || '');
+    var keepOld = sel === _editingOrig.course && _editingOrig.trainDate;
+    document.getElementById('edt-trainDate').value = keepOld ? _editingOrig.trainDate : ((sch && sch.date) || rec.trainDate || '');
     if (sch) {
-      slotSel.innerHTML = '<option value="">-- เลือก --</option>' + sch.slots.map(function(t){
+      // รอบเดิมของเรคคอร์ดอาจไม่มีในตารางปัจจุบันแล้ว → ใส่กลับเข้าลิสต์ ไม่งั้นค่าหาย
+      var opts = sch.slots.slice();
+      if (rec.timeSlot && opts.indexOf(rec.timeSlot) < 0 && sel === _editingOrig.course) opts.push(rec.timeSlot);
+      slotSel.innerHTML = '<option value="">-- เลือก --</option>' + opts.map(function(t){
         return '<option value="'+t+'"'+(t === rec.timeSlot ? ' selected':'')+'>'+t+' น.</option>';
       }).join('');
     } else {
@@ -10944,6 +10955,7 @@ function closeEditRequest() {
   document.getElementById('editRequestModal').classList.remove('show');
   var _cb = document.getElementById('edtNameCombo'); if (_cb) _cb.style.display = 'none';
   _editingKey = null;
+  _editingOrig = null;
   _addMode = false;
 }
 
@@ -11000,8 +11012,11 @@ function saveEditRequest() {
     timeSlot: document.getElementById('edt-timeSlot').value,
     note: document.getElementById('edt-note').value.trim()
   };
-  var sch = COURSE_SCHEDULES[record.course];
-  record.trainDate = sch ? sch.date : '';
+  // หลักสูตร+รอบไม่เปลี่ยน → คงวันอบรม/รุ่นเดิมของเรคคอร์ดไว้ · เปลี่ยนแล้วค่อยดึงจากตารางปัจจุบัน
+  var o = _editingOrig || {};
+  var sameSession = !_addMode && record.course === o.course && record.timeSlot === o.timeSlot;
+  record.trainDate = sameSession ? (o.trainDate || _dateNowFor_(record.course)) : _dateNowFor_(record.course);
+  record.round = sameSession ? (o.round || _roundNowFor_(record.course, record.timeSlot)) : _roundNowFor_(record.course, record.timeSlot);
   // โหมดเพิ่ม: เก็บแบรนด์ (เดาจากชื่อสาขา) เพื่อให้ตัวกรองประเภทใน PDF ใช้ได้
   if (_addMode) { try { record.brand = _normBrandType(record.branch) || ''; } catch(e) {} }
 
@@ -11438,8 +11453,11 @@ function exportTrainingPDF(preloadedReqs, opts) {
         }
         // Normalize slot: ลบ whitespace + normalize dash → 9.00-13.00
         var canonicalSlot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
-        var k = canonicalCourse + '|' + canonicalSlot;
-        if (!groups[k]) groups[k] = { course: canonicalCourse, slot: canonicalSlot, trainDate: r.trainDate || r['วันอบรม'] || '', rows: [] };
+        // วัน+รุ่น อยู่ใน key ด้วย — คนละรอบอบรม (คนละวัน/คนละรุ่น) ห้ามรวมหน้าเดียวกันแม้เวลาซ้ำ
+        var gDate = r.trainDate || r['วันอบรม'] || '';
+        var gRound = _recRound_(r);
+        var k = canonicalCourse + '|' + canonicalSlot + '|' + gDate + '|' + gRound;
+        if (!groups[k]) groups[k] = { course: canonicalCourse, slot: canonicalSlot, trainDate: gDate, round: gRound, rows: [] };
         groups[k].rows.push(r);
       });
 
@@ -11515,7 +11533,6 @@ function exportTrainingPDF(preloadedReqs, opts) {
       var logoUrl = new URL('../logo.png', location.href).href;
 
       var ROWS_PER_PAGE = 35;
-      var pageIdx = 0;
       // Sort groups + rows according to opts.sortOrder
       var sortKey = opts.sortOrder || 'default';
       var groupKeys = Object.keys(groups);
@@ -11544,8 +11561,10 @@ function exportTrainingPDF(preloadedReqs, opts) {
       groupKeys.forEach(function(key){
         var g = groups[key];
         var sch = _findCourseSchedule_(g.course);
-        var roundNum = _findRoundForSlot_(sch, g.slot) || String(++pageIdx);
-        var fullDate = (sch && sch.date) || formatThaiDate(g.trainDate);
+        // ยึดค่าที่ติดมากับรายชื่อ — ไม่ดึงจากตารางอบรมปัจจุบัน (ตารางเปลี่ยนแล้วของเก่าต้องไม่เปลี่ยนตาม)
+        // ไม่รู้รุ่นจริง → เว้นว่างให้เขียนมือ ดีกว่าพิมพ์รุ่นปัจจุบันทับของเก่า
+        var roundNum = g.round || '';
+        var fullDate = _formDate_(g.trainDate, sch);
 
         var totalPages = Math.ceil(g.rows.length / ROWS_PER_PAGE) || 1;
         for (var p = 0; p < totalPages; p++) {
@@ -11674,7 +11693,7 @@ function handleImportRequestsXLSX(input) {
         var header = rows[headerRowIdx];
 
         // Column detection
-        var col = { name:-1, empId:-1, idCard:-1, branch:-1, position:-1, course:-1, trainDate:-1, timeSlot:-1, note:-1 };
+        var col = { name:-1, empId:-1, idCard:-1, branch:-1, position:-1, course:-1, trainDate:-1, timeSlot:-1, note:-1, round:-1 };
         header.forEach(function(h,i){
           var s = String(h).toLowerCase();
           if (col.name<0 && (s.indexOf('fullname')>=0 || (s.indexOf('ชื่อ')>=0 && s.indexOf('เล่น')<0 && s.indexOf('nick')<0))) col.name = i;
@@ -11686,15 +11705,18 @@ function handleImportRequestsXLSX(input) {
           if (col.trainDate<0 && (s.indexOf('traindate')>=0 || s.indexOf('วันอบรม')>=0)) col.trainDate = i;
           if (col.timeSlot<0 && (s.indexOf('timeslot')>=0 || (s.indexOf('รอบ')>=0 && s.indexOf('อบรม')<0))) col.timeSlot = i;
           if (col.note<0 && (s.indexOf('note')>=0 || s.indexOf('หมายเหตุ')>=0)) col.note = i;
+          if (col.round<0 && (s.indexOf('round')>=0 || s.indexOf('รุ่น')>=0)) col.round = i;
         });
 
         // หาก headerRowIdx อยู่ก่อน row 3 บางทีมี course/round บอกใน row 2 (title)
-        // ลอง extract default course จาก row บน
-        var fileCourse = '';
+        // ลอง extract default course + รุ่นที่ จาก row บน
+        var fileCourse = '', fileRound = '';
         for (var ti = 0; ti < headerRowIdx; ti++) {
           var t = rows[ti].map(function(c){ return String(c); }).join(' ');
+          var rm = t.match(/รุ่นที่\s*[:：]?\s*([0-9]+\s*\/\s*[0-9]{2,4})/);
+          if (rm && !fileRound) fileRound = rm[1].replace(/\s+/g, '');
           var cm = t.match(/หลักสูตร\s*[:：]?\s*(.+)/);
-          if (cm) { fileCourse = cm[1].trim(); break; }
+          if (cm && !fileCourse) fileCourse = cm[1].trim();
         }
 
         for (var i = headerRowIdx + 1; i < rows.length; i++) {
@@ -11742,6 +11764,9 @@ function handleImportRequestsXLSX(input) {
             if (!trainDateRaw) trainDateRaw = schMatch.date || '';
             if (!timeSlotRaw && schMatch.slots && schMatch.slots.length === 1) timeSlotRaw = schMatch.slots[0];
           }
+          // รุ่น: จากคอลัมน์ → หัวไฟล์ → ตารางปัจจุบัน (เก็บติดเรคคอร์ดไว้ ไม่ต้องเดาใหม่ทุกครั้ง)
+          var roundRaw = col.round>=0 ? String(r[col.round]||'').trim() : '';
+          if (!roundRaw) roundRaw = fileRound || _findRoundForSlot_(schMatch, timeSlotRaw) || '';
 
           records.push({
             name: name,
@@ -11752,6 +11777,7 @@ function handleImportRequestsXLSX(input) {
             course:   cleanCourse,
             trainDate: trainDateRaw,
             timeSlot:  timeSlotRaw,
+            round:     roundRaw,
             note:     col.note>=0     ? String(r[col.note]||'').trim()     : ''
           });
         }
@@ -11894,8 +11920,10 @@ function exportTrainingForm() {
         }
       }
       var slot = String(sRaw).replace(/\s+/g, '').replace(/[–—~]/g, '-');
-      var key = course + '|' + slot;
-      if (!groups[key]) groups[key] = { course: course, slot: slot, trainDate: trainDate, rows: [] };
+      var round = _recRound_(r);
+      // คนละวัน/คนละรุ่น = คนละใบ แม้เวลาจะซ้ำกัน
+      var key = course + '|' + slot + '|' + trainDate + '|' + round;
+      if (!groups[key]) groups[key] = { course: course, slot: slot, trainDate: trainDate, round: round, rows: [] };
       groups[key].rows.push(r);
     });
 
@@ -12031,8 +12059,18 @@ function exportTrainingForm() {
       });
     }
 
+    var _usedSheetNames = {};
     function safeSheetName(s){
-      return String(s).replace(/[\\\/:\*\?\[\]]/g, '').slice(0, 31);
+      var base = String(s).replace(/[\\\/:\*\?\[\]]/g, '').slice(0, 31) || 'Sheet';
+      // คนละวัน/คนละรุ่นอาจได้ชื่อชนกัน — ExcelJS ห้ามชื่อซ้ำ ต่อท้ายเลขให้
+      var name = base, n = 2;
+      while (_usedSheetNames[name]) {
+        var suf = ' (' + n + ')';
+        name = base.slice(0, 31 - suf.length) + suf;
+        n++;
+      }
+      _usedSheetNames[name] = true;
+      return name;
     }
 
     function processSheet(idx) {
@@ -12073,15 +12111,16 @@ function exportTrainingForm() {
       var g = t.g;
       var sch = _findCourseSchedule_(g.course);
       // Use group index for round
-      var gIdx = keys.indexOf(Object.keys(groups).find(function(k){ return groups[k] === g; }));
-      var roundNum = _findRoundForSlot_(sch, g.slot) || String(gIdx + 1);
-      var fullDate = (sch && sch.date) || g.trainDate || formatThaiDate(g.trainDate);
+      // ยึดรุ่น/วันที่ที่ติดมากับรายชื่อ — ไม่ดึงจากตารางอบรมปัจจุบัน · ไม่รู้รุ่นจริงก็เว้นว่างไว้
+      var roundNum = g.round || '';
+      var fullDate = _formDate_(g.trainDate, sch);
       var chunk = g.rows.slice(t.page * ROWS_PER_PAGE, (t.page + 1) * ROWS_PER_PAGE);
 
       var courseShort = (g.course.indexOf('ผู้สัมผัส') >= 0) ? 'ผู้สัมผัส'
                       : (g.course.indexOf('ผู้ประกอบ') >= 0) ? 'ผู้ประกอบ'
                       : g.course.slice(0, 10);
-      var sheetName = safeSheetName(courseShort + ' ' + g.slot + (t.pages > 1 ? ' หน้า' + (t.page + 1) : ''));
+      var roundTag = String(roundNum || '').replace(/\//g, '-');
+      var sheetName = safeSheetName(courseShort + ' ' + g.slot + (roundTag ? ' ร.' + roundTag : '') + (t.pages > 1 ? ' หน้า' + (t.page + 1) : ''));
 
       copyTemplateSheetInto(outWb, sheetName).then(function(ws){
         fillWorksheet(ws, g, roundNum, fullDate, chunk);
@@ -12141,6 +12180,39 @@ function _findRoundForSlot_(sch, slot) {
     if (norm(keys[i]) === slotN) return sch.rounds[keys[i]];
   }
   return '';
+}
+/* รุ่น/วันอบรม "ณ ตอนนี้" จากตารางอบรมปัจจุบัน — ใช้ตอนบันทึกเรคคอร์ดใหม่เท่านั้น (snapshot) */
+function _roundNowFor_(course, slot) {
+  return _findRoundForSlot_(_findCourseSchedule_(course), slot) || '';
+}
+function _dateNowFor_(course) {
+  var sch = _findCourseSchedule_(course);
+  return (sch && sch.date) || '';
+}
+/* รุ่นของเรคคอร์ด: ยึดค่าที่บันทึกไว้ตอนส่งเป็นหลัก
+   เรคคอร์ดเก่า (ก่อนมีคอลัมน์ round) — เดาจากตารางปัจจุบันได้เฉพาะตอน "วันอบรมยังตรงกับตารางปัจจุบัน"
+   ถ้าวันไม่ตรงแล้ว = คนละรอบอบรม → คืนค่าว่าง ดีกว่าไปหยิบรุ่นใหม่มาแปะทับของเก่า */
+function _recRound_(r) {
+  if (!r) return '';
+  var saved = String(r.round || r['รุ่น'] || r['รุ่นที่'] || '').trim();
+  if (saved) return saved;
+  var sch = _findCourseSchedule_(r.course || r['หลักสูตร'] || '');
+  return _roundIfSameDay_(sch, r.trainDate || r['วันอบรม'] || '', r.timeSlot || r['รอบ'] || '');
+}
+function _roundIfSameDay_(sch, trainDate, slot) {
+  if (!sch) return '';
+  var recD = String(trainDate == null ? '' : trainDate).trim();
+  var schD = String(sch.date || '').trim();
+  if (recD && schD && recD !== schD) return '';
+  return _findRoundForSlot_(sch, slot) || '';
+}
+/* วันอบรมสำหรับใบทะเบียน: ใช้วันที่ติดมากับรายชื่อ (เป็นข้อความไทยเต็มอยู่แล้ว) — ว่างค่อยถอยไปใช้ตารางปัจจุบัน */
+function _formDate_(trainDate, sch) {
+  var d = String(trainDate == null ? '' : trainDate).trim();
+  if (!d || d === '—') return (sch && sch.date) || '';
+  if (/[ก-๙]/.test(d)) return d;                        // ไทยอยู่แล้ว → ใช้ตามนั้น
+  var f = formatThaiDate(d);
+  return (f && f !== '—') ? f : ((sch && sch.date) || '');
 }
 
 /* Course schedules — date + time slots + รุ่นที่ tied to each session */
@@ -12833,8 +12905,10 @@ function submitRequests() {
       branch: currentBranchName || r.branch || '',
       position: position,
       course: course,
-      trainDate: trainDate,
+      trainDate: trainDate || _dateNowFor_(course),
       timeSlot: timeSlot,
+      // snapshot รุ่น ณ ตอนส่ง — แอดมินเปลี่ยนตารางทีหลัง รายชื่อชุดนี้ยังอยู่รุ่นเดิม
+      round: _roundNowFor_(course, timeSlot),
       note: r.note || '',
       brand: _currentBrandType()   // ประเภท/แบรนด์ จากรหัสสาขาที่ล็อกอิน (แม่นยำ)
     });

@@ -9,7 +9,8 @@
    ═══════════════════════════════════════════════════════════════ */
 
 var CACHE_SEC = 300;
-var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note'];
+// 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
+var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note','round'];
 var EMP_HEADERS = ['name','empId','idCard','branch','position','sheet'];
 
 /* ───────────────────────── ROUTER ───────────────────────── */
@@ -236,6 +237,17 @@ function clearReqCache_() {
   // cache ราย branch จะ expire ตาม TTL 5 นาที
 }
 
+/* เติมหัวคอลัมน์ที่เพิ่มใหม่ (เช่น round) ให้ชีตเดิมที่สร้างไว้ก่อนหน้า */
+function ensureReqHeaders_(sh) {
+  try {
+    var lastCol = sh.getLastColumn();
+    if (lastCol >= REQ_HEADERS.length) return;
+    var have = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+    for (var i = lastCol; i < REQ_HEADERS.length; i++) have.push(REQ_HEADERS[i]);
+    sh.getRange(1, 1, 1, REQ_HEADERS.length).setValues([have]);
+  } catch (e) {}
+}
+
 function saveRequests(records) {
   if (!Array.isArray(records) || records.length === 0) return { ok: false, error: 'no records' };
   var lock = LockService.getScriptLock();
@@ -244,6 +256,7 @@ function saveRequests(records) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName('Requests') || ss.insertSheet('Requests');
     if (sh.getLastRow() === 0) sh.appendRow(REQ_HEADERS);
+    else ensureReqHeaders_(sh);   // ชีตเดิมยังไม่มีคอลัมน์ round → เติมหัวให้
     var ts = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
     var rows = records.map(function(r){
       return REQ_HEADERS.map(function(h){
@@ -361,10 +374,14 @@ function updateRequest(key, record) {
     }
 
     if (rowToUpdate < 2) return { ok: false, error: 'not found' };
+    ensureReqHeaders_(sh);
     var existingTs = values[rowToUpdate - 1][0];
-    var newRow = REQ_HEADERS.map(function(h){
+    var oldRow = values[rowToUpdate - 1];
+    var newRow = REQ_HEADERS.map(function(h, j){
       if (h === 'timestamp') return existingTs;
-      return record[h] != null ? record[h] : '';
+      // ไม่ได้ส่ง field นี้มา → คงค่าเดิมไว้ (กัน client เก่าล้าง round/คอลัมน์ใหม่ทิ้ง)
+      if (record[h] == null) return oldRow[j] != null ? oldRow[j] : '';
+      return record[h];
     });
     sh.getRange(rowToUpdate, 1, 1, REQ_HEADERS.length).setValues([newRow]);
     clearReqCache_();
