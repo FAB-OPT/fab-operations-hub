@@ -5315,17 +5315,27 @@ function openStorageModal() {
     document.body.appendChild(m);
   }
   var on = HUB_SB.ready;
+  // สร้างกล่องสถานะแยกออกมาก่อน — ต่อสตริงยาว ๆ คาเทอร์นารีเคยพลาดจน + ซ้อนกันเป็น NaN มาแล้ว
+  var banner;
+  if (on) {
+    banner = '<div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.7;'
+      + 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;">'
+      + '✅ กำลังใช้ <b>Supabase</b>'
+      + (HUB_SB.dualWrite ? ' · เขียนสำรองลง Google Sheets ด้วย' : '')
+      + '<br><span style="opacity:.8;">ถ้า Supabase มีปัญหา ระบบจะกลับไปใช้ Google Sheets ให้เองอัตโนมัติ</span>'
+      + '</div>';
+  } else {
+    banner = '<div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.7;'
+      + 'background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;">'
+      + '📄 กำลังใช้ <b>Google Sheets</b>'
+      + '<br><span style="opacity:.8;">วัดจริง: เปิด HUB ~30 วินาที · ย้ายไป Supabase จะเหลือ 1-2 วินาที</span>'
+      + '</div>';
+  }
   m.innerHTML = '<div class="adm-modal-box" style="max-width:700px;">'
     + '<div class="adm-modal-header"><div class="adm-modal-title">🗄️ ที่เก็บข้อมูล</div>'
     +   '<button class="adm-modal-close" onclick="closeStorageModal()"><svg class="ico"><use href="#i-x"/></svg></button></div>'
     + '<div class="adm-modal-body">'
-    +   '<div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.7;'
-    +     (on ? 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;">✅ กำลังใช้ <b>Supabase</b>'
-    +           + (HUB_SB.dualWrite ? ' · เขียนสำรองลง Google Sheets ด้วย' : '')
-    +           + '<br><span style="opacity:.8;">ถ้า Supabase มีปัญหา ระบบจะกลับไปใช้ Google Sheets ให้เองอัตโนมัติ</span>'
-    :           'background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;">📄 กำลังใช้ <b>Google Sheets</b>'
-    +           '<br><span style="opacity:.8;">วัดจริง: เปิด HUB ~30 วินาที · ย้ายไป Supabase จะเหลือ 1-2 วินาที</span>')
-    +   '</div>'
+    +   banner
     +   '<div style="font-size:13px;line-height:1.9;color:var(--text2);margin-bottom:16px;">'
     +     '<b>ทำตามลำดับ:</b><br>'
     +     '① เปิด Supabase → SQL Editor → รันไฟล์ <code>supabase/schema.sql</code><br>'
@@ -5503,6 +5513,29 @@ function hubSbMigrateConfig() {
         });
     });
 }
+/* เทียบค่า 2 ฝั่งแบบไม่สนลำดับคีย์
+   Postgres เก็บ jsonb แล้วเรียงคีย์ใหม่ตามอัลกอริทึมของมัน
+   ถ้าใช้ JSON.stringify เทียบตรง ๆ จะขึ้น "ต่าง" ทั้งที่ข้อมูลเหมือนกันเป๊ะ */
+function _cfgDeepEqual(a, b) {
+  if (a === b) return true;
+  if (a == null || b == null) return a == null && b == null;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== 'object') return a === b;
+  if (Array.isArray(a) !== Array.isArray(b)) return false;
+  if (Array.isArray(a)) {
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) if (!_cfgDeepEqual(a[i], b[i])) return false;
+    return true;
+  }
+  var ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (var j = 0; j < ka.length; j++) {
+    if (!Object.prototype.hasOwnProperty.call(b, ka[j])) return false;
+    if (!_cfgDeepEqual(a[ka[j]], b[ka[j]])) return false;
+  }
+  return true;
+}
+
 /* เทียบ 2 ฝั่งว่าตรงกันไหม */
 function hubSbCompareConfig() {
   if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
@@ -5519,7 +5552,7 @@ function hubSbCompareConfig() {
                           : (typeof v === 'object' ? Object.keys(v).length + ' รายการ' : String(v))); };
     return HUB_CFG_KEYS.map(function(k){
       return { key: k, sheets: size(sheets[k]), supabase: size(sb[k]),
-               same: JSON.stringify(sheets[k] == null ? null : sheets[k]) === JSON.stringify(sb[k] == null ? null : sb[k]) };
+               same: _cfgDeepEqual(sheets[k], sb[k]) };
     });
   });
 }
