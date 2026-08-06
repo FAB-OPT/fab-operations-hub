@@ -10,10 +10,12 @@
    ═══════════════════════════════════════════════════════════════ */
 
 var FH_SB = {
-  // ⬇⬇ ใส่ 2 ค่านี้แล้วระบบจะเริ่มใช้ Supabase (Supabase → Settings → API)
-  url: '',
-  key: '',
+  // ใช้ฐานเดียวกับ HUB และ Training Record · ตารางของเราขึ้นต้น fh_ กันชื่อชน
+  url: 'https://cyjfgperenakjeazsfgf.supabase.co',
+  key: 'sb_publishable_xAtQvH3Bdaqt7PVJGbkxWw_KVhfBszo',
+  on: true,          // false = กลับไปใช้ Google Sheets ทันที
   // เขียนลง Google Sheets ต่อไปด้วยไหม (แนะนำให้เปิดไว้ช่วงแรก ~1-2 เดือน)
+  // ยิงเบื้องหลัง ไม่หน่วงผู้ใช้
   dualWrite: true,
   ready: false,
   client: null
@@ -21,11 +23,12 @@ var FH_SB = {
 
 (function initSb() {
   try {
-    var saved = JSON.parse(localStorage.getItem('fh_sb_cfg') || 'null');
+    var saved = JSON.parse(localStorage.getItem('fh_sb_cfg') || 'null');   // override จากหน้าตั้งค่า
     if (saved && saved.url && saved.key) { FH_SB.url = saved.url; FH_SB.key = saved.key; }
     if (saved && typeof saved.dualWrite === 'boolean') FH_SB.dualWrite = saved.dualWrite;
+    if (saved && typeof saved.on === 'boolean') FH_SB.on = saved.on;
   } catch (e) {}
-  if (FH_SB.url && FH_SB.key && window.supabase && window.supabase.createClient) {
+  if (FH_SB.on && FH_SB.url && FH_SB.key && window.supabase && window.supabase.createClient) {
     try {
       FH_SB.client = window.supabase.createClient(FH_SB.url, FH_SB.key);
       FH_SB.ready = true;
@@ -34,8 +37,9 @@ var FH_SB = {
   }
 })();
 
+/* เผื่อต้องชี้ไปฐานอื่นในอนาคต — เรียกจาก console ได้: fhSbSaveConfig(url, key) แล้วรีเฟรช */
 function fhSbSaveConfig(url, key, dualWrite) {
-  localStorage.setItem('fh_sb_cfg', JSON.stringify({ url: url, key: key, dualWrite: dualWrite !== false }));
+  localStorage.setItem('fh_sb_cfg', JSON.stringify({ url: url, key: key, on: true, dualWrite: dualWrite !== false }));
 }
 
 /* ───────── แปลงชื่อคอลัมน์: Supabase (snake_case) ⇄ รูปแบบที่แอปใช้อยู่ ───────── */
@@ -241,45 +245,37 @@ function fhSbCompare() {
 }
 
 /* ═══════════ หน้าตั้งค่า "ที่เก็บข้อมูล" ในแอดมิน ═══════════ */
+var FH_BUILD = '2026-08-06 · 18:20';   // บัมพ์ทุกครั้งที่แก้ fh-*.js — ไว้เช็คว่าเบราว์เซอร์ใช้ของใหม่จริง
+
 function sbRenderStatus() {
   var chip = document.getElementById('sbStatusChip');
   var box = document.getElementById('sbStatusBox');
   if (!chip || !box) return;
-  var u = document.getElementById('sbUrl'), k = document.getElementById('sbKey'), d = document.getElementById('sbDual');
-  if (u && !u.value) u.value = FH_SB.url || '';
-  if (k && !k.value) k.value = FH_SB.key || '';
-  if (d) d.checked = FH_SB.dualWrite !== false;
   if (FH_SB.ready) {
     chip.textContent = 'Supabase';
     chip.style.cssText = 'margin-left:auto;background:#ecfdf5;color:#047857;border-color:#a7f3d0;';
     box.innerHTML = '✅ อ่านข้อมูลจาก <b>Supabase</b> อยู่'
-      + (FH_SB.dualWrite ? ' · เขียนลงทั้ง Supabase และ Google Sheets' : ' · เขียนลง Supabase อย่างเดียว')
+      + (FH_SB.dualWrite ? ' · เขียนสำรองลง Google Sheets ด้วย (เบื้องหลัง ไม่หน่วง)' : ' · เขียนลง Supabase อย่างเดียว')
       + '<br><span style="color:var(--text3);">ถ้า Supabase ตอบไม่ได้ ระบบจะถอยไปใช้ Google Sheets ให้เองอัตโนมัติ</span>';
   } else {
     chip.textContent = 'Google Sheets';
     chip.style.cssText = 'margin-left:auto;';
     box.innerHTML = 'กำลังใช้ <b>Google Sheets (Apps Script)</b> อยู่'
-      + '<br><span style="color:var(--text3);">วัดจริงตอนนี้: ตอบกลับ ~1.7-4.2 วินาทีต่อครั้ง · ย้ายมา Supabase จะเหลือระดับ 0.1-0.3 วินาที</span>';
+      + '<br><span style="color:var(--text3);">วัดจริง: ตอบกลับ 1.7-4.2 วินาทีต่อครั้ง · ย้ายมา Supabase เหลือระดับ 0.1-0.3 วินาที</span>';
   }
-}
-function sbSaveCfg() {
-  var url = (document.getElementById('sbUrl').value || '').trim().replace(/\/+$/, '');
-  var key = (document.getElementById('sbKey').value || '').trim();
-  var dual = document.getElementById('sbDual').checked;
-  if (!url || !key) { showInfo('ยังกรอกไม่ครบ', 'ต้องใส่ทั้ง Project URL และ anon key'); return; }
-  if (!/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(url)) { showInfo('URL ไม่ถูกรูปแบบ', 'ต้องเป็นแบบ <code>https://xxxxxxxx.supabase.co</code>'); return; }
-  fhSbSaveConfig(url, key, dual);
-  showInfo('✓ บันทึกแล้ว', 'กำลังรีเฟรชเพื่อเชื่อมต่อ Supabase...');
-  setTimeout(function(){ location.reload(); }, 900);
+  var bi = document.getElementById('sbBuildInfo');
+  if (bi) bi.innerHTML = 'รุ่นของหน้านี้: <b>' + FH_BUILD + '</b>'
+    + ' · ฐานข้อมูล: <b>' + String(FH_SB.url || '—').replace(/^https:\/\//, '').replace(/\.supabase\.co$/, '') + '</b>'
+    + '<br>ถ้าเลขรุ่นไม่ตรงกับที่แจ้งไว้ แปลว่าเบราว์เซอร์ยังใช้ไฟล์เก่า — กด Ctrl+Shift+R';
 }
 function sbClearCfg() {
   customConfirm({
-    icon: ICON_WARN, title: 'เลิกใช้ Supabase?',
+    icon: ICON_WARN, title: 'กลับไปใช้ Google Sheets?',
     desc: 'ระบบจะกลับไปอ่าน-เขียน <b>Google Sheets</b> เหมือนเดิม<br>ข้อมูลใน Supabase ไม่ถูกลบ · เปิดใช้ใหม่ได้ตลอด',
-    okText: 'เลิกใช้', okIsPrimary: true
+    okText: 'กลับไปใช้ Sheets', okIsPrimary: true
   }).then(function(ok){
     if (!ok) return;
-    localStorage.removeItem('fh_sb_cfg');
+    localStorage.setItem('fh_sb_cfg', JSON.stringify({ on: false, dualWrite: FH_SB.dualWrite }));
     location.reload();
   });
 }
