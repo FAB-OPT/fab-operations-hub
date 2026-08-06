@@ -3019,8 +3019,7 @@ function saveUsersLocal() {
   try { localStorage.setItem('fab_users_v1', JSON.stringify(USERS)); } catch (e) {}
 }
 function loadUsersFromCloud() {
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       // Apps Script อาจยังไม่ขยาย users — ถ้ามีค่อยอัปเดต ไม่งั้นใช้ local
       if (res && res.ok && Array.isArray(res.users) && res.users.length > 0) {
@@ -3046,7 +3045,7 @@ function loadUsersFromCloud() {
 }
 function saveUsersToCloud() {
   return hubPostJson({ type: 'set-config', key: 'users', value: USERS })
-  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 
 /* ── Migration ครั้งเดียว: ซิงค์ชื่อ/นิค ของผู้ใช้ built-in ให้ตรงกับ DEFAULT_USERS ──
@@ -3099,8 +3098,7 @@ function loadBrandsLocal(){
 }
 function saveBrandsLocal(){ try{ localStorage.setItem(BRANDS_KEY, JSON.stringify(BRAND_REGISTRY)); }catch(e){} }
 function loadBrandsFromCloud(){
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method:'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){ if(res && res.ok && Array.isArray(res.brands) && res.brands.length){ BRAND_REGISTRY=res.brands; saveBrandsLocal(); } return BRAND_REGISTRY; })
     .catch(function(){ return BRAND_REGISTRY; });
 }
@@ -3279,8 +3277,7 @@ function saveJdBranchesLocal() {
   try { localStorage.setItem(JD_BRANCH_KEY, JSON.stringify(JAEDAENG_BRANCHES)); } catch (e) {}
 }
 function loadJdBranchesFromCloud() {
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       if (res && res.ok && Array.isArray(res.jaedaengBranches)) {
         JAEDAENG_BRANCHES = _mergeJdBranches(res.jaedaengBranches);
@@ -3292,7 +3289,7 @@ function loadJdBranchesFromCloud() {
 }
 function saveJdBranchesToCloud() {
   return hubPostJson({ type: 'set-config', key: 'jaedaengBranches', value: JAEDAENG_BRANCHES })
-  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 loadJdBranchesLocal();
 
@@ -3318,8 +3315,7 @@ function saveBranchesLocal() {
   } catch (e) {}
 }
 function loadBranchesFromCloud() {
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       if (res && res.ok && res.branches && typeof res.branches === 'object' && res.branches.branches) {
         BRANCHES = res.branches.branches;
@@ -3337,7 +3333,7 @@ function saveBranchesToCloud() {
     type: 'set-config', key: 'branches',
     value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP, statusMap: BRANCH_STATUS_MAP }
   })
-  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 loadBranchesLocal();
 
@@ -4097,8 +4093,7 @@ function loadSystemsFromCloud() {
   }
   // cache-bust on each load so mobile doesn't get stale browser cache
   // ใช้ ?action=config (Apps Script รองรับ คืน {ok, systems, announcements})
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       // Accept: array | { ok, systems:[] }
       var systems = Array.isArray(res) ? res : (res && res.ok && Array.isArray(res.systems) ? res.systems : null);
@@ -4137,6 +4132,7 @@ function saveSystemsToCloud() {
   });
   return hubPostJson({ type: 'set-config', key: 'systems', value: sysForCloud })
   .then(function(res){
+    hubBustConfig();
     if (!res.ok) throw new Error(res.error || 'save failed');
     return res;
   });
@@ -4161,8 +4157,7 @@ function saveAnnouncementsLocal() {
 }
 function loadAnnouncementsFromCloud() {
   // ใช้ ?action=config endpoint (Apps Script รองรับ) — คืน { ok, systems, announcements }
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       // Accept: { ok, announcements } | array | { ok, announcements:[] }
       var anns = null;
@@ -4195,7 +4190,7 @@ function updateAnnounceBtnVisibility() {
 function saveAnnouncementsToCloud() {
   // ใช้ set-config endpoint ของ Apps Script (รองรับอยู่แล้ว) — เก็บลง Config sheet
   return hubPostJson({ type: 'set-config', key: 'announcements', value: ANNOUNCEMENTS })
-  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 function getDismissedToday() {
   try { return JSON.parse(localStorage.getItem('fab_ann_dismissed') || '{}'); }
@@ -5287,8 +5282,7 @@ function _permNormalize(sysKey, src) {
    เพราะเขียนลงชีตได้จริง แต่ตอนอ่านกลับไม่มีคีย์ perms ส่งมา → ถอยไปใช้ค่าเริ่มต้นทุกครั้ง */
 var PERMS_BACKEND_STALE = false;
 function loadPermsFromCloud() {
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
+  return hubGetConfig()
     .then(function(res){
       PERMS_BACKEND_STALE = !!(res && res.ok && !('perms' in res));
       if (PERMS_BACKEND_STALE) console.warn('[HUB] backend ที่ deploy อยู่ไม่คืน perms — สิทธิ์ปุ่มจะบันทึกไม่ติด');
@@ -5301,6 +5295,55 @@ function loadPermsFromCloud() {
       return PERMS_ALL;
     });
 }
+/* ═══════════ อ่าน config ครั้งเดียว แล้วแจกให้ทุกคนใช้ ═══════════
+   ปัญหาเดิม: มี 7 ฟังก์ชัน (systems/users/branches/jaedaeng/announcements/perms)
+   ต่างคนต่างยิง ?action=config ของตัวเอง ตอนเปิด HUB จึงยิงพร้อมกัน 4-6 เส้น
+   Apps Script รับ concurrent ไม่ไหว → วัดจริงได้ 30 วินาที และ 3 ใน 4 เส้น
+   ตอบกลับเป็นหน้า HTML error (ไม่ใช่ JSON) → loader เงียบ ๆ ถอยไปใช้ค่า default
+   นี่คือสาเหตุที่ HUB ช้าและค่าบางอย่างเหมือนไม่ถูกบันทึก
+
+   แก้: ใครขอ config ระหว่างที่ยังโหลดไม่เสร็จ ให้ใช้ promise เดียวกัน (coalesce)
+        + แคชผลไว้สั้น ๆ กันการยิงถี่ซ้ำ · มี retry เผื่อ Google ขัดข้องชั่วคราว */
+var _cfgInflight = null, _cfgCache = null, _cfgCacheAt = 0;
+var CFG_TTL_MS = 20000;   // ภายใน 20 วิ ถือว่าใหม่พอ ไม่ต้องยิงซ้ำ
+
+function hubGetConfig(opts) {
+  opts = opts || {};
+  var now = Date.now();
+  if (!opts.force && _cfgCache && (now - _cfgCacheAt) < CFG_TTL_MS) return Promise.resolve(_cfgCache);
+  if (_cfgInflight) return _cfgInflight;   // มีคนกำลังโหลดอยู่ → ต่อคิวรอผลเดียวกัน
+
+  var attempt = function(tries) {
+    return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
+      .then(function(r){ return r.text(); })
+      .then(function(t){
+        var s = String(t == null ? '' : t).trim();
+        if (s.charAt(0) === '{') { try { return JSON.parse(s); } catch (e) {} }
+        // ตอบเป็นหน้า HTML = Apps Script ขัดข้อง/รับไม่ไหว → รอแล้วลองใหม่
+        if (tries > 1) {
+          return new Promise(function(ok){ setTimeout(ok, 1500); }).then(function(){ return attempt(tries - 1); });
+        }
+        throw new Error('โหลดการตั้งค่าไม่สำเร็จ (Apps Script ขัดข้องชั่วคราว)');
+      });
+  };
+
+  _cfgInflight = attempt(3)
+    .then(function(res){
+      _cfgCache = res; _cfgCacheAt = Date.now(); _cfgInflight = null;
+      return res;
+    })
+    .catch(function(e){
+      _cfgInflight = null;
+      if (_cfgCache) return _cfgCache;   // มีของเก่าก็ใช้ไปก่อน ดีกว่าเด้ง default
+      throw e;
+    });
+  return _cfgInflight;
+}
+/* เรียกหลังบันทึก config เพื่อให้รอบหน้าได้ของสด
+   เก็บ _cfgCache ไว้ (ล้างแค่เวลา) — ถ้าโหลดรอบหน้าพัง จะได้มีของเก่าถอยไปใช้
+   ดีกว่าปล่อยให้ loader เด้งไปค่า default แล้วผู้ใช้เห็นข้อมูลหาย */
+function hubBustConfig() { _cfgCacheAt = 0; }
+
 /* ═══ ส่งข้อมูลขึ้น Apps Script แบบทนต่อ error ชั่วคราวของ Google ═══
    Apps Script บางครั้งตอบ "หน้าเว็บ HTML" แทน JSON (เช่น ขออภัย ไม่สามารถเปิดไฟล์ได้ในเวลานี้)
    ถ้าเรียก r.json() ตรง ๆ จะพังเป็น "Unexpected token '<'" ซึ่งผู้ใช้อ่านไม่รู้เรื่อง
@@ -5328,7 +5371,7 @@ function hubPostJson(payload, tries) {
 
 function savePermsToCloud() {
   return hubPostJson({ type: 'set-config', key: 'perms', value: PERMS_ALL })
-    .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+    .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 
 function openPermsModal() {
