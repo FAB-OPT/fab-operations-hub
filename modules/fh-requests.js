@@ -212,7 +212,7 @@ function _prepReqFields(r) {
   var trainDate = r['trainDate'] || r['วันอบรม'] || '';
   var slot = r['timeSlot'] || r['รอบ'] || '';
   var note = r['note'] || r['หมายเหตุ'] || '';
-  var round = String(r['round'] || r['รุ่น'] || r['รุ่นที่'] || '').trim();
+  var round = _fhRoundText_(r['round'] || r['รุ่น'] || r['รุ่นที่'] || '');
   if (course && course !== '—' && typeof COURSE_SCHEDULES !== 'undefined') {
     var sch = null;
     var keys = Object.keys(COURSE_SCHEDULES);
@@ -355,6 +355,18 @@ function _getRowSlot(r) {
    ถ้าเอาข้อความดิบมาเทียบตรง ๆ รอบเดียวกันจะโดนแตกเป็นหลายรุ่น — ต้อง normalize ก่อนเสมอ */
 function _normCourseName_(s) {
   return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+}
+/* กู้ค่ารุ่นที่ถูก Google Sheets แปลงเป็นวันที่
+   พิมพ์ "2/2569" → Sheets เดาว่าเป็น เดือน/ปี → เก็บเป็น 1 ก.พ. 2569
+   → ส่งกลับมาเป็น "2569-01-31T17:00:00.000Z" (UTC) → แปลงกลับเป็นเวลาไทยแล้วอ่านเดือน/ปี */
+function _fhRoundText_(v) {
+  var s = String(v == null ? '' : v).trim();
+  var m = /^(\d{4})-(\d{2})-(\d{2})T\d{2}:\d{2}/.exec(s);
+  if (!m) return s;
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return s;
+  var bkk = new Date(d.getTime() + 7 * 3600000);   // ISO ที่ได้เป็น UTC → เลื่อนเป็นเวลาไทย
+  return (bkk.getUTCMonth() + 1) + '/' + bkk.getUTCFullYear();
 }
 function _normDateKey_(s) {
   var raw = String(s == null ? '' : s).trim();
@@ -1072,7 +1084,7 @@ function _reqRoundGroupsFrom(rows) {
       out.push(map[key]);
     }
     // รุ่นของกลุ่ม = ค่าที่บันทึกไว้จริงตัวแรกที่เจอ (ไม่เอาค่าที่เดาจากตาราง)
-    var saved = String(r.round || r['รุ่น'] || r['รุ่นที่'] || '').trim();
+    var saved = _fhRoundText_(r.round || r['รุ่น'] || r['รุ่นที่'] || '');
     if (saved && !map[key].round) map[key].round = saved;
     map[key].rows.push(r);
   });

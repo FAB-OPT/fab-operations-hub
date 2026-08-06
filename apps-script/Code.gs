@@ -245,10 +245,15 @@ function getRequests(branchFilter) {
     // Filter by branch (column 4 = branch) — server-side opt
     if (branchFilter && String(row[4]||'') !== String(branchFilter)) continue;
     var rec = { _rowIndex: i + 1 };
-    REQ_HEADERS.forEach(function(h, j){ rec[h] = row[j] != null ? row[j] : ''; });
-    if (rec.timestamp instanceof Date) {
-      rec.timestamp = Utilities.formatDate(rec.timestamp, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
-    }
+    REQ_HEADERS.forEach(function(h, j){
+      var v = row[j] != null ? row[j] : '';
+      // เซลล์ที่เป็น Date ต้องแปลงเป็นข้อความก่อนส่งออก ไม่งั้น client ได้ ISO ดิบ (2569-01-31T17:00:00.000Z)
+      if (v instanceof Date) {
+        v = (h === 'round') ? roundToText_(v)
+                            : Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
+      }
+      rec[h] = v;
+    });
     records.push(rec);
   }
   var out = { ok: true, records: records };
@@ -265,11 +270,35 @@ function clearReqCache_() {
 function ensureReqHeaders_(sh) {
   try {
     var lastCol = sh.getLastColumn();
-    if (lastCol >= REQ_HEADERS.length) return;
-    var have = sh.getRange(1, 1, 1, lastCol).getValues()[0];
-    for (var i = lastCol; i < REQ_HEADERS.length; i++) have.push(REQ_HEADERS[i]);
-    sh.getRange(1, 1, 1, REQ_HEADERS.length).setValues([have]);
+    if (lastCol < REQ_HEADERS.length) {
+      var have = sh.getRange(1, 1, 1, lastCol).getValues()[0];
+      for (var i = lastCol; i < REQ_HEADERS.length; i++) have.push(REQ_HEADERS[i]);
+      sh.getRange(1, 1, 1, REQ_HEADERS.length).setValues([have]);
+    }
   } catch (e) {}
+  forceTextCols_(sh);
+}
+
+/* บังคับคอลัมน์ที่เป็น "ข้อความที่หน้าตาเหมือนวันที่" ให้เป็น plain text
+   ไม่งั้น Sheets แปลง "2/2569" เป็นวันที่ 1 ก.พ. 2569 ให้เองตอน setValues
+   ต้องตั้งรูปแบบ "ก่อน" เขียนค่าเสมอ ตั้งทีหลังไม่ช่วย ค่าถูกแปลงไปแล้ว */
+function forceTextCols_(sh) {
+  try {
+    var rows = Math.max(sh.getMaxRows(), 2);
+    ['round', 'trainDate', 'timeSlot', 'idCard', 'empId'].forEach(function(h){
+      var col = REQ_HEADERS.indexOf(h) + 1;
+      if (col > 0) sh.getRange(1, col, rows, 1).setNumberFormat('@');
+    });
+  } catch (e) {}
+}
+
+/* ค่าที่โดน Sheets แปลงเป็นวันที่ไปแล้ว → กู้กลับเป็น "เดือน/ปี" ตามที่พิมพ์มาตอนแรก */
+function roundToText_(v) {
+  if (!(v instanceof Date)) return v == null ? '' : v;
+  try {
+    return Number(Utilities.formatDate(v, 'Asia/Bangkok', 'M')) + '/' +
+           Number(Utilities.formatDate(v, 'Asia/Bangkok', 'yyyy'));
+  } catch (e) { return String(v); }
 }
 
 function saveRequests(records) {
@@ -279,8 +308,8 @@ function saveRequests(records) {
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName('Requests') || ss.insertSheet('Requests');
-    if (sh.getLastRow() === 0) sh.appendRow(REQ_HEADERS);
-    else ensureReqHeaders_(sh);   // ชีตเดิมยังไม่มีคอลัมน์ round → เติมหัวให้
+    if (sh.getLastRow() === 0) { sh.appendRow(REQ_HEADERS); forceTextCols_(sh); }
+    else ensureReqHeaders_(sh);   // เติมหัว round ให้ชีตเดิม + บังคับคอลัมน์เป็น text
     var ts = Utilities.formatDate(new Date(), 'Asia/Bangkok', 'yyyy-MM-dd HH:mm:ss');
     var rows = records.map(function(r){
       return REQ_HEADERS.map(function(h){
@@ -521,6 +550,7 @@ function bulkDeleteRequests(keys) {
                        for (var j2 = 0; j2 < cols; j2++) r.push(row[j2] != null ? row[j2] : '');
                        return r;
                      });
+    forceTextCols_(sh);
     sh.getRange(1, 1, keep.length, cols).setValues(keep);
     var extra = values.length - keep.length;
     if (extra > 0) sh.deleteRows(keep.length + 1, extra);   // ตัดแถวท้ายที่เหลือทิ้งทีเดียว

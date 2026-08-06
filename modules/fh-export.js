@@ -937,7 +937,7 @@ function _dateNowFor_(course) {
    ถ้าวันไม่ตรงแล้ว = คนละรอบอบรม → คืนค่าว่าง ดีกว่าไปหยิบรุ่นใหม่มาแปะทับของเก่า */
 function _recRound_(r) {
   if (!r) return '';
-  var saved = String(r.round || r['รุ่น'] || r['รุ่นที่'] || '').trim();
+  var saved = _fhRoundText_(r.round || r['รุ่น'] || r['รุ่นที่'] || '');
   if (saved) return saved;
   var sch = _findCourseSchedule_(r.course || r['หลักสูตร'] || '');
   return _roundIfSameDay_(sch, r.trainDate || r['วันอบรม'] || '', r.timeSlot || r['รอบ'] || '');
