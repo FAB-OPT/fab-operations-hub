@@ -5,6 +5,24 @@
 --  รันซ้ำได้ ไม่ลบข้อมูลเดิม (ใช้ if not exists ทั้งหมด)
 -- ═══════════════════════════════════════════════════════════════
 
+-- ═══════════════════════════════════════════════════════════════
+--  หมายเหตุ: ฐานนี้ใช้ร่วมกับ Training Record (cyjfgperenakjeazsfgf)
+--  ตารางของ Hub ขึ้นต้น fh_ ทั้งหมด เพื่อไม่ให้ชนกับของ Training Record
+--  (branch_overrides · cases · chat_logs · course_catalog · course_history
+--   custom_quiz · employees · quiz_meta · quiz_results · training_drafts · trainings)
+--  ⚠️ ห้ามตั้งชื่อตารางใหม่โดยไม่มี prefix fh_
+-- ═══════════════════════════════════════════════════════════════
+
+-- ───────────── รอบ 1: การตั้งค่ากลางของ HUB ─────────────
+-- แทนชีต Config (key/value) — systems · users · branches · jaedaengBranches
+--                              announcements · perms
+-- ตัวนี้คือคอขวดตัวจริง: ทุกระบบต้องอ่านตอนเปิด
+create table if not exists public.fh_config (
+  key        text primary key,
+  value      jsonb not null,
+  updated_at timestamptz not null default now()
+);
+
 -- ───────────── คำขออบรม ─────────────
 -- ตรงกับ REQ_HEADERS ใน apps-script/Code.gs
 create table if not exists public.fh_requests (
@@ -78,6 +96,7 @@ create unique index if not exists fh_employees_empid_idx
 --  ที่ตั้ง "Anyone" อยู่ตอนนี้ ไม่ได้แย่ลง แต่ก็ไม่ได้ปลอดภัยขึ้น
 --  ถ้าจะรัดกุมกว่านี้ต้องมี auth จริง (Supabase Auth) แล้วค่อยล็อก policy ตาม role
 -- ═══════════════════════════════════════════════════════════════
+alter table public.fh_config       enable row level security;
 alter table public.fh_requests     enable row level security;
 alter table public.fh_certificates enable row level security;
 alter table public.fh_employees    enable row level security;
@@ -85,7 +104,7 @@ alter table public.fh_employees    enable row level security;
 do $$
 declare t text;
 begin
-  foreach t in array array['fh_requests','fh_certificates','fh_employees'] loop
+  foreach t in array array['fh_config','fh_requests','fh_certificates','fh_employees'] loop
     execute format('drop policy if exists %I on public.%I', t || '_anon_all', t);
     execute format(
       'create policy %I on public.%I for all to anon using (true) with check (true)',
@@ -94,7 +113,10 @@ begin
 end $$;
 
 -- ───────────── ตรวจผลหลังรัน ─────────────
-select 'fh_requests'     as table_name, count(*) as rows from public.fh_requests
+-- ควรได้ 4 แถว เลข 0 ทั้งหมด (ตารางว่าง = สร้างสำเร็จ)
+select 'fh_config'       as table_name, count(*) as rows from public.fh_config
+union all
+select 'fh_requests',     count(*) from public.fh_requests
 union all
 select 'fh_certificates', count(*) from public.fh_certificates
 union all
