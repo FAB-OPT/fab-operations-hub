@@ -5282,10 +5282,16 @@ function _permNormalize(sysKey, src) {
   }
   return out;
 }
+/* true = backend ที่ deploy อยู่เก่าเกินไป (getConfig ไม่คืน perms)
+   อาการ: กดบันทึกสิทธิ์แล้วเหมือนสำเร็จ แต่ออกแล้วเข้าใหม่ค่ากลับเป็นเดิม
+   เพราะเขียนลงชีตได้จริง แต่ตอนอ่านกลับไม่มีคีย์ perms ส่งมา → ถอยไปใช้ค่าเริ่มต้นทุกครั้ง */
+var PERMS_BACKEND_STALE = false;
 function loadPermsFromCloud() {
   return fetch(SCRIPT_URL + '?action=config&_=' + Date.now(), { method: 'GET' })
     .then(function(r){ return r.json(); })
     .then(function(res){
+      PERMS_BACKEND_STALE = !!(res && res.ok && !('perms' in res));
+      if (PERMS_BACKEND_STALE) console.warn('[HUB] backend ที่ deploy อยู่ไม่คืน perms — สิทธิ์ปุ่มจะบันทึกไม่ติด');
       var src = (res && res.ok && res.perms) ? res.perms : {};
       Object.keys(PERM_SYSTEMS).forEach(function(k){ PERMS_ALL[k] = _permNormalize(k, src[k]); });
       return PERMS_ALL;
@@ -5350,6 +5356,15 @@ function closePermsModal() { var m = document.getElementById('permsModal'); if (
 
 function renderPermsUI() {
   var body = document.getElementById('permsBody'); if (!body) return;
+  // backend เก่า → บอกให้ชัดว่าบันทึกไปก็ไม่ติด ดีกว่าปล่อยให้ติ๊กเสียเที่ยว
+  var staleWarn = PERMS_BACKEND_STALE
+    ? '<div style="margin:0 0 14px;padding:13px 16px;border-radius:12px;background:#fef2f2;border:1px solid #fecaca;color:#991b1b;font-size:13px;line-height:1.7;">'
+      + '<b>⚠️ บันทึกไม่ติด — Apps Script ที่ deploy อยู่เป็นเวอร์ชันเก่า</b><br>'
+      + 'ตัวที่รันอยู่ไม่ส่งค่าสิทธิ์ (<code>perms</code>) กลับมา กดบันทึกแล้วจะเหมือนสำเร็จ '
+      + 'แต่ออกแล้วเข้าใหม่ค่าจะกลับเป็นเดิม<br>'
+      + '<b>วิธีแก้:</b> เปิด Apps Script → ก๊อป <b>apps-script/Code.gs</b> ทับทั้งไฟล์ → Save → Deploy → Manage deployments → New version'
+      + '</div>'
+    : '';
   var sys = PERM_SYSTEMS[_permSys], perms = PERMS_ALL[_permSys] || {};
   var isLevel = _permMode(_permSys) === 'level';
   var tabs = Object.keys(PERM_SYSTEMS).map(function(k){
@@ -5386,7 +5401,7 @@ function renderPermsUI() {
           (nEx ? '⚠ ' + nEx + ' คน' : 'ยกเว้นรายคน') + '</button></td></tr>';
     });
   });
-  body.innerHTML =
+  body.innerHTML = staleWarn +
     '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;">' + tabs + '</div>' +
     '<div class="adm-section-desc" style="margin-bottom:10px;">' + (isLevel
       ? '<b>ซ่อน</b> = ไม่เห็นเมนู · <b style="color:#3B82F6;">ดู</b> = อ่านอย่างเดียว · <b style="color:var(--green);">เต็ม</b> = แก้ไข/ลบได้ · <b>ยกเว้นรายคน</b> ท้ายแถวเพื่อตั้งเฉพาะบุคคล'

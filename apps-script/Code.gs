@@ -10,6 +10,10 @@
    วิธีใช้: ก๊อปทั้งไฟล์นี้ทับใน Apps Script editor → Save → Deploy (New version)
    ═══════════════════════════════════════════════════════════════ */
 
+/* เวอร์ชันของ backend — ส่งกลับใน getConfig เพื่อให้หน้าเว็บรู้ว่า deploy ตัวไหนอยู่
+   บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
+var BACKEND_VERSION = '2026-08-06';
+
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
 var REQ_HEADERS = ['timestamp','name','empId','idCard','branch','position','course','trainDate','timeSlot','note','round'];
@@ -582,7 +586,7 @@ function getConfig() {
   if (!brCached)  try { cache.put('cfg_branches_v2', JSON.stringify(branches), CACHE_SEC); } catch(e) {}
   if (!jdCached)  try { cache.put('cfg_jaedaengBranches_v2', JSON.stringify(jaedaengBranches), CACHE_SEC); } catch(e) {}
   if (!prmCached) try { cache.put('cfg_perms_v2', JSON.stringify(perms), CACHE_SEC); } catch(e) {}
-  return { ok: true, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches, perms: perms };
+  return { ok: true, version: BACKEND_VERSION, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches, perms: perms };
 }
 
 // อ่าน config ทีละ key · dflt = ค่า default ถ้าไม่เจอ/parse ไม่ได้
