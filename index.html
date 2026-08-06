@@ -5308,7 +5308,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 17:40';
+var HUB_BUILD = '2026-08-06 · 19:10';
 
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
@@ -5342,14 +5342,12 @@ function openStorageModal() {
     + '<div class="adm-modal-body">'
     +   banner
     +   '<div style="font-size:13px;line-height:1.9;color:var(--text2);margin-bottom:16px;">'
-    +     '<b>ทำตามลำดับ:</b><br>'
-    +     '① เปิด Supabase → SQL Editor → รันไฟล์ <code>supabase/schema.sql</code><br>'
-    +     '② กด <b>ย้ายการตั้งค่า</b> ด้านล่าง<br>'
-    +     '③ กด <b>เทียบ 2 ฝั่ง</b> ให้ครบทุกบรรทัด แล้วรีเฟรชหน้า'
+    +     'คุมที่เก็บข้อมูลของ <b>ทุกระบบ</b> จากตรงนี้ที่เดียว — HUB · ผู้สัมผัสอาหาร · ตรวจสาขา · สอบออนไลน์<br>'
+    +     '<b>ทำตามลำดับ:</b> ① รัน <code>supabase/schema.sql</code> ที่ Supabase → ② กด <b>ย้ายข้อมูลทั้งหมด</b> → ③ กด <b>เทียบ 2 ฝั่ง</b> ให้ครบทุกบรรทัด → ④ รีเฟรช'
     +   '</div>'
     +   '<div style="display:flex;gap:9px;flex-wrap:wrap;">'
-    +     '<button class="adm-btn-primary" onclick="hubRunMigrateConfig()">📦 ย้ายการตั้งค่า</button>'
-    +     '<button class="adm-btn-secondary" onclick="hubRunCompareConfig()">🔍 เทียบ 2 ฝั่ง</button>'
+    +     '<button class="adm-btn-primary" onclick="hubRunMigrateAll()">📦 ย้ายข้อมูลทั้งหมด</button>'
+    +     '<button class="adm-btn-secondary" onclick="hubRunCompareAll()">🔍 เทียบ 2 ฝั่ง</button>'
     +     '<button class="adm-btn-secondary" onclick="hubToggleSb()" style="color:#b91c1c;">'
     +       (on ? '✕ กลับไปใช้ Google Sheets' : '↻ เปิดใช้ Supabase') + '</button>'
     +   '</div>'
@@ -5370,6 +5368,40 @@ function hubToggleSb() {
   localStorage.setItem('hub_sb_cfg', JSON.stringify({ on: next, dualWrite: HUB_SB.dualWrite }));
   location.reload();
 }
+function hubRunMigrateAll() {
+  var out = document.getElementById('storageResult');
+  if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
+  out.innerHTML = 'กำลังย้าย...';
+  hubMigrateAll(function(msg){ out.innerHTML = msg; })
+    .then(function(rep){
+      out.innerHTML = rep.map(function(r){
+        if (r.error)   return '<span style="color:#b91c1c;">✗ <b>' + r.label + '</b> — ' + r.error + '</span>';
+        if (r.skipped) return '<span style="color:var(--text2);">⏭ <b>' + r.label + '</b> ข้าม — มีอยู่แล้ว ' + r.have + ' รายการ</span>';
+        return '<span style="color:#047857;">✓ <b>' + r.label + '</b> ย้ายแล้ว ' + r.inserted + ' รายการ</span>';
+      }).join('<br>')
+      + '<br><br><span style="color:var(--text2);">กด "เทียบ 2 ฝั่ง" ตรวจว่าครบ</span>';
+    })
+    .catch(function(e){ out.innerHTML = '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
+}
+function hubRunCompareAll() {
+  var out = document.getElementById('storageResult');
+  if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
+  out.innerHTML = 'กำลังเทียบ (อ่านทีละตาราง กัน Apps Script รับไม่ไหว)...';
+  hubCompareAll()
+    .then(function(rows){
+      out.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
+        + '<tr style="color:var(--text2);text-align:left;"><th style="padding:5px 0;">ข้อมูล</th><th>Google Sheets</th><th>Supabase</th><th></th></tr>'
+        + rows.map(function(r){
+            var mark = r.sheets == null ? '<span style="color:var(--text2);">อ่าน Sheets ไม่ได้</span>'
+                     : r.same ? '<span style="color:#047857;font-weight:700;">✓ ตรง</span>'
+                     : '<span style="color:#b45309;font-weight:700;">ต่าง ' + Math.abs((r.sheets || 0) - (r.supabase || 0)) + '</span>';
+            return '<tr><td style="padding:5px 0;">' + r.label + '</td><td>' + (r.sheets == null ? '—' : r.sheets)
+                 + '</td><td>' + (r.supabase == null ? '—' : r.supabase) + '</td><td>' + mark + '</td></tr>';
+          }).join('') + '</table>';
+    })
+    .catch(function(e){ out.innerHTML = '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
+}
+
 function hubRunMigrateConfig() {
   var out = document.getElementById('storageResult');
   if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
@@ -5500,7 +5532,117 @@ function hubGetConfig(opts) {
     });
   return _cfgInflight;
 }
-/* ═══════════ ย้ายข้อมูล Config: Sheets → Supabase ═══════════
+/* ═══════════ ตารางทั้งหมดของ Hub — คุมที่เดียวจากตรงนี้ ═══════════
+   หลักการเดียวกับสิทธิ์ปุ่ม: ตั้งที่ HUB ที่เดียว ไม่ต้องไล่เปิดทีละระบบ
+   map = แปลงจากรูปแบบที่ Apps Script คืนมา → คอลัมน์ใน Supabase */
+var HUB_TABLES = [
+  { label: 'การตั้งค่า',      action: 'config',       table: 'fh_config',       kind: 'config' },
+  { label: 'คำขออบรม',       action: 'requests',     table: 'fh_requests',     kind: 'rows',
+    map: function(r){
+      var o = { name: r.name || '', emp_id: String(r.empId || ''), id_card: String(r.idCard || ''),
+                branch: r.branch || '', position: r.position || '', course: r.course || '',
+                train_date: String(r.trainDate || ''), time_slot: r.timeSlot || '',
+                note: r.note || '', round: String(r.round || ''), brand: r.brand || '' };
+      if (r.timestamp) o.ts = String(r.timestamp).replace(' ', 'T');
+      return o;
+    } },
+  { label: 'ใบรับรอง',        action: 'certificates', table: 'fh_certificates', kind: 'rows',
+    map: function(c){
+      return { cert_name: c['ชื่อในใบรับรอง'] || '', course: c['หลักสูตร'] || '',
+               train_date: String(c['วันอบรม'] || ''), expire_date: String(c['วันหมดอายุ'] || ''),
+               exp_status: c['สถานะใบรับรอง'] || '', emp_name: c['ชื่อในระบบ'] || '',
+               branch: c['สาขา'] || '', position: c['ตำแหน่ง'] || '',
+               sheet: c['Sheet'] || '', match_type: c['สถานะจับคู่'] || '' };
+    } },
+  { label: 'ทะเบียนพนักงาน',  action: 'employees',    table: 'fh_employees',    kind: 'rows',
+    map: function(e){
+      return { name: e.name || '', emp_id: String(e.empId || ''), id_card: String(e.idCard || ''),
+               branch: e.branch || '', position: e.position || '', sheet: e.sheet || '' };
+    } }
+];
+
+/* อ่านจาก Apps Script (ทนต่อหน้า HTML error) */
+function _hubGetSheets(action) {
+  return fetch(SCRIPT_URL + (action === 'certificates' ? '' : '?action=' + action)
+               + (action === 'certificates' ? '?' : '&') + '_=' + Date.now(), { method: 'GET' })
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var s = String(t || '').trim();
+      if (s.charAt(0) !== '{') throw new Error('Apps Script ตอบไม่ใช่ข้อมูล — ลองใหม่อีกครั้ง');
+      return JSON.parse(s);
+    });
+}
+
+/* ย้ายทีละตาราง — ปลายทางมีข้อมูลอยู่แล้วจะข้าม (ไม่ยัดซ้ำ) */
+function hubMigrateTable(t) {
+  if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
+  return HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
+    .then(function(res){
+      if (res.error) throw res.error;
+      if ((res.count || 0) > 0) return { label: t.label, skipped: true, have: res.count };
+      return _hubGetSheets(t.action).then(function(g){
+        if (!g.ok) throw new Error(g.error || 'โหลดจาก Sheets ไม่สำเร็จ');
+        var rows;
+        if (t.kind === 'config') {
+          rows = HUB_CFG_KEYS.filter(function(k){ return g[k] != null; })
+                   .map(function(k){ return { key: k, value: g[k], updated_at: new Date().toISOString() }; });
+        } else {
+          rows = (g.records || []).map(t.map);
+        }
+        if (!rows.length) return { label: t.label, inserted: 0 };
+        // ยัดทีละ 500 แถว กัน payload ใหญ่เกิน
+        var CH = 500, done = 0;
+        function chunk(i) {
+          if (i >= rows.length) return { label: t.label, inserted: done };
+          return HUB_SB.client.from(t.table).insert(rows.slice(i, i + CH))
+            .then(function(r2){
+              if (r2.error) throw r2.error;
+              done += Math.min(CH, rows.length - i);
+              return chunk(i + CH);
+            });
+        }
+        return chunk(0);
+      });
+    });
+}
+
+/* ย้ายทุกตารางเรียงกัน (ไม่ยิงพร้อมกัน กัน Apps Script รับไม่ไหว) */
+function hubMigrateAll(onStep) {
+  var out = [], seq = Promise.resolve();
+  HUB_TABLES.forEach(function(t){
+    seq = seq.then(function(){
+      if (onStep) onStep('กำลังย้าย ' + t.label + '...');
+      return hubMigrateTable(t)
+        .then(function(r){ out.push(r); })
+        .catch(function(e){ out.push({ label: t.label, error: e.message || String(e) }); });
+    });
+  });
+  return seq.then(function(){ hubBustConfig(); return out; });
+}
+
+/* เทียบจำนวน 2 ฝั่งทุกตาราง */
+function hubCompareAll() {
+  if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
+  var out = [], seq = Promise.resolve();
+  HUB_TABLES.forEach(function(t){
+    seq = seq.then(function(){
+      return Promise.all([
+        _hubGetSheets(t.action).then(function(g){
+          return t.kind === 'config'
+            ? HUB_CFG_KEYS.filter(function(k){ return g[k] != null; }).length
+            : (g.records || []).length;
+        }).catch(function(){ return null; }),
+        HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
+          .then(function(r){ return r.error ? null : (r.count || 0); })
+      ]).then(function(n){
+        out.push({ label: t.label, sheets: n[0], supabase: n[1], same: n[0] != null && n[0] === n[1] });
+      });
+    });
+  });
+  return seq.then(function(){ return out; });
+}
+
+/* ═══════════ ย้ายข้อมูล Config: Sheets → Supabase (เก็บไว้ใช้เดี่ยว ๆ) ═══════════
    ปลอดภัย: อ่านจาก Sheets อย่างเดียว ไม่แตะข้อมูลต้นทาง */
 function hubSbMigrateConfig() {
   if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));

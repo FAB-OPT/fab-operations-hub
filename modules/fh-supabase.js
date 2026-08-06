@@ -245,7 +245,7 @@ function fhSbCompare() {
 }
 
 /* ═══════════ หน้าตั้งค่า "ที่เก็บข้อมูล" ในแอดมิน ═══════════ */
-var FH_BUILD = '2026-08-06 · 18:20';   // บัมพ์ทุกครั้งที่แก้ fh-*.js — ไว้เช็คว่าเบราว์เซอร์ใช้ของใหม่จริง
+var FH_BUILD = '2026-08-06 · 19:10';   // บัมพ์ทุกครั้งที่แก้ fh-*.js — ไว้เช็คว่าเบราว์เซอร์ใช้ของใหม่จริง
 
 function sbRenderStatus() {
   var chip = document.getElementById('sbStatusChip');
