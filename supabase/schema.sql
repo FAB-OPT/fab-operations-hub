@@ -86,8 +86,12 @@ create table if not exists public.fh_employees (
 );
 create index if not exists fh_employees_name_idx   on public.fh_employees (name);
 create index if not exists fh_employees_branch_idx on public.fh_employees (branch);
-create unique index if not exists fh_employees_empid_idx
-  on public.fh_employees (emp_id) where emp_id is not null and emp_id <> '';
+-- ⚠️ เคยตั้งเป็น unique แล้วย้ายข้อมูลไม่ได้ — ทะเบียนจริงมีรหัสซ้ำ 230 รหัส (เกินมา 240 แถว)
+--    ส่วนใหญ่คนเดียวกันถูกใส่ 2 ครั้งเพราะชื่อสาขาพิมพ์ต่างกัน
+--    แต่บางเคสเป็นคนละคนใช้รหัสเดียวกันจริง → ห้ามตัดทิ้งอัตโนมัติ
+--    จึงใช้ index ธรรมดา (ค้นเร็วเหมือนเดิม แต่ไม่บล็อกข้อมูลซ้ำ)
+drop index if exists public.fh_employees_empid_idx;
+create index if not exists fh_employees_empid_idx on public.fh_employees (emp_id);
 
 -- ═══════════════════════════════════════════════════════════════
 --  RLS
