@@ -3045,12 +3045,7 @@ function loadUsersFromCloud() {
     .catch(function(){ return USERS; });
 }
 function saveUsersToCloud() {
-  return fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'users', value: USERS })
-  })
-  .then(function(r){ return r.json(); })
+  return hubPostJson({ type: 'set-config', key: 'users', value: USERS })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 
@@ -3296,12 +3291,7 @@ function loadJdBranchesFromCloud() {
     .catch(function(){ return JAEDAENG_BRANCHES; });
 }
 function saveJdBranchesToCloud() {
-  return fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'jaedaengBranches', value: JAEDAENG_BRANCHES })
-  })
-  .then(function(r){ return r.json(); })
+  return hubPostJson({ type: 'set-config', key: 'jaedaengBranches', value: JAEDAENG_BRANCHES })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 loadJdBranchesLocal();
@@ -3343,15 +3333,10 @@ function loadBranchesFromCloud() {
     .catch(function(){ return BRANCHES; });
 }
 function saveBranchesToCloud() {
-  return fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({
-      type: 'set-config', key: 'branches',
-      value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP, statusMap: BRANCH_STATUS_MAP }
-    })
+  return hubPostJson({
+    type: 'set-config', key: 'branches',
+    value: { branches: BRANCHES, bzmMap: BRANCH_BZM_MAP, brandMap: BRANCH_BRAND_MAP, statusMap: BRANCH_STATUS_MAP }
   })
-  .then(function(r){ return r.json(); })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 loadBranchesLocal();
@@ -4150,13 +4135,7 @@ function saveSystemsToCloud() {
     }
     return s;
   });
-  return fetch(SCRIPT_URL, {
-    method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'systems', value: sysForCloud })
-  })
-  .then(function(r){ return r.json(); })
+  return hubPostJson({ type: 'set-config', key: 'systems', value: sysForCloud })
   .then(function(res){
     if (!res.ok) throw new Error(res.error || 'save failed');
     return res;
@@ -4215,12 +4194,7 @@ function updateAnnounceBtnVisibility() {
 }
 function saveAnnouncementsToCloud() {
   // ใช้ set-config endpoint ของ Apps Script (รองรับอยู่แล้ว) — เก็บลง Config sheet
-  return fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'announcements', value: ANNOUNCEMENTS })
-  })
-  .then(function(r){ return r.json(); })
+  return hubPostJson({ type: 'set-config', key: 'announcements', value: ANNOUNCEMENTS })
   .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 function getDismissedToday() {
@@ -5321,14 +5295,34 @@ function loadPermsFromCloud() {
       return PERMS_ALL;
     });
 }
-function savePermsToCloud() {
+/* ═══ ส่งข้อมูลขึ้น Apps Script แบบทนต่อ error ชั่วคราวของ Google ═══
+   Apps Script บางครั้งตอบ "หน้าเว็บ HTML" แทน JSON (เช่น ขออภัย ไม่สามารถเปิดไฟล์ได้ในเวลานี้)
+   ถ้าเรียก r.json() ตรง ๆ จะพังเป็น "Unexpected token '<'" ซึ่งผู้ใช้อ่านไม่รู้เรื่อง
+   → อ่านเป็นข้อความก่อน · ไม่ใช่ JSON ก็รอแล้วลองใหม่ · หมดโควตาค่อยบอกเป็นภาษาคน */
+function hubPostJson(payload, tries) {
+  tries = (tries == null) ? 3 : tries;
   return fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'set-config', key: 'perms', value: PERMS_ALL })
+    body: JSON.stringify(payload)
   })
-  .then(function(r){ return r.json(); })
-  .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(r){ return r.text(); })
+  .then(function(t){
+    var s = String(t == null ? '' : t).trim();
+    if (s.charAt(0) === '{' || s.charAt(0) === '[') {
+      try { return JSON.parse(s); } catch (e) {}
+    }
+    if (tries > 1) {
+      return new Promise(function(ok){ setTimeout(ok, 1500); })
+        .then(function(){ return hubPostJson(payload, tries - 1); });
+    }
+    throw new Error('เซิร์ฟเวอร์ตอบกลับมาไม่ใช่ข้อมูล (Apps Script ขัดข้องชั่วคราว) — ลองกดบันทึกอีกครั้งใน 1-2 นาที · ข้อมูลที่กรอกไว้ยังอยู่ ไม่ต้องติ๊กใหม่');
+  });
+}
+
+function savePermsToCloud() {
+  return hubPostJson({ type: 'set-config', key: 'perms', value: PERMS_ALL })
+    .then(function(res){ if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
 }
 
 function openPermsModal() {

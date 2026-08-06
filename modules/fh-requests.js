@@ -1240,12 +1240,27 @@ function saveAdminReqRounds() {
 /* ═══ งานหมู่: ยิงก้อนเดียว ไม่วนทีละแถว ═══
    เดิม 195 คน = 195 HTTP request ต่อคิวกัน แต่ละอัน Apps Script อ่านชีตทั้งใบ + จับ lock ≈ หลายนาที
    ตอนนี้ส่งทั้งก้อนไปครั้งเดียว · backend ที่ยังไม่ได้ deploy จะตอบ unknown type → ถอยไปใช้วิธีเดิมอัตโนมัติ */
-function _fhPost(payload) {
+/* Apps Script บางครั้งตอบหน้า HTML แทน JSON (ขัดข้องชั่วคราวฝั่ง Google)
+   r.json() จะพังเป็น "Unexpected token '<'" → อ่านเป็นข้อความก่อน ไม่ใช่ JSON ก็รอแล้วลองใหม่ */
+function _fhPost(payload, tries) {
+  tries = (tries == null) ? 3 : tries;
   return fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(payload)
-  }).then(function(r){ return r.json(); });
+  })
+  .then(function(r){ return r.text(); })
+  .then(function(t){
+    var s = String(t == null ? '' : t).trim();
+    if (s.charAt(0) === '{' || s.charAt(0) === '[') {
+      try { return JSON.parse(s); } catch (e) {}
+    }
+    if (tries > 1) {
+      return new Promise(function(ok){ setTimeout(ok, 1500); })
+        .then(function(){ return _fhPost(payload, tries - 1); });
+    }
+    throw new Error('เซิร์ฟเวอร์ตอบกลับมาไม่ใช่ข้อมูล (Apps Script ขัดข้องชั่วคราว) — ลองอีกครั้งใน 1-2 นาที');
+  });
 }
 function _fhReqKey(rec) {
   return { rowIndex: rec._rowIndex, name: rec.name, idCard: rec.idCard, timestamp: rec.timestamp };
