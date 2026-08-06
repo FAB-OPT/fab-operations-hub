@@ -28,14 +28,13 @@ function loadEmployeeRegistryFromCloud() {
     if (_ec && _ec.length) { empData = _ec; if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e){} } }
   }
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
-  return fetch(SCRIPT_URL + '?action=employees&_=' + Date.now(), { method: 'GET', cache: 'no-store' })
-    .then(function(r){ return r.json(); })
+  return fhLoadEmployees()
     .then(function(res){
-      if (!res || !res.ok) {
+      if (!res) {
         setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
         return;
       }
-      var records = res.records || [];
+      var records = res || [];
       if (records.length === 0) {
         setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
         return;
@@ -229,7 +228,7 @@ function adminReqDupDeleteSelected() {
     if (!ok) return;
     var btn = document.getElementById('adminReqDupDeleteBtn');
     if (btn) { btn.disabled = true; btn.textContent = 'กำลังลบ... 0/' + records.length; }
-    _fhBulkDelete(records, function(n, total){
+    fhBulkDeleteRequests(records, function(n, total){
       if (btn) btn.textContent = 'กำลังลบ... ' + n + '/' + total;
     }).then(function(r){
       showInfo('สรุปผลการลบ', '✓ ลบสำเร็จ <b>' + r.done + '</b> รายการ' + (r.failed ? ' · ✗ ล้มเหลว ' + r.failed + ' รายการ' : ''));
@@ -357,10 +356,9 @@ function loadFromCloud() {
   btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
   document.getElementById('processInfo').textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
 
-  // กันเบราว์เซอร์แคช GET เก่า (ลบแล้วรีเฟรชข้อมูลกลับมา เพราะได้ response เก่าจาก cache)
-  var _bust = (SCRIPT_URL.indexOf('?') >= 0 ? '&' : '?') + '_=' + Date.now();
-  fetch(SCRIPT_URL + _bust, { method: 'GET', cache: 'no-store' })
-  .then(function(r){ return r.json(); })
+  // fhLoadCertificates: Supabase ถ้าตั้งค่าไว้ · ไม่งั้น/พัง → Apps Script (doGet ไม่ระบุ action = certificates)
+  fhLoadCertificates()
+  .then(function(records){ return { ok: true, records: records }; })
   .then(function(res){
     btn.disabled = false;
     btn.innerHTML = '&#9729; โหลดจาก Cloud';

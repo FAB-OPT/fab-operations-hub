@@ -788,12 +788,11 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   else { info.textContent = 'กำลังโหลด...'; if (inlineInfo) inlineInfo.textContent = '· กำลังโหลด...'; }
 
   // 2) ดึงสดเบื้องหลัง + อัปเดตแคช + re-render (คืน promise ไว้ให้คนที่ต้องรอผลสด)
-  return fetch(SCRIPT_URL + '?action=requests&_=' + Date.now(), { method: 'GET' })
-    .then(function(r){ return r.json(); })
-    .then(function(res){
-      if (!res.ok) { if (!_cached) info.innerHTML = '<span style="color:var(--red)">โหลดไม่สำเร็จ: '+(res.error||'unknown')+'</span>'; return; }
-      _fhCacheSet('fh_requests_v1', res.records || []);
-      _process(res.records || []);
+  //    fhLoadRequests: Supabase ถ้าตั้งค่าไว้ · ไม่งั้น/พัง → Apps Script เหมือนเดิม
+  return fhLoadRequests()
+    .then(function(records){
+      _fhCacheSet('fh_requests_v1', records || []);
+      _process(records || []);
     })
     .catch(function(err){ if (!_cached) info.innerHTML = '<span style="color:var(--red)">เชื่อมต่อไม่ได้: '+err.message+'</span>'; });
 }
@@ -1156,7 +1155,7 @@ function saveAdminReqRounds() {
     });
     var done = 0, failed = 0;
     showLoadingOverlay('กำลังบันทึกรุ่นที่...', '0/' + payload.length);
-    _fhBulkUpdate(payload, function(n, total){
+    fhBulkUpdateRequests(payload, function(n, total){
       showLoadingOverlay('กำลังบันทึกรุ่นที่...', n + '/' + total);
     }).then(function(r){
       done = r.done; failed = r.failed;
@@ -1264,7 +1263,7 @@ function clearAllRequests() {
   }).then(function(ok){
     if (!ok) return;
     showLoadingOverlay('กำลังลบคำขออบรม...', '0/' + records.length);
-    _fhBulkDelete(records, function(n, total){
+    fhBulkDeleteRequests(records, function(n, total){
       showLoadingOverlay('กำลังลบคำขออบรม...', n + '/' + total);
     }).then(function(r){
       hideLoadingOverlay();

@@ -981,6 +981,7 @@ function fhSetTab(name){
   var wrap = document.getElementById('adm-sec-settings'); if(!wrap) return;
   wrap.querySelectorAll('.fh-tab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-tab')===name); });
   wrap.querySelectorAll('.fh-tabpanel').forEach(function(p){ p.classList.toggle('active', p.id==='fhTab-'+name); });
+  if (name === 'data') { try { sbRenderStatus(); } catch(e) {} }
 }
 // วันที่ไทย: ISO (ค.ศ.) ⇄ ข้อความไทย (พ.ศ.)
 var FH_TH_MON = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];

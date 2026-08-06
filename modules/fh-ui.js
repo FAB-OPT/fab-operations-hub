@@ -438,12 +438,8 @@ function submitRequests() {
     btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังส่ง...';
     statusEl.innerHTML = '';
     showLoadingOverlay('กำลังส่งข้อมูล...', 'กำลังส่งรายชื่อ '+valid.length+' รายการ — กรุณารอสักครู่');
-    fetch(SCRIPT_URL, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'save-requests', records: valid })
-    })
-    .then(function(r){ return r.json(); })
+    // fhSaveRequests: Supabase (+ สำรองลง Sheets) ถ้าตั้งค่าไว้ · ไม่งั้น → Sheets เหมือนเดิม
+    fhSaveRequests(valid)
     .then(function(res){
       btn.disabled = false; btn.innerHTML = '&#128228; ส่งรายชื่อทั้งหมด';
       if (res.ok) {
