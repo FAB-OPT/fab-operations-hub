@@ -31,6 +31,7 @@ function doGet(e) {
     if (action === 'exams')        return jsonOut(getExams());
     if (action === 'exam-results') return jsonOut(getExamResults());
     if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || '', (e && e.parameter && e.parameter.since) || ''));
+    if (action === 'counts')       return jsonOut(getCounts());   // นับแถวอย่างเดียว ไม่ต้องโหลดข้อมูลทั้งก้อน
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
   } catch (err) {
@@ -561,6 +562,39 @@ function bulkDeleteRequests(keys) {
     clearReqCache_();
     return { ok: true, deleted: deleted, notFound: notFound };
   } finally { lock.releaseLock(); }
+}
+
+/* นับจำนวนแถวของทุกชีต — ใช้ตอนเทียบข้อมูลกับ Supabase
+   getLastRow() ไม่ต้องอ่านข้อมูลเลย เร็วกว่าดึงทั้งก้อนมานับหลายสิบเท่า
+   (เดิมต้องโหลด ~1.2 MB มานับ 4 ตัวเลข) */
+function getCounts() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  function n(name) {
+    var sh = ss.getSheetByName(name);
+    if (!sh) return 0;
+    var last = sh.getLastRow();
+    return last > 1 ? last - 1 : 0;       // หักหัวตาราง
+  }
+  var cfg = 0;
+  try {
+    var c = ss.getSheetByName('Config');
+    if (c) {
+      var v = c.getDataRange().getValues();
+      for (var i = 1; i < v.length; i++) if (String(v[i][0] || '').trim()) cfg++;
+    }
+  } catch (e) {}
+  return {
+    ok: true, version: BACKEND_VERSION,
+    counts: {
+      config: cfg,
+      requests: n('Requests'),
+      certificates: n('Certificates'),
+      employees: n('Employees'),
+      fqaRecords: n('FqaRecords'),
+      exams: n('Exams'),
+      examResults: n('ExamResults')
+    }
+  };
 }
 
 /* ──────────────────── CONFIG ──────────────────── */

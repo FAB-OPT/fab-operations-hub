@@ -5308,7 +5308,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 19:10';
+var HUB_BUILD = '2026-08-06 · 19:45';
 
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
@@ -5383,23 +5383,38 @@ function hubRunMigrateAll() {
     })
     .catch(function(e){ out.innerHTML = '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
 }
+function _hubCmpRow(r) {
+  var mark = r.err ? '<span style="color:#b45309;" title="' + String(r.err).replace(/"/g, '') + '">อ่าน Sheets ไม่ได้</span>'
+           : r.sheets == null ? '<span style="color:var(--text2);">—</span>'
+           : r.same ? '<span style="color:#047857;font-weight:700;">✓ ตรง</span>'
+           : '<span style="color:#b45309;font-weight:700;">ต่าง ' + Math.abs((r.sheets || 0) - (r.supabase || 0)) + '</span>';
+  return '<tr><td style="padding:5px 0;">' + r.label + '</td><td>' + (r.sheets == null ? '—' : r.sheets)
+       + '</td><td><b>' + (r.supabase == null ? '—' : r.supabase) + '</b></td><td>' + mark + '</td></tr>';
+}
 function hubRunCompareAll() {
   var out = document.getElementById('storageResult');
   if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
-  out.innerHTML = 'กำลังเทียบ (อ่านทีละตาราง กัน Apps Script รับไม่ไหว)...';
-  hubCompareAll()
+  var head = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
+    + '<tr style="color:var(--text2);text-align:left;"><th style="padding:5px 0;">ข้อมูล</th><th>Google Sheets</th><th>Supabase</th><th></th></tr>';
+  var body = '';
+  var note = '<div style="color:var(--text2);margin-bottom:8px;">'
+    + 'ฝั่ง Google Sheets ต้องโหลดข้อมูลทั้งก้อนมานับ (~1.2 MB รวม) ใช้เวลาราว 10-20 วินาที · ฝั่ง Supabase นับทันที</div>';
+  out.innerHTML = note + '<div style="color:var(--text2);">กำลังเริ่ม...</div>';
+
+  hubCompareAll(function(row, p){
+    if (row) body += _hubCmpRow(row);
+    var status = p.step <= p.total && !row
+      ? '<div style="color:var(--text2);margin-top:6px;">⏳ กำลังอ่าน <b>' + p.label + '</b> (' + p.step + '/' + p.total + ')...</div>'
+      : '';
+    out.innerHTML = note + head + body + '</table>' + status;
+  })
     .then(function(rows){
-      out.innerHTML = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
-        + '<tr style="color:var(--text2);text-align:left;"><th style="padding:5px 0;">ข้อมูล</th><th>Google Sheets</th><th>Supabase</th><th></th></tr>'
-        + rows.map(function(r){
-            var mark = r.sheets == null ? '<span style="color:var(--text2);">อ่าน Sheets ไม่ได้</span>'
-                     : r.same ? '<span style="color:#047857;font-weight:700;">✓ ตรง</span>'
-                     : '<span style="color:#b45309;font-weight:700;">ต่าง ' + Math.abs((r.sheets || 0) - (r.supabase || 0)) + '</span>';
-            return '<tr><td style="padding:5px 0;">' + r.label + '</td><td>' + (r.sheets == null ? '—' : r.sheets)
-                 + '</td><td>' + (r.supabase == null ? '—' : r.supabase) + '</td><td>' + mark + '</td></tr>';
-          }).join('') + '</table>';
+      var allSame = rows.every(function(r){ return r.same; });
+      out.innerHTML = note + head + body + '</table>'
+        + '<div style="margin-top:10px;font-weight:700;color:' + (allSame ? '#047857' : '#b45309') + ';">'
+        + (allSame ? '✓ ตรงกันครบทุกรายการ — ย้ายสำเร็จ' : '⚠️ มีบางรายการไม่ตรง ดูรายละเอียดด้านบน') + '</div>';
     })
-    .catch(function(e){ out.innerHTML = '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
+    .catch(function(e){ out.innerHTML = note + '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
 }
 
 function hubRunMigrateConfig() {
@@ -5561,16 +5576,22 @@ var HUB_TABLES = [
     } }
 ];
 
-/* อ่านจาก Apps Script (ทนต่อหน้า HTML error) */
-function _hubGetSheets(action) {
-  return fetch(SCRIPT_URL + (action === 'certificates' ? '' : '?action=' + action)
-               + (action === 'certificates' ? '?' : '&') + '_=' + Date.now(), { method: 'GET' })
+/* อ่านจาก Apps Script (ทนต่อหน้า HTML error + มีเพดานเวลา ไม่ค้างถาวร)
+   หมายเหตุ: ชุด certificates/employees ก้อนละ ~400 KB ใช้เวลา 3-4 วิต่อชุด
+   จึงต้องรายงานความคืบหน้าให้เห็น ไม่งั้นผู้ใช้นึกว่าค้าง */
+function _hubGetSheets(action, timeoutMs) {
+  var url = SCRIPT_URL + (action === 'certificates' ? '?' : '?action=' + action + '&') + '_=' + Date.now();
+  var req = fetch(url, { method: 'GET' })
     .then(function(r){ return r.text(); })
     .then(function(t){
       var s = String(t || '').trim();
-      if (s.charAt(0) !== '{') throw new Error('Apps Script ตอบไม่ใช่ข้อมูล — ลองใหม่อีกครั้ง');
+      if (s.charAt(0) !== '{') throw new Error('Apps Script ตอบเป็นหน้าเว็บ ไม่ใช่ข้อมูล (ขัดข้องชั่วคราว)');
       return JSON.parse(s);
     });
+  var limit = new Promise(function(_, rej){
+    setTimeout(function(){ rej(new Error('เกิน ' + Math.round((timeoutMs || 30000) / 1000) + ' วินาที — Apps Script ไม่ตอบ')); }, timeoutMs || 30000);
+  });
+  return Promise.race([req, limit]);
 }
 
 /* ย้ายทีละตาราง — ปลายทางมีข้อมูลอยู่แล้วจะข้าม (ไม่ยัดซ้ำ) */
@@ -5620,26 +5641,45 @@ function hubMigrateAll(onStep) {
   return seq.then(function(){ hubBustConfig(); return out; });
 }
 
-/* เทียบจำนวน 2 ฝั่งทุกตาราง */
-function hubCompareAll() {
+/* เทียบจำนวน 2 ฝั่งทุกตาราง — รายงานผลทีละบรรทัดผ่าน onRow ไม่ต้องรอจนครบ
+   ฝั่ง Supabase นับเร็วมาก (head:true ไม่ดึงข้อมูล) · ฝั่ง Sheets ต้องโหลดทั้งก้อน จึงช้า */
+function hubCompareAll(onRow) {
   if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
-  var out = [], seq = Promise.resolve();
-  HUB_TABLES.forEach(function(t){
-    seq = seq.then(function(){
-      return Promise.all([
-        _hubGetSheets(t.action).then(function(g){
-          return t.kind === 'config'
-            ? HUB_CFG_KEYS.filter(function(k){ return g[k] != null; }).length
-            : (g.records || []).length;
-        }).catch(function(){ return null; }),
-        HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
-          .then(function(r){ return r.error ? null : (r.count || 0); })
-      ]).then(function(n){
-        out.push({ label: t.label, sheets: n[0], supabase: n[1], same: n[0] != null && n[0] === n[1] });
+  var out = [], seq;
+  // ทางเร็ว: ?action=counts นับให้เลย ไม่ต้องโหลดข้อมูลทั้งก้อน (ต้อง deploy Code.gs ใหม่)
+  // ยังไม่ deploy → counts จะไม่มา แล้วถอยไปนับเองแบบเดิม
+  seq = _hubGetSheets('counts', 20000)
+    .then(function(g){ return (g && g.counts) ? g.counts : null; })
+    .catch(function(){ return null; });
+
+  return seq.then(function(fast){
+    var chain = Promise.resolve();
+    HUB_TABLES.forEach(function(t, i){
+      chain = chain.then(function(){
+        if (onRow) onRow(null, { step: i + 1, total: HUB_TABLES.length, label: t.label, fast: !!fast });
+        return Promise.all([
+          (fast && fast[t.action] != null)
+            ? Promise.resolve(fast[t.action])
+            : _hubGetSheets(t.action, 30000).then(function(g){
+                return t.kind === 'config'
+                  ? HUB_CFG_KEYS.filter(function(k){ return g[k] != null; }).length
+                  : (g.records || []).length;
+              }).catch(function(e){ return { err: e.message || String(e) }; }),
+          HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
+            .then(function(r){ return r.error ? { err: r.error.message } : (r.count || 0); })
+        ]).then(function(n){
+          var sheets = (n[0] && n[0].err) ? null : n[0];
+          var sb = (n[1] && n[1].err) ? null : n[1];
+          var row = { label: t.label, sheets: sheets, supabase: sb,
+                      err: (n[0] && n[0].err) || null,
+                      same: sheets != null && sheets === sb };
+          out.push(row);
+          if (onRow) onRow(row, { step: i + 1, total: HUB_TABLES.length, label: t.label });
+        });
       });
     });
+    return chain.then(function(){ return out; });
   });
-  return seq.then(function(){ return out; });
 }
 
 /* ═══════════ ย้ายข้อมูล Config: Sheets → Supabase (เก็บไว้ใช้เดี่ยว ๆ) ═══════════
