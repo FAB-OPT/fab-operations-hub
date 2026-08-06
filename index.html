@@ -5362,7 +5362,45 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 20:40';
+var HUB_BUILD = '2026-08-06 · 21:05';
+
+/* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
+   GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
+   เบราว์เซอร์จึงใช้ของเก่าได้นานถึง 10 นาที โดยผู้ใช้ไม่รู้ตัว
+   (หลงมาแล้ว 3 รอบ — นึกว่าโค้ดไม่ขึ้น ทั้งที่ขึ้นแล้ว)
+   → ดึงไฟล์ตัวเองแบบ no-store มาเทียบเลขรุ่น ถ้าใหม่กว่าค่อยเตือน */
+function hubCheckForUpdate() {
+  try {
+    fetch(location.pathname + '?_fresh=' + Date.now(), { cache: 'no-store' })
+      .then(function(r){ return r.text(); })
+      .then(function(t){
+        var m = /var HUB_BUILD = '2026-08-06 · 21:05']+)'/.exec(t);
+        if (m && m[1] && m[1] !== HUB_BUILD) hubShowUpdateBar(m[1]);
+      })
+      .catch(function(){});
+  } catch (e) {}
+}
+function hubShowUpdateBar(newBuild) {
+  if (document.getElementById('hubUpdateBar')) return;
+  var d = document.createElement('div');
+  d.id = 'hubUpdateBar';
+  d.style.cssText = 'position:fixed;left:0;right:0;bottom:0;z-index:99999;display:flex;gap:12px;'
+    + 'align-items:center;justify-content:center;flex-wrap:wrap;padding:12px 16px;'
+    + 'background:linear-gradient(135deg,#1e293b,#0f172a);color:#fff;font-size:13.5px;'
+    + 'box-shadow:0 -4px 18px rgba(15,23,42,.28);font-family:inherit;';
+  d.innerHTML = '<span>🔄 มีเวอร์ชันใหม่ของหน้านี้แล้ว <b>' + newBuild + '</b> '
+    + '<span style="opacity:.7;">(ที่เปิดอยู่ ' + HUB_BUILD + ')</span></span>'
+    + '<button onclick="hubForceReload()" style="border:0;border-radius:9px;padding:8px 16px;'
+    + 'background:#f97316;color:#fff;font-weight:800;font-size:13px;cursor:pointer;font-family:inherit;">โหลดเวอร์ชันใหม่</button>'
+    + '<button onclick="this.parentNode.remove()" style="border:1px solid rgba(255,255,255,.3);border-radius:9px;'
+    + 'padding:8px 14px;background:transparent;color:#fff;font-size:13px;cursor:pointer;font-family:inherit;">ไว้ทีหลัง</button>';
+  document.body.appendChild(d);
+}
+/* เปลี่ยน URL ให้ต่างจากเดิม = เบราว์เซอร์บังคับโหลดใหม่แน่นอน ไม่ต้องพึ่ง Ctrl+Shift+R */
+function hubForceReload() {
+  location.href = location.pathname + '?v=' + Date.now() + location.hash;
+}
+window.addEventListener('DOMContentLoaded', function(){ setTimeout(hubCheckForUpdate, 3000); });
 
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
@@ -5423,6 +5461,7 @@ function openStorageModal() {
     + '</div></div>';
   m.classList.add('show');
   hubLoadSbCounts();   // เลขฝั่ง Supabase ขึ้นทันที (นับเร็วมาก) ส่วน Sheets ต้องกดเทียบเอง
+  hubCheckForUpdate(); // จุดนี้เจอปัญหา "เห็นหน้าเก่า" บ่อยสุด — เช็คให้เลย
 }
 
 /* เติมเลขฝั่ง Supabase ให้ตารางทันทีที่เปิด — head:true ไม่ดึงข้อมูล จึงเร็วมาก */
