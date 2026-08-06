@@ -5308,7 +5308,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 19:45';
+var HUB_BUILD = '2026-08-06 · 20:15';
 
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
@@ -5579,29 +5579,42 @@ var HUB_TABLES = [
 /* อ่านจาก Apps Script (ทนต่อหน้า HTML error + มีเพดานเวลา ไม่ค้างถาวร)
    หมายเหตุ: ชุด certificates/employees ก้อนละ ~400 KB ใช้เวลา 3-4 วิต่อชุด
    จึงต้องรายงานความคืบหน้าให้เห็น ไม่งั้นผู้ใช้นึกว่าค้าง */
-function _hubGetSheets(action, timeoutMs) {
+function _hubGetSheets(action, timeoutMs, tries, onRetry) {
+  tries = (tries == null) ? 4 : tries;
+  var attempt = 4 - tries + 1;
   var url = SCRIPT_URL + (action === 'certificates' ? '?' : '?action=' + action + '&') + '_=' + Date.now();
   var req = fetch(url, { method: 'GET' })
     .then(function(r){ return r.text(); })
     .then(function(t){
       var s = String(t || '').trim();
-      if (s.charAt(0) !== '{') throw new Error('Apps Script ตอบเป็นหน้าเว็บ ไม่ใช่ข้อมูล (ขัดข้องชั่วคราว)');
+      if (s.charAt(0) !== '{') throw new Error('Apps Script ตอบเป็นหน้าเว็บ ไม่ใช่ข้อมูล');
       return JSON.parse(s);
     });
   var limit = new Promise(function(_, rej){
-    setTimeout(function(){ rej(new Error('เกิน ' + Math.round((timeoutMs || 30000) / 1000) + ' วินาที — Apps Script ไม่ตอบ')); }, timeoutMs || 30000);
+    setTimeout(function(){ rej(new Error('เกิน ' + Math.round((timeoutMs || 30000) / 1000) + ' วินาที Apps Script ไม่ตอบ')); }, timeoutMs || 30000);
   });
-  return Promise.race([req, limit]);
+  return Promise.race([req, limit]).catch(function(e){
+    // Apps Script ล้มบ่อยเวลาข้อมูลก้อนใหญ่ (employees 375 KB · certificates 407 KB)
+    // มักหายเองถ้ารอสักครู่ → ถอยหลังเพิ่มขึ้นเรื่อย ๆ 2/4/6 วินาที
+    if (tries <= 1) throw new Error(e.message + ' (ลองแล้ว 4 ครั้ง)');
+    var wait = attempt * 2000;
+    if (onRetry) onRetry(attempt, wait);
+    return new Promise(function(ok){ setTimeout(ok, wait); })
+      .then(function(){ return _hubGetSheets(action, timeoutMs, tries - 1, onRetry); });
+  });
 }
 
 /* ย้ายทีละตาราง — ปลายทางมีข้อมูลอยู่แล้วจะข้าม (ไม่ยัดซ้ำ) */
-function hubMigrateTable(t) {
+function hubMigrateTable(t, onStep) {
   if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
   return HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
     .then(function(res){
       if (res.error) throw res.error;
       if ((res.count || 0) > 0) return { label: t.label, skipped: true, have: res.count };
-      return _hubGetSheets(t.action).then(function(g){
+      var onRetry = function(n, wait){
+        if (onStep) onStep('⚠️ ' + t.label + ' — Apps Script ไม่ตอบ (ครั้งที่ ' + n + ') รอ ' + (wait / 1000) + ' วิ แล้วลองใหม่...');
+      };
+      return _hubGetSheets(t.action, 40000, 4, onRetry).then(function(g){
         if (!g.ok) throw new Error(g.error || 'โหลดจาก Sheets ไม่สำเร็จ');
         var rows;
         if (t.kind === 'config') {
@@ -5633,7 +5646,7 @@ function hubMigrateAll(onStep) {
   HUB_TABLES.forEach(function(t){
     seq = seq.then(function(){
       if (onStep) onStep('กำลังย้าย ' + t.label + '...');
-      return hubMigrateTable(t)
+      return hubMigrateTable(t, onStep)
         .then(function(r){ out.push(r); })
         .catch(function(e){ out.push({ label: t.label, error: e.message || String(e) }); });
     });
