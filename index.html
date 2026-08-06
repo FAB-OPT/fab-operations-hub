@@ -1711,6 +1711,60 @@ input[type=file] { display:none; }
   .stats-row { grid-template-columns:repeat(2, 1fr); }
   .login-card { padding:24px 18px 18px; }
 }
+
+/* ══════════ หน้า "ที่เก็บข้อมูล" ══════════ */
+.stg-box { max-width: 640px; }
+.stg-body { padding-top: 4px; }
+
+/* แถบสถานะบนสุด */
+.stg-hero { display:flex; gap:14px; align-items:flex-start; padding:16px 18px; border-radius:14px; margin-bottom:16px; }
+.stg-hero.stg-on  { background:linear-gradient(135deg,#ecfdf5,#f0fdfa); border:1px solid #a7f3d0; }
+.stg-hero.stg-off { background:linear-gradient(135deg,#fff7ed,#fffbeb); border:1px solid #fed7aa; }
+.stg-hero-ic { width:42px; height:42px; border-radius:12px; display:flex; align-items:center; justify-content:center;
+               font-size:21px; flex:none; background:rgba(255,255,255,.75); }
+.stg-hero-body { min-width:0; }
+.stg-hero-title { font-size:17px; font-weight:800; letter-spacing:-.2px; line-height:1.2; }
+.stg-on  .stg-hero-title { color:#065f46; }
+.stg-off .stg-hero-title { color:#9a3412; }
+.stg-hero-sub { font-size:12.5px; line-height:1.65; margin-top:5px; }
+.stg-on  .stg-hero-sub { color:#047857; }
+.stg-off .stg-hero-sub { color:#b45309; }
+
+.stg-note { font-size:12.5px; color:var(--text2); line-height:1.65; margin-bottom:14px; }
+
+/* ตารางสถานะ */
+.stg-table { width:100%; border-collapse:collapse; font-size:13px; }
+.stg-table th { text-align:left; font-size:11px; font-weight:700; color:var(--text2); letter-spacing:.4px;
+                padding:0 10px 8px; border-bottom:1px solid var(--border); }
+.stg-table th:nth-child(2), .stg-table th:nth-child(3) { text-align:right; }
+.stg-table td { padding:10px; border-bottom:1px solid var(--border); }
+.stg-table tr:last-child td { border-bottom:0; }
+.stg-name { font-weight:600; color:var(--text); }
+.stg-num  { text-align:right; font-variant-numeric:tabular-nums; color:var(--text2); white-space:nowrap; }
+.stg-num.stg-has  { color:var(--text); font-weight:700; }
+.stg-num.stg-zero { color:#b45309; font-weight:700; }
+.stg-mark { text-align:right; white-space:nowrap; font-size:11.5px; }
+.stg-okmark { color:#047857; font-weight:700; }
+.stg-warn   { color:#b45309; font-weight:700; }
+.stg-diff   { color:#b45309; font-weight:700; }
+.stg-fail   { color:var(--text2); }
+
+.stg-result:not(:empty) { margin-top:14px; padding:12px 14px; border-radius:11px; background:var(--bg3);
+                          font-size:12.5px; line-height:1.75; }
+
+.stg-actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:18px; }
+.stg-actions .adm-btn-secondary { font-size:12.5px; }
+.stg-danger { color:#b91c1c !important; border-color:#fecaca !important; margin-left:auto; }
+.stg-danger:hover { background:#fef2f2 !important; }
+
+.stg-foot { margin-top:16px; padding-top:12px; border-top:1px dashed var(--border);
+            font-size:11px; color:var(--text2); line-height:1.7; }
+
+@media (max-width: 560px) {
+  .stg-hero { flex-direction:column; gap:10px; }
+  .stg-actions .adm-btn-secondary { flex:1; justify-content:center; }
+  .stg-danger { margin-left:0; flex-basis:100%; }
+}
 </style>
 <!-- Firebase (เก็บประวัติการเข้าใช้งาน — collection hubAccessLog) -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -5308,7 +5362,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 20:15';
+var HUB_BUILD = '2026-08-06 · 20:40';
 
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
@@ -5320,101 +5374,133 @@ function openStorageModal() {
     document.body.appendChild(m);
   }
   var on = HUB_SB.ready;
-  // สร้างกล่องสถานะแยกออกมาก่อน — ต่อสตริงยาว ๆ คาเทอร์นารีเคยพลาดจน + ซ้อนกันเป็น NaN มาแล้ว
-  var banner;
-  if (on) {
-    banner = '<div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.7;'
-      + 'background:#ecfdf5;border:1px solid #a7f3d0;color:#065f46;">'
-      + '✅ กำลังใช้ <b>Supabase</b>'
-      + (HUB_SB.dualWrite ? ' · เขียนสำรองลง Google Sheets ด้วย' : '')
-      + '<br><span style="opacity:.8;">ถ้า Supabase มีปัญหา ระบบจะกลับไปใช้ Google Sheets ให้เองอัตโนมัติ</span>'
-      + '</div>';
-  } else {
-    banner = '<div style="padding:14px 16px;border-radius:12px;margin-bottom:16px;font-size:13.5px;line-height:1.7;'
-      + 'background:#fff7ed;border:1px solid #fed7aa;color:#9a3412;">'
-      + '📄 กำลังใช้ <b>Google Sheets</b>'
-      + '<br><span style="opacity:.8;">วัดจริง: เปิด HUB ~30 วินาที · ย้ายไป Supabase จะเหลือ 1-2 วินาที</span>'
-      + '</div>';
-  }
-  m.innerHTML = '<div class="adm-modal-box" style="max-width:700px;">'
+  // แยกสร้างทีละส่วน อ่านง่ายกว่าต่อสตริงยาว ๆ (เคยพลาดจน + ซ้อนกันเป็น NaN มาแล้ว)
+  var head =
+      '<div class="stg-hero ' + (on ? 'stg-on' : 'stg-off') + '">'
+    +   '<div class="stg-hero-ic">' + (on ? '⚡' : '📄') + '</div>'
+    +   '<div class="stg-hero-body">'
+    +     '<div class="stg-hero-title">' + (on ? 'Supabase' : 'Google Sheets') + '</div>'
+    +     '<div class="stg-hero-sub">' + (on
+          ? 'เร็ว · รับงานพร้อมกันได้' + (HUB_SB.dualWrite ? ' · เขียนสำเนาสำรองลง Sheets เบื้องหลัง' : '')
+            + '<br>ถ้า Supabase มีปัญหา ระบบจะกลับไปใช้ Google Sheets ให้เองอัตโนมัติ'
+          : 'ช้า — เปิด HUB ราว 30 วินาที และล้มบ่อยเวลาเรียกพร้อมกัน<br>กดปุ่มด้านล่างเพื่อเปิดใช้ Supabase') + '</div>'
+    +   '</div>'
+    + '</div>';
+
+  var rows = HUB_TABLES.map(function(t){
+    return '<tr data-stg="' + t.table + '">'
+      + '<td class="stg-name">' + t.label + '</td>'
+      + '<td class="stg-num" data-col="sb">—</td>'
+      + '<td class="stg-num" data-col="sh">—</td>'
+      + '<td class="stg-mark">—</td></tr>';
+  }).join('');
+
+  var table =
+      '<table class="stg-table">'
+    +   '<thead><tr><th>ข้อมูล</th><th>Supabase</th><th>Google Sheets</th><th></th></tr></thead>'
+    +   '<tbody id="stgRows">' + rows + '</tbody>'
+    + '</table>';
+
+  m.innerHTML = '<div class="adm-modal-box stg-box">'
     + '<div class="adm-modal-header"><div class="adm-modal-title">🗄️ ที่เก็บข้อมูล</div>'
     +   '<button class="adm-modal-close" onclick="closeStorageModal()"><svg class="ico"><use href="#i-x"/></svg></button></div>'
-    + '<div class="adm-modal-body">'
-    +   banner
-    +   '<div style="font-size:13px;line-height:1.9;color:var(--text2);margin-bottom:16px;">'
-    +     'คุมที่เก็บข้อมูลของ <b>ทุกระบบ</b> จากตรงนี้ที่เดียว — HUB · ผู้สัมผัสอาหาร · ตรวจสาขา · สอบออนไลน์<br>'
-    +     '<b>ทำตามลำดับ:</b> ① รัน <code>supabase/schema.sql</code> ที่ Supabase → ② กด <b>ย้ายข้อมูลทั้งหมด</b> → ③ กด <b>เทียบ 2 ฝั่ง</b> ให้ครบทุกบรรทัด → ④ รีเฟรช'
-    +   '</div>'
-    +   '<div style="display:flex;gap:9px;flex-wrap:wrap;">'
-    +     '<button class="adm-btn-primary" onclick="hubRunMigrateAll()">📦 ย้ายข้อมูลทั้งหมด</button>'
-    +     '<button class="adm-btn-secondary" onclick="hubRunCompareAll()">🔍 เทียบ 2 ฝั่ง</button>'
-    +     '<button class="adm-btn-secondary" onclick="hubToggleSb()" style="color:#b91c1c;">'
+    + '<div class="adm-modal-body stg-body">'
+    +   head
+    +   '<div class="stg-note">คุมที่เก็บข้อมูลของ <b>ทุกระบบ</b> จากที่นี่ที่เดียว — HUB · ผู้สัมผัสอาหาร · ตรวจสาขา · สอบออนไลน์</div>'
+    +   table
+    +   '<div id="storageResult" class="stg-result"></div>'
+    +   '<div class="stg-actions">'
+    +     '<button class="adm-btn-secondary" onclick="hubRunCompareAll()">🔍 เทียบกับ Google Sheets</button>'
+    +     '<button class="adm-btn-secondary" onclick="hubRunMigrateAll()">📦 ย้ายข้อมูลที่ยังไม่ได้ย้าย</button>'
+    +     '<button class="adm-btn-secondary stg-danger" onclick="hubToggleSb()">'
     +       (on ? '✕ กลับไปใช้ Google Sheets' : '↻ เปิดใช้ Supabase') + '</button>'
     +   '</div>'
-    +   '<div id="storageResult" style="margin-top:16px;font-size:13px;line-height:1.8;"></div>'
-    +   '<div style="margin-top:18px;padding-top:13px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--text2);line-height:1.7;">'
-    +     'รุ่นของหน้านี้: <b>' + HUB_BUILD + '</b>'
-    +     ' · เขียนสำเนาสำรอง: <b>' + (HUB_SB.dualWrite ? 'เปิด' : 'ปิด') + '</b>'
-    +     '<br>ถ้าตัวเลขรุ่นไม่ตรงกับที่แจ้งไว้ แปลว่าเบราว์เซอร์ยังใช้ไฟล์เก่า — กด Ctrl+Shift+R'
+    +   '<div class="stg-foot">'
+    +     'รุ่นของหน้านี้ <b>' + HUB_BUILD + '</b> · ฐานข้อมูล <b>'
+    +       String(HUB_SB.url || '—').replace(/^https:\/\//, '').replace(/\.supabase\.co$/, '') + '</b>'
+    +     '<br>เลขรุ่นไม่ตรงกับที่แจ้งไว้ = เบราว์เซอร์ยังใช้ไฟล์เก่า กด Ctrl+Shift+R'
     +   '</div>'
     + '</div></div>';
   m.classList.add('show');
+  hubLoadSbCounts();   // เลขฝั่ง Supabase ขึ้นทันที (นับเร็วมาก) ส่วน Sheets ต้องกดเทียบเอง
+}
+
+/* เติมเลขฝั่ง Supabase ให้ตารางทันทีที่เปิด — head:true ไม่ดึงข้อมูล จึงเร็วมาก */
+function hubLoadSbCounts() {
+  if (!HUB_SB.ready) return;
+  HUB_TABLES.forEach(function(t){
+    HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true }).then(function(r){
+      var tr = document.querySelector('#stgRows tr[data-stg="' + t.table + '"]');
+      if (!tr) return;
+      var cell = tr.querySelector('[data-col="sb"]');
+      var n = r.error ? null : (r.count || 0);
+      cell.textContent = n == null ? 'อ่านไม่ได้' : n.toLocaleString();
+      cell.className = 'stg-num' + (n ? ' stg-has' : ' stg-zero');
+      var mark = tr.querySelector('.stg-mark');
+      if (n === 0) mark.innerHTML = '<span class="stg-warn">ยังไม่ได้ย้าย</span>';
+      else if (n) mark.innerHTML = '<span class="stg-okmark">มีข้อมูล</span>';
+    });
+  });
 }
 function closeStorageModal() {
   var m = document.getElementById('storageModal'); if (m) m.classList.remove('show');
 }
+/* สลับที่นี่ = สลับให้ทุกระบบ
+   HUB กับโมดูลผู้สัมผัสอาหารเก็บสถานะคนละคีย์ แต่อยู่ origin เดียวกัน
+   จึงเขียนให้ทั้งคู่จากตรงนี้ได้ — ไม่งั้นสลับที่ HUB แล้วโมดูลยังใช้ Supabase อยู่ */
 function hubToggleSb() {
   var next = !HUB_SB.ready;
-  localStorage.setItem('hub_sb_cfg', JSON.stringify({ on: next, dualWrite: HUB_SB.dualWrite }));
+  try {
+    localStorage.setItem('hub_sb_cfg', JSON.stringify({ on: next, dualWrite: HUB_SB.dualWrite }));
+    localStorage.setItem('fh_sb_cfg',  JSON.stringify({ on: next, dualWrite: HUB_SB.dualWrite }));
+  } catch (e) {}
   location.reload();
 }
 function hubRunMigrateAll() {
   var out = document.getElementById('storageResult');
-  if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
+  if (!HUB_SB.ready) { out.innerHTML = '<span class="stg-warn">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
   out.innerHTML = 'กำลังย้าย...';
   hubMigrateAll(function(msg){ out.innerHTML = msg; })
     .then(function(rep){
+      var moved = rep.filter(function(r){ return r.inserted; });
       out.innerHTML = rep.map(function(r){
-        if (r.error)   return '<span style="color:#b91c1c;">✗ <b>' + r.label + '</b> — ' + r.error + '</span>';
-        if (r.skipped) return '<span style="color:var(--text2);">⏭ <b>' + r.label + '</b> ข้าม — มีอยู่แล้ว ' + r.have + ' รายการ</span>';
-        return '<span style="color:#047857;">✓ <b>' + r.label + '</b> ย้ายแล้ว ' + r.inserted + ' รายการ</span>';
+        if (r.error)   return '<span class="stg-diff">✗ <b>' + r.label + '</b> — ' + r.error + '</span>';
+        if (r.skipped) return '<span class="stg-fail">⏭ <b>' + r.label + '</b> มีอยู่แล้ว ' + r.have.toLocaleString() + ' รายการ</span>';
+        return '<span class="stg-okmark">✓ <b>' + r.label + '</b> ย้ายแล้ว ' + r.inserted.toLocaleString() + ' รายการ</span>';
       }).join('<br>')
-      + '<br><br><span style="color:var(--text2);">กด "เทียบ 2 ฝั่ง" ตรวจว่าครบ</span>';
+      + (moved.length ? '<br><br>กด "เทียบกับ Google Sheets" เพื่อตรวจว่าครบ' : '');
+      hubLoadSbCounts();   // อัปเลขในตารางให้ตรงกับที่เพิ่งย้าย
     })
-    .catch(function(e){ out.innerHTML = '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
+    .catch(function(e){ out.innerHTML = '<span class="stg-diff">✗ ' + (e.message || e) + '</span>'; });
 }
-function _hubCmpRow(r) {
-  var mark = r.err ? '<span style="color:#b45309;" title="' + String(r.err).replace(/"/g, '') + '">อ่าน Sheets ไม่ได้</span>'
-           : r.sheets == null ? '<span style="color:var(--text2);">—</span>'
-           : r.same ? '<span style="color:#047857;font-weight:700;">✓ ตรง</span>'
-           : '<span style="color:#b45309;font-weight:700;">ต่าง ' + Math.abs((r.sheets || 0) - (r.supabase || 0)) + '</span>';
-  return '<tr><td style="padding:5px 0;">' + r.label + '</td><td>' + (r.sheets == null ? '—' : r.sheets)
-       + '</td><td><b>' + (r.supabase == null ? '—' : r.supabase) + '</b></td><td>' + mark + '</td></tr>';
+/* เติมผลการเทียบลงในตารางเดิม ไม่สร้างตารางซ้อน */
+function _hubFillCmp(r) {
+  var t = HUB_TABLES.filter(function(x){ return x.label === r.label; })[0];
+  var tr = t && document.querySelector('#stgRows tr[data-stg="' + t.table + '"]');
+  if (!tr) return;
+  var sh = tr.querySelector('[data-col="sh"]');
+  sh.textContent = r.sheets == null ? 'อ่านไม่ได้' : r.sheets.toLocaleString();
+  sh.className = 'stg-num' + (r.sheets ? ' stg-has' : '');
+  var mark = tr.querySelector('.stg-mark');
+  if (r.err)            mark.innerHTML = '<span class="stg-fail" title="' + String(r.err).replace(/"/g, '') + '">อ่าน Sheets ไม่ได้</span>';
+  else if (r.same)      mark.innerHTML = '<span class="stg-okmark">✓ ตรง</span>';
+  else                  mark.innerHTML = '<span class="stg-diff">ต่าง ' + Math.abs((r.sheets || 0) - (r.supabase || 0)) + '</span>';
 }
 function hubRunCompareAll() {
   var out = document.getElementById('storageResult');
-  if (!HUB_SB.ready) { out.innerHTML = '<span style="color:#b45309;">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
-  var head = '<table style="width:100%;border-collapse:collapse;font-size:12.5px;">'
-    + '<tr style="color:var(--text2);text-align:left;"><th style="padding:5px 0;">ข้อมูล</th><th>Google Sheets</th><th>Supabase</th><th></th></tr>';
-  var body = '';
-  var note = '<div style="color:var(--text2);margin-bottom:8px;">'
-    + 'ฝั่ง Google Sheets ต้องโหลดข้อมูลทั้งก้อนมานับ (~1.2 MB รวม) ใช้เวลาราว 10-20 วินาที · ฝั่ง Supabase นับทันที</div>';
-  out.innerHTML = note + '<div style="color:var(--text2);">กำลังเริ่ม...</div>';
-
+  if (!HUB_SB.ready) { out.innerHTML = '<span class="stg-warn">ยังไม่ได้เปิดใช้ Supabase</span>'; return; }
+  out.innerHTML = 'กำลังอ่านฝั่ง Google Sheets — ต้องโหลดข้อมูลทั้งก้อนมานับ ใช้เวลาราว 10-20 วินาที';
   hubCompareAll(function(row, p){
-    if (row) body += _hubCmpRow(row);
-    var status = p.step <= p.total && !row
-      ? '<div style="color:var(--text2);margin-top:6px;">⏳ กำลังอ่าน <b>' + p.label + '</b> (' + p.step + '/' + p.total + ')...</div>'
-      : '';
-    out.innerHTML = note + head + body + '</table>' + status;
+    if (row) _hubFillCmp(row);
+    else out.innerHTML = '⏳ กำลังอ่าน <b>' + p.label + '</b> (' + p.step + '/' + p.total + ')...';
   })
     .then(function(rows){
       var allSame = rows.every(function(r){ return r.same; });
-      out.innerHTML = note + head + body + '</table>'
-        + '<div style="margin-top:10px;font-weight:700;color:' + (allSame ? '#047857' : '#b45309') + ';">'
-        + (allSame ? '✓ ตรงกันครบทุกรายการ — ย้ายสำเร็จ' : '⚠️ มีบางรายการไม่ตรง ดูรายละเอียดด้านบน') + '</div>';
+      out.innerHTML = allSame
+        ? '<span class="stg-okmark">✓ ตรงกันครบทุกรายการ — ข้อมูลย้ายสำเร็จสมบูรณ์</span>'
+        : '<span class="stg-diff">⚠️ มีบางรายการไม่ตรง — ดูคอลัมน์ขวาสุดในตาราง</span>';
     })
-    .catch(function(e){ out.innerHTML = note + '<span style="color:#b91c1c;">✗ ' + (e.message || e) + '</span>'; });
+    .catch(function(e){ out.innerHTML = '<span class="stg-diff">✗ ' + (e.message || e) + '</span>'; });
 }
 
 function hubRunMigrateConfig() {
