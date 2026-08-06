@@ -5572,11 +5572,20 @@ function hubPostJson(payload, tries) {
   if (HUB_SB.ready && payload && payload.type === 'set-config' && payload.key) {
     return _sbSaveConfig(payload.key, payload.value)
       .then(function(){
-        if (!HUB_SB.dualWrite) return { ok: true };
-        return _hubPostSheets(payload, 2)
-          .catch(function(e){ console.warn('[HUB] เขียนสำรองลง Sheets ไม่ผ่าน', e); return { ok: true }; });
+        // Supabase คือตัวจริงแล้ว · Sheets เป็นแค่สำเนาสำรอง
+        // → ยิงเบื้องหลัง ไม่ให้ผู้ใช้ต้องนั่งรอ Apps Script อีก 2-8 วินาที
+        if (HUB_SB.dualWrite) {
+          _hubPostSheets(payload, 2).then(function(){
+            HUB_SB.lastBackupAt = Date.now(); HUB_SB.backupFailed = false;
+          }).catch(function(e){
+            HUB_SB.backupFailed = true;
+            console.warn('[HUB] เขียนสำเนาสำรองลง Sheets ไม่ผ่าน (ข้อมูลจริงบันทึกแล้ว)', e);
+          });
+        }
+        return { ok: true };
       })
       .catch(function(e){
+        // Supabase พัง → ต้องรอ Sheets จริง ๆ เพราะเป็นที่เดียวที่จะเก็บได้
         console.warn('[HUB] Supabase เขียนไม่ผ่าน → ใช้ Sheets แทน', e);
         return _hubPostSheets(payload, tries);
       });

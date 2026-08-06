@@ -119,9 +119,15 @@ function _sheetsPost(payload) {
     body: JSON.stringify(payload)
   }).then(function(r){ return r.json(); });
 }
+/* ยิงเบื้องหลัง ไม่ให้ผู้ใช้รอ — Supabase คือตัวจริงแล้ว Sheets เป็นแค่สำเนาสำรอง
+   ถ้ารอด้วยจะช้าเพิ่มอีก 2-8 วินาทีต่อการกดบันทึก 1 ครั้ง โดยไม่ได้อะไรเพิ่ม */
 function _alsoSheets(payload) {
-  if (!FH_SB.dualWrite) return Promise.resolve(null);
-  return _sheetsPost(payload).catch(function(e){ console.warn('[FH] เขียนสำรองลง Sheets ไม่ผ่าน', e); return null; });
+  if (FH_SB.dualWrite) {
+    _sheetsPost(payload).catch(function(e){
+      console.warn('[FH] เขียนสำเนาสำรองลง Sheets ไม่ผ่าน (ข้อมูลจริงบันทึกแล้ว)', e);
+    });
+  }
+  return Promise.resolve(null);   // ไม่รอผล
 }
 
 function fhSaveRequests(records) {
