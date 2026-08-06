@@ -175,11 +175,49 @@ function buildCertIndex() {
 function certBadgeHtml(name, certIdx) {
   var key = String(name||'').replace(/\s+/g,'').toLowerCase();
   var hit = certIdx[key];
-  if (!hit) return '<span class="cert-badge cb-none" title="ไม่พบในระบบใบรับรอง">— ไม่พบ</span>';
-  if (hit.status === 'valid')   return '<span class="cert-badge cb-valid" title="ใบรับรองยังมีผล' + (hit.expireDate ? ' · หมดอายุ ' + hit.expireDate : '') + '">✓ ยังมีผล</span>';
-  if (hit.status === 'warning') return '<span class="cert-badge cb-warn" title="ใกล้หมดอายุ' + (hit.expireDate ? ' · ' + hit.expireDate : '') + '">⚠ ใกล้หมด</span>';
-  if (hit.status === 'expired') return '<span class="cert-badge cb-exp" title="หมดอายุแล้ว' + (hit.expireDate ? ' · ' + hit.expireDate : '') + '">✗ หมดอายุ</span>';
-  return '<span class="cert-badge cb-none">—</span>';
+  if (!hit) {
+    // ใบรับรองยังโหลดไม่เสร็จ ≠ ไม่มีใบ — บอกให้ตรงความจริง
+    if (!certIdx || !Object.keys(certIdx).length) {
+      return '<span class="cert-badge cb-load" title="กำลังโหลดฐานใบรับรอง…">⋯ กำลังตรวจ</span>';
+    }
+    return '<span class="cert-badge cb-none" title="ยังไม่มีใบรับรองในระบบ — คนนี้ควรได้เข้าอบรม">— ยังไม่มีใบ</span>';
+  }
+  var exp = hit.expireDate ? formatThaiDate(hit.expireDate) : '';
+  var lbl = hit.status === 'valid'   ? { cls:'cb-valid', txt:'✓ ยังมีผล', tip:'ใบรับรองยังมีผล' }
+          : hit.status === 'warning' ? { cls:'cb-warn',  txt:'⚠ ใกล้หมด', tip:'ใกล้หมดอายุ' }
+          : hit.status === 'expired' ? { cls:'cb-exp',   txt:'✗ หมดอายุ', tip:'หมดอายุแล้ว' }
+          : { cls:'cb-none', txt:'—', tip:'' };
+  // มีไฟล์ PDF บนคลาวด์ไหม — มีก็กดเปิดได้เลยจากตรงนี้
+  var url = '';
+  try { if (typeof _fhCertUrl === 'function') url = _fhCertUrl(name, hit.course || ''); } catch (e) {}
+  var tip = lbl.tip + (exp ? ' · หมดอายุ ' + exp : '') + (url ? ' · กดเพื่อเปิดไฟล์ PDF' : ' · ยังไม่มีไฟล์ PDF ในระบบ');
+  var badge = '<span class="cert-badge ' + lbl.cls + '">' + lbl.txt + '</span>';
+  var pdf = url
+    ? '<a class="cert-pdf-link" href="' + escapeAttr(url) + '" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="เปิดใบรับรอง PDF">📄</a>'
+    : '';
+  return '<span class="cert-cell" title="' + escapeAttr(tip) + '">' + badge + pdf + '</span>';
+}
+
+/* หน้าคำขออบรมต้องรู้ว่าใครมีใบรับรองแล้ว — แต่ฐานใบรับรองโหลดเฉพาะตอนเปิดหน้าใบรับรอง
+   จึงดึงให้เองเบื้องหลังครั้งเดียว แล้วรีเฟรชเฉพาะคอลัมน์ใบรับรอง (ไม่กระทบตัวกรอง/หน้าที่เปิดอยู่) */
+var _fhCertAutoLoaded = false;
+function _fhEnsureCertsForRequests() {
+  if (typeof matchData !== 'undefined' && matchData && matchData.length) return;
+  var cached = _fhCacheGet('fh_cert_v1');          // แคชในเครื่อง → ขึ้นทันที
+  if (cached && cached.length) {
+    matchData = cached;
+    try { _refreshAdminReqCerts(); } catch (e) {}
+  }
+  if (_fhCertAutoLoaded) return;
+  _fhCertAutoLoaded = true;
+  fhLoadCertificates()                              // แล้วค่อยดึงของสดมาทับ
+    .then(function(records){
+      if (!records || !records.length) return;
+      matchData = _fhMapCerts(records);
+      _fhCacheSet('fh_cert_v1', matchData);
+      try { _refreshAdminReqCerts(); } catch (e) {}
+    })
+    .catch(function(e){ console.warn('[FH] โหลดใบรับรองเบื้องหลังไม่สำเร็จ', e); });
 }
 function certSummaryHtml(rows, certIdx) {
   var c = { valid:0, warning:0, expired:0, none:0 };
@@ -262,14 +300,20 @@ function _renderAdminReqRow(r, certIdx, showCourseCol) {
     +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(p.empId)+'</td>'
     +'<td data-label="ตำแหน่ง" data-icon="💼">'+escapeHtml(p.pos)+'</td>';
   if (showCourseCol) {
-    html += '<td data-label="หลักสูตร" data-icon="📚" style="font-size:12.5px;">'+escapeHtml(p.course)+'</td>';
+    // ย่อชื่อหลักสูตรกันตัดบรรทัด — ชื่อเต็มอยู่ใน tooltip
+    html += '<td data-label="หลักสูตร" data-icon="📚" class="td-course" title="'+escapeAttr(p.course)+'">'
+         +    '<span class="course-pill">'+escapeHtml(_courseShort(p.course))+'</span>'
+         + '</td>';
   }
-  var dateSlot = escapeHtml(formatThaiDate(p.trainDate));
-  if (p.slot) dateSlot += ' <span style="color:var(--text3);font-weight:600;">(' + escapeHtml(p.slot) + ')</span>';
-  dateSlot += p.round
-    ? ' <span class="round-chip">รุ่น ' + escapeHtml(p.round) + '</span>'
-    : ' <span class="round-chip round-chip-none" title="ยังไม่ระบุรุ่น — ใช้ปุ่ม 🏷️ กำหนดรุ่น">ไม่ระบุรุ่น</span>';
-  html += '<td data-label="วันอบรม / รอบเวลา" data-icon="📅">'+dateSlot+'</td>'
+  // วัน · เวลา · รุ่น — บรรทัดละอย่าง ไม่ตัดคำ ไม่ทับกัน
+  var dateSlot = '<div class="ds-cell">'
+    +   '<span class="ds-date">'+escapeHtml(formatThaiDate(p.trainDate))+'</span>'
+    +   (p.slot ? '<span class="ds-slot">'+escapeHtml(p.slot)+' น.</span>' : '')
+    +   (p.round
+          ? '<span class="round-chip">รุ่น '+escapeHtml(p.round)+'</span>'
+          : '<span class="round-chip round-chip-none" title="ยังไม่ระบุรุ่น — ใช้ปุ่ม 🏷️ กำหนดรุ่น">ไม่ระบุรุ่น</span>')
+    + '</div>';
+  html += '<td data-label="วันอบรม / รอบเวลา" data-icon="📅" class="td-dateslot">'+dateSlot+'</td>'
     +'<td data-label="ใบรับรอง" data-icon="📜">'+certBadgeHtml(p.name, certIdx)+'</td>'
     +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(p.tsFmt)+'</td>'
     +'<td data-label="จัดการ" data-icon="⚙️" class="td-actions">'
@@ -674,6 +718,7 @@ function _renderReqBatchView(batches, rows) {
       +   '📅 ' + escapeHtml(formatThaiDate(b.trainDate) || '— ไม่ระบุวัน')
       +   ' · 🕐 ' + escapeHtml(b.slot || '— ไม่ระบุรอบ')
       +   ' · 👥 <b>' + ((b.rows && b.rows.length) || 0) + '</b> คน จาก ' + (b.branchCount || 0) + ' สาขา'
+      +   '<br><span style="font-size:12px;">📜 ' + certSummaryHtml(b.rows || [], _adminCertIdx) + '</span>'
       + '</div>'
       + '<button class="rbatch-back-btn" onclick="openAdminReqRoundTool()" title="กำหนดรุ่นให้กลุ่มนี้">🏷️ กำหนดรุ่น</button>';
     return;
@@ -778,6 +823,7 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
     if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
     if (isAdmin) {
       _adminRowCache = rows;
+      _fhEnsureCertsForRequests();   // ยังไม่มีฐานใบรับรอง → ดึงเบื้องหลังแล้วรีเฟรชคอลัมน์ให้เอง
       _adminCertIdx = buildCertIndex();
       _renderAdminReqCountBar(rows);
       _populateAdminReqFilterOptions(rows);

@@ -16,6 +16,37 @@ function saveEmployeeRegistryToCloud(employees, replaceAll) {
   });
 }
 
+/* แปลงข้อมูลใบรับรองจาก Cloud → รูปแบบที่หน้าเว็บใช้ (matchData)
+   แยกออกมาเป็นฟังก์ชันเพราะหน้าคำขออบรมก็ต้องใช้ ตอนตรวจว่าใครมีใบรับรองแล้ว */
+function _fhMapCerts(records) {
+  return (records || []).map(function(r) {
+    var expireDate = r['วันหมดอายุ'] || '';
+    // คำนวณสถานะใหม่จากวันหมดอายุ (source of truth) — กัน Cloud คืนค่าเป็นไทย/ว่าง แล้ว badge หาย
+    var expStatus = expireDate ? getExpStatus(expireDate) : 'unknown';
+    // ถ้าคำนวณไม่ได้ ลอง normalize จากค่าที่ sheet เก็บไว้ (รองรับทั้งไทย/อังกฤษ)
+    if (expStatus === 'unknown') {
+      var s = r['สถานะใบรับรอง'];
+      if (s === 'valid' || s === 'ยังมีผล') expStatus = 'valid';
+      else if (s === 'warning' || s === 'ใกล้หมดอายุ') expStatus = 'warning';
+      else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
+    }
+    return {
+      certName: _cleanCertName(r['ชื่อในใบรับรอง'] || ''),   // ล้างชื่อเพี้ยนเก่า (นามสกุลติดคำหลักสูตร)
+      course: r['หลักสูตร'] || '',
+      trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
+      expireDate: expireDate,
+      expStatus: expStatus,
+      empName: r['ชื่อในระบบ'] || '',
+      branch: r['สาขา'] || '—',
+      position: r['ตำแหน่ง'] || '—',
+      sheet: r['Sheet'] || '—',
+      matchType: r['สถานะจับคู่'] || 'notfound'
+    };
+  })
+  // เก็บทุกใบที่มีชื่อในใบรับรอง (รวม notfound ที่ยังไม่จับคู่ทะเบียน) — กันข้อมูลหายตอน reload
+  .filter(function(d){ return !!(d.certName && String(d.certName).trim()); });
+}
+
 /* cache ในเครื่อง (localStorage) — แสดงทันทีตอนโหลด แล้วค่อยดึงของใหม่มาทับ */
 function _fhCacheSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 function _fhCacheGet(k){ try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
@@ -379,32 +410,7 @@ function loadFromCloud() {
       document.getElementById('processInfo').textContent = 'ยังไม่มีข้อมูลใน Cloud';
       return;
     }
-    matchData = records.map(function(r) {
-      var expireDate = r['วันหมดอายุ'] || '';
-      // คำนวณสถานะใหม่จากวันหมดอายุ (source of truth) — กัน Cloud คืนค่าเป็นไทย/ว่าง แล้ว badge หาย
-      var expStatus = expireDate ? getExpStatus(expireDate) : 'unknown';
-      // ถ้าคำนวณไม่ได้ ลอง normalize จากค่าที่ sheet เก็บไว้ (รองรับทั้งไทย/อังกฤษ)
-      if (expStatus === 'unknown') {
-        var s = r['สถานะใบรับรอง'];
-        if (s === 'valid' || s === 'ยังมีผล') expStatus = 'valid';
-        else if (s === 'warning' || s === 'ใกล้หมดอายุ') expStatus = 'warning';
-        else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
-      }
-      return {
-        certName: _cleanCertName(r['ชื่อในใบรับรอง'] || ''),   // ล้างชื่อเพี้ยนเก่า (นามสกุลติดคำหลักสูตร)
-        course: r['หลักสูตร'] || '',
-        trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
-        expireDate: expireDate,
-        expStatus: expStatus,
-        empName: r['ชื่อในระบบ'] || '',
-        branch: r['สาขา'] || '—',
-        position: r['ตำแหน่ง'] || '—',
-        sheet: r['Sheet'] || '—',
-        matchType: r['สถานะจับคู่'] || 'notfound'
-      };
-    })
-    // เก็บทุกใบที่มีชื่อในใบรับรอง (รวม notfound ที่ยังไม่จับคู่ทะเบียน) — กันข้อมูลหายตอน reload
-    .filter(function(d){ return !!(d.certName && String(d.certName).trim()); });
+    matchData = _fhMapCerts(records);
     // ตัดซ้ำ + ทิ้งใบ "วันว่าง" ถ้ามีใบ "มีวันหมดอายุ" ของคน+หลักสูตรเดียวกัน
     // (ใช้ชื่อ normalize แล้ว กัน OCR อ่านช่องว่าง/อักขระต่างกันเล็กน้อยแล้วนับเป็นคนละใบ)
     (function(){
