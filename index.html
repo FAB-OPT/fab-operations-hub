@@ -5305,6 +5305,11 @@ function loadPermsFromCloud() {
       return PERMS_ALL;
     });
 }
+/* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
+   GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
+   เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
+var HUB_BUILD = '2026-08-06 · 17:40';
+
 /* ═══════════ หน้า "ที่เก็บข้อมูล" ในเครื่องมือผู้ดูแล ═══════════ */
 function openStorageModal() {
   var m = document.getElementById('storageModal');
@@ -5349,6 +5354,11 @@ function openStorageModal() {
     +       (on ? '✕ กลับไปใช้ Google Sheets' : '↻ เปิดใช้ Supabase') + '</button>'
     +   '</div>'
     +   '<div id="storageResult" style="margin-top:16px;font-size:13px;line-height:1.8;"></div>'
+    +   '<div style="margin-top:18px;padding-top:13px;border-top:1px dashed var(--border);font-size:11.5px;color:var(--text2);line-height:1.7;">'
+    +     'รุ่นของหน้านี้: <b>' + HUB_BUILD + '</b>'
+    +     ' · เขียนสำเนาสำรอง: <b>' + (HUB_SB.dualWrite ? 'เปิด' : 'ปิด') + '</b>'
+    +     '<br>ถ้าตัวเลขรุ่นไม่ตรงกับที่แจ้งไว้ แปลว่าเบราว์เซอร์ยังใช้ไฟล์เก่า — กด Ctrl+Shift+R'
+    +   '</div>'
     + '</div></div>';
   m.classList.add('show');
 }
@@ -5776,8 +5786,17 @@ function savePermsUI() {
   }
   var el = document.getElementById('permsSync');
   if (el) { el.textContent = 'กำลังบันทึก...'; el.style.color = ''; }
+  var _t0 = Date.now();   // จับเวลาจริง จะได้รู้ว่าช้าที่ไหน ไม่ต้องเดา
   savePermsToCloud()
-    .then(function(){ if (el) { el.textContent = '✓ บันทึกแล้ว — ระบบปลายทางจะเห็นผลเมื่อรีเฟรช'; el.style.color = 'var(--green)'; } })
+    .then(function(){
+      var ms = Date.now() - _t0;
+      if (el) {
+        el.textContent = '✓ บันทึกแล้ว (' + (ms / 1000).toFixed(1) + ' วิ · '
+          + (HUB_SB.ready ? 'Supabase' : 'Google Sheets') + ') — ระบบปลายทางเห็นผลเมื่อรีเฟรช';
+        el.style.color = ms > 1500 ? 'var(--orange)' : 'var(--green)';
+      }
+      if (ms > 1500) console.warn('[HUB] บันทึกช้าผิดปกติ ' + ms + ' ms · Supabase=' + HUB_SB.ready + ' · build=' + HUB_BUILD);
+    })
     .catch(function(e){ if (el) { el.textContent = '✗ บันทึกไม่สำเร็จ: ' + e.message; el.style.color = 'var(--red)'; } });
 }
 
