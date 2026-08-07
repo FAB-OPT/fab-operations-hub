@@ -91,31 +91,76 @@ function updateBranchStats() {
   alertEl.style.display = 'block';
 }
 
+/* เทียบชื่อสาขาแบบหลวม — ทะเบียนสะกดสาขาไม่ตรงกันบ่อย (ICS/ไอซีเอส, เว้นวรรคไม่เท่ากัน)
+   ถ้าเทียบตรงตัวจะกลายเป็น "สาขาตัวเองไม่มีใบเซอร์สักใบ" ทั้งที่มี */
+function _brSameBranch(a, b) {
+  var k = function(x){ return String(x || '').replace(/[\s\-()]/g, '').toLowerCase(); };
+  var ka = k(a), kb = k(b);
+  if (!ka || !kb) return false;
+  return ka === kb || ka.indexOf(kb) >= 0 || kb.indexOf(ka) >= 0;
+}
+/* ค่าเริ่มต้น = โชว์เฉพาะสาขาตัวเอง · กดปุ่มค้นหาเพิ่มเติมถึงจะเห็นทุกสาขา */
+var _brSearchAll = false;
+function brSearchAllBranches() {
+  _brSearchAll = true;
+  branchSearch();
+  var q = document.getElementById('branchSearchQ');
+  if (q) q.focus();
+}
+function brSearchMyBranchOnly() {
+  _brSearchAll = false;
+  var q = document.getElementById('branchSearchQ');
+  if (q) q.value = '';
+  branchSearch();
+}
+
 function branchSearch() {
   var q = (document.getElementById('branchSearchQ') || { value: '' }).value.trim().toLowerCase();
   var grid = document.getElementById('branchResults');
   if (!grid) return;
   _fhResetSelIfFilterChanged('br');   // เปลี่ยนคำค้น → ล้างที่ติ๊กไว้ก่อนวาดช่องติ๊ก
-  // ไม่พิมพ์อะไร = โชว์ทุกสาขา (ตัดที่ MAX ด้านล่าง แล้วบอกให้พิมพ์กรองให้แคบลง)
-  var results = !q ? (allRecords || []) : (allRecords || []).filter(function(r){
+
+  var all = allRecords || [];
+  var myBranch = (typeof currentBranchName !== 'undefined') ? currentBranchName : '';
+  /* ขอบเขต: พิมพ์ค้นหา หรือกดค้นหาเพิ่มเติมแล้ว = ทุกสาขา · ไม่งั้นเฉพาะสาขาตัวเอง
+     สาขาส่วนใหญ่เข้ามาหาใบเซอร์ของลูกน้องตัวเอง ไม่ใช่ของทั้งบริษัท
+     เดิมเปิดมาเจอ 652 ใบของทุกสาขา ต้องพิมพ์กรองเองทุกครั้ง */
+  var scopeAll = _brSearchAll || !!q;
+  var base = (scopeAll || !myBranch) ? all : all.filter(function(r){ return _brSameBranch(r['สาขา'], myBranch); });
+
+  var results = !q ? base : base.filter(function(r){
     var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'') + ' ' + (r['หลักสูตร']||'')).toLowerCase();
     return hay.indexOf(q) >= 0;
   });
   _brLastResults = results;   // ใช้ตอนกด "เลือกทั้งหมด" ที่หัวตาราง
 
+  var btnAll = '<button type="button" class="br-scope-btn" onclick="brSearchAllBranches()">🔍 ค้นหาเพิ่มเติมทุกสาขา</button>';
+  var btnMine = '<button type="button" class="br-scope-btn" onclick="brSearchMyBranchOnly()">↩ กลับมาดูเฉพาะสาขาตัวเอง</button>';
+
   var info = document.getElementById('branchSearchInfo');
   if (info) {
-    info.innerHTML = !q
-      ? 'แสดงทั้งหมด <strong>' + results.length + '</strong> รายการ — พิมพ์เพื่อค้นหา'
-      : 'พบ <strong>' + results.length + '</strong> รายการ จากทั้งหมด ' + (allRecords || []).length;
+    if (q) {
+      info.innerHTML = 'พบ <strong>' + results.length + '</strong> รายการ (ค้นหาทุกสาขา)'
+        + (myBranch ? ' <span class="br-scope-sp"></span>' + btnMine : '');
+    } else if (scopeAll) {
+      info.innerHTML = 'แสดงทุกสาขา <strong>' + results.length + '</strong> รายการ — พิมพ์ชื่อเพื่อค้นหา'
+        + (myBranch ? ' <span class="br-scope-sp"></span>' + btnMine : '');
+    } else {
+      info.innerHTML = 'ใบรับรองของ <strong>' + escapeHtml(myBranch || 'สาขา') + '</strong> · <strong>' + results.length + '</strong> รายการ'
+        + ' <span class="br-scope-sp"></span>' + btnAll;
+    }
   }
 
   if (!results.length) {
+    var head, sub, act;
+    if (q) { head = 'ไม่พบชื่อนี้ในระบบ'; sub = 'ลองพิมพ์เฉพาะชื่อหรือนามสกุล'; act = myBranch ? btnMine : ''; }
+    else if (!scopeAll && myBranch) { head = 'สาขายังไม่มีใบรับรองในระบบ'; sub = 'กดค้นหาเพิ่มเติมเพื่อดูของสาขาอื่น หรือส่งรายชื่อเข้าอบรม'; act = btnAll; }
+    else { head = 'ยังไม่มีใบรับรองในระบบ'; sub = 'กดเมนูส่งรายชื่อเพื่อส่งพนักงานเข้าอบรม'; act = ''; }
     grid.innerHTML = '<div class="table-container tc-cards"><table><tbody><tr><td class="empty">' +
       '<div style="font-size:44px;margin-bottom:10px;">📂</div>' +
-      '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + (q ? 'ไม่พบข้อมูลที่ค้นหา' : 'ยังไม่มีใบรับรองในระบบ') + '</div>' +
-      '<div style="font-size:12px;color:var(--text3);">' + (q ? 'ลองพิมพ์คำอื่น' : 'กดปุ่มด้านล่างเพื่อส่งรายชื่อเข้าอบรม') + '</div>' +
-      '</td></tr></tbody></table></div>';
+      '<div style="font-weight:700;color:var(--text2);margin-bottom:4px;">' + head + '</div>' +
+      '<div style="font-size:12px;color:var(--text3);margin-bottom:12px;">' + sub + '</div>' +
+      act + '</td></tr></tbody></table></div>';
     fhUpdateSelBar('br');
     return;
   }

@@ -228,6 +228,13 @@ function showBrSection(targetId) {
   document.querySelectorAll('#branchView .adm-side-link[data-target]').forEach(function(l){
     l.classList.toggle('active', l.getAttribute('data-target') === targetId);
   });
+  /* แถบแท็บล่าง (มือถือ) — ไฮไลต์ให้ตรงกับหน้าที่เปิดอยู่
+     หน้า "รายชื่อที่ส่งอบรม" ไม่มีแท็บของตัวเอง เพราะไปอยู่เป็นกรอบล่างของหน้าส่งรายชื่อแล้ว
+     จึงให้แท็บส่งรายชื่อสว่างแทน ไม่งั้นจะไม่มีแท็บไหนสว่างเลย = ผู้ใช้ไม่รู้ว่าอยู่ไหน */
+  var tabFor = (targetId === 'adm-sec-br-history') ? 'adm-sec-br-submit' : targetId;
+  document.querySelectorAll('#brTabBar .br-tab-page').forEach(function(t){
+    t.classList.toggle('active', t.getAttribute('data-target') === tabFor);
+  });
   var meta = BR_SECTION_META[targetId];
   var iEl = document.getElementById('admMobileSectionIcon');
   var tEl = document.getElementById('admMobileSectionText');
