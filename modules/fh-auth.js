@@ -593,8 +593,19 @@ function fhGoCerts() {
   if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
   if (typeof showAdmSection === 'function') showAdmSection(fhCertSectionId());
 }
+/* ไปหน้าส่งรายชื่อ (ปุ่มบนแถบแท็บล่าง ฝั่งสาขา) */
+function fhGoSubmit() {
+  if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
+  if (typeof showBrSection === 'function') showBrSection('adm-sec-br-submit');
+}
 /* ไฮไลต์เมื่ออยู่หน้าใบรับรอง + ซ่อนปุ่มถ้าไม่มีสิทธิ์เข้าหน้านั้น */
 function fhSyncTabbar() {
+  /* ปุ่มส่งรายชื่อ: ไฮไลต์ตามหน้าที่เปิดอยู่ (การซ่อนตามสิทธิ์อยู่ที่ applyFhPerms) */
+  var sub = document.getElementById('mtbSubmit');
+  if (sub) {
+    var ss = document.getElementById('adm-sec-br-submit');
+    sub.classList.toggle('active', !!(ss && ss.classList.contains('active')));
+  }
   var btn = document.getElementById('mtbCerts');
   if (!btn) return;
   var id = fhCertSectionId();
@@ -658,7 +669,7 @@ function _fhRenderSubmitWhy() {
   /* ระบบว่า "ส่งได้" แต่แท็บอาจยังไม่โผล่ด้วยเหตุอื่น (เช่น DOM/CSS)
      จึงรายงานสถานะจริงของปุ่มออกมาด้วย ไม่ใช่แค่ผลการตัดสินสิทธิ์
      ทำให้แยกออกว่า "ตรรกะสิทธิ์ผิด" หรือ "ปุ่มถูกอะไรบางอย่างซ่อน" */
-  var tab = document.getElementById('brTabSubmit');
+  var tab = document.getElementById('mtbSubmit');
   var vis = 'ไม่พบปุ่ม';
   if (tab) {
     var cs = '';

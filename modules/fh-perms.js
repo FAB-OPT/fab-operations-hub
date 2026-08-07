@@ -157,7 +157,7 @@ function applyFhPerms() {
   try { _submitOpen = (typeof FH_CONFIG === 'undefined') || FH_CONFIG.submitOpen !== false; } catch (e) {}
   var _canSub = fhCan('submit-request');
   var _allowSubmit = _canSub && _submitOpen;
-  [document.getElementById('brNavSubmit'), document.getElementById('brTabSubmit')].forEach(function(el){
+  [document.getElementById('brNavSubmit'), document.getElementById('mtbSubmit')].forEach(function(el){
     if (el) el.style.display = _allowSubmit ? '' : 'none';
   });
   /* เก็บเหตุผลไว้ให้เห็นด้วย — เมนูหายเฉย ๆ ผู้ใช้ไม่รู้ว่าเพราะอะไร
@@ -1236,7 +1236,7 @@ function logout() {
 
 /* กดแท็บส่งรายชื่อ — ไม่มีสิทธิ์ก็บอกไปตรง ๆ ว่าเพราะอะไร
    เดิมแท็บหายไปเฉย ๆ ผู้ใช้ไม่รู้ว่าหายเพราะอะไร นึกว่าระบบพัง */
-function _brTabSubmitClick() {
+function fhSubmitTabGuard() {
   if (!fhCan('submit-request')) {
     var role = (typeof FH_ROLE_LABEL !== 'undefined' && FH_ROLE_LABEL[FH_USER.role]) || FH_USER.role || 'บทบาทนี้';
     showInfo('ส่งรายชื่อไม่ได้',
