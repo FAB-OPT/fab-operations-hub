@@ -72,11 +72,22 @@ function updateBranchStats() {
     if (st === 'warning' || st === 'ใกล้หมดอายุ') warn++;
     else if (st === 'expired' || st === 'หมดอายุ') exp++;
   });
+  /* หัวข้อต้องตรงกับสิ่งที่ตารางแสดงจริง
+     ค่าเริ่มต้นตอนนี้คือ "ของสาขาตัวเอง" ไม่ใช่ทุกสาขา ถ้าหัวข้อยังเขียนว่าทุกสาขา
+     ผู้ใช้จะนึกว่าเห็นครบแล้ว ทั้งที่กรองอยู่ */
+  var titleEl = document.getElementById('branchHeroTitle');
+  var scopeAll = (typeof _brSearchAll !== 'undefined' && _brSearchAll);
+  if (titleEl) {
+    titleEl.textContent = (!isAdminMode && currentBranchName && !scopeAll)
+      ? 'ใบรับรองของสาขา' : 'ฐานข้อมูลใบรับรอง · ทุกสาขา';
+  }
   if (subEl) {
     var total = (allRecords || []).length;
-    subEl.textContent = !total ? 'ยังไม่มีใบรับรองในระบบ'
-      : ('ทุกสาขา ' + total + ' ใบ'
-         + (!isAdminMode && currentBranchName ? ' · ' + currentBranchName + ' ' + own.length + ' ใบ' : ''));
+    if (!total) subEl.textContent = 'ยังไม่มีใบรับรองในระบบ';
+    else if (!isAdminMode && currentBranchName && !scopeAll)
+      subEl.textContent = currentBranchName + ' · ' + own.length + ' ใบ (ทั้งระบบ ' + total + ' ใบ)';
+    else subEl.textContent = 'ทุกสาขา ' + total + ' ใบ'
+      + (!isAdminMode && currentBranchName ? ' · ' + currentBranchName + ' ' + own.length + ' ใบ' : '');
   }
   if (!alertEl) return;
   if (!warn && !exp) { alertEl.style.display = 'none'; alertEl.innerHTML = ''; return; }
@@ -104,6 +115,7 @@ var _brSearchAll = false;
 function brSearchAllBranches() {
   _brSearchAll = true;
   branchSearch();
+  try { updateBranchStats(); } catch (e) {}
   var q = document.getElementById('branchSearchQ');
   if (q) q.focus();
 }
@@ -112,6 +124,7 @@ function brSearchMyBranchOnly() {
   var q = document.getElementById('branchSearchQ');
   if (q) q.value = '';
   branchSearch();
+  try { updateBranchStats(); } catch (e) {}
 }
 
 function branchSearch() {

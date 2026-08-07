@@ -238,8 +238,18 @@ function showBrSection(targetId) {
   var meta = BR_SECTION_META[targetId];
   var iEl = document.getElementById('admMobileSectionIcon');
   var tEl = document.getElementById('admMobileSectionText');
-  if (iEl && meta) iEl.textContent = meta.icon;
-  if (tEl && meta) tEl.textContent = meta.title;
+  /* แถบหัวมือถือฝั่งสาขา = ชื่อสาขา ไม่ใช่ชื่อหน้า
+     หน้าไหนกำลังเปิดอยู่ ดูจากแท็บที่สว่างด้านล่างได้แล้ว ไม่ต้องบอกซ้ำ
+     จอคอมยังใช้ชื่อหน้าเหมือนเดิม เพราะไม่มีแถบแท็บ */
+  var isMobile = false;
+  try { isMobile = window.matchMedia('(max-width: 820px)').matches; } catch (e) {}
+  if (isMobile && currentBranchName) {
+    if (iEl) iEl.textContent = '🏬';
+    if (tEl) tEl.textContent = currentBranchName;
+  } else {
+    if (iEl && meta) iEl.textContent = meta.icon;
+    if (tEl && meta) tEl.textContent = meta.title;
+  }
   if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
   window.scrollTo(0, 0);
 }
@@ -265,6 +275,7 @@ function _initBranchSidebar() {
       (brand ? '<span class="br-badge-brand">' + escapeHtml(brand) + '</span>' : '') +
       '<span class="br-badge-name">' + escapeHtml(rest) + '</span>';
   }
+  try { document.body.classList.add('fh-branch-mode'); } catch (e) {}
   showBrSection('adm-sec-br-search');
 }
 
