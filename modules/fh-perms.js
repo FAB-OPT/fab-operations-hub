@@ -190,10 +190,26 @@ function _fhFirstAllowedSection() {
 }
 
 /* ไม่มีสิทธิ์เข้าหน้าไหนเลย → บอกให้ชัด ดีกว่าปล่อยจอว่างแล้วผู้ใช้นึกว่าระบบพัง */
+/* กล่องนี้ต้องไปโผล่ใน "หน้าจอที่ผู้ใช้เห็นอยู่จริง"
+   บั๊กเดิม: ใช้ querySelector('.admin-main') ซึ่งได้ตัวแรกในหน้า = ของฝั่งแอดมิน
+   ฝั่งสาขา #adminView ถูกซ่อนอยู่ ข้อความจึงไปอยู่ในกล่องที่มองไม่เห็น
+   พร้อมกับที่บรรทัดบนถอด .active ออกจากทุกหน้า "ทั้งสองฝั่ง"
+   ผลคือสาขาเจอจอว่างสนิท ไม่มีข้อความอะไรเลย ไม่รู้ว่าเกิดอะไรขึ้น */
+function _fhVisibleShell() {
+  var br = document.getElementById('branchView');
+  var ad = document.getElementById('adminView');
+  var vis = function (el) { return el && el.style && el.style.display !== 'none'; };
+  if (vis(br)) return br;
+  if (vis(ad)) return ad;
+  return document.body;
+}
 function _fhShowNoAccess() {
-  document.querySelectorAll('.admin-main > [id^="adm-sec-"]').forEach(function(s){ s.classList.remove('active'); });
-  document.querySelectorAll('.adm-side-link[data-target]').forEach(function(l){ l.classList.remove('active'); });
+  var shell = _fhVisibleShell();
+  /* ถอดเฉพาะหน้าในฝั่งที่เปิดอยู่ ไม่ไปยุ่งกับอีกฝั่ง */
+  shell.querySelectorAll('.admin-main > [id^="adm-sec-"]').forEach(function(s){ s.classList.remove('active'); });
+  shell.querySelectorAll('.adm-side-link[data-target]').forEach(function(l){ l.classList.remove('active'); });
   var box = document.getElementById('fhNoAccess');
+  var main = shell.querySelector('.admin-main') || shell;
   if (!box) {
     box = document.createElement('div');
     box.id = 'fhNoAccess';
@@ -201,9 +217,9 @@ function _fhShowNoAccess() {
     box.innerHTML = '<div style="font-size:40px;margin-bottom:12px;">🔒</div>' +
       '<div style="font-size:16px;font-weight:800;color:var(--text);margin-bottom:6px;">ยังไม่ได้รับสิทธิ์ใช้งานส่วนนี้</div>' +
       '<div style="font-size:13px;">กรุณาติดต่อผู้ดูแลระบบเพื่อขอสิทธิ์</div>';
-    var main = document.querySelector('.admin-main');
-    if (main) main.appendChild(box);
   }
+  /* ถ้าเคยสร้างไว้ในฝั่งอื่นมาก่อน ต้องย้ายมาฝั่งที่เห็นอยู่ */
+  if (main && box.parentNode !== main) main.appendChild(box);
   box.style.display = '';
 }
 

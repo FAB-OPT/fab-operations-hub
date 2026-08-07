@@ -536,6 +536,20 @@ var ADM_SEC_KEY = 'fab_admin_section';
 var ADM_DEFAULT_SEC = 'adm-sec-cert';
 
 function showAdmSection(targetId) {
+  /* ฝั่งสาขามีตัวสลับหน้าของตัวเอง (showBrSection) และไม่มีสิทธิ์หน้าฝั่งแอดมินอยู่แล้ว
+     ถ้าปล่อยให้วิ่งต่อ จะไปเจอด่านตรวจสิทธิ์ข้างล่างแล้วถูกตีกลับเป็น "ไม่มีสิทธิ์"
+     ซึ่งถอด .active ออกจากทุกหน้า → สาขาเห็นจอว่างสนิท
+     เกิดได้จริงตอนกดแท็บ "ใบรับรอง" ล่างจอ หรือกู้หน้าที่ค้างไว้จากรอบก่อน */
+  try {
+    var _brView = document.getElementById('branchView');
+    var _inBranch = !!(_brView && _brView.style && _brView.style.display !== 'none')
+                 || document.body.classList.contains('is-branch');
+    if (_inBranch && typeof showBrSection === 'function') {
+      showBrSection(String(targetId || '').indexOf('adm-sec-br-') === 0 ? targetId : 'adm-sec-br-search');
+      return;
+    }
+  } catch (e) {}
+
   /* กันเข้าหน้าที่ไม่มีสิทธิ์ — ดักที่นี่จุดเดียวคุมได้ทุกทาง:
      กดเมนู · กู้หน้าที่ค้างไว้จาก sessionStorage · หรือคนที่ปลดซ่อนปุ่มเองผ่าน devtools
      สำคัญเป็นพิเศษกับ adm-sec-settings เพราะข้างในมีตัวแก้สิทธิ์อยู่ */
@@ -633,7 +647,13 @@ function _initAdminSidebar() {
   var initial = (typeof _fhFirstAllowedSection === 'function' ? _fhFirstAllowedSection() : '') || ADM_DEFAULT_SEC;
   try {
     var saved = sessionStorage.getItem(ADM_SEC_KEY);
+    /* หน้าที่ค้างไว้ต้องเป็นของฝั่งเดียวกันเท่านั้น
+       สลับบัญชีในแท็บเดิม (แอดมิน → สาขา) แล้วกู้หน้าฝั่งแอดมินมาให้สาขา
+       จะโดนตีกลับเป็น "ไม่มีสิทธิ์" แล้วจอว่าง */
+    var _isBrSec = String(saved || '').indexOf('adm-sec-br-') === 0;
+    var _nowBranch = document.body.classList.contains('is-branch');
     if (saved
+        && _isBrSec === _nowBranch
         && document.getElementById(saved)
         && document.querySelector('.adm-side-link[data-target="'+saved+'"]')) {
       initial = saved;   // showAdmSection จะกันเองถ้าไม่มีสิทธิ์กับหน้าที่ค้างไว้
