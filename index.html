@@ -5374,7 +5374,11 @@ function hubCheckForUpdate() {
     fetch(location.pathname + '?_fresh=' + Date.now(), { cache: 'no-store' })
       .then(function(r){ return r.text(); })
       .then(function(t){
-        var m = /var HUB_BUILD = '2026-08-06 · 21:05']+)'/.exec(t);
+        // ⚠️ ห้ามเขียน regex ที่มีข้อความ "var HUB_BUILD = '...'" ตรง ๆ
+        //    เคยโดนคำสั่งอัปเดตเลขรุ่น (sed) กลืนไปจนสคริปต์พังทั้งบล็อก เข้าระบบไม่ได้
+        //    จึงประกอบ pattern จากชิ้นส่วนแทน — ไม่มีสตริงที่ sed จะจับได้
+        var pat = new RegExp('HUB' + '_BUILD\\s*=\\s*' + "'([^']+)'");
+        var m = pat.exec(t);
         if (m && m[1] && m[1] !== HUB_BUILD) hubShowUpdateBar(m[1]);
       })
       .catch(function(){});
