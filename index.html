@@ -3423,7 +3423,9 @@ var requestRows = [];
    so a JS error in loaders below can never block the login UI) */
 (function earlyInit() {
   try {
-    if (sessionStorage.getItem('fab_role')) return; // returning from module
+    // วาดช่องกรอกรหัสไว้เสมอ แม้กำลังมี session อยู่ (เช่น เด้งกลับจากโมดูลอื่น)
+    // เดิม return ทิ้งตรงนี้ → พอผู้ใช้กด logout ทีหลังจะไม่มีช่องให้กรอก ต้องรีเฟรชเอง
+    // ช่องถูกซ่อนอยู่ใต้ loginView ที่ display:none อยู่แล้ว จึงไม่กระทบการแสดงผล
     var pinBoxes = document.getElementById('pinBoxes');
     if (pinBoxes && pinBoxes.children.length === 0) {
       selectRole('branch');
@@ -3532,6 +3534,10 @@ function renderPinBoxes() {
   document.getElementById('pinBoxes').innerHTML = html;
   setupPinBoxes();
   setTimeout(function(){
+    // โฟกัสเฉพาะตอนหน้าล็อกอินโชว์อยู่จริง
+    // ไม่งั้นตอนวาดไว้ล่วงหน้า (มี session อยู่ → อยู่หน้าเมนู) มือถือจะเด้งคีย์บอร์ดขึ้นมา
+    var lv = document.getElementById('loginView');
+    if (lv && getComputedStyle(lv).display === 'none') return;
     var first = document.querySelector('.pin-box');
     if (first) first.focus();
   }, 50);
@@ -7171,6 +7177,10 @@ function logout() {
   isAdminMode = false;
   document.body.classList.remove('is-admin');
   document.body.classList.remove('is-admin-role');
+  // สร้างช่องกรอกรหัสใหม่เสมอ — ห้ามใช้แค่ clearPin()
+  // เพราะ earlyInit จะข้ามการวาดช่องถ้าเปิดหน้ามาพร้อม session อยู่แล้ว
+  // (เช่น เด้งกลับจากโมดูลอื่น) พอ logout ทีหลังจะไม่มีช่องให้กรอก ต้องรีเฟรชเอง
+  selectRole(selectedRole || 'branch');
   clearPin();
   hideError();
   window.scrollTo(0,0);
