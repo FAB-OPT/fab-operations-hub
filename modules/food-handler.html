@@ -8,11 +8,11 @@
 <title>ฐานข้อมูล ผู้สัมผัสและผู้ประกอบอาหาร · FAB Hub</title>
 <!-- ⚠️ แก้ .css/.js เมื่อไหร่ "ต้องบัมพ์ ?v=" ทุกแท็กด้านล่าง ไม่งั้นเครื่องสาขาจะค้างของเก่า
      (ตัว .html เองไม่ต้องห่วง — index.html เรียกด้วย ?v=Date.now() อยู่แล้ว) -->
-<link rel="stylesheet" href="food-handler.css?v=20260809a">
+<link rel="stylesheet" href="food-handler.css?v=20260809b">
 <!-- หน้าตาใหม่ของโมดูลนี้เท่านั้น — ต้องอยู่หลัง food-handler.css ไม่งั้นถูกทับ
      ไม่กระทบระบบอื่น เพราะไม่มีหน้าไหนโหลดไฟล์นี้
      อยากกลับหน้าตาเดิม: ลบบรรทัดล่างนี้บรรทัดเดียว -->
-<link rel="stylesheet" href="fh-ui.css?v=20260809a">
+<link rel="stylesheet" href="fh-ui.css?v=20260809b">
 <!-- ชั้นหน้าตาใหม่ — ต้องอยู่ "หลัง" food-handler.css เสมอ ไม่งั้นถูกทับ
      อยากกลับไปหน้าตาเดิม: ลบบรรทัดล่างนี้บรรทัดเดียว -->
 <!-- Firebase — เก็บ config กลางของ Food Handler (sync ทุกสาขา) -->
@@ -475,20 +475,26 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
         <span class="adm-side-chev">▾</span>
       </button>
       <div class="adm-side-children">
-        <button class="adm-side-link adm-side-sub" data-fh-action="export-pdf" onclick="openExportPDFModal()">
-          <span class="adm-side-icon">📄</span>
-          <span class="adm-side-link-text">PDF</span>
-        </button>
-        <button class="adm-side-link adm-side-sub" data-fh-action="export-excel" onclick="exportTrainingForm()">
-          <span class="adm-side-icon">📊</span>
-          <span class="adm-side-link-text">Excel (แบบฟอร์มขออบรม)</span>
-        </button>
-        <!-- รายงานจากข้อมูลใบรับรอง — ยึดตามตัวกรองที่เปิดอยู่บนหน้าจอ -->
-        <button class="adm-side-link adm-side-sub" data-fh-action="export-excel" onclick="openCertReport()"
-                title="เลือกแบรนด์ สาขา หลักสูตร สถานะ และคอลัมน์ที่ต้องการ แล้วออกเป็น Excel หรือ PDF">
-          <span class="adm-side-icon">📊</span>
-          <span class="adm-side-link-text">รายงานใบรับรอง (Excel / PDF)</span>
-        </button>
+        <!-- แยกเป็นสองเรื่อง เรื่องละสองปุ่ม — ของเดิมปน PDF ของแบบฟอร์ม
+             กับ Excel ของรายงานไว้ในระดับเดียวกัน อ่านแล้วไม่รู้ว่าปุ่มไหนคู่กับอะไร -->
+        <div class="exp-grp">
+          <div class="exp-grp-l">แบบฟอร์มคำขออบรม</div>
+          <div class="exp-grp-b">
+            <button class="exp-b" data-fh-action="export-pdf" onclick="openExportPDFModal()"
+                    title="แบบฟอร์มคำขออบรมเป็น PDF">PDF</button>
+            <button class="exp-b" data-fh-action="export-excel" onclick="exportTrainingForm()"
+                    title="แบบฟอร์มคำขออบรมเป็น Excel">Excel</button>
+          </div>
+        </div>
+        <div class="exp-grp">
+          <div class="exp-grp-l">รายงานการอบรม</div>
+          <div class="exp-grp-b">
+            <button class="exp-b" data-fh-action="export-pdf" onclick="openCertReport('pdf')"
+                    title="เลือกแบรนด์ สาขา หลักสูตร สถานะ และคอลัมน์ที่ต้องการ แล้วออกเป็น PDF">PDF</button>
+            <button class="exp-b" data-fh-action="export-excel" onclick="openCertReport('excel')"
+                    title="เลือกแบรนด์ สาขา หลักสูตร สถานะ และคอลัมน์ที่ต้องการ แล้วออกเป็น Excel">Excel</button>
+          </div>
+        </div>
         <button class="adm-side-link adm-side-sub" data-fh-action="export-csv" onclick="exportCSV(true)"
                 title="ดาวน์โหลดทะเบียนใบรับรองทั้งหมดเป็น CSV — ใช้สำรองข้อมูลก่อนลบ">
           <span class="adm-side-icon">🗂</span>
@@ -838,8 +844,8 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
     </div>
     <div class="adm-modal-footer">
       <button class="adm-btn-secondary" onclick="closeCertReport()">ยกเลิก</button>
-      <button class="adm-btn-secondary crp-pdf" onclick="crpExport('pdf')">📑 PDF</button>
-      <button class="adm-btn-primary" onclick="crpExport('excel')">📊 Excel</button>
+      <button class="adm-btn-secondary crp-out crp-main" id="crpBtnPdf" onclick="crpExport('pdf')">📑 PDF</button>
+      <button class="adm-btn-secondary crp-out" id="crpBtnExcel" onclick="crpExport('excel')">📊 Excel</button>
     </div>
   </div>
 </div>
@@ -1219,7 +1225,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- SheetJS for Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- form.xlsx template embedded as base64 (works on file:// without a web server) -->
-<script src="form-template.js?v=20260809a"></script>
+<script src="form-template.js?v=20260809b"></script>
 <!-- ExcelJS for template-preserving export (admin form export) -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <!-- PDF.js for proper PDF text extraction -->
@@ -1234,17 +1240,17 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- Supabase — ใช้เมื่อตั้งค่า URL/KEY แล้วเท่านั้น ไม่งั้นระบบวิ่ง Apps Script เหมือนเดิม -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- โมดูลย่อยของ food-handler — ลำดับสำคัญ ห้ามสลับ (ตัวบนประกาศของที่ตัวล่างใช้) -->
-<script src="fh-supabase.js?v=20260809a"></script>
-<script src="fh-import.js?v=20260809a"></script>
-<script src="fh-match.js?v=20260809a"></script>
-<script src="fh-registry.js?v=20260809a"></script>
-<script src="fh-auth.js?v=20260809a"></script>
-<script src="fh-perms.js?v=20260809a"></script>
-<script src="fh-requests.js?v=20260809a"></script>
-<script src="fh-export.js?v=20260809a"></script>
+<script src="fh-supabase.js?v=20260809b"></script>
+<script src="fh-import.js?v=20260809b"></script>
+<script src="fh-match.js?v=20260809b"></script>
+<script src="fh-registry.js?v=20260809b"></script>
+<script src="fh-auth.js?v=20260809b"></script>
+<script src="fh-perms.js?v=20260809b"></script>
+<script src="fh-requests.js?v=20260809b"></script>
+<script src="fh-export.js?v=20260809b"></script>
 <!-- ต้องอยู่หลัง fh-match.js — ใช้ _certBrand / _fhTriggerDownload / _fhStamp จากไฟล์นั้น -->
-<script src="fh-report.js?v=20260809a"></script>
-<script src="fh-ui.js?v=20260809a"></script>
+<script src="fh-report.js?v=20260809b"></script>
+<script src="fh-ui.js?v=20260809b"></script>
 
 <!-- ── มือถือ: bottom sheet ตัวกรองใบรับรอง ── -->
 <div class="fb-sheet-backdrop" id="fbSheetBackdrop" onclick="fhCloseFilterSheet()"></div>

@@ -766,6 +766,39 @@ function _fhTriggerDownload(blobUrl, filename) {
   a.href = blobUrl; a.download = filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
+/* หานามสกุลไฟล์จาก "เนื้อไฟล์จริง" ไม่ใช่จาก URL
+   ตัวอัปโหลด (worker) ตั้งชื่อไฟล์บน storage เป็น .jpg ทุกไฟล์ไม่ว่าจะอัปอะไรขึ้นไป
+   ใบรับรองที่เป็น PDF จึงมี URL ลงท้าย .jpg → พอเซฟตามนามสกุลใน URL
+   จะได้ไฟล์ PDF ที่ชื่อ .jpg เปิดในคอมไม่ขึ้น มือถือก็เซฟไม่ได้
+   ดูจากไบต์แรกของไฟล์แทน (magic number) ซึ่งโกหกไม่ได้
+   สำรอง: ดูจาก Content-Type ที่เซิร์ฟเวอร์ส่งมา แล้วค่อยดู URL เป็นทางสุดท้าย */
+function _fhExtFromBytes(head, mime, url) {
+  var b = new Uint8Array(head || []);
+  if (b.length >= 4 && b[0] === 0x25 && b[1] === 0x50 && b[2] === 0x44 && b[3] === 0x46) return '.pdf';  // %PDF
+  if (b.length >= 3 && b[0] === 0xFF && b[1] === 0xD8 && b[2] === 0xFF) return '.jpg';                    // JPEG
+  if (b.length >= 4 && b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4E && b[3] === 0x47) return '.png';   // PNG
+  if (b.length >= 4 && b[0] === 0x50 && b[1] === 0x4B) return '.zip';                                     // PK (office/zip)
+  var m = String(mime || '').toLowerCase();
+  if (m.indexOf('pdf') >= 0)  return '.pdf';
+  if (m.indexOf('png') >= 0)  return '.png';
+  if (m.indexOf('jpeg') >= 0 || m.indexOf('jpg') >= 0) return '.jpg';
+  if (m.indexOf('webp') >= 0) return '.webp';
+  /* ใช้ .match() ไม่ใช่ .test() + RegExp.$1
+     RegExp.$1 เป็นตัวแปรกลางที่ regex ตัวไหนก็เขียนทับได้ ค่าที่ได้จึงไม่แน่นอน */
+  var um = String(url || '').match(/\.(jpe?g|png|webp|pdf)(\?|$)/i);
+  return um ? '.' + um[1].toLowerCase().replace('jpeg', 'jpg') : '.pdf';
+}
+/* อ่านหัวไฟล์จาก blob แล้วบอกนามสกุลที่ถูกต้อง */
+function _fhBlobExt(blob, url) {
+  try {
+    return blob.slice(0, 8).arrayBuffer()
+      .then(function (buf) { return _fhExtFromBytes(buf, blob.type, url); })
+      .catch(function () { return _fhExtFromBytes(null, blob.type, url); });
+  } catch (e) {
+    return Promise.resolve(_fhExtFromBytes(null, blob && blob.type, url));
+  }
+}
+
 /* ดาวน์โหลดใบเดียว โดยตั้งชื่อไฟล์ตามชื่อบนใบรับรอง
    ของเดิมเป็นแค่ <a href> ธรรมดา ไฟล์อยู่คนละโดเมน เบราว์เซอร์จึงไม่สนใจ
    แอตทริบิวต์ download แล้วเซฟด้วยชื่อไฟล์ดิบใน storage (เป็นรหัสยาว ๆ)
@@ -794,11 +827,12 @@ function fhDownloadOneCert(ev, url, noOrName) {
   fetch(url, { cache: 'no-store' })
     .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
     .then(function(blob){
-      var ext = /\.(jpe?g|png)(\?|$)/i.test(url) ? (RegExp.$1.toLowerCase() === 'png' ? '.png' : '.jpg') : '.pdf';
-      var burl = URL.createObjectURL(blob);
-      _fhTriggerDownload(burl, _fhFileName(name) + ext);
-      setTimeout(function(){ URL.revokeObjectURL(burl); }, 8000);
-      done();
+      return _fhBlobExt(blob, url).then(function(ext){
+        var burl = URL.createObjectURL(blob);
+        _fhTriggerDownload(burl, _fhFileName(name) + ext);
+        setTimeout(function(){ URL.revokeObjectURL(burl); }, 8000);
+        done();
+      });
     })
     .catch(function(){
       done();
@@ -846,6 +880,22 @@ function fhDownloadSelected(scope) {
       var c2 = Promise.resolve();
       bufs.forEach(function(b){
         c2 = c2.then(function(){
+          /* ใบรับรองมีทั้งที่อัปเป็น PDF และที่ถ่ายรูปมา ต้องรับทั้งสองแบบ
+             ของเดิมโหลดเป็น PDF อย่างเดียว ใบที่เป็นรูปจึงถูกทิ้งเงียบ ๆ ทุกครั้ง
+             (มองไม่ออกด้วย เพราะ URL ลงท้าย .jpg เหมือนกันหมดไม่ว่าจะเป็นอะไร) */
+          var ext = _fhExtFromBytes(b.buf.slice(0, 8), '', b.it.url);
+          if (ext === '.jpg' || ext === '.png') {
+            return (ext === '.png' ? out.embedPng(b.buf) : out.embedJpg(b.buf))
+              .then(function(img){
+                /* วางเต็มหน้า A4 แนวตั้ง ย่อให้พอดีโดยไม่บิดสัดส่วน */
+                var PW = 595.28, PH = 841.89;
+                var sc = Math.min(PW / img.width, PH / img.height);
+                var w = img.width * sc, h = img.height * sc;
+                var page = out.addPage([PW, PH]);
+                page.drawImage(img, { x: (PW - w) / 2, y: (PH - h) / 2, width: w, height: h });
+              })
+              .catch(function(){ failed.push(b.it.name || ''); });
+          }
           return PDFLib.PDFDocument.load(b.buf, { ignoreEncryption: true })
             .then(function(src){ return out.copyPages(src, src.getPageIndices()); })
             .then(function(pages){ pages.forEach(function(p){ out.addPage(p); }); })
@@ -900,13 +950,14 @@ function fhDownloadSelectedEach(scope) {
       return fetch(it.url, { cache: 'no-store' })
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
         .then(function(blob){
-          var ext = /\.(jpe?g|png)(\?|$)/i.test(it.url) ? (RegExp.$1.toLowerCase() === 'png' ? '.png' : '.jpg') : '.pdf';
+          return _fhBlobExt(blob, it.url).then(function(ext){
           var url = URL.createObjectURL(blob);
           _fhTriggerDownload(url, _fhUniqueName(used, _fhFileName(it.name)) + ext);
           setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
           okN++;
           /* เว้นจังหวะ ไม่งั้นเบราว์เซอร์กันว่ายิงดาวน์โหลดรัวเกินไปแล้วดรอปทิ้ง */
           return new Promise(function(res){ setTimeout(res, 250); });
+          });
         })
         .catch(function(){ failed.push(it.name || it.url); });
     });

@@ -105,8 +105,16 @@ function _crpAllCols(on) {
   _crpPreview();
 }
 
-function openCertReport() {
+/* want = รูปแบบที่กดเข้ามา ('pdf' / 'excel') — ใช้เน้นปุ่มให้ตรงกับที่ตั้งใจ
+   ยังกดอีกปุ่มได้อยู่ เผื่อเปลี่ยนใจตอนเลือกเสร็จแล้ว ไม่ต้องปิดแล้วเปิดใหม่ */
+function openCertReport(want) {
   if (!_crpRows().length) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีใบรับรองให้ออกรายงาน'); return; }
+  var bx = document.getElementById('crpBtnExcel'), bp = document.getElementById('crpBtnPdf');
+  if (bx && bp) {
+    var pdfFirst = (want === 'pdf');
+    bx.classList.toggle('crp-main', !pdfFirst);
+    bp.classList.toggle('crp-main', pdfFirst);
+  }
   var box = document.getElementById('crpCols');
   if (box) {
     box.innerHTML = FH_RPT_COLS.map(function (c) {
