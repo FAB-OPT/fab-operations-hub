@@ -468,7 +468,10 @@ function _renderAdminReqCountBar(rows) {
   var active = _adminReqFilters.course;
   var total = rows.length;
   var pct = function(n) { return total > 0 ? (Math.round(n / total * 1000) / 10) + '%' : ''; };
-  var html = '<div class="req-count-card rcc-gold'+(active==='all'?' active':'')+'" onclick="_setCourseFilter(\'all\')">'
+  /* การ์ดสรุปยอด = แสดงผลอย่างเดียว ไม่ให้กดแล้ว
+     เดิมกดเพื่อกรองหลักสูตรได้ ซึ่งซ้ำกับดรอปดาวน์หลักสูตร และกดโดนโดยไม่ตั้งใจบ่อย
+     ยังคงไฮไลต์ .active ไว้ เพื่อบอกว่าตอนนี้กำลังกรองหลักสูตรไหนอยู่ */
+  var html = '<div class="req-count-card rcc-gold'+(active==='all'?' active':'')+'">'
     + '<div class="req-count-card-label">📋 รวมทั้งหมด</div>'
     + '<div class="req-count-card-num-row">'
     +   '<div class="req-count-card-num">'+total+'</div>'
@@ -479,7 +482,7 @@ function _renderAdminReqCountBar(rows) {
     var color = palette[i % palette.length];
     var isActive = (c === active);
     var enc = encodeURIComponent(c);
-    html += '<div class="req-count-card '+color+(isActive?' active':'')+'" onclick="_setCourseFilter(\''+enc+'\',true)" title="'+escapeAttr(c)+'">'
+    html += '<div class="req-count-card '+color+(isActive?' active':'')+'" title="'+escapeAttr(c)+'">'
       + '<div class="req-count-card-label">📚 '+escapeHtml(c)+'</div>'
       + '<div class="req-count-card-num-row">'
       +   '<div class="req-count-card-num">'+groups[c]+'</div>'
@@ -558,6 +561,58 @@ function _populateAdminReqFilterOptions(allRows) {
   build(branchSel, 'branch',    _getRowBranch,    '🏬 ทุกสาขา',     F.branch,    _brDispG, null);
   build(dateSel,   'trainDate', _getRowTrainDate, '📅 ทุกวันอบรม',  F.trainDate, function(d){ return d.indexOf('ไม่ระบุ')>=0 ? d : (formatThaiDate(d)||d); }, 'ไม่ระบุ');
   build(slotSel,   'slot',      _getRowSlot,      '🕐 ทุกรอบเวลา',  F.slot,      null, 'ไม่ระบุ');
+  try { _updateReqCascade(); } catch (e) { console.warn('cascade', e); }
+}
+
+
+/* ── ตัวกรองแบบไล่ลำดับ ──────────────────────────────────────────
+   โชว์ทีละช่อง: เลือกหลักสูตร → โผล่สาขา → โผล่วันอบรม → โผล่รอบเวลา
+   ที่เลือกไปแล้วกลายเป็นชิป กดชิปเพื่อย้อนกลับไปแก้ระดับนั้น (ล้างระดับที่ลึกกว่าให้ด้วย)
+   ทำที่ชั้นแสดงผลล้วน ๆ — select ทั้ง 4 ตัวยังอยู่ครบ ตรรกะกรอง/นับจึงไม่ต้องแก้
+   ถ้าสคริปต์ตรงนี้พังด้วยเหตุใด ทุกช่องจะโผล่หมดเหมือนเดิม ไม่ใช่หายไปทั้งแถบ */
+var _REQ_STEPS = ['adminReqCourseFilter', 'adminReqBranchFilter', 'adminReqDateFilter', 'adminReqSlotFilter'];
+function _reqStepEls() {
+  return _REQ_STEPS.map(function(id){ return document.getElementById(id); }).filter(Boolean);
+}
+function _updateReqCascade() {
+  var els = _reqStepEls();
+  if (els.length !== _REQ_STEPS.length) return;
+  var chipBox = document.getElementById('reqCascadeChips');
+  var chips = [];
+  var openIdx = els.length;   // ช่องที่ให้เลือกต่อ = ตัวแรกที่ยังเป็น "ทั้งหมด"
+  for (var i = 0; i < els.length; i++) {
+    if (String(els[i].value || 'all') === 'all') { openIdx = i; break; }
+  }
+  for (var j = 0; j < els.length; j++) {
+    if (j < openIdx) {
+      els[j].classList.add('rc-hidden');
+      var opt = els[j].options[els[j].selectedIndex];
+      chips.push({ i: j,
+        label: els[j].getAttribute('data-step-label') || '',
+        text: opt ? opt.textContent : els[j].value });
+    } else if (j === openIdx) {
+      els[j].classList.remove('rc-hidden');
+    } else {
+      els[j].classList.add('rc-hidden');   // ยังไม่ถึงคิว
+    }
+  }
+  if (chipBox) {
+    chipBox.innerHTML = chips.map(function(c){
+      var v = String(c.text).replace(/\s*\(\d+\)\s*$/, '');   // ตัดจำนวนในวงเล็บท้ายออก
+      return '<button type="button" class="rc-chip" onclick="_reqCascadeBack(' + c.i + ')"'
+        + ' title="แก้' + escapeAttr(c.label) + '">'
+        + '<span class="rc-chip-k">' + escapeHtml(c.label) + '</span>'
+        + '<span class="rc-chip-v">' + escapeHtml(v) + '</span>'
+        + '<span class="rc-chip-x">✕</span></button>';
+    }).join('');
+  }
+}
+/* กดชิป = ย้อนกลับไปเลือกระดับนั้นใหม่ · ระดับที่ลึกกว่าต้องล้างด้วย
+   ไม่งั้นจะเหลือค่าค้างของระดับลึกที่ไม่เข้ากับระดับบนที่เพิ่งเปลี่ยน */
+function _reqCascadeBack(idx) {
+  var els = _reqStepEls();
+  for (var i = idx; i < els.length; i++) els[i].value = 'all';
+  _applyAdminReqFilters();
 }
 
 /* Filter + sort + render to main table body */
