@@ -145,10 +145,18 @@ function applyFhPerms() {
     grp.style.display = anyVisible ? '' : 'none';
   });
 
-  /* แถบแท็บมือถือ: ไม่มีสิทธิ์ส่งรายชื่อ = ซ่อนแท็บไปเลย
-     ปุ่มที่เหลือใช้ flex:1 จึงขยายเต็มความกว้างเองอัตโนมัติ ไม่เหลือช่องว่าง */
-  var _tabSub = document.getElementById('brTabSubmit');
-  if (_tabSub) _tabSub.style.display = fhCan('submit-request') ? '' : 'none';
+  /* ทางเข้าหน้าส่งรายชื่อมี 2 ที่: เมนูข้าง (จอคอม) กับแท็บล่าง (มือถือ)
+     ต้องซ่อน/โผล่พร้อมกันเสมอ ไม่งั้นคนเดียวกันเปิดคนละเครื่องเห็นไม่เหมือนกัน
+
+     สำคัญเรื่องลำดับ: applyFhPerms ถูกเรียกท้ายสุดของ applyFhConfigUI
+     จึงเป็น "คำตัดสินสุดท้าย" — ต้องคิดสวิตช์เปิด-ปิดรับรายชื่อตรงนี้ด้วย
+     เดิมคิดแค่สิทธิ์ ทำให้ตอนแอดมินปิดรับ เมนูข้างที่เพิ่งซ่อนไปโดนเปิดกลับมา */
+  var _submitOpen = true;
+  try { _submitOpen = (typeof FH_CONFIG === 'undefined') || FH_CONFIG.submitOpen !== false; } catch (e) {}
+  var _allowSubmit = fhCan('submit-request') && _submitOpen;
+  [document.getElementById('brNavSubmit'), document.getElementById('brTabSubmit')].forEach(function(el){
+    if (el) el.style.display = _allowSubmit ? '' : 'none';
+  });
 
   // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
   var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');
