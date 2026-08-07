@@ -39,8 +39,10 @@ function loadRecordsForSearch() {
     updateBranchStats();
     branchSearch();   // แสดงรายการทั้งหมดทันที (branchSearch ตั้งข้อความสรุปเอง)
   }
-  // 1) โชว์จากแคชทันที (cache เก็บชุดเต็ม → กรองตอนใช้เท่านั้น)
-  var _c = _fhCacheGet('fh_certs_v1');
+  /* 1) โชว์จากแคชทันที (cache เก็บชุดเต็ม → กรองตอนใช้เท่านั้น)
+     ขึ้นเป็น v2 เพราะแคชเดิมเก็บข้อมูลจาก Google Sheet ที่ชื่อสาขาคนละแบบ
+     ถ้าใช้คีย์เดิม เครื่องที่เคยเปิดไว้จะเห็น 0 ใบไปอีกพักหนึ่งกว่าจะโหลดใหม่ทับ */
+  var _c = _fhCacheGet('fh_certs_v2');
   if (_c && _c.length) { allRecords = _fhScopeRecordsToBranch(_c); _renderCerts(); }
   else {
     // ไม่มีแคช → โครงโหลด (การดึงใบรับรองจาก Cloud ใช้เวลานาน จอว่างจะดูเหมือนไม่มีข้อมูล)
@@ -54,21 +56,21 @@ function loadRecordsForSearch() {
     var g = document.getElementById('branchResults');
     if (g) g.innerHTML = certFailHtml(msg, 'loadRecordsForSearch()');
   }
-  // 2) ดึงสดเบื้องหลัง + อัปเดตแคช (เก็บชุดเต็ม แล้วค่อยกรองเข้า allRecords)
-  fetch(SCRIPT_URL, { method:'GET' })
-    .then(function(r){ return r.json(); })
-    .then(function(res){
-      if (res.ok) {
-        var _raw = res.records || [];
-        _fhCacheSet('fh_certs_v1', _raw);
-        allRecords = _fhScopeRecordsToBranch(_raw);
-        _renderCerts();
-        if (_adminRowCache && _adminRowCache.length) { _adminCertIdx = buildCertIndex(); if (typeof _applyAdminReqFilters === 'function') _applyAdminReqFilters(); }
-      } else {
-        _failCerts('โหลดข้อมูลไม่ได้: ' + (res.error || 'unknown'));
-      }
+  /* 2) ดึงสดเบื้องหลัง + อัปเดตแคช
+     ต้องใช้ fhLoadCertificates() = แหล่งเดียวกับฝั่งแอดมิน (Supabase)
+     ของเดิมยิง Apps Script (Google Sheet) ตรง ๆ ซึ่งเป็นสำเนาที่ชื่อสาขาคนละแบบ
+       Supabase  : "Santa Fe ซีคอนสแควร์ ศรีนครินทร์"   ← ตรงกับชื่อสาขาตอนล็อกอิน
+       Sheet     : "5002 ซีคอนศรีนครินทร์"              ← ไม่ตรง จับคู่ไม่ได้
+     ผลคือแอดมินเห็นใบของสาขานั้น แต่สาขาเองเปิดมาแล้วขึ้น 0 ใบ */
+  fhLoadCertificates()
+    .then(function(records){
+      var _raw = records || [];
+      _fhCacheSet('fh_certs_v2', _raw);
+      allRecords = _fhScopeRecordsToBranch(_raw);
+      _renderCerts();
+      if (_adminRowCache && _adminRowCache.length) { _adminCertIdx = buildCertIndex(); if (typeof _applyAdminReqFilters === 'function') _applyAdminReqFilters(); }
     })
-    .catch(function(err){ _failCerts('เชื่อมต่อ Cloud ไม่ได้: ' + err.message); });
+    .catch(function(err){ _failCerts('โหลดใบรับรองไม่สำเร็จ: ' + ((err && err.message) || err)); });
 }
 
 /* สรุปสั้นในหัวข้อ + เตือนเฉพาะใบที่ต้องลงมือ (ใกล้หมด/หมดอายุ)
