@@ -390,19 +390,24 @@ function loadFromCloud() {
   // ไม่มีทั้งข้อมูลบนจอและในแคช → โชว์โครงโหลดไว้ก่อน
   var _hadData = !!(matchData && matchData.length);
   if (!_hadData) fhCertLoading(true);
+  /* ปุ่ม/ป้ายสถานะสองตัวนี้เป็นแค่ตัวบอกความคืบหน้า ไม่ใช่สาระของการโหลด
+     ของเดิมเรียกตรง ๆ ถ้าวันไหนมันไม่อยู่ในหน้า (ถูกย้าย/ถูกตัดออก)
+     บรรทัดนี้จะพังก่อนถึงคำสั่งดึงข้อมูล → ใบรับรองไม่โหลดเลยทั้งหน้า โดยไม่มีข้อความบอก */
   var btn = document.getElementById('loadBtn');
-  btn.disabled = true;
-  btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
-  document.getElementById('processInfo').textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spin"></span> กำลังโหลด...';
+  }
+  var _pi = document.getElementById('processInfo');
+  if (_pi) _pi.textContent = 'กำลังโหลดข้อมูลจาก Cloud...';
 
   // fhLoadCertificates: Supabase ถ้าตั้งค่าไว้ · ไม่งั้น/พัง → Apps Script (doGet ไม่ระบุ action = certificates)
   fhLoadCertificates()
   .then(function(records){ return { ok: true, records: records }; })
   .then(function(res){
-    btn.disabled = false;
-    btn.innerHTML = '&#9729; โหลดจาก Cloud';
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#9729; โหลดจาก Cloud'; }
     if (!res.ok) {
-      document.getElementById('processInfo').textContent = '✗ โหลดล้มเหลว: ' + (res.error || 'unknown');
+      if (_pi) _pi.textContent = '✗ โหลดล้มเหลว: ' + (res.error || 'unknown');
       fhCertLoading(false, _hadData ? '' : ('โหลดใบรับรองไม่สำเร็จ: ' + (res.error || 'unknown')));
       return;
     }
@@ -415,7 +420,7 @@ function loadFromCloud() {
       matchData = [];
       _fhCacheSet('fh_cert_v1', []);
       try { updateStats(); renderTable(); } catch(e){}
-      document.getElementById('processInfo').textContent = 'ยังไม่มีข้อมูลใน Cloud';
+      if (_pi) _pi.textContent = 'ยังไม่มีข้อมูลใน Cloud';
       return;
     }
     matchData = _fhMapCerts(records);
@@ -439,24 +444,30 @@ function loadFromCloud() {
     // Renumber
     matchData.forEach(function(d, i){ d.no = i + 1; });
     _fhCacheSet('fh_cert_v1', matchData);   // cache ไว้แสดงทันทีรอบหน้า
-    document.getElementById('exportBtn').disabled = false;
-    document.getElementById('saveBtn').disabled = false;
-    (document.getElementById('noteBar')||{classList:{add:function(){}}}).classList.add('show');
+    /* วาดตารางก่อน แล้วค่อยไปยุ่งกับปุ่ม/ป้ายสถานะ
+       ของเดิมสั่งเปิดปุ่มก่อน ถ้าปุ่มตัวใดตัวหนึ่งไม่อยู่ในหน้า บรรทัดนั้นจะพัง
+       แล้วกระโดดไป catch — ข้อมูลโหลดมาครบแต่ไม่เคยถูกวาด หน้าจึงว่างเปล่า
+       ซ้ำร้ายข้อความ error ไปโผล่ใน processInfo ซึ่งถูกซ่อนไว้ เลยไม่มีใครเห็นสาเหตุ */
     updateStats();
     renderTable();
+    var _eb = document.getElementById('exportBtn'); if (_eb) _eb.disabled = false;
+    var _sb = document.getElementById('saveBtn');   if (_sb) _sb.disabled = false;
+    var _nb = document.getElementById('noteBar');   if (_nb) _nb.classList.add('show');
     if (typeof _refreshAdminReqCerts === 'function') _refreshAdminReqCerts();
     // NOTE: ตัดซ้ำเฉพาะ "ตอนแสดง" — ไม่เขียนกลับ Cloud อัตโนมัติ (กัน race ชนกับปุ่มลบ)
     // ถ้าอยากล้างของซ้ำบน Cloud จริง ให้กด "จับคู่ใบรับรองกับทะเบียน" หรือลบทั้งหมดแล้วอัปใหม่
     var _dupN = records.length - matchData.length;
-    document.getElementById('processInfo').textContent = '✓ โหลด ' + matchData.length + ' รายการ' + (_dupN > 0 ? ' (ซ่อนใบซ้ำ/ไม่สมบูรณ์ ' + _dupN + ' ใบ)' : '') + ' · ' + new Date().toLocaleTimeString('th-TH');
-    document.getElementById('topStatus').textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
+    if (_pi) _pi.textContent = '✓ โหลด ' + matchData.length + ' รายการ' + (_dupN > 0 ? ' (ซ่อนใบซ้ำ/ไม่สมบูรณ์ ' + _dupN + ' ใบ)' : '') + ' · ' + new Date().toLocaleTimeString('th-TH');
+    var _ts = document.getElementById('topStatus');
+    if (_ts) _ts.textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
   })
   .catch(function(err){
-    btn.disabled = false;
-    btn.innerHTML = '&#9729; โหลดจาก Cloud';
-    document.getElementById('processInfo').textContent = '✗ เชื่อมต่อ Cloud ไม่ได้: ' + err.message;
-    // มีข้อมูลจากแคชอยู่แล้ว → ปล่อยให้ใช้ต่อได้ · ไม่มีเลย → บอกให้ชัดว่าโหลดไม่ผ่าน
-    fhCertLoading(false, _hadData ? '' : ('เชื่อมต่อ Cloud ไม่ได้: ' + err.message));
+    if (btn) { btn.disabled = false; btn.innerHTML = '&#9729; โหลดจาก Cloud'; }
+    if (_pi) _pi.textContent = '✗ โหลดไม่สำเร็จ: ' + err.message;
+    console.error('[FH] โหลดใบรับรองไม่สำเร็จ', err);
+    /* processInfo ถูกซ่อนไว้ ข้อความในนั้นจึงไม่มีใครเห็น
+       ต้องขึ้นกล่องบอกเหตุผลบนหน้าจริง ๆ ไม่งั้นผู้ใช้เห็นแค่หน้าว่างแล้วไม่รู้ว่าเกิดอะไร */
+    fhCertLoading(false, _hadData ? '' : ('โหลดใบรับรองไม่สำเร็จ: ' + (err && err.message ? err.message : String(err))));
   });
 }
 
