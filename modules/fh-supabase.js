@@ -222,6 +222,41 @@ function fhSaveRequests(records) {
     });
 }
 
+/* บันทึก/ลบ ทะเบียนรายชื่อพนักงาน
+   บั๊กเดิม: หน้าเว็บ "อ่าน" ทะเบียนจาก Supabase แต่ "เขียน" ไป Apps Script อย่างเดียว
+   กดลบทะเบียนจึงลบแค่ใน Google Sheet ส่วน Supabase ยังอยู่ครบ พอโหลดใหม่ก็กลับมาเหมือนเดิม
+   (อาการเดียวกับปุ่มลบ/แก้ไขคำขออบรมที่แก้ไปแล้ว)
+   replaceAll = ล้างของเดิมทั้งตารางก่อนใส่ชุดใหม่ */
+function fhSaveEmployees(records, replaceAll) {
+  var recs = records || [];
+  if (!FH_SB.ready) return _sheetsPost({ type: 'save-employees', records: recs, replaceAll: !!replaceAll });
+
+  var step = replaceAll
+    ? FH_SB.client.from('fh_employees').delete().gte('id', 0).then(function(res){ if (res.error) throw res.error; })
+    : Promise.resolve();
+
+  return step
+    .then(function(){
+      if (!recs.length) return { count: 0 };
+      // ยัดทีละ 500 แถว กัน payload ใหญ่เกินจนถูกตัด
+      var CH = 500, rows = recs.map(_sbEmpIn);
+      function chunk(i) {
+        if (i >= rows.length) return { count: rows.length };
+        return FH_SB.client.from('fh_employees').insert(rows.slice(i, i + CH))
+          .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
+      }
+      return chunk(0);
+    })
+    .then(function(r){
+      _alsoSheets({ type: 'save-employees', records: recs, replaceAll: !!replaceAll });
+      return { ok: true, saved: r.count };
+    })
+    .catch(function(e){
+      console.warn('[FH] เขียนทะเบียนที่ Supabase ไม่ผ่าน → ใช้ Sheets แทน', e);
+      return _sheetsPost({ type: 'save-employees', records: recs, replaceAll: !!replaceAll });
+    });
+}
+
 /* แก้ไขคำขอทีละรายการ — อาการเดียวกับปุ่มลบ
    เดิมยิง update-request ไป Apps Script โดยส่ง rowIndex ที่จริงคือ id ของ Supabase
    Sheets หาแถวไม่เจอ → "not found" และต่อให้เจอ ข้อมูลจริงบน Supabase ก็ไม่ถูกแก้ */
@@ -363,4 +398,4 @@ function fhSbCompare() {
 /* หน้าตั้งค่าที่เก็บข้อมูลย้ายไปรวมที่ HUB แล้ว (⚙️ เครื่องมือผู้ดูแลระบบ → 🗄️ ที่เก็บข้อมูล)
    ฟังก์ชัน UI เดิม (sbRenderStatus/sbRunMigrate/sbRunCompare/sbClearCfg) ถูกลบออก
    ส่วน fhSbMigrate/fhSbCompare ที่เหลือไว้ เผื่อเรียกจาก console ตอนแก้ปัญหาเฉพาะหน้า */
-var FH_BUILD = '2026-08-08 · 23:55';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
+var FH_BUILD = '2026-08-09 · 01:10';   // บัมพ์ทุกครั้งที่แก้ fh-*.js

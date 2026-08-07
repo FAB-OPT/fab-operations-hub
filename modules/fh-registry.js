@@ -2,7 +2,15 @@
    แยกมาจาก food-handler.js (บรรทัดเดิม 1336-1973)
    ⚠️ ไฟล์ชุดนี้ต้องโหลดตามลำดับใน food-handler.html — อย่าสลับ */
 /* ─────────── EMPLOYEE REGISTRY CLOUD ─────────── */
+/* ทะเบียนรายชื่อถูกอ่านจาก Supabase (fhLoadEmployees) แต่เดิมเขียนกลับไป Apps Script
+   อย่างเดียว ลบ/นำเข้าจึงไม่มีผลกับข้อมูลที่หน้าจอใช้จริง — ต้องเขียนที่เดียวกับที่อ่าน */
 function saveEmployeeRegistryToCloud(employees, replaceAll) {
+  if (typeof fhSaveEmployees === 'function') {
+    return fhSaveEmployees(employees, replaceAll).then(function(res){
+      if (res && res.ok === false) throw new Error(res.error || 'บันทึกทะเบียนไม่สำเร็จ');
+      return res;
+    });
+  }
   if (!SCRIPT_URL) return Promise.reject(new Error('SCRIPT_URL ไม่ตั้งค่า'));
   return fetch(SCRIPT_URL, {
     method: 'POST', mode: 'cors',
