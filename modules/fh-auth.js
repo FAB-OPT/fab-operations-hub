@@ -220,8 +220,31 @@ var BR_SECTION_META = {
   'adm-sec-br-submit':  { icon: '📋', title: 'ส่งรายชื่ออบรม' },
   'adm-sec-br-history': { icon: '📂', title: 'รายชื่อที่ส่งอบรม' }
 };
+/* หน้าฝั่งสาขาที่ต้องมีสิทธิ์ถึงเข้าได้ — คุมที่นี่จุดเดียว
+   ครอบทั้งกดเมนูข้าง กดแท็บล่างจอ และกู้หน้าที่ค้างไว้ */
+var BR_SECTION_ACTION = {
+  'adm-sec-br-search': 'view-certs',
+  'adm-sec-br-submit': 'submit-request',
+  'adm-sec-br-history': 'submit-request'
+};
 function showBrSection(targetId) {
   if (!BR_SECTION_META[targetId]) targetId = 'adm-sec-br-search';
+  /* ไม่มีสิทธิ์หน้านี้ → ไปหน้าอื่นที่เข้าได้ ไม่ใช่พาไปยืนหน้าเปล่า
+     ถ้าไม่มีสิทธิ์สักหน้า ค่อยขึ้นกล่องบอกเหตุผล (ซึ่งไปโผล่ฝั่งสาขาแล้ว) */
+  try {
+    var need = BR_SECTION_ACTION[targetId];
+    if (need && typeof fhCan === 'function' && !fhCan(need)) {
+      var alt = null;
+      Object.keys(BR_SECTION_ACTION).forEach(function (id) {
+        if (!alt && id !== targetId && BR_SECTION_META[id] && fhCan(BR_SECTION_ACTION[id])) alt = id;
+      });
+      if (!alt) {
+        if (typeof _fhShowNoAccess === 'function') _fhShowNoAccess();
+        return;
+      }
+      targetId = alt;
+    }
+  } catch (e) {}
   document.querySelectorAll('#branchView .admin-main > [id^="adm-sec-br-"]').forEach(function(sec){
     sec.classList.toggle('active', sec.id === targetId);
   });

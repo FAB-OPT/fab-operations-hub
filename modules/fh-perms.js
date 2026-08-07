@@ -33,7 +33,9 @@ var FH_ACTION_GROUPS = [
 ];
 var FH_ACTIONS = [
   // ── เมนูหลัก ──
-  { id:'view-certs',      group:'menu',   label:'ข้อมูลใบรับรอง',        roles:['admin','coo','vp','bzm'], danger:false },
+  /* ใส่ branch ไว้ในค่าเริ่มต้นด้วย — เดิมสาขาเห็นหน้าใบรับรองได้อยู่แล้วโดยไม่ผ่านสิทธิ์นี้
+     ถ้าไม่ใส่ พอผูกสิทธิ์เข้าไป สาขาทุกแห่งจะหายทันทีจนกว่าแอดมินจะไปติ๊กเปิดเอง */
+  { id:'view-certs',      group:'menu',   label:'ข้อมูลใบรับรอง',        roles:['admin','coo','vp','bzm','branch'], danger:false },
   { id:'view-requests',   group:'menu',   label:'คำขออบรม',              roles:['admin','coo','vp','bzm'], danger:false },
   { id:'view-registry',   group:'menu',   label:'ทะเบียนรายชื่อ',        roles:['admin','coo','vp','bzm'], danger:false },
   { id:'settings',        group:'menu',   label:'ตั้งค่า (รวมหน้าสิทธิ์นี้)', roles:['admin'],           danger:true  },
