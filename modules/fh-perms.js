@@ -58,8 +58,6 @@ var FH_ACTIONS = [
    allow/deny = ยกเว้นรายคน (deny ชนะทุกอย่าง) */
 var FH_PERMS = {};
 var FH_PERMS_KEY = 'fh_perms_v1';
-/* เหตุผลที่ส่งรายชื่อไม่ได้ ('' = ส่งได้) — ใช้แสดงให้ผู้ใช้รู้ว่าเมนูหายเพราะอะไร */
-var FH_SUBMIT_WHY = '';
 
 function _fhDefaultPerms() {
   var o = {};
@@ -155,17 +153,10 @@ function applyFhPerms() {
      เดิมคิดแค่สิทธิ์ ทำให้ตอนแอดมินปิดรับ เมนูข้างที่เพิ่งซ่อนไปโดนเปิดกลับมา */
   var _submitOpen = true;
   try { _submitOpen = (typeof FH_CONFIG === 'undefined') || FH_CONFIG.submitOpen !== false; } catch (e) {}
-  var _canSub = fhCan('submit-request');
-  var _allowSubmit = _canSub && _submitOpen;
+  var _allowSubmit = fhCan('submit-request') && _submitOpen;
   [document.getElementById('brNavSubmit'), document.getElementById('mtbSubmit')].forEach(function(el){
     if (el) el.style.display = _allowSubmit ? '' : 'none';
   });
-  /* เก็บเหตุผลไว้ให้เห็นด้วย — เมนูหายเฉย ๆ ผู้ใช้ไม่รู้ว่าเพราะอะไร
-     คิดว่าระบบพัง แล้วมาถามซ้ำ ๆ ซึ่งเสียเวลาทั้งสองฝ่าย */
-  FH_SUBMIT_WHY = _allowSubmit ? ''
-    : (!_submitOpen ? 'ปิดรับรายชื่อชั่วคราว'
-       : 'บทบาท ' + ((FH_ROLE_LABEL[FH_USER.role] || FH_USER.role || 'ไม่ทราบ')) + ' ไม่มีสิทธิ์ส่งรายชื่อ');
-  try { if (typeof _fhRenderSubmitWhy === 'function') _fhRenderSubmitWhy(); } catch (e) {}
 
   // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
   var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');

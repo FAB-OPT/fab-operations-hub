@@ -244,17 +244,10 @@ function showBrSection(targetId) {
   var isMobile = false;
   try { isMobile = window.matchMedia('(max-width: 820px)').matches; } catch (e) {}
   if (isMobile && currentBranchName) {
-    if (iEl) iEl.textContent = '🏬';
-    /* ต่อท้ายด้วยเลขรุ่นไฟล์ตัวเล็ก ๆ — ใช้ตรวจใน 1 วินาทีว่าเครื่องนี้ได้ไฟล์ใหม่หรือยัง
-       บนมือถือเปิด console ดูยาก และ "กด Ctrl+F5" ก็ทำไม่ได้
-       ที่ผ่านมาเสียเวลาเถียงกันว่าเป็นแคชหรือเป็นบั๊กหลายรอบ */
-    if (tEl) {
-      var _b = (typeof FH_BUILD !== 'undefined') ? FH_BUILD : '';
-      tEl.innerHTML = escapeHtml(currentBranchName) +
-        (_b ? ' <span class="fh-build-tag">' + escapeHtml(_b) + '</span>' : '') +
-        '<span id="brSubmitWhy" class="fh-why-tag"></span>';
-    }
-    try { if (typeof _fhRenderSubmitWhy === 'function') _fhRenderSubmitWhy(); } catch (e) {}
+    /* แถบหัวมือถือ = ชื่อสาขาล้วน ๆ ไม่มีไอคอน ไม่มีเลขรุ่น ไม่มีข้อความสถานะ
+       (เลขรุ่น/สถานะเคยใส่ไว้ตอนไล่บั๊กแถบแท็บ ตอนนี้เจอต้นเหตุแล้วจึงเอาออก) */
+    if (iEl) iEl.textContent = '';
+    if (tEl) tEl.textContent = currentBranchName;
   } else {
     if (iEl && meta) iEl.textContent = meta.icon;
     if (tEl && meta) tEl.textContent = meta.title;
@@ -659,24 +652,4 @@ function _updateTopbarVisibility() {
 }
 
 
-/* บอกเหตุผลที่เมนู "ส่งรายชื่อ" หายไป — ให้เห็นบนหน้าจอเลย ไม่ต้องเปิด console
-   เมนูหายเฉย ๆ ผู้ใช้จะนึกว่าระบบพัง ทั้งที่เป็นเรื่องสิทธิ์หรือสวิตช์ปิดรับ */
-function _fhRenderSubmitWhy() {
-  var el = document.getElementById('brSubmitWhy');
-  if (!el) return;
-  var why = (typeof FH_SUBMIT_WHY !== 'undefined') ? FH_SUBMIT_WHY : '';
-  if (why) { el.textContent = '· ' + why; el.className = 'fh-why-tag'; el.style.display = ''; return; }
-  /* ระบบว่า "ส่งได้" แต่แท็บอาจยังไม่โผล่ด้วยเหตุอื่น (เช่น DOM/CSS)
-     จึงรายงานสถานะจริงของปุ่มออกมาด้วย ไม่ใช่แค่ผลการตัดสินสิทธิ์
-     ทำให้แยกออกว่า "ตรรกะสิทธิ์ผิด" หรือ "ปุ่มถูกอะไรบางอย่างซ่อน" */
-  var tab = document.getElementById('mtbSubmit');
-  var vis = 'ไม่พบปุ่ม';
-  if (tab) {
-    var cs = '';
-    try { cs = getComputedStyle(tab).display; } catch (e) {}
-    vis = (cs === 'none') ? ('ปุ่มถูกซ่อน (inline=' + (tab.style.display || 'ว่าง') + ')') : 'ปุ่มแสดงอยู่';
-  }
-  el.textContent = '· ส่งรายชื่อ: อนุญาต · ' + vis;
-  el.className = 'fh-why-tag fh-why-ok';
-  el.style.display = '';
-}
+

@@ -75,20 +75,18 @@ function updateBranchStats() {
   /* หัวข้อต้องตรงกับสิ่งที่ตารางแสดงจริง
      ค่าเริ่มต้นตอนนี้คือ "ของสาขาตัวเอง" ไม่ใช่ทุกสาขา ถ้าหัวข้อยังเขียนว่าทุกสาขา
      ผู้ใช้จะนึกว่าเห็นครบแล้ว ทั้งที่กรองอยู่ */
+  /* จำนวนอยู่ในหัวข้อเลย แล้วตัดคำบรรยายใต้หัวข้อทิ้ง
+     เดิมบอกจำนวนซ้ำ 3 ที่ (หัวข้อ · ใต้หัวข้อ · บรรทัดนับ) อ่านแล้วรก */
   var titleEl = document.getElementById('branchHeroTitle');
   var scopeAll = (typeof _brSearchAll !== 'undefined' && _brSearchAll);
+  var total = (allRecords || []).length;
+  var mine = (!isAdminMode && currentBranchName && !scopeAll);
   if (titleEl) {
-    titleEl.textContent = (!isAdminMode && currentBranchName && !scopeAll)
-      ? 'ใบรับรองของสาขา' : 'ฐานข้อมูลใบรับรอง · ทุกสาขา';
+    titleEl.textContent = mine
+      ? ('ใบรับรองของสาขา มีทั้งหมด ' + own.length + ' ใบ')
+      : ('ฐานข้อมูลใบรับรอง · ทุกสาขา ' + total + ' ใบ');
   }
-  if (subEl) {
-    var total = (allRecords || []).length;
-    if (!total) subEl.textContent = 'ยังไม่มีใบรับรองในระบบ';
-    else if (!isAdminMode && currentBranchName && !scopeAll)
-      subEl.textContent = currentBranchName + ' · ' + own.length + ' ใบ (ทั้งระบบ ' + total + ' ใบ)';
-    else subEl.textContent = 'ทุกสาขา ' + total + ' ใบ'
-      + (!isAdminMode && currentBranchName ? ' · ' + currentBranchName + ' ' + own.length + ' ใบ' : '');
-  }
+  if (subEl) { subEl.textContent = ''; subEl.style.display = 'none'; }
   if (!alertEl) return;
   if (!warn && !exp) { alertEl.style.display = 'none'; alertEl.innerHTML = ''; return; }
   var chip = function(txt, color, bg){
@@ -150,18 +148,19 @@ function branchSearch() {
   var btnAll = '<button type="button" class="br-scope-btn" onclick="brSearchAllBranches()">🔍 ค้นหาเพิ่มเติมทุกสาขา</button>';
   var btnMine = '<button type="button" class="br-scope-btn" onclick="brSearchMyBranchOnly()">↩ กลับมาดูเฉพาะสาขาตัวเอง</button>';
 
+  /* บรรทัดนี้เหลือแค่ปุ่มสลับขอบเขต — จำนวนย้ายไปอยู่ในหัวข้อแล้ว
+     ตอนค้นหาถึงจะบอกจำนวนที่เจอ เพราะหัวข้อไม่ได้อัปเดตตามคำค้น */
   var info = document.getElementById('branchSearchInfo');
   if (info) {
     if (q) {
       info.innerHTML = 'พบ <strong>' + results.length + '</strong> รายการ (ค้นหาทุกสาขา)'
         + (myBranch ? ' <span class="br-scope-sp"></span>' + btnMine : '');
     } else if (scopeAll) {
-      info.innerHTML = 'แสดงทุกสาขา <strong>' + results.length + '</strong> รายการ — พิมพ์ชื่อเพื่อค้นหา'
-        + (myBranch ? ' <span class="br-scope-sp"></span>' + btnMine : '');
+      info.innerHTML = (myBranch ? btnMine : '');
     } else {
-      info.innerHTML = 'ใบรับรองของ <strong>' + escapeHtml(myBranch || 'สาขา') + '</strong> · <strong>' + results.length + '</strong> รายการ'
-        + ' <span class="br-scope-sp"></span>' + btnAll;
+      info.innerHTML = btnAll;
     }
+    info.style.display = info.innerHTML.trim() ? '' : 'none';
   }
 
   if (!results.length) {
@@ -192,7 +191,7 @@ function branchSearch() {
       + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
       + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
       + '<td data-label="ใบเซอร์" data-icon="⚙️" class="td-row-actions">'
-      +   (url ? '<a class="btn-row-view" href="' + url + '" target="_blank" rel="noopener" title="ดาวน์โหลดใบเซอร์" style="text-decoration:none;">⬇️</a>' : '<span style="color:var(--text3)">—</span>')
+      +   (url ? '<a class="btn-row-view" href="' + url + '" target="_blank" rel="noopener" title="ดาวน์โหลดใบเซอร์" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบเซอร์</span></a>' : '<span style="color:var(--text3)">—</span>')
       + '</td>'
       + '</tr>';
   }).join('');
