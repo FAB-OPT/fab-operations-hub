@@ -654,6 +654,18 @@ function _fhRenderSubmitWhy() {
   var el = document.getElementById('brSubmitWhy');
   if (!el) return;
   var why = (typeof FH_SUBMIT_WHY !== 'undefined') ? FH_SUBMIT_WHY : '';
-  el.textContent = why ? ('· ' + why) : '';
-  el.style.display = why ? '' : 'none';
+  if (why) { el.textContent = '· ' + why; el.className = 'fh-why-tag'; el.style.display = ''; return; }
+  /* ระบบว่า "ส่งได้" แต่แท็บอาจยังไม่โผล่ด้วยเหตุอื่น (เช่น DOM/CSS)
+     จึงรายงานสถานะจริงของปุ่มออกมาด้วย ไม่ใช่แค่ผลการตัดสินสิทธิ์
+     ทำให้แยกออกว่า "ตรรกะสิทธิ์ผิด" หรือ "ปุ่มถูกอะไรบางอย่างซ่อน" */
+  var tab = document.getElementById('brTabSubmit');
+  var vis = 'ไม่พบปุ่ม';
+  if (tab) {
+    var cs = '';
+    try { cs = getComputedStyle(tab).display; } catch (e) {}
+    vis = (cs === 'none') ? ('ปุ่มถูกซ่อน (inline=' + (tab.style.display || 'ว่าง') + ')') : 'ปุ่มแสดงอยู่';
+  }
+  el.textContent = '· ส่งรายชื่อ: อนุญาต · ' + vis;
+  el.className = 'fh-why-tag fh-why-ok';
+  el.style.display = '';
 }
