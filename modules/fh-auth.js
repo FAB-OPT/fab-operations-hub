@@ -253,6 +253,10 @@ function showBrSection(targetId) {
     if (tEl && meta) tEl.textContent = meta.title;
   }
   if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
+  /* ซิงก์แถบแท็บล่าง (มือถือ) ให้ไฮไลต์เฉพาะปุ่มของหน้าที่เปิดอยู่
+     เดิมเรียกเฉพาะใน showAdmSection (ฝั่งแอดมิน) ฝั่งสาขาจึงไม่เคยซิงก์
+     ผลคือกดไปหน้าส่งรายชื่อแล้ว ปุ่ม "ใบรับรอง" ยังติดไฮไลต์ค้างอยู่ */
+  try { if (typeof fhSyncTabbar === 'function') fhSyncTabbar(); } catch (e) {}
   /* ทวนสิทธิ์อีกรอบหลังสลับหน้า — กันกรณีมีโค้ดอื่นมาซ่อน/โชว์ทีหลังจนสองจอไม่ตรงกัน */
   try { if (typeof applyFhPerms === 'function') applyFhPerms(); } catch (e) {}
   window.scrollTo(0, 0);
@@ -593,11 +597,14 @@ function fhGoSubmit() {
 }
 /* ไฮไลต์เมื่ออยู่หน้าใบรับรอง + ซ่อนปุ่มถ้าไม่มีสิทธิ์เข้าหน้านั้น */
 function fhSyncTabbar() {
-  /* ปุ่มส่งรายชื่อ: ไฮไลต์ตามหน้าที่เปิดอยู่ (การซ่อนตามสิทธิ์อยู่ที่ applyFhPerms) */
+  /* ไฮไลต์ได้ทีละปุ่มเท่านั้น — ปุ่มไหนไม่ใช่หน้าปัจจุบันต้องถอดไฮไลต์ออกเสมอ
+     (หน้ารายชื่อที่ส่งแล้วนับเป็นหน้าเดียวกับส่งรายชื่อ เพราะรวมเป็นหน้าเดียว) */
   var sub = document.getElementById('mtbSubmit');
   if (sub) {
     var ss = document.getElementById('adm-sec-br-submit');
-    sub.classList.toggle('active', !!(ss && ss.classList.contains('active')));
+    var sh = document.getElementById('adm-sec-br-history');
+    var onSubmit = !!(ss && ss.classList.contains('active')) || !!(sh && sh.classList.contains('active'));
+    sub.classList.toggle('active', onSubmit);
   }
   var btn = document.getElementById('mtbCerts');
   if (!btn) return;
