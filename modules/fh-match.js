@@ -935,6 +935,107 @@ function fhExportCertReport(all) {
   });
 }
 
+/* ───────── รายงานใบรับรอง แบบ PDF ─────────
+   ใช้วิธีเดียวกับรายงานอื่นในระบบ: สร้างหน้า HTML แล้วสั่งพิมพ์ → เลือก "Save as PDF"
+   ข้อดีคือได้ฟอนต์ไทยครบและไม่ต้องโหลดไลบรารีเพิ่ม (jsPDF ฝังฟอนต์ไทยยุ่งและไฟล์ใหญ่) */
+function fhExportCertReportPDF(all) {
+  var rows = (typeof matchData !== 'undefined' && matchData.length)
+    ? (all ? matchData.slice() : (typeof getFiltered === 'function' ? getFiltered() : matchData.slice()))
+    : [];
+  if (!rows.length) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีใบรับรองให้ออกรายงาน'); return; }
+
+  var STATUS = { expired: 'หมดอายุ', warning: 'ใกล้หมดอายุ' };
+  var esc = (typeof escapeHtml === 'function') ? escapeHtml : function(s){ return String(s == null ? '' : s); };
+  var dash = function(v){ var s = String(v == null ? '' : v).trim(); return (!s || s === '—') ? '' : s; };
+  var nValid = 0, nWarn = 0, nExp = 0;
+  rows.forEach(function(d){
+    if (d.expStatus === 'expired') nExp++; else if (d.expStatus === 'warning') nWarn++; else nValid++;
+  });
+
+  /* บอกว่ากรองอะไรไว้ ไม่งั้นพิมพ์ออกมาแล้วไม่รู้ว่าเป็นรายงานของชุดไหน */
+  var scope = [];
+  if (!all) {
+    ['branchFilter','courseFilter','brandFilter','expFilter'].forEach(function(id){
+      var el = document.getElementById(id);
+      if (el && el.value && el.value !== 'all') scope.push(el.options[el.selectedIndex].text.replace(/^[^\wก-๙]+\s*/, ''));
+    });
+    var q = document.getElementById('searchQ');
+    if (q && q.value.trim()) scope.push('ค้นหา "' + q.value.trim() + '"');
+  }
+
+  var body = rows.map(function(d, i){
+    var st = STATUS[d.expStatus] || 'ยังมีผล';
+    var cls = d.expStatus === 'expired' ? 'st-bad' : d.expStatus === 'warning' ? 'st-warn' : 'st-ok';
+    return '<tr>'
+      + '<td class="num">' + (i + 1) + '</td>'
+      + '<td>' + esc(dash(d.certName)) + '</td>'
+      + '<td>' + esc(dash(d.branch)) + '</td>'
+      + '<td>' + esc(dash(d.position)) + '</td>'
+      + '<td class="course">' + esc(dash(d.course)) + '</td>'
+      + '<td class="num">' + esc(dash(d.trainDate)) + '</td>'
+      + '<td class="num">' + esc(dash(d.expireDate)) + '</td>'
+      + '<td class="num"><span class="' + cls + '">' + st + '</span></td>'
+      + '</tr>';
+  }).join('');
+
+  var html = '<!doctype html><html lang="th"><head><meta charset="utf-8">'
+    + '<title>รายงานใบรับรอง ' + _fhStamp() + '</title>'
+    + '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">'
+    + '<style>'
+    + '@page{size:A4 landscape;margin:11mm 10mm 13mm;}'
+    + '*{box-sizing:border-box;margin:0;padding:0;}'
+    + 'body{font-family:Sarabun,sans-serif;color:#0f172a;font-size:11px;}'
+    + '.hd{display:flex;align-items:flex-end;gap:14px;border-bottom:2px solid #0f172a;padding-bottom:9px;margin-bottom:4px;}'
+    + '.hd h1{font-size:17px;font-weight:800;letter-spacing:-.3px;}'
+    + '.hd .sub{font-size:11px;color:#64748b;margin-top:3px;}'
+    + '.hd .meta{margin-left:auto;text-align:right;font-size:10.5px;color:#64748b;line-height:1.6;}'
+    + '.sum{display:flex;gap:7px;margin:10px 0 11px;}'
+    + '.sum div{border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;min-width:96px;}'
+    + '.sum .l{font-size:9.5px;color:#94a3b8;font-weight:700;}'
+    + '.sum .n{font-size:16px;font-weight:800;margin-top:1px;}'
+    + '.n-ok{color:#059669;}.n-warn{color:#b45309;}.n-bad{color:#dc2626;}'
+    + 'table{width:100%;border-collapse:collapse;}'
+    + 'thead th{background:#f1f5f9;font-size:9.5px;font-weight:800;color:#475569;text-align:left;'
+    +   'padding:6px 7px;border-bottom:1.5px solid #cbd5e1;white-space:nowrap;}'
+    + 'tbody td{padding:5px 7px;border-bottom:.7px solid #e8edf3;vertical-align:top;line-height:1.45;}'
+    + 'tbody tr:nth-child(even) td{background:#fbfcfe;}'
+    + 'td.num{white-space:nowrap;}td.course{font-size:10px;color:#475569;}'
+    + '.st-ok{color:#059669;font-weight:700;}.st-warn{color:#b45309;font-weight:700;}.st-bad{color:#dc2626;font-weight:800;}'
+    /* หัวตารางซ้ำทุกหน้าเวลาพิมพ์ · ห้ามตัดแถวคาหน้า */
+    + 'thead{display:table-header-group;}tr{page-break-inside:avoid;}'
+    + '.bar{position:fixed;top:0;left:0;right:0;background:#0f172a;color:#fff;padding:9px 14px;'
+    +   'display:flex;gap:9px;align-items:center;font-size:12.5px;z-index:9;}'
+    + '.bar button{font-family:inherit;font-size:12.5px;font-weight:700;border:0;border-radius:8px;'
+    +   'padding:7px 15px;cursor:pointer;background:#ea580c;color:#fff;}'
+    + '.bar .gh{background:rgba(255,255,255,.16);}'
+    + '@media print{.bar{display:none;}body{padding-top:0;}}'
+    + '@media screen{body{padding:56px 18px 24px;}}'
+    + '</style></head><body>'
+    + '<div class="bar"><b>รายงานใบรับรอง ' + rows.length + ' รายการ</b>'
+    +   '<span style="flex:1"></span>'
+    +   '<button onclick="window.print()">🖨 พิมพ์ / บันทึกเป็น PDF</button>'
+    +   '<button class="gh" onclick="window.close()">ปิด</button></div>'
+    + '<div class="hd"><div><h1>รายงานใบรับรองผู้สัมผัสอาหาร</h1>'
+    +   '<div class="sub">' + (scope.length ? esc(scope.join(' · ')) : 'ทั้งหมดในระบบ') + '</div></div>'
+    +   '<div class="meta">ออกรายงาน ' + _fhStamp() + '<br>ทั้งหมด ' + rows.length + ' รายการ</div></div>'
+    + '<div class="sum">'
+    +   '<div><div class="l">ทั้งหมด</div><div class="n">' + rows.length + '</div></div>'
+    +   '<div><div class="l">ยังมีผล</div><div class="n n-ok">' + nValid + '</div></div>'
+    +   '<div><div class="l">ใกล้หมดอายุ</div><div class="n n-warn">' + nWarn + '</div></div>'
+    +   '<div><div class="l">หมดอายุแล้ว</div><div class="n n-bad">' + nExp + '</div></div>'
+    + '</div>'
+    + '<table><thead><tr>'
+    +   '<th style="width:34px">#</th><th style="width:19%">ชื่อ-นามสกุล</th><th style="width:21%">สาขา</th>'
+    +   '<th style="width:11%">ตำแหน่ง</th><th>หลักสูตร</th>'
+    +   '<th style="width:9%">วันอบรม</th><th style="width:9%">วันหมดอายุ</th><th style="width:9%">สถานะ</th>'
+    + '</tr></thead><tbody>' + body + '</tbody></table></body></html>';
+
+  var w = window.open('', '_blank');
+  if (!w) { showInfo('เปิดหน้าต่างไม่ได้', 'เบราว์เซอร์บล็อกป๊อปอัป — กดอนุญาตป๊อปอัปของเว็บนี้แล้วลองใหม่'); return; }
+  w.document.open(); w.document.write(html); w.document.close();
+  setTimeout(function(){ try { w.focus(); w.print(); } catch (e) {} }, 700);
+}
+
 /* ถอยกรณีรวมไฟล์ไม่ได้ — เปิดใบเซอร์ทีละแท็บ (ต้องอนุญาต pop-up) */
 function _fhOpenEachTab(list) {
   showInfo('รวมไฟล์ไม่ได้ — เปิดทีละใบแทน',

@@ -138,7 +138,7 @@ function applyFhPerms() {
   });
   /* กลุ่มเมนูที่ลูกโดนซ่อนหมด → ซ่อนทั้งกลุ่ม (รวมหัวข้อ/เส้นคั่น)
      ไม่งั้นกดหัวข้อแล้วกางออกมาว่างเปล่า ผู้ใช้จะนึกว่า "ปุ่มกดไม่ได้" */
-  document.querySelectorAll('.adm-side-collapsible, .adm-side-group').forEach(function(grp){
+  document.querySelectorAll('.adm-side-collapsible, .adm-side-group, .exp-group').forEach(function(grp){
     var kids = grp.querySelectorAll('[data-fh-action]');
     if (!kids.length) return;   // กลุ่มที่ไม่ได้คุมสิทธิ์ ปล่อยไว้
     var anyVisible = Array.prototype.some.call(kids, function(k){ return k.style.display !== 'none'; });
