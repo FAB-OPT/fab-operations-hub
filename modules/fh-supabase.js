@@ -42,11 +42,38 @@ function fhSbSaveConfig(url, key, dualWrite) {
   localStorage.setItem('fh_sb_cfg', JSON.stringify({ url: url, key: key, on: true, dualWrite: dualWrite !== false }));
 }
 
+/* ───────── เวลา: Supabase เก็บเป็น UTC · หน้าจอต้องเป็นเวลาไทย ─────────
+   ts ที่ฐานประทับเองด้วย now() จะลงท้าย +00:00 ซึ่งช้ากว่าเวลาไทย 7 ชั่วโมง
+   ของเดิมตัดสตริงตรง ๆ ("วันที่ส่ง" บนหน้าจอจึงเป็นเวลา UTC ไม่ใช่เวลาจริง)
+   ไทยไม่มีเวลาออมแสง จึงบวก 7 ชั่วโมงคงที่ได้ทั้งปี */
+function _fhTsToThai(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  // ไม่มีโซนเวลาต่อท้าย = ค่าที่เป็นเวลาไทยอยู่แล้ว (เช่นทางสำรอง Google Sheets) ไม่ต้องแปลง
+  if (!/([zZ]|[+\-]\d{2}:?\d{2})$/.test(s)) return s.replace('T', ' ').slice(0, 19);
+  var d = new Date(s);
+  if (isNaN(d.getTime())) return s.replace('T', ' ').slice(0, 19);
+  var t = new Date(d.getTime() + 7 * 3600000);
+  var p = function (n) { return (n < 10 ? '0' : '') + n; };
+  return t.getUTCFullYear() + '-' + p(t.getUTCMonth() + 1) + '-' + p(t.getUTCDate())
+       + ' ' + p(t.getUTCHours()) + ':' + p(t.getUTCMinutes()) + ':' + p(t.getUTCSeconds());
+}
+
+/* ขากลับ: สตริงเวลาไทยแบบไม่มีโซน ต้องติด +07:00 ไปด้วย
+   ไม่งั้น Postgres จะอ่านเป็น UTC แล้วเวลาจะเลื่อนไป 7 ชั่วโมงทุกครั้งที่แก้ไขแถวนั้น */
+function _fhThaiToIso(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return s;
+  s = s.replace(' ', 'T');
+  if (/([zZ]|[+\-]\d{2}:?\d{2})$/.test(s)) return s;
+  return s + '+07:00';
+}
+
 /* ───────── แปลงชื่อคอลัมน์: Supabase (snake_case) ⇄ รูปแบบที่แอปใช้อยู่ ───────── */
 function _sbReqOut(r) {   // Supabase → รูปแบบเดิมของแอป
   return {
     _sbId: r.id, _rowIndex: r.id,
-    timestamp: r.ts ? String(r.ts).replace('T', ' ').slice(0, 19) : '',
+    timestamp: _fhTsToThai(r.ts),
     name: r.name || '', empId: r.emp_id || '', idCard: r.id_card || '',
     branch: r.branch || '', position: r.position || '', course: r.course || '',
     trainDate: r.train_date || '', timeSlot: r.time_slot || '',
@@ -60,7 +87,7 @@ function _sbReqIn(r) {    // รูปแบบเดิมของแอป �
     train_date: String(r.trainDate || ''), time_slot: r.timeSlot || '',
     note: r.note || '', round: r.round || '', brand: r.brand || ''
   };
-  if (r.timestamp) o.ts = String(r.timestamp).replace(' ', 'T');
+  if (r.timestamp) o.ts = _fhThaiToIso(r.timestamp);
   return o;
 }
 function _sbCertOut(r) {
@@ -336,4 +363,4 @@ function fhSbCompare() {
 /* หน้าตั้งค่าที่เก็บข้อมูลย้ายไปรวมที่ HUB แล้ว (⚙️ เครื่องมือผู้ดูแลระบบ → 🗄️ ที่เก็บข้อมูล)
    ฟังก์ชัน UI เดิม (sbRenderStatus/sbRunMigrate/sbRunCompare/sbClearCfg) ถูกลบออก
    ส่วน fhSbMigrate/fhSbCompare ที่เหลือไว้ เผื่อเรียกจาก console ตอนแก้ปัญหาเฉพาะหน้า */
-var FH_BUILD = '2026-08-08 · 22:05';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
+var FH_BUILD = '2026-08-08 · 22:40';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
