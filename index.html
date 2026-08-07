@@ -5368,7 +5368,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-06 · 21:05';
+var HUB_BUILD = '2026-08-07 · 10:45';
 
 /* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
    GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
@@ -7299,6 +7299,62 @@ function submitRequests() {
   });
 }
 
+</script>
+
+<!-- ═════════ ตัวกันหน้าล็อกอินเสีย (ต้องอยู่แยกบล็อก และเล็กที่สุด) ═════════
+     ถ้าสคริปต์ก้อนใหญ่ข้างบนพัง (เช่นเบราว์เซอร์เก็บไฟล์เก่าที่พังไว้ในแคช)
+     หน้าจะไม่มีช่องกรอกรหัสเลย และหน้านั้นก็รันโค้ดเช็ครุ่นไม่ได้ด้วย = แก้ตัวเองไม่ได้
+     บล็อกนี้แยกออกมาเพื่อให้รอดแม้ก้อนใหญ่พัง แล้วโหลดใหม่แบบข้ามแคชให้เอง -->
+<script>
+(function hubLoginFailsafe(){
+  var KEY = 'hub_failsafe_reload';
+  function boxCount(){
+    var pb = document.getElementById('pinBoxes');
+    return pb ? pb.children.length : 0;
+  }
+  function loginShowing(){
+    var lv = document.getElementById('loginView');
+    if (!lv) return false;
+    try { return getComputedStyle(lv).display !== 'none'; } catch(e) { return true; }
+  }
+  function manualCard(){
+    var pb = document.getElementById('pinBoxes');
+    if (!pb) return;
+    pb.innerHTML =
+      '<div style="text-align:center;font-family:Sarabun,sans-serif;padding:4px 0 2px;">' +
+        '<div style="font-size:13px;color:#b45309;line-height:1.6;margin-bottom:10px;">' +
+          'หน้านี้โหลดไม่สมบูรณ์<br>กดปุ่มด้านล่างเพื่อดึงไฟล์ใหม่' +
+        '</div>' +
+        '<button type="button" onclick="location.replace(location.pathname+\'?fresh=\'+ (+new Date()))" ' +
+          'style="border:0;border-radius:11px;padding:10px 20px;background:#FF7A1A;color:#fff;' +
+          'font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;">โหลดหน้าใหม่</button>' +
+      '</div>';
+  }
+  function check(){
+    if (!loginShowing()) return;                 // อยู่หน้าเมนูอยู่แล้ว = ปกติ
+    if (boxCount() > 0) {                        // มีช่องแล้ว = ปกติ
+      try { sessionStorage.removeItem(KEY); } catch(e) {}
+      // ล้าง ?fresh= ออกจาก URL ให้สะอาด
+      try {
+        if (/[?&]fresh=/.test(location.search)) history.replaceState(null, '', location.pathname);
+      } catch(e) {}
+      return;
+    }
+    // ลองสั่งวาดตรง ๆ ก่อน เผื่อแค่ลำดับการโหลดสะดุด
+    try { if (typeof renderPinBoxes === 'function') renderPinBoxes(); } catch(e) {}
+    if (boxCount() > 0) return;
+
+    // ยังไม่มีช่อง = สคริปต์หลักพังจริง → โหลดใหม่ข้ามแคช ครั้งเดียว (กันวนลูป)
+    var tried = null;
+    try { tried = sessionStorage.getItem(KEY); } catch(e) {}
+    if (tried) { manualCard(); return; }
+    try { sessionStorage.setItem(KEY, '1'); } catch(e) {}
+    location.replace(location.pathname + '?fresh=' + (+new Date()));
+  }
+  // เช็คหลังทุกอย่างนิ่งแล้ว เพื่อไม่ไปแย่งจังหวะสคริปต์หลัก
+  if (document.readyState === 'complete') setTimeout(check, 900);
+  else window.addEventListener('load', function(){ setTimeout(check, 900); });
+})();
 </script>
 </body>
 </html>
