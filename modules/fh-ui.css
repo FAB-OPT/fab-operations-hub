@@ -860,3 +860,116 @@ body { background: var(--fh-canvas) !important; }
   .cleanup-group.filter-cleanup { flex-wrap: wrap; }
   .cleanup-group .cleanup-btn:last-child { margin-left: 0 !important; flex: 1 1 100%; }
 }
+
+
+/* ═══════════════════════════════════════════════════════════════
+   หน้าคำขออบรม — ยึดภาษาเดียวกับหน้าฐานข้อมูลใบรับรอง
+   ═══════════════════════════════════════════════════════════════
+   ต่างจากหน้าใบรับรองตรงที่ "การ์ดสถิติหน้านี้กดเพื่อกรองได้"
+   จึงรวมเป็นแผงเดียวเหมือนกัน แต่ยังต้องเห็นว่ากดได้และอันไหนถูกเลือกอยู่
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ───────── แผงสถิติ = แผงเดียวมีเส้นคั่น (เหมือนหน้าใบรับรอง) ───────── */
+.req-count-row {
+  display: flex !important; flex-wrap: wrap; gap: 0 !important;
+  background: var(--fh-surface) !important;
+  border: 1px solid var(--fh-line) !important;
+  border-radius: var(--fh-r-lg) !important;
+  box-shadow: var(--fh-shadow) !important;
+  padding: 0 !important; overflow: hidden;
+  margin-bottom: 12px !important;
+}
+.req-count-card {
+  flex: 1 1 190px; min-width: 0;
+  background: transparent !important;
+  border: 0 !important; border-right: 1px solid var(--fh-line) !important;
+  border-radius: 0 !important; box-shadow: none !important;
+  padding: 15px 18px !important; cursor: pointer;
+  transform: none !important; transition: background .13s;
+  position: relative;
+}
+.req-count-card:last-child { border-right: 0 !important; }
+.req-count-card:hover { background: var(--fh-surface-2) !important; box-shadow: none !important; }
+
+/* เลือกอยู่ = แถบสีด้านบน + พื้นอ่อน ๆ (ต้องเห็นว่ากำลังกรองด้วยอันไหน) */
+.req-count-card.active { background: var(--fh-surface-2) !important; }
+.req-count-card.active::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+  background: var(--fh-ink-3);
+}
+.req-count-card.active.rcc-gold::after,
+.req-count-card.active.rcc-orange::after { background: var(--fh-brand); }
+.req-count-card.active.rcc-blue::after   { background: var(--fh-info); }
+.req-count-card.active.rcc-green::after,
+.req-count-card.active.rcc-teal::after   { background: var(--fh-ok); }
+.req-count-card.active.rcc-purple::after { background: #7c3aed; }
+.req-count-card.active.rcc-pink::after   { background: #be185d; }
+
+/* ป้ายชื่อ: จุดสีนำหน้า แล้วชื่อยาว ๆ ตัดด้วย ... ไม่ให้ดันการ์ดบวม */
+.req-count-card-label {
+  display: flex !important; align-items: center; gap: 7px;
+  font-size: 12px !important; font-weight: 700 !important;
+  color: var(--fh-ink-2) !important; margin: 0 0 8px !important;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.req-count-card-num-row { display: flex; align-items: baseline; gap: 8px; }
+/* ตัวเลขเป็นสีเข้มเหมือนกันหมด — สีไปอยู่ที่จุด ไม่ใช่ที่ตัวเลข
+   เดิมตัวเลขคนละสี ทำให้ดูเหมือนคนละหน่วยวัด ทั้งที่เป็นจำนวนคนเหมือนกัน */
+.req-count-card-num {
+  font-size: 26px !important; font-weight: 800 !important;
+  color: var(--fh-ink) !important; letter-spacing: -.8px;
+  font-variant-numeric: tabular-nums; line-height: 1.05 !important;
+}
+.req-count-card-pct {
+  font-size: 12.5px !important; font-weight: 700 !important;
+  color: var(--fh-ink-3) !important; font-variant-numeric: tabular-nums;
+}
+
+/* ───────── แถบตัวกรอง: ปุ่มอันตรายแยกไปขวาสุด ─────────
+   เดิม "ลบทั้งหมด" ต่อท้ายปุ่มปกติในแถวเดียวกัน กดพลาดได้ */
+.req-filter-bar > .req-filter-refresh[data-fh-action="clear-reqs"] {
+  margin-left: auto !important;
+  border-left: 1px solid var(--fh-line) !important;
+  padding-left: 14px !important; border-radius: 999px !important;
+}
+.req-filter-refresh, .req-filter-clear { border-radius: 999px !important; white-space: nowrap; }
+.req-filter-search { flex: 0 1 300px !important; max-width: 340px; }
+.req-filter-sel { flex: 0 1 200px !important; }
+
+/* ───────── บรรทัดนับ ───────── */
+.req-count-row + div,
+#adm-sec-requests .count-line {
+  font-size: 12.5px !important; color: var(--fh-ink-3) !important; font-weight: 600 !important;
+}
+
+/* ───────── การ์ดรุ่น ─────────
+   ให้เข้าชุดกับการ์ดอื่นในระบบ: ขอบ+มุม+เงาชุดเดียวกัน
+   แถบสีม่วงด้านซ้ายคงไว้ เพราะเป็นตัวบอกว่านี่คือ "รุ่น" ไม่ใช่รายการทั่วไป */
+.rgrp {
+  border: 1px solid var(--fh-line) !important;
+  border-radius: var(--fh-r) !important;
+  box-shadow: var(--fh-shadow) !important;
+  padding: 14px 16px !important;
+  transition: border-color .13s, box-shadow .13s;
+}
+.rgrp:hover {
+  border-color: var(--fh-line-2) !important;
+  box-shadow: 0 2px 4px rgba(15,23,42,.05), 0 12px 28px -14px rgba(15,23,42,.18) !important;
+}
+.rgrp-course { font-size: 13.5px !important; color: var(--fh-ink) !important; }
+.rgrp-meta { font-size: 12px !important; color: var(--fh-ink-3) !important; }
+.rgrp-n { border-radius: 999px !important; font-variant-numeric: tabular-nums; }
+.rgrp-in { border-radius: 10px !important; border-color: var(--fh-line) !important; }
+
+@media (max-width: 820px) {
+  .req-count-card {
+    flex: 1 1 50%; border-bottom: 1px solid var(--fh-line) !important; padding: 13px 14px !important;
+  }
+  .req-count-card:nth-child(even) { border-right: 0 !important; }
+  .req-count-card-num { font-size: 21px !important; }
+  .req-filter-search { flex: 1 1 100% !important; max-width: none; }
+  .req-filter-sel { flex: 1 1 46% !important; }
+  .req-filter-bar > .req-filter-refresh[data-fh-action="clear-reqs"] {
+    margin-left: 0 !important; border-left: 0 !important; padding-left: 14px !important; flex: 1 1 100%;
+  }
+}
