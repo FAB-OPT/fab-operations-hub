@@ -145,14 +145,10 @@ function applyFhPerms() {
     grp.style.display = anyVisible ? '' : 'none';
   });
 
-  /* แถบแท็บมือถือ: แท็บส่งรายชื่อต้องอยู่ครบ 4 ปุ่มเสมอ ไม่ซ่อน
-     ซ่อนแล้วปุ่มที่เหลือจะเลื่อนตำแหน่ง ผู้ใช้ที่ชินกับที่เดิมจะกดผิด
-     ไม่มีสิทธิ์ = ทำให้จางและกดไม่ติด พร้อมบอกเหตุผลตอนกด */
+  /* แถบแท็บมือถือ: ไม่มีสิทธิ์ส่งรายชื่อ = ซ่อนแท็บไปเลย
+     ปุ่มที่เหลือใช้ flex:1 จึงขยายเต็มความกว้างเองอัตโนมัติ ไม่เหลือช่องว่าง */
   var _tabSub = document.getElementById('brTabSubmit');
-  if (_tabSub) {
-    _tabSub.style.display = '';
-    _tabSub.classList.toggle('br-tab-off', !fhCan('submit-request'));
-  }
+  if (_tabSub) _tabSub.style.display = fhCan('submit-request') ? '' : 'none';
 
   // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
   var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');
