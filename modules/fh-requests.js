@@ -13,7 +13,7 @@
 function _fhColCount(tbody, fallback) {
   try {
     var t = tbody && tbody.closest ? tbody.closest('table') : null;
-    var n = t ? t.querySelectorAll('thead th').length : 0;
+    var n = t ? t.querySelectorAll('thead th:not([hidden])').length : 0;   // คอลัมน์ที่ซ่อนไม่นับ
     if (n > 0) return n;
   } catch (e) {}
   return fallback;
@@ -369,7 +369,25 @@ function _prepReqFields(r) {
 }
 
 /* Render one admin request row. showCourseCol=false → omit หลักสูตร column (used in per-course tables). */
-function _renderAdminReqRow(r, certIdx, showCourseCol) {
+/* showCourseCol / showDateCol = false เมื่ออยู่ในรุ่น
+   ทุกแถวในรุ่นเดียวกันมีหลักสูตร วันอบรม และรอบเวลา "เหมือนกันทั้งหมด" อยู่แล้ว
+   (รุ่นถูกจัดกลุ่มด้วยสามอย่างนี้) แถบหัวรุ่นด้านบนก็บอกไว้แล้ว ซ้ำทุกบรรทัดจึงเปล่าประโยชน์
+   ยกเว้นเลขรุ่น ที่ไม่ได้เป็นตัวจัดกลุ่ม — ในรุ่นเดียวกันอาจมีคนที่ยังไม่ได้ระบุเลขรุ่นปนอยู่ */
+/* ซ่อนหัวตารางให้ตรงกับเซลล์ที่เรนเดอร์จริง ไม่งั้นหัวกับข้อมูลจะเหลื่อมกันทั้งตาราง
+   ใช้แอตทริบิวต์ hidden ไม่ใช่คลาส เพราะ _fhColCount นับ th ที่ไม่ถูกซ่อนได้ตรง ๆ */
+function _fhToggleReqCols(showCourse, showDate, showRoundOnly) {
+  var t = document.getElementById('adminReqTable');
+  if (!t) return;
+  var thC = t.querySelector('thead .th-course');
+  var thD = t.querySelector('thead .th-dateslot');
+  if (thC) thC.hidden = !showCourse;
+  if (thD) {
+    thD.hidden = !(showDate || showRoundOnly);
+    thD.textContent = showDate ? 'วันอบรม / รอบเวลา' : 'รุ่น';
+  }
+}
+
+function _renderAdminReqRow(r, certIdx, showCourseCol, showDateCol, showRoundOnly) {
   var p = _prepReqFields(r);
   var keyData = encodeURIComponent(JSON.stringify({ sbId: p.sbId, rowIndex: p.rowIdx, timestamp: String(p.tsRaw), name: p.name, idCard: p.idCard }));
   var html = '<tr>'
@@ -384,14 +402,21 @@ function _renderAdminReqRow(r, certIdx, showCourseCol) {
          + '</td>';
   }
   // วัน · เวลา · รุ่น — บรรทัดละอย่าง ไม่ตัดคำ ไม่ทับกัน
-  var dateSlot = '<div class="ds-cell">'
-    +   '<span class="ds-date">'+escapeHtml(formatThaiDate(p.trainDate))+'</span>'
-    +   (p.slot ? '<span class="ds-slot">'+escapeHtml(p.slot)+' น.</span>' : '')
-    +   (p.round
-          ? '<span class="round-chip">รุ่น '+escapeHtml(p.round)+'</span>'
-          : '<span class="round-chip round-chip-none" title="ยังไม่ระบุรุ่น — ใช้ปุ่ม 🏷️ กำหนดรุ่น">ไม่ระบุรุ่น</span>')
-    + '</div>';
-  html += '<td data-label="วันอบรม / รอบเวลา" data-icon="📅" class="td-dateslot">'+dateSlot+'</td>'
+  var roundChip = p.round
+        ? '<span class="round-chip">รุ่น '+escapeHtml(p.round)+'</span>'
+        : '<span class="round-chip round-chip-none" title="ยังไม่ระบุรุ่น — ใช้ปุ่มกำหนดรุ่นด้านบน">ไม่ระบุรุ่น</span>';
+  if (showDateCol) {
+    var dateSlot = '<div class="ds-cell">'
+      +   '<span class="ds-date">'+escapeHtml(formatThaiDate(p.trainDate))+'</span>'
+      +   (p.slot ? '<span class="ds-slot">'+escapeHtml(p.slot)+' น.</span>' : '')
+      +   roundChip
+      + '</div>';
+    html += '<td data-label="วันอบรม / รอบเวลา" data-icon="📅" class="td-dateslot">'+dateSlot+'</td>';
+  } else if (showRoundOnly) {
+    // ในรุ่นนี้มีเลขรุ่นไม่ตรงกันอยู่ จึงยังต้องโชว์ช่องรุ่นไว้ ไม่งั้นความต่างจะหายไปเงียบ ๆ
+    html += '<td data-label="รุ่น" data-icon="🏷️" class="td-dateslot td-roundonly">'+roundChip+'</td>';
+  }
+  html += ''
     +'<td data-label="ใบรับรอง" data-icon="📜">'+certBadgeHtml(p.name, certIdx)+'</td>'
     +'<td data-label="วันที่ส่ง" data-icon="📤">'+escapeHtml(p.tsFmt)+'</td>'
     +'<td data-label="จัดการ" data-icon="⚙️" class="td-actions">'
@@ -783,7 +808,17 @@ function _applyAdminReqFilters() {
   if (rows.length === 0) {
     body.innerHTML = '<tr><td colspan="'+_fhColCount(body,9)+'" class="empty">ไม่พบรายการตามตัวกรอง</td></tr>';
   } else {
-    body.innerHTML = rows.map(function(r){ return _renderAdminReqRow(r, _adminCertIdx, true); }).join('');
+    /* อยู่ในรุ่น = หลักสูตร/วันอบรม/รอบเวลา เหมือนกันหมดทุกแถว → ซ่อนคอลัมน์ที่ซ้ำ
+       ส่วนเลขรุ่น เก็บช่องไว้เฉพาะตอนที่ในรุ่นนี้มีเลขไม่ตรงกันจริง ๆ */
+    var _inBatch = !!_reqBatchKey;
+    var _roundSet = {};
+    rows.forEach(function(r){ _roundSet[_fhRoundText_(r.round || r['รุ่น'] || r['รุ่นที่'] || '')] = 1; });
+    var _mixedRound = Object.keys(_roundSet).length > 1;
+    var _showCourse = !_inBatch, _showDate = !_inBatch, _showRoundOnly = _inBatch && _mixedRound;
+    _fhToggleReqCols(_showCourse, _showDate, _showRoundOnly);
+    body.innerHTML = rows.map(function(r){
+      return _renderAdminReqRow(r, _adminCertIdx, _showCourse, _showDate, _showRoundOnly);
+    }).join('');
   }
   if (info) {
     var totalAll = (_adminRowCache || []).length;
