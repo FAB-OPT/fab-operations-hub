@@ -650,8 +650,8 @@ var _brLastResults = [];   // ผลค้นหาล่าสุดฝั่�
 function _fhSelStore(scope) { return _certSel[scope === 'br' ? 'br' : 'ad']; }
 function _fhSelIds(scope) {
   return scope === 'br'
-    ? { bar:'brSelBar', count:'brSelCount', btn:'brSelDlBtn', all:'brChkAll' }
-    : { bar:'certSelBar', count:'certSelCount', btn:'certSelDlBtn', all:'certChkAll' };
+    ? { bar:'brSelBar', count:'brSelCount', btn:'brSelDlBtn', btnEach:'brSelDlEachBtn', all:'brChkAll' }
+    : { bar:'certSelBar', count:'certSelCount', btn:'certSelDlBtn', btnEach:'certSelDlEachBtn', all:'certChkAll' };
 }
 /* checkbox 1 ช่อง — ไม่มีไฟล์ใบเซอร์ = ติ๊กไม่ได้ */
 function _fhChkHtml(scope, name, course) {
@@ -744,6 +744,28 @@ function _fhStamp() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
+/* ชื่อไฟล์ = ชื่อ-นามสกุลบนใบเซอร์ (ตัดคำนำหน้า + อักขระที่ตั้งชื่อไฟล์ไม่ได้)
+   Windows ห้าม \ / : * ? " < > | และห้ามลงท้ายด้วยจุด/ช่องว่าง */
+function _fhFileName(name) {
+  var parts = (typeof _stripTitleTokens === 'function')
+    ? _stripTitleTokens(normalizeName(name || ''))
+    : String(name || '').split(/\s+/);
+  var s = parts.join(' ').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim().replace(/[.\s]+$/, '');
+  if (s.length > 80) s = s.slice(0, 80).trim();
+  return s || 'ใบรับรอง';
+}
+/* กันชื่อไฟล์ชนกัน — คนชื่อเดียวกัน/ใบหลายหลักสูตร ต่อท้าย (2) (3) */
+function _fhUniqueName(used, base) {
+  var n = base, i = 1;
+  while (used[n]) { i++; n = base + ' (' + i + ')'; }
+  used[n] = 1;
+  return n;
+}
+function _fhTriggerDownload(blobUrl, filename) {
+  var a = document.createElement('a');
+  a.href = blobUrl; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
 /* ดาวน์โหลดที่เลือก — โหลดไฟล์ทีละใบแล้วรวมเป็น PDF เดียว (พิมพ์/ส่งต่อได้ทีเดียว)
    ถ้าโหลดตรงไม่ได้ (CORS/เน็ต) → ถอยไปเปิดทีละแท็บให้แทน */
 function fhDownloadSelected(scope) {
@@ -797,10 +819,12 @@ function fhDownloadSelected(scope) {
   }).then(function(bytes){
     var blob = new Blob([bytes], { type: 'application/pdf' });
     var url = URL.createObjectURL(blob);
-    var a = document.createElement('a');
-    a.href = url;
-    a.download = 'ใบรับรอง_' + (uniq.length - failed.length) + 'ใบ_' + _fhStamp() + '.pdf';
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    /* เลือกใบเดียว → ตั้งชื่อไฟล์เป็นชื่อ-นามสกุลบนใบเซอร์เลย จะได้หาไฟล์เจอ
+       เลือกหลายใบ → รวมเป็นไฟล์เดียว ตั้งชื่อตามจำนวน (อยากได้แยกไฟล์ตามชื่อ ใช้ปุ่ม "แยกไฟล์") */
+    var fname = (uniq.length === 1)
+      ? _fhFileName(uniq[0].name) + '.pdf'
+      : 'ใบรับรอง_' + (uniq.length - failed.length) + 'ใบ_' + _fhStamp() + '.pdf';
+    _fhTriggerDownload(url, fname);
     setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
     restore();
     showInfo('ดาวน์โหลดแล้ว',
@@ -812,6 +836,105 @@ function fhDownloadSelected(scope) {
     showInfo('ดาวน์โหลดไม่สำเร็จ', escapeHtml((e && e.message) || String(e)));
   });
 }
+/* ดาวน์โหลดที่เลือก แบบ "แยกไฟล์" — ได้ไฟล์ละคน ตั้งชื่อตามชื่อ-นามสกุลบนใบเซอร์
+   ใช้ตอนต้องส่งใบเซอร์รายคน (แนบเมล/อัปเข้าแฟ้มพนักงาน) ซึ่งไฟล์รวมใช้ไม่ได้
+   เบราว์เซอร์จะถามอนุญาต "ดาวน์โหลดหลายไฟล์" ครั้งเดียว ต้องกดอนุญาต */
+function fhDownloadSelectedEach(scope) {
+  var store = _fhSelStore(scope);
+  var items = Object.keys(store).map(function(k){ return store[k]; }).filter(function(x){ return x && x.url; });
+  if (!items.length) { showInfo('ยังไม่ได้เลือก', 'ติ๊ก ☑️ หน้ารายการที่ต้องการก่อน แล้วกดอีกครั้ง'); return; }
+  items.sort(function(a,b){ return String(a.name||'').localeCompare(String(b.name||''), 'th'); });
+
+  var ids = _fhSelIds(scope);
+  var btn = document.getElementById(ids.btnEach);
+  var origHtml = btn ? btn.innerHTML : '';
+  var restore = function(){ if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } };
+  if (btn) btn.disabled = true;
+
+  var used = {}, okN = 0, failed = [];
+  var chain = Promise.resolve();
+  items.forEach(function(it, i){
+    chain = chain.then(function(){
+      if (btn) btn.innerHTML = '⏳ ' + (i+1) + '/' + items.length;
+      return fetch(it.url, { cache: 'no-store' })
+        .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+        .then(function(blob){
+          var ext = /\.(jpe?g|png)(\?|$)/i.test(it.url) ? (RegExp.$1.toLowerCase() === 'png' ? '.png' : '.jpg') : '.pdf';
+          var url = URL.createObjectURL(blob);
+          _fhTriggerDownload(url, _fhUniqueName(used, _fhFileName(it.name)) + ext);
+          setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
+          okN++;
+          /* เว้นจังหวะ ไม่งั้นเบราว์เซอร์กันว่ายิงดาวน์โหลดรัวเกินไปแล้วดรอปทิ้ง */
+          return new Promise(function(res){ setTimeout(res, 250); });
+        })
+        .catch(function(){ failed.push(it.name || it.url); });
+    });
+  });
+  chain.then(function(){
+    restore();
+    showInfo('ดาวน์โหลดแล้ว',
+      'แยกเป็น <b>' + okN + '</b> ไฟล์ ตั้งชื่อตามชื่อ-นามสกุลบนใบเซอร์'
+      + (failed.length ? '<div style="margin-top:8px;color:#b45309;font-size:13px;">⚠️ ไม่สำเร็จ ' + failed.length + ' ใบ: '
+          + escapeHtml(failed.slice(0,5).join(', ')) + (failed.length > 5 ? ' ...' : '') + '</div>' : ''));
+  });
+}
+
+/* ───────── รายงานจากข้อมูลใบรับรอง (Excel) ─────────
+   เดิมมีแต่ CSV ที่ตั้งใจไว้เป็นไฟล์สำรอง เปิดใน Excel แล้วคอลัมน์ไม่จัด อ่านยาก
+   ตัวนี้ออกเป็น .xlsx จัดคอลัมน์+สีสถานะให้ และยึดตามตัวกรองที่เปิดอยู่บนหน้าจอ */
+function fhExportCertReport(all) {
+  var rows = (typeof matchData !== 'undefined' && matchData.length)
+    ? (all ? matchData.slice() : (typeof getFiltered === 'function' ? getFiltered() : matchData.slice()))
+    : [];
+  if (!rows.length) { showInfo('ไม่มีข้อมูล', 'ยังไม่มีใบรับรองให้ออกรายงาน'); return; }
+  if (typeof ExcelJS === 'undefined') {
+    if (typeof exportCSV === 'function') { exportCSV(!!all); return; }
+    showInfo('ออกรายงานไม่ได้', 'โหลดตัวสร้าง Excel ไม่สำเร็จ ลองรีเฟรชหน้าอีกครั้ง'); return;
+  }
+  var STATUS = { expired: 'หมดอายุ', warning: 'ใกล้หมดอายุ' };
+  var MATCH  = { exact: 'ตรงกับทะเบียน', lastname: 'นามสกุลตรง' };
+  var wb = new ExcelJS.Workbook();
+  var ws = wb.addWorksheet('ใบรับรอง');
+  ws.columns = [
+    { header: 'ลำดับ',          key: 'no',     width: 7  },
+    { header: 'ชื่อ-นามสกุล (ในใบเซอร์)', key: 'cert', width: 30 },
+    { header: 'ชื่อในทะเบียน',   key: 'emp',    width: 30 },
+    { header: 'สาขา',            key: 'branch', width: 32 },
+    { header: 'ตำแหน่ง',         key: 'pos',    width: 18 },
+    { header: 'หลักสูตร',        key: 'course', width: 40 },
+    { header: 'วันที่อบรม',      key: 'train',  width: 14 },
+    { header: 'วันหมดอายุ',      key: 'exp',    width: 14 },
+    { header: 'สถานะ',           key: 'stat',   width: 14 },
+    { header: 'ผลจับคู่',        key: 'match',  width: 16 }
+  ];
+  ws.getRow(1).font = { bold: true };
+  ws.getRow(1).alignment = { vertical: 'middle' };
+  ws.views = [{ state: 'frozen', ySplit: 1 }];
+  var dash = function(v){ var s = String(v == null ? '' : v).trim(); return (!s || s === '—') ? '' : s; };
+  rows.forEach(function(d, i){
+    var r = ws.addRow({
+      no: i + 1,
+      cert: dash(d.certName), emp: dash(d.empName), branch: dash(d.branch), pos: dash(d.position),
+      course: dash(d.course), train: dash(d.trainDate), exp: dash(d.expireDate),
+      stat: STATUS[d.expStatus] || 'ยังมีผล',
+      match: MATCH[d.matchType] || 'ยังไม่พบในทะเบียน'
+    });
+    if (d.expStatus === 'expired')      r.getCell('stat').font = { color: { argb: 'FFB91C1C' }, bold: true };
+    else if (d.expStatus === 'warning') r.getCell('stat').font = { color: { argb: 'FFB45309' }, bold: true };
+    if (d.matchType !== 'exact' && d.matchType !== 'lastname')
+      r.getCell('match').font = { color: { argb: 'FF9CA3AF' } };
+  });
+  ws.autoFilter = { from: 'A1', to: 'J1' };
+  wb.xlsx.writeBuffer().then(function(buf){
+    var url = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    _fhTriggerDownload(url, 'รายงานใบรับรอง_' + rows.length + 'รายการ_' + _fhStamp() + '.xlsx');
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+    showInfo('ออกรายงานแล้ว', 'ไฟล์ Excel <b>' + rows.length + '</b> รายการ' + (all ? ' (ทั้งหมด)' : ' (ตามตัวกรองที่เลือกอยู่)'));
+  }).catch(function(e){
+    showInfo('ออกรายงานไม่สำเร็จ', escapeHtml((e && e.message) || String(e)));
+  });
+}
+
 /* ถอยกรณีรวมไฟล์ไม่ได้ — เปิดใบเซอร์ทีละแท็บ (ต้องอนุญาต pop-up) */
 function _fhOpenEachTab(list) {
   showInfo('รวมไฟล์ไม่ได้ — เปิดทีละใบแทน',
