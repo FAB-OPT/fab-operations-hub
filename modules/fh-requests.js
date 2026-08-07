@@ -777,7 +777,10 @@ function _applyAdminReqFilters() {
       // หน้ารายการรุ่น — info อยู่ในกล่องตารางที่ถูกซ่อน แต่คงข้อความให้ตรงไว้
       info.innerHTML = 'พบ <strong>'+batches.length+'</strong> รุ่น · รวม <strong>'+rows.length+'</strong> รายชื่อ';
     } else if (rows.length === totalAll) {
-      info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
+      /* บอกด้วยว่าซ่อนของเก่าไปกี่รายการ ไม่ใช่หายไปเงียบ ๆ
+         ไม่งั้นสาขาจะนึกว่าข้อมูลหายแล้วส่งซ้ำ */
+      info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ'
+        + (hiddenPast ? ' <span class="req-past-note">(ซ่อนรอบที่อบรมไปแล้ว '+hiddenPast+' รายการ)</span>' : '');
     } else {
       info.innerHTML = 'แสดง <strong>'+rows.length+'</strong> จาก '+totalAll+' รายการ';
     }
@@ -915,6 +918,23 @@ function _fhCacheSet(key, data){ try { localStorage.setItem(key, JSON.stringify(
 function _fhCacheGet(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { return null; } }
 function _fhBustRequests(){ try { localStorage.removeItem('fh_requests_v1'); } catch(e) {} }  // ล้างแคชหลังแก้ข้อมูล
 
+/* ฝั่งสาขาเห็นเฉพาะรอบที่ "ยังไม่ถึงวันอบรม" — ของเก่าที่อบรมไปแล้วไม่ต้องเห็น
+   เหตุผล: สาขาใช้รายการนี้เพื่อเช็คว่าส่งใครไปแล้วบ้างในรอบที่กำลังจะถึง
+   ของเก่าไม่ได้ทำให้ตัดสินใจอะไร มีแต่ทำให้เลื่อนหายาวและเห็นข้อมูลย้อนหลังเกินจำเป็น
+   (แอดมินยังเห็นครบทุกรอบที่หน้าคำขออบรมเหมือนเดิม)
+
+   ไม่ระบุวันอบรม = ยังไม่จัดรอบ ให้เห็นไว้ก่อน ปลอดภัยกว่าซ่อนแล้วสาขาส่งซ้ำ */
+function _fhIsUpcomingReq(r) {
+  var d = r['trainDate'] || r['วันอบรม'] || '';
+  if (!String(d).trim()) return true;
+  var dt = null;
+  try { dt = parseAnyDate(d); } catch (e) {}
+  if (!dt || isNaN(dt)) return true;      // อ่านวันไม่ออก → ให้เห็นไว้ก่อน
+  var today = new Date(); today.setHours(0, 0, 0, 0);
+  dt.setHours(0, 0, 0, 0);
+  return dt.getTime() >= today.getTime();  // วันอบรมวันนี้ = ยังนับว่ายังไม่ผ่าน
+}
+
 function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
   var info = document.getElementById(infoElId);
   var body = document.getElementById(bodyElId);
@@ -926,9 +946,20 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
     if (branchFilter) {
       rows = rows.filter(function(r){ return String(r.branch || r['สาขา'] || '') === String(branchFilter); });
     }
+    var hiddenPast = 0;
+    if (!isAdmin) {
+      var before = rows.length;
+      rows = rows.filter(_fhIsUpcomingReq);
+      hiddenPast = before - rows.length;
+    }
     if (rows.length === 0) {
-      info.textContent = 'ยังไม่มีรายชื่อที่ส่ง';
-      if (inlineInfo) inlineInfo.textContent = '· ยังไม่มี';
+      /* แยกให้ชัดระหว่าง "ไม่เคยส่ง" กับ "ส่งแล้วแต่อบรมไปหมดแล้ว"
+         ถ้าเขียนว่า "ยังไม่มีรายชื่อที่ส่ง" ทั้งสองกรณี สาขาที่เคยส่งจะนึกว่าข้อมูลหาย
+         แล้วส่งซ้ำ ซึ่งทำให้รายชื่อซ้ำในระบบ */
+      var _neverSent = !hiddenPast;
+      info.innerHTML = _neverSent ? 'ยังไม่มีรายชื่อที่ส่ง'
+        : 'ไม่มีรอบที่กำลังจะถึง <span class="req-past-note">(อบรมไปแล้ว ' + hiddenPast + ' รายการ)</span>';
+      if (inlineInfo) inlineInfo.textContent = _neverSent ? '· ยังไม่มี' : '· ไม่มีรอบที่กำลังจะถึง';
       if (isAdmin) {
         _adminRowCache = [];
         var bar = document.getElementById('adminReqCountBar'); if (bar) bar.innerHTML = '';
@@ -936,7 +967,10 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         _reqBatchKey = null;
         _renderReqBatchView([], []);   // ล้างการ์ดรุ่นค้าง
       }
-      body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ยังไม่มีข้อมูล</td></tr>';
+      body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">'
+        + (isAdmin || !hiddenPast ? 'ยังไม่มีข้อมูล'
+           : 'รายชื่อที่ส่งไปแล้วอบรมครบทุกรอบแล้ว<br><span style="font-size:12px;">รอบที่ผ่านไปแล้วจะไม่แสดงที่นี่ — ติดต่อผู้ดูแลระบบถ้าต้องการดูย้อนหลัง</span>')
+        + '</td></tr>';
       return;
     }
     if (inlineInfo) inlineInfo.innerHTML = '· พบ <strong>'+rows.length+'</strong> รายการ';
@@ -953,7 +987,10 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         var tb = b['timestamp'] || b['วันที่ส่ง'] || '';
         return tb > ta ? 1 : tb < ta ? -1 : 0;
       });
-      info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ';
+      /* บอกด้วยว่าซ่อนของเก่าไปกี่รายการ ไม่ใช่หายไปเงียบ ๆ
+         ไม่งั้นสาขาจะนึกว่าข้อมูลหายแล้วส่งซ้ำ */
+      info.innerHTML = 'พบ <strong>'+rows.length+'</strong> รายการ'
+        + (hiddenPast ? ' <span class="req-past-note">(ซ่อนรอบที่อบรมไปแล้ว '+hiddenPast+' รายการ)</span>' : '');
       _myReqRowCache = [];
       body.innerHTML = rows.map(function(r){ return _renderMyReqRow(r); }).join('');
     }
