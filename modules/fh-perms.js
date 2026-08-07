@@ -145,6 +145,15 @@ function applyFhPerms() {
     grp.style.display = anyVisible ? '' : 'none';
   });
 
+  /* แถบแท็บมือถือ: แท็บส่งรายชื่อต้องอยู่ครบ 4 ปุ่มเสมอ ไม่ซ่อน
+     ซ่อนแล้วปุ่มที่เหลือจะเลื่อนตำแหน่ง ผู้ใช้ที่ชินกับที่เดิมจะกดผิด
+     ไม่มีสิทธิ์ = ทำให้จางและกดไม่ติด พร้อมบอกเหตุผลตอนกด */
+  var _tabSub = document.getElementById('brTabSubmit');
+  if (_tabSub) {
+    _tabSub.style.display = '';
+    _tabSub.classList.toggle('br-tab-off', !fhCan('submit-request'));
+  }
+
   // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
   var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');
   if (cur && FH_SECTION_ACTION[cur.id] && !fhCan(FH_SECTION_ACTION[cur.id])) {
@@ -1210,4 +1219,17 @@ function doDeleteAnnouncement() {
 function logout() {
   sessionStorage.clear();
   window.location.href = '../index.html';
+}
+
+/* กดแท็บส่งรายชื่อ — ไม่มีสิทธิ์ก็บอกไปตรง ๆ ว่าเพราะอะไร
+   เดิมแท็บหายไปเฉย ๆ ผู้ใช้ไม่รู้ว่าหายเพราะอะไร นึกว่าระบบพัง */
+function _brTabSubmitClick() {
+  if (!fhCan('submit-request')) {
+    var role = (typeof FH_ROLE_LABEL !== 'undefined' && FH_ROLE_LABEL[FH_USER.role]) || FH_USER.role || 'บทบาทนี้';
+    showInfo('ส่งรายชื่อไม่ได้',
+      'บทบาท <b>' + escapeHtml(role) + '</b> ยังไม่ได้รับสิทธิ์ส่งรายชื่ออบรม<br><br>' +
+      'ให้ผู้ดูแลระบบเปิดสิทธิ์ที่ HUB → ⚙️ ตั้งค่า → สิทธิ์ปุ่ม → ผู้สัมผัสอาหาร → "ส่งรายชื่อขออบรม"');
+    return;
+  }
+  showBrSection('adm-sec-br-submit');
 }
