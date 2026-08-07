@@ -195,6 +195,27 @@ function fhSaveRequests(records) {
     });
 }
 
+/* แก้ไขคำขอทีละรายการ — อาการเดียวกับปุ่มลบ
+   เดิมยิง update-request ไป Apps Script โดยส่ง rowIndex ที่จริงคือ id ของ Supabase
+   Sheets หาแถวไม่เจอ → "not found" และต่อให้เจอ ข้อมูลจริงบน Supabase ก็ไม่ถูกแก้ */
+function fhUpdateRequest(key, record) {
+  var id = key && key.sbId;
+  if (!FH_SB.ready || id === '' || id == null) {
+    return _sheetsPost({ type: 'update-request', key: key, record: record });
+  }
+  return FH_SB.client.from('fh_requests').update(_sbReqIn(record)).eq('id', id).select('id')
+    .then(function(res){
+      if (res.error) throw res.error;
+      if (!res.data || !res.data.length) return { ok: false, error: 'ไม่พบรายการนี้แล้ว (อาจถูกลบไปก่อนหน้า)' };
+      _alsoSheets({ type: 'update-request', key: key, record: record });
+      return { ok: true };
+    })
+    .catch(function(e){
+      console.warn('[FH] แก้ไขที่ Supabase ไม่ผ่าน → ลอง Sheets', e);
+      return _sheetsPost({ type: 'update-request', key: key, record: record });
+    });
+}
+
 /* jobs = [{rec, record}] — rec ต้องมี _sbId ถึงจะอัปเดตผ่าน Supabase ได้
    onProgress(done, total) — Supabase จบทีเดียว จึงยิงแค่ 0/total แล้ว total/total */
 function fhBulkUpdateRequests(jobs, onProgress) {
@@ -214,6 +235,27 @@ function fhBulkUpdateRequests(jobs, onProgress) {
       });
     })
     .catch(function(e){ console.warn('[FH] Supabase อัปเดตไม่ผ่าน → ใช้ Sheets แทน', e); return _fhBulkUpdate(jobs, onProgress); });
+}
+
+/* ลบคำขอทีละรายการ — ตัวจริงอยู่ที่ Supabase, Sheets เป็นสำเนาสำรอง
+   คืนรูปแบบเดียวกับที่ Apps Script เคยคืน ({ok:true} / {ok:false,error}) ผู้เรียกจึงไม่ต้องแก้
+   ถ้าไม่มี id ของ Supabase (ข้อมูลเก่าที่ยังไม่ได้ย้าย) ให้ถอยไปใช้ Sheets แบบเดิม */
+function fhDeleteRequest(key) {
+  var id = key && key.sbId;
+  if (!FH_SB.ready || id === '' || id == null) return _sheetsPost({ type: 'delete-request', key: key });
+  return FH_SB.client.from('fh_requests').delete().eq('id', id).select('id')
+    .then(function(res){
+      if (res.error) throw res.error;
+      /* ไม่มีแถวถูกลบ = id นั้นไม่มีอยู่จริง ต้องบอกให้รู้ ไม่ใช่รายงานว่าสำเร็จ
+         ไม่งั้นแถวจะหายจากจอแต่ข้อมูลยังอยู่ พอรีเฟรชก็กลับมา */
+      if (!res.data || !res.data.length) return { ok: false, error: 'ไม่พบรายการนี้แล้ว (อาจถูกลบไปก่อนหน้า)' };
+      _alsoSheets({ type: 'delete-request', key: key });   // สำเนาสำรอง ไม่รอผล
+      return { ok: true };
+    })
+    .catch(function(e){
+      console.warn('[FH] ลบที่ Supabase ไม่ผ่าน → ลอง Sheets', e);
+      return _sheetsPost({ type: 'delete-request', key: key });
+    });
 }
 
 function fhBulkDeleteRequests(records, onProgress) {
@@ -294,4 +336,4 @@ function fhSbCompare() {
 /* หน้าตั้งค่าที่เก็บข้อมูลย้ายไปรวมที่ HUB แล้ว (⚙️ เครื่องมือผู้ดูแลระบบ → 🗄️ ที่เก็บข้อมูล)
    ฟังก์ชัน UI เดิม (sbRenderStatus/sbRunMigrate/sbRunCompare/sbClearCfg) ถูกลบออก
    ส่วน fhSbMigrate/fhSbCompare ที่เหลือไว้ เผื่อเรียกจาก console ตอนแก้ปัญหาเฉพาะหน้า */
-var FH_BUILD = '2026-08-08 · 00:20';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
+var FH_BUILD = '2026-08-08 · 01:05';   // บัมพ์ทุกครั้งที่แก้ fh-*.js

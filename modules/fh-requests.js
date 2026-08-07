@@ -331,6 +331,7 @@ function _prepReqFields(r) {
     tsFmt: ts ? formatThaiDateTime(ts) : '—',
     empId: r.empId || r['รหัสพนักงาน'] || '',
     rowIdx: r._rowIndex || r.rowIndex || '',
+    sbId: (r._sbId != null ? r._sbId : ''),   // id จริงบน Supabase — ใช้ลบ/แก้ให้ตรงแถว
     tsRaw: r.timestamp || r['วันที่ส่ง'] || ''
   };
 }
@@ -338,7 +339,7 @@ function _prepReqFields(r) {
 /* Render one admin request row. showCourseCol=false → omit หลักสูตร column (used in per-course tables). */
 function _renderAdminReqRow(r, certIdx, showCourseCol) {
   var p = _prepReqFields(r);
-  var keyData = encodeURIComponent(JSON.stringify({ rowIndex: p.rowIdx, timestamp: String(p.tsRaw), name: p.name, idCard: p.idCard }));
+  var keyData = encodeURIComponent(JSON.stringify({ sbId: p.sbId, rowIndex: p.rowIdx, timestamp: String(p.tsRaw), name: p.name, idCard: p.idCard }));
   var html = '<tr>'
     +'<td data-label="สาขา" data-icon="🏬">'+escapeHtml(_brDispG(p.branch))+'</td>'
     +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(p.name)+'</td>'
@@ -1132,15 +1133,11 @@ function saveEditRequest() {
     return;
   }
   showLoadingOverlay(_addMode ? 'กำลังเพิ่มรายชื่อ...' : 'กำลังบันทึก...', '');
-  var _payload = _addMode
-    ? { type: 'save-requests', records: [record] }
-    : { type: 'update-request', key: _editingKey, record: record };
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify(_payload)
-  })
-    .then(function(r){ return r.json(); })
+  /* ผ่านชั้นข้อมูล (Supabase ตัวจริง + สำเนา Sheets) เหมือนปุ่มลบ
+     เดิมยิง Apps Script ตรง ๆ ทำให้แก้ไขไม่ติดและเพิ่มรายชื่อแล้วไม่โผล่ในตาราง
+     เพราะตารางอ่านจาก Supabase แต่เขียนลง Sheets */
+  var _p = _addMode ? fhSaveRequests([record]) : fhUpdateRequest(_editingKey, record);
+  _p
     .then(function(res){
       hideLoadingOverlay();
       if (res.ok) {
@@ -1175,12 +1172,11 @@ function deleteRequest(keyDataStr) {
 }
 function doDeleteRequest(keyData, btn, tr) {
   if (btn) btn.disabled = true;
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'delete-request', key: keyData })
-  })
-    .then(function(r){ return r.json(); })
+  /* ต้องลบที่ Supabase ก่อน เพราะเป็นตัวจริงที่หน้าจอนี้อ่านมาแสดง
+     เดิมยิงไป Apps Script อย่างเดียว → Sheets หาแถวไม่เจอ ขึ้น "not found"
+     (rowIndex ที่ส่งไปคือ id ของ Supabase ไม่ใช่เลขแถวใน Sheets)
+     และต่อให้ Sheets ลบผ่าน ข้อมูลบน Supabase ก็ยังอยู่ → รีเฟรชแล้วแถวกลับมา */
+  fhDeleteRequest(keyData)
     .then(function(res){
       if (res.ok) {
         if (tr) {
