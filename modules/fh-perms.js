@@ -99,25 +99,37 @@ function fhCan(actionId) {
 }
 
 /* ซ่อน/แสดงปุ่มตามสิทธิ์ — เรียกซ้ำได้ทุกครั้งที่เรนเดอร์ใหม่ */
-/* ── สิทธิ์จากศูนย์กลาง (HUB ⚙️ → สิทธิ์ปุ่มแต่ละระบบ) ──
-   HUB ชนะ Firestore เสมอ · ถ้า HUB ยังไม่เคยตั้ง → ใช้ของเดิมใน Firestore ต่อ (ไม่มีอะไรหาย) */
+/* ── สิทธิ์จากศูนย์กลาง — แหล่งเดียวคือ Supabase (fh_config.perms.foodhandler) ──
+   เดิม: อ้อมผ่าน Apps Script (~2 วิ) แล้วยังมี Firestore เก็บอีกชุดคอยแข่งกันทับ
+         Firestore มาก่อน (~0.3 วิ) → ปุ่มหาย → HUB มาทีหลังทับให้กลับมา = ปุ่มวูบ
+         ถ้า Apps Script ล้ม (เคยล้ม 3 ใน 4 ตอนคนใช้พร้อมกัน) Firestore ชนะถาวร
+   ตอนนี้: อ่าน Supabase ตรง ๆ (~0.3 วิ) · Firestore ไม่เก็บสิทธิ์แล้ว · อ่านไม่ได้ = คงค่าเดิม */
 var FH_PERMS_FROM_HUB = false;
 function loadFhPermsFromHub() {
-  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
-    .then(function(r){ return r.json(); })
-    .then(function(res){
-      if (res && res.ok && res.perms && res.perms.foodhandler) {
-        FH_PERMS = _normalizeFhPerms(res.perms.foodhandler);
+  return fhLoadPerms()
+    .then(function(p){
+      if (p) {
+        FH_PERMS = _normalizeFhPerms(p);
         FH_PERMS_FROM_HUB = true;
         saveFhPermsLocal();
-        applyFhPerms();
-        console.log('[perms] ใช้สิทธิ์จาก HUB');
+        console.log('[perms] ใช้สิทธิ์จากศูนย์กลาง');
       } else {
-        console.log('[perms] HUB ยังไม่ตั้งสิทธิ์ผู้สัมผัสอาหาร — ใช้ค่าเดิมจาก Firestore');
+        console.warn('[perms] อ่านสิทธิ์ไม่ได้ — ใช้ค่าล่าสุดที่จำไว้ในเครื่องต่อ');
       }
+      /* เรียก applyFhConfigUI ไม่ใช่ applyFhPerms ตรง ๆ เพราะปุ่มฝั่งสาขา
+         ต้องคิดร่วมกับสวิตช์เปิด-ปิดรับรายชื่อด้วย */
+      try { applyFhConfigUI(); } catch (e) { try { applyFhPerms(); } catch (e2) {} }
     })
-    .catch(function(e){ console.warn('[perms] โหลดจาก HUB ไม่ได้ — ใช้ค่าเดิม', e); });
+    .catch(function(e){ console.warn('[perms] โหลดสิทธิ์ไม่สำเร็จ — ใช้ค่าเดิม', e); });
 }
+/* กลับมาที่แท็บนี้แล้วดึงสิทธิ์ใหม่ — แทน realtime ที่เคยได้จาก Firestore
+   กันเคส: แอดมินแก้สิทธิ์ที่ HUB แล้วเครื่องที่เปิดหน้านี้ค้างไว้ยังใช้ของเก่า */
+var _fhPermsLastAt = 0;
+window.addEventListener('focus', function(){
+  if (Date.now() - _fhPermsLastAt < 30000) return;
+  _fhPermsLastAt = Date.now();
+  loadFhPermsFromHub();
+});
 
 function applyFhPerms() {
   document.querySelectorAll('[data-fh-action]').forEach(function(el){
@@ -314,10 +326,12 @@ function saveFhPerms() {
   var old = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...'; }
   saveFhPermsLocal();
-  saveFhConfig({ perms: FH_PERMS })
+  /* เขียนลงที่เดียว = Supabase (ที่เดียวกับที่ HUB ใช้) — เดิมเขียนลง Firestore
+     ทำให้เกิดสิทธิ์ 2 ชุดที่ไม่ตรงกัน แล้วแข่งกันว่าใครโหลดทีหลัง */
+  fhSavePerms(FH_PERMS)
     .then(function(){
       applyFhConfigUI();   // เรียกตัวนี้ (ไม่ใช่ applyFhPerms ตรงๆ) เพราะปุ่มฝั่งสาขาต้องคิดร่วมกับสวิตช์รับรายชื่อ
-      showInfo('บันทึกสิทธิ์แล้ว', 'สิทธิ์ปุ่มถูกอัปเดตทุกเครื่องแล้ว');
+      showInfo('บันทึกสิทธิ์แล้ว', 'สิทธิ์ปุ่มถูกอัปเดตแล้ว — เครื่องอื่นจะเห็นเมื่อกลับมาที่หน้านี้');
     })
     .catch(function(e){
       showInfo('บันทึกไม่สำเร็จ', escapeHtml(e.message || String(e)) + ' — สิทธิ์ถูกเก็บไว้ในเครื่องนี้ชั่วคราว');

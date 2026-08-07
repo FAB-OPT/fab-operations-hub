@@ -134,6 +134,53 @@ function _alsoSheets(payload) {
   return Promise.resolve(null);   // ไม่รอผล
 }
 
+/* ───────── สิทธิ์ปุ่ม — แหล่งเดียวคือ fh_config.perms บน Supabase ─────────
+   เดิมสิทธิ์ถูกเก็บ 3 ที่: Supabase (HUB เขียน) · Sheets (สำเนา) · Firestore (หน้านี้เขียน)
+   แล้วแข่งกันโหลด ใครมาทีหลังชนะ → เคยต่างกันจริง 7 จาก 15 ปุ่ม
+   ตอนนี้: อ่าน/เขียนที่ Supabase ที่เดียว · Sheets เหลือเป็นสำเนาสำรอง · Firestore เลิกใช้
+
+   สำคัญ: อ่านไม่ได้ต้องคืน null (ไม่ใช่ {}) เพราะ {} จะถูกตีความว่า "ไม่มีใครมีสิทธิ์อะไรเลย"
+   ผู้เรียกจะได้รู้ว่าให้ใช้ค่าเดิมที่จำไว้ในเครื่องต่อ แทนที่จะซ่อนปุ่มทิ้งหมด */
+function _fhPermsFromSheets() {
+  return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
+    .then(function(r){ return r.text(); })
+    .then(function(t){
+      var j = JSON.parse(t);   // Apps Script คืนหน้า HTML ตอนพัง → ให้ throw ลง catch
+      return (j && j.perms && j.perms.foodhandler) || null;
+    })
+    .catch(function(e){ console.warn('[FH] อ่านสิทธิ์จาก Sheets ไม่ได้ → ใช้ค่าเดิมในเครื่อง', e); return null; });
+}
+function fhLoadPerms() {
+  if (!FH_SB.ready) return _fhPermsFromSheets();
+  return FH_SB.client.from('fh_config').select('value').eq('key', 'perms').limit(1)
+    .then(function(res){
+      if (res.error) throw res.error;
+      var row = (res.data || [])[0];
+      var all = row && row.value;
+      return (all && all.foodhandler) ? all.foodhandler : null;
+    })
+    .catch(function(e){ console.warn('[FH] อ่านสิทธิ์จาก Supabase ไม่ได้ → ลอง Sheets', e); return _fhPermsFromSheets(); });
+}
+/* เขียนกลับ: อ่านก้อนรวมของทุกระบบมาก่อน แล้วแก้เฉพาะ foodhandler
+   ห้ามเขียนทับทั้งก้อน ไม่งั้นสิทธิ์ของ Checklist/FQA/ข้อสอบ จะหายไปด้วย */
+function fhSavePerms(fhPerms) {
+  if (!FH_SB.ready) return _sheetsPost({ type: 'set-config', key: 'perms', value: { foodhandler: fhPerms } });
+  return FH_SB.client.from('fh_config').select('value').eq('key', 'perms').limit(1)
+    .then(function(res){
+      if (res.error) throw res.error;
+      var row = (res.data || [])[0];
+      var all = (row && row.value && typeof row.value === 'object') ? row.value : {};
+      all.foodhandler = fhPerms;
+      return FH_SB.client.from('fh_config')
+        .upsert({ key: 'perms', value: all, updated_at: new Date().toISOString() }, { onConflict: 'key' })
+        .then(function(r2){
+          if (r2.error) throw r2.error;
+          _alsoSheets({ type: 'set-config', key: 'perms', value: all });   // สำเนาสำรอง ไม่รอผล
+          return true;
+        });
+    });
+}
+
 function fhSaveRequests(records) {
   if (!FH_SB.ready) return _sheetsPost({ type: 'save-requests', records: records });
   return FH_SB.client.from('fh_requests').insert(records.map(_sbReqIn)).select('id')
@@ -247,4 +294,4 @@ function fhSbCompare() {
 /* หน้าตั้งค่าที่เก็บข้อมูลย้ายไปรวมที่ HUB แล้ว (⚙️ เครื่องมือผู้ดูแลระบบ → 🗄️ ที่เก็บข้อมูล)
    ฟังก์ชัน UI เดิม (sbRenderStatus/sbRunMigrate/sbRunCompare/sbClearCfg) ถูกลบออก
    ส่วน fhSbMigrate/fhSbCompare ที่เหลือไว้ เผื่อเรียกจาก console ตอนแก้ปัญหาเฉพาะหน้า */
-var FH_BUILD = '2026-08-06 · 20:40';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
+var FH_BUILD = '2026-08-07 · 12:10';   // บัมพ์ทุกครั้งที่แก้ fh-*.js

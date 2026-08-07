@@ -8,7 +8,7 @@
 <title>ฐานข้อมูล ผู้สัมผัสและผู้ประกอบอาหาร · FAB Hub</title>
 <!-- ⚠️ แก้ .css/.js เมื่อไหร่ "ต้องบัมพ์ ?v=" ทุกแท็กด้านล่าง ไม่งั้นเครื่องสาขาจะค้างของเก่า
      (ตัว .html เองไม่ต้องห่วง — index.html เรียกด้วย ?v=Date.now() อยู่แล้ว) -->
-<link rel="stylesheet" href="food-handler.css?v=20260806g">
+<link rel="stylesheet" href="food-handler.css?v=20260807a">
 <!-- Firebase — เก็บ config กลางของ Food Handler (sync ทุกสาขา) -->
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
@@ -37,9 +37,10 @@ function startFhConfigSync() {
       if (d.schedules) FH_CONFIG.schedules = d.schedules;
       if (d.branches)  FH_CONFIG.branches  = d.branches;
       if (d.brands)    FH_CONFIG.brands    = d.brands;
-      // สิทธิ์ปุ่ม — sync realtime เหมือน config อื่น (admin แก้ที่เครื่องหนึ่ง เครื่องอื่นเห็นทันที)
-      // HUB ชนะ Firestore — ถ้า HUB ตั้งสิทธิ์ไว้แล้ว snapshot ต้องไม่เขียนทับ
-      if (d.perms && !FH_PERMS_FROM_HUB) { try { FH_PERMS = _normalizeFhPerms(d.perms); saveFhPermsLocal(); } catch (e) {} }
+      /* สิทธิ์ปุ่มไม่อ่านจาก Firestore แล้ว — ย้ายไปใช้ Supabase ที่เดียว (fh_config.perms)
+         เดิม d.perms ตรงนี้มาถึงก่อน HUB ~1.8 วิ แล้วซ่อนปุ่มไว้ก่อน พอ HUB มาค่อยเปิดกลับ = ปุ่มวูบ
+         และถ้า HUB โหลดไม่สำเร็จ ค่าเก่าจาก Firestore จะชนะถาวร (เคยตั้ง "ส่งรายชื่อ" ไว้เป็นว่าง
+         = สาขาส่งไม่ได้ทั้งระบบ) · ฟิลด์ perms เดิมใน Firestore ปล่อยค้างไว้ได้ ไม่มีใครอ่านแล้ว */
       applyFhConfigUI();
     }, function(e){ console.warn('fhConfig sync error', e); applyFhConfigUI(); });
   } catch (e) { console.warn(e); applyFhConfigUI(); }
@@ -1131,7 +1132,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- SheetJS for Excel -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <!-- form.xlsx template embedded as base64 (works on file:// without a web server) -->
-<script src="form-template.js?v=20260806g"></script>
+<script src="form-template.js?v=20260807a"></script>
 <!-- ExcelJS for template-preserving export (admin form export) -->
 <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 <!-- PDF.js for proper PDF text extraction -->
@@ -1146,15 +1147,15 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- Supabase — ใช้เมื่อตั้งค่า URL/KEY แล้วเท่านั้น ไม่งั้นระบบวิ่ง Apps Script เหมือนเดิม -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- โมดูลย่อยของ food-handler — ลำดับสำคัญ ห้ามสลับ (ตัวบนประกาศของที่ตัวล่างใช้) -->
-<script src="fh-supabase.js?v=20260806g"></script>
-<script src="fh-import.js?v=20260806g"></script>
-<script src="fh-match.js?v=20260806g"></script>
-<script src="fh-registry.js?v=20260806g"></script>
-<script src="fh-auth.js?v=20260806g"></script>
-<script src="fh-perms.js?v=20260806g"></script>
-<script src="fh-requests.js?v=20260806g"></script>
-<script src="fh-export.js?v=20260806g"></script>
-<script src="fh-ui.js?v=20260806g"></script>
+<script src="fh-supabase.js?v=20260807a"></script>
+<script src="fh-import.js?v=20260807a"></script>
+<script src="fh-match.js?v=20260807a"></script>
+<script src="fh-registry.js?v=20260807a"></script>
+<script src="fh-auth.js?v=20260807a"></script>
+<script src="fh-perms.js?v=20260807a"></script>
+<script src="fh-requests.js?v=20260807a"></script>
+<script src="fh-export.js?v=20260807a"></script>
+<script src="fh-ui.js?v=20260807a"></script>
 
 <!-- ── มือถือ: bottom sheet ตัวกรองใบรับรอง ── -->
 <div class="fb-sheet-backdrop" id="fbSheetBackdrop" onclick="fhCloseFilterSheet()"></div>
