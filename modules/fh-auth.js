@@ -245,12 +245,21 @@ function showBrSection(targetId) {
   try { isMobile = window.matchMedia('(max-width: 820px)').matches; } catch (e) {}
   if (isMobile && currentBranchName) {
     if (iEl) iEl.textContent = '🏬';
-    if (tEl) tEl.textContent = currentBranchName;
+    /* ต่อท้ายด้วยเลขรุ่นไฟล์ตัวเล็ก ๆ — ใช้ตรวจใน 1 วินาทีว่าเครื่องนี้ได้ไฟล์ใหม่หรือยัง
+       บนมือถือเปิด console ดูยาก และ "กด Ctrl+F5" ก็ทำไม่ได้
+       ที่ผ่านมาเสียเวลาเถียงกันว่าเป็นแคชหรือเป็นบั๊กหลายรอบ */
+    if (tEl) {
+      var _b = (typeof FH_BUILD !== 'undefined') ? FH_BUILD : '';
+      tEl.innerHTML = escapeHtml(currentBranchName) +
+        (_b ? ' <span class="fh-build-tag">' + escapeHtml(_b) + '</span>' : '');
+    }
   } else {
     if (iEl && meta) iEl.textContent = meta.icon;
     if (tEl && meta) tEl.textContent = meta.title;
   }
   if (typeof _closeAdmMobileSidebar === 'function') _closeAdmMobileSidebar();
+  /* ทวนสิทธิ์อีกรอบหลังสลับหน้า — กันกรณีมีโค้ดอื่นมาซ่อน/โชว์ทีหลังจนสองจอไม่ตรงกัน */
+  try { if (typeof applyFhPerms === 'function') applyFhPerms(); } catch (e) {}
   window.scrollTo(0, 0);
 }
 var _brSidebarInited = false;
