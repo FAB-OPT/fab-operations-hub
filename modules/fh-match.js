@@ -604,7 +604,7 @@ function renderTable() {
       +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus)+'</td>'
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
-      +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')
+      +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')
       +   '<button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button>'
       +'</td>'
       +'</tr>';
@@ -799,6 +799,68 @@ function _fhBlobExt(blob, url) {
   }
 }
 
+/* ═══ ส่งไฟล์ให้ผู้ใช้ — คอมกับมือถือคนละทาง ═══
+   คอม: สร้างลิงก์แล้วสั่งดาวน์โหลด (ใช้ได้ดีอยู่แล้ว)
+   มือถือ: วิธีเดียวกันมัก "เปิดไฟล์ให้ดูเฉย ๆ" แล้วไม่มีปุ่มเซฟหรือแชร์
+           เพราะ iOS/Android จำกัดการดาวน์โหลดจาก blob
+           จึงเรียกแผงแชร์ของเครื่องแทน ซึ่งมีทั้ง "บันทึกลงไฟล์" และส่งต่อแอปอื่น */
+var FH_MIME = { '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.png': 'image/png', '.webp': 'image/webp', '.zip': 'application/zip' };
+function _fhIsMobile() {
+  try { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''); } catch (e) { return false; }
+}
+function _fhSaveBlob(blob, fname) {
+  var burl = URL.createObjectURL(blob);
+  _fhTriggerDownload(burl, fname);
+  setTimeout(function(){ URL.revokeObjectURL(burl); }, 8000);
+  return true;
+}
+/* files = [{blob, name}] · ส่งทีเดียวได้หลายไฟล์ (มือถือจะเห็นแผงแชร์ครั้งเดียว) */
+function _fhDeliverFiles(files) {
+  var list = (files || []).filter(function(f){ return f && f.blob && f.name; });
+  if (!list.length) return Promise.resolve(false);
+  var fallback = function(){
+    /* ทีละไฟล์ เว้นจังหวะกันเบราว์เซอร์ดรอปทิ้งเวลายิงรัว */
+    var chain = Promise.resolve();
+    list.forEach(function(f, i){
+      chain = chain.then(function(){
+        _fhSaveBlob(f.blob, f.name);
+        return i < list.length - 1 ? new Promise(function(r){ setTimeout(r, 250); }) : null;
+      });
+    });
+    return chain.then(function(){ return true; });
+  };
+  if (!_fhIsMobile()) return fallback();
+  try {
+    if (!navigator.canShare || typeof File !== 'function' || !navigator.share) return fallback();
+    var fs2 = list.map(function(f){
+      var ext = (String(f.name).match(/\.[a-z0-9]+$/i) || [''])[0].toLowerCase();
+      return new File([f.blob], f.name, { type: FH_MIME[ext] || f.blob.type || 'application/octet-stream' });
+    });
+    if (!navigator.canShare({ files: fs2 })) return fallback();
+    return navigator.share({ files: fs2, title: list.length === 1 ? list[0].name : 'ใบรับรอง ' + list.length + ' ไฟล์' })
+      .then(function(){ return true; })
+      .catch(function(err){
+        /* กดยกเลิกเองในแผงแชร์ ไม่ใช่ความผิดพลาด ไม่ต้องเด้งดาวน์โหลดซ้ำ */
+        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return true;
+        return fallback();
+      });
+  } catch (e) { return fallback(); }
+}
+
+/* เริ่มโหลดไฟล์ตั้งแต่ "นิ้วแตะ" ยังไม่ทันปล่อย
+   iOS ยอมให้เปิดแผงแชร์เฉพาะตอนที่ยังนับว่าเป็นการกดของผู้ใช้อยู่
+   ถ้ารอโหลดเสร็จค่อยเรียก มักโดนปฏิเสธ — ชิงโหลดไว้ก่อนจึงทันพอดี */
+var _FH_PREFETCH = {};
+function fhPrefetchCert(url) {
+  if (!url || _FH_PREFETCH[url]) return;
+  try {
+    _FH_PREFETCH[url] = fetch(url, { cache: 'force-cache' })
+      .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); });
+    _FH_PREFETCH[url].catch(function(){});
+    setTimeout(function(){ delete _FH_PREFETCH[url]; }, 120000);   // ไม่กองไว้ในเครื่องนาน
+  } catch (e) {}
+}
+
 /* ดาวน์โหลดใบเดียว โดยตั้งชื่อไฟล์ตามชื่อบนใบรับรอง
    ของเดิมเป็นแค่ <a href> ธรรมดา ไฟล์อยู่คนละโดเมน เบราว์เซอร์จึงไม่สนใจ
    แอตทริบิวต์ download แล้วเซฟด้วยชื่อไฟล์ดิบใน storage (เป็นรหัสยาว ๆ)
@@ -824,16 +886,16 @@ function fhDownloadOneCert(ev, url, noOrName) {
   if (a) { a.innerHTML = '⏳'; a.style.pointerEvents = 'none'; }
   var done = function(){ if (a) { a.innerHTML = orig; a.style.pointerEvents = ''; } };
 
-  fetch(url, { cache: 'no-store' })
-    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
+  var got = _FH_PREFETCH[url] || fetch(url, { cache: 'no-store' })
+    .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); });
+
+  got
     .then(function(blob){
       return _fhBlobExt(blob, url).then(function(ext){
-        var burl = URL.createObjectURL(blob);
-        _fhTriggerDownload(burl, _fhFileName(name) + ext);
-        setTimeout(function(){ URL.revokeObjectURL(burl); }, 8000);
-        done();
+        return _fhDeliverFiles([{ blob: blob, name: _fhFileName(name) + ext }]);
       });
     })
+    .then(function(){ done(); })
     .catch(function(){
       done();
       window.open(url, '_blank', 'noopener');   // ถอยไปเปิดแท็บ ชื่อไฟล์จะเป็นของเดิม
@@ -909,14 +971,13 @@ function fhDownloadSelected(scope) {
     });
   }).then(function(bytes){
     var blob = new Blob([bytes], { type: 'application/pdf' });
-    var url = URL.createObjectURL(blob);
+
     /* เลือกใบเดียว → ตั้งชื่อไฟล์เป็นชื่อ-นามสกุลบนใบเซอร์เลย จะได้หาไฟล์เจอ
        เลือกหลายใบ → รวมเป็นไฟล์เดียว ตั้งชื่อตามจำนวน (อยากได้แยกไฟล์ตามชื่อ ใช้ปุ่ม "แยกไฟล์") */
     var fname = (uniq.length === 1)
       ? _fhFileName(uniq[0].name) + '.pdf'
       : 'ใบรับรอง_' + (uniq.length - failed.length) + 'ใบ_' + _fhStamp() + '.pdf';
-    _fhTriggerDownload(url, fname);
-    setTimeout(function(){ URL.revokeObjectURL(url); }, 5000);
+    _fhDeliverFiles([{ blob: blob, name: fname }]);
     restore();
     showInfo('ดาวน์โหลดแล้ว',
       'รวม <b>' + (uniq.length - failed.length) + '</b> ใบเป็นไฟล์ PDF เดียว'
@@ -942,7 +1003,7 @@ function fhDownloadSelectedEach(scope) {
   var restore = function(){ if (btn) { btn.disabled = false; btn.innerHTML = origHtml; } };
   if (btn) btn.disabled = true;
 
-  var used = {}, okN = 0, failed = [];
+  var used = {}, okN = 0, failed = [], ready = [];
   var chain = Promise.resolve();
   items.forEach(function(it, i){
     chain = chain.then(function(){
@@ -951,18 +1012,18 @@ function fhDownloadSelectedEach(scope) {
         .then(function(r){ if (!r.ok) throw new Error('HTTP ' + r.status); return r.blob(); })
         .then(function(blob){
           return _fhBlobExt(blob, it.url).then(function(ext){
-          var url = URL.createObjectURL(blob);
-          _fhTriggerDownload(url, _fhUniqueName(used, _fhFileName(it.name)) + ext);
-          setTimeout(function(){ URL.revokeObjectURL(url); }, 8000);
-          okN++;
-          /* เว้นจังหวะ ไม่งั้นเบราว์เซอร์กันว่ายิงดาวน์โหลดรัวเกินไปแล้วดรอปทิ้ง */
-          return new Promise(function(res){ setTimeout(res, 250); });
+            /* เก็บไว้ก่อน ค่อยส่งทีเดียวตอนจบ — มือถือจะได้เห็นแผงแชร์ครั้งเดียว
+               ไม่ใช่เด้งถามทีละไฟล์ และไม่โดนเบราว์เซอร์กันว่ายิงดาวน์โหลดรัว */
+            ready.push({ blob: blob, name: _fhUniqueName(used, _fhFileName(it.name)) + ext });
+            okN++;
           });
         })
         .catch(function(){ failed.push(it.name || it.url); });
     });
   });
   chain.then(function(){
+    return _fhDeliverFiles(ready);
+  }).then(function(){
     restore();
     showInfo('ดาวน์โหลดแล้ว',
       'แยกเป็น <b>' + okN + '</b> ไฟล์ ตั้งชื่อตามชื่อ-นามสกุลบนใบเซอร์'

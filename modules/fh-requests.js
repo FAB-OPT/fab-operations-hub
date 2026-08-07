@@ -205,7 +205,7 @@ function branchSearch() {
       + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
       + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
       + '<td data-label="ใบเซอร์" data-icon="⚙️" class="td-row-actions">'
-      +   (url ? '<a class="btn-row-view" href="' + url + '" data-cert-name="' + escapeAttr(r['ชื่อในใบรับรอง'] || '') + '" onclick="return fhDownloadOneCert(event, this.href, this.dataset.certName)" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบเซอร์</span></a>' : '<span style="color:var(--text3)">—</span>')
+      +   (url ? '<a class="btn-row-view" href="' + url + '" data-cert-name="' + escapeAttr(r['ชื่อในใบรับรอง'] || '') + '" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, this.dataset.certName)" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบเซอร์</span></a>' : '<span style="color:var(--text3)">—</span>')
       + '</td>'
       + '</tr>';
   }).join('');
