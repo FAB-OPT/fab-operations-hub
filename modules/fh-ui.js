@@ -201,6 +201,32 @@ function updateIdCard(input, i) {
   if (typeof updateStepper === 'function') updateStepper();
 }
 
+
+/* ─── รายการตำแหน่งมาตรฐาน ───
+   เรียงตามสายงาน: ผู้จัดการ → ครัว → บริการ
+   ที่มาจากรายการที่ใช้จริงหน้างาน — พิมพ์เองแล้วสะกดไม่ตรงกันจะทำให้
+   รายงานแยกตำแหน่งเดียวกันเป็นหลายอัน (ปัญหาเดียวกับชื่อสาขาที่เคยเจอ) */
+var FH_POSITIONS = [
+  'Trainee Manager', 'Shift Supervisor', 'Assistant Manager',
+  'Senior Assistant Manager', 'Restaurant General Manager',
+  'Cook Basic P/T', 'Cook Basic', 'Cook Silver P/T', 'Cook Silver', 'Cook Gold P/T', 'Cook Gold',
+  'Service Basic P/T', 'Service Basic', 'Service Silver P/T', 'Service Silver',
+  'Service Gold P/T', 'Service Gold'
+];
+function _fhPosSelectHtml(i, cur) {
+  cur = String(cur == null ? '' : cur).trim();
+  var list = FH_POSITIONS.slice();
+  /* ตำแหน่งเดิมที่ไม่มีในรายการ (ข้อมูลเก่า/พิมพ์เอง) ต้องยังเลือกค้างไว้ได้
+     ไม่งั้นเปิดฟอร์มมาแล้วค่าที่เคยกรอกหายไปเงียบ ๆ */
+  if (cur && list.indexOf(cur) < 0) list.unshift(cur);
+  return '<select class="req-pos-sel" onchange="updateReqRow(' + i + ',&quot;position&quot;,this.value)">'
+    + '<option value=""' + (cur ? '' : ' selected') + '>เลือกตำแหน่ง...</option>'
+    + list.map(function(p){
+        return '<option value="' + escapeAttr(p) + '"' + (p === cur ? ' selected' : '') + '>' + escapeHtml(p) + '</option>';
+      }).join('')
+    + '</select>';
+}
+
 function onReqNameChange(i) {
   var name = (requestRows[i].name || '').trim();
   var hintEl = document.getElementById('reqHint-'+i);
@@ -214,11 +240,16 @@ function onReqNameChange(i) {
     hintEl.innerHTML = '◯ ไม่พบในระบบ — กรอกข้อมูลด้วยตนเอง';
     return;
   }
-  // Autofill position if empty
-  if (!requestRows[i].position && found['ตำแหน่ง'] && found['ตำแหน่ง'] !== '—') {
-    requestRows[i].position = found['ตำแหน่ง'];
-    var posInput = document.querySelectorAll('.req-card')[i].querySelectorAll('input')[2];
-    if (posInput) posInput.value = found['ตำแหน่ง'];
+  /* เติมตำแหน่งให้อัตโนมัติ — ดูทะเบียนพนักงานก่อน (master list) แล้วค่อยดูใบรับรอง
+     เดิมดูแค่ใบรับรอง คนที่อยู่ในทะเบียนแต่ยังไม่มีใบเลยไม่ได้ตำแหน่งอัตโนมัติ */
+  if (!requestRows[i].position) {
+    var pos = '';
+    try {
+      var emp = (empData || []).find(function(e){ return _empKey_(e.name || e.norm || '') === _empKey_(name); });
+      if (emp && emp.position && emp.position !== '—') pos = emp.position;
+    } catch (e) {}
+    if (!pos && found['ตำแหน่ง'] && found['ตำแหน่ง'] !== '—') pos = found['ตำแหน่ง'];
+    if (pos) { requestRows[i].position = pos; rerenderRequestList(); }
   }
   var status = found['สถานะใบรับรอง'];
   if (status === 'valid' || status === 'ยังมีผล') {

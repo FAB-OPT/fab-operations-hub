@@ -1233,7 +1233,11 @@ function rerenderRequestList() {
       +   '</div>'
       +   '<div class="req-field">'
       +     '<label>ตำแหน่ง <span class="req-mark">*</span></label>'
-      +     '<input value="'+escapeAttr(r.position)+'" placeholder="เช่น พนักงานครัว" oninput="updateReqRow('+i+',\'position\',this.value)">'
+      /* เลือกจากรายการตำแหน่งมาตรฐาน แทนการพิมพ์เอง
+         พิมพ์เองแล้วสะกดไม่ตรงกัน จะทำให้รายงานแยกตำแหน่งเดียวกันเป็นหลายอัน
+         (ปัญหาเดียวกับชื่อสาขาที่เคยเจอในทะเบียน)
+         คนที่อยู่ในทะเบียนจะถูกเติมตำแหน่งให้อัตโนมัติตอนเลือกชื่อ */
+      +     _fhPosSelectHtml(i, r.position)
       +   '</div>'
       +   '<div class="req-field">'
       +     '<label>หลักสูตร <span class="req-mark">*</span></label>'
