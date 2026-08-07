@@ -210,7 +210,11 @@ function branchSearch() {
 
 function addRequestRow() {
   requestRows.push({name:'', empId:'', idCard:'', branch: currentBranchName || '', position:'', course:'', trainDate:'', timeSlot:'', note:''});
+  /* ตั้งธงตรงนี้ = "ผู้ใช้กดเพิ่มรายชื่อแล้ว" แล้วสั่งอัปเดตปุ่มเอง
+     ไม่รอให้ rerenderRequestList เป็นคนเรียก เผื่อวันหลังมีเส้นทางอื่นมาเพิ่มแถว */
+  try { FH_REQ_ADDED = true; } catch (e) {}
   rerenderRequestList();
+  try { if (typeof _fhSyncSubmitBtn === 'function') _fhSyncSubmitBtn(); } catch (e) {}
 }
 
 /* ─── Load submitted requests (history) ─── */

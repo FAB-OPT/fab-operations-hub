@@ -242,9 +242,12 @@ function updateReqRow(i, key, val) {
 }
 
 /* ปุ่ม "ส่งรายชื่อทั้งหมด" โผล่ก็ต่อเมื่อกด "เพิ่มรายชื่อ" แล้วเท่านั้น
-   ฟอร์มเปิดมามีแถวเปล่า 1 แถวเสมอ (แถวตั้งต้น) จึงถือว่ายังไม่ได้เพิ่มอะไร
-   เกิน 1 แถวเมื่อไหร่ = กดเพิ่มแล้ว → ปุ่มส่งค่อยโผล่ */
-var FH_REQ_BASE_ROWS = 1;
+
+   ใช้ "ธง" ตรง ๆ แทนการนับจำนวนแถว
+   เดิมนับแถวแล้วเทียบกับแถวตั้งต้น ซึ่งเปราะ — ขึ้นกับว่าตอนนั้นมีแถวตั้งต้นกี่แถว
+   และต้องมั่นใจว่าทุกเส้นทางที่เพิ่ม/ลบแถวเรียกตัวคุมนี้ครบ
+   ธงตรงไปตรงมากว่า: กดปุ่มเพิ่ม = true · ล้างฟอร์ม = false */
+var FH_REQ_ADDED = false;
 function _fhSyncSubmitBtn() {
   var btn = document.getElementById('submitReqBtn');
   if (!btn) return;
@@ -253,10 +256,10 @@ function _fhSyncSubmitBtn() {
      ถ้าตรงนี้ไม่คิดสิทธิ์ พอ applyFhPerms รันจะเปิดปุ่มกลับมาทั้งที่ยังไม่ได้กดเพิ่มรายชื่อ */
   var can = true;
   try { if (typeof fhCan === 'function') can = fhCan('submit-request'); } catch (e) {}
-  var n = 0;
-  try { n = (requestRows || []).length; } catch (e) {}
-  btn.style.display = (can && n > FH_REQ_BASE_ROWS) ? '' : 'none';
+  btn.style.display = (can && FH_REQ_ADDED) ? '' : 'none';
 }
+/* ล้างฟอร์ม (ส่งเสร็จ / กลับไปหน้าค้นหา) → กลับไปสถานะยังไม่ได้เพิ่ม */
+function _fhResetSubmitBtn() { FH_REQ_ADDED = false; _fhSyncSubmitBtn(); }
 
 function removeReqRow(i) {
   requestRows.splice(i, 1);
@@ -463,6 +466,7 @@ function submitRequests() {
         showLoadingOverlay('✓ ส่งรายชื่อสำเร็จ', 'บันทึก '+res.saved+' รายการเรียบร้อยแล้ว', true);
         statusEl.innerHTML = '<span style="color:var(--green)">✓ ส่งรายชื่อ '+res.saved+' รายการเรียบร้อย</span>';
         requestRows = [];
+        FH_REQ_ADDED = false;
         rerenderRequestList();
         _fhBustRequests();
         setTimeout(loadMyRequests, 600);
