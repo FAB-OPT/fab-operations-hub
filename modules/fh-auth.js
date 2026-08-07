@@ -251,8 +251,10 @@ function showBrSection(targetId) {
     if (tEl) {
       var _b = (typeof FH_BUILD !== 'undefined') ? FH_BUILD : '';
       tEl.innerHTML = escapeHtml(currentBranchName) +
-        (_b ? ' <span class="fh-build-tag">' + escapeHtml(_b) + '</span>' : '');
+        (_b ? ' <span class="fh-build-tag">' + escapeHtml(_b) + '</span>' : '') +
+        '<span id="brSubmitWhy" class="fh-why-tag"></span>';
     }
+    try { if (typeof _fhRenderSubmitWhy === 'function') _fhRenderSubmitWhy(); } catch (e) {}
   } else {
     if (iEl && meta) iEl.textContent = meta.icon;
     if (tEl && meta) tEl.textContent = meta.title;
@@ -643,4 +645,15 @@ function _updateTopbarVisibility() {
   if (bBar) bBar.style.display = 'none';
   void bVisible;
   void aView; // referenced for future re-enable if needed
+}
+
+
+/* บอกเหตุผลที่เมนู "ส่งรายชื่อ" หายไป — ให้เห็นบนหน้าจอเลย ไม่ต้องเปิด console
+   เมนูหายเฉย ๆ ผู้ใช้จะนึกว่าระบบพัง ทั้งที่เป็นเรื่องสิทธิ์หรือสวิตช์ปิดรับ */
+function _fhRenderSubmitWhy() {
+  var el = document.getElementById('brSubmitWhy');
+  if (!el) return;
+  var why = (typeof FH_SUBMIT_WHY !== 'undefined') ? FH_SUBMIT_WHY : '';
+  el.textContent = why ? ('· ' + why) : '';
+  el.style.display = why ? '' : 'none';
 }
