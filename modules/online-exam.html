@@ -392,6 +392,8 @@ textarea.txt{resize:vertical;min-height:70px;line-height:1.5}
   .btn-back .bt-label{display:none}
   .chip{padding:8px 11px}
 }
+/* ไม่มีสิทธิ์ใช้ปุ่มนี้ — ซ่อนแบบชนะทุกกรณี ไม่ยุ่งกับ inline style เดิม */
+.oe-noperm{display:none!important}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 <!-- SheetJS — นำเข้า/สร้างแบบฟอร์มข้อสอบ Excel -->
@@ -869,9 +871,12 @@ function oeCan(actionId){
   return (p.roles || []).indexOf(role) >= 0;
 }
 /* ซ่อนแท็บ/ปุ่มที่ไม่มีสิทธิ์ — ใส่ data-oe-action ไว้ที่ element ที่ต้องการคุม */
+/* ใช้ class แทนการเซ็ต style.display ตรง ๆ
+   เดิม: มีสิทธิ์ = สั่ง display='' ซึ่งไป "เปิด" ของที่ตั้งใจซ่อนไว้ด้วยเหตุอื่น
+   ใหม่: ไม่มีสิทธิ์ = ใส่ class ซ่อน · มีสิทธิ์ = ถอด class ปล่อยให้ logic เดิมคุมเอง */
 function oeApplyPerms(){
   document.querySelectorAll('[data-oe-action]').forEach(function(el){
-    el.style.display = oeCan(el.getAttribute('data-oe-action')) ? '' : 'none';
+    el.classList.toggle('oe-noperm', !oeCan(el.getAttribute('data-oe-action')));
   });
 }
 
@@ -1078,9 +1083,10 @@ function renderAdminExams(){
       '<div class="ec-actions">'+
         '<button class="btn btn-soft btn-sm" style="flex:1" onclick="openExamEditor(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>'+
         '<button class="btn btn-soft btn-sm" style="flex:1" onclick="previewExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>'+
-        '<button class="btn btn-danger btn-sm" onclick="deleteExam(\''+ex.id+'\')" title="ลบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
+        '<button class="btn btn-danger btn-sm" data-oe-action="exam-delete" onclick="deleteExam(\''+ex.id+'\')" title="ลบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'+
       '</div></div>';
   }).join('')+'</div>';
+  oeApplyPerms();   // ปุ่มลบวาดใหม่ทุกครั้ง — ต้องบังคับสิทธิ์ซ้ำ ไม่งั้นหลุดการควบคุม
 }
 
 /* ═════════════════════ EXAM EDITOR ═════════════════════ */
@@ -1473,9 +1479,10 @@ function renderBranchExams(){
           '<span class="tag">ผ่าน '+ex.passingScorePercent+'%</span>'+
           (ex.endDate?'<span class="tag r">ปิดรับ '+esc(ex.endDate)+'</span>':'')+
         '</div></div></div>'+
-      '<div class="ec-actions"><button class="btn btn-primary btn-sm" style="width:100%" onclick="startBranchExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'+
+      '<div class="ec-actions"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" style="width:100%" onclick="startBranchExam(\''+ex.id+'\')"><svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'+
     '</div>';
   }).join('')+'</div>';
+  oeApplyPerms();   // ปุ่มทำข้อสอบวาดใหม่ทุกครั้ง — ต้องบังคับสิทธิ์ซ้ำ
 }
 function startBranchExam(id){
   var ex=EXAMS.find(function(x){return x.id===id;});
