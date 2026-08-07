@@ -59,12 +59,27 @@ function _fhMapCerts(records) {
 function _fhCacheSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
 function _fhCacheGet(k){ try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
 
+/* ทะเบียนรายชื่อมาถึงทีหลังรายการใบรับรอง ต้องวาดหน้าสาขาใหม่
+   หน้าสาขาใช้ทะเบียนช่วยตัดสินว่าใบไหนเป็นของสาขา (ชื่อสาขาบนใบสะกดไม่นิ่ง)
+   ถ้าไม่วาดใหม่ ใครมาถึงก่อนก็ได้ผลต่างกัน — คอมเห็น 5 ใบ มือถือเห็น 2 ใบ */
+function _fhRefreshBranchCertsAfterRegistry() {
+  try {
+    if (typeof _FH_EMP_BR_IDX !== 'undefined') _FH_EMP_BR_IDX = null;   // บังคับสร้างดัชนีใหม่
+    if (document.getElementById('branchResults') && typeof branchSearch === 'function') branchSearch();
+    if (typeof updateBranchStats === 'function') updateBranchStats();
+  } catch (e) {}
+}
+
 function loadEmployeeRegistryFromCloud() {
   if (!SCRIPT_URL) return Promise.resolve();
   // แสดงทะเบียนจาก cache ทันที (ถ้ายังไม่มี) แล้วค่อยดึงของใหม่มาทับ
   if (!empData || !empData.length) {
     var _ec = _fhCacheGet('fh_emp_v1');
-    if (_ec && _ec.length) { empData = _ec; if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e){} } }
+    if (_ec && _ec.length) {
+      empData = _ec;
+      if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e){} }
+      _fhRefreshBranchCertsAfterRegistry();
+    }
   }
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
   return fhLoadEmployees()
@@ -94,6 +109,7 @@ function loadEmployeeRegistryFromCloud() {
       setStatus('xlsx','done','✓ ใช้ทะเบียนในระบบ — ' + empData.length + ' คน (อัพโหลด Excel ใหม่เพื่ออัพเดต)');
       var _xc = document.getElementById('xlsxCard'); if (_xc) _xc.classList.add('loaded');
       if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e) {} }
+      _fhRefreshBranchCertsAfterRegistry();
       checkReady();
     })
     .catch(function(err){
