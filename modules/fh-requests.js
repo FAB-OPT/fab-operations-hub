@@ -116,12 +116,113 @@ function updateBranchStats() {
 
 /* เทียบชื่อสาขาแบบหลวม — ทะเบียนสะกดสาขาไม่ตรงกันบ่อย (ICS/ไอซีเอส, เว้นวรรคไม่เท่ากัน)
    ถ้าเทียบตรงตัวจะกลายเป็น "สาขาตัวเองไม่มีใบเซอร์สักใบ" ทั้งที่มี */
+/* ═══ จับคู่สาขา — ยึด "รหัสสาขา" เป็นหลัก ไม่ใช่ข้อความ ═══
+   ระบบเก็บชื่อสาขาไว้คนละแบบในแต่ละที่ ชื่อเดียวกันแต่เขียนไม่เหมือนกันเลย
+     ตอนล็อกอิน/ใบรับรอง : "Santa Fe IT หลักสี่"
+     ทะเบียนพนักงาน      : "5026 ไอทีสแควร์หลักสี่"
+     สำเนาใน Google Sheet: "5002 ซีคอนศรีนครินทร์"
+   เทียบข้อความยังไงก็ไม่มีทางตรง สิ่งเดียวที่ทุกที่มีเหมือนกันคือรหัสสาขา
+   จึงแปลงทุกแบบให้เป็นรหัสก่อน แล้วค่อยเทียบ */
+var _FH_BRAND_WORDS = ['santafeeasy', 'santafe', 'อีซี่สเต็ก', 'เจ๊แดงจุ่มนัวร์', 'จุ่มนัวร์', 'เจ๊แดง', 'ร้านส้มตำ'];
+function _fhBrKey(x) {
+  var t = String(x || '').toLowerCase().replace(/[\s\-()._,]/g, '');
+  _FH_BRAND_WORDS.forEach(function (w) { t = t.split(w).join(''); });
+  return t;
+}
+/* แบรนด์จากข้อความ — ใช้แยกสาขาชื่อซ้ำที่อยู่คนละแบรนด์
+   เช่น "ซีคอน บางแค" มีทั้งของ Santa Fe (5017) และเจ๊แดง จุ่มนัวร์ (4005)
+   ถ้าตัดชื่อแบรนด์ทิ้งก่อนค้นหา สองสาขานี้จะเหลือชื่อเดียวกันแล้วแยกไม่ออก */
+function _fhBranchBrand(x) {
+  var t = String(x || '').toLowerCase();
+  if (t.indexOf('santa fe easy') >= 0 || t.indexOf('santafeeasy') >= 0 || t.indexOf('อีซี่') >= 0) return 'Santa Fe Easy';
+  if (t.indexOf('santa fe') >= 0 || t.indexOf('santafe') >= 0) return 'Santa Fe';
+  if (t.indexOf('เจ๊แดง') >= 0 || t.indexOf('จุ่มนัวร์') >= 0) return 'เจ๊แดง จุ่มนัวร์';
+  return '';
+}
+/* คืนรหัสสาขา 4 หลัก ถ้าหาได้ · ไม่ได้ก็คืนค่าว่าง */
+function _fhBranchCode(x) {
+  var t = String(x || '').trim();
+  if (!t) return '';
+  var m = t.match(/(^|\D)(\d{4})(\D|$)/);
+  if (m) return m[2];
+  /* ไม่มีรหัสในข้อความ → เทียบชื่อกับทะเบียนสาขา
+     แต่ต้องดูแบรนด์ด้วย ไม่งั้นสาขาชื่อเดียวกันคนละแบรนด์จะปนกัน */
+  try {
+    var brand = _fhBranchBrand(t);
+    var k = _fhBrKey(t), best = '', bestLen = -1;
+    for (var code in BRANCHES) {
+      if (brand) {
+        var cbrand = (typeof getBranchPrefix === 'function') ? getBranchPrefix(code) : '';
+        if (cbrand !== brand) continue;   // คนละแบรนด์ ข้ามไป
+      }
+      var bk = _fhBrKey(BRANCHES[code]);
+      if (!bk) continue;
+      if ((k.indexOf(bk) >= 0 || bk.indexOf(k) >= 0) && bk.length > bestLen) { best = code; bestLen = bk.length; }
+    }
+    return best;
+  } catch (e) { return ''; }
+}
 function _brSameBranch(a, b) {
-  var k = function(x){ return String(x || '').replace(/[\s\-()]/g, '').toLowerCase(); };
-  var ka = k(a), kb = k(b);
+  var ca = _fhBranchCode(a), cb2 = _fhBranchCode(b);
+  if (ca && cb2) return ca === cb2;          // รู้รหัสทั้งคู่ → ตัดสินด้วยรหัส ชัดเจนที่สุด
+  /* รู้แบรนด์ทั้งคู่และคนละแบรนด์ → ไม่ใช่สาขาเดียวกันแน่นอน ไม่ต้องเทียบข้อความต่อ
+     เช่น "ร้านส้มตำเจ๊แดง(สยาม)" ไม่ใช่สาขา Santa Fe ที่ชื่อมีคำว่าสยาม */
+  var ba = _fhBranchBrand(a), bb = _fhBranchBrand(b);
+  if (ba && bb && ba !== bb) return false;
+  var ka = _fhBrKey(a), kb = _fhBrKey(b);    // ไม่รู้รหัส → ถอยไปเทียบข้อความแบบเดิม
   if (!ka || !kb) return false;
   return ka === kb || ka.indexOf(kb) >= 0 || kb.indexOf(ka) >= 0;
 }
+/* ═══ สาขาของใบรับรอง — ถามทะเบียนรายชื่อเป็นหลัก ═══
+   ข้อความ "สาขา" ที่ติดมากับใบสะกดไม่นิ่ง สาขาเดียวกันมีหลายแบบ
+     "Santa Fe เทอร์มินอล21"      ↔ ล็อกอิน "Santa Fe เทอร์มินัล 21 อโศก"
+     "Santa Fe ไอทีสแควร์หลักสี่"  ↔ ล็อกอิน "Santa Fe IT หลักสี่"
+   ส่วนทะเบียนรายชื่อเก็บรหัสสาขาไว้ด้วย ("5026 ไอทีสแควร์หลักสี่") จึงชี้ขาดได้
+   กติกาเดิมที่ตกลงกันไว้ก็คือ ชื่อบนใบชนกับทะเบียน แล้วเอาสาขาจากทะเบียน
+   ตัวนี้เอากติกานั้นมาใช้ตอนกรองด้วย ไม่ใช่แค่ตอนนำเข้า */
+var _FH_EMP_BR_IDX = null;
+function _fhEmpKeyName(x) {
+  return String(x || '')
+    .replace(/(นางสาว|น\.ส\.?|นาง|นาย|ด\.ช\.|ด\.ญ\.)/g, '')
+    /* เขียนอักขระที่มองไม่เห็นเป็นรหัส \u.. ไม่ใช่ตัวอักษรจริง
+       ถ้าเขียนเป็นตัวจริง คนที่มาแก้ทีหลังจะมองไม่เห็นแล้วเผลอลบทิ้ง
+       (เว้นวรรค, zero-width space, NBSP, BOM) */
+    .replace(/[\s\u200b\u00a0\ufeff]/g, '')
+    .toLowerCase();
+}
+function _fhBuildEmpBranchIdx() {
+  var idx = {};
+  try {
+    (typeof empData !== 'undefined' ? empData || [] : []).forEach(function (e) {
+      var k = _fhEmpKeyName(e && (e.name || e['ชื่อ-นามสกุล']));
+      var b = (e && (e.branch || e['สาขา'])) || '';
+      if (k && b && !idx[k]) idx[k] = b;
+    });
+  } catch (err) {}
+  _FH_EMP_BR_IDX = idx;
+  return idx;
+}
+function _fhCertBranchFromRegistry(r) {
+  var idx = _FH_EMP_BR_IDX || _fhBuildEmpBranchIdx();
+  var names = [r && r['ชื่อในระบบ'], r && r['ชื่อในใบรับรอง']];
+  for (var i = 0; i < names.length; i++) {
+    var hit = idx[_fhEmpKeyName(names[i])];
+    if (hit) return hit;
+  }
+  return '';
+}
+/* ใบนี้เป็นของสาขานี้ไหม
+   1. ถ้าข้อความสาขาบนใบชี้ได้ว่าเป็นสาขาไหน → เชื่อตามนั้น จบ
+      (กันกรณีคนย้ายสาขา แล้วใบเดียวไปโผล่ทั้งสาขาเก่าและสาขาใหม่)
+   2. ชี้ไม่ได้ (สะกดคนละแบบ / ไม่มีสาขาติดมา) → ค่อยถามทะเบียนรายชื่อ */
+function _fhCertIsBranch(r, myBranch) {
+  var own = (r && r['สาขา']) || '';
+  if (_fhBranchCode(own)) return _brSameBranch(own, myBranch);
+  if (_brSameBranch(own, myBranch)) return true;
+  var fromReg = _fhCertBranchFromRegistry(r);
+  return fromReg ? _brSameBranch(fromReg, myBranch) : false;
+}
+
 /* ค่าเริ่มต้น = โชว์เฉพาะสาขาตัวเอง · กดปุ่มค้นหาเพิ่มเติมถึงจะเห็นทุกสาขา */
 var _brSearchAll = false;
 function brSearchAllBranches() {
@@ -151,7 +252,8 @@ function branchSearch() {
      สาขาส่วนใหญ่เข้ามาหาใบเซอร์ของลูกน้องตัวเอง ไม่ใช่ของทั้งบริษัท
      เดิมเปิดมาเจอ 652 ใบของทุกสาขา ต้องพิมพ์กรองเองทุกครั้ง */
   var scopeAll = _brSearchAll || !!q;
-  var base = (scopeAll || !myBranch) ? all : all.filter(function(r){ return _brSameBranch(r['สาขา'], myBranch); });
+  if (!scopeAll && myBranch) _fhBuildEmpBranchIdx();   // สร้างดัชนีทะเบียนใหม่ทุกครั้ง เผื่อทะเบียนเพิ่งโหลดเสร็จ
+  var base = (scopeAll || !myBranch) ? all : all.filter(function(r){ return _fhCertIsBranch(r, myBranch); });
 
   var results = !q ? base : base.filter(function(r){
     var hay = ((r['ชื่อในใบรับรอง']||'') + ' ' + (r['ชื่อในระบบ']||'') + ' ' + (r['สาขา']||'') + ' ' + (r['ตำแหน่ง']||'') + ' ' + (r['หลักสูตร']||'')).toLowerCase();
