@@ -294,7 +294,7 @@ function _fhEnsureCertsForRequests() {
     })
     .catch(function(e){ console.warn('[FH] โหลดใบรับรองเบื้องหลังไม่สำเร็จ', e); });
 }
-function certSummaryHtml(rows, certIdx) {
+function certSummaryHtml(rows, certIdx, withWords) {
   var c = { valid:0, warning:0, expired:0, none:0 };
   rows.forEach(function(r){
     var nm = r['name'] || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
@@ -306,11 +306,13 @@ function certSummaryHtml(rows, certIdx) {
     else if (hit.status === 'expired') c.expired++;
     else c.none++;
   });
-  var parts = [];
-  if (c.valid)   parts.push('<span class="cert-badge cb-valid">✓ '+c.valid+'</span>');
-  if (c.warning) parts.push('<span class="cert-badge cb-warn">⚠ '+c.warning+'</span>');
-  if (c.expired) parts.push('<span class="cert-badge cb-exp">✗ '+c.expired+'</span>');
-  if (c.none)    parts.push('<span class="cert-badge cb-none">— '+c.none+'</span>');
+  /* withWords = เขียนคำกำกับด้วย ใช้ในที่ที่มีที่ว่างพอ
+     ของเดิมมีแต่สัญลักษณ์ พอทั้งรุ่นยังไม่มีใบเลยจะเห็นแค่ "— 2" ซึ่งอ่านไม่ออก */
+  var w = !!withWords, parts = [];
+  if (c.valid)   parts.push('<span class="cert-badge cb-valid">✓ '+(w?'ใช้ได้ ':'')+c.valid+'</span>');
+  if (c.warning) parts.push('<span class="cert-badge cb-warn">⚠ '+(w?'ใกล้หมดอายุ ':'')+c.warning+'</span>');
+  if (c.expired) parts.push('<span class="cert-badge cb-exp">✗ '+(w?'หมดอายุ ':'')+c.expired+'</span>');
+  if (c.none)    parts.push('<span class="cert-badge cb-none">'+(w?'ยังไม่มีใบ ':'— ')+c.none+'</span>');
   return parts.join('');
 }
 
@@ -845,16 +847,32 @@ function _renderReqBatchView(batches, rows) {
     if (bInfo) bInfo.style.display = 'none';
     tableWrap.style.display = '';
     back.style.display = '';
-    back.innerHTML = '<button class="rbatch-back-btn" onclick="_closeReqBatch()">← ทุกรุ่น</button>'
-      + '<div class="rbatch-back-info">'
-      +   (b.round ? '<span class="round-chip">รุ่น ' + escapeHtml(b.round) + '</span> ' : '<span class="round-chip round-chip-none">ยังไม่ระบุรุ่น</span> ')
-      +   '<b>' + escapeHtml(b.course || '') + '</b><br>'
-      +   '📅 ' + escapeHtml(formatThaiDate(b.trainDate) || '— ไม่ระบุวัน')
-      +   ' · 🕐 ' + escapeHtml(b.slot || '— ไม่ระบุรอบ')
-      +   ' · 👥 <b>' + ((b.rows && b.rows.length) || 0) + '</b> คน จาก ' + (b.branchCount || 0) + ' สาขา'
-      +   '<br><span style="font-size:12px;">📜 ' + certSummaryHtml(b.rows || [], _adminCertIdx) + '</span>'
+    /* แถบหัวรุ่น — จัดใหม่: บรรทัดบน = ปุ่มกลับ · ชื่อรุ่น+หลักสูตร · ปุ่มกำหนดรุ่น
+       บรรทัดล่าง = รายละเอียดเป็นช่อง ๆ มีป้ายกำกับ
+       ของเดิมยัดทุกอย่างเป็นข้อความยาวคั่นด้วยจุด และบรรทัดใบรับรองโผล่มาเป็น "📜 — 2" ลอย ๆ อ่านไม่ออก */
+    var _n = (b.rows && b.rows.length) || 0;
+    var _cell = function (label, val, cls) {
+      return '<div class="rbh-cell' + (cls ? ' ' + cls : '') + '">'
+           + '<div class="rbh-cell-l">' + label + '</div>'
+           + '<div class="rbh-cell-v">' + val + '</div></div>';
+    };
+    back.innerHTML =
+        '<div class="rbh-bar">'
+      +   '<button class="rbh-back" onclick="_closeReqBatch()"><span aria-hidden="true">←</span> ทุกรุ่น</button>'
+      +   '<div class="rbh-head">'
+      +     (b.round ? '<span class="rbh-chip">รุ่น ' + escapeHtml(b.round) + '</span>'
+                     : '<span class="rbh-chip rbh-chip-none">ยังไม่ระบุรุ่น</span>')
+      +     '<h3 class="rbh-course">' + escapeHtml(b.course || '— ไม่ระบุหลักสูตร') + '</h3>'
+      +   '</div>'
+      +   '<button class="rbh-act" onclick="openAdminReqRoundTool()" title="กำหนดเลขรุ่นให้ทุกคนในกลุ่มนี้">กำหนดรุ่น</button>'
       + '</div>'
-      + '<button class="rbatch-back-btn" onclick="openAdminReqRoundTool()" title="กำหนดรุ่นให้กลุ่มนี้">🏷️ กำหนดรุ่น</button>';
+      + '<div class="rbh-grid">'
+      +   _cell('วันอบรม', escapeHtml(formatThaiDate(b.trainDate) || 'ยังไม่ระบุ'))
+      +   _cell('รอบเวลา', escapeHtml(b.slot || 'ยังไม่ระบุ'))
+      +   _cell('ผู้เข้าอบรม', _n + ' <span class="rbh-u">คน</span>')
+      +   _cell('สาขา', (b.branchCount || 0) + ' <span class="rbh-u">สาขา</span>')
+      +   _cell('ใบรับรอง', certSummaryHtml(b.rows || [], _adminCertIdx, true) || '<span class="rbh-u">—</span>', 'rbh-cell-cert')
+      + '</div>';
     return;
   }
 
@@ -872,19 +890,28 @@ function _renderReqBatchView(batches, rows) {
     grid.innerHTML = '<div class="rbatch-empty">ไม่พบรายการตามตัวกรอง</div>';
     return;
   }
+  /* การ์ดรุ่น — "กี่คน" คือสิ่งที่ต้องเห็นก่อน จึงเป็นตัวเลขใหญ่สุดในการ์ด
+     รายละเอียดที่เหลือมีป้ายกำกับ ไม่ใช้อีโมจิแทนหัวข้อ (ขนาดไม่นิ่งและอ่านออกเสียงไม่ได้)
+     ทั้งใบเป็น <button> จริง กดด้วยคีย์บอร์ดได้ ไม่ใช่ div ที่แปะ onclick ไว้เฉย ๆ */
   grid.innerHTML = batches.map(function(b){
-    return '<div class="rbatch' + (b.round ? '' : ' rb-none') + '" onclick="_openReqBatch(\'' + escapeAttr(encodeURIComponent(b.key)) + '\')">'
-      + '<div class="rbatch-top">'
-      +   '<div class="rbatch-round">' + (b.round ? 'รุ่น ' + escapeHtml(b.round) : 'ยังไม่ระบุรุ่น') + '</div>'
-      +   '<div class="rbatch-n">' + b.rows.length + '<span>คน</span></div>'
+    var line = function (label, val) {
+      return '<div class="rbc-line"><span class="rbc-l">' + label + '</span>'
+           + '<span class="rbc-v">' + val + '</span></div>';
+    };
+    return '<button type="button" class="rbatch rbc' + (b.round ? '' : ' rb-none')
+      + '" onclick="_openReqBatch(\'' + escapeAttr(encodeURIComponent(b.key)) + '\')">'
+      + '<div class="rbc-head">'
+      +   '<span class="rbc-chip">' + (b.round ? 'รุ่น ' + escapeHtml(b.round) : 'ยังไม่ระบุรุ่น') + '</span>'
+      +   '<span class="rbc-n"><b>' + b.rows.length + '</b> คน</span>'
       + '</div>'
-      + '<div class="rbatch-course">📚 ' + escapeHtml(b.course || '— ไม่ระบุหลักสูตร') + '</div>'
-      + '<div class="rbatch-meta">'
-      +   '<span>📅 <b>' + escapeHtml(formatThaiDate(b.trainDate) || '— ไม่ระบุวัน') + '</b></span>'
-      +   '<span>🕐 <b>' + escapeHtml(b.slot || '— ไม่ระบุรอบ') + '</b></span>'
+      + '<div class="rbc-course">' + escapeHtml(b.course || '— ไม่ระบุหลักสูตร') + '</div>'
+      + '<div class="rbc-meta">'
+      +   line('วันอบรม', escapeHtml(formatThaiDate(b.trainDate) || 'ยังไม่ระบุ'))
+      +   line('รอบเวลา', escapeHtml(b.slot || 'ยังไม่ระบุ'))
+      +   line('สาขา', b.branchCount + ' สาขา')
       + '</div>'
-      + '<div class="rbatch-foot"><span>🏬 ' + b.branchCount + ' สาขา</span><span class="rbatch-go">ดูรายชื่อ →</span></div>'
-      + '</div>';
+      + '<div class="rbc-foot"><span class="rbc-go">ดูรายชื่อ <span aria-hidden="true">→</span></span></div>'
+      + '</button>';
   }).join('');
 }
 
