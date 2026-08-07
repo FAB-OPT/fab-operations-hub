@@ -7,6 +7,18 @@
    ถ้าไม่รู้ว่าสาขาไหน (ไม่มี pin/ชื่อ) จะไม่กรอง เพื่อกันเผลอซ่อนหมด */
 /* เดิมกรองให้สาขาเห็นเฉพาะใบรับรองของตัวเอง — ตอนนี้ทุกสาขาเห็นข้อมูลทั้งหมด
    (คงฟังก์ชันไว้เพราะมีที่เรียกหลายจุด และเผื่อกลับมาจำกัดขอบเขตทีหลัง) */
+/* นับจำนวนคอลัมน์จริงจากหัวตาราง แทนการฮาร์ดโค้ด colspan
+   ของเดิมใส่ 6 ไว้ทั้งที่ตารางฝั่งสาขามี 7 คอลัมน์ ข้อความ "ไม่มีข้อมูล"
+   จึงกินแค่ 6 ช่อง แล้วเยื้องไปทางซ้ายแทนที่จะอยู่กึ่งกลาง */
+function _fhColCount(tbody, fallback) {
+  try {
+    var t = tbody && tbody.closest ? tbody.closest('table') : null;
+    var n = t ? t.querySelectorAll('thead th').length : 0;
+    if (n > 0) return n;
+  } catch (e) {}
+  return fallback;
+}
+
 function _fhScopeRecordsToBranch(records) {
   if (!Array.isArray(records)) return [];
   return records;
@@ -767,7 +779,7 @@ function _applyAdminReqFilters() {
 
   // Render
   if (rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="9" class="empty" style="padding:30px;color:var(--text3);text-align:center;">ไม่พบรายการตามตัวกรอง</td></tr>';
+    body.innerHTML = '<tr><td colspan="'+_fhColCount(body,9)+'" class="empty">ไม่พบรายการตามตัวกรอง</td></tr>';
   } else {
     body.innerHTML = rows.map(function(r){ return _renderAdminReqRow(r, _adminCertIdx, true); }).join('');
   }
@@ -967,9 +979,10 @@ function loadRequests(branchFilter, infoElId, bodyElId, isAdmin) {
         _reqBatchKey = null;
         _renderReqBatchView([], []);   // ล้างการ์ดรุ่นค้าง
       }
-      body.innerHTML = '<tr><td colspan="'+(isAdmin?9:6)+'" class="empty" style="padding:30px;color:var(--text3);text-align:center;">'
+      body.innerHTML = '<tr><td colspan="'+_fhColCount(body, isAdmin?9:7)+'" class="empty">'
         + (isAdmin || !hiddenPast ? 'ยังไม่มีข้อมูล'
-           : 'รายชื่อที่ส่งไปแล้วอบรมครบทุกรอบแล้ว<br><span style="font-size:12px;">รอบที่ผ่านไปแล้วจะไม่แสดงที่นี่ — ติดต่อผู้ดูแลระบบถ้าต้องการดูย้อนหลัง</span>')
+           : '<span class="empty-t1">รายชื่อที่ส่งไปแล้วอบรมครบทุกรอบแล้ว</span>'
+             + '<span class="empty-t2">รอบที่ผ่านไปแล้วจะไม่แสดงที่นี่ — ติดต่อผู้ดูแลระบบถ้าต้องการดูย้อนหลัง</span>')
         + '</td></tr>';
       return;
     }
