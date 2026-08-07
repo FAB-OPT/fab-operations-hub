@@ -82,9 +82,9 @@ function updateBranchStats() {
   var total = (allRecords || []).length;
   var mine = (!isAdminMode && currentBranchName && !scopeAll);
   if (titleEl) {
-    titleEl.textContent = mine
-      ? ('ใบรับรองของสาขา มีทั้งหมด ' + own.length + ' ใบ')
-      : ('ฐานข้อมูลใบรับรอง · ทุกสาขา ' + total + ' ใบ');
+    /* หัวข้อสั้น ๆ ไม่ใส่ตัวเลข — จำนวนไปอยู่ข้างปุ่มค้นหาเพิ่มเติมแทน
+       เพราะจำนวนเปลี่ยนตามขอบเขต/คำค้น ควรอยู่ใกล้ตัวควบคุมมากกว่าอยู่บนหัวข้อ */
+    titleEl.textContent = mine ? 'ใบรับรองของสาขา' : 'ฐานข้อมูลใบรับรอง · ทุกสาขา';
   }
   if (subEl) { subEl.textContent = ''; subEl.style.display = 'none'; }
   if (!alertEl) return;
@@ -152,13 +152,15 @@ function branchSearch() {
      ตอนค้นหาถึงจะบอกจำนวนที่เจอ เพราะหัวข้อไม่ได้อัปเดตตามคำค้น */
   var info = document.getElementById('branchSearchInfo');
   if (info) {
+    /* จำนวนอยู่ซ้ายของปุ่ม — อ่านเป็นประโยคเดียวกับปุ่มที่จะกดต่อ */
+    var cnt = '<span class="br-count">มีทั้งหมด <strong>' + results.length + '</strong> ใบ</span>';
     if (q) {
-      info.innerHTML = 'พบ <strong>' + results.length + '</strong> รายการ (ค้นหาทุกสาขา)'
-        + (myBranch ? ' <span class="br-scope-sp"></span>' + btnMine : '');
+      info.innerHTML = '<span class="br-count">พบ <strong>' + results.length + '</strong> ใบ (ทุกสาขา)</span>'
+        + (myBranch ? btnMine : '');
     } else if (scopeAll) {
-      info.innerHTML = (myBranch ? btnMine : '');
+      info.innerHTML = cnt + (myBranch ? btnMine : '');
     } else {
-      info.innerHTML = btnAll;
+      info.innerHTML = cnt + btnAll;
     }
     info.style.display = info.innerHTML.trim() ? '' : 'none';
   }

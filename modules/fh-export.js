@@ -1257,4 +1257,5 @@ function rerenderRequestList() {
   // Re-run cert check for existing rows on render
   requestRows.forEach(function(r, i){ if (r.name) onReqNameChange(i); });
   if (typeof updateStepper === 'function') updateStepper();
+  try { _fhSyncSubmitBtn(); } catch (e) {}
 }

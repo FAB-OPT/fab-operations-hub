@@ -239,6 +239,20 @@ function onReqNameChange(i) {
 function updateReqRow(i, key, val) {
   if (requestRows[i]) requestRows[i][key] = val;
   if (typeof updateStepper === 'function') updateStepper();
+  _fhSyncSubmitBtn();
+}
+
+/* ปุ่ม "ส่งรายชื่อทั้งหมด" จะโผล่ก็ต่อเมื่อมีรายชื่อที่กรอกชื่อแล้วอย่างน้อย 1 คน
+   ฟอร์มเปิดมามีแถวเปล่า 1 แถวเสมอ ถ้านับแค่จำนวนแถวก็จะโผล่ตลอด ไม่ตรงกับที่ต้องการ
+   จึงนับ "แถวที่มีชื่อ" แทน — พ่วงกันกดส่งฟอร์มเปล่าไปด้วย */
+function _fhSyncSubmitBtn() {
+  var btn = document.getElementById('submitReqBtn');
+  if (!btn) return;
+  var n = 0;
+  try {
+    n = (requestRows || []).filter(function(r){ return r && String(r.name || '').trim(); }).length;
+  } catch (e) {}
+  btn.style.display = n > 0 ? '' : 'none';
 }
 
 function removeReqRow(i) {
