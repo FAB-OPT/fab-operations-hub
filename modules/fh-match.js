@@ -41,6 +41,16 @@ try { FH_BRANCH_ALIAS.forEach(function(a){ _FH_ALIAS_MAP[_branchKey(a.from)] = a
 
 /* รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้ใช้สะกดเดียว (เลือกสะกดที่พบบ่อยสุด) — กัน dropdown/ตัวกรองขึ้นซ้ำ
    เช่น "แฟชั่น ไอส์แลนด์" กับ "แฟชั่นไอซ์แลนด์" → ใช้อันเดียว */
+/* นับว่าชื่อสาขาแต่ละแบบมีพนักงานกี่คนในทะเบียน
+   ใช้ตอนคนเดียวกันมีหลายแถวและสาขาสะกดต่างกัน → เลือกแบบที่คนใช้เยอะที่สุด = แบบมาตรฐาน */
+var _FH_BRANCH_FREQ = {};
+function _fhBuildBranchFreq(employees){
+  _FH_BRANCH_FREQ = {};
+  (employees || []).forEach(function(e){
+    var b = String((e && e.branch) || '').trim();
+    if (b) _FH_BRANCH_FREQ[b] = (_FH_BRANCH_FREQ[b] || 0) + 1;
+  });
+}
 function _canonicalizeBranches(list){
   if (!Array.isArray(list) || !list.length) return;
   // 1) alias ที่ยืนยันแล้ว — บังคับเป็นชื่อมาตรฐานก่อน (ไม่ปล่อยให้ "เสียงข้างมาก" ตัดสิน)
@@ -253,6 +263,7 @@ function processMatch() {
   setTimeout(function() {
     var raw = [];
     var employees = empData || [];
+    _fhBuildBranchFreq(employees);   // ใช้ตัดสินว่าชื่อสาขาแบบไหนคือแบบมาตรฐาน
 
     try {
       console.log('[DIAG NAMES] cert ตัวอย่าง:', JSON.stringify(pdfData.slice(0,3).map(function(c){ return c.name; })));
@@ -269,12 +280,23 @@ function processMatch() {
       var found = null, matchType = 'notfound';
 
       if (employees.length > 0) {
-        // 1) first+last (exact หรือ ตัดวรรณยุกต์/การันต์แล้วตรง) — เลือกตัวที่มีสาขาก่อน
+        /* 1) เทียบ "ชื่อ-นามสกุล" กับทะเบียนเท่านั้น (ตัดคำนำหน้าออกหมด · เว้นวรรคไม่ตรงก็ยังเจอ)
+              ไม่ใช้รหัสพนักงานและไม่ใช้สาขาในการตัดสิน — ตรงชื่อแล้วค่อยไปหยิบสาขาจากทะเบียน
+
+              คนเดียวกันมักมีหลายแถว เพราะทะเบียนถูกนำเข้าซ้ำแล้วสาขาสะกดคนละแบบ
+              (เช่น "ICS ไอคอนสยาม" กับ "ไอซีเอส ไอคอนสยาม" · "เทอมินัล 21" กับ "เทอร์มินอล 21")
+              เดิมหยุดที่แถวแรกที่มีสาขา = ได้ชื่อสาขาแบบไหนขึ้นกับลำดับในไฟล์ ไม่แน่นอน
+              ตอนนี้เลือก "สาขาที่ทะเบียนใช้บ่อยที่สุด" = ได้ชื่อมาตรฐานเสมอ
+              (ตรวจกับข้อมูลจริงแล้ว ฝั่งที่มีพนักงานมากกว่าคือชื่อมาตรฐานทุกกรณี) */
+        var bestFreq = -1;
         for (var i=0; i<employees.length; i++) {
-          if (_certEmpMatch(cp, employees[i].norm)) {
-            if (!found) { found = employees[i]; matchType = 'exact'; }
-            if (employees[i].branch && String(employees[i].branch).trim()) { found = employees[i]; matchType = 'exact'; break; }
-          }
+          if (!_certEmpMatch(cp, employees[i].norm)) continue;
+          matchType = 'exact';
+          if (!found) found = employees[i];
+          var eb = String(employees[i].branch || '').trim();
+          if (!eb) continue;
+          var f = _FH_BRANCH_FREQ[eb] || 0;
+          if (f > bestFreq) { bestFreq = f; found = employees[i]; }
         }
         // 2) Whitespace-stripped full-name compare (กัน zero-width/NBSP/อักขระเพี้ยน)
         if (!found) {
@@ -297,10 +319,12 @@ function processMatch() {
         trainDate: cert.trainDate,
         expireDate: cert.expireDate,
         expStatus: expStatus,
+        /* หาไม่เจอ หรือเจอแต่ทะเบียนไม่ได้ระบุสาขา → เว้นว่างไว้ ('—' = ช่องว่างในตาราง)
+           แต่ใบรับรองยังถูกเก็บและแสดงในระบบตามปกติ ไม่ถูกทิ้ง */
         empName: found ? found.norm : '',
-        branch: found ? found.branch : '—',
-        position: found ? found.position : '—',
-        sheet: found ? found.sheet : '—',
+        branch: (found && String(found.branch || '').trim()) ? found.branch : '—',
+        position: (found && String(found.position || '').trim()) ? found.position : '—',
+        sheet: (found && String(found.sheet || '').trim()) ? found.sheet : '—',
         matchType: matchType
       });
     });
