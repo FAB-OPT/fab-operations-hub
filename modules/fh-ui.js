@@ -248,9 +248,14 @@ var FH_REQ_BASE_ROWS = 1;
 function _fhSyncSubmitBtn() {
   var btn = document.getElementById('submitReqBtn');
   if (!btn) return;
+  /* ต้องคิดสิทธิ์ด้วย เพราะปุ่มนี้มี data-fh-action ติดอยู่
+     applyFhPerms จะไล่ตั้ง display ให้ทุกปุ่มที่มี attribute นี้ และรันทีหลัง
+     ถ้าตรงนี้ไม่คิดสิทธิ์ พอ applyFhPerms รันจะเปิดปุ่มกลับมาทั้งที่ยังไม่ได้กดเพิ่มรายชื่อ */
+  var can = true;
+  try { if (typeof fhCan === 'function') can = fhCan('submit-request'); } catch (e) {}
   var n = 0;
   try { n = (requestRows || []).length; } catch (e) {}
-  btn.style.display = (n > FH_REQ_BASE_ROWS) ? '' : 'none';
+  btn.style.display = (can && n > FH_REQ_BASE_ROWS) ? '' : 'none';
 }
 
 function removeReqRow(i) {

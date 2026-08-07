@@ -158,6 +158,10 @@ function applyFhPerms() {
     if (el) el.style.display = _allowSubmit ? '' : 'none';
   });
 
+  /* ปุ่ม "ส่งรายชื่อทั้งหมด" มีเงื่อนไขมากกว่าเรื่องสิทธิ์ (ต้องกดเพิ่มรายชื่อก่อน)
+     จึงต้องให้ตัวคุมของมันตัดสินท้ายสุด ไม่ใช่ปล่อยให้ loop ข้างบนเปิดกลับ */
+  try { if (typeof _fhSyncSubmitBtn === 'function') _fhSyncSubmitBtn(); } catch (e) {}
+
   // ถ้ากำลังเปิดหน้าที่เพิ่งโดนตัดสิทธิ์อยู่ → เด้งกลับหน้าเริ่มต้น
   var cur = document.querySelector('.admin-main > [id^="adm-sec-"].active');
   if (cur && FH_SECTION_ACTION[cur.id] && !fhCan(FH_SECTION_ACTION[cur.id])) {
