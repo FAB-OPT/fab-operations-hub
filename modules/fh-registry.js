@@ -84,12 +84,16 @@ function loadEmployeeRegistryFromCloud() {
   setStatus('xlsx','loading','กำลังโหลดทะเบียนพนักงานจาก Cloud...');
   return fhLoadEmployees()
     .then(function(res){
-      if (!res) {
-        setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
-        return;
-      }
       var records = res || [];
       if (records.length === 0) {
+        /* Cloud ว่างจริง (เช่น เพิ่งกดลบทะเบียนทั้งหมด) → ต้องล้างของในเครื่องด้วย
+           ไม่งั้นข้อมูลเก่าใน localStorage จะถูกหยิบกลับมาแสดงตอนโหลดใหม่
+           = "ลบแล้วกดโหลดใหม่ ข้อมูลเดิมเด้งกลับมา"
+           ฝั่งใบรับรองเจอปัญหานี้แล้วแก้ไปนานแล้ว ฝั่งทะเบียนเพิ่งตามมาแก้ */
+        empData = [];
+        _fhCacheSet('fh_emp_v1', []);
+        if (document.getElementById('registryBody')) { try { renderRegistryTable(); } catch(e) {} }
+        _fhRefreshBranchCertsAfterRegistry();
         setStatus('xlsx','wait','ยังไม่มีทะเบียนใน Cloud — กรุณา upload Excel');
         return;
       }
@@ -608,7 +612,14 @@ function clearRegistry() {
     if (!ok) return;
     showLoadingOverlay('กำลังลบทะเบียน...', '');
     saveEmployeeRegistryToCloud([], true)
-      .then(function(){ empData = []; hideLoadingOverlay(); try { renderRegistryTable(); } catch(e) {} showInfo('ลบสำเร็จ', 'ลบทะเบียนรายชื่อทั้งหมดแล้ว'); })
+      .then(function(){
+        empData = [];
+        _fhCacheSet('fh_emp_v1', []);   // ล้างแคชในเครื่องด้วย ไม่งั้นกดโหลดใหม่แล้วของเก่าเด้งกลับมา
+        hideLoadingOverlay();
+        try { renderRegistryTable(); } catch(e) {}
+        _fhRefreshBranchCertsAfterRegistry();
+        showInfo('ลบสำเร็จ', 'ลบทะเบียนรายชื่อทั้งหมดแล้ว');
+      })
       .catch(function(err){ hideLoadingOverlay(); showInfo('ลบไม่สำเร็จ', escapeHtml(err.message || String(err))); });
   });
 }
