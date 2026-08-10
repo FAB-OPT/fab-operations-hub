@@ -179,6 +179,14 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 .kpi .v small{font-size:14px;font-weight:500;color:var(--text3);margin-left:4px}
 .kpi .d{font-size:12px;color:var(--text3);margin-top:7px}
 
+/* แถบ "เลือกไว้ N ใบ" ของหน้าออกรายงาน — โผล่เมื่อมีการติ๊กเท่านั้น */
+.repselbar{display:none;align-items:center;gap:10px;margin-bottom:10px;padding:10px 14px;
+  background:var(--surface);border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:var(--radius);font-size:13px;font-weight:600}
+.repselbar.on{display:flex}
+.repselbar .sp{flex:1}
+@media(max-width:640px){ .repselbar{flex-wrap:wrap} .repselbar .sp{flex-basis:100%;height:0} }
+
 /* ---------- TABLE ---------- */
 .tw{overflow-x:auto}
 table.tb{width:100%;border-collapse:collapse;font-size:13.5px}
@@ -409,6 +417,8 @@ body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยก
   .printhost{display:block!important}
   .printhost .pdfdoc{width:auto!important;margin:0!important}
   .printhost .pdfpage{width:auto!important;padding:0!important;box-shadow:none!important;margin:0!important}
+  /* คั่นระหว่างใบตอนรวมหลายใบ — ใบใหม่ต้องขึ้นหน้าใหม่เสมอ */
+  .printhost .pdfbreak{break-after:page;page-break-after:always;height:0}
   .pdftb tr,.pdfcard,figure{page-break-inside:avoid}
   h1,h2,h3{page-break-after:avoid}
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
@@ -863,6 +873,13 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
         </div>
 
         <div class="dsec"><span>ออกรายงานรายครั้ง (เจาะแต่ละใบ)</span></div>
+        <!-- ติ๊กหลายใบแล้วรวมเป็น PDF ไฟล์เดียว — กดเซฟรอบเดียวได้ครบ -->
+        <div class="repselbar noprint" id="repSelBar">
+          <span id="repSelTxt"></span>
+          <div class="sp"></div>
+          <button class="btn gho sm" onclick="Report.selClear()">ล้างที่เลือก</button>
+          <button class="btn pri sm" onclick="Report.downloadSelected()">รวมเป็น PDF ไฟล์เดียว</button>
+        </div>
         <div class="card"><div class="bd" style="padding:0"><div class="tw" id="reportList"></div></div></div>
       </section>
 
@@ -1516,7 +1533,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.09-5';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.09-6';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -3593,6 +3610,23 @@ const PDF = {
     return this.render(this.recordDoc(r), this.recordFile(r));
   },
 
+  /* ---------- หลายใบพร้อมกัน → รวมเป็น PDF ไฟล์เดียว ----------
+     ระบบสร้าง PDF ด้วยหน้าต่างพิมพ์ของเบราว์เซอร์ ซึ่งเปิดได้ทีละหน้าต่าง
+     จะยิงพร้อมกันหลายอันไม่ได้ (เบราว์เซอร์บล็อก และผู้ใช้ต้องกดเซฟทีละครั้ง)
+     จึงต่อทุกใบเป็นเอกสารเดียวแล้วพิมพ์ครั้งเดียว — กดเซฟรอบเดียวได้ครบ */
+  records(ids){
+    const want = Array.isArray(ids) ? ids : [];
+    const all = DB.all();
+    /* เรียงตามวันที่ให้เหมือนที่เห็นบนหน้าจอ ไม่ใช่ตามลำดับที่ติ๊ก */
+    const list = want.map(id => all.find(x => x.id === id)).filter(Boolean)
+      .sort((a,b) => ((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')));
+    if(!list.length) return App.toast('ยังไม่ได้เลือกใบตรวจ');
+    if(list.length === 1) return this.record(list[0].id);
+    const body = list.map(r => this.recordDoc(r)).join('<div class="pdfbreak"></div>');
+    const file = `FQA_ใบตรวจ_${list.length}ใบ_${IO.stamp()}.pdf`;
+    return this.render(body, file);
+  },
+
   /* ---------- แชร์ใบตรวจเป็น "ลิงก์" — เปิดดู/บันทึกได้ทุกเครื่อง (แก้ปัญหา Android กดแล้วเงียบ) ---------- */
   share(id){
     const r=DB.all().find(x=>x.id===id);
@@ -3693,8 +3727,12 @@ const Report = {
     const list=this.filtered();
     if(!list.length){ host.innerHTML=`<div class="empty" style="padding:26px 16px"><div class="big">▤</div><h4>ไม่มีรายการตามตัวกรอง</h4><p>ปรับตัวกรองด้านบน</p></div>`; return; }
     const TL={FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'};
-    host.innerHTML=`<table class="tb"><thead><tr><th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th>สรุปสิ่งที่พบ</th><th></th></tr></thead><tbody>
+    this.pruneSel();
+    host.innerHTML=`<table class="tb"><thead><tr>
+        <th style="width:38px"><input type="checkbox" id="repSelAll" onchange="Report.selAll(this.checked)" title="เลือกทั้งหมดตามตัวกรอง"></th>
+        <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th>สรุปสิ่งที่พบ</th><th></th></tr></thead><tbody>
       ${list.map(r=>`<tr>
+        <td><input type="checkbox" ${this.sel[r.id]?'checked':''} onchange="Report.toggle('${r.id}', this.checked)"></td>
         <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time||'')}</div></td>
         <td><span class="tag">${esc(TL[r.type]||r.type)}</span></td>
         <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
@@ -3702,7 +3740,40 @@ const Report = {
         <td style="max-width:280px;color:var(--text2)">${esc(summaryLine(r))}</td>
         <td class="rowact noprint"><button class="btn sm pri" onclick="PDF.record('${r.id}')">PDF ใบนี้</button></td></tr>`).join('')}
     </tbody></table>`;
+    this.syncBar();
   },
+  /* ---------- เลือกหลายใบ ---------- */
+  sel:{},
+  selCount(){ return Object.keys(this.sel).filter(k=>this.sel[k]).length; },
+  toggle(id, on){ if(on) this.sel[id]=1; else delete this.sel[id]; this.syncBar(); },
+  /* เลือก/ล้างทั้งหมด = เฉพาะที่เห็นอยู่ตามตัวกรอง ไม่ใช่ทั้งฐานข้อมูล
+     ไม่งั้นกด "เลือกทั้งหมด" แล้วได้ใบที่มองไม่เห็นติดมาด้วย */
+  selAll(on){
+    this.filtered().forEach(r=>{ if(on) this.sel[r.id]=1; else delete this.sel[r.id]; });
+    this.renderList();
+  },
+  selClear(){ this.sel={}; this.renderList(); },
+  /* ล้างรายการที่เลือกซึ่งหลุดจากตัวกรองไปแล้ว — กันเผลอโหลดใบที่ไม่ได้เห็นอยู่ */
+  pruneSel(){
+    const live={}; this.filtered().forEach(r=>{ if(this.sel[r.id]) live[r.id]=1; });
+    this.sel=live;
+  },
+  syncBar(){
+    const n=this.selCount();
+    const bar=document.getElementById('repSelBar');
+    if(!bar) return;
+    bar.classList.toggle('on', n>0);
+    const t=document.getElementById('repSelTxt');
+    if(t) t.textContent = n ? `เลือกไว้ ${n} ใบ` : '';
+    const box=document.getElementById('repSelAll');
+    if(box){ const total=this.filtered().length; box.checked = total>0 && n===total; }
+  },
+  downloadSelected(){
+    const ids=Object.keys(this.sel).filter(k=>this.sel[k]);
+    if(!ids.length) return App.toast('ยังไม่ได้เลือกใบตรวจ');
+    PDF.records(ids);
+  },
+
   render(){
     this.renderList();
     const host=document.getElementById('reportFilter'); if(!host) return;
