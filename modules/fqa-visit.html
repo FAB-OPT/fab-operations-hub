@@ -1516,7 +1516,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.09-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.09-2';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -1668,7 +1668,10 @@ const Filters = {
       if([...el.options].some(o=>o.value===v)) el.value=v; };
     keep('fBzm','<option value="">ทุกเขต</option>'+M.bzms().map(z=>`<option>${esc(z)}</option>`).join(''));
     keep('fTrainer','<option value="">ผู้ตรวจทุกคน</option>'+M.trainers().map(t=>`<option>${esc(t)}</option>`).join(''));
-    keep('qBranch','<option value="">ทุกสาขา</option>'+M.branches().map(b=>`<option>${esc(b.name)}</option>`).join(''));
+    /* ช่องเลือกสาขาต้องเหลือเฉพาะสาขาที่ดูแลด้วย ไม่งั้น BZM เลือกสาขานอกเขตแล้วได้ผลว่าง งงว่าพัง */
+    const _mine = fvMyBranchKeys();
+    const _brList = M.branches().filter(b => !_mine || _mine.has(branchKey(b.name)));
+    keep('qBranch','<option value="">ทุกสาขา</option>'+_brList.map(b=>`<option>${esc(b.name)}</option>`).join(''));
   },
   apply(list){
     const from=document.getElementById('fFrom').value, to=document.getElementById('fTo').value;
@@ -2219,6 +2222,40 @@ const addDaysISO = (iso,n)=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.get
 /* คีย์เทียบสาขา — ยึด "รหัสสาขา" นำหน้า (เช่น 4005) ถ้ามี ไม่งั้นใช้ชื่อแบบตัดช่องว่าง
    กันปัญหาชื่อสะกดต่างเล็กน้อยระหว่างแผนกับผลตรวจ เช่น "จุ่มนัว" vs "จุ่มนัวร์" */
 const branchKey = name => { const s=String(name||'').trim(); const m=s.match(/^(\d{3,6})\b/); return m ? 'c'+m[1] : s.replace(/\s+/g,'').toLowerCase(); };
+/* ══════════ ขอบเขตของ BZM — เห็นเฉพาะสาขาที่ตัวเองดูแล ══════════
+   ฮับตั้ง sessionStorage.fab_role='admin' ให้ทีมบริหารทุกคน จึงเชื่อค่านั้นไม่ได้
+   ต้องอ่าน role จริงจาก fab_session (เหมือนที่ Hub.isAdmin ทำ)
+   จับคู่ด้วย "ชื่อ/ชื่อเล่น" กับข้อความเขตของสาขา (เช่น "คุณ พัทธดนย์ (ต้น)")
+   ถ้าจับคู่ไม่ได้เลย → คืน null = ไม่กรอง แล้วขึ้นป้ายบอกบนหน้า
+   เลือกให้ "เห็นทั้งหมด" ดีกว่า "เห็นว่าง ๆ" เพราะการเห็นว่างทำให้เข้าใจว่าไม่มีข้อมูล */
+function fvIsBzm(){
+  const s = Hub.session();
+  return !!(s && String(s.role||'').toLowerCase() === 'bzm');
+}
+function fvMyZones(){
+  if(!fvIsBzm()) return null;
+  const s = Hub.session() || {};
+  const strip = x => String(x||'').replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.)\s*/,'').trim();
+  const nm = strip(s.name), nick = String(s.nick||'').trim();
+  const zones = [...new Set((M.branches()||[]).map(b=>b.bzm).filter(Boolean))];
+  const mine = zones.filter(z => (nm && z.indexOf(nm) >= 0) || (nick && z.indexOf(nick) >= 0));
+  return mine.length ? mine : null;   // จับคู่ไม่ได้ = ไม่กรอง
+}
+/* รหัสสาขาที่ BZM คนนี้ดูแล — ยึด "สาขา" ไม่ใช่ช่อง bzm ที่ติดมากับผลตรวจ
+   เพราะช่องนั้นเก็บไว้ตอนบันทึก ถ้าย้ายเขตทีหลังค่าจะค้างของเดิม */
+function fvMyBranchKeys(){
+  const zones = fvMyZones();
+  if(!zones) return null;
+  const set = new Set();
+  (M.branches()||[]).forEach(b => { if(zones.indexOf(b.bzm) >= 0) set.add(branchKey(b.name)); });
+  return set.size ? set : null;
+}
+/* กรองผลตรวจให้เหลือเฉพาะสาขาที่ดูแล (ไม่ใช่ BZM = คืนของเดิมทั้งหมด) */
+function fvScopeToMine(list){
+  const keys = fvMyBranchKeys();
+  if(!keys) return list;
+  return list.filter(r => keys.has(branchKey(r.branch)));
+}
 /* ใครเห็น "แผนการตรวจสาขา" บนแดชบอร์ด — เฉพาะ admin / coo / Support Team (ยึด role จริงจาก session) */
 function canSeePlan(){ const r=(Hub.session()&&Hub.session().role)||Hub.role()||''; return ['admin','coo','support'].indexOf(String(r).toLowerCase())>=0; }
 /* ใครแก้ไข/ลบข้อมูลได้ — เฉพาะ admin / Support Team */
@@ -2239,7 +2276,8 @@ const Rec = {
     const g=id=>{ const el=document.getElementById(id); return el? el.value : ''; };
     const q=g('qText').trim().toLowerCase();
     const t=g('qType'), br=g('qBranch'), from=g('qFrom'), to=g('qTo');
-    return inspections().filter(r=>{
+    /* BZM เห็นเฉพาะสาขาที่ดูแล · บทบาทอื่นเห็นทั้งหมดเหมือนเดิม */
+    return fvScopeToMine(inspections()).filter(r=>{
       if(t && r.type!==t) return false;
       if(br && r.branch!==br) return false;
       if(from && (r.date||'') < from) return false;
@@ -2252,7 +2290,16 @@ const Rec = {
   clearFilters(){ ['qText','qType','qBranch','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); this.render(); },
   render(){
     const list=this.filtered();
-    document.getElementById('recCount').textContent=`รายการตรวจ (${list.length} รายการ)`;
+    /* บอกให้ชัดว่ากำลังเห็นเฉพาะเขตตัวเอง ไม่งั้น BZM จะนึกว่าข้อมูลของสาขาอื่นหายไป
+       และถ้าเป็น BZM แต่จับคู่เขตไม่ได้ ต้องบอกด้วย ไม่ใช่เงียบแล้วโชว์ทุกสาขา */
+    const _zones = fvMyZones();
+    const _scopeNote = _zones
+      ? `<span class="note" style="margin-left:8px">เฉพาะเขตที่ดูแล · ${esc(_zones.join(' · '))}</span>`
+      : (fvIsBzm()
+          ? `<span class="note" style="margin-left:8px;color:var(--yellow)">จับคู่เขตของคุณกับทะเบียนสาขาไม่ได้ — กำลังแสดงทุกสาขา</span>`
+          : '');
+    document.getElementById('recCount').innerHTML =
+      `รายการตรวจ (${list.length} รายการ)` + _scopeNote;
     const host=document.getElementById('recTable');
     if(!list.length){ host.innerHTML=`<div class="empty"><div class="big">▤</div><h4>ยังไม่มีรายการตรวจ</h4><p>เริ่มบันทึกได้จากเมนู “ฟอร์ม FQA” ทางซ้าย</p></div>`; return; }
     if(Mobile.on()){ host.innerHTML=this.cardList(list); return; }
