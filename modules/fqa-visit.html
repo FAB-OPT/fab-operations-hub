@@ -643,7 +643,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
       <button class="nav on" data-v="dash"><span class="ic">◧</span> แดชบอร์ด</button>
       <button class="nav" data-v="list"><span class="ic">☰</span> รายการตรวจทั้งหมด</button>
       <button class="nav" data-v="plan"><span class="ic">🗓</span> แผนการตรวจสาขา</button>
-      <button class="nav" data-v="coverage"><span class="ic">◍</span> เช็คการเข้าตรวจ</button>
+      <button class="nav" data-v="coverage"><span class="ic">◍</span> สรุปการเข้าตรวจสาขา</button>
 
       <div class="navgrp">บันทึกการตรวจ</div>
       <button class="nav" data-v="fqa"><span class="ic">✓</span> ฟอร์ม FQA</button>
@@ -831,7 +831,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
       <!-- ---------- PLAN ---------- -->
       <section class="view" id="v-plan"></section>
 
-      <!-- ---------- เช็คการเข้าตรวจ: เข้าครบทุกสาขาหรือยัง ---------- -->
+      <!-- ---------- สรุปการเข้าตรวจสาขา ---------- -->
       <section class="view" id="v-coverage"></section>
 
       <!-- ---------- MASTER DATA ---------- -->
@@ -1516,7 +1516,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.09-2';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.09-3';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -1568,7 +1568,7 @@ const App = {
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
   moreSheet(){
     const items=[
-      {icon:'◍', label:'เช็คการเข้าตรวจ', sub:'สาขาไหนยังไม่ได้เข้า · เข้าล่าสุดเมื่อไร', run:()=>this.go('coverage'), v:'coverage'},
+      {icon:'◍', label:'สรุปการเข้าตรวจสาขา', sub:'เข้าล่าสุดเมื่อไร · แผนที่จะเข้าถัดไป · ใครยังไม่ได้เข้า', run:()=>this.go('coverage'), v:'coverage'},
       {icon:'📄', label:'ออกรายงาน', sub:'PDF · Excel · เจาะรายครั้ง', run:()=>this.go('report'), v:'report'},
       {icon:'⬆', label:'นำเข้าข้อมูล', sub:'นำผลตรวจเดิมเข้าระบบ (มีเทมเพลต)', run:()=>this.go('io'), v:'io'}
     ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]));
@@ -1601,7 +1601,7 @@ const App = {
       fqa:'แบบฟอร์มการตรวจ Food Quality Assurance (FQA)',
       fsq:'แบบฟอร์ม Food and Service Quality กรณี Complaint',
       visit:'แบบฟอร์ม Visit', plan:'แผนการตรวจสาขา', report:'ออกรายงาน',
-      coverage:'เช็คการเข้าตรวจ · เข้าครบทุกสาขาหรือยัง',
+      coverage:'สรุปการเข้าตรวจสาขา',
       master:'จัดการฐานข้อมูล', io:'นำเข้าข้อมูล'
     }[v];
     document.getElementById('pageTitle').textContent=meta;
@@ -2214,8 +2214,12 @@ function visitTypeArr(r){ const v=r&&r.visitType; return Array.isArray(v)? v.fil
 function visitTypeList(r){ return visitTypeArr(r).map(v=> v==='อื่นๆ' ? ('อื่นๆ'+(r.visitTypeOther?': '+r.visitTypeOther:'')) : v); }
 function visitTypeLabel(r){ const a=visitTypeList(r); return a.length? a.join(', ') : '—'; }
 /* รายการตรวจจริง (ไม่รวมแผน type=PLAN) · แผนการตรวจแยกออกไป */
-const inspections = ()=> DB.all().filter(r=>r.type!=='PLAN');
-const plans = ()=> DB.all().filter(r=>r.type==='PLAN');
+/* ทุกหน้าอ่านผลตรวจ/แผนผ่านสองตัวนี้ จึงคุมขอบเขตของ BZM ที่นี่จุดเดียว
+   (แดชบอร์ด · รายการ · สรุปการเข้าตรวจ · แผน · รายงาน ได้ผลตรงกันหมด)
+   บทบาทอื่นไม่ถูกกรอง — fvScopeToMine คืนของเดิมทั้งก้อน
+   ส่วนงานระดับข้อมูล (นำเข้า/สำรอง/ซิงก์สาขา) ใช้ DB.all() ตรง ๆ จึงไม่โดนกรอง */
+const inspections = ()=> fvScopeToMine(DB.all().filter(r=>r.type!=='PLAN'));
+const plans = ()=> fvScopeToMine(DB.all().filter(r=>r.type==='PLAN'));
 
 /* ---------- สถานะของแผนแต่ละรายการ ---------- */
 const addDaysISO = (iso,n)=>{ const d=new Date(iso+'T00:00:00'); d.setDate(d.getDate()+n); return d.toISOString().slice(0,10); };
@@ -2243,12 +2247,28 @@ function fvMyZones(){
 }
 /* รหัสสาขาที่ BZM คนนี้ดูแล — ยึด "สาขา" ไม่ใช่ช่อง bzm ที่ติดมากับผลตรวจ
    เพราะช่องนั้นเก็บไว้ตอนบันทึก ถ้าย้ายเขตทีหลังค่าจะค้างของเดิม */
+let _fvKeyCache = { src:null, val:null };
 function fvMyBranchKeys(){
+  /* จำผลไว้ตามชุดสาขาปัจจุบัน — inspections() ถูกเรียกซ้ำเยอะมาก
+     (planState วนทีละแผน แต่ละครั้งเรียก inspections อีกที) คำนวณใหม่ทุกครั้งจะช้า
+     ผูกแคชกับตัวอาร์เรย์สาขา พอซิงก์สาขาใหม่ อาร์เรย์เปลี่ยน แคชก็หลุดเอง */
+  const src = M.branches();
+  if(_fvKeyCache.src === src) return _fvKeyCache.val;
+  let val = null;
   const zones = fvMyZones();
-  if(!zones) return null;
-  const set = new Set();
-  (M.branches()||[]).forEach(b => { if(zones.indexOf(b.bzm) >= 0) set.add(branchKey(b.name)); });
-  return set.size ? set : null;
+  if(zones){
+    const set = new Set();
+    (src||[]).forEach(b => { if(zones.indexOf(b.bzm) >= 0) set.add(branchKey(b.name)); });
+    if(set.size) val = set;
+  }
+  _fvKeyCache = { src:src, val:val };
+  return val;
+}
+/* รายชื่อสาขาในขอบเขตของผู้ใช้ — ใช้เป็นตัวหารในหน้าสรุปการเข้าตรวจ */
+function fvMyBranches(){
+  const keys = fvMyBranchKeys();
+  const all = M.branches() || [];
+  return keys ? all.filter(b => keys.has(branchKey(b.name))) : all;
 }
 /* กรองผลตรวจให้เหลือเฉพาะสาขาที่ดูแล (ไม่ใช่ BZM = คืนของเดิมทั้งหมด) */
 function fvScopeToMine(list){
@@ -2276,8 +2296,8 @@ const Rec = {
     const g=id=>{ const el=document.getElementById(id); return el? el.value : ''; };
     const q=g('qText').trim().toLowerCase();
     const t=g('qType'), br=g('qBranch'), from=g('qFrom'), to=g('qTo');
-    /* BZM เห็นเฉพาะสาขาที่ดูแล · บทบาทอื่นเห็นทั้งหมดเหมือนเดิม */
-    return fvScopeToMine(inspections()).filter(r=>{
+    /* ขอบเขตของ BZM คุมไว้ที่ inspections() แล้ว ไม่ต้องกรองซ้ำที่นี่ */
+    return inspections().filter(r=>{
       if(t && r.type!==t) return false;
       if(br && r.branch!==br) return false;
       if(from && (r.date||'') < from) return false;
@@ -2958,7 +2978,7 @@ function trainerColor(name){ let h=0; const s=String(name||''); for(let i=0;i<s.
 const trainerTag = n => { if(!n) return `<span style="color:var(--text3)">—</span>`; const c=trainerColor(n);
   return `<span class="tag" style="background:${c}14;color:${c};border:1px solid ${c}44;font-weight:600">${esc(n)}</span>`; };
 /* ══════════════════════════════════════════════════════════════
-   เช็คการเข้าตรวจ — เข้าครบทุกสาขาหรือยัง
+   สรุปการเข้าตรวจสาขา — เข้าล่าสุดเมื่อไร แผนที่จะเข้าถัดไป ใครยังไม่ได้เข้า
    หน้ารายการเดิมตอบได้ว่า "ตรวจอะไรไปแล้วบ้าง" แต่ตอบไม่ได้ว่า "ยังไม่ได้เข้าที่ไหน"
    ซึ่งเป็นคนละคำถามกัน และอันหลังคือสิ่งที่ต้องลงมือ
    ยึดทะเบียนสาขาของฮับเป็นตัวตั้ง แล้วเอาผลตรวจไปแปะ — สาขาที่ไม่มีผลตรวจจึงโผล่เอง
@@ -2992,7 +3012,18 @@ const Coverage = {
     const count = {};
     recs.forEach(r => { const k = branchKey(r.branch); if(k) count[k] = (count[k]||0) + 1; });
 
-    return (M.branches() || [])
+    /* แผนที่ "ยังรออยู่" ของแต่ละสาขา — เอาวันที่ใกล้ที่สุดที่ยังไม่ได้ตรวจ
+       แผนที่ตรวจไปแล้ว (planState = done) ไม่นับ เพราะไม่ใช่สิ่งที่ต้องทำต่อ */
+    const nextPlan = {};
+    plans().forEach(p => {
+      const k = branchKey(p.branch);
+      if(!k || !p.date) return;
+      const st = planState(p).s;
+      if(st === 'done') return;
+      if(!nextPlan[k] || p.date < nextPlan[k].date) nextPlan[k] = { date:p.date, ptype:p.ptype||'', st:st };
+    });
+
+    return fvMyBranches()
       .filter(b => !this.zone || b.bzm === this.zone)
       .map(b => {
         const k = branchKey(b.name);
@@ -3004,7 +3035,8 @@ const Coverage = {
         else if(days > this.cycle * 0.75) state = 'due';
         else state = 'ok';
         return { name:b.name, bzm:b.bzm||'', last:hit?hit.date:'', type:hit?hit.type:'',
-                 id:hit?hit.id:'', days:days, times:count[k]||0, state:state };
+                 id:hit?hit.id:'', days:days, times:count[k]||0, state:state,
+                 plan: nextPlan[k] || null };
       })
       /* เรียงจาก "ต้องลงมือที่สุด" ลงมา — ยังไม่เคยเข้า → ห่างนานสุด → เพิ่งเข้า */
       .sort((a,b) => {
@@ -3024,8 +3056,13 @@ const Coverage = {
     const done  = tot - never;
     const pct   = tot ? Math.round(done / tot * 100) : 0;
     const newest = rows.map(r => r.last).filter(Boolean).sort().pop() || '';
+    /* ช่องว่างที่แท้จริง = สาขาที่ต้องเข้า (ยังไม่เคยเข้า หรือเกินรอบ) แต่ยังไม่มีแผนรออยู่
+       ตัวเลขนี้คือสิ่งที่ต้องลงมือจริง ๆ ไม่ใช่แค่รู้ว่าค้างเท่าไร */
+    const needVisit = rows.filter(r => r.state === 'never' || r.state === 'over');
+    const noPlan = needVisit.filter(r => !r.plan).length;
+    const planned = needVisit.length - noPlan;
 
-    const zones = [...new Set((M.branches()||[]).map(b => b.bzm).filter(Boolean))]
+    const zones = [...new Set(fvMyBranches().map(b => b.bzm).filter(Boolean))]
       .sort((a,b) => a.localeCompare(b,'th'));
     const TYPE_LABEL = { FQA:'FQA', FSQ:'Complaint', VISIT:'Visit' };
 
@@ -3034,6 +3071,15 @@ const Coverage = {
       if(r.state === 'over')  return '<span class="pill p-fail">เกิน ' + this.cycle + ' วัน</span>';
       if(r.state === 'due')   return '<span class="pill p-warn">ใกล้ครบรอบ</span>';
       return '<span class="pill p-pass">ตามรอบ</span>';
+    };
+    /* แผนที่จะเข้าครั้งถัดไป — เกินกำหนดแล้วให้เห็นชัดกว่ารอตรวจ */
+    const planCell = r => {
+      if(!r.plan) return '<span style="color:var(--text3)">ยังไม่มีแผน</span>';
+      const tag = r.plan.st === 'overdue'
+        ? '<span class="pill p-fail">เกินกำหนด</span>'
+        : '<span class="pill p-warn">รอตรวจ</span>';
+      const ty = r.plan.ptype ? ' <span style="color:var(--text3)">' + esc(TYPE_LABEL[r.plan.ptype] || r.plan.ptype) + '</span>' : '';
+      return '<span class="mono">' + esc(r.plan.date) + '</span>' + ty + ' ' + tag;
     };
     const agoText = r => {
       if(r.days === null) return '<span style="color:var(--text3)">—</span>';
@@ -3049,9 +3095,10 @@ const Coverage = {
         <td style="white-space:nowrap">${agoText(r)}</td>
         <td>${r.type ? esc(TYPE_LABEL[r.type] || r.type) : '<span style="color:var(--text3)">—</span>'}</td>
         <td style="white-space:nowrap">${r.times ? r.times + ' ครั้ง' : '<span style="color:var(--text3)">—</span>'}</td>
+        <td style="white-space:nowrap">${planCell(r)}</td>
         <td style="white-space:nowrap">${badge(r)}</td>
       </tr>`).join('')
-      : '<tr><td colspan="7" style="text-align:center;padding:34px;color:var(--text3)">ยังไม่มีสาขาในทะเบียน — ซิงก์รายชื่อสาขาจากฮับก่อน</td></tr>';
+      : '<tr><td colspan="8" style="text-align:center;padding:34px;color:var(--text3)">ยังไม่มีสาขาในทะเบียน — ซิงก์รายชื่อสาขาจากฮับก่อน</td></tr>';
 
     el.innerHTML = `
       <div class="kpis">
@@ -3064,9 +3111,11 @@ const Coverage = {
         <div class="kpi ${over?'':'ok'}"><div class="k">เกินรอบ ${this.cycle} วัน</div>
           <div class="v">${over}<small>สาขา</small></div>
           <div class="d">${over? 'ห่างเกินรอบที่ตั้งไว้' : 'ไม่มีสาขาที่ห่างเกินรอบ'}</div></div>
-        <div class="kpi nu"><div class="k">เข้าตรวจล่าสุด</div>
-          <div class="v" style="font-size:20px">${newest? esc(newest) : '—'}</div>
-          <div class="d">${newest? 'ครั้งล่าสุดของทั้งแบรนด์' : 'ยังไม่มีผลตรวจ'}</div></div>
+        <div class="kpi ${noPlan?'':'ok'}"><div class="k">ต้องเข้า แต่ยังไม่มีแผน</div>
+          <div class="v">${noPlan}<small>สาขา</small></div>
+          <div class="d">${needVisit.length
+              ? (planned? 'อีก '+planned+' สาขามีแผนรออยู่แล้ว' : 'ยังไม่มีสาขาไหนถูกวางแผน')
+              : 'ไม่มีสาขาที่ค้างต้องเข้า'}</div></div>
       </div>
 
       <div class="card noprint">
@@ -3099,7 +3148,7 @@ const Coverage = {
           <table class="tb">
             <thead><tr>
               <th>สาขา</th><th>เขต</th><th>เข้าตรวจล่าสุด</th><th>ห่างมาแล้ว</th>
-              <th>ประเภท</th><th>เข้าทั้งหมด</th><th>สถานะ</th>
+              <th>ประเภท</th><th>เข้าทั้งหมด</th><th>แผนที่จะเข้า</th><th>สถานะ</th>
             </tr></thead>
             <tbody>${body}</tbody>
           </table>
