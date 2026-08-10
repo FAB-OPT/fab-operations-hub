@@ -149,8 +149,16 @@ function crpExport(kind) {
   if (!rows.length) { showInfo('ไม่มีข้อมูล', 'ไม่มีรายการตามที่เลือก — ลองขยายช่วงข้อมูล'); return; }
   if (!cols.length) { showInfo('ยังไม่ได้เลือกคอลัมน์', 'ติ๊กอย่างน้อย 1 คอลัมน์ก่อนออกรายงาน'); return; }
   var scope = _crpScopeText();
+  var grpEl = document.getElementById('crpGroup');
+  var opts = {
+    groupByBranch: !!(grpEl && grpEl.checked),
+    /* ใส่ชื่อคนออกรายงานไว้บนหัวกระดาษ — เอกสารที่ส่งต่อกันควรรู้ว่าใครออก */
+    issuedBy: (function () {
+      try { return (FH_USER && (FH_USER.name || FH_USER.nick)) || ''; } catch (e) { return ''; }
+    })()
+  };
   closeCertReport();
-  if (kind === 'pdf') _crpPDF(rows, cols, scope);
+  if (kind === 'pdf') _crpPDF(rows, cols, scope, opts);
   else                _crpExcel(rows, cols, scope);
 }
 
@@ -187,82 +195,202 @@ function _crpExcel(rows, cols, scope) {
   });
 }
 
-/* PDF: สร้างหน้า HTML แล้วสั่งพิมพ์ → เลือก "Save as PDF"
-   ได้ฟอนต์ไทยครบโดยไม่ต้องฝังฟอนต์ลง jsPDF (ไฟล์ใหญ่และยุ่ง) */
-function _crpPDF(rows, cols, scope) {
+/* ───────── รายงานใบรับรอง (PDF) ─────────
+   สร้างหน้า HTML แล้วสั่งพิมพ์ → "Save as PDF"
+   ได้ฟอนต์ไทยครบโดยไม่ต้องฝังฟอนต์ลง jsPDF (ไฟล์ใหญ่และสระลอย)
+
+   จัดหน้าแบบเอกสารรายงาน ไม่ใช่ตารางดิบ:
+   · หัวรายงานบอกให้ครบว่า "รายงานอะไร ของชุดไหน ออกเมื่อไร ใครออก"
+   · แถบสรุปมีสัดส่วนให้เห็นภาพก่อนอ่านตัวเลข
+   · สถานะเป็นป้าย อ่านเร็วกว่าตัวหนังสือสีตอนกวาดสายตาบนกระดาษ
+   · แถวที่หมดอายุมีแถบสีซ้าย หาเจอทันทีโดยไม่ต้องไล่อ่าน
+   · ใส่เลขหน้า และหัวตารางซ้ำทุกหน้า เพราะรายงานจริงมีหลายสิบหน้า */
+function _crpPDF(rows, cols, scope, opts) {
+  opts = opts || {};
   var esc = (typeof escapeHtml === 'function') ? escapeHtml : function (s) { return String(s == null ? '' : s); };
+
   var nValid = 0, nWarn = 0, nExp = 0;
   rows.forEach(function (d) {
     if (d.expStatus === 'expired') nExp++;
     else if (d.expStatus === 'warning') nWarn++;
     else nValid++;
   });
+  var total = rows.length || 1;
+  var pctOf = function (n) { return Math.round(n / total * 1000) / 10; };
+
+  /* จัดกลุ่มตามสาขา — ช่วยมากเวลารายงานยาวหลายร้อยแถว
+     ทำได้เฉพาะตอนเลือกคอลัมน์สาขาไว้ ไม่งั้นหัวกลุ่มจะลอยไม่มีที่มา */
+  var hasBranch = cols.some(function (c) { return c.k === 'branch'; });
+  var grouped = !!opts.groupByBranch && hasBranch;
+  var list = rows.slice();
+  if (grouped) {
+    list.sort(function (a, b) {
+      var A = String(a.branch || 'ไม่ระบุสาขา'), B = String(b.branch || 'ไม่ระบุสาขา');
+      if (A !== B) return A.localeCompare(B, 'th');
+      return String(a.expireDate || '').localeCompare(String(b.expireDate || ''));
+    });
+  }
+
   var tw = cols.reduce(function (s2, c) { return s2 + (c.pdfW || 10); }, 0) || 1;
   var head = cols.map(function (c) {
     var pct = Math.round(((c.pdfW || 10) / tw) * 1000) / 10;
-    return '<th style="width:' + pct + '%">' + esc(c.label) + '</th>';
-  }).join('');
-  var body = rows.map(function (d, i) {
-    return '<tr>' + cols.map(function (c) {
-      var v = c.k === 'no' ? (i + 1) : _crpDash(c.get(d, i));
-      if (c.k === 'stat') {
-        var cls = v === 'หมดอายุ' ? 'st-bad' : v === 'ใกล้หมดอายุ' ? 'st-warn' : 'st-ok';
-        return '<td class="num"><span class="' + cls + '">' + esc(v) + '</span></td>';
-      }
-      var cls2 = (c.k === 'no' || c.k === 'train' || c.k === 'exp') ? ' class="num"'
-               : (c.k === 'course' ? ' class="course"' : '');
-      return '<td' + cls2 + '>' + esc(v) + '</td>';
-    }).join('') + '</tr>';
+    var al = (c.k === 'no') ? ' class="c"' : '';
+    return '<th style="width:' + pct + '%"' + al + '>' + esc(c.label) + '</th>';
   }).join('');
 
-  var css = '@page{size:A4 landscape;margin:11mm 10mm 13mm;}'
-    + '*{box-sizing:border-box;margin:0;padding:0;}'
-    + 'body{font-family:Sarabun,sans-serif;color:#0f172a;font-size:11px;padding:52px 0 0;}'
-    + '.hd{display:flex;align-items:flex-end;gap:14px;border-bottom:2px solid #0f172a;padding-bottom:9px;}'
-    + '.hd h1{font-size:17px;font-weight:800;letter-spacing:-.3px;}'
-    + '.hd .sub{font-size:11px;color:#64748b;margin-top:3px;}'
-    + '.hd .meta{margin-left:auto;text-align:right;font-size:10.5px;color:#64748b;line-height:1.6;}'
-    + '.sum{display:flex;gap:7px;margin:10px 0 11px;}'
-    + '.sum div{border:1px solid #e2e8f0;border-radius:7px;padding:6px 12px;min-width:96px;}'
-    + '.sum .l{font-size:9.5px;color:#94a3b8;font-weight:700;}'
-    + '.sum .n{font-size:16px;font-weight:800;margin-top:1px;}'
-    + '.n-ok{color:#059669;}.n-warn{color:#b45309;}.n-bad{color:#dc2626;}'
-    + 'table{width:100%;border-collapse:collapse;table-layout:fixed;}'
-    + 'thead th{background:#f1f5f9;font-size:9.5px;font-weight:800;color:#475569;text-align:left;'
-    +   'padding:6px 7px;border-bottom:1.5px solid #cbd5e1;}'
-    + 'tbody td{padding:5px 7px;border-bottom:.7px solid #e8edf3;vertical-align:top;'
-    +   'line-height:1.45;word-break:break-word;}'
-    + 'tbody tr:nth-child(even) td{background:#fbfcfe;}'
-    + 'td.num{white-space:nowrap;}td.course{font-size:10px;color:#475569;}'
-    + '.st-ok{color:#059669;font-weight:700;}.st-warn{color:#b45309;font-weight:700;}'
-    + '.st-bad{color:#dc2626;font-weight:800;}'
-    /* หัวตารางซ้ำทุกหน้าเวลาพิมพ์ · ห้ามตัดแถวคาหน้า */
-    + 'thead{display:table-header-group;}tr{page-break-inside:avoid;}'
-    + '.bar{position:fixed;top:0;left:0;right:0;background:#0f172a;color:#fff;padding:9px 14px;'
-    +   'display:flex;gap:9px;align-items:center;font-size:12.5px;z-index:9;}'
-    + '.bar button{font-family:inherit;font-size:12.5px;font-weight:700;border:0;border-radius:8px;'
-    +   'padding:7px 15px;cursor:pointer;background:#ea580c;color:#fff;}'
-    + '.bar .gh{background:rgba(255,255,255,.16);}'
-    + '@media print{.bar{display:none;}body{padding-top:0;}}';
+  var CHIP = { 'หมดอายุ': 'bad', 'ใกล้หมดอายุ': 'warn' };
+  var lastBranch = null, body = '';
+  list.forEach(function (d, i) {
+    if (grouped) {
+      var br = String(d.branch || 'ไม่ระบุสาขา');
+      if (br !== lastBranch) {
+        lastBranch = br;
+        var n = list.filter(function (x) { return String(x.branch || 'ไม่ระบุสาขา') === br; }).length;
+        body += '<tr class="grp"><td colspan="' + cols.length + '">'
+             +  '<span class="grp-n">' + esc(br) + '</span>'
+             +  '<span class="grp-c">' + n + ' รายการ</span></td></tr>';
+      }
+    }
+    var st = _FH_RPT_ST[d.expStatus] || 'ยังมีผล';
+    var rowCls = d.expStatus === 'expired' ? ' class="r-bad"' : (d.expStatus === 'warning' ? ' class="r-warn"' : '');
+    body += '<tr' + rowCls + '>' + cols.map(function (c) {
+      var v = c.k === 'no' ? (i + 1) : _crpDash(c.get(d, i));
+      if (c.k === 'stat') {
+        return '<td class="nw"><span class="chip ' + (CHIP[v] || 'ok') + '">' + esc(v) + '</span></td>';
+      }
+      if (c.k === 'no')   return '<td class="c dim">' + esc(v) + '</td>';
+      if (c.k === 'cert' || c.k === 'emp') return '<td class="nm">' + esc(v) + '</td>';
+      if (c.k === 'train' || c.k === 'exp') return '<td class="nw num">' + esc(v) + '</td>';
+      if (c.k === 'course') return '<td class="dim sm">' + esc(v) + '</td>';
+      if (c.k === 'match')  return '<td class="dim sm">' + esc(v) + '</td>';
+      return '<td>' + esc(v) + '</td>';
+    }).join('') + '</tr>';
+  });
+
+  var bar = function (n, cls) {
+    var w = total ? (n / total * 100) : 0;
+    return w > 0 ? '<span class="seg ' + cls + '" style="width:' + w + '%"></span>' : '';
+  };
+  var fig = function (label, n, cls) {
+    return '<div class="fig ' + cls + '"><div class="fig-l">' + label + '</div>'
+      + '<div class="fig-n">' + n + '<small>' + pctOf(n) + '%</small></div></div>';
+  };
+
+  var css = [
+    '@page{size:A4 landscape;margin:12mm 11mm 14mm;}',
+    '@page{@bottom-right{content:"หน้า " counter(page) " / " counter(pages);}}',
+    '*{box-sizing:border-box;margin:0;padding:0;}',
+    'body{font-family:Sarabun,"Noto Sans Thai",sans-serif;color:#111827;font-size:10.5px;',
+    '  line-height:1.5;padding:56px 0 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;}',
+
+    /* ── หัวรายงาน ── */
+    '.mast{display:flex;align-items:flex-start;gap:16px;padding-bottom:10px;',
+    '  border-bottom:2.5px solid #111827;}',
+    '.mast-bar{width:4px;align-self:stretch;background:#ea580c;border-radius:2px;flex:none;}',
+    '.mast h1{font-size:18px;font-weight:800;letter-spacing:-.4px;line-height:1.2;}',
+    '.mast .org{font-size:9.5px;font-weight:700;letter-spacing:.12em;color:#ea580c;',
+    '  text-transform:uppercase;margin-bottom:3px;}',
+    '.mast .scope{font-size:10.5px;color:#4b5563;margin-top:5px;}',
+    '.mast .scope b{color:#111827;font-weight:600;}',
+    '.mast-meta{margin-left:auto;text-align:right;font-size:9.5px;color:#6b7280;line-height:1.7;',
+    '  white-space:nowrap;}',
+    '.mast-meta b{color:#111827;font-weight:700;font-size:11px;}',
+
+    /* ── แถบสรุป ── */
+    '.sum{margin:12px 0 13px;}',
+    '.sumbar{display:flex;height:9px;border-radius:5px;overflow:hidden;background:#eef1f5;}',
+    '.seg{display:block;height:100%;}',
+    '.seg.ok{background:#059669;}.seg.warn{background:#d97706;}.seg.bad{background:#dc2626;}',
+    '.figs{display:flex;gap:26px;margin-top:9px;}',
+    '.fig{position:relative;padding-left:11px;}',
+    '.fig::before{content:"";position:absolute;left:0;top:3px;bottom:3px;width:3px;border-radius:2px;}',
+    '.fig.all::before{background:#111827;}.fig.ok::before{background:#059669;}',
+    '.fig.warn::before{background:#d97706;}.fig.bad::before{background:#dc2626;}',
+    '.fig-l{font-size:9px;font-weight:700;letter-spacing:.06em;color:#6b7280;}',
+    '.fig-n{font-size:17px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums;}',
+    '.fig-n small{font-size:9.5px;font-weight:600;color:#9ca3af;margin-left:5px;}',
+
+    /* ── ตาราง ── */
+    'table{width:100%;border-collapse:collapse;table-layout:fixed;}',
+    'thead th{background:#111827;color:#fff;font-size:9px;font-weight:700;letter-spacing:.05em;',
+    '  text-align:left;padding:7px 8px;}',
+    'thead th:first-child{border-radius:4px 0 0 0;}thead th:last-child{border-radius:0 4px 0 0;}',
+    'thead th.c{text-align:center;}',
+    'tbody td{padding:6px 8px;border-bottom:.6px solid #e8ebef;vertical-align:top;',
+    '  word-break:break-word;}',
+    'tbody td.c{text-align:center;}tbody td.nw{white-space:nowrap;}',
+    'tbody td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}',
+    'tbody td.nm{font-weight:600;}',
+    'tbody td.dim{color:#6b7280;}tbody td.sm{font-size:9.5px;}',
+    /* แถวที่ต้องลงมือ — แถบสีซ้ายหาเจอเร็วกว่าอ่านคอลัมน์สถานะ */
+    'tr.r-bad td:first-child{box-shadow:inset 3px 0 0 #dc2626;}',
+    'tr.r-warn td:first-child{box-shadow:inset 3px 0 0 #d97706;}',
+    'tr.r-bad td{background:#fef5f4;}',
+
+    /* ── ป้ายสถานะ ── */
+    '.chip{display:inline-block;padding:1.5px 8px;border-radius:999px;font-size:9px;',
+    '  font-weight:700;white-space:nowrap;}',
+    '.chip.ok{background:#e7f5ee;color:#047857;}',
+    '.chip.warn{background:#fdf2e2;color:#b45309;}',
+    '.chip.bad{background:#fdeceb;color:#b91c1c;}',
+
+    /* ── หัวกลุ่มสาขา ── */
+    'tr.grp td{background:#f4f6f9;border-bottom:1px solid #dfe4ea;border-top:1px solid #dfe4ea;',
+    '  padding:6px 8px;}',
+    '.grp-n{font-weight:800;font-size:10.5px;}',
+    '.grp-c{float:right;font-size:9px;font-weight:600;color:#6b7280;}',
+
+    /* ── การพิมพ์ ── */
+    'thead{display:table-header-group;}tr{page-break-inside:avoid;}',
+    'tr.grp{page-break-after:avoid;}',
+    '.foot{margin-top:12px;padding-top:8px;border-top:.8px solid #e8ebef;',
+    '  font-size:8.5px;color:#9ca3af;display:flex;gap:14px;}',
+    '.foot .sp{margin-left:auto;}',
+
+    /* ── แถบเครื่องมือ (ไม่ติดไปกับ PDF) ── */
+    '.bar{position:fixed;top:0;left:0;right:0;background:#111827;color:#fff;padding:9px 14px;',
+    '  display:flex;gap:9px;align-items:center;font-size:12.5px;z-index:9;}',
+    '.bar button{font-family:inherit;font-size:12.5px;font-weight:700;border:0;border-radius:8px;',
+    '  padding:7px 15px;cursor:pointer;background:#ea580c;color:#fff;}',
+    '.bar .gh{background:rgba(255,255,255,.16);}',
+    '@media print{.bar{display:none;}body{padding-top:0;}}',
+  ].join('');
 
   var html = '<!doctype html><html lang="th"><head><meta charset="utf-8">'
     + '<title>รายงานใบรับรอง ' + esc(_fhStamp()) + '</title>'
     + '<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;600;700;800&display=swap" rel="stylesheet">'
     + '<style>' + css + '</style></head><body>'
+
     + '<div class="bar"><b>รายงานใบรับรอง</b>'
     +   '<span style="opacity:.75">กด "บันทึกเป็น PDF" แล้วเลือกปลายทางเป็น Save as PDF</span>'
     +   '<span style="margin-left:auto"></span>'
     +   '<button onclick="window.print()">บันทึกเป็น PDF</button>'
     +   '<button class="gh" onclick="window.close()">ปิด</button></div>'
-    + '<div class="hd"><div><h1>รายงานใบรับรองผู้สัมผัสอาหาร</h1>'
-    +   '<div class="sub">ช่วงข้อมูล: ' + esc(scope) + '</div></div>'
-    +   '<div class="meta">พิมพ์เมื่อ ' + esc(_fhStamp()) + '<br>รวม ' + rows.length + ' รายการ</div></div>'
-    + '<div class="sum">'
-    +   '<div><div class="l">ยังมีผล</div><div class="n n-ok">' + nValid + '</div></div>'
-    +   '<div><div class="l">ใกล้หมดอายุ</div><div class="n n-warn">' + nWarn + '</div></div>'
-    +   '<div><div class="l">หมดอายุ</div><div class="n n-bad">' + nExp + '</div></div>'
-    + '</div>'
+
+    + '<div class="mast"><div class="mast-bar"></div><div>'
+    +   '<div class="org">FAB Food Holding · ความปลอดภัยด้านอาหาร</div>'
+    +   '<h1>รายงานใบรับรองผู้สัมผัสอาหารและผู้ประกอบอาหาร</h1>'
+    +   '<div class="scope">ช่วงข้อมูล <b>' + esc(scope) + '</b></div>'
+    + '</div><div class="mast-meta">'
+    +   'รวมทั้งสิ้น <b>' + rows.length.toLocaleString() + '</b> รายการ<br>'
+    +   'ออกรายงาน ' + esc(_fhStamp()) + '<br>'
+    +   'โดย ' + esc(opts.issuedBy || '—')
+    + '</div></div>'
+
+    + '<div class="sum"><div class="sumbar">'
+    +   bar(nValid, 'ok') + bar(nWarn, 'warn') + bar(nExp, 'bad')
+    + '</div><div class="figs">'
+    +   fig('ทั้งหมด', rows.length.toLocaleString(), 'all')
+    +   fig('ยังมีผล', nValid, 'ok')
+    +   fig('ใกล้หมดอายุ', nWarn, 'warn')
+    +   fig('หมดอายุแล้ว', nExp, 'bad')
+    + '</div></div>'
+
     + '<table><thead><tr>' + head + '</tr></thead><tbody>' + body + '</tbody></table>'
+
+    + '<div class="foot"><span>ข้อมูล ณ วันที่ออกรายงาน — สถานะใบรับรองคำนวณจากวันหมดอายุ</span>'
+    +   '<span class="sp">ระบบฐานข้อมูลผู้สัมผัสอาหารและผู้ประกอบอาหาร</span></div>'
+
     + '</body></html>';
 
   var w = window.open('', '_blank');
