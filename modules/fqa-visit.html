@@ -1516,7 +1516,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.09-4';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.09-5';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -2988,11 +2988,15 @@ const Coverage = {
   zone: '',         // กรองตามเขต
   type: '',         // กรองตามประเภทการตรวจ
   only: '',         // '' = ทุกสาขา · 'gap' = เฉพาะที่ไม่เคยเข้าและไม่มีแผน
+  state: '',        // กรองตามสถานะ (never/over/due/ok) — กรองแค่ตาราง ไม่แตะตัวเลขสรุป
 
   setCycle(n){ this.cycle = Number(n) || 90; this.render(); },
   setZone(v){ this.zone = v || ''; this.render(); },
   setType(v){ this.type = v || ''; this.render(); },
-  toggleGap(){ this.only = this.only === 'gap' ? '' : 'gap'; this.render(); },
+  /* สถานะกับ "ดูเฉพาะกลุ่มที่หลุด" เป็นตัวกรองตารางเหมือนกัน
+     ให้ใช้ทีละอย่าง ไม่งั้นเปิดพร้อมกันแล้วผลลัพธ์ตีกันจนงงว่าอะไรกรองอะไร */
+  setState(v){ this.state = v || ''; if(this.state) this.only = ''; this.render(); },
+  toggleGap(){ this.only = this.only === 'gap' ? '' : 'gap'; if(this.only) this.state = ''; this.render(); },
 
   /* จำนวนวันจากวันที่ ISO ถึงวันนี้ */
   daysAgo(iso){
@@ -3094,7 +3098,11 @@ const Coverage = {
       return r.days + ' วันก่อน';
     };
 
-    const shown = this.only === 'gap' ? gap : rows;
+    const STATE_LABEL = { never:'ยังไม่เคยเข้า', over:'เกินรอบ ' + this.cycle + ' วัน', due:'ใกล้ครบรอบ', ok:'ตามรอบ' };
+    /* ตัวเลขสรุปด้านบนยังคิดจากทุกสาขาเสมอ ไม่ผูกกับตัวกรองสถานะ
+       ไม่งั้น "ยังไม่เคยเข้า 3 สาขา" จะกลายเป็น 3 เสมอเมื่อเลือกกรองสถานะนั้น = ไม่มีความหมาย */
+    const shown = this.only === 'gap' ? gap
+      : (this.state ? rows.filter(r => r.state === this.state) : rows);
     const body = shown.length ? shown.map(r => `<tr>
         <td><b>${esc(r.name)}</b></td>
         <td>${r.bzm ? esc(r.bzm) : '<span style="color:var(--text3)">—</span>'}</td>
@@ -3108,7 +3116,9 @@ const Coverage = {
       : `<tr><td colspan="8" style="text-align:center;padding:34px;color:var(--text3)">${
           this.only === 'gap'
             ? 'ไม่มีสาขาที่ทั้งไม่เคยเข้าและไม่มีแผน 🎉'
-            : 'ยังไม่มีสาขาในทะเบียน — ซิงก์รายชื่อสาขาจากฮับก่อน'
+            : this.state
+              ? 'ไม่มีสาขาที่สถานะ “' + STATE_LABEL[this.state] + '”'
+              : 'ยังไม่มีสาขาในทะเบียน — ซิงก์รายชื่อสาขาจากฮับก่อน'
         }</td></tr>`;
 
     el.innerHTML = `
@@ -3154,7 +3164,7 @@ const Coverage = {
           </span>
         </div>
         <div class="bd">
-          <div class="grid" style="grid-template-columns:1fr 1fr;gap:12px">
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px">
             <div class="fld"><label class="lbl">เขต</label>
               <select class="inp" onchange="Coverage.setZone(this.value)">
                 <option value="">ทุกเขต</option>
@@ -3165,6 +3175,14 @@ const Coverage = {
                 <option value="">ทุกประเภท</option>
                 ${['FQA','FSQ','VISIT'].map(t => `<option value="${t}"${this.type===t?' selected':''}>${TYPE_LABEL[t]}</option>`).join('')}
               </select></div>
+            <div class="fld"><label class="lbl">สถานะ</label>
+              <select class="inp" onchange="Coverage.setState(this.value)">
+                <option value="">ทุกสถานะ</option>
+                ${['never','over','due','ok'].map(k => {
+                  const n = rows.filter(r => r.state === k).length;
+                  return `<option value="${k}"${this.state===k?' selected':''}>${STATE_LABEL[k]} (${n})</option>`;
+                }).join('')}
+              </select></div>
           </div>
         </div>
       </div>
@@ -3173,7 +3191,9 @@ const Coverage = {
         <div class="hd"><h3>รายสาขา</h3><div class="sp"></div>
           <span class="note">${this.only === 'gap'
             ? 'เฉพาะที่ไม่เคยเข้าและไม่มีแผน · ' + shown.length + ' สาขา'
-            : 'เรียงจากที่ต้องเข้าก่อน'}</span></div>
+            : this.state
+              ? 'เฉพาะ' + STATE_LABEL[this.state] + ' · ' + shown.length + ' สาขา'
+              : 'เรียงจากที่ต้องเข้าก่อน'}</span></div>
         <div class="bd" style="padding:0"><div class="tw">
           <table class="tb">
             <thead><tr>
