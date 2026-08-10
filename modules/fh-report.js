@@ -4,6 +4,15 @@
    ใครอยากได้แค่สาขาเดียว หรือเอาแค่ 4 ช่อง ต้องไปลบเองใน Excel ทุกครั้ง
    ═══════════════════════════════════════════════════════════════ */
 
+/* วันที่ในฐานข้อมูลเก็บเป็นค่าดิบแบบ ISO ("2569-06-11T17:00:00.000Z")
+   ถ้าเอามาลงรายงานตรง ๆ จะได้ข้อความยาว 24 ตัวอักษร ล้นออกนอกช่องไปทับคอลัมน์ข้าง ๆ
+   ใช้ตัวจัดรูปแบบตัวเดียวกับที่หน้าจอใช้ ตัวเลขในรายงานจะได้ตรงกับที่เห็นบนเว็บ */
+function _crpDate(v) {
+  if (!v) return '';
+  try { if (typeof formatThaiDate === 'function') return formatThaiDate(v); } catch (e) {}
+  return String(v).slice(0, 10);
+}
+
 var _FH_RPT_ST = { expired: 'หมดอายุ', warning: 'ใกล้หมดอายุ' };
 var _FH_RPT_MT = { exact: 'ตรงกับทะเบียน', lastname: 'นามสกุลตรง' };
 
@@ -19,8 +28,8 @@ var FH_RPT_COLS = [
   { k: 'branch', label: 'สาขา',                     w: 32, pdfW: 16, get: function (d) { return d.branch; } },
   { k: 'pos',    label: 'ตำแหน่ง',                  w: 18, pdfW: 10, get: function (d) { return d.position; } },
   { k: 'course', label: 'หลักสูตร',                 w: 40, pdfW: 18, get: function (d) { return d.course; } },
-  { k: 'train',  label: 'วันที่อบรม',               w: 14, pdfW: 9,  get: function (d) { return d.trainDate; } },
-  { k: 'exp',    label: 'วันหมดอายุ',               w: 14, pdfW: 9,  get: function (d) { return d.expireDate; } },
+  { k: 'train',  label: 'วันที่อบรม',               w: 14, pdfW: 9,  get: function (d) { return _crpDate(d.trainDate); } },
+  { k: 'exp',    label: 'วันหมดอายุ',               w: 14, pdfW: 9,  get: function (d) { return _crpDate(d.expireDate); } },
   { k: 'stat',   label: 'สถานะ',                    w: 14, pdfW: 8,  get: function (d) { return _FH_RPT_ST[d.expStatus] || 'ยังมีผล'; } },
   { k: 'match',  label: 'ผลจับคู่',                 w: 16, pdfW: 10, get: function (d) { return _FH_RPT_MT[d.matchType] || 'ยังไม่พบในทะเบียน'; } }
 ];
@@ -318,7 +327,10 @@ function _crpPDF(rows, cols, scope, opts) {
     'thead th.c{text-align:center;}',
     'tbody td{padding:6px 8px;border-bottom:.6px solid #e8ebef;vertical-align:top;',
     '  word-break:break-word;}',
-    'tbody td.c{text-align:center;}tbody td.nw{white-space:nowrap;}',
+    /* กันข้อความยาวเกินช่องแล้วล้นไปทับคอลัมน์ข้าง ๆ (table-layout:fixed ไม่กันให้)
+       ตัดด้วย … ดีกว่าปล่อยทับกันจนอ่านไม่ออกทั้งสองคอลัมน์ */
+    'tbody td.c{text-align:center;}',
+    'tbody td.nw{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}',
     'tbody td.num{font-variant-numeric:tabular-nums;white-space:nowrap;}',
     'tbody td.nm{font-weight:600;}',
     'tbody td.dim{color:#6b7280;}tbody td.sm{font-size:9.5px;}',
