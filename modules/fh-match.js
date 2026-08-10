@@ -808,6 +808,26 @@ var FH_MIME = { '.pdf': 'application/pdf', '.jpg': 'image/jpeg', '.png': 'image/
 function _fhIsMobile() {
   try { return /iPhone|iPad|iPod|Android/i.test(navigator.userAgent || ''); } catch (e) { return false; }
 }
+/* เฉพาะ iOS เท่านั้นที่ต้องใช้แผงแชร์
+   Safari บน iOS ไม่ยอมให้เซฟไฟล์จาก blob ตรง ๆ (กดแล้วได้แค่เปิดดู)
+   ส่วนแอนดรอยด์ดาวน์โหลดจาก blob ได้ปกติ และ "เชื่อถือได้กว่า" แผงแชร์
+   เพราะแผงแชร์ต้องถูกเรียกตอนที่ยังนับเป็นการกดของผู้ใช้อยู่
+   แต่เราต้องรอโหลดไฟล์ก่อน จังหวะจึงมักเลยไปแล้ว → ระบบปฏิเสธ แล้วเงียบ */
+function _fhIsIOS() {
+  try {
+    var ua = navigator.userAgent || '';
+    if (/iPhone|iPad|iPod/i.test(ua)) return true;
+    /* iPad รุ่นใหม่รายงานตัวเป็น Mac — ดูที่จอสัมผัสแทน */
+    return /Macintosh/.test(ua) && (navigator.maxTouchPoints || 0) > 1;
+  } catch (e) { return false; }
+}
+/* เปิดไฟล์ตรง ๆ ตอนดึงมาเป็น blob ไม่ได้
+   window.open หลัง await มักโดนตัวกันป๊อปอัปบล็อกเงียบ ๆ → ถ้าโดนบล็อกให้พาไปทั้งแท็บแทน */
+function _fhOpenFallback(url) {
+  var w = null;
+  try { w = window.open(url, '_blank', 'noopener'); } catch (e) {}
+  if (!w) { try { window.location.href = url; } catch (e) {} }
+}
 function _fhSaveBlob(blob, fname) {
   var burl = URL.createObjectURL(blob);
   _fhTriggerDownload(burl, fname);
@@ -829,7 +849,9 @@ function _fhDeliverFiles(files) {
     });
     return chain.then(function(){ return true; });
   };
-  if (!_fhIsMobile()) return fallback();
+  /* แอนดรอยด์และคอมใช้ดาวน์โหลดตรง ๆ — ได้ผลแน่นอนกว่า
+     เหลือแผงแชร์ไว้ให้ iOS ที่ดาวน์โหลดตรง ๆ ไม่ได้จริง ๆ */
+  if (!_fhIsIOS()) return fallback();
   try {
     if (!navigator.canShare || typeof File !== 'function' || !navigator.share) return fallback();
     var fs2 = list.map(function(f){
@@ -840,8 +862,11 @@ function _fhDeliverFiles(files) {
     return navigator.share({ files: fs2, title: list.length === 1 ? list[0].name : 'ใบรับรอง ' + list.length + ' ไฟล์' })
       .then(function(){ return true; })
       .catch(function(err){
-        /* กดยกเลิกเองในแผงแชร์ ไม่ใช่ความผิดพลาด ไม่ต้องเด้งดาวน์โหลดซ้ำ */
-        if (err && (err.name === 'AbortError' || err.name === 'NotAllowedError')) return true;
+        /* AbortError = ผู้ใช้กดยกเลิกเองในแผงแชร์ → ถือว่าจบ ไม่ต้องเด้งดาวน์โหลดซ้ำ
+           อย่างอื่นทั้งหมด (รวม NotAllowedError = ระบบไม่อนุญาตเพราะเลยจังหวะการกด)
+           ต้องถอยไปดาวน์โหลด ไม่ใช่เงียบ — ของเดิมนับ NotAllowedError เป็นยกเลิกด้วย
+           กดแล้วจึงไม่มีอะไรเกิดขึ้นเลย */
+        if (err && err.name === 'AbortError') return true;
         return fallback();
       });
   } catch (e) { return fallback(); }
@@ -898,7 +923,7 @@ function fhDownloadOneCert(ev, url, noOrName) {
     .then(function(){ done(); })
     .catch(function(){
       done();
-      window.open(url, '_blank', 'noopener');   // ถอยไปเปิดแท็บ ชื่อไฟล์จะเป็นของเดิม
+      _fhOpenFallback(url);   // ถอยไปเปิดไฟล์ตรง ๆ ชื่อไฟล์จะเป็นของเดิม
     });
   return false;
 }
