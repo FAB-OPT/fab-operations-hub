@@ -6612,33 +6612,72 @@ function saveBrandEdit(){
   var obj = { key: (existing? existing.key : key), name: name, prefixes: prefixes };
   if(color) obj.color = color;
   if(logo) obj.logo = logo;
-  var backup = BRAND_REGISTRY.slice();
   if(existing){ var i=BRAND_REGISTRY.findIndex(function(b){return b.key===existing.key;}); if(i>=0) BRAND_REGISTRY[i]=obj; }
   else BRAND_REGISTRY.push(obj);
   /* กันไว้ก่อนบันทึก: ถ้าทะเบียนรวมโลโก้แล้วเกินที่ Cloud เก็บได้ ต้องบอกตั้งแต่ตอนนี้
      ไม่ใช่ปล่อยให้บันทึกในเครื่องสำเร็จแล้วซิงค์ล้มเงียบ ๆ จนเครื่องอื่นไม่เห็นโลโก้ */
+  /* เกินพื้นที่แล้วต้องไม่ห้ามบันทึก — ผู้ใช้แค่อยากใส่โลโก้ ระบบมีหน้าที่ทำให้พอดีเอง
+     ของเดิมปฏิเสธทั้งการบันทึก ทำให้ติดอยู่ตรงนั้น แก้อะไรก็ไม่ได้เลย */
+  var finish = function(size){
+    var okLocal = saveBrandsLocal();
+    renderBrandRegList(); hideBrandRegForm();
+    if(!okLocal){
+      _brandRegSyncMsg('⚠ พื้นที่ในเครื่องเต็ม บันทึกลงเครื่องไม่ได้ — กำลังลองซิงค์ Cloud','var(--red)');
+    } else {
+      _brandRegSyncMsg('กำลังซิงค์ Cloud...','var(--text2)');
+    }
+    saveBrandsToCloud().then(function(){ _brandRegSyncMsg('✓ บันทึกและซิงค์ Cloud สำเร็จ ('+Math.round(size/1024)+' KB)','var(--green)'); })
+      .catch(function(err){ _brandRegSyncMsg('⚠ บันทึกในเครื่องแล้ว · Cloud: '+err.message,'var(--text3)'); });
+  };
   var size = brandsPayloadSize();
-  if(size > BRANDS_CLOUD_LIMIT){
-    BRAND_REGISTRY = backup;
-    showInfo('พื้นที่เก็บโลโก้ไม่พอ','รวมโลโก้ทุกแบรนด์แล้ว '+Math.round(size/1024)+' KB '
-      + 'ซึ่งเกินที่ระบบเก็บได้ ('+Math.round(BRANDS_CLOUD_LIMIT/1024)+' KB)<br>'
-      + '<span style="font-size:12px;color:var(--text2)">กดปุ่ม <b>ลดขนาดโลโก้ทั้งหมด</b> ด้านบนของหน้าต่างนี้ '
-      + 'ระบบจะย่อโลโก้ทุกแบรนด์ให้แบ่งพื้นที่กันพอดี แล้วค่อยบันทึกอีกครั้ง</span>');
-    return;
-  }
-  var okLocal = saveBrandsLocal();
-  renderBrandRegList(); hideBrandRegForm();
-  if(!okLocal){
-    _brandRegSyncMsg('⚠ พื้นที่ในเครื่องเต็ม บันทึกลงเครื่องไม่ได้ — กำลังลองซิงค์ Cloud','var(--red)');
-  } else {
-    _brandRegSyncMsg('กำลังซิงค์ Cloud...','var(--text2)');
-  }
-  saveBrandsToCloud().then(function(){ _brandRegSyncMsg('✓ บันทึกและซิงค์ Cloud สำเร็จ ('+Math.round(size/1024)+' KB)','var(--green)'); })
-    .catch(function(err){ _brandRegSyncMsg('⚠ บันทึกในเครื่องแล้ว · Cloud: '+err.message,'var(--text3)'); });
+  if(size <= BRANDS_CLOUD_LIMIT){ finish(size); return; }
+  _brandRegSyncMsg('พื้นที่ไม่พอ — กำลังย่อโลโก้ให้อัตโนมัติ…','var(--text2)');
+  _compactLogos(1).then(function(after){
+    if(after > BRANDS_CLOUD_LIMIT){
+      /* ย่อจนเล็กสุดแล้วยังไม่พอจริง ๆ — บันทึกลงเครื่องให้ก่อน ไม่ทิ้งงานที่พิมพ์มา
+         แล้วค่อยบอกว่าต้องลดจำนวนแบรนด์ที่มีโลโก้ลง */
+      showInfo('โลโก้เยอะเกินกว่าจะเก็บครบ','ย่อจนเล็กที่สุดแล้วยังรวมได้ '+Math.round(after/1024)+' KB '
+        + '(เก็บได้ '+Math.round(BRANDS_CLOUD_LIMIT/1024)+' KB)<br>'
+        + '<span style="font-size:12px;color:var(--text2)">บันทึกลงเครื่องนี้ให้แล้ว แต่เครื่องอื่นจะยังไม่เห็น '
+        + '· ลองลบโลโก้ของแบรนด์ที่ไม่ได้ใช้ออกสักอัน</span>');
+    }
+    finish(after);
+  });
 }
 /* ย่อโลโก้ของทุกแบรนด์ให้แบ่งโควตากันคนละเท่า ๆ กัน
    ใช้ตอนที่โลโก้ที่อัปไว้ก่อนหน้าใหญ่จนเพิ่มแบรนด์ใหม่ไม่ได้ — กดปุ่มเดียวจบ
    ไม่ต้องมานั่งลบโลโก้เก่าทีละอันแล้วอัปใหม่ */
+/* ย่อโลโก้ของแบรนด์เดียวให้ไม่เกินโควตาที่ให้มา */
+function _reshrinkLogo(b, share){
+  return new Promise(function(done){
+    var img = new Image();
+    img.onload = function(){
+      var out = _brandLogoShrink(img, share);
+      if(out && out.length < b.logo.length) b.logo = out;   // ใหญ่ขึ้นก็ไม่เอา
+      done();
+    };
+    img.onerror = function(){ done(); };   // รูปเสีย ข้ามไป ไม่ล้มทั้งชุด
+    img.src = b.logo;
+  });
+}
+/* ย่อโลโก้ทุกแบรนด์ให้ทะเบียนรวมลงใต้เพดาน — แบ่งโควตากันคนละเท่า ๆ กัน
+   ถ้ารอบแรกยังไม่พอ (บางโลโก้บีบได้น้อยกว่าที่คิด) ก็ลดส่วนแบ่งแล้ววนอีก
+   คืน Promise ของขนาดสุดท้าย ให้คนเรียกตัดสินใจต่อเอง */
+function _compactLogos(passes){
+  var withLogo = BRAND_REGISTRY.filter(function(b){ return b.logo; });
+  if(!withLogo.length) return Promise.resolve(brandsPayloadSize());
+  var base = _brandsSizeWithout(null, true);
+  var room = BRANDS_CLOUD_LIMIT - base - 1200;
+  var share = Math.max(2000, Math.floor(room / withLogo.length / (passes || 1)));
+  var chain = Promise.resolve();
+  withLogo.forEach(function(b){ chain = chain.then(function(){ return _reshrinkLogo(b, share); }); });
+  return chain.then(function(){
+    var size = brandsPayloadSize();
+    if(size <= BRANDS_CLOUD_LIMIT || (passes || 1) >= 3) return size;
+    return _compactLogos((passes || 1) + 1);
+  });
+}
+
 function compactBrandLogos(){
   var withLogo = BRAND_REGISTRY.filter(function(b){ return b.logo; });
   if(!withLogo.length){
@@ -6646,26 +6685,8 @@ function compactBrandLogos(){
     return;
   }
   var before = brandsPayloadSize();
-  var base = _brandsSizeWithout(null, true);
-  var share = Math.max(3000, Math.floor((BRANDS_CLOUD_LIMIT - base - 900) / withLogo.length));
   _brandRegSyncMsg('กำลังย่อโลโก้ ' + withLogo.length + ' แบรนด์…','var(--text2)');
-  var chain = Promise.resolve();
-  withLogo.forEach(function(b){
-    chain = chain.then(function(){
-      return new Promise(function(done){
-        var img = new Image();
-        img.onload = function(){
-          var out = _brandLogoShrink(img, share);
-          if(out && out.length < b.logo.length) b.logo = out;   // ใหญ่ขึ้นก็ไม่เอา
-          done();
-        };
-        img.onerror = function(){ done(); };   // รูปเสีย ข้ามไป ไม่ล้มทั้งชุด
-        img.src = b.logo;
-      });
-    });
-  });
-  chain.then(function(){
-    var after = brandsPayloadSize();
+  _compactLogos(1).then(function(after){
     var okLocal = saveBrandsLocal();
     renderBrandRegList();
     if(_editingBrandKey){ var cur = brandByKey(_editingBrandKey); _brandLogoShow((cur && cur.logo) || '', _brandLogoBudget(_editingBrandKey)); }
