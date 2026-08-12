@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-07';
+var BACKEND_VERSION = '2026-08-13';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -32,6 +32,7 @@ function doGet(e) {
     if (action === 'config')       return jsonOut(getConfig());
     if (action === 'exams')        return jsonOut(getExams());
     if (action === 'exam-results') return jsonOut(getExamResults());
+    if (action === 'exam-requests') return jsonOut(getExamRequests(e.parameter.branch, e.parameter.scope));
     if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || '', (e && e.parameter && e.parameter.since) || ''));
     if (action === 'counts')       return jsonOut(getCounts());   // นับแถวอย่างเดียว ไม่ต้องโหลดข้อมูลทั้งก้อน
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
@@ -61,6 +62,11 @@ function doPost(e) {
     if (data.type === 'save-exam')          return jsonOut(saveExam(data.exam));
     if (data.type === 'delete-exam')        return jsonOut(deleteExam(data.id));
     if (data.type === 'submit-exam-result') return jsonOut(saveExamResult(data.result));
+    if (data.type === 'request-exam')       return jsonOut(saveExamRequest(data.req));
+    if (data.type === 'decide-exam-request')return jsonOut(decideExamRequest(data.id, data.decision, data.by, data.note));
+    if (data.type === 'verify-exam-code')   return jsonOut(verifyExamCode(data.code, data.examId));
+    if (data.type === 'use-exam-code')      return jsonOut(useExamCode(data.code));
+    if (data.type === 'delete-exam-request')return jsonOut(deleteExamRequest(data.id));
     if (data.type === 'save-fqa-record')    return jsonOut(saveFqaRecord(data.record));
     if (data.type === 'delete-fqa-record')  return jsonOut(deleteFqaRecord(data.id));
     if (data.type === 'upload-fqa-photo')   return jsonOut(uploadFqaPhoto(data.base64, data.filename));
@@ -594,7 +600,8 @@ function getCounts() {
       employees: n('Employees'),
       fqaRecords: n('FqaRecords'),
       exams: n('Exams'),
-      examResults: n('ExamResults')
+      examResults: n('ExamResults'),
+      examRequests: n('ExamRequests')
     }
   };
 }
@@ -821,6 +828,9 @@ function deleteExam(id) {
 /* ──────────────── EXAM RESULTS ──────────────── */
 function saveExamResult(r) {
   if (!r || !r.name) return { ok: false, error: 'invalid result' };
+  /* ปิดรหัสเข้าสอบทันทีที่ผลถูกบันทึก — ทำตรงนี้ด้วยเพราะเชื่อถือได้กว่ารอหน้าเว็บเรียก
+     (ผู้ใช้อาจปิดจอทิ้งทันทีหลังส่ง) · ไม่มีรหัสมาก็ข้ามไป ไม่ทำให้บันทึกผลล้ม */
+  if (r.accessCode) { try { useExamCode(r.accessCode); } catch (e) {} }
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -1041,4 +1051,177 @@ function setupDailyBackup() {
   ScriptApp.getProjectTriggers().forEach(function(t){ if (t.getHandlerFunction() === 'backupFqaDaily') ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger('backupFqaDaily').timeBased().everyDays(1).atHour(2).create();
   return 'ตั้งสำรองอัตโนมัติทุกวันตี 2 เรียบร้อย';
+}
+
+/* ═════════════════════════════════════════════════
+   คำขอสอบ + รหัสเข้าสอบ  (ExamRequests)
+   ขั้นตอน: พนักงานขอสิทธิ์ → แอดมินอนุมัติ → ระบบสุ่มรหัส →
+            ใช้รหัสเข้าสอบ → ส่งข้อสอบเสร็จ รหัสถูกปิดทันที ใช้ซ้ำไม่ได้
+
+   หมายเหตุเรื่องความปลอดภัย: เว็บแอปนี้เปิดสาธารณะเหมือนส่วนอื่นของระบบ
+   รหัสจึงเป็น "ตัวคุมลำดับงาน" ไม่ใช่กำแพงกันคนตั้งใจโกง
+   จึงส่งรหัสกลับเฉพาะแถวของสาขาที่ถาม (ต้องระบุ branch) เพื่อลดการเห็นรหัสคนอื่นโดยบังเอิญ
+   ═════════════════════════════════════════════════ */
+var EXAMREQ_HEADERS = ['id','createdAt','examId','examTitle','brand','branchCode','branchName',
+                       'name','empId','status','code','approvedAt','approvedBy','usedAt','note'];
+
+function _reqSheet() { return _getOrCreateSheet('ExamRequests', EXAMREQ_HEADERS); }
+
+function _reqRead() {
+  var sh = _reqSheet();
+  var values = sh.getDataRange().getValues();
+  if (values.length < 2) return { sh: sh, headers: EXAMREQ_HEADERS.slice(), rows: [] };
+  var headers = values[0].map(function (h) { return String(h).trim(); });
+  var rows = [];
+  for (var i = 1; i < values.length; i++) {
+    var o = { _row: i + 1 };
+    for (var c = 0; c < headers.length; c++) o[headers[c]] = values[i][c];
+    rows.push(o);
+  }
+  return { sh: sh, headers: headers, rows: rows };
+}
+
+/* รหัส 6 ตัว ตัดอักษร/เลขที่อ่านสับสน (0/O, 1/I/L) ออก — อ่านผ่านโทรศัพท์แล้วไม่พิมพ์ผิด */
+function _newExamCode(taken) {
+  var AB = '23456789ABCDEFGHJKMNPQRSTUVWXYZ';
+  for (var t = 0; t < 200; t++) {
+    var s = '';
+    for (var i = 0; i < 6; i++) s += AB.charAt(Math.floor(Math.random() * AB.length));
+    if (!taken[s]) return s;
+  }
+  return 'X' + String(Date.now()).slice(-5);
+}
+
+/* branch = ชื่อสาขา (ฝั่งสาขาเรียก) · scope=all = ทั้งหมด (ฝั่งแอดมิน) */
+function getExamRequests(branch, scope) {
+  var d = _reqRead();
+  var all = String(scope || '') === 'all';
+  var want = String(branch || '').trim();
+  var out = [];
+  d.rows.forEach(function (r) {
+    if (!all) {
+      if (!want) return;
+      if (String(r.branchName || '').trim() !== want && String(r.branchCode || '').trim() !== want) return;
+    }
+    out.push({
+      id: r.id, createdAt: r.createdAt, examId: r.examId, examTitle: r.examTitle, brand: r.brand,
+      branchCode: r.branchCode, branchName: r.branchName, name: r.name, empId: r.empId,
+      status: r.status || 'pending', code: r.code || '',
+      approvedAt: r.approvedAt, approvedBy: r.approvedBy, usedAt: r.usedAt, note: r.note || ''
+    });
+  });
+  return { ok: true, requests: out };
+}
+
+function saveExamRequest(req) {
+  if (!req || !req.examId || !String(req.name || '').trim()) return { ok: false, error: 'invalid request' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var d = _reqRead();
+    /* กันกดขอซ้ำ: คนเดิม ชุดเดิม ที่ยังรออนุมัติหรืออนุมัติแล้วแต่ยังไม่ได้ใช้
+       ให้คืนคำขอเดิมกลับไป ไม่สร้างใหม่ ไม่งั้นแอดมินจะเห็นรายการซ้ำเต็มไปหมด */
+    var key = function (r) {
+      return String(r.examId) + '|' + String(r.name).trim() + '|' + String(r.empId || '').trim();
+    };
+    var mine = key(req);
+    for (var i = 0; i < d.rows.length; i++) {
+      var r = d.rows[i];
+      var st = String(r.status || 'pending');
+      if (key(r) === mine && (st === 'pending' || st === 'approved')) {
+        return { ok: true, duplicate: true, id: r.id, status: st, code: r.code || '' };
+      }
+    }
+    var id = 'req_' + Date.now() + '_' + Math.floor(Math.random() * 1e5);
+    var map = {
+      id: id, createdAt: new Date().toISOString(),
+      examId: req.examId || '', examTitle: req.examTitle || '', brand: req.brand || '',
+      branchCode: req.branchCode || '', branchName: req.branchName || '',
+      name: String(req.name).trim(), empId: String(req.empId || '').trim(),
+      status: 'pending', code: '', approvedAt: '', approvedBy: '', usedAt: '', note: ''
+    };
+    d.sh.appendRow(d.headers.map(function (h) { return map.hasOwnProperty(h) ? map[h] : ''; }));
+    return { ok: true, id: id, status: 'pending' };
+  } finally { lock.releaseLock(); }
+}
+
+/* อนุมัติ = สุ่มรหัสให้ · ถ้าเคยอนุมัติแล้วคืนรหัสเดิม ไม่สุ่มใหม่
+   (กดซ้ำเพราะเน็ตค้างจะได้ไม่เปลี่ยนรหัสที่บอกพนักงานไปแล้ว) */
+function decideExamRequest(id, decision, by, note) {
+  if (!id) return { ok: false, error: 'no id' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var d = _reqRead();
+    var taken = {};
+    d.rows.forEach(function (r) { if (r.code) taken[String(r.code)] = 1; });
+    for (var i = 0; i < d.rows.length; i++) {
+      var r = d.rows[i];
+      if (String(r.id) !== String(id)) continue;
+      if (String(r.status) === 'used') return { ok: false, error: 'ทำข้อสอบไปแล้ว' };
+      var st = decision === 'reject' ? 'rejected' : 'approved';
+      var code = st === 'approved' ? (r.code || _newExamCode(taken)) : '';
+      var set = {
+        status: st, code: code,
+        approvedAt: new Date().toISOString(), approvedBy: by || '', note: note || r.note || ''
+      };
+      Object.keys(set).forEach(function (k) {
+        var c = d.headers.indexOf(k);
+        if (c >= 0) d.sh.getRange(r._row, c + 1).setValue(set[k]);
+      });
+      return { ok: true, id: id, status: st, code: code };
+    }
+    return { ok: false, error: 'not found' };
+  } finally { lock.releaseLock(); }
+}
+
+/* ตรวจรหัสก่อนเริ่มสอบ — ต้องเป็นรหัสที่อนุมัติแล้ว ยังไม่ถูกใช้ และตรงชุดข้อสอบ */
+function verifyExamCode(code, examId) {
+  var want = String(code || '').trim().toUpperCase();
+  if (!want) return { ok: false, error: 'no code' };
+  var d = _reqRead();
+  for (var i = 0; i < d.rows.length; i++) {
+    var r = d.rows[i];
+    if (String(r.code || '').trim().toUpperCase() !== want) continue;
+    if (String(r.status) === 'used') return { ok: false, error: 'รหัสนี้ถูกใช้ไปแล้ว' };
+    if (String(r.status) !== 'approved') return { ok: false, error: 'รหัสนี้ยังไม่ได้รับอนุมัติ' };
+    if (examId && String(r.examId) !== String(examId)) return { ok: false, error: 'รหัสนี้ไม่ใช่ของชุดข้อสอบนี้' };
+    return { ok: true, request: { id: r.id, examId: r.examId, name: r.name, empId: r.empId,
+                                  branchName: r.branchName, branchCode: r.branchCode } };
+  }
+  return { ok: false, error: 'ไม่พบรหัสนี้' };
+}
+
+/* ปิดรหัสทันทีที่ส่งข้อสอบ — เรียกจาก saveExamResult ด้วย จึงปิดแน่นอนแม้ผู้ใช้ปิดหน้าจอทิ้ง */
+function useExamCode(code) {
+  var want = String(code || '').trim().toUpperCase();
+  if (!want) return { ok: false, error: 'no code' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var d = _reqRead();
+    for (var i = 0; i < d.rows.length; i++) {
+      var r = d.rows[i];
+      if (String(r.code || '').trim().toUpperCase() !== want) continue;
+      if (String(r.status) === 'used') return { ok: true, already: true };
+      var sc = d.headers.indexOf('status'), uc = d.headers.indexOf('usedAt');
+      if (sc >= 0) d.sh.getRange(r._row, sc + 1).setValue('used');
+      if (uc >= 0) d.sh.getRange(r._row, uc + 1).setValue(new Date().toISOString());
+      return { ok: true };
+    }
+    return { ok: false, error: 'not found' };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteExamRequest(id) {
+  if (!id) return { ok: false, error: 'no id' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var d = _reqRead();
+    for (var i = d.rows.length - 1; i >= 0; i--) {
+      if (String(d.rows[i].id) === String(id)) { d.sh.deleteRow(d.rows[i]._row); return { ok: true }; }
+    }
+    return { ok: false, error: 'not found' };
+  } finally { lock.releaseLock(); }
 }

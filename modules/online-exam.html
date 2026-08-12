@@ -439,6 +439,33 @@ select.txt{appearance:none;-webkit-appearance:none;
 .toast.err{background:#a51c1c}
 .toast.ok{background:#0b7a55}
 
+/* ══════════════ คำขอสอบ + รหัสเข้าสอบ ══════════════ */
+.sec-h{font-weight:800;font-size:15px;letter-spacing:-.01em;margin:26px 0 12px}
+.reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
+.reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
+.rq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.rq-top b{font-size:14.5px;font-weight:800}
+.rq-id{display:block;font-size:11.5px;color:var(--text3);margin-top:1px}
+.rq-ex{font-size:12.5px;color:var(--text2);margin-top:6px;line-height:1.45}
+/* รหัสต้องอ่านผ่านโทรศัพท์แล้วพิมพ์ตามได้ — ตัวใหญ่ เว้นระยะตัวอักษร */
+.reqcode{margin:11px 0 10px;padding:11px;border-radius:11px;text-align:center;
+  background:var(--gold-soft);border:1px dashed var(--gold-line);
+  font-size:24px;font-weight:800;letter-spacing:.22em;color:#b23a10}
+.reqwait,.reqused{margin:11px 0 0;padding:9px;border-radius:10px;text-align:center;
+  font-size:12.5px;font-weight:700;background:var(--bg3);color:var(--text3)}
+.reqcard .btn{width:100%}
+.codepill{display:inline-block;padding:3px 10px;border-radius:8px;background:var(--gold-soft);
+  border:1px solid var(--gold-line);color:#b23a10;font-weight:800;letter-spacing:.14em;font-size:13px}
+.bigcode{display:inline-block;margin-top:6px;font-size:30px;font-weight:800;letter-spacing:.2em;color:var(--gold)}
+/* แท็บคำขอมีจุดแดงเมื่อมีของรออนุมัติ — เห็นได้โดยไม่ต้องกดเข้าไปดู */
+.seg.has-new em{background:var(--red);color:#fff}
+.seg.active.has-new em{background:#fff;color:var(--red)}
+.segmini button em{font-style:normal;margin-left:4px;opacity:.7;font-size:11px}
+.reqinfo{background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:11px 13px;margin-bottom:14px}
+.reqinfo>div{display:flex;justify-content:space-between;gap:12px;font-size:13px;padding:3px 0}
+.reqinfo span{color:var(--text3)}
+.reqinfo b{font-weight:700;text-align:right}
+
 /* ══════════════ หน้าทำข้อสอบ ══════════════ */
 .exam-overlay{position:fixed;inset:0;z-index:1500;background:var(--bg);display:none;overflow-y:auto}
 .exam-overlay.show{display:block}
@@ -791,6 +818,7 @@ label.fld>span>b{font-weight:800}
       </div>
     </header>
     <div id="branchList"><div class="center-load"><span class="loading dark"></span> กำลังโหลดชุดข้อสอบ…</div></div>
+    <div id="branchReqs"></div>
   </div>
 </section>
 
@@ -816,6 +844,10 @@ label.fld>span>b{font-weight:800}
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
         <span>ชุดข้อสอบ</span><em id="cntExams">0</em>
       </button>
+      <button class="seg" id="tabReqs" data-oe-action="exam-approve" onclick="switchTab('reqs')">
+        <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-6.2-8.6"/></svg>
+        <span>คำขอสอบ</span><em id="cntReqs">0</em>
+      </button>
       <button class="seg" id="tabResults" data-oe-action="view-results" onclick="switchTab('results')">
         <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
         <span>ผลสอบ</span><em id="cntResults">0</em>
@@ -836,6 +868,20 @@ label.fld>span>b{font-weight:800}
         </div>
       </div>
       <div id="adminExamList"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></div>
+    </div>
+
+    <!-- ══ แท็บ: คำขอสอบ ══ -->
+    <div id="paneReqs" class="hidden">
+      <div class="toolbar">
+        <div class="segmini" id="reqFilter">
+          <button class="on" data-f="pending" onclick="setReqFilter('pending')">รออนุมัติ</button>
+          <button data-f="approved" onclick="setReqFilter('approved')">อนุมัติแล้ว</button>
+          <button data-f="used" onclick="setReqFilter('used')">สอบแล้ว</button>
+          <button data-f="all" onclick="setReqFilter('all')">ทั้งหมด <em id="cntReqsAll">0</em></button>
+        </div>
+        <button class="btn btn-soft" onclick="loadExamRequests()"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> รีเฟรช</button>
+      </div>
+      <div id="reqList"></div>
     </div>
 
     <!-- ══ แท็บ: ผลสอบ ══ -->
@@ -950,6 +996,7 @@ label.fld>span>b{font-weight:800}
             <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             ความปลอดภัยระหว่างสอบ
           </div>
+          <div class="switch-row"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ระบบสุ่มรหัสให้ ใช้ได้ครั้งเดียว</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
@@ -1152,6 +1199,47 @@ label.fld>span>b{font-weight:800}
   </div>
 </div>
 
+<!-- ═══════════ ขอสิทธิ์สอบ (ฝั่งสาขา) ═══════════ -->
+<div class="modal" id="reqModal">
+  <div class="modal-box" style="max-width:480px">
+    <div class="modal-head">
+      <div class="mh-left">
+        <div class="mh-ic"><svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-6.2-8.6"/></svg></div>
+        <div style="min-width:0"><h3>ขอสิทธิ์สอบ</h3><div class="mh-sub">ผู้ดูแลอนุมัติแล้วรหัสจะขึ้นที่หน้านี้</div></div>
+      </div>
+      <button class="modal-x" onclick="closeReqForm()" title="ปิด">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="reqinfo">
+        <div><span>ชุดข้อสอบ</span><b id="reqFormExam">—</b></div>
+        <div><span>สาขา</span><b id="reqFormBranch">—</b></div>
+      </div>
+      <label class="fld"><span>ชื่อ–สกุลผู้เข้าสอบ <b class="req">*</b></span>
+        <input class="txt" id="reqName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
+      <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน</span>
+        <input class="txt" id="reqEmpId" placeholder="เช่น 100234" autocomplete="off">
+        <em class="fld-hint">ชื่อที่กรอกตรงนี้จะถูกใช้เป็นชื่อในผลสอบ แก้ตอนสอบไม่ได้</em></label>
+      <div id="reqFormMsg" style="margin-top:10px;font-size:12.5px;color:var(--red);min-height:16px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-soft" onclick="closeReqForm()">ยกเลิก</button>
+      <button class="btn btn-primary" id="reqSendBtn" onclick="submitExamRequest()">ส่งคำขอ</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ กล่องข้อความสั้น ═══════════ -->
+<div class="modal" id="infoModal">
+  <div class="modal-box" style="max-width:420px">
+    <div class="modal-head">
+      <h3 id="infoTitle">แจ้งเตือน</h3>
+      <button class="modal-x" onclick="closeExamInfo()" title="ปิด">×</button>
+    </div>
+    <div class="modal-body"><div id="infoBody" style="font-size:14.5px;line-height:1.65"></div></div>
+    <div class="modal-foot"><button class="btn btn-primary" onclick="closeExamInfo()">ตกลง</button></div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <!-- PWA gate: บังคับ "เพิ่มลงหน้าจอโฮม" ก่อนทำข้อสอบ (เฉพาะผู้ทำข้อสอบบนมือถือ-เบราว์เซอร์) -->
@@ -1236,8 +1324,8 @@ function uid(){ return 'exam_'+Date.now().toString(36)+Math.random().toString(36
 function toast(msg, kind){ var t=$('toast'); t.className='toast show'+(kind?' '+kind:''); t.textContent=msg; clearTimeout(t._t); t._t=setTimeout(function(){ t.classList.remove('show'); }, 2600); }
 
 /* ═════════════════════ API ═════════════════════ */
-function apiGet(action){
-  return fetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+'&_t='+Date.now())
+function apiGet(action, qs){
+  return fetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'')+'&_t='+Date.now())
     .then(function(r){ return r.json(); });
 }
 function apiPost(body){
@@ -1400,14 +1488,14 @@ function pickBrand(key){
 
   if(isAdminMode){
     $('adminView').classList.remove('hidden');
-    if(!_dataLoaded){ _dataLoaded=true; loadExams(); loadResults(); }
-    else { renderAdminExams(); fillExamFilter(); renderResults(); }
+    if(!_dataLoaded){ _dataLoaded=true; loadExams(); loadResults(); loadExamRequests(); }
+    else { renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount(); }
   } else {
     $('branchView').classList.remove('hidden');
     var _s = getHubSession();
     var who = currentBranchName || (_s && (_s.name || _s.nick)) || ('รหัส '+branchPin);
     $('branchSub').textContent = who+' · แบรนด์ '+b.name+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
-    if(!_dataLoaded){ _dataLoaded=true; loadBranchExams(); }
+    if(!_dataLoaded){ _dataLoaded=true; loadBranchExams(); loadExamRequests(); }
     else { renderBranchExams(); }
   }
 }
@@ -1469,8 +1557,10 @@ function brandMatch(ex){
 /* ═════════════════════ ADMIN: TABS ═════════════════════ */
 function switchTab(t){
   $('tabExams').classList.toggle('active', t==='exams');
+  $('tabReqs').classList.toggle('active', t==='reqs');
   $('tabResults').classList.toggle('active', t==='results');
   $('paneExams').classList.toggle('hidden', t!=='exams');
+  $('paneReqs').classList.toggle('hidden', t!=='reqs');
   $('paneResults').classList.toggle('hidden', t!=='results');
 }
 
@@ -1609,7 +1699,7 @@ function setExamFilter(f){
   });
   renderAdminExams();
 }
-function refreshAll(){ loadExams(true); loadResults(true); }
+function refreshAll(){ loadExams(true); loadResults(true); loadExamRequests(); }
 function oeClearExamFilter(){
   var q = $('exSearch'); if(q) q.value = '';
   setExamFilter('all');
@@ -1712,6 +1802,7 @@ function openExamEditor(id){
   $('edStart').value = ex ? (ex.startDate||'') : '';
   $('edEnd').value = ex ? (ex.endDate||'') : '';
   $('edBranches').value = ex && ex.visibleBranches ? ex.visibleBranches.join('\n') : '';
+  $('edNeedApprove').checked = ex ? ex.requireApproval!==false : true;
   $('edShufQ').checked = ex ? ex.shuffleQuestions!==false : true;
   $('edShufC').checked = ex ? ex.shuffleChoices!==false : true;
   $('edFs').checked = ex ? ex.requireFullscreen!==false : true;
@@ -2009,6 +2100,7 @@ function collectExamFromForm(){
     startDate: $('edStart').value,
     endDate: $('edEnd').value,
     visibleBranches: branches,
+    requireApproval: $('edNeedApprove').checked,
     shuffleQuestions: $('edShufQ').checked,
     shuffleChoices: $('edShufC').checked,
     requireFullscreen: $('edFs').checked,
@@ -2238,10 +2330,15 @@ function renderBranchExams(){
         '<span class="tag">เกณฑ์ผ่าน ' + esc(ex.passingScorePercent) + '%</span>' +
         (ex.endDate ? '<span class="tag r">ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '') +
       '</div>' +
-      '<button class="btn btn-primary" data-oe-action="take-exam" onclick="startBranchExam(\'' + ex.id + '\')">' +
-        '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>' +
+      /* ชุดที่ต้องขออนุมัติ จะไม่มีปุ่มเข้าสอบตรง ๆ — ต้องขอสิทธิ์แล้วรอรหัสก่อน */
+      (examNeedsApproval(ex)
+        ? '<button class="btn btn-primary" data-oe-action="request-exam" onclick="openReqForm(\'' + ex.id + '\')">' +
+          '<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> ขอสิทธิ์สอบ</button>'
+        : '<button class="btn btn-primary" data-oe-action="take-exam" onclick="startBranchExam(\'' + ex.id + '\')">' +
+          '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>') +
     '</article>';
   }).join('') + '</div>';
+  renderBranchReqs();
   oeApplyPerms();   // ปุ่มทำข้อสอบวาดใหม่ทุกครั้ง — ต้องบังคับสิทธิ์ซ้ำ
 }
 function startBranchExam(id){
@@ -2259,10 +2356,11 @@ function pad(n){ return String(n).padStart(2,'0'); }
 function fmtClock(sec){ return pad(Math.floor(sec/60))+':'+pad(sec%60); }
 function exShow(scr){ document.querySelectorAll('.exam-scr').forEach(function(s){ s.classList.remove('active'); }); $(scr).classList.add('active'); }
 
-function openExamRunner(exam, isPreview){
+function openExamRunner(exam, isPreview, ticket){
   R = {
     exam: exam, isPreview: !!isPreview,
-    student:{name:'',id:'',branch:currentBranchName||''},
+    accessCode: (ticket && ticket.code) || '',
+    student:{name:(ticket&&ticket.name)||'',id:(ticket&&ticket.empId)||'',branch:currentBranchName||''},
     questions:[], answers:{}, current:0,
     timeLeft:0, timerId:null,
     violations:0, violationLog:[],
@@ -2288,8 +2386,12 @@ function openExamRunner(exam, isPreview){
   if(isPreview) rules.push(['👁️','<b>โหมดทดลอง (Admin)</b> — ผลจะไม่ถูกบันทึกลงระบบ',false]);
   $('exRules').innerHTML = rules.map(function(r){ return '<div class="rule '+(r[2]?'warn':'')+'"><div class="ic">'+r[0]+'</div><div>'+r[1]+'</div></div>'; }).join('');
 
-  $('inName').value = isPreview ? '(ทดลอง) Admin' : '';
-  $('inId').value = '';
+  /* มาจากคำขอที่อนุมัติแล้ว = รู้ชื่อกับรหัสพนักงานอยู่แล้ว เติมให้เลย ไม่ต้องพิมพ์ซ้ำ
+     และล็อกไว้ ผลสอบจะได้ตรงกับคนที่ขออนุมัติจริง ๆ */
+  $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
+  $('inId').value = R.student.id || '';
+  $('inName').readOnly = !!R.accessCode;
+  $('inId').readOnly = !!R.accessCode;
   $('inBranch').value = currentBranchName || (isPreview?'—':'');
   exShow('ex-start');
   $('examOverlay').classList.add('show');
@@ -2543,15 +2645,212 @@ function submitResultToBackend(){
       pct:R.result.pct, correct:R.result.correct, total:R.result.total,
       result: R.result.pass?'ผ่าน':'ไม่ผ่าน', pass:R.result.pass,
       violations:R.violations, finishReason:R.finishReason,
+      accessCode: R.accessCode || '',
       startedAt: R.startedAt? R.startedAt.toISOString():'', submittedAt:new Date().toISOString(),
       answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })
     }
   };
   apiPost(payload).then(function(res){
-    if(res && res.ok) st.innerHTML='<span style="color:var(--green)">✓ บันทึกผลเรียบร้อยแล้ว</span>';
+    if(res && res.ok){
+      st.innerHTML='<span style="color:var(--green)">✓ บันทึกผลเรียบร้อยแล้ว</span>';
+      /* หลังบ้านปิดรหัสให้ตอนบันทึกผลอยู่แล้ว — ยิงซ้ำอีกทางกันกรณีคอลัมน์รหัสหาย
+         และรีเฟรชรายการของสาขาให้เห็นว่าปิดแล้วทันที */
+      if(R && R.accessCode) apiPost({ type:'use-exam-code', code:R.accessCode }).catch(function(){});
+      if(!isAdminMode) loadExamRequests();
+    }
     else st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ: '+((res&&res.error)||'')+'</span>';
   }).catch(function(e){ st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ (เชื่อมต่อไม่ได้) — แจ้งผู้ดูแล</span>'; });
 }
+
+/* ════════════════════════════════════════════════════════════════
+   คำขอสอบ + รหัสเข้าสอบ
+   พนักงานขอสิทธิ์ → แอดมินอนุมัติ → ระบบสุ่มรหัส → ใช้รหัสเข้าสอบ
+   → ส่งข้อสอบเสร็จ รหัสถูกปิดทันที ใช้ซ้ำไม่ได้
+
+   รหัสเป็นตัวคุมลำดับงาน ไม่ใช่กำแพงกันคนตั้งใจโกง — หลังบ้านเป็นเว็บแอปเปิด
+   เหมือนส่วนอื่นของระบบ · สิ่งที่กันได้จริงคือ "สอบโดยไม่มีใครอนุมัติ" กับ "สอบซ้ำ"
+   ════════════════════════════════════════════════════════════════ */
+var EXAM_REQS = [];              // คำขอสอบทั้งหมดที่ดึงมาได้
+var _reqFilter = 'pending';      // ตัวกรองสถานะฝั่งแอดมิน
+var _reqExam = null;             // ชุดข้อสอบที่กำลังขอสิทธิ์
+
+var REQ_STATUS = {
+  pending:  { t: 'รออนุมัติ',   c: 'warn' },
+  approved: { t: 'อนุมัติแล้ว', c: 'ok'   },
+  used:     { t: 'สอบแล้ว',     c: 'na'   },
+  rejected: { t: 'ไม่อนุมัติ',  c: 'bad'  },
+};
+function _reqSt(s){ return REQ_STATUS[s] || REQ_STATUS.pending; }
+
+/* ชุดข้อสอบที่ไม่ได้ตั้งค่าไว้ = ต้องขออนุมัติ (ของเดิมทุกชุดจึงเข้าเงื่อนไขนี้อัตโนมัติ) */
+function examNeedsApproval(ex){ return !ex || ex.requireApproval !== false; }
+
+function loadExamRequests(){
+  var q = isAdminMode ? 'scope=all'
+        : 'branch=' + encodeURIComponent(currentBranchName || '');
+  return apiGet('exam-requests', q).then(function(res){
+    EXAM_REQS = (res && res.ok && res.requests) ? res.requests : [];
+    if(isAdminMode){ renderExamRequests(); paintReqCount(); }
+    else renderBranchExams();
+  }).catch(function(){
+    if(isAdminMode) $('reqList').innerHTML = _oeEmpty('📡', 'โหลดคำขอสอบไม่สำเร็จ',
+      'เชื่อมต่อระบบหลังบ้านไม่ได้ ลองกดรีเฟรชอีกครั้ง',
+      '<button class="btn btn-soft" onclick="loadExamRequests()">ลองใหม่</button>');
+  });
+}
+function paintReqCount(){
+  var n = EXAM_REQS.filter(function(r){ return r.status === 'pending' && brandMatch(r); }).length;
+  var el = $('cntReqs'); if(el) el.textContent = n;
+  var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
+}
+
+/* ── ฝั่งสาขา: ขอสิทธิ์สอบ ── */
+function openReqForm(examId){
+  var ex = EXAMS.find(function(x){ return x.id === examId; });
+  if(!ex) return;
+  _reqExam = ex;
+  $('reqFormExam').textContent = ex.title;
+  $('reqFormBranch').textContent = currentBranchName || '—';
+  $('reqName').value = '';
+  $('reqEmpId').value = '';
+  $('reqFormMsg').textContent = '';
+  $('reqModal').classList.add('show');
+  setTimeout(function(){ $('reqName').focus(); }, 60);
+}
+function closeReqForm(){ $('reqModal').classList.remove('show'); }
+function submitExamRequest(){
+  var name = $('reqName').value.trim();
+  if(!name){ $('reqFormMsg').textContent = 'กรุณากรอกชื่อ–สกุล'; $('reqName').focus(); return; }
+  if(!_reqExam) return;
+  var btn = $('reqSendBtn'), old = btn.innerHTML;
+  btn.innerHTML = '<span class="loading"></span> กำลังส่ง…'; btn.disabled = true;
+  apiPost({ type: 'request-exam', req: {
+    examId: _reqExam.id, examTitle: _reqExam.title, brand: _reqExam.brand || '',
+    branchCode: branchPin || '', branchName: currentBranchName || '',
+    name: name, empId: $('reqEmpId').value.trim(),
+  }}).then(function(res){
+    if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
+    closeReqForm();
+    showExamInfo(res.duplicate ? 'ส่งคำขอไปแล้ว' : 'ส่งคำขอแล้ว',
+      res.duplicate
+        ? 'คำขอของ <b>' + esc(name) + '</b> อยู่ในระบบอยู่แล้ว' + (res.code ? ' · รหัสเข้าสอบ <b>' + esc(res.code) + '</b>' : ' รออนุมัติอยู่')
+        : 'รอผู้ดูแลอนุมัติ แล้วรหัสเข้าสอบจะขึ้นที่หน้านี้');
+    loadExamRequests();
+  }).catch(function(e){
+    $('reqFormMsg').textContent = e.message || 'ส่งคำขอไม่สำเร็จ';
+  }).finally(function(){ btn.innerHTML = old; btn.disabled = false; });
+}
+
+/* รายการคำขอของสาขาตัวเอง — ที่ที่รหัสเข้าสอบจะมาโผล่ */
+function renderBranchReqs(){
+  var host = $('branchReqs'); if(!host) return;
+  var mine = EXAM_REQS.filter(function(r){ return brandMatch(r) && r.status !== 'rejected'; })
+    .sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+  if(!mine.length){ host.innerHTML = ''; return; }
+  host.innerHTML = '<div class="sec-h">รหัสเข้าสอบของสาขา</div>'
+    + '<div class="reqcards">' + mine.map(function(r){
+      var st = _reqSt(r.status);
+      var act = r.status === 'approved'
+        ? '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
+          + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>'
+        : '';
+      var code = r.status === 'approved'
+        ? '<div class="reqcode">' + esc(r.code || '—') + '</div>'
+        : (r.status === 'used' ? '<div class="reqused">ทำเสร็จแล้ว</div>' : '<div class="reqwait">รอผู้ดูแลอนุมัติ</div>');
+      return '<article class="reqcard">'
+        + '<div class="rq-top"><div><b>' + esc(r.name) + '</b>'
+        + (r.empId ? '<span class="rq-id">' + esc(r.empId) + '</span>' : '') + '</div>'
+        + '<span class="st ' + st.c + '">' + st.t + '</span></div>'
+        + '<div class="rq-ex">' + esc(r.examTitle) + '</div>'
+        + code + act + '</article>';
+    }).join('') + '</div>';
+  oeApplyPerms();
+}
+
+/* เริ่มสอบจากคำขอที่อนุมัติแล้ว — ตรวจรหัสกับหลังบ้านอีกรอบก่อนเปิดข้อสอบ
+   กันกรณีหน้าจอค้างข้อมูลเก่าไว้ แล้วรหัสถูกใช้ไปแล้วจากอีกเครื่อง */
+function startWithCode(reqId){
+  var r = EXAM_REQS.find(function(x){ return x.id === reqId; });
+  if(!r) return;
+  var ex = EXAMS.find(function(x){ return x.id === r.examId; });
+  if(!ex){ showExamInfo('ไม่พบชุดข้อสอบ', 'ชุดข้อสอบนี้อาจถูกลบหรือปิดไปแล้ว'); return; }
+  apiPost({ type: 'verify-exam-code', code: r.code, examId: r.examId }).then(function(res){
+    if(!res || !res.ok) throw new Error((res && res.error) || 'ใช้รหัสนี้ไม่ได้');
+    openExamRunner(ex, false, { code: r.code, name: r.name, empId: r.empId });
+  }).catch(function(e){
+    showExamInfo('เริ่มสอบไม่ได้', esc(e.message || 'ใช้รหัสนี้ไม่ได้'));
+    loadExamRequests();
+  });
+}
+
+/* ── ฝั่งแอดมิน: อนุมัติ ── */
+function setReqFilter(f){
+  _reqFilter = f;
+  var box = $('reqFilter');
+  if(box) box.querySelectorAll('button').forEach(function(b){
+    b.classList.toggle('on', b.getAttribute('data-f') === f);
+  });
+  renderExamRequests();
+}
+function renderExamRequests(){
+  var host = $('reqList'); if(!host) return;
+  var all = EXAM_REQS.filter(brandMatch);
+  var list = all.filter(function(r){ return _reqFilter === 'all' || r.status === _reqFilter; })
+    .sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+  var cnt = $('cntReqsAll'); if(cnt) cnt.textContent = all.length;
+
+  if(!list.length){
+    host.innerHTML = all.length
+      ? _oeEmpty('🔍', 'ไม่มีคำขอในสถานะนี้', 'ลองเลือกสถานะอื่นด้านบน',
+          '<button class="btn btn-soft" onclick="setReqFilter(\'all\')">ดูทั้งหมด</button>')
+      : _oeEmpty('📨', 'ยังไม่มีคำขอสอบ',
+          'เมื่อสาขากด “ขอสิทธิ์สอบ” ที่ชุดข้อสอบ คำขอจะมาโผล่ที่นี่ให้อนุมัติ');
+    return;
+  }
+  host.innerHTML = '<div class="table-wrap"><div class="tbl-scroll"><table><thead><tr>'
+    + '<th>วันที่ขอ</th><th>ผู้ขอสอบ</th><th>สาขา</th><th>ชุดข้อสอบ</th>'
+    + '<th class="c">สถานะ</th><th class="c">รหัสเข้าสอบ</th><th>จัดการ</th>'
+    + '</tr></thead><tbody>' + list.map(_reqRow).join('') + '</tbody></table></div></div>';
+  oeApplyPerms();
+}
+function _reqRow(r){
+  var st = _reqSt(r.status);
+  var act = r.status === 'pending'
+    ? '<button class="btn btn-primary btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'approve\')">อนุมัติ</button>'
+      + ' <button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'reject\')">ไม่อนุมัติ</button>'
+    : (r.status === 'rejected'
+        ? '<button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'approve\')">อนุมัติภายหลัง</button>'
+        : '<span style="color:var(--text3);font-size:12px">—</span>');
+  return '<tr>'
+    + '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.createdAt)) + '</td>'
+    + '<td><div class="who-n">' + esc(r.name) + '</div>'
+    + (r.empId ? '<div class="who-s">' + esc(r.empId) + '</div>' : '') + '</td>'
+    + '<td>' + esc(r.branchName || '—') + '</td>'
+    + '<td>' + esc(r.examTitle) + '</td>'
+    + '<td class="c"><span class="st ' + st.c + '">' + st.t + '</span></td>'
+    + '<td class="c">' + (r.code ? '<code class="codepill">' + esc(r.code) + '</code>' : '—') + '</td>'
+    + '<td>' + act + '</td></tr>';
+}
+function decideReq(id, decision){
+  var who = (typeof FH_USER !== 'undefined' && FH_USER) ? (FH_USER.name || FH_USER.nick) : '';
+  if(!who){ var s = getHubSession() || {}; who = s.name || s.nick || s.code || 'admin'; }
+  apiPost({ type: 'decide-exam-request', id: id, decision: decision, by: who }).then(function(res){
+    if(!res || !res.ok) throw new Error((res && res.error) || 'ทำรายการไม่สำเร็จ');
+    if(decision === 'approve'){
+      showExamInfo('อนุมัติแล้ว', 'รหัสเข้าสอบคือ <b class="bigcode">' + esc(res.code) + '</b>'
+        + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">รหัสนี้ขึ้นที่หน้าสาขาให้เองแล้ว ใช้ได้ครั้งเดียว</div>');
+    }
+    loadExamRequests();
+  }).catch(function(e){ showExamInfo('ทำรายการไม่สำเร็จ', esc(e.message || '')); });
+}
+
+/* กล่องข้อความสั้น ๆ ใช้ร่วมกันทั้งสองฝั่ง (หน้านี้ไม่มี showInfo แบบระบบอื่น) */
+function showExamInfo(title, html){
+  $('infoTitle').textContent = title;
+  $('infoBody').innerHTML = html;
+  $('infoModal').classList.add('show');
+}
+function closeExamInfo(){ $('infoModal').classList.remove('show'); }
 </script>
 </body>
 </html>
