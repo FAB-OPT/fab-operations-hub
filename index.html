@@ -2161,6 +2161,8 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
     <div class="adm-modal-body">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
         <div style="font-size:12px;color:var(--text2);">จำนวนแบรนด์: <span id="brandRegCount" style="color:var(--gold);font-weight:700;">0</span></div>
+        <button class="adm-btn-secondary" onclick="compactBrandLogos()" style="padding:8px 12px;font-size:12.5px;"
+                title="ย่อโลโก้ทุกแบรนด์ให้แบ่งพื้นที่กันพอดี">ลดขนาดโลโก้ทั้งหมด</button>
         <button class="adm-btn-primary" onclick="openBrandEdit(null)" style="padding:8px 14px;font-size:13px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มแบรนด์ใหม่</button>
       </div>
       <div id="brandRegList" style="display:flex;flex-direction:column;gap:10px;"></div>
@@ -6450,7 +6452,7 @@ function openBrandEdit(key){
   _brandColorPreview();
   document.getElementById('brandRegLogoFile').value = '';
   _brandLogoCleared = false;
-  _brandLogoShow((b && b.logo) || '');
+  _brandLogoShow((b && b.logo) || '', _brandLogoBudget(b ? b.key : null));
   document.getElementById('brandRegForm').style.display='';
   document.getElementById('brandRegSaveBtn').style.display='';
 }
@@ -6504,7 +6506,23 @@ function _brandColorPreview(){
    - รูปถ่าย → JPEG เล็กกว่า PNG หลายเท่า
    - ถ้ารูปมีพื้นโปร่ง ต้องคง PNG ไว้ ไม่งั้นพื้นจะกลายเป็นดำ/ขาวทับ
    ถ้ายังใหญ่เกินเพดานก็ย่อลงอีกจนพอ ดีกว่าปล่อยให้ซิงค์ล้มทีหลัง */
-var BRAND_LOGO_MAX_CHARS = 40000;
+var BRAND_LOGO_MAX_CHARS = 40000;      // เพดานสูงสุดต่อรูป (กรณีมีแบรนด์เดียว)
+/* โควตาจริงคือ "ที่เหลือ" หลังหักของแบรนด์อื่นไปแล้ว ไม่ใช่ตัวเลขตายตัวต่อรูป
+   ของเดิมตั้งเพดานต่อรูปไว้ 40 KB ซึ่งรูปเดียวก็กินโควตารวมเกือบหมด
+   พอเพิ่มแบรนด์ที่สองเลยชนเพดานรวมแล้วปฏิเสธ ทั้งที่ควรย่อให้พอดีกับที่เหลือ */
+function _brandsSizeWithout(key, dropAllLogos){
+  try{
+    return JSON.stringify(BRAND_REGISTRY.map(function(b){
+      if(!dropAllLogos && b.key !== key) return b;
+      var o = {}; Object.keys(b).forEach(function(k){ if(k !== 'logo') o[k] = b[k]; });
+      return o;
+    })).length;
+  }catch(e){ return 0; }
+}
+function _brandLogoBudget(key){
+  /* เผื่อ 900 ตัวอักษรไว้ให้ JSON escape กับช่องอื่นที่อาจยาวขึ้นทีหลัง */
+  return Math.max(3000, Math.min(BRAND_LOGO_MAX_CHARS, BRANDS_CLOUD_LIMIT - _brandsSizeWithout(key) - 900));
+}
 function _brandLogoHasAlpha(ctx, w, h){
   try{
     var d = ctx.getImageData(0, 0, w, h).data;
@@ -6529,23 +6547,28 @@ function _brandLogoEncode(img, max){
   var jpg = c2.toDataURL('image/jpeg', 0.88);
   return (jpg.length < png.length) ? jpg : png;
 }
-function _brandLogoShrink(img){
-  var sizes = [360, 280, 220, 170], out = '';
+function _brandLogoShrink(img, budget){
+  var cap = Math.min(budget || BRAND_LOGO_MAX_CHARS, BRAND_LOGO_MAX_CHARS);
+  /* ไล่ย่อลงจนพอดีโควตา · 110 px ยังใหญ่กว่าที่การ์ดแบรนด์ใช้แสดงจริงบนมือถือ */
+  var sizes = [320, 260, 210, 170, 140, 110], out = '';
   for(var i = 0; i < sizes.length; i++){
     out = _brandLogoEncode(img, sizes[i]);
-    if(out.length <= BRAND_LOGO_MAX_CHARS) return out;
+    if(out.length <= cap) return out;
   }
-  return out;   // เล็กสุดแล้วยังใหญ่อยู่ — ส่งกลับไปให้ตอนบันทึกเตือนเอง
+  return out;   // เล็กสุดแล้วยังไม่พอ — ส่งกลับไปให้ตอนแสดงผลเตือนเอง
 }
-function _brandLogoShow(data){
+function _brandLogoShow(data, budget){
   var box = document.getElementById('brandRegLogoPreview'); if(!box) return;
   if(!data){
     box.innerHTML = '<span style="font-size:11.5px;color:var(--text3);">ยังไม่มีโลโก้ — หน้าเลือกแบรนด์จะใช้อักษรย่อแทน</span>';
     return;
   }
+  var cap = budget || BRAND_LOGO_MAX_CHARS;
   var kb = Math.round(data.length / 1024);
-  var warn = data.length > BRAND_LOGO_MAX_CHARS
-    ? '<span style="font-size:11.5px;color:var(--red);">ใหญ่เกินไป ลองใช้ไฟล์ที่ตัดขอบขาวออกแล้ว</span>' : '';
+  var warn = data.length > cap
+    ? '<span style="font-size:11.5px;color:var(--red);">เกินพื้นที่ที่เหลือ (' + Math.round(cap / 1024) + ' KB) — '
+      + 'กด “ลดขนาดโลโก้ทั้งหมด” ด้านบนเพื่อคืนพื้นที่</span>'
+    : '<span style="font-size:11.5px;color:var(--text3);">· พื้นที่ที่เหลือ ' + Math.round(cap / 1024) + ' KB</span>';
   box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
     + '<img src="' + data + '" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">'
     + '<span style="font-size:11.5px;color:var(--text3);">ย่อแล้ว ' + kb + ' KB</span>' + warn
@@ -6564,9 +6587,10 @@ function onBrandLogoPick(ev){
   rd.onload = function(){
     var img = new Image();
     img.onload = function(){
-      _brandLogoData = _brandLogoShrink(img);
+      var budget = _brandLogoBudget(_editingBrandKey);
+      _brandLogoData = _brandLogoShrink(img, budget);
       _brandLogoCleared = false;
-      _brandLogoShow(_brandLogoData);
+      _brandLogoShow(_brandLogoData, budget);
     };
     img.onerror = function(){ _brandLogoShow(''); showInfo('เปิดรูปไม่ได้','ไฟล์นี้อ่านเป็นรูปไม่ได้ — ลองไฟล์ .png หรือ .jpg'); };
     img.src = rd.result;
@@ -6583,11 +6607,7 @@ function saveBrandEdit(){
   if(!_editingBrandKey && brandByKey(key)){ showInfo('⚠️ รหัสซ้ำ','key <b>'+escapeHtml(key)+'</b> ถูกใช้แล้ว'); return; }
   var existing = _editingBrandKey ? brandByKey(_editingBrandKey) : null;
   var logo = _brandLogoCleared ? '' : (_brandLogoData || (existing && existing.logo) || '');
-  if(logo && logo.length > BRAND_LOGO_MAX_CHARS){
-    showInfo('รูปใหญ่เกินไป','โลโก้หลังย่อยังใหญ่ '+Math.round(logo.length/1024)+' KB<br>'
-      + '<span style="font-size:12px;color:var(--text2)">ลองใช้ไฟล์ที่ตัดขอบขาวรอบ ๆ ออกแล้ว หรือไฟล์ที่เป็นตัวอักษร/ลายเส้น ไม่ใช่ภาพถ่าย</span>');
-    return;
-  }
+
   var color = (document.getElementById('brandRegColor').value || '').trim();
   var obj = { key: (existing? existing.key : key), name: name, prefixes: prefixes };
   if(color) obj.color = color;
@@ -6600,9 +6620,10 @@ function saveBrandEdit(){
   var size = brandsPayloadSize();
   if(size > BRANDS_CLOUD_LIMIT){
     BRAND_REGISTRY = backup;
-    showInfo('ทะเบียนแบรนด์ใหญ่เกินไป','รวมโลโก้ทุกแบรนด์แล้ว '+Math.round(size/1024)+' KB '
+    showInfo('พื้นที่เก็บโลโก้ไม่พอ','รวมโลโก้ทุกแบรนด์แล้ว '+Math.round(size/1024)+' KB '
       + 'ซึ่งเกินที่ระบบเก็บได้ ('+Math.round(BRANDS_CLOUD_LIMIT/1024)+' KB)<br>'
-      + '<span style="font-size:12px;color:var(--text2)">ลองลบโลโก้ของแบรนด์ที่ไม่ได้ใช้ออก หรือใช้ไฟล์โลโก้ที่เล็กกว่านี้</span>');
+      + '<span style="font-size:12px;color:var(--text2)">กดปุ่ม <b>ลดขนาดโลโก้ทั้งหมด</b> ด้านบนของหน้าต่างนี้ '
+      + 'ระบบจะย่อโลโก้ทุกแบรนด์ให้แบ่งพื้นที่กันพอดี แล้วค่อยบันทึกอีกครั้ง</span>');
     return;
   }
   var okLocal = saveBrandsLocal();
@@ -6615,6 +6636,48 @@ function saveBrandEdit(){
   saveBrandsToCloud().then(function(){ _brandRegSyncMsg('✓ บันทึกและซิงค์ Cloud สำเร็จ ('+Math.round(size/1024)+' KB)','var(--green)'); })
     .catch(function(err){ _brandRegSyncMsg('⚠ บันทึกในเครื่องแล้ว · Cloud: '+err.message,'var(--text3)'); });
 }
+/* ย่อโลโก้ของทุกแบรนด์ให้แบ่งโควตากันคนละเท่า ๆ กัน
+   ใช้ตอนที่โลโก้ที่อัปไว้ก่อนหน้าใหญ่จนเพิ่มแบรนด์ใหม่ไม่ได้ — กดปุ่มเดียวจบ
+   ไม่ต้องมานั่งลบโลโก้เก่าทีละอันแล้วอัปใหม่ */
+function compactBrandLogos(){
+  var withLogo = BRAND_REGISTRY.filter(function(b){ return b.logo; });
+  if(!withLogo.length){
+    showInfo('ยังไม่มีโลโก้','ยังไม่มีแบรนด์ไหนมีโลโก้ให้ลดขนาด');
+    return;
+  }
+  var before = brandsPayloadSize();
+  var base = _brandsSizeWithout(null, true);
+  var share = Math.max(3000, Math.floor((BRANDS_CLOUD_LIMIT - base - 900) / withLogo.length));
+  _brandRegSyncMsg('กำลังย่อโลโก้ ' + withLogo.length + ' แบรนด์…','var(--text2)');
+  var chain = Promise.resolve();
+  withLogo.forEach(function(b){
+    chain = chain.then(function(){
+      return new Promise(function(done){
+        var img = new Image();
+        img.onload = function(){
+          var out = _brandLogoShrink(img, share);
+          if(out && out.length < b.logo.length) b.logo = out;   // ใหญ่ขึ้นก็ไม่เอา
+          done();
+        };
+        img.onerror = function(){ done(); };   // รูปเสีย ข้ามไป ไม่ล้มทั้งชุด
+        img.src = b.logo;
+      });
+    });
+  });
+  chain.then(function(){
+    var after = brandsPayloadSize();
+    var okLocal = saveBrandsLocal();
+    renderBrandRegList();
+    if(_editingBrandKey){ var cur = brandByKey(_editingBrandKey); _brandLogoShow((cur && cur.logo) || '', _brandLogoBudget(_editingBrandKey)); }
+    showInfo('ลดขนาดโลโก้แล้ว','จาก <b>'+Math.round(before/1024)+' KB</b> เหลือ <b>'+Math.round(after/1024)+' KB</b>'
+      + '<br><span style="font-size:12px;color:var(--text2)">พื้นที่ที่เก็บได้ '+Math.round(BRANDS_CLOUD_LIMIT/1024)+' KB'
+      + (okLocal ? '' : ' · แต่บันทึกลงเครื่องไม่สำเร็จ (พื้นที่เต็ม)') + '</span>');
+    _brandRegSyncMsg('กำลังซิงค์ Cloud...','var(--text2)');
+    return saveBrandsToCloud();
+  }).then(function(){ _brandRegSyncMsg('✓ ย่อและซิงค์สำเร็จ','var(--green)'); })
+    .catch(function(err){ _brandRegSyncMsg('⚠ ย่อแล้ว · Cloud: '+(err && err.message || err),'var(--text3)'); });
+}
+
 function deleteBrand(key){
   var b = brandByKey(key); if(!b) return;
   customConfirm({ icon:'🗑', title:'ลบแบรนด์นี้?', desc:'จะลบ <b>'+escapeHtml(b.name)+'</b> ออกจากทะเบียน · ผู้ใช้ที่ผูกแบรนด์นี้อาจต้องตั้งใหม่', okText:'ลบเลย' })
