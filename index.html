@@ -6559,7 +6559,7 @@ function _brandLogoEncode(img, max, budget){
   try{ src = g.getImageData(0, 0, cw, ch); alpha = _brandLogoHasAlpha(g, cw, ch); }
   catch(e){ src = null; alpha = true; }   // อ่านพิกเซลไม่ได้ = เล่นปลอดภัย คง PNG
   if(src && g.createImageData && g.putImageData){
-    [10, 20, 36, 56].forEach(function(step){
+    [14, 30, 52].forEach(function(step){
       var id = g.createImageData(cw, ch);
       _brandLogoQuantize(src.data, id.data, step);
       g.putImageData(id, 0, 0);
@@ -6583,10 +6583,10 @@ function _brandLogoEncode(img, max, budget){
 }
 function _brandLogoShrink(img, budget){
   var cap = Math.min(budget || BRAND_LOGO_MAX_CHARS, BRAND_LOGO_MAX_CHARS);
-  /* เอาขนาดใหญ่ที่สุดที่ยังพอดีโควตา — การ์ดแบรนด์แสดงราว 200 px
-     บนจอความละเอียดสูงจึงอยากได้อย่างน้อย 400 px ถึงจะคม
-     พอลดจำนวนสีได้แล้ว ขนาดใหญ่ขนาดนี้มักพอดีงบ ไม่ต้องยอมใช้ภาพเบลอ */
-  var sizes = [440, 380, 320, 260, 210, 170, 130], out = '';
+  /* ไล่จากใหญ่ลงมา แล้วหยุดที่อันแรกที่พอดีงบ = ย่อเท่าที่จำเป็นเท่านั้น
+     ถ้างบเหลือก็ได้ภาพใหญ่ไปเลย ไม่ย่อทิ้งทั้งที่ยังมีที่ว่าง
+     (รูปเล็กกว่าขั้นบันไดอยู่แล้วจะไม่ถูกขยาย — _brandLogoEncode จำกัด scale ไว้ที่ 1) */
+  var sizes = [1000, 840, 700, 580, 490, 440, 380, 320, 260, 210, 170, 130], out = '';
   for(var i = 0; i < sizes.length; i++){
     out = _brandLogoEncode(img, sizes[i], cap);
     if(out.length <= cap) return out;
@@ -6606,9 +6606,18 @@ function _brandLogoShow(data, budget){
       + 'กด “ลดขนาดโลโก้ทั้งหมด” ด้านบนเพื่อคืนพื้นที่</span>'
     : '<span style="font-size:11.5px;color:var(--text3);">· พื้นที่ที่เหลือ ' + Math.round(cap / 1024) + ' KB</span>';
   box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
-    + '<img src="' + data + '" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">'
-    + '<span style="font-size:11.5px;color:var(--text3);">ย่อแล้ว ' + kb + ' KB</span>' + warn
+    + '<img src="' + data + '" id="brandRegLogoImg" onload="_brandLogoPx(this)"'
+    + ' style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">'
+    + '<span style="font-size:11.5px;color:var(--text3);">' + kb + ' KB<span id="brandRegLogoPx"></span></span>' + warn
     + '<button type="button" class="adm-btn-secondary" style="padding:5px 11px;font-size:11.5px;" onclick="clearBrandLogo()">ลบโลโก้</button></div>';
+}
+/* เติมความกว้างจริงของรูปหลังภาพโหลดเสร็จ (อ่านตอนสร้าง HTML ยังไม่รู้) */
+function _brandLogoPx(el){
+  var box = document.getElementById('brandRegLogoPx');
+  if(!box || !el) return;
+  var w = el.naturalWidth || 0;
+  if(!w) return;
+  box.textContent = ' · กว้าง ' + w + ' px' + (w >= 400 ? ' (คมพอ)' : ' (อาจดูไม่คมบนจอละเอียดสูง)');
 }
 function clearBrandLogo(){
   _brandLogoData = ''; _brandLogoCleared = true;
@@ -6618,7 +6627,7 @@ function clearBrandLogo(){
 function onBrandLogoPick(ev){
   var f = ev.target.files && ev.target.files[0]; if(!f) return;
   var box = document.getElementById('brandRegLogoPreview');
-  if(box) box.innerHTML = '<span style="font-size:11.5px;color:var(--text2);">กำลังย่อรูป…</span>';
+  if(box) box.innerHTML = '<span style="font-size:11.5px;color:var(--text2);">กำลังหาขนาดที่ใหญ่ที่สุดที่เก็บได้…</span>';
   var rd = new FileReader();
   rd.onload = function(){
     var img = new Image();
