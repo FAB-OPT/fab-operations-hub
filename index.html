@@ -6530,7 +6530,22 @@ function _brandLogoHasAlpha(ctx, w, h){
   }catch(e){ return true; }   // อ่านพิกเซลไม่ได้ = เล่นปลอดภัยไว้ก่อน คง PNG
   return false;
 }
-function _brandLogoEncode(img, max){
+/* ลดจำนวนสีแบบหยาบ ๆ — ปัดค่าแต่ละช่องสีให้ลงล็อกทีละ step
+   โลโก้เป็นภาพสีแบนไม่กี่สี พอสีซ้ำกันเยอะ PNG จะบีบได้ดีขึ้นมาก
+   (ภาพจาก AI หรือภาพที่ผ่าน JPEG มา จะมี noise จาง ๆ ทำให้ทุกจุดสีต่างกันนิดเดียว
+    PNG เลยบีบไม่ลง ทั้งที่ตาเปล่ามองว่าเป็นสีเดียวกัน) */
+function _brandLogoQuantize(src, dst, step){
+  var half = step >> 1;
+  for(var i = 0; i < src.length; i += 4){
+    dst[i]     = Math.min(255, Math.floor((src[i]     + half) / step) * step);
+    dst[i + 1] = Math.min(255, Math.floor((src[i + 1] + half) / step) * step);
+    dst[i + 2] = Math.min(255, Math.floor((src[i + 2] + half) / step) * step);
+    dst[i + 3] = src[i + 3];
+  }
+}
+/* ทำหลายทางเลือกแล้วเอาอันที่ "คุณภาพดีที่สุดเท่าที่ยังพอดีงบ"
+   เรียงจากดีสุดไปเล็กสุด: PNG สีครบ → PNG ลดสีทีละขั้น → JPEG (เฉพาะภาพทึบ) */
+function _brandLogoEncode(img, max, budget){
   var w = img.naturalWidth || img.width || 1, h = img.naturalHeight || img.height || 1;
   var sc = Math.min(1, max / Math.max(w, h));
   var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
@@ -6538,21 +6553,42 @@ function _brandLogoEncode(img, max){
   var g = c.getContext('2d');
   try{ g.imageSmoothingQuality = 'high'; }catch(e){}
   g.drawImage(img, 0, 0, cw, ch);
-  var png = c.toDataURL('image/png');
-  if(_brandLogoHasAlpha(g, cw, ch)) return png;
-  var c2 = document.createElement('canvas'); c2.width = cw; c2.height = ch;
-  var g2 = c2.getContext('2d');
-  g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, cw, ch);
-  g2.drawImage(c, 0, 0);
-  var jpg = c2.toDataURL('image/jpeg', 0.88);
-  return (jpg.length < png.length) ? jpg : png;
+
+  var cands = [c.toDataURL('image/png')];
+  var src = null, alpha = true;
+  try{ src = g.getImageData(0, 0, cw, ch); alpha = _brandLogoHasAlpha(g, cw, ch); }
+  catch(e){ src = null; alpha = true; }   // อ่านพิกเซลไม่ได้ = เล่นปลอดภัย คง PNG
+  if(src && g.createImageData && g.putImageData){
+    [10, 20, 36, 56].forEach(function(step){
+      var id = g.createImageData(cw, ch);
+      _brandLogoQuantize(src.data, id.data, step);
+      g.putImageData(id, 0, 0);
+      cands.push(c.toDataURL('image/png'));
+    });
+    g.putImageData(src, 0, 0);            // คืนภาพเดิมก่อนเอาไปทำ JPEG
+  }
+  if(!alpha){
+    var c2 = document.createElement('canvas'); c2.width = cw; c2.height = ch;
+    var g2 = c2.getContext('2d');
+    g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, cw, ch);
+    g2.drawImage(c, 0, 0);
+    cands.push(c2.toDataURL('image/jpeg', 0.9));
+  }
+  var cap = budget || BRAND_LOGO_MAX_CHARS, fit = null, smallest = cands[0];
+  cands.forEach(function(d){
+    if(!fit && d.length <= cap) fit = d;
+    if(d.length < smallest.length) smallest = d;
+  });
+  return fit || smallest;
 }
 function _brandLogoShrink(img, budget){
   var cap = Math.min(budget || BRAND_LOGO_MAX_CHARS, BRAND_LOGO_MAX_CHARS);
-  /* ไล่ย่อลงจนพอดีโควตา · 110 px ยังใหญ่กว่าที่การ์ดแบรนด์ใช้แสดงจริงบนมือถือ */
-  var sizes = [320, 260, 210, 170, 140, 110], out = '';
+  /* เอาขนาดใหญ่ที่สุดที่ยังพอดีโควตา — การ์ดแบรนด์แสดงราว 200 px
+     บนจอความละเอียดสูงจึงอยากได้อย่างน้อย 400 px ถึงจะคม
+     พอลดจำนวนสีได้แล้ว ขนาดใหญ่ขนาดนี้มักพอดีงบ ไม่ต้องยอมใช้ภาพเบลอ */
+  var sizes = [440, 380, 320, 260, 210, 170, 130], out = '';
   for(var i = 0; i < sizes.length; i++){
-    out = _brandLogoEncode(img, sizes[i]);
+    out = _brandLogoEncode(img, sizes[i], cap);
     if(out.length <= cap) return out;
   }
   return out;   // เล็กสุดแล้วยังไม่พอ — ส่งกลับไปให้ตอนแสดงผลเตือนเอง
