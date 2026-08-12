@@ -307,12 +307,17 @@ td .center-load{background:none;border:none}
 .brand-btn:hover{border-color:var(--gold-line);transform:translateY(-4px);box-shadow:var(--shadow-lg)}
 .brand-btn:hover::before{transform:scaleX(1)}
 .brand-btn:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
-/* พื้นที่วางโลโก้: กันความสูงไว้เท่ากันทุกใบเพื่อให้การ์ดเรียงเสมอกัน
-   แต่ไม่ใส่พื้นหรือขอบ — โลโก้ส่วนใหญ่มีพื้นขาวมาในตัวอยู่แล้ว
+/* พื้นที่วางโลโก้: ยืดเต็มที่ว่างที่เหลือของการ์ด แล้วจัดโลโก้ไว้กลาง
+   การ์ดในกริดสูงเท่ากันอยู่แล้ว ใบที่มีแต่โลโก้จึงได้พื้นที่มากกว่าใบที่มีชื่อกำกับ
+   และโลโก้ยังอยู่กึ่งกลางเสมอ ไม่ลอยไปติดขอบบน
+   ไม่ใส่พื้นหรือขอบ — โลโก้ส่วนใหญ่มีพื้นขาวมาในตัวอยู่แล้ว
    ใส่แท่นสีเทาทับเข้าไปจะกลายเป็นกล่องซ้อนกล่อง และทำให้โลโก้ดูหม่น */
-.brand-btn .b-media{width:100%;height:118px;display:grid;place-items:center;flex:0 0 auto;padding:4px}
-.brand-btn .b-media img{max-width:92%;max-height:110px;object-fit:contain;display:block;
+.brand-btn .b-media{width:100%;min-height:118px;display:grid;place-items:center;flex:1 1 auto;padding:4px}
+.brand-btn .b-media img{max-width:94%;max-height:118px;object-fit:contain;display:block;
   transition:transform .18s cubic-bezier(.2,.7,.3,1)}
+/* ใบที่เป็นโลโก้ล้วน โลโก้เป็นตัวหนังสือชื่อแบรนด์อยู่แล้ว ไม่ต้องมีชื่อกำกับซ้ำ
+   จึงให้พื้นที่โลโก้มากกว่าและเพิ่มระยะขอบให้ไม่ดูอัดแน่น */
+.brand-btn.logo-only{padding:26px 20px}
 .brand-btn:hover .b-media img{transform:scale(1.04)}
 /* แบรนด์ที่ยังไม่มีโลโก้ — ใช้อักษรย่อบนแท่นสี ดูตั้งใจกว่าไอคอนกลาง ๆ ที่แปลว่า "ไม่มีรูป" */
 .brand-btn .b-mono{width:84px;height:84px;border-radius:24px;display:grid;place-items:center;
@@ -333,8 +338,9 @@ td .center-load{background:none;border:none}
 @media(max-width:460px){
   .brand-grid{grid-template-columns:1fr 1fr;gap:11px}
   .brand-btn{padding:16px 12px 14px;gap:11px;border-radius:16px}
-  .brand-btn .b-media{height:86px;padding:2px}
-  .brand-btn .b-media img{max-height:80px}
+  .brand-btn .b-media{min-height:76px;padding:2px}
+  .brand-btn .b-media img{max-height:86px}
+  .brand-btn.logo-only{padding:18px 12px}
   .brand-btn .b-mono{width:60px;height:60px;border-radius:17px;font-size:22px}
   .brand-btn .b-name{font-size:14px}
 }
@@ -1346,15 +1352,22 @@ function showBrandGate(){
      ของเดิมใบที่มีโลโก้โชว์โลโก้ล้วน ใบที่ไม่มีโลโก้โชว์ไอคอน+ชื่อ
      พอวางเรียงกันเลยสูงไม่เท่ากันและดูเหมือนคนละระบบ */
   $('brandGrid').innerHTML = visible.map(function(b){
-    var media = b.logo
-      ? '<span class="b-media"><img src="'+b.logo+'" alt="'+esc(b.name)+'"></span>'
-      : '<span class="b-media"><span class="b-mono" style="background:'+_oeMonoBg(b.key||b.name)+'">'
-        + esc(_oeInitials(b.name)) + '</span></span>';
-    /* คำโปรยที่ซ้ำกับชื่อแบรนด์ไม่ได้บอกอะไรเพิ่ม (เช่น "Santa Fe" ใต้ "Santa Fe") — ตัดทิ้ง */
+    /* โลโก้ของทุกแบรนด์เป็นตัวหนังสือชื่อแบรนด์อยู่แล้ว การเขียนชื่อกำกับใต้โลโก้อีกที
+       จึงเป็นการบอกซ้ำ — ใบที่มีโลโก้เลยเหลือแค่โลโก้
+       ส่วนใบที่ยังไม่มีโลโก้เหลือแค่อักษรย่อ ถ้าเอาชื่อออกด้วยจะไม่รู้ว่าแบรนด์อะไร
+       จึงคงชื่อไว้เฉพาะกรณีนั้น · ทั้งสองแบบมี title/aria-label ให้เครื่องอ่านหน้าจอเสมอ */
+    var label = esc(b.name);
+    if(b.logo){
+      return '<button class="brand-btn logo-only" onclick="pickBrand(\''+b.key+'\')"'
+        + ' title="'+label+'" aria-label="'+label+'">'
+        + '<span class="b-media"><img src="'+b.logo+'" alt="'+label+'"></span></button>';
+    }
     var sub = (b.desc && _oeKeyish(b.desc) !== _oeKeyish(b.name)) ? b.desc : '';
-    return '<button class="brand-btn" onclick="pickBrand(\''+b.key+'\')" title="'+esc(b.name)+'">'+
-      media + '<span class="b-name">'+esc(b.name)+'</span>'+
-      (sub ? '<span class="b-desc">'+esc(sub)+'</span>' : '')+'</button>';
+    return '<button class="brand-btn" onclick="pickBrand(\''+b.key+'\')" title="'+label+'">'
+      + '<span class="b-media"><span class="b-mono" style="background:'+_oeMonoBg(b.key||b.name)+'">'
+      + esc(_oeInitials(b.name)) + '</span></span>'
+      + '<span class="b-name">'+label+'</span>'
+      + (sub ? '<span class="b-desc">'+esc(sub)+'</span>' : '') + '</button>';
   }).join('') + extra;
   /* บรรทัดท้าย: บอกทางออกไว้ล่วงหน้า จะได้ไม่ต้องกลับมาถามว่าเปลี่ยนแบรนด์ทีหลังยังไง */
   var foot = $('brandGateFoot');
