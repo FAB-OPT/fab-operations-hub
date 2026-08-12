@@ -1130,6 +1130,15 @@ body.is-admin-role .admin-role-only { display: inline-flex !important; }
 .brand-pick input { width: 16px; height: 16px; cursor: pointer; accent-color: var(--gold); }
 .brand-pick:has(input:checked) { border-color: var(--gold); background: rgba(234,88,12,.08); }
 /* จานสีแบรนด์ — แถวละ 8 สี ตามโทน */
+/* พื้นที่กดอัปโหลดโลโก้ — ของเดิมเป็นช่องเลือกไฟล์เปล่า ๆ ที่อยู่ล่างสุดของฟอร์ม
+   ใต้จานสี 64 ช่อง ทำให้ต้องเลื่อนผ่านทั้งจานถึงจะเจอ */
+.brand-drop{display:flex;flex-direction:column;align-items:center;gap:4px;text-align:center;
+  padding:18px 16px;border:1.5px dashed var(--border2,#cbd5e1);border-radius:14px;cursor:pointer;
+  background:var(--bg3);transition:border-color .15s,background .15s}
+.brand-drop:hover{border-color:var(--primary,#ea580c);background:var(--bg2,#fff)}
+.brand-drop .bd-ic{font-size:26px;line-height:1}
+.brand-drop .bd-t{font-weight:700;font-size:13.5px;color:var(--text,#0f172a)}
+.brand-drop .bd-d{font-size:11.5px;color:var(--text3);line-height:1.5;max-width:38ch}
 .brand-swatches { display: grid; grid-template-columns: repeat(8, 1fr); gap: 5px; max-width: 340px; }
 .brand-swatch {
   aspect-ratio: 1/1; width: 100%; border-radius: 7px; padding: 0; cursor: pointer;
@@ -2157,6 +2166,16 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
       <div id="brandRegList" style="display:flex;flex-direction:column;gap:10px;"></div>
       <div id="brandRegForm" style="display:none;margin-top:14px;border-top:1px solid var(--border);padding-top:14px;">
         <div class="adm-section">
+          <label class="adm-label">โลโก้แบรนด์</label>
+          <label class="brand-drop" for="brandRegLogoFile">
+            <span class="bd-ic">🖼️</span>
+            <span class="bd-t">เลือกไฟล์โลโก้</span>
+            <span class="bd-d">PNG พื้นใสสวยที่สุด · ระบบย่อและบีบอัดให้เอง ไม่ต้องเตรียมขนาด</span>
+          </label>
+          <input type="file" accept="image/*" id="brandRegLogoFile" onchange="onBrandLogoPick(event)" style="display:none;">
+          <div id="brandRegLogoPreview" style="margin-top:10px;"></div>
+        </div>
+        <div class="adm-section">
           <label class="adm-label">ชื่อแบรนด์ <span style="color:var(--red);">*</span></label>
           <input type="text" class="adm-input" id="brandRegName" placeholder="เช่น เจ๊แดง / Santa Fe / แบรนด์ใหม่" maxlength="60">
         </div>
@@ -2175,15 +2194,11 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:9px;">
             <input type="color" id="brandRegColor" value="#0ea5e9" oninput="_brandColorPreview()"
                    style="width:52px;height:38px;padding:2px;border:1px solid var(--border);border-radius:9px;background:var(--bg3);cursor:pointer;">
-            <span style="font-size:11px;color:var(--text3);">เลือกเองได้ทุกสี หรือกดจากจานสีด้านล่าง</span>
+            <button type="button" class="adm-btn-secondary" style="padding:6px 12px;font-size:12px;"
+                    id="brandRegSwatchBtn" onclick="toggleBrandSwatches()">เลือกจากจานสี</button>
             <span id="brandRegColorChip" style="margin-left:auto;"></span>
           </div>
-          <div id="brandRegColorSwatches" class="brand-swatches"></div>
-        </div>
-        <div class="adm-section">
-          <label class="adm-label">โลโก้ (PNG พื้นใสสวยสุด)</label>
-          <input type="file" accept="image/*" id="brandRegLogoFile" class="adm-input" onchange="onBrandLogoPick(event)">
-          <div id="brandRegLogoPreview" style="margin-top:8px;"></div>
+          <div id="brandRegColorSwatches" class="brand-swatches" style="display:none;"></div>
         </div>
       </div>
       <div id="brandRegSync" style="text-align:center;font-size:11px;color:var(--text2);margin-top:10px;min-height:14px;"></div>
@@ -6430,6 +6445,8 @@ function openBrandEdit(key){
   document.getElementById('brandRegPrefixes').value = (b && b.prefixes) ? b.prefixes.join(',') : '';
   document.getElementById('brandRegColor').value = (b && b.color) || brandAutoColor(b ? b.key : String(Date.now()));
   _renderBrandColorSwatches();
+  var _sw = document.getElementById('brandRegColorSwatches'); if(_sw) _sw.style.display = 'none';
+  var _swb = document.getElementById('brandRegSwatchBtn'); if(_swb) _swb.textContent = 'เลือกจากจานสี';
   _brandColorPreview();
   document.getElementById('brandRegLogoFile').value = '';
   _brandLogoCleared = false;
@@ -6457,6 +6474,14 @@ function _renderBrandColorSwatches(){
     return '<button type="button" class="brand-swatch'+(on?' on':'')+'" data-c="'+c+'" title="'+c+'" '+
       'onclick="_pickBrandColor(\''+c+'\')" style="background:'+c+';"></button>';
   }).join('');
+}
+function toggleBrandSwatches(){
+  var box = document.getElementById('brandRegColorSwatches');
+  var btn = document.getElementById('brandRegSwatchBtn');
+  if(!box) return;
+  var open = box.style.display === 'none';
+  box.style.display = open ? '' : 'none';
+  if(btn) btn.textContent = open ? 'ซ่อนจานสี' : 'เลือกจากจานสี';
 }
 function _pickBrandColor(c){
   var el = document.getElementById('brandRegColor'); if(!el) return;
