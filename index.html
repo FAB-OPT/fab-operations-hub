@@ -3165,7 +3165,16 @@ var BRANDS_KEY = 'fab_brands_v1';
 function loadBrandsLocal(){
   try{ var s=localStorage.getItem(BRANDS_KEY); if(s){ var a=JSON.parse(s); if(Array.isArray(a)&&a.length) BRAND_REGISTRY=a; } }catch(e){}
 }
-function saveBrandsLocal(){ try{ localStorage.setItem(BRANDS_KEY, JSON.stringify(BRAND_REGISTRY)); }catch(e){} }
+/* เดิมกลืนข้อผิดพลาดทิ้ง — พื้นที่ localStorage เต็ม (โลโก้กินที่) จะบันทึกไม่ลง
+   โดยไม่มีอะไรบอก แล้วผู้ใช้เข้าใจว่าบันทึกแล้ว · คืนค่าว่าสำเร็จไหมแทน */
+function saveBrandsLocal(){
+  try{ localStorage.setItem(BRANDS_KEY, JSON.stringify(BRAND_REGISTRY)); return true; }
+  catch(e){ console.warn('[brands] บันทึกลงเครื่องไม่สำเร็จ', e); return false; }
+}
+/* ทะเบียนแบรนด์ถูกส่งขึ้นไปเก็บเป็นข้อความก้อนเดียวใน Google Sheet
+   ซึ่งจำกัดเซลล์ละ 50,000 ตัวอักษร · เผื่อไว้ที่ 45,000 กันชนเพดานพอดี */
+var BRANDS_CLOUD_LIMIT = 45000;
+function brandsPayloadSize(){ try{ return JSON.stringify(BRAND_REGISTRY).length; }catch(e){ return 0; } }
 function loadBrandsFromCloud(){
   return hubGetConfig()
     .then(function(res){ if(res && res.ok && Array.isArray(res.brands) && res.brands.length){ BRAND_REGISTRY=res.brands; saveBrandsLocal(); } return BRAND_REGISTRY; })
@@ -6382,11 +6391,13 @@ function brandLabelOf(p) {
 
 /* ═══════════ ADMIN: จัดการแบรนด์ (ทะเบียนแบรนด์กลาง) ═══════════ */
 var _editingBrandKey = null;
-var _brandLogoData = '';   // base64 โลโก้ที่เพิ่งอัปโหลด
+var _brandLogoData = '';      // base64 โลโก้ที่เพิ่งอัปโหลด (ย่อแล้ว)
+/* ของเดิมถ้าแบรนด์เคยมีโลโก้ จะลบออกไม่ได้เลย เพราะตอนบันทึกใช้ค่าเดิมเสมอเมื่อไม่ได้อัปใหม่ */
+var _brandLogoCleared = false;
 function openBrandRegModal(){ _editingBrandKey=null; hideBrandRegForm(); renderBrandRegList(); document.getElementById('brandRegModal').classList.add('show'); }
 function closeBrandRegModal(){ document.getElementById('brandRegModal').classList.remove('show'); }
 function _brandRegSyncMsg(t,c){ var e=document.getElementById('brandRegSync'); if(e){ e.textContent=t; e.style.color=c||'var(--text2)'; } }
-function hideBrandRegForm(){ var f=document.getElementById('brandRegForm'); if(f) f.style.display='none'; var s=document.getElementById('brandRegSaveBtn'); if(s) s.style.display='none'; _brandLogoData=''; }
+function hideBrandRegForm(){ var f=document.getElementById('brandRegForm'); if(f) f.style.display='none'; var s=document.getElementById('brandRegSaveBtn'); if(s) s.style.display='none'; _brandLogoData=''; _brandLogoCleared=false; }
 function renderBrandRegList(){
   var host=document.getElementById('brandRegList'); if(!host) return;
   document.getElementById('brandRegCount').textContent = BRAND_REGISTRY.length;
@@ -6421,8 +6432,8 @@ function openBrandEdit(key){
   _renderBrandColorSwatches();
   _brandColorPreview();
   document.getElementById('brandRegLogoFile').value = '';
-  document.getElementById('brandRegLogoPreview').innerHTML = (b && b.logo)
-    ? '<img src="'+b.logo+'" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">' : '';
+  _brandLogoCleared = false;
+  _brandLogoShow((b && b.logo) || '');
   document.getElementById('brandRegForm').style.display='';
   document.getElementById('brandRegSaveBtn').style.display='';
 }
@@ -6463,10 +6474,79 @@ function _brandColorPreview(){
   chip.innerHTML = '<span style="display:inline-block;padding:3px 10px;background:'+c+'1a;color:'+c+
     ';border-radius:999px;font-weight:700;font-size:11.5px;">'+escapeHtml(nm)+'</span>';
 }
+/* ย่อรูปให้พอดีกับที่จอใช้จริง แล้วเลือกวิธีบีบอัดที่ได้ไฟล์เล็กกว่า
+   - โลโก้ที่เป็นตัวอักษร/ลายเส้นไม่กี่สี → PNG เล็กกว่าและขอบคม
+   - รูปถ่าย → JPEG เล็กกว่า PNG หลายเท่า
+   - ถ้ารูปมีพื้นโปร่ง ต้องคง PNG ไว้ ไม่งั้นพื้นจะกลายเป็นดำ/ขาวทับ
+   ถ้ายังใหญ่เกินเพดานก็ย่อลงอีกจนพอ ดีกว่าปล่อยให้ซิงค์ล้มทีหลัง */
+var BRAND_LOGO_MAX_CHARS = 40000;
+function _brandLogoHasAlpha(ctx, w, h){
+  try{
+    var d = ctx.getImageData(0, 0, w, h).data;
+    for(var i = 3; i < d.length; i += 4){ if(d[i] < 250) return true; }
+  }catch(e){ return true; }   // อ่านพิกเซลไม่ได้ = เล่นปลอดภัยไว้ก่อน คง PNG
+  return false;
+}
+function _brandLogoEncode(img, max){
+  var w = img.naturalWidth || img.width || 1, h = img.naturalHeight || img.height || 1;
+  var sc = Math.min(1, max / Math.max(w, h));
+  var cw = Math.max(1, Math.round(w * sc)), ch = Math.max(1, Math.round(h * sc));
+  var c = document.createElement('canvas'); c.width = cw; c.height = ch;
+  var g = c.getContext('2d');
+  try{ g.imageSmoothingQuality = 'high'; }catch(e){}
+  g.drawImage(img, 0, 0, cw, ch);
+  var png = c.toDataURL('image/png');
+  if(_brandLogoHasAlpha(g, cw, ch)) return png;
+  var c2 = document.createElement('canvas'); c2.width = cw; c2.height = ch;
+  var g2 = c2.getContext('2d');
+  g2.fillStyle = '#ffffff'; g2.fillRect(0, 0, cw, ch);
+  g2.drawImage(c, 0, 0);
+  var jpg = c2.toDataURL('image/jpeg', 0.88);
+  return (jpg.length < png.length) ? jpg : png;
+}
+function _brandLogoShrink(img){
+  var sizes = [360, 280, 220, 170], out = '';
+  for(var i = 0; i < sizes.length; i++){
+    out = _brandLogoEncode(img, sizes[i]);
+    if(out.length <= BRAND_LOGO_MAX_CHARS) return out;
+  }
+  return out;   // เล็กสุดแล้วยังใหญ่อยู่ — ส่งกลับไปให้ตอนบันทึกเตือนเอง
+}
+function _brandLogoShow(data){
+  var box = document.getElementById('brandRegLogoPreview'); if(!box) return;
+  if(!data){
+    box.innerHTML = '<span style="font-size:11.5px;color:var(--text3);">ยังไม่มีโลโก้ — หน้าเลือกแบรนด์จะใช้อักษรย่อแทน</span>';
+    return;
+  }
+  var kb = Math.round(data.length / 1024);
+  var warn = data.length > BRAND_LOGO_MAX_CHARS
+    ? '<span style="font-size:11.5px;color:var(--red);">ใหญ่เกินไป ลองใช้ไฟล์ที่ตัดขอบขาวออกแล้ว</span>' : '';
+  box.innerHTML = '<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">'
+    + '<img src="' + data + '" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">'
+    + '<span style="font-size:11.5px;color:var(--text3);">ย่อแล้ว ' + kb + ' KB</span>' + warn
+    + '<button type="button" class="adm-btn-secondary" style="padding:5px 11px;font-size:11.5px;" onclick="clearBrandLogo()">ลบโลโก้</button></div>';
+}
+function clearBrandLogo(){
+  _brandLogoData = ''; _brandLogoCleared = true;
+  var f = document.getElementById('brandRegLogoFile'); if(f) f.value = '';
+  _brandLogoShow('');
+}
 function onBrandLogoPick(ev){
   var f = ev.target.files && ev.target.files[0]; if(!f) return;
+  var box = document.getElementById('brandRegLogoPreview');
+  if(box) box.innerHTML = '<span style="font-size:11.5px;color:var(--text2);">กำลังย่อรูป…</span>';
   var rd = new FileReader();
-  rd.onload = function(){ _brandLogoData = rd.result; document.getElementById('brandRegLogoPreview').innerHTML = '<img src="'+_brandLogoData+'" style="height:56px;object-fit:contain;border:1px solid var(--border);border-radius:8px;background:#fff;padding:4px;">'; };
+  rd.onload = function(){
+    var img = new Image();
+    img.onload = function(){
+      _brandLogoData = _brandLogoShrink(img);
+      _brandLogoCleared = false;
+      _brandLogoShow(_brandLogoData);
+    };
+    img.onerror = function(){ _brandLogoShow(''); showInfo('เปิดรูปไม่ได้','ไฟล์นี้อ่านเป็นรูปไม่ได้ — ลองไฟล์ .png หรือ .jpg'); };
+    img.src = rd.result;
+  };
+  rd.onerror = function(){ _brandLogoShow(''); showInfo('อ่านไฟล์ไม่ได้','ลองเลือกไฟล์ใหม่อีกครั้ง'); };
   rd.readAsDataURL(f);
 }
 function saveBrandEdit(){
@@ -6477,17 +6557,37 @@ function saveBrandEdit(){
   if(!key){ showInfo('⚠️ ข้อมูลไม่ครบ','กรุณากรอกรหัสแบรนด์ (key อังกฤษ)'); return; }
   if(!_editingBrandKey && brandByKey(key)){ showInfo('⚠️ รหัสซ้ำ','key <b>'+escapeHtml(key)+'</b> ถูกใช้แล้ว'); return; }
   var existing = _editingBrandKey ? brandByKey(_editingBrandKey) : null;
-  var logo = _brandLogoData || (existing && existing.logo) || '';
+  var logo = _brandLogoCleared ? '' : (_brandLogoData || (existing && existing.logo) || '');
+  if(logo && logo.length > BRAND_LOGO_MAX_CHARS){
+    showInfo('รูปใหญ่เกินไป','โลโก้หลังย่อยังใหญ่ '+Math.round(logo.length/1024)+' KB<br>'
+      + '<span style="font-size:12px;color:var(--text2)">ลองใช้ไฟล์ที่ตัดขอบขาวรอบ ๆ ออกแล้ว หรือไฟล์ที่เป็นตัวอักษร/ลายเส้น ไม่ใช่ภาพถ่าย</span>');
+    return;
+  }
   var color = (document.getElementById('brandRegColor').value || '').trim();
   var obj = { key: (existing? existing.key : key), name: name, prefixes: prefixes };
   if(color) obj.color = color;
   if(logo) obj.logo = logo;
+  var backup = BRAND_REGISTRY.slice();
   if(existing){ var i=BRAND_REGISTRY.findIndex(function(b){return b.key===existing.key;}); if(i>=0) BRAND_REGISTRY[i]=obj; }
   else BRAND_REGISTRY.push(obj);
-  saveBrandsLocal();
+  /* กันไว้ก่อนบันทึก: ถ้าทะเบียนรวมโลโก้แล้วเกินที่ Cloud เก็บได้ ต้องบอกตั้งแต่ตอนนี้
+     ไม่ใช่ปล่อยให้บันทึกในเครื่องสำเร็จแล้วซิงค์ล้มเงียบ ๆ จนเครื่องอื่นไม่เห็นโลโก้ */
+  var size = brandsPayloadSize();
+  if(size > BRANDS_CLOUD_LIMIT){
+    BRAND_REGISTRY = backup;
+    showInfo('ทะเบียนแบรนด์ใหญ่เกินไป','รวมโลโก้ทุกแบรนด์แล้ว '+Math.round(size/1024)+' KB '
+      + 'ซึ่งเกินที่ระบบเก็บได้ ('+Math.round(BRANDS_CLOUD_LIMIT/1024)+' KB)<br>'
+      + '<span style="font-size:12px;color:var(--text2)">ลองลบโลโก้ของแบรนด์ที่ไม่ได้ใช้ออก หรือใช้ไฟล์โลโก้ที่เล็กกว่านี้</span>');
+    return;
+  }
+  var okLocal = saveBrandsLocal();
   renderBrandRegList(); hideBrandRegForm();
-  _brandRegSyncMsg('กำลังซิงค์ Cloud...','var(--text2)');
-  saveBrandsToCloud().then(function(){ _brandRegSyncMsg('✓ บันทึกและซิงค์ Cloud สำเร็จ','var(--green)'); })
+  if(!okLocal){
+    _brandRegSyncMsg('⚠ พื้นที่ในเครื่องเต็ม บันทึกลงเครื่องไม่ได้ — กำลังลองซิงค์ Cloud','var(--red)');
+  } else {
+    _brandRegSyncMsg('กำลังซิงค์ Cloud...','var(--text2)');
+  }
+  saveBrandsToCloud().then(function(){ _brandRegSyncMsg('✓ บันทึกและซิงค์ Cloud สำเร็จ ('+Math.round(size/1024)+' KB)','var(--green)'); })
     .catch(function(err){ _brandRegSyncMsg('⚠ บันทึกในเครื่องแล้ว · Cloud: '+err.message,'var(--text3)'); });
 }
 function deleteBrand(key){
