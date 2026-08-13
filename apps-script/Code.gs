@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-13';
+var BACKEND_VERSION = '2026-08-13b';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -706,7 +706,8 @@ function uploadIcon(base64, filename) {
 
 /* ──────────────────── CACHE ──────────────────── */
 function clearAllCacheReturn() {
-  CacheService.getScriptCache().removeAll(['cert_v2','emp_v1','req_v2','cfg_systems_v2','cfg_announcements_v2','cfg_users_v2','cfg_branches_v2']);
+  CacheService.getScriptCache().removeAll(['cert_v2','emp_v1','req_v2','cfg_systems_v2','cfg_announcements_v2','cfg_users_v2','cfg_branches_v2']
+    .concat(EXAM_CACHE_KEYS));
   return { ok: true, cleared: true };
 }
 
@@ -746,6 +747,28 @@ function ocrImage(imageBase64, filename, mimeType) {
 var EXAM_HEADERS = ['id','title','brand','active','startDate','endDate','questions','updatedAt','json'];
 var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson'];
 
+/* ═══ แคชของระบบสอบ ═══
+   วัดจริง: ยิง action=exams ใช้เวลา 3 - 36 วินาที และบางครั้งตอบกลับมาไม่ครบ
+   เพราะทุกคำขอต้องเปิดสเปรดชีตทั้งไฟล์ (พนักงาน 1,461 · ใบรับรอง 652 · คำขอ 300 ...)
+   ทั้งที่จะอ่านแค่ชีตเดียว · ทางที่ได้ผลคือถ้ามีในแคชให้ตอบเลย ไม่ต้องแตะ
+   SpreadsheetApp เลยแม้แต่ครั้งเดียว — เหลือเวลาแค่ค่าตั้งต้นของ Apps Script
+   ระบบอื่น (ใบรับรอง/พนักงาน/คำขออบรม) ทำแบบนี้อยู่แล้ว ระบบสอบตกหล่นไป */
+var EXAM_CACHE_SEC = 300;
+var EXAM_CACHE_KEYS = ['exam_list_v1', 'exam_res_v1', 'exam_req_v1'];
+
+function _oeCacheGet(key) {
+  try { var v = CacheService.getScriptCache().get(key); return v ? JSON.parse(v) : null; }
+  catch (e) { return null; }
+}
+/* ช่องละไม่เกิน 100KB — ใหญ่กว่านั้น put จะโยน error ปล่อยผ่านไป อ่านจากชีตตามเดิม
+   ห้ามให้แคชพังแล้วลามไปทำให้อ่านข้อมูลไม่ได้ */
+function _oeCachePut(key, obj) {
+  try { CacheService.getScriptCache().put(key, JSON.stringify(obj), EXAM_CACHE_SEC); } catch (e) {}
+}
+function _examCacheKill() {
+  try { CacheService.getScriptCache().removeAll(EXAM_CACHE_KEYS); } catch (e) {}
+}
+
 function _getOrCreateSheet(name, headers) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
@@ -756,6 +779,8 @@ function _getOrCreateSheet(name, headers) {
 
 /* ──────────────── EXAMS ──────────────── */
 function getExams() {
+  var hit = _oeCacheGet('exam_list_v1');
+  if (hit) return hit;
   var sh = _getOrCreateSheet('Exams', EXAM_HEADERS);
   var values = sh.getDataRange().getValues();
   if (values.length < 2) return { ok: true, exams: [] };
@@ -767,7 +792,9 @@ function getExams() {
     if (!raw) continue;
     try { exams.push(JSON.parse(raw)); } catch (e) {}
   }
-  return { ok: true, exams: exams };
+  var out = { ok: true, exams: exams };
+  _oeCachePut('exam_list_v1', out);
+  return out;
 }
 
 function saveExam(exam) {
@@ -786,10 +813,12 @@ function saveExam(exam) {
     for (var i = 1; i < values.length; i++) {
       if (String(values[i][idCol]) === String(exam.id)) {
         sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
+        _examCacheKill();
         return { ok: true, id: exam.id, updated: true };
       }
     }
     sh.appendRow(rowArr);
+    _examCacheKill();
     return { ok: true, id: exam.id, updated: false };
   } finally { lock.releaseLock(); }
 }
@@ -819,7 +848,7 @@ function deleteExam(id) {
     var headers = values[0].map(function(h){ return String(h).trim(); });
     var idCol = headers.indexOf('id');
     for (var i = values.length - 1; i >= 1; i--) {
-      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); return { ok: true }; }
+      if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); _examCacheKill(); return { ok: true }; }
     }
     return { ok: false, error: 'not found' };
   } finally { lock.releaseLock(); }
@@ -845,11 +874,14 @@ function saveExamResult(r) {
       r.answers ? JSON.stringify(r.answers) : ''
     ];
     sh.appendRow(row);
+    _examCacheKill();
     return { ok: true, saved: 1 };
   } finally { lock.releaseLock(); }
 }
 
 function getExamResults() {
+  var hit = _oeCacheGet('exam_res_v1');
+  if (hit) return hit;
   var sh = _getOrCreateSheet('ExamResults', EXAMRESULT_HEADERS);
   var values = sh.getDataRange().getValues();
   if (values.length < 2) return { ok: true, results: [] };
@@ -863,7 +895,9 @@ function getExamResults() {
     if (rec.answersJson) { try { rec.answers = JSON.parse(rec.answersJson); } catch (e) {} }
     results.push(rec);
   }
-  return { ok: true, results: results };
+  var out = { ok: true, results: results };
+  _oeCachePut('exam_res_v1', out);
+  return out;
 }
 
 /* ──────────────── FQA / FSQ / VISIT — รายการตรวจสาขา ────────────────
@@ -1094,11 +1128,17 @@ function _newExamCode(taken) {
 
 /* branch = ชื่อสาขา (ฝั่งสาขาเรียก) · scope=all = ทั้งหมด (ฝั่งแอดมิน) */
 function getExamRequests(branch, scope) {
-  var d = _reqRead();
+  /* แคชเก็บ "ทั้งหมด" ไว้ก้อนเดียว แล้วค่อยกรองตามสาขาตอนตอบ
+     ถ้าแยกแคชรายสาขาจะกลายเป็นหลายสิบก้อนที่ต้องล้างพร้อมกัน พลาดง่าย */
+  var rows = _oeCacheGet('exam_req_v1');
+  if (!rows) {
+    rows = _reqRead().rows;
+    _oeCachePut('exam_req_v1', rows);
+  }
   var all = String(scope || '') === 'all';
   var want = String(branch || '').trim();
   var out = [];
-  d.rows.forEach(function (r) {
+  rows.forEach(function (r) {
     if (!all) {
       if (!want) return;
       if (String(r.branchName || '').trim() !== want && String(r.branchCode || '').trim() !== want) return;
@@ -1141,6 +1181,7 @@ function saveExamRequest(req) {
       status: 'pending', code: '', approvedAt: '', approvedBy: '', usedAt: '', note: ''
     };
     d.sh.appendRow(d.headers.map(function (h) { return map.hasOwnProperty(h) ? map[h] : ''; }));
+    _examCacheKill();
     return { ok: true, id: id, status: 'pending' };
   } finally { lock.releaseLock(); }
 }
@@ -1169,6 +1210,7 @@ function decideExamRequest(id, decision, by, note) {
         var c = d.headers.indexOf(k);
         if (c >= 0) d.sh.getRange(r._row, c + 1).setValue(set[k]);
       });
+      _examCacheKill();
       return { ok: true, id: id, status: st, code: code };
     }
     return { ok: false, error: 'not found' };
@@ -1179,6 +1221,8 @@ function decideExamRequest(id, decision, by, note) {
 function verifyExamCode(code, examId) {
   var want = String(code || '').trim().toUpperCase();
   if (!want) return { ok: false, error: 'no code' };
+  /* ตั้งใจไม่ใช้แคชตรงนี้ — ต้องรู้สถานะล่าสุดจริง ๆ ว่ารหัสถูกใช้ไปหรือยัง
+     ถ้าอ่านของเก่า รหัสที่เพิ่งใช้เสร็จจะยังเข้าสอบซ้ำได้อีกจนกว่าแคชจะหมดอายุ */
   var d = _reqRead();
   for (var i = 0; i < d.rows.length; i++) {
     var r = d.rows[i];
@@ -1207,6 +1251,7 @@ function useExamCode(code) {
       var sc = d.headers.indexOf('status'), uc = d.headers.indexOf('usedAt');
       if (sc >= 0) d.sh.getRange(r._row, sc + 1).setValue('used');
       if (uc >= 0) d.sh.getRange(r._row, uc + 1).setValue(new Date().toISOString());
+      _examCacheKill();
       return { ok: true };
     }
     return { ok: false, error: 'not found' };
@@ -1220,7 +1265,7 @@ function deleteExamRequest(id) {
   try {
     var d = _reqRead();
     for (var i = d.rows.length - 1; i >= 0; i--) {
-      if (String(d.rows[i].id) === String(id)) { d.sh.deleteRow(d.rows[i]._row); return { ok: true }; }
+      if (String(d.rows[i].id) === String(id)) { d.sh.deleteRow(d.rows[i]._row); _examCacheKill(); return { ok: true }; }
     }
     return { ok: false, error: 'not found' };
   } finally { lock.releaseLock(); }

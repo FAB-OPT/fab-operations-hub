@@ -1355,8 +1355,46 @@ function _apiFetch(url, init){
   });
 }
 
+/* วัดจริงกับหลังบ้านตัวเป็น ๆ: ยิง action=exams 5 รอบได้ 9.8 / 21 / 36 / 36 / 2.9 วินาที
+   และมีรอบหนึ่ง "ตอบกลับมาไม่ครบ" (ได้ 7,764 ตัวอักษรจาก 23,923) → JSON.parse พัง
+   → ขึ้นว่าโหลดไม่สำเร็จ ทั้งที่ข้อมูลไม่ได้หาย · ยิงซ้ำให้เองหนึ่งครั้งจึงคุ้มมาก
+   ยิงซ้ำเฉพาะการอ่านเท่านั้น การเขียนห้ามยิงซ้ำ เดี๋ยวผลสอบถูกบันทึกสองรอบ */
 function apiGet(action, qs){
-  return _apiFetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'')+'&_t='+Date.now());
+  var url = SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'');
+  return _apiFetch(url+'&_t='+Date.now()).catch(function(e){
+    try { console.warn('[online-exam] ' + action + ' ไม่สำเร็จ กำลังลองใหม่อีกครั้ง', e); } catch(_) {}
+    return _apiFetch(url+'&_t='+Date.now()+'&r=1');
+  });
+}
+
+/* ═══ ของที่เคยโหลดไว้ ═══
+   หลังบ้านช้าและช้าไม่คงที่ ระหว่างรอจึงเอาของครั้งก่อนขึ้นให้ดูก่อน
+   หน้าจอมีของทันที ไม่ต้องนั่งดูโครงร่างเทา ๆ 30 วินาที
+   และถ้าโหลดรอบนี้ล้ม ก็ยังทำงานต่อได้ด้วยของเดิม แทนที่จะเจอหน้าว่าง */
+function _oeStash(key, data){
+  try { localStorage.setItem('oe_cache_'+key, JSON.stringify({ t:Date.now(), d:data })); }
+  catch(e) {}   // เต็มโควตาก็ช่างมัน ไม่ใช่เรื่องคอขาดบาดตาย
+}
+function _oeStashed(key){
+  try {
+    var raw = localStorage.getItem('oe_cache_'+key);
+    if(!raw) return null;
+    var o = JSON.parse(raw);
+    return (o && o.d && o.d.length) ? o : null;
+  } catch(e) { return null; }
+}
+/* โหลดรอบนี้ล้ม แต่ยังมีของเดิมค้างจออยู่ — บอกให้รู้ว่ากำลังดูของเก่า ไม่ใช่ล้างจอทิ้ง */
+function _oeStaleNote(key, e){
+  var o = _oeStashed(key);
+  var when = o ? ' (โหลดไว้ ' + _oeAgo(o.t) + ')' : '';
+  toast('แสดงข้อมูลที่โหลดไว้ล่าสุด' + when + ' · ' + _apiWhy(e), 'err');
+}
+function _oeAgo(t){
+  var m = Math.round((Date.now() - t) / 60000);
+  if(m < 1) return 'เมื่อครู่';
+  if(m < 60) return m + ' นาทีที่แล้ว';
+  var h = Math.round(m / 60);
+  return h < 24 ? h + ' ชั่วโมงที่แล้ว' : Math.round(h / 24) + ' วันที่แล้ว';
 }
 function apiPost(body){
   return _apiFetch(SCRIPT_URL, {
@@ -1622,12 +1660,16 @@ function switchTab(t){
 
 /* ═════════════════════ LOAD EXAMS ═════════════════════ */
 function loadExams(force){
-  $('adminExamList').innerHTML = _oeSkelCards(6);
+  var old = _oeStashed('exams');
+  if(old){ EXAMS = old.d; renderAdminExams(); fillExamFilter(); }
+  else $('adminExamList').innerHTML = _oeSkelCards(6);
   return apiGet('exams').then(function(res){
     EXAMS = (res && res.ok && res.exams) ? res.exams : [];
+    _oeStash('exams', EXAMS);
     renderAdminExams();
     fillExamFilter();
   }).catch(function(e){
+    if(EXAMS.length){ _oeStaleNote('exams', e); return; }
     $('adminExamList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadExams(true)">ลองใหม่</button>');
   });
@@ -2209,6 +2251,7 @@ function saveExam(){
       // อัปเดต local ทันที
       var i = EXAMS.findIndex(function(x){return x.id===exam.id;});
       if(i>=0) EXAMS[i]=exam; else EXAMS.push(exam);
+      _oeStash('exams', EXAMS);
       renderAdminExams(); fillExamFilter();
     } else { toast('บันทึกไม่สำเร็จ: '+((res&&res.error)||'ไม่ทราบสาเหตุ'),'err'); }
   }).catch(function(e){ toast('เชื่อมต่อ backend ไม่ได้: '+e.message,'err'); })
@@ -2232,15 +2275,21 @@ function previewExam(id){
 
 /* ═════════════════════ RESULTS (admin) ═════════════════════ */
 function loadResults(force){
-  $('resultsBody').innerHTML = _oeSkelRows(8, 8);
-  var _c = $('resCards'); if(_c) _c.innerHTML = _oeSkelList(5);
-  var _ch = $('resChips'); if(_ch) _ch.innerHTML = '';
+  var old = _oeStashed('results');
+  if(old){ RESULTS = old.d; fillBranchFilter(); renderResults(); }
+  else {
+    $('resultsBody').innerHTML = _oeSkelRows(8, 8);
+    var _c0 = $('resCards'); if(_c0) _c0.innerHTML = _oeSkelList(5);
+    var _ch = $('resChips'); if(_ch) _ch.innerHTML = '';
+  }
   return apiGet('exam-results').then(function(res){
     RESULTS = (res && res.ok && res.results) ? res.results : [];
+    _oeStash('results', RESULTS);
     fillBranchFilter();
     renderResults();
     renderAdminExams();   // การ์ดชุดข้อสอบโชว์สถิติผลสอบด้วย — ผลมาถึงทีหลังต้องวาดใหม่
   }).catch(function(e){
+    if(RESULTS.length){ _oeStaleNote('results', e); return; }
     var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadResults(true)">ลองใหม่</button>');
     $('resultsBody').innerHTML = '<tr><td colspan="8">' + err + '</td></tr>';
@@ -2372,11 +2421,15 @@ function exportResultsCSV(){
 
 /* ═════════════════════ BRANCH: list exams ═════════════════════ */
 function loadBranchExams(){
-  $('branchList').innerHTML = _oeSkelCards(3);
+  var old = _oeStashed('exams');
+  if(old){ EXAMS = old.d; renderBranchExams(); }
+  else $('branchList').innerHTML = _oeSkelCards(3);
   apiGet('exams').then(function(res){
     EXAMS = (res && res.ok && res.exams) ? res.exams : [];
+    _oeStash('exams', EXAMS);
     renderBranchExams();
   }).catch(function(e){
+    if(EXAMS.length){ _oeStaleNote('exams', e); return; }
     $('branchList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadBranchExams()">ลองใหม่</button>');
   });
@@ -2786,6 +2839,8 @@ function loadExamRequests(){
     if(isAdminMode){ renderExamRequests(); paintReqCount(); }
     else renderBranchExams();
   }).catch(function(e){
+    /* ตั้งใจไม่เก็บคำขอลงเครื่อง — สถานะเปลี่ยนตลอด (รออนุมัติ → อนุมัติ → สอบแล้ว)
+       เอาของเก่ามาโชว์เสี่ยงให้กดเริ่มสอบจากสิทธิ์ที่ถูกใช้ไปแล้ว */
     if(isAdminMode) $('reqList').innerHTML = _oeEmpty('📡', 'โหลดคำขอสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadExamRequests()">ลองใหม่</button>');
   });
