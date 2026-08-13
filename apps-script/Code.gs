@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-13c';
+var BACKEND_VERSION = '2026-08-13d';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -754,7 +754,11 @@ var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','bra
    ทั้งที่จะอ่านแค่ชีตเดียว · ทางที่ได้ผลคือถ้ามีในแคชให้ตอบเลย ไม่ต้องแตะ
    SpreadsheetApp เลยแม้แต่ครั้งเดียว — เหลือเวลาแค่ค่าตั้งต้นของ Apps Script
    ระบบอื่น (ใบรับรอง/พนักงาน/คำขออบรม) ทำแบบนี้อยู่แล้ว ระบบสอบตกหล่นไป */
-var EXAM_CACHE_SEC = 300;
+/* 1 ชั่วโมง — ยืดจาก 5 นาทีได้เพราะทุกทางที่เขียนข้อมูลล้างแคชทันทีอยู่แล้ว
+   ที่ไม่ยืดไปถึง 6 ชั่วโมง (ค่าสูงสุด) เพราะถ้ามีคนไปแก้ใน Google Sheet ตรง ๆ
+   ระบบจะไม่รู้ ต้องรอแคชหมดอายุเอง 1 ชั่วโมงคือจุดที่ยังพอทน
+   (หรือกดปุ่ม "ล้าง Cache" ในหน้าผู้สัมผัสอาหาร ซึ่งล้างของทุกระบบให้) */
+var EXAM_CACHE_SEC = 3600;
 var EXAM_CACHE_KEYS = ['exam_list_v1', 'exam_res_v1', 'exam_req_v1'];
 
 function _oeCacheGet(key) {
@@ -919,7 +923,7 @@ var FQA_DEL_HEADERS = ['id','deletedAt'];
    ทั้งที่โค้ดดูเหมือนทำงาน) จึงหั่นเป็นท่อนละ 90,000 แล้วเก็บหลายช่อง
    พร้อมช่องบอกจำนวนท่อน · ถ้าท่อนไหนหายไป (หมดอายุไม่พร้อมกัน / ถูกไล่ที่)
    ถือว่าแคชใช้ไม่ได้ทั้งก้อน กลับไปอ่านชีตตามเดิม ดีกว่าได้ข้อมูลขาด ๆ */
-var FQA_CACHE_SEC = 300;
+var FQA_CACHE_SEC = 3600;   /* เหตุผลเดียวกับ EXAM_CACHE_SEC */
 var FQA_CHUNK = 90000;      /* ต่ำกว่าลิมิต 100,000 เผื่อส่วนหัวของตัวเก็บ */
 var FQA_MAX_CHUNKS = 20;    /* ใหญ่กว่านี้ไม่ต้องแคช ไม่คุ้มกับจำนวนช่องที่ใช้ */
 var FQA_CACHE_KEY = 'fqa_all_v1';
@@ -1153,6 +1157,43 @@ function backupFqaDaily() {
   var files = folder.getFiles();
   while (files.hasNext()) { var f = files.next(); if (f.getDateCreated() < cutoff) f.setTrashed(true); }
   return { ok: true, file: name, count: records.length };
+}
+
+/* =======================================================================
+   อุ่นแคชไว้ล่วงหน้า (Cache warm-up)
+   · warmCaches()        = เรียกข้อมูลทุกชุดหนึ่งรอบ ถ้าแคชหายไปจะสร้างใหม่ให้
+   · setupCacheWarmup()  = ตั้งให้รันเองทุก 5 นาที (รันครั้งเดียวจาก editor)
+
+   ทำไมต้องมี: แคชช่วยได้ตั้งแต่รอบที่สองเป็นต้นไป ส่วนรอบแรกยังต้องเปิด
+   สเปรดชีตทั้งไฟล์ ซึ่งวัดได้ 17-45 วินาที และบางครั้งตอบกลับมาไม่ครบ
+   ถ้าปล่อยไว้ คนแรกที่เปิดหลังมีคนบันทึกข้อมูลจะเป็นคนรับกรรมทุกครั้ง
+   ให้ตัวตั้งเวลาไปรับกรรมแทนในเบื้องหลัง คนใช้งานจริงจะเจอแต่รอบที่เร็ว
+
+   ต้นทุน: รอบที่แคชยังอยู่จะจบใน 1-2 วินาที (แค่อ่านแคช) จะหนักเฉพาะรอบ
+   ที่ต้องสร้างใหม่จริง ๆ คือหลังมีคนบันทึกข้อมูลหรือหลังแคชหมดอายุเท่านั้น
+   ======================================================================= */
+function warmCaches() {
+  var out = {};
+  /* แยก try ทีละอัน — ชุดไหนพังต้องไม่ทำให้ชุดที่เหลือไม่ได้อุ่น */
+  function step(name, fn) {
+    var t0 = new Date().getTime();
+    try { fn(); out[name] = (new Date().getTime() - t0) + 'ms'; }
+    catch (e) { out[name] = 'error: ' + String(e); }
+  }
+  step('exams', function () { getExams(); });
+  step('examResults', function () { getExamResults(); });
+  step('examRequests', function () { getExamRequests('', 'all'); });
+  step('fqaRecords', function () { getFqaRecords('', ''); });
+  Logger.log(JSON.stringify(out));
+  return out;
+}
+
+function setupCacheWarmup() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'warmCaches') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('warmCaches').timeBased().everyMinutes(5).create();
+  return 'ตั้งอุ่นแคชอัตโนมัติทุก 5 นาทีเรียบร้อย';
 }
 
 function setupDailyBackup() {
