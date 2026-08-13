@@ -454,6 +454,15 @@ select.txt{appearance:none;-webkit-appearance:none;
 .reqwait,.reqused{margin:11px 0 0;padding:9px;border-radius:10px;text-align:center;
   font-size:12.5px;font-weight:700;background:var(--bg3);color:var(--text3)}
 .reqcard .btn{width:100%}
+/* ชุดที่คุมเวลาเริ่ม: สาขาไม่เห็นรหัส ต้องรอผู้คุมสอบบอกแล้วพิมพ์เอง */
+.reqok{margin:11px 0 10px;padding:9px;border-radius:10px;text-align:center;
+  font-size:12.5px;font-weight:700;background:var(--green-soft,var(--bg3));color:var(--text2)}
+.reqtype{margin:11px 0 10px}
+.reqtype label{display:block;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:5px}
+.reqtype input{width:100%;box-sizing:border-box;padding:10px;border-radius:11px;
+  border:1px dashed var(--gold-line);background:var(--gold-soft);color:#b23a10;
+  text-align:center;font-size:21px;font-weight:800;letter-spacing:.2em;text-transform:uppercase}
+.reqtype input:focus{outline:none;border-style:solid;box-shadow:0 0 0 3px rgba(234,88,12,.12)}
 .codepill{display:inline-block;padding:3px 10px;border-radius:8px;background:var(--gold-soft);
   border:1px solid var(--gold-line);color:#b23a10;font-weight:800;letter-spacing:.14em;font-size:13px}
 .bigcode{display:inline-block;margin-top:6px;font-size:30px;font-weight:800;letter-spacing:.2em;color:var(--gold)}
@@ -998,7 +1007,8 @@ label.fld>span>b{font-weight:800}
             <span class="ic"><svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
             ความปลอดภัยระหว่างสอบ
           </div>
-          <div class="switch-row"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ระบบสุ่มรหัสให้ ใช้ได้ครั้งเดียว</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ทำได้ครั้งเดียว ส่งแล้วปิดทันที</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
+          <div class="switch-row"><div><div class="sw-t">ใช้รหัสคุมเวลาเริ่มสอบ</div><div class="sw-d">ปกติอนุมัติแล้วสาขากดเริ่มได้เลย · เปิดอันนี้เมื่อ<b>นัดสอบพร้อมกัน</b> — รหัสจะไม่ขึ้นที่หน้าสาขา ผู้คุมสอบถือไว้แล้วบอกเมื่อถึงเวลา</div></div><label class="sw"><input type="checkbox" id="edNeedCode"><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
@@ -1926,6 +1936,8 @@ function openExamEditor(id){
   $('edEnd').value = ex ? (ex.endDate||'') : '';
   $('edBranches').value = ex && ex.visibleBranches ? ex.visibleBranches.join('\n') : '';
   $('edNeedApprove').checked = ex ? ex.requireApproval!==false : true;
+  /* ต้องเป็น ===true — ชุดเก่าที่ไม่มีค่านี้ถือว่าไม่ใช้รหัส กดเริ่มได้เลย */
+  $('edNeedCode').checked = ex ? ex.requireCode===true : false;
   $('edShufQ').checked = ex ? ex.shuffleQuestions!==false : true;
   $('edShufC').checked = ex ? ex.shuffleChoices!==false : true;
   $('edFs').checked = ex ? ex.requireFullscreen!==false : true;
@@ -2228,6 +2240,7 @@ function collectExamFromForm(){
     endDate: $('edEnd').value,
     visibleBranches: branches,
     requireApproval: $('edNeedApprove').checked,
+    requireCode: $('edNeedCode').checked,
     shuffleQuestions: $('edShufQ').checked,
     shuffleChoices: $('edShufC').checked,
     requireFullscreen: $('edFs').checked,
@@ -2830,6 +2843,11 @@ function _reqSt(s){ return REQ_STATUS[s] || REQ_STATUS.pending; }
 
 /* ชุดข้อสอบที่ไม่ได้ตั้งค่าไว้ = ต้องขออนุมัติ (ของเดิมทุกชุดจึงเข้าเงื่อนไขนี้อัตโนมัติ) */
 function examNeedsApproval(ex){ return !ex || ex.requireApproval !== false; }
+/* รหัสเป็นของเสริม ใช้ตอนอยากคุมว่าเริ่มสอบได้เมื่อไร (นัดสอบพร้อมกัน)
+   ปกติปิด — อนุมัติแล้วสาขากดเริ่มได้เลย ระบบยังปิดสิทธิ์ให้หลังส่งเหมือนเดิม
+   ไม่มีอนุมัติ = ไม่มีรหัสให้พูดถึง */
+function examNeedsCode(ex){ return examNeedsApproval(ex) && !!(ex && ex.requireCode === true); }
+function _examOf(id){ return EXAMS.find(function(x){ return x.id === id; }); }
 
 function loadExamRequests(){
   var q = isAdminMode ? 'scope=all'
@@ -2894,15 +2912,20 @@ function renderBranchReqs(){
   var mine = EXAM_REQS.filter(function(r){ return brandMatch(r) && r.status !== 'rejected'; })
     .sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
   if(!mine.length){ host.innerHTML = ''; return; }
-  host.innerHTML = '<div class="sec-h">รหัสเข้าสอบของสาขา</div>'
+  host.innerHTML = '<div class="sec-h">คำขอสอบของสาขา</div>'
     + '<div class="reqcards">' + mine.map(function(r){
       var st = _reqSt(r.status);
+      var needCode = examNeedsCode(_examOf(r.examId));
       var act = r.status === 'approved'
         ? '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
           + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>'
         : '';
+      /* ชุดที่คุมเวลาเริ่ม: ห้ามโชว์รหัสตรงนี้ ไม่งั้นก็กดเองได้ทันที ผิดวัตถุประสงค์ */
       var code = r.status === 'approved'
-        ? '<div class="reqcode">' + esc(r.code || '—') + '</div>'
+        ? (needCode
+            ? '<div class="reqtype"><label>กรอกรหัสจากผู้คุมสอบ</label>'
+              + '<input id="rqc_' + esc(r.id) + '" maxlength="6" autocomplete="off" placeholder="••••••"></div>'
+            : '<div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>')
         : (r.status === 'used' ? '<div class="reqused">ทำเสร็จแล้ว</div>' : '<div class="reqwait">รอผู้ดูแลอนุมัติ</div>');
       return '<article class="reqcard">'
         + '<div class="rq-top"><div><b>' + esc(r.name) + '</b>'
@@ -2919,11 +2942,26 @@ function renderBranchReqs(){
 function startWithCode(reqId){
   var r = EXAM_REQS.find(function(x){ return x.id === reqId; });
   if(!r) return;
-  var ex = EXAMS.find(function(x){ return x.id === r.examId; });
+  var ex = _examOf(r.examId);
   if(!ex){ showExamInfo('ไม่พบชุดข้อสอบ', 'ชุดข้อสอบนี้อาจถูกลบหรือปิดไปแล้ว'); return; }
-  apiPost({ type: 'verify-exam-code', code: r.code, examId: r.examId }).then(function(res){
+  var code = r.code;
+  if(examNeedsCode(ex)){
+    var box = $('rqc_' + r.id);
+    code = ((box && box.value) || '').trim().toUpperCase();
+    if(!code){
+      showExamInfo('ต้องกรอกรหัสก่อน', 'ชุดนี้เริ่มสอบพร้อมกันตามเวลานัด — ขอรหัสจากผู้คุมสอบแล้วพิมพ์ลงในช่อง');
+      if(box) box.focus();
+      return;
+    }
+  }
+  /* ถามหลังบ้านทุกครั้งก่อนเปิดข้อสอบ ต่อให้ไม่ได้ใช้รหัส — หน้าจอที่ค้างข้อมูลเก่าไว้
+     จะได้ไม่เปิดสอบซ้ำหลังคนอื่นทำไปแล้วจากอีกเครื่อง */
+  apiPost({ type: 'verify-exam-code', code: code, examId: r.examId }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ใช้รหัสนี้ไม่ได้');
-    openExamRunner(ex, false, { code: r.code, name: r.name, empId: r.empId });
+    /* ยึดชื่อตามเจ้าของรหัสที่หลังบ้านตอบมา ไม่ใช่ชื่อบนการ์ดที่กด
+       พิมพ์รหัสของอีกคนก็จะสอบในนามเจ้าของรหัสนั้น ผลไม่หลงคน */
+    var who = (res.request || r);
+    openExamRunner(ex, false, { code: code, name: who.name || r.name, empId: who.empId || r.empId });
   }).catch(function(e){
     showExamInfo('เริ่มสอบไม่ได้', esc(e.message || 'ใช้รหัสนี้ไม่ได้'));
     loadExamRequests();
@@ -2975,7 +3013,11 @@ function _reqRow(r){
     + '<td>' + esc(r.branchName || '—') + '</td>'
     + '<td>' + esc(r.examTitle) + '</td>'
     + '<td class="c"><span class="st ' + st.c + '">' + st.t + '</span></td>'
-    + '<td class="c">' + (r.code ? '<code class="codepill">' + esc(r.code) + '</code>' : '—') + '</td>'
+    + '<td class="c">' + (r.code
+        ? '<code class="codepill">' + esc(r.code) + '</code>'
+          + (examNeedsCode(_examOf(r.examId)) && r.status === 'approved'
+              ? '<div class="who-s" style="margin-top:3px">บอกรหัสนี้เมื่อถึงเวลาสอบ</div>' : '')
+        : '—') + '</td>'
     + '<td>' + act + '</td></tr>';
 }
 function decideReq(id, decision){

@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-13b';
+var BACKEND_VERSION = '2026-08-13c';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -708,6 +708,7 @@ function uploadIcon(base64, filename) {
 function clearAllCacheReturn() {
   CacheService.getScriptCache().removeAll(['cert_v2','emp_v1','req_v2','cfg_systems_v2','cfg_announcements_v2','cfg_users_v2','cfg_branches_v2']
     .concat(EXAM_CACHE_KEYS));
+  _fqaCacheKill();   /* ของฟอร์มตรวจเก็บเป็นหลายท่อน ต้องล้างด้วยตัวของมันเอง */
   return { ok: true, cleared: true };
 }
 
@@ -908,6 +909,66 @@ var FQA_HEADERS = ['id','brand','type','date','branch','updatedAt','json'];
 
 var FQA_DEL_HEADERS = ['id','deletedAt'];
 
+/* ═══ แคชของฟอร์มตรวจสาขา ═══
+   วัดจริง: ยิง action=fqa-records 5 รอบได้ 39 / 21 / 3.2 / 4.4 / 45 วินาที
+   และ 2 รอบตอบกลับมาไม่ครบ (8,268 ตัวอักษรจาก 118,699) — อาการเดียวกับระบบสอบ
+   เพราะต้องเปิดสเปรดชีตทั้งไฟล์ทุกครั้ง
+
+   ต่างจากระบบสอบตรงที่ข้อมูลก้อนนี้ 118,699 ตัวอักษร เกินลิมิต 100,000
+   ต่อช่องของ CacheService ใส่ตรง ๆ ไม่ได้ (put จะโยน error เงียบ ๆ แล้วไม่มีแคช
+   ทั้งที่โค้ดดูเหมือนทำงาน) จึงหั่นเป็นท่อนละ 90,000 แล้วเก็บหลายช่อง
+   พร้อมช่องบอกจำนวนท่อน · ถ้าท่อนไหนหายไป (หมดอายุไม่พร้อมกัน / ถูกไล่ที่)
+   ถือว่าแคชใช้ไม่ได้ทั้งก้อน กลับไปอ่านชีตตามเดิม ดีกว่าได้ข้อมูลขาด ๆ */
+var FQA_CACHE_SEC = 300;
+var FQA_CHUNK = 90000;      /* ต่ำกว่าลิมิต 100,000 เผื่อส่วนหัวของตัวเก็บ */
+var FQA_MAX_CHUNKS = 20;    /* ใหญ่กว่านี้ไม่ต้องแคช ไม่คุ้มกับจำนวนช่องที่ใช้ */
+var FQA_CACHE_KEY = 'fqa_all_v1';
+
+function _fqaCachePut(obj) {
+  try {
+    var str = JSON.stringify(obj);
+    var parts = Math.ceil(str.length / FQA_CHUNK);
+    if (parts > FQA_MAX_CHUNKS) return;
+    var map = {};
+    for (var i = 0; i < parts; i++) map[FQA_CACHE_KEY + '_' + i] = str.substring(i * FQA_CHUNK, (i + 1) * FQA_CHUNK);
+    /* เขียนท่อนให้ครบก่อน ค่อยเขียนช่องนับจำนวน — ถ้าล้มกลางคัน จะไม่มีช่องนับ
+       แปลว่าแคชใช้ไม่ได้ ดีกว่ามีช่องนับแต่ท่อนไม่ครบ */
+    CacheService.getScriptCache().putAll(map, FQA_CACHE_SEC);
+    CacheService.getScriptCache().put(FQA_CACHE_KEY + '_n', String(parts), FQA_CACHE_SEC);
+  } catch (e) {}
+}
+
+function _fqaCacheGet() {
+  try {
+    var c = CacheService.getScriptCache();
+    var parts = parseInt(c.get(FQA_CACHE_KEY + '_n'), 10);
+    if (!parts) return null;
+    var keys = [];
+    for (var i = 0; i < parts; i++) keys.push(FQA_CACHE_KEY + '_' + i);
+    var got = c.getAll(keys) || {};
+    var str = '';
+    for (var j = 0; j < parts; j++) {
+      var piece = got[FQA_CACHE_KEY + '_' + j];
+      if (piece == null) return null;   /* ท่อนหาย = ทิ้งทั้งก้อน */
+      str += piece;
+    }
+    return JSON.parse(str);
+  } catch (e) { return null; }
+}
+
+function _fqaCacheKill() {
+  try {
+    var c = CacheService.getScriptCache();
+    var parts = parseInt(c.get(FQA_CACHE_KEY + '_n'), 10) || 0;
+    var keys = [FQA_CACHE_KEY + '_n'];
+    /* ล้างเผื่อไว้เกินจำนวนที่นับได้ด้วย เผื่อรอบก่อนหั่นได้หลายท่อนกว่านี้
+       แล้วช่องนับหมดอายุไปก่อน จะได้ไม่มีท่อนเก่าค้างปนกับท่อนใหม่ */
+    var upto = Math.max(parts, FQA_MAX_CHUNKS);
+    for (var i = 0; i < upto; i++) keys.push(FQA_CACHE_KEY + '_' + i);
+    c.removeAll(keys);
+  } catch (e) {}
+}
+
 /* รายการ id ที่ถูกลบ (tombstone) — ให้ทุกเครื่องลบตามแบบเด็ดขาด ไม่เด้งกลับ */
 function _fqaDeletedIds() {
   var sh = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
@@ -918,26 +979,36 @@ function _fqaDeletedIds() {
 }
 
 function getFqaRecords(brand, since) {
-  var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
-  var values = sh.getDataRange().getValues();
-  var deleted = _fqaDeletedIds();
-  var now = new Date().toISOString();
-  if (values.length < 2) return { ok: true, records: [], deleted: deleted, now: now };
-  var headers = values[0].map(function(h){ return String(h).trim(); });
-  var brandCol = headers.indexOf('brand'), jsonCol = headers.indexOf('json');
-  var records = [];
-  for (var i = 1; i < values.length; i++) {
-    if (brand && String(values[i][brandCol]) !== String(brand)) continue;
-    var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
-    if (!raw) continue;
-    try {
-      var rec = JSON.parse(raw);
-      /* ซิงค์แบบ incremental (ถ้าส่ง since มา) — ส่งเฉพาะที่เปลี่ยนหลัง since */
-      if (since && rec && rec.updatedAt && String(rec.updatedAt) <= String(since)) continue;
-      records.push(rec);
-    } catch (e) {}
+  /* อ่านชีตครั้งเดียวเก็บทั้งก้อน (ทุกแบรนด์ ไม่กรอง) แล้วค่อยคัดตามที่ขอ
+     ถ้าแยกแคชรายแบรนด์/ราย since จะกลายเป็นแคชนับไม่ถ้วนที่ต้องล้างพร้อมกัน */
+  var all = _fqaCacheGet();
+  if (!all) {
+    var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+    var values = sh.getDataRange().getValues();
+    var everything = [];
+    if (values.length >= 2) {
+      var headers = values[0].map(function(h){ return String(h).trim(); });
+      var jsonCol = headers.indexOf('json');
+      for (var i = 1; i < values.length; i++) {
+        var raw = jsonCol >= 0 ? values[i][jsonCol] : '';
+        if (!raw) continue;
+        try { everything.push(JSON.parse(raw)); } catch (e) {}
+      }
+    }
+    /* now = เวลาที่อ่านชีต ไม่ใช่เวลาที่ตอบกลับ · หน้าเว็บเอาค่านี้ไปเป็นหมุด
+       ว่า "ซิงค์ถึงตรงนี้แล้ว" ถ้าให้เวลาปัจจุบันทั้งที่ข้อมูลมาจากแคชเก่า
+       รายการที่ถูกบันทึกระหว่างนั้นจะถูกข้ามไปถาวร ไม่มีวันซิงค์ลงมา */
+    all = { records: everything, deleted: _fqaDeletedIds(), now: new Date().toISOString() };
+    _fqaCachePut(all);
   }
-  return { ok: true, records: records, deleted: deleted, now: now };
+  var records = [];
+  all.records.forEach(function (rec) {
+    if (brand && String(rec.brand || '') !== String(brand)) return;
+    /* ซิงค์แบบ incremental (ถ้าส่ง since มา) — ส่งเฉพาะที่เปลี่ยนหลัง since */
+    if (since && rec.updatedAt && String(rec.updatedAt) <= String(since)) return;
+    records.push(rec);
+  });
+  return { ok: true, records: records, deleted: all.deleted, now: all.now };
 }
 
 function _fqaToRow(rec, headers) {
@@ -981,10 +1052,12 @@ function saveFqaRecord(rec) {
     for (var i = 1; i < values.length; i++) {
       if (String(values[i][idCol]) === String(rec.id)) {
         sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
+        _fqaCacheKill();
         return { ok: true, id: rec.id, updated: true };
       }
     }
     sh.appendRow(rowArr);
+    _fqaCacheKill();
     return { ok: true, id: rec.id, updated: false };
   } finally { lock.releaseLock(); }
 }
@@ -1002,6 +1075,7 @@ function deleteFqaRecord(id) {
       if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); }
     }
     _addFqaTombstone(id);   // จำ id ที่ลบไว้ ให้เครื่องอื่นลบตาม ไม่เด้งกลับ
+    _fqaCacheKill();
     return { ok: true };
   } finally { lock.releaseLock(); }
 }
