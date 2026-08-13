@@ -794,7 +794,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
           <div class="dsec"><span>Visit (การเข้าพบและอบรม)</span></div>
           <div class="grid g2">
             <div class="card">
-              <div class="hd"><h3>ประเภทการเข้าพบ</h3></div>
+              <div class="hd"><h3>ประเภทการเข้า Visit</h3></div>
               <div class="bd"><div id="chVisitType"></div></div>
             </div>
             <div class="card">
@@ -961,7 +961,7 @@ const LIST_META = {
   categories: {label:'ประเภท Complaint', note:'ถ้ามี “อื่นๆ” ระบบจะเปิดช่องให้ระบุเพิ่ม'},
   channels:   {label:'ช่องทางที่รับบริการ', note:'ทานที่ร้าน / เดลิเวอรี'},
   severity:   {label:'ระดับความรุนแรง', note:'เรียงจากเบาไปหนัก'},
-  visitTypes: {label:'ประเภทการเข้าพบ (Visit)', note:''},
+  visitTypes: {label:'ประเภทการเข้า Visit', note:''},
   photoGroups:{label:'หมวดรูปประกอบ', note:''}
 };
 
@@ -1533,7 +1533,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.12-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.13-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -2044,10 +2044,10 @@ const Form = {
     const sel=s.visitType, hasOther=sel.includes('อื่นๆ');
     return `
     <div class="card">
-      <div class="hd"><span class="sec-no">2</span><h3>ประเภทการเข้าพบ</h3><div class="sp"></div><span class="note">เลือกได้มากกว่า 1</span></div>
+      <div class="hd"><span class="sec-no">2</span><h3>ประเภทการเข้า Visit</h3><div class="sp"></div><span class="note">เลือกได้มากกว่า 1</span></div>
       <div class="bd"><div class="chipbar">${M.list('visitTypes').map((v,i)=>`<span class="chip ${sel.includes(v)?'on':''}" onclick="Form.toggleVisit(${i})">${esc(v)}</span>`).join('')}</div>
         ${hasOther?`<div class="fld" style="margin-top:12px"><label class="lbl">ระบุประเภทอื่นๆ <span style="color:var(--red)">*</span></label>
-          <input class="inp" value="${attr(s.visitTypeOther)}" oninput="Form.set('visitTypeOther',this.value)" placeholder="ระบุประเภทการเข้าพบ"></div>`:''}
+          <input class="inp" value="${attr(s.visitTypeOther)}" oninput="Form.set('visitTypeOther',this.value)" placeholder="ระบุประเภทการเข้า Visit"></div>`:''}
       </div>
     </div>
     <div class="card">
@@ -2171,8 +2171,8 @@ const Form = {
     }
 
     if(s.type==='VISIT'){
-      if(!(Array.isArray(s.visitType)?s.visitType:[s.visitType]).filter(Boolean).length) return 'กรุณาเลือกประเภทการเข้าพบอย่างน้อย 1 อย่าง';
-      if((Array.isArray(s.visitType)?s.visitType:[]).includes('อื่นๆ') && need(s.visitTypeOther)) return 'กรุณาระบุประเภทการเข้าพบ (อื่นๆ)';
+      if(!(Array.isArray(s.visitType)?s.visitType:[s.visitType]).filter(Boolean).length) return 'กรุณาเลือกประเภทการเข้า Visit อย่างน้อย 1 อย่าง';
+      if((Array.isArray(s.visitType)?s.visitType:[]).includes('อื่นๆ') && need(s.visitTypeOther)) return 'กรุณาระบุประเภทการเข้า Visit (อื่นๆ)';
       const keys=['topic','problem','advice'];
       if(!s.topics.some(x=>keys.some(k=>String(x[k]||'').trim()))) return 'กรุณากรอกหัวข้อการอบรมอย่างน้อย 1 หัวข้อ';
       const lbl={topic:'หัวข้อการอบรม',problem:'ปัญหาที่พบ',advice:'ข้อแนะนำ'};
@@ -2226,7 +2226,7 @@ function summaryLine(r){
   if(r.type==='FSQ') return r.complaint.slice(0,80)+(r.complaint.length>80?'…':'');
   return r.topics.map(t=>t.topic).filter(Boolean).slice(0,2).join(' · ');
 }
-/* ประเภทการเข้าพบ (Visit) — รองรับทั้งแบบหลายค่า (array) และข้อมูลเก่า (string) · แทน "อื่นๆ" ด้วยข้อความที่ระบุ */
+/* ประเภทการเข้า Visit — รองรับทั้งแบบหลายค่า (array) และข้อมูลเก่า (string) · แทน "อื่นๆ" ด้วยข้อความที่ระบุ */
 function visitTypeArr(r){ const v=r&&r.visitType; return Array.isArray(v)? v.filter(Boolean) : (v? [v] : []); }
 function visitTypeList(r){ return visitTypeArr(r).map(v=> v==='อื่นๆ' ? ('อื่นๆ'+(r.visitTypeOther?': '+r.visitTypeOther:'')) : v); }
 function visitTypeLabel(r){ const a=visitTypeList(r); return a.length? a.join(', ') : '—'; }
@@ -2402,7 +2402,7 @@ const Rec = {
         ${(r.issues||[]).map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
     }
     if(r.type==='VISIT'){
-      h+=box('ประเภทการเข้าพบ', visitTypeList(r).map(v=>`<span class="tag">${esc(v)}</span>`).join(' ')||'<span style="color:var(--text3)">—</span>');
+      h+=box('ประเภทการเข้า Visit', visitTypeList(r).map(v=>`<span class="tag">${esc(v)}</span>`).join(' ')||'<span style="color:var(--text3)">—</span>');
       h+=box('หัวข้อการอบรม',`<table class="tb"><thead><tr><th>หัวข้อ</th><th>ปัญหาที่พบ</th><th>ข้อแนะนำ</th></tr></thead><tbody>
         ${(r.topics||[]).map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`).join('')}</tbody></table>`);
       if((r.newStaff||[]).length) h+=box('ประเมินพนักงานใหม่ (New Staff)', r.newStaff.map(st=>`
@@ -2932,7 +2932,7 @@ const Dash = {
     }).filter(x=>x.v>0).sort((a,b)=>b.v-a.v);
     document.getElementById('chTrainer').innerHTML = trows.length? hbars(trows,RED[1]) : emptyBox();
 
-    /* ---- 11 Visit: ประเภทการเข้าพบ + หัวข้อการอบรม ---- */
+    /* ---- 11 Visit: ประเภทการเข้า Visit + หัวข้อการอบรม ---- */
     const vtc={}; vis.forEach(r=>visitTypeList(r).forEach(v=>{ if(v) vtc[v]=(vtc[v]||0)+1; }));
     const vt=Object.entries(vtc).map(([k,v])=>({k,v})).sort((a,b)=>b.v-a.v);
     document.getElementById('chVisitType').innerHTML = vt.length? donut(vt,'ครั้ง') : emptyBox('ยังไม่มีข้อมูล Visit');
@@ -3604,7 +3604,7 @@ const PDF = {
         (r.issues||[]).map(x=>`<tr><td>${esc(x.problem)}</td><td>${esc(x.immediate)}</td><td>${esc(x.cause)}</td><td>${esc(x.prevention)}</td><td>${esc(x.advice)}</td></tr>`)));
     }
     if(r.type==='VISIT'){
-      b+=`<p style="margin:0 0 15px;font-size:13px"><span style="color:#999;font-weight:700">ประเภทการเข้าพบ: </span><b style="color:#111">${esc(visitTypeLabel(r))}</b></p>`;
+      b+=`<p style="margin:0 0 15px;font-size:13px"><span style="color:#999;font-weight:700">ประเภทการเข้า Visit: </span><b style="color:#111">${esc(visitTypeLabel(r))}</b></p>`;
       b+=sec('หัวข้อการอบรม', tbl(
         [{h:'หัวข้อ',w:'30%'},{h:'ปัญหาที่พบ',w:'35%'},{h:'ข้อแนะนำ',w:'35%'}],
         (r.topics||[]).map(x=>`<tr><td>${esc(x.topic)}</td><td>${esc(x.problem)}</td><td>${esc(x.advice)}</td></tr>`)));
@@ -3682,7 +3682,7 @@ const PDF = {
     if(!list.length) return App.toast('ไม่มีรายการตามตัวกรอง');
     const rows=list.map(r=>`<tr>
       <td>${esc(r.date)}<div class="sm">${esc(r.time)}</div></td>
-      <td>${esc(r.type)}</td>
+      <td>${esc(r.type)}${r.type==='VISIT'?`<div class="sm">${esc(visitTypeLabel(r))}</div>`:''}</td>
       <td>${esc(r.branch)}<div class="sm">${esc(r.bzm)}</div></td>
       <td>${esc(summaryLine(r))}</td>
       <td class="c">${failCount(r)}</td>
@@ -3759,7 +3759,7 @@ const Report = {
       ${list.map(r=>`<tr>
         <td><input type="checkbox" ${this.sel[r.id]?'checked':''} onchange="Report.toggle('${r.id}', this.checked)"></td>
         <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time||'')}</div></td>
-        <td><span class="tag">${esc(TL[r.type]||r.type)}</span></td>
+        <td><span class="tag">${esc(TL[r.type]||r.type)}</span>${r.type==='VISIT'?`<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(visitTypeLabel(r))}</div>`:''}</td>
         <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
         <td style="font-size:12.5px">${esc(r.trainer||'—')}</td>
         <td style="max-width:280px;color:var(--text2)">${esc(summaryLine(r))}</td>
@@ -3847,6 +3847,7 @@ const IO = {
     const summary=rows.map(r=>({
       'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
       'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
+      'ประเภทการเข้า Visit':r.type==='VISIT'?visitTypeList(r).join(', '):'',
       'จำนวนประเด็นที่พบ':failCount(r),'สรุปสิ่งที่พบ':summaryLine(r),
       'จำนวนรูป':r.photos.length,'บันทึกเมื่อ':(r.createdAt||'').slice(0,19).replace('T',' ')}));
     const fqaItem=[],fqaMenu=[],comp=[],visit=[];
@@ -3862,7 +3863,7 @@ const IO = {
         'ช่องทาง':r.channel,'ความรุนแรง':r.severity,'ปัญหาที่พบ':x.problem,'การแก้ไขเบื้องต้น':x.immediate,'สาเหตุ':x.cause,
         'แนวทางการป้องกัน':x.prevention,'ข้อแนะนำเพิ่มเติม':x.advice}));
       if(r.type==='VISIT') r.topics.forEach(x=>visit.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
-        'ประเภทการเข้าพบ':visitTypeLabel(r),'หัวข้อการอบรม':x.topic,'ปัญหาที่พบ':x.problem,'ข้อแนะนำ':x.advice}));
+        'ประเภทการเข้า Visit':visitTypeLabel(r),'หัวข้อการอบรม':x.topic,'ปัญหาที่พบ':x.problem,'ข้อแนะนำ':x.advice}));
     });
     const master=M.branches().map((b,i)=>({'ลำดับ':i+1,'สาขา':b.name,'ผู้จัดการเขต':b.bzm}));
     return {summary,fqaItem,fqaMenu,comp,visit,master};
@@ -3977,7 +3978,7 @@ const IO = {
       const ws=XLSX.utils.json_to_sheet(ex,{header:H});
       ws['!cols']=H.map(h=>({wch:Math.max(14,h.length+2)}));
       const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'ผลตรวจ');
-      XLSX.writeFile(wb,'เทมเพลตนำเข้าผลตรวจ_Visitสาขา.xlsx');
+      XLSX.writeFile(wb,'เทมเพลตนำเข้าผลตรวจสาขา.xlsx');
       App.toast('ดาวน์โหลดเทมเพลตแล้ว — กรอกข้อมูลแล้วอัปโหลดกลับ');
     }).catch(e=>App.toast(e.message));
   },
