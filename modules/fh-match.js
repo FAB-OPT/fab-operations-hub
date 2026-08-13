@@ -1,4 +1,4 @@
-/* fh-match.js — จับคู่ชื่อกับใบรับรอง · stepper · ตัวช่วย UI · ดาวน์โหลดใบเซอร์
+/* fh-match.js — จับคู่ชื่อกับใบรับรอง · stepper · ตัวช่วย UI · ดาวน์โหลดใบรับรอง
    แยกมาจาก food-handler.js (บรรทัดเดิม 508-1335)
    ⚠️ ไฟล์ชุดนี้ต้องโหลดตามลำดับใน food-handler.html — อย่าสลับ */
 /* ─────────── MATCHING ENGINE ─────────── */
@@ -604,7 +604,7 @@ function renderTable() {
       +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus)+'</td>'
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
-      +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')
+      +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบรับรอง (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')
       +   '<button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button>'
       +'</td>'
       +'</tr>';
@@ -653,10 +653,10 @@ function _fhSelIds(scope) {
     ? { bar:'brSelBar', count:'brSelCount', btn:'brSelDlBtn', btnEach:'brSelDlEachBtn', all:'brChkAll' }
     : { bar:'certSelBar', count:'certSelCount', btn:'certSelDlBtn', btnEach:'certSelDlEachBtn', all:'certChkAll' };
 }
-/* checkbox 1 ช่อง — ไม่มีไฟล์ใบเซอร์ = ติ๊กไม่ได้ */
+/* checkbox 1 ช่อง — ไม่มีไฟล์ใบรับรอง = ติ๊กไม่ได้ */
 function _fhChkHtml(scope, name, course) {
   var url = _fhCertUrl(name, course);
-  if (!url) return '<input type="checkbox" class="chk-cert" disabled title="ยังไม่มีไฟล์ใบเซอร์ในระบบ">';
+  if (!url) return '<input type="checkbox" class="chk-cert" disabled title="ยังไม่มีไฟล์ใบรับรองในระบบ">';
   var k = _fhCertKey(name, course);
   return '<input type="checkbox" class="chk-cert"'
     + (_fhSelStore(scope)[k] ? ' checked' : '')
@@ -744,7 +744,7 @@ function _fhStamp() {
   var d = new Date();
   return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
 }
-/* ชื่อไฟล์ = ชื่อ-นามสกุลบนใบเซอร์ (ตัดคำนำหน้า + อักขระที่ตั้งชื่อไฟล์ไม่ได้)
+/* ชื่อไฟล์ = ชื่อ-นามสกุลบนใบรับรอง (ตัดคำนำหน้า + อักขระที่ตั้งชื่อไฟล์ไม่ได้)
    Windows ห้าม \ / : * ? " < > | และห้ามลงท้ายด้วยจุด/ช่องว่าง */
 function _fhFileName(name) {
   var parts = (typeof _stripTitleTokens === 'function')
@@ -997,7 +997,7 @@ function fhDownloadSelected(scope) {
   }).then(function(bytes){
     var blob = new Blob([bytes], { type: 'application/pdf' });
 
-    /* เลือกใบเดียว → ตั้งชื่อไฟล์เป็นชื่อ-นามสกุลบนใบเซอร์เลย จะได้หาไฟล์เจอ
+    /* เลือกใบเดียว → ตั้งชื่อไฟล์เป็นชื่อ-นามสกุลบนใบรับรองเลย จะได้หาไฟล์เจอ
        เลือกหลายใบ → รวมเป็นไฟล์เดียว ตั้งชื่อตามจำนวน (อยากได้แยกไฟล์ตามชื่อ ใช้ปุ่ม "แยกไฟล์") */
     var fname = (uniq.length === 1)
       ? _fhFileName(uniq[0].name) + '.pdf'
@@ -1013,8 +1013,8 @@ function fhDownloadSelected(scope) {
     showInfo('ดาวน์โหลดไม่สำเร็จ', escapeHtml((e && e.message) || String(e)));
   });
 }
-/* ดาวน์โหลดที่เลือก แบบ "แยกไฟล์" — ได้ไฟล์ละคน ตั้งชื่อตามชื่อ-นามสกุลบนใบเซอร์
-   ใช้ตอนต้องส่งใบเซอร์รายคน (แนบเมล/อัปเข้าแฟ้มพนักงาน) ซึ่งไฟล์รวมใช้ไม่ได้
+/* ดาวน์โหลดที่เลือก แบบ "แยกไฟล์" — ได้ไฟล์ละคน ตั้งชื่อตามชื่อ-นามสกุลบนใบรับรอง
+   ใช้ตอนต้องส่งใบรับรองรายคน (แนบเมล/อัปเข้าแฟ้มพนักงาน) ซึ่งไฟล์รวมใช้ไม่ได้
    เบราว์เซอร์จะถามอนุญาต "ดาวน์โหลดหลายไฟล์" ครั้งเดียว ต้องกดอนุญาต */
 function fhDownloadSelectedEach(scope) {
   var store = _fhSelStore(scope);
@@ -1051,7 +1051,7 @@ function fhDownloadSelectedEach(scope) {
   }).then(function(){
     restore();
     showInfo('ดาวน์โหลดแล้ว',
-      'แยกเป็น <b>' + okN + '</b> ไฟล์ ตั้งชื่อตามชื่อ-นามสกุลบนใบเซอร์'
+      'แยกเป็น <b>' + okN + '</b> ไฟล์ ตั้งชื่อตามชื่อ-นามสกุลบนใบรับรอง'
       + (failed.length ? '<div style="margin-top:8px;color:#b45309;font-size:13px;">⚠️ ไม่สำเร็จ ' + failed.length + ' ใบ: '
           + escapeHtml(failed.slice(0,5).join(', ')) + (failed.length > 5 ? ' ...' : '') + '</div>' : ''));
   });
@@ -1061,7 +1061,7 @@ function fhDownloadSelectedEach(scope) {
    ของเดิมสองฟังก์ชันนี้ยึดตัวกรองบนหน้าจอและคอลัมน์ตายตัว ไม่มีใครเรียกแล้ว จึงลบทิ้ง */
 
 
-/* ถอยกรณีรวมไฟล์ไม่ได้ — เปิดใบเซอร์ทีละแท็บ (ต้องอนุญาต pop-up) */
+/* ถอยกรณีรวมไฟล์ไม่ได้ — เปิดใบรับรองทีละแท็บ (ต้องอนุญาต pop-up) */
 function _fhOpenEachTab(list) {
   showInfo('รวมไฟล์ไม่ได้ — เปิดทีละใบแทน',
     'ระบบจะเปิดใบรับรอง ' + list.length + ' ใบในแท็บใหม่ (ถ้าเบราว์เซอร์บล็อกป๊อปอัป กรุณากด "อนุญาต")');

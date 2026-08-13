@@ -22,7 +22,7 @@ var _FH_RPT_MT = { exact: 'ตรงกับทะเบียน', lastname: '
    จึงคิดสัดส่วนจากชุดที่เลือกจริงตอนสร้างรายงาน */
 var FH_RPT_COLS = [
   { k: 'no',     label: 'ลำดับ',                    w: 7,  pdfW: 4,  get: function (d, i) { return i + 1; } },
-  { k: 'cert',   label: 'ชื่อ-นามสกุล (ในใบเซอร์)', w: 30, pdfW: 17, get: function (d) { return d.certName; } },
+  { k: 'cert',   label: 'ชื่อ-นามสกุล (ในใบรับรอง)', w: 30, pdfW: 17, get: function (d) { return d.certName; } },
   { k: 'emp',    label: 'ชื่อในทะเบียน',            w: 30, pdfW: 15, get: function (d) { return d.empName; } },
   { k: 'brand',  label: 'แบรนด์',                   w: 16, pdfW: 9,  get: function (d) { return _certBrand(d); } },
   { k: 'branch', label: 'สาขา',                     w: 32, pdfW: 16, get: function (d) { return d.branch; } },

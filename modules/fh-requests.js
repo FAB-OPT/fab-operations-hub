@@ -115,7 +115,7 @@ function updateBranchStats() {
 }
 
 /* เทียบชื่อสาขาแบบหลวม — ทะเบียนสะกดสาขาไม่ตรงกันบ่อย (ICS/ไอซีเอส, เว้นวรรคไม่เท่ากัน)
-   ถ้าเทียบตรงตัวจะกลายเป็น "สาขาตัวเองไม่มีใบเซอร์สักใบ" ทั้งที่มี */
+   ถ้าเทียบตรงตัวจะกลายเป็น "สาขาตัวเองไม่มีใบรับรองสักใบ" ทั้งที่มี */
 /* ═══ จับคู่สาขา — ยึด "รหัสสาขา" เป็นหลัก ไม่ใช่ข้อความ ═══
    ระบบเก็บชื่อสาขาไว้คนละแบบในแต่ละที่ ชื่อเดียวกันแต่เขียนไม่เหมือนกันเลย
      ตอนล็อกอิน/ใบรับรอง : "Santa Fe IT หลักสี่"
@@ -249,7 +249,7 @@ function branchSearch() {
   var all = allRecords || [];
   var myBranch = (typeof currentBranchName !== 'undefined') ? currentBranchName : '';
   /* ขอบเขต: พิมพ์ค้นหา หรือกดค้นหาเพิ่มเติมแล้ว = ทุกสาขา · ไม่งั้นเฉพาะสาขาตัวเอง
-     สาขาส่วนใหญ่เข้ามาหาใบเซอร์ของลูกน้องตัวเอง ไม่ใช่ของทั้งบริษัท
+     สาขาส่วนใหญ่เข้ามาหาใบรับรองของลูกน้องตัวเอง ไม่ใช่ของทั้งบริษัท
      เดิมเปิดมาเจอ 652 ใบของทุกสาขา ต้องพิมพ์กรองเองทุกครั้ง */
   var scopeAll = _brSearchAll || !!q;
   if (!scopeAll && myBranch) _fhBuildEmpBranchIdx();   // สร้างดัชนีทะเบียนใหม่ทุกครั้ง เผื่อทะเบียนเพิ่งโหลดเสร็จ
@@ -308,8 +308,8 @@ function branchSearch() {
       + '<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">' + escapeHtml(_courseShort(r['หลักสูตร'] || '')) + '</td>'
       + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
       + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
-      + '<td data-label="ใบเซอร์" data-icon="⚙️" class="td-row-actions">'
-      +   (url ? '<a class="btn-row-view" href="' + url + '" data-cert-name="' + escapeAttr(r['ชื่อในใบรับรอง'] || '') + '" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, this.dataset.certName)" title="ดาวน์โหลดใบเซอร์ (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบเซอร์</span></a>' : '<span style="color:var(--text3)">—</span>')
+      + '<td data-label="ใบรับรอง" data-icon="⚙️" class="td-row-actions">'
+      +   (url ? '<a class="btn-row-view" href="' + url + '" data-cert-name="' + escapeAttr(r['ชื่อในใบรับรอง'] || '') + '" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, this.dataset.certName)" title="ดาวน์โหลดใบรับรอง (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบรับรอง</span></a>' : '<span style="color:var(--text3)">—</span>')
       + '</td>'
       + '</tr>';
   }).join('');
@@ -317,7 +317,7 @@ function branchSearch() {
   grid.innerHTML = '<div class="table-container tc-cards">'
     + '<table id="branchCertTable"><thead><tr>'
     +   '<th class="th-chk"><input type="checkbox" class="chk-cert" id="brChkAll" onclick="fhSelectAllCerts(\'br\', this.checked)" title="เลือกทุกรายการที่แสดงอยู่"></th>'
-    +   '<th>ลำดับ</th><th>ชื่อ</th><th>สาขา</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบเซอร์</th>'
+    +   '<th>ลำดับ</th><th>ชื่อ</th><th>สาขา</th><th>หลักสูตร</th><th>วันหมดอายุ</th><th>สถานะ</th><th class="th-actions">ใบรับรอง</th>'
     + '</tr></thead><tbody>' + rows + '</tbody></table>'
     + (results.length > MAX ? '<div class="count-line">แสดง ' + MAX + ' รายการแรกจาก ' + results.length + ' · พิมพ์เพื่อกรองให้แคบลง</div>' : '')
     + '</div>';
