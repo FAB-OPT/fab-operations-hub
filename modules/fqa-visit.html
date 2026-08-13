@@ -820,6 +820,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
             <div class="grid g3" style="gap:12px">
               <div class="fld"><label class="lbl">ค้นหา</label><input class="inp" id="qText" placeholder="สาขา / เมนู / ปัญหา" oninput="Rec.render()"></div>
               <div class="fld"><label class="lbl">ประเภทฟอร์ม</label><select class="inp" id="qType" onchange="Rec.render()"><option value="">ทั้งหมด</option><option value="FQA">FQA</option><option value="FSQ">FSQ Complaint</option><option value="VISIT">Visit</option></select></div>
+              <div class="fld" id="fldQVisit" style="display:none"><label class="lbl">ประเภทการเข้า Visit</label><select class="inp" id="qVisit" onchange="Rec.render()"></select></div>
               <div class="fld"><label class="lbl">สาขา</label><select class="inp" id="qBranch" onchange="Rec.render()"></select></div>
               <div class="fld"><label class="lbl">ตั้งแต่วันที่</label><input type="date" class="inp" id="qFrom" onchange="Rec.render()"></div>
               <div class="fld"><label class="lbl">ถึงวันที่</label><input type="date" class="inp" id="qTo" onchange="Rec.render()"></div>
@@ -1519,7 +1520,7 @@ const Mobile = {
     const n=(ids)=>ids.filter(id=>{ const el=document.getElementById(id); return el && el.value; }).length;
     const set=(id,c)=>{ const el=document.getElementById(id); if(el) el.textContent = c? c : ''; };
     set('fcDashCnt', n(['fBzm','fTrainer']));
-    set('fcListCnt', n(['qText','qType','qBranch']));
+    set('fcListCnt', n(['qText','qType','qVisit','qBranch']));
   },
 
   init(){
@@ -1533,7 +1534,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.13-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.13-2';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -1689,6 +1690,8 @@ const Filters = {
     const _mine = fvMyBranchKeys();
     const _brList = M.branches().filter(b => !_mine || _mine.has(branchKey(b.name)));
     keep('qBranch','<option value="">ทุกสาขา</option>'+_brList.map(b=>`<option>${esc(b.name)}</option>`).join(''));
+    /* ดึงจากรายการที่ตั้งไว้ในหน้าตั้งค่า — เพิ่ม/ลดประเภทเองได้โดยไม่ต้องแก้โค้ด */
+    keep('qVisit','<option value="">ทุกประเภท</option>'+M.list('visitTypes').map(v=>`<option>${esc(v)}</option>`).join(''));
   },
   apply(list){
     const from=document.getElementById('fFrom').value, to=document.getElementById('fTo').value;
@@ -2313,9 +2316,12 @@ const Rec = {
     const g=id=>{ const el=document.getElementById(id); return el? el.value : ''; };
     const q=g('qText').trim().toLowerCase();
     const t=g('qType'), br=g('qBranch'), from=g('qFrom'), to=g('qTo');
+    /* กรองประเภทการเข้าได้เฉพาะตอนดู Visit อยู่ · ใบ FQA/FSQ ไม่มีข้อมูลนี้ */
+    const vt=(t==='VISIT') ? g('qVisit') : '';
     /* ขอบเขตของ BZM คุมไว้ที่ inspections() แล้ว ไม่ต้องกรองซ้ำที่นี่ */
     return inspections().filter(r=>{
       if(t && r.type!==t) return false;
+      if(vt && !visitTypeArr(r).includes(vt)) return false;
       if(br && r.branch!==br) return false;
       if(from && (r.date||'') < from) return false;
       if(to   && (r.date||'') > to)   return false;
@@ -2324,8 +2330,19 @@ const Rec = {
       return true;
     }).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
   },
-  clearFilters(){ ['qText','qType','qBranch','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); this.render(); },
+  clearFilters(){ ['qText','qType','qVisit','qBranch','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); this.render(); },
+  /* ช่องนี้มีความหมายเฉพาะกับใบ Visit จึงโผล่เฉพาะตอนเลือกประเภทฟอร์มเป็น Visit
+     ตอนซ่อนต้องล้างค่าทิ้งด้วย ไม่งั้นจะเหลือเงื่อนไขกรองที่ผู้ใช้มองไม่เห็นว่ายังทำงานอยู่ */
+  syncVisitFilter(){
+    const box=document.getElementById('fldQVisit'), sel=document.getElementById('qVisit');
+    const type=document.getElementById('qType');
+    if(!box || !sel || !type) return;
+    const on = type.value==='VISIT';
+    box.style.display = on ? '' : 'none';
+    if(!on) sel.value='';
+  },
   render(){
+    this.syncVisitFilter();
     const list=this.filtered();
     /* บอกให้ชัดว่ากำลังเห็นเฉพาะเขตตัวเอง ไม่งั้น BZM จะนึกว่าข้อมูลของสาขาอื่นหายไป
        และถ้าเป็น BZM แต่จับคู่เขตไม่ได้ ต้องบอกด้วย ไม่ใช่เงียบแล้วโชว์ทุกสาขา */
@@ -3722,13 +3739,14 @@ const PDF = {
    REPORT — ออกรายงานภาพรวม กรองตามช่วงวันที่ / ประเภท / สาขา / เขต / ผู้ตรวจ
    ======================================================================= */
 const Report = {
-  f:{from:'',to:'',type:'',branch:'',bzm:'',trainer:''},
+  f:{from:'',to:'',type:'',visit:'',branch:'',bzm:'',trainer:''},
   filtered(){
     const f=this.f;
     return inspections().filter(r=>{
       if(f.from && (r.date||'') < f.from) return false;
       if(f.to   && (r.date||'') > f.to)   return false;
       if(f.type && r.type!==f.type) return false;
+      if(f.visit && !visitTypeArr(r).includes(f.visit)) return false;
       if(f.branch && r.branch!==f.branch) return false;
       if(f.bzm && r.bzm!==f.bzm) return false;
       if(f.trainer && r.trainer!==f.trainer) return false;
@@ -3739,13 +3757,20 @@ const Report = {
     const f=this.f, p=[];
     if(f.from||f.to) p.push(`${f.from||'เริ่มต้น'} ถึง ${f.to||'ปัจจุบัน'}`);
     if(f.type)    p.push({FQA:'FQA',FSQ:'Complaint',VISIT:'Visit'}[f.type]||f.type);
+    if(f.visit)   p.push(f.visit);
     if(f.branch)  p.push(f.branch);
     if(f.bzm)     p.push('เขต '+f.bzm);
     if(f.trainer) p.push('ผู้ตรวจ '+f.trainer);
     return p.length? p.join(' · ') : 'ทั้งหมด';
   },
-  set(k,v){ this.f[k]=v; this.paint(); this.renderList(); },
-  clear(){ this.f={from:'',to:'',type:'',branch:'',bzm:'',trainer:''}; this.render(); },
+  set(k,v){
+    this.f[k]=v;
+    /* เปลี่ยนไปดูประเภทอื่นแล้วช่องนี้จะหายไป ต้องล้างค่าและวาดตัวกรองใหม่
+       ไม่งั้นเหลือเงื่อนไขที่มองไม่เห็นค้างอยู่ แล้วงงว่าทำไมไม่พบรายการ */
+    if(k==='type'){ this.f.visit=''; this.render(); return; }
+    this.paint(); this.renderList();
+  },
+  clear(){ this.f={from:'',to:'',type:'',visit:'',branch:'',bzm:'',trainer:''}; this.render(); },
   paint(){ const el=document.getElementById('rpCount'); if(el) el.textContent=`พบ ${this.filtered().length} รายการ`; },
   renderList(){
     const host=document.getElementById('reportList'); if(!host) return;
@@ -3816,6 +3841,7 @@ const Report = {
             <option value="FSQ" ${f.type==='FSQ'?'selected':''}>Complaint</option>
             <option value="VISIT" ${f.type==='VISIT'?'selected':''}>Visit</option>
           </select></div>
+        ${f.type==='VISIT' ? `<div class="fld"><label class="lbl">ประเภทการเข้า Visit</label>${sel('visit',M.list('visitTypes'),'— ทุกประเภท —')}</div>` : ''}
         <div class="fld"><label class="lbl">สาขา</label>${sel('branch',M.branches().map(b=>b.name),'— ทุกสาขา —')}</div>
         <div class="fld"><label class="lbl">ผู้จัดการเขต (BZM)</label>${sel('bzm',M.bzms(),'— ทุกเขต —')}</div>
         <div class="fld"><label class="lbl">ผู้ตรวจ</label>${sel('trainer',M.trainers(),'— ทุกคน —')}</div>
