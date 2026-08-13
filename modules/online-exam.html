@@ -417,7 +417,7 @@ select.txt{appearance:none;-webkit-appearance:none;
 .brand-tag{font-size:11.5px;font-weight:700;color:var(--gold);background:var(--gold-soft);border:1px solid var(--gold-line);
   padding:3px 10px;border-radius:999px;white-space:nowrap}
 .brand-tag:empty{display:none}
-.num-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:11px}
+.num-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(118px,1fr));gap:11px}
 .num-fld{background:var(--bg3);border:1px solid var(--border);border-radius:11px;padding:10px 12px;transition:border-color .14s,box-shadow .14s}
 .num-fld:focus-within{border-color:var(--gold);box-shadow:0 0 0 3px rgba(234,88,12,.12)}
 .num-fld>span{display:block;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:3px}
@@ -969,7 +969,9 @@ label.fld>span>b{font-weight:800}
             <div class="num-fld"><span>เวลาสอบ</span><div class="num-in"><input id="edTime" type="number" min="1" value="20"><span class="unit">นาที</span></div></div>
             <div class="num-fld"><span>เกณฑ์ผ่าน</span><div class="num-in"><input id="edPass" type="number" min="0" max="100" value="70"><span class="unit">%</span></div></div>
             <div class="num-fld"><span>เตือนได้</span><div class="num-in"><input id="edViol" type="number" min="1" value="3"><span class="unit">ครั้ง</span></div></div>
+            <div class="num-fld"><span>สุ่มมาใช้</span><div class="num-in"><input id="edDraw" type="number" min="0" value="0" oninput="updateDrawHint()"><span class="unit">ข้อ</span></div></div>
           </div>
+          <p class="fld-note" id="edDrawNote"></p>
           <p class="fld-note"><b>เตือนได้</b> คือจำนวนครั้งที่ผู้สอบสลับแท็บ ออกจากหน้าจอ หรือจับภาพหน้าจอได้ก่อนถูกตัดสิทธิ์ · ครบแล้วระบบจะส่งข้อสอบให้อัตโนมัติ ถ้าเปิดสวิตช์ “เตือนครบแล้วส่งอัตโนมัติ” ไว้</p>
         </section>
 
@@ -1749,7 +1751,7 @@ function _oeExamCard(ex){
       '<span class="st ' + (on ? 'on' : 'off') + '">' + (on ? 'เปิด' : 'ปิด') + '</span>' +
     '</div>' +
     '<div class="xc-facts">' +
-      '<div><b>' + nQ + '</b><span>ข้อ</span></div>' +
+      '<div><b>' + examDrawCount(ex) + '</b><span>' + (examDrawCount(ex) < nQ ? 'ข้อ · สุ่มจาก ' + nQ : 'ข้อ') + '</span></div>' +
       '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
       '<div><b>' + esc(ex.passingScorePercent) + '%</b><span>เกณฑ์ผ่าน</span></div>' +
     '</div>' + perf +
@@ -1797,9 +1799,34 @@ function renderAdminExams(){
   oeApplyPerms();   // ปุ่มลบวาดใหม่ทุกครั้ง — ต้องบังคับสิทธิ์ซ้ำ ไม่งั้นหลุดการควบคุม
 }
 
+/* จำนวนข้อที่ผู้สอบ "ได้จริง" · drawCount ว่าง/0/มากกว่าคลัง = ใช้ทั้งคลัง
+   ตรงนี้เป็นแหล่งความจริงแหล่งเดียว หน้าไหนจะโชว์เลขข้อก็เรียกตัวนี้ ตัวเลขจะได้ไม่ขัดกันเอง */
+function examDrawCount(ex){
+  var total=((ex&&ex.questions)||[]).length;
+  var n=parseInt(ex&&ex.drawCount)||0;
+  return (n>0 && n<total) ? n : total;
+}
+
 /* ═════════════════════ EXAM EDITOR ═════════════════════ */
 var editingId = null;
 var draftQuestions = [];
+
+/* บอกให้เห็น ๆ ว่าตั้งเลขนี้แล้วผู้สอบจะได้กี่ข้อ — เลขเกินคลังคือพลาดที่เจอบ่อย ต้องเตือนตรงนั้นเลย */
+function updateDrawHint(){
+  var note=$('edDrawNote'); if(!note) return;
+  var pool=draftQuestions.length;
+  var want=parseInt($('edDraw') && $('edDraw').value)||0;
+  if(!pool){ note.innerHTML='ยังไม่มีคำถามในคลัง — เพิ่มคำถามก่อนแล้วค่อยตั้งจำนวนที่จะสุ่ม'; return; }
+  if(want<=0){
+    note.innerHTML='<b>สุ่มมาใช้</b> ใส่ 0 = ผู้สอบได้ครบทั้ง <b>'+pool+' ข้อ</b> · ใส่เลขน้อยกว่านี้ ระบบจะสุ่มมาให้เท่าที่ตั้ง แต่ละคนได้คนละชุด';
+    return;
+  }
+  if(want>=pool){
+    note.innerHTML='ตั้งไว้ <b>'+want+' ข้อ</b> แต่คลังมี <b>'+pool+' ข้อ</b> — ได้แค่เท่าที่มี ถ้าอยากให้สุ่มจริง ๆ ต้องมีคำถามในคลังมากกว่าจำนวนที่สอบ';
+    return;
+  }
+  note.innerHTML='ผู้สอบแต่ละคนจะได้ <b>'+want+' ข้อ</b> สุ่มจากคลัง <b>'+pool+' ข้อ</b> · คนละชุดกัน';
+}
 
 function openExamEditor(id){
   editingId = id;
@@ -1812,6 +1839,7 @@ function openExamEditor(id){
   $('edTime').value = ex ? ex.timeLimitMinutes : 20;
   $('edPass').value = ex ? ex.passingScorePercent : 70;
   $('edViol').value = ex ? ex.maxViolations : 3;
+  $('edDraw').value = ex ? (parseInt(ex.drawCount) || 0) : 0;
   $('edStart').value = ex ? (ex.startDate||'') : '';
   $('edEnd').value = ex ? (ex.endDate||'') : '';
   $('edBranches').value = ex && ex.visibleBranches ? ex.visibleBranches.join('\n') : '';
@@ -1912,6 +1940,7 @@ function renderQEditor() {
   $('qCount').textContent = draftQuestions.length;
   var _qt = $('qCountTab'); if (_qt) _qt.textContent = draftQuestions.length;
   _qWarnRefresh();
+  updateDrawHint();
 
   if (!draftQuestions.length) {
     $('qEditor').innerHTML =
@@ -2110,6 +2139,9 @@ function collectExamFromForm(){
     timeLimitMinutes: Math.max(1, parseInt($('edTime').value)||20),
     passingScorePercent: Math.min(100, Math.max(0, parseInt($('edPass').value)||70)),
     maxViolations: Math.max(1, parseInt($('edViol').value)||3),
+    /* เก็บ 0 เมื่อไม่ได้สุ่มจริง — ชุดที่ยังไม่เคยตั้งค่านี้กับชุดที่ตั้งเท่าคลัง จะได้มีค่าเหมือนกัน
+       ไม่ต้องไปเดาทีหลังว่าตกลงตั้งใจสุ่มหรือเปล่า */
+    drawCount: (function(){ var d=Math.max(0, parseInt($('edDraw').value)||0); return d>=qs.length ? 0 : d; })(),
     startDate: $('edStart').value,
     endDate: $('edEnd').value,
     visibleBranches: branches,
@@ -2332,13 +2364,14 @@ function renderBranchExams(){
     return;
   }
   host.innerHTML = '<div class="grid">' + list.map(function(ex){
-    var nQ = (ex.questions||[]).length;
+    var nQ = (ex.questions||[]).length, nDraw = examDrawCount(ex);
     return '<article class="bx">' +
       '<div class="bx-top"><div class="bx-icon">📝</div>' +
         '<div style="min-width:0"><div class="bx-title">' + esc(ex.title) + '</div>' +
           (ex.brand ? '<div class="bx-brand">' + esc(ex.brand) + '</div>' : '') + '</div></div>' +
       '<div class="bx-tags">' +
-        '<span class="tag b">' + nQ + ' ข้อ</span>' +
+        '<span class="tag b">' + nDraw + ' ข้อ</span>' +
+        (nDraw < nQ ? '<span class="tag">🎲 สุ่มจากคลัง ' + nQ + ' ข้อ</span>' : '') +
         '<span class="tag o">' + esc(ex.timeLimitMinutes) + ' นาที</span>' +
         '<span class="tag">เกณฑ์ผ่าน ' + esc(ex.passingScorePercent) + '%</span>' +
         (ex.endDate ? '<span class="tag r">ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '') +
@@ -2383,7 +2416,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('exEyebrow').textContent = CFG.brand ? ('FAB · '+CFG.brand) : 'FAB · Examination Mode';
   $('exStartTitle').textContent = CFG.title || 'แบบทดสอบ';
   $('exRunTitle').textContent = CFG.title || 'แบบทดสอบ';
-  $('mQ').textContent = (CFG.questions||[]).length;
+  $('mQ').textContent = examDrawCount(CFG);
   $('mT').textContent = CFG.timeLimitMinutes;
   $('mP').textContent = CFG.passingScorePercent;
   $('mV').textContent = CFG.maxViolations;
@@ -2391,6 +2424,8 @@ function openExamRunner(exam, isPreview, ticket){
   $('lockMax').textContent = CFG.maxViolations;
 
   var rules=[];
+  var _pool=(CFG.questions||[]).length, _draw=examDrawCount(CFG);
+  if(_draw<_pool) rules.push(['🎲','ชุดนี้<b>สุ่มมา '+_draw+' ข้อ</b> จากคลัง '+_pool+' ข้อ — แต่ละคนได้คำถามไม่เหมือนกัน',false]);
   rules.push(['⏱️','มีเวลาทำข้อสอบ <b>'+CFG.timeLimitMinutes+' นาที</b> เมื่อหมดเวลาระบบจะส่งอัตโนมัติ',false]);
   if(CFG.shuffleQuestions||CFG.shuffleChoices) rules.push(['🔀','ลำดับข้อและตัวเลือกจะถูกสลับแบบสุ่มสำหรับแต่ละคน',false]);
   if(CFG.blockLeaveScreen) rules.push(['🚫','<b>ห้ามสลับแท็บ ย่อหน้าจอ หรือออกจากหน้านี้</b> ระหว่างสอบ',true]);
@@ -2433,7 +2468,13 @@ function beginExam(){
     if(CFG.shuffleChoices) choices=shuffle(choices);
     return { q:item.q, choices:choices, origIndex:qi };
   });
-  if(CFG.shuffleQuestions) qs=shuffle(qs);
+  /* สุ่มเลือกข้อ: ต้องสลับก่อนหั่นเสมอ ไม่งั้นทุกคนได้ n ข้อแรกเหมือนกันหมด
+     ส่วนที่ปิด "สลับลำดับข้อ" ไว้ แปลว่าอยากได้ลำดับตามที่เรียงในคลัง — เรียงกลับให้หลังสุ่ม */
+  var draw=examDrawCount(CFG);
+  if(draw<qs.length){
+    qs=shuffle(qs).slice(0,draw);
+    if(!CFG.shuffleQuestions) qs.sort(function(a,b){ return a.origIndex-b.origIndex; });
+  } else if(CFG.shuffleQuestions) qs=shuffle(qs);
   R.questions=qs; R.answers={}; R.current=0;
   R.timeLeft=CFG.timeLimitMinutes*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
   exShow('ex-exam');
