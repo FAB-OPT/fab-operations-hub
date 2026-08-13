@@ -1288,6 +1288,19 @@ const Cloud = {
   /* id ที่ "เคยอยู่บน cloud แล้ว" (เคยส่งขึ้นหรือดึงลงมา) — ใช้แยกว่า
      รายการในเครื่องที่หายจาก cloud คือ "ถูกลบจากอีกเครื่อง" (ต้องลบตาม)
      หรือ "ยังไม่เคยส่งขึ้น" (ต้องส่งขึ้น) → กันปัญหาลบแล้วเด้งกลับ */
+  /* ═══ หมุดเวลาซิงค์ ═══
+     วัดจริง: ดึงข้อมูลทั้งก้อน 212 KB แล้ว Google ส่งออกไม่ไหว พังไป 3 จาก 4 ครั้ง
+     (คืนหน้า error ของตัวเอง ไม่ใช่ข้อมูล) ส่วนก้อนเล็กสำเร็จทุกครั้ง
+     ปัญหาคือหน้าเว็บลากรายการตรวจทั้งหมดกลับมาทุกครั้งที่เปิด ทั้งที่เปลี่ยนไปแค่ 1-2 ใบ
+     และจะโตขึ้นเรื่อย ๆ ใบละ ~1.1 KB
+
+     หลังบ้านรองรับ "ขอเฉพาะที่เปลี่ยนหลังเวลานี้" อยู่แล้ว (พารามิเตอร์ since
+     + คืนค่า now กลับมาให้จำ) แต่หน้าเว็บไม่เคยใช้ · ตรงนี้คือการเปิดใช้ */
+  sinceKey(){ return 'fqa_sync_since_'+(Brand.cur||'jaedaeng'); },
+  since(){ try{ return localStorage.getItem(this.sinceKey())||''; }catch(e){ return ''; } },
+  setSince(v){ try{ if(v) localStorage.setItem(this.sinceKey(), String(v)); }catch(e){} },
+  clearSince(){ try{ localStorage.removeItem(this.sinceKey()); }catch(e){} },
+
   skKey(){ return 'fqa_synced_ids_'+(Brand.cur||'jaedaeng'); },
   synced(){ try{ return new Set(JSON.parse(localStorage.getItem(this.skKey())||'[]')); }catch(e){ return new Set(); } },
   saveSynced(set){ try{ localStorage.setItem(this.skKey(), JSON.stringify([...set])); }catch(e){} },
@@ -1361,12 +1374,18 @@ const Cloud = {
     return Promise.resolve().then(step).catch(e=>{ this.syncing=false; this.lastErr=(e&&e.message)||String(e); this.setStatus('error'); });
   },
 
-  /* ดึงจาก cloud → รวมกับของในเครื่อง (ใหม่กว่าชนะ) · คืน true ถ้ามีการเปลี่ยน */
-  pull(){
+  /* ดึงจาก cloud → รวมกับของในเครื่อง (ใหม่กว่าชนะ) · คืน true ถ้ามีการเปลี่ยน
+     full=true → ขอทั้งหมด (ครั้งแรก · ยังไม่มีข้อมูลในเครื่อง · กดปุ่มซิงค์เอง)
+     ปกติ → ขอเฉพาะที่เปลี่ยนหลังหมุดเวลาล่าสุด ซึ่งมักว่างเปล่าหรือไม่กี่ KB */
+  pull(full){
     if(!this.enabled() || !navigator.onLine) return Promise.resolve(false);
     const brand=Brand.cur;
+    /* ไม่มีหมุด หรือในเครื่องยังว่าง = ต้องขอทั้งหมด ไม่งั้นจะได้ข้อมูลไม่ครบ */
+    const since = (full || !DB.all().length) ? '' : this.since();
+    const incremental = !!since;
     this.setStatus('syncing');
-    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now())
+    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
+                 +(since?'&since='+encodeURIComponent(since):'')+'&_='+Date.now())
       .then(r=>r.json())
       .then(res=>{
         if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
@@ -1384,18 +1403,26 @@ const Cloud = {
           if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
           seen.add(cr.id);
         });
-        /* 2) รายการในเครื่องที่หายไปจาก cloud */
+        /* 2) รายการในเครื่องที่หายไปจาก cloud
+           ⚠️ ทำได้เฉพาะตอนขอ "ทั้งหมด" เท่านั้น — ตอนขอเฉพาะที่เปลี่ยน รายการที่ไม่ได้
+           แก้ไขจะไม่ถูกส่งมาด้วยอยู่แล้ว ถ้าเอามาเทียบจะกลายเป็น "หายจาก cloud"
+           แล้วลบข้อมูลทิ้งทั้งเครื่อง หรือไม่ก็ส่งขึ้นใหม่ทั้งหมด
+           ส่วนการลบยังทำงานปกติ เพราะหลังบ้านส่งรายการ id ที่ถูกลบมาครบทุกครั้ง */
         DB.all().forEach(r=>{
           if(!r || !r.id) return;
           if(deletedIds.has(r.id)){                                 // มี tombstone = ถูกลบแน่นอน → ลบตาม ไม่มีวันเด้งกลับ
             if(byId[r.id]){ delete byId[r.id]; changed=true; }
             return;
           }
+          if(incremental) return;                                   // ขอเฉพาะที่เปลี่ยน → ไม่มีข้อมูลพอจะตัดสิน
           if(cloudIds.has(r.id) || pend.has(r.id)) return;
           if(seen.has(r.id)){ delete byId[r.id]; changed=true; }    // สำรอง (เผื่อเซิร์ฟเวอร์ยังไม่อัปเดต tombstone)
           else this.enqueue('save', r.id);                          // ยังไม่เคยส่งขึ้น (เก่า/ออฟไลน์) → ส่งขึ้น
         });
         this.saveSynced(seen);
+        /* จำหมุดไว้ใช้รอบหน้า — ใช้ค่าที่หลังบ้านคืนมาเท่านั้น ห้ามใช้เวลาของเครื่องตัวเอง
+           นาฬิกาสองฝั่งไม่ตรงกันเมื่อไร รายการที่อยู่ในช่วงคลาดจะหายไปเงียบ ๆ */
+        if(res.now) this.setSince(res.now);
         if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
         this.setStatus('synced');
         return changed;
@@ -1409,7 +1436,9 @@ const Cloud = {
     if(!navigator.onLine) return App.toast('อุปกรณ์ออฟไลน์ — จะซิงค์อัตโนมัติเมื่อกลับมาออนไลน์');
     this.lastErr='';
     App.toast('กำลังซิงค์...');
-    this.pull().then(()=>this.flush()).then(()=>this.pull()).then(changed=>{
+    /* กดปุ่มเอง = ขอทั้งหมดเสมอ · เป็นทางออกเวลาข้อมูลในเครื่องเพี้ยนไปจาก cloud
+       ให้เทียบกันใหม่ทั้งก้อนทีเดียว */
+    this.pull(true).then(()=>this.flush()).then(()=>this.pull(true)).then(changed=>{
       if(changed){ Dash.render(); Rec.render(); if(App.view==='io') IO.stats(); }
       if(this.pending()) App.toast('ซิงค์ไม่สำเร็จ'+(this.lastErr?(' — '+this.lastErr):'')+' (ค้าง '+this.pending()+')');
       else App.toast('ซิงค์เรียบร้อย');
@@ -1534,7 +1563,7 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.13-2';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+const APP_VERSION = 'v2026.08.13-3';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
@@ -4079,6 +4108,10 @@ const ReportView = {
     host.innerHTML=`<div class="rep-load">กำลังโหลดรายงาน…</div>`;
     document.body.appendChild(host);
     if(!Cloud.enabled()){ host.innerHTML=`<div class="rep-load">ไม่สามารถโหลดรายงานได้</div>`; return; }
+    /* หน้านี้เปิดจากลิงก์เพื่อดูรายงานใบเดียว แต่เดิมลากข้อมูลทั้งแบรนด์กลับมา
+       (212 KB) เพื่อหยิบใบเดียว — เป็นจุดที่พังบ่อยที่สุดเพราะก้อนใหญ่เกินไป
+       ตอนนี้ยังต้องขอทั้งก้อนอยู่ (หลังบ้านยังไม่มีทางขอทีละใบ) แต่ถ้าพัง
+       จะบอกให้ลองใหม่แทนที่จะขึ้นว่าไม่พบรายงาน ซึ่งทำให้เข้าใจผิดว่าถูกลบไปแล้ว */
     fetch(HUB_SCRIPT_URL+'?action=fqa-records&brand='+encodeURIComponent(Brand.cur)+'&_='+Date.now())
       .then(r=>r.json())
       .then(res=>{
