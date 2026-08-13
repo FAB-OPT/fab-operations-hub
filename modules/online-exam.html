@@ -1324,17 +1324,58 @@ function todayStr(){ var d=new Date(); return d.getFullYear()+'-'+String(d.getMo
 function uid(){ return 'exam_'+Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
 function toast(msg, kind){ var t=$('toast'); t.className='toast show'+(kind?' '+kind:''); t.textContent=msg; clearTimeout(t._t); t._t=setTimeout(function(){ t.classList.remove('show'); }, 2600); }
 
-/* ═════════════════════ API ═════════════════════ */
+/* ═════════════════════ API ═════════════════════
+   ทุกคำขอผ่านตรงนี้ที่เดียว เพื่อให้ "โหลดไม่สำเร็จ" บอกได้ว่าเพราะอะไร
+   เดิมพังตรงไหนก็ขึ้นข้อความเดียวกันหมด (เน็ตไม่ติด · Apps Script ยังไม่ deploy ·
+   หลังบ้านตอบเป็นหน้า error) แยกไม่ออก ต้องมานั่งเดากันทีละรอบ */
+var API_TIMEOUT_MS = 30000;   // Apps Script ตื่นครั้งแรกช้าได้ ให้เวลาพอสมควร
+
+function _apiFetch(url, init){
+  var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+  if(ctl){ init = init || {}; init.signal = ctl.signal; }
+  var timedOut = false;
+  var timer = ctl ? setTimeout(function(){ timedOut = true; ctl.abort(); }, API_TIMEOUT_MS) : 0;
+  return fetch(url, init).then(function(r){
+    if(timer) clearTimeout(timer);
+    if(!r.ok) throw new Error('หลังบ้านตอบกลับมาว่าผิดพลาด (สถานะ ' + r.status + ')');
+    return r.text().then(function(txt){
+      try { return JSON.parse(txt); }
+      catch(e){
+        /* ได้ HTML แทน JSON = เกือบทุกครั้งคือ Apps Script เด้งไปหน้าล็อกอิน
+           แปลว่าสิทธิ์การเข้าถึงของ deployment ไม่ได้ตั้งเป็น "Anyone" */
+        if(/^\s*</.test(txt)) throw new Error('หลังบ้านขอให้ล็อกอินก่อน — ตอน Deploy ต้องตั้ง Who has access เป็น Anyone');
+        throw new Error('หลังบ้านตอบมาในรูปแบบที่อ่านไม่ออก');
+      }
+    });
+  }).catch(function(e){
+    if(timer) clearTimeout(timer);
+    if(timedOut || (e && e.name === 'AbortError')) throw new Error('รอเกิน ' + Math.round(API_TIMEOUT_MS/1000) + ' วินาทีแล้วยังไม่ตอบ');
+    if(e instanceof TypeError) throw new Error('ต่อเน็ตไม่ได้ หรือ Apps Script ยังไม่ได้ Deploy ตัวใหม่');
+    throw e;
+  });
+}
+
 function apiGet(action, qs){
-  return fetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'')+'&_t='+Date.now())
-    .then(function(r){ return r.json(); });
+  return _apiFetch(SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'')+'&_t='+Date.now());
 }
 function apiPost(body){
-  return fetch(SCRIPT_URL, {
+  return _apiFetch(SCRIPT_URL, {
     method:'POST', mode:'cors',
     headers:{'Content-Type':'text/plain;charset=utf-8'},
     body: JSON.stringify(body)
-  }).then(function(r){ return r.json(); });
+  });
+}
+
+/* ข้อความท้ายกล่องว่างเปล่า — บอกสาเหตุจริง ไม่ใช่ประโยคกลาง ๆ
+   .catch จับได้ทั้ง error ตอนยิงและ error ตอนวาดหน้าจอ จึงต้องแยกให้เห็นด้วย
+   ว่าอันไหนเป็นอันไหน ไม่งั้นบั๊กตอนวาดจะโผล่มาเป็น "เน็ตไม่ติด" ตลอดไป */
+function _apiWhy(e){
+  var msg = (e && e.message) || '';
+  try { console.error('[online-exam] ' + msg, e); } catch(_) {}
+  if(!msg) return 'เชื่อมต่อระบบหลังบ้านไม่ได้';
+  if(e && (e instanceof RangeError || e instanceof ReferenceError || e instanceof SyntaxError))
+    return 'ข้อมูลโหลดมาได้ แต่แสดงผลไม่ได้ (' + msg + ') — แจ้งผู้ดูแลระบบ';
+  return msg;
 }
 
 /* ═══ สิทธิ์จาก HUB — ตั้งที่ ⚙️ → สิทธิ์ปุ่มแต่ละระบบ → 📝 ระบบสอบออนไลน์ ═══
@@ -1586,9 +1627,8 @@ function loadExams(force){
     EXAMS = (res && res.ok && res.exams) ? res.exams : [];
     renderAdminExams();
     fillExamFilter();
-  }).catch(function(){
-    $('adminExamList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ',
-      'เชื่อมต่อระบบหลังบ้านไม่ได้ ลองกดรีเฟรชอีกครั้ง ถ้ายังไม่ได้ให้แจ้งผู้ดูแลระบบ',
+  }).catch(function(e){
+    $('adminExamList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadExams(true)">ลองใหม่</button>');
   });
 }
@@ -2200,9 +2240,8 @@ function loadResults(force){
     fillBranchFilter();
     renderResults();
     renderAdminExams();   // การ์ดชุดข้อสอบโชว์สถิติผลสอบด้วย — ผลมาถึงทีหลังต้องวาดใหม่
-  }).catch(function(){
-    var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ',
-      'เชื่อมต่อระบบหลังบ้านไม่ได้ ลองกดรีเฟรชอีกครั้ง ถ้ายังไม่ได้ให้แจ้งผู้ดูแลระบบ',
+  }).catch(function(e){
+    var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadResults(true)">ลองใหม่</button>');
     $('resultsBody').innerHTML = '<tr><td colspan="8">' + err + '</td></tr>';
     var c = $('resCards'); if(c) c.innerHTML = err;
@@ -2337,9 +2376,8 @@ function loadBranchExams(){
   apiGet('exams').then(function(res){
     EXAMS = (res && res.ok && res.exams) ? res.exams : [];
     renderBranchExams();
-  }).catch(function(){
-    $('branchList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ',
-      'เชื่อมต่อระบบไม่ได้ ลองใหม่อีกครั้ง ถ้ายังไม่ได้ให้แจ้งผู้ดูแลระบบ',
+  }).catch(function(e){
+    $('branchList').innerHTML = _oeEmpty('📡', 'โหลดชุดข้อสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadBranchExams()">ลองใหม่</button>');
   });
 }
@@ -2747,9 +2785,8 @@ function loadExamRequests(){
     EXAM_REQS = (res && res.ok && res.requests) ? res.requests : [];
     if(isAdminMode){ renderExamRequests(); paintReqCount(); }
     else renderBranchExams();
-  }).catch(function(){
-    if(isAdminMode) $('reqList').innerHTML = _oeEmpty('📡', 'โหลดคำขอสอบไม่สำเร็จ',
-      'เชื่อมต่อระบบหลังบ้านไม่ได้ ลองกดรีเฟรชอีกครั้ง',
+  }).catch(function(e){
+    if(isAdminMode) $('reqList').innerHTML = _oeEmpty('📡', 'โหลดคำขอสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadExamRequests()">ลองใหม่</button>');
   });
 }
