@@ -601,12 +601,13 @@ function confirmImportRequests() {
   if (!_importReqParsed.length) return;
   var btn = document.getElementById('importReqConfirmBtn');
   btn.disabled = true; btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...';
-  fetch(SCRIPT_URL, {
-    method: 'POST', mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'save-requests', records: _importReqParsed })
-  })
-  .then(function(r){ return r.json(); })
+  /* ต้องบันทึกผ่าน fhSaveRequests() เท่านั้น
+     บั๊กเดิม: ตรงนี้ยิงเข้า Apps Script ตรง ๆ ซึ่งเขียนลง Google Sheets อย่างเดียว
+     แต่หน้าเว็บอ่านข้อมูลจาก Supabase → นำเข้าแล้วรายการไม่ขึ้น ทั้งที่ตอบว่าสำเร็จ
+     (อาการเดียวกับปุ่มลบ/แก้ไขที่แก้ไปแล้ว ตรงนี้ตกหล่น)
+     fhSaveRequests เขียน Supabase เป็นตัวจริง แล้วสำเนาลง Sheets ให้เบื้องหลังเอง
+     · ถ้าไม่ได้เปิด Supabase มันจะถอยไปเขียน Sheets ให้เหมือนเดิม ไม่ต้องแยกเคส */
+  fhSaveRequests(_importReqParsed)
   .then(function(res){
     btn.disabled = false;
     if (res && res.ok) {
