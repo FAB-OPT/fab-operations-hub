@@ -5,12 +5,18 @@
 /* ─────────── PDF EXPORT PREVIEW MODAL ─────────── */
 var _exportPDFCache = []; // last loaded requests for filter modal
 var _expBranchType = {};  // branchName -> ประเภท (ใช้กรองสาขาตามประเภทที่เลือก)
-function openExportPDFModal() {
-  // โหลด requests มาก่อน แล้วสร้าง filter chips
-  fetch(SCRIPT_URL + '?action=requests')
-    .then(function(r){ return r.json(); })
-    .then(function(res){
-      var reqs = (res && res.records) || [];
+/* 'pdf' หรือ 'excel' — กล่องเลือกใบเดียวกัน ต่างกันแค่ตอนกดออก */
+var _expMode = 'pdf';
+
+function openExportPDFModal(mode) {
+  _expMode = (mode === 'excel') ? 'excel' : 'pdf';
+  /* ต้องอ่านผ่าน fhLoadRequests() เท่านั้น
+     บั๊กเดิม: ตรงนี้ดึงจาก Apps Script (Google Sheets) ตรง ๆ แต่หน้าจอทั้งระบบ
+     อ่านจาก Supabase → ตัวเลขในกล่องไม่ตรงกับที่เห็นบนหน้าจอ และรายการที่
+     เพิ่มผ่านหน้าเว็บแล้วยังสำเนาไป Sheets ไม่ทัน จะหายไปจากรายงานเฉย ๆ */
+  fhLoadRequests()
+    .then(function(records){
+      var reqs = records || [];
       if (reqs.length === 0) {
         showInfo('ยังไม่มีรายชื่อ', 'ยังไม่มีคำขออบรมในระบบให้ออกรายงาน');
         return;
@@ -57,10 +63,29 @@ function openExportPDFModal() {
       document.getElementById('expFilterSlots').innerHTML = slots.map(function(s){
         return '<label class="exp-chip"><input type="checkbox" data-kind="slot" value="'+escapeAttr(s)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(s)+' น. <b class="exp-ct"></b></span></label>';
       }).join('');
+      _expPaintMode();
       updateExportPDFCount();
       document.getElementById('exportPDFModal').classList.add('show');
     })
     .catch(function(err){ showInfo('🌐 โหลดข้อมูลไม่สำเร็จ', escapeHtml(err.message||String(err))); });
+}
+
+/* เปลี่ยนหัวกล่องกับปุ่มตามชนิดที่จะออก — ผู้ใช้จะได้ไม่กดผิดว่ากำลังออกอะไร */
+function _expPaintMode() {
+  var isX = _expMode === 'excel';
+  var t = document.getElementById('expModalTitle');
+  var s = document.getElementById('expModalSub');
+  var b = document.getElementById('expConfirmBtn');
+  var srt = document.getElementById('expSortRow');
+  var hid = document.getElementById('expHideIdRow');
+  if (t) t.textContent = isX ? '📗 ออกแบบฟอร์มคำขออบรม (Excel)' : '📄 ออกรายงาน PDF';
+  if (s) s.innerHTML = isX
+    ? 'ได้ไฟล์ Excel ตามแบบราชการ <b>แยกชีตตามรอบ</b> พร้อมชีตสรุปหน้าแรก · กรองได้ตามสาขา / หลักสูตร / วันอบรม / รอบ'
+    : 'ออกรายงาน <b>PDF รายชื่อคำขออบรม</b> · กรองได้ตามสาขา / หลักสูตร / รอบ · ซ่อนเลขบัตรในรายงานได้';
+  if (b) b.innerHTML = isX ? '📗 ออก Excel' : '📄 ออก PDF';
+  /* สองอย่างนี้ใช้ได้เฉพาะ PDF — แบบฟอร์มราชการมีรูปแบบตายตัว แก้ไม่ได้ */
+  if (srt) srt.style.display = isX ? 'none' : '';
+  if (hid) hid.style.display = isX ? 'none' : '';
 }
 function closeExportPDFModal() {
   document.getElementById('exportPDFModal').classList.remove('show');
@@ -195,6 +220,11 @@ function confirmExportPDF() {
   var filtered = getExportPDFFiltered();
   if (filtered.length === 0) {
     showInfo('ไม่มีรายการตรงเงื่อนไข', 'กรุณาเลือก filter อย่างน้อย 1 อย่างที่มีข้อมูล');
+    return;
+  }
+  if (_expMode === 'excel') {
+    closeExportPDFModal();
+    exportTrainingForm(filtered);
     return;
   }
   var hideIdCard = !!(document.getElementById('expHideIdCard') && document.getElementById('expHideIdCard').checked);
@@ -397,9 +427,8 @@ function exportTrainingPDF(preloadedReqs, opts) {
   };
   // ถ้ามี preloaded จาก modal → ใช้เลย, ไม่งั้น fetch
   if (preloadedReqs && preloadedReqs.length) { run(preloadedReqs); return; }
-  fetch(SCRIPT_URL + '?action=requests')
-    .then(function(r){ return r.json(); })
-    .then(function(res){ run((res && res.records) || []); })
+  fhLoadRequests()
+    .then(function(records){ run(records || []); })
     .catch(function(err){ showInfo('PDF export ผิดพลาด', escapeHtml(err.message||String(err))); });
 }
 
@@ -657,7 +686,8 @@ function confirmImportRequests() {
 }
 
 /* ─── Export training form: fill ฟอร์ม.xlsx with grouped requests ─── */
-function exportTrainingForm() {
+/* rows = รายชื่อที่กรองมาแล้วจากกล่องเลือก · ไม่ส่งมา = เอาทั้งหมด (ของเดิม) */
+function exportTrainingForm(rows) {
   if (typeof ExcelJS === 'undefined') {
     customConfirm({
       icon:ICON_WARN, title:'ExcelJS ยังโหลดไม่เสร็จ',
@@ -713,11 +743,13 @@ function exportTrainingForm() {
       var hint = location.protocol === 'file:' ? ' · ลองเปิดผ่าน Hub (index.html) แทนการ double-click ไฟล์ HTML' : '';
       throw new Error('โหลด template form.xlsx ไม่ได้: ' + err.message + hint);
     }),
-    fetch(SCRIPT_URL + '?action=requests').then(function(r){ return r.json(); }).catch(function(err){ throw new Error('โหลดรายชื่อจาก Cloud ไม่ได้: ' + err.message); })
+    (rows && rows.length)
+      ? Promise.resolve(rows)
+      : fhLoadRequests().catch(function(err){ throw new Error('โหลดรายชื่อไม่ได้: ' + err.message); })
   ])
   .then(function(results){
     var ab = results[0];
-    var reqs = (results[1] && results[1].records) || [];
+    var reqs = results[1] || [];
     if (reqs.length === 0) throw new Error('ยังไม่มีรายชื่อให้ส่งออก');
 
     // Group by course + timeSlot — normalize เป็น canonical (เหมือนใน PDF export)
@@ -875,6 +907,21 @@ function exportTrainingForm() {
       });
     }
 
+    /* ย่อวันเป็น "19ส.ค." — ชื่อชีต Excel จำกัด 31 ตัวอักษร ต้องประหยัดที่ */
+    function _shortDate(v) {
+      var TH = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+      try {
+        var d = parseAnyDate(v);
+        if (d) return d.getDate() + TH[d.getMonth()];
+      } catch (e) {}
+      return String(v || '').slice(0, 8);
+    }
+    function _shortCourse(c) {
+      return (String(c).indexOf('ผู้สัมผัส') >= 0) ? 'ผู้สัมผัส'
+           : (String(c).indexOf('ผู้ประกอบ') >= 0) ? 'ผู้ประกอบ'
+           : String(c).slice(0, 10);
+    }
+
     var _usedSheetNames = {};
     function safeSheetName(s){
       var base = String(s).replace(/[\\\/:\*\?\[\]]/g, '').slice(0, 31) || 'Sheet';
@@ -898,14 +945,30 @@ function exportTrainingForm() {
         for (var p = 0; p < pages; p++) tuples.push({ g: g, page: p, pages: pages });
       });
       if (idx >= tuples.length) {
+        _addSummarySheet(outWb, keys, groups, ROWS_PER_PAGE);
+        /* ปิดเส้นตารางทุกชีต — แบบฟอร์มมีกรอบของตัวเองอยู่แล้ว
+           เส้นตารางพื้นหลังทำให้ดูรก โดยเฉพาะตอนส่งให้คนอื่นเปิดดู */
+        outWb.eachSheet(function(ws){
+          try { ws.views = [{ showGridLines: false }]; } catch (e) {}
+        });
         // All sheets added — write file
         outWb.xlsx.writeBuffer().then(function(buf){
           if (window._exportSafetyTimer) { clearTimeout(window._exportSafetyTimer); window._exportSafetyTimer = null; }
           var blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          var _dnow = new Date();
-          var _pad2 = function(n){ return String(n).padStart(2,'0'); };
-          var filename = 'ฟอร์มอบรม_' + _dnow.toISOString().slice(0,10)
-            + '_' + _pad2(_dnow.getHours()) + _pad2(_dnow.getMinutes()) + _pad2(_dnow.getSeconds()) + '.xlsx';
+          /* ชื่อไฟล์เดิมเป็น "ฟอร์มอบรม_2026-08-14_161500" ซึ่งบอกแค่ว่าโหลดตอนไหน
+             เปลี่ยนเป็นบอก "ของอะไร" แทน — เลือกรอบเดียวก็ระบุหลักสูตรกับวันไปเลย
+             หลายรอบก็บอกจำนวน · ผู้ใช้จะได้ไม่ต้องเปิดไฟล์เพื่อดูว่าอันไหนคืออันไหน */
+          var _filename = (function(){
+            var gs = keys.map(function(k){ return groups[k]; });
+            var courses = {}, dates = {};
+            gs.forEach(function(g){ courses[_shortCourse(g.course)] = 1; if (g.trainDate) dates[_shortDate(g.trainDate)] = 1; });
+            var ck = Object.keys(courses), dk = Object.keys(dates);
+            var part = (ck.length === 1 ? ck[0] : ck.length + 'หลักสูตร')
+                     + '_' + (dk.length === 1 ? dk[0] : (dk.length ? dk.length + 'วัน' : 'ไม่ระบุวัน'));
+            var people = gs.reduce(function(a, g){ return a + g.rows.length; }, 0);
+            return 'ฟอร์มอบรม_' + part + '_' + people + 'คน.xlsx';
+          })();
+          var filename = _filename;
           var a = document.createElement('a');
           a.href = URL.createObjectURL(blob);
           a.download = filename;
@@ -932,11 +995,14 @@ function exportTrainingForm() {
       var fullDate = _formDate_(g.trainDate, sch);
       var chunk = g.rows.slice(t.page * ROWS_PER_PAGE, (t.page + 1) * ROWS_PER_PAGE);
 
-      var courseShort = (g.course.indexOf('ผู้สัมผัส') >= 0) ? 'ผู้สัมผัส'
-                      : (g.course.indexOf('ผู้ประกอบ') >= 0) ? 'ผู้ประกอบ'
-                      : g.course.slice(0, 10);
+      /* ชื่อชีตเดิมไม่มีวันที่ พอมีหลายรอบในหลักสูตรเดียวกัน (19 กับ 20 ส.ค.)
+         จะได้ชื่อชนกันแล้วโดนต่อท้ายเป็น "(2)" ซึ่งดูไม่ออกว่าใบไหนของวันไหน
+         ใส่วันไว้หน้าสุดเพราะเป็นสิ่งที่คนมองหาก่อน และเรียงชีตตามวันได้ด้วย */
       var roundTag = String(roundNum || '').replace(/\//g, '-');
-      var sheetName = safeSheetName(courseShort + ' ' + g.slot + (roundTag ? ' ร.' + roundTag : '') + (t.pages > 1 ? ' หน้า' + (t.page + 1) : ''));
+      var sheetName = safeSheetName(
+        _shortDate(g.trainDate) + ' ' + _shortCourse(g.course) + ' ' + g.slot
+        + (t.pages > 1 ? ' #' + (t.page + 1) : '')
+      );
 
       copyTemplateSheetInto(outWb, sheetName).then(function(ws){
         fillWorksheet(ws, g, roundNum, fullDate, chunk);
@@ -955,6 +1021,86 @@ function exportTrainingForm() {
     if (btn) { btn.disabled = false; if (btn.dataset.orig) btn.innerHTML = btn.dataset.orig; }
     customConfirm({ icon:ICON_WARN, title:'Export ผิดพลาด', desc:escapeHtml(String(err.message||err)), okText:'ปิด', okIsPrimary:true, hideCancel:true });
   });
+}
+
+/* ชีตสรุปหน้าแรกของไฟล์ฟอร์ม — เปิดไฟล์มาแล้วเห็นภาพรวมทันที
+   ว่ามีกี่รอบ รอบละกี่คน ต้องพิมพ์กี่ใบ · เดิมต้องไล่กดดูทีละชีตเอง
+   วางไว้หน้าสุดเสมอ (ExcelJS ไม่มีคำสั่งย้ายชีต ใช้ orderNo แทน) */
+function _addSummarySheet(wb, keys, groups, rowsPerPage) {
+  try {
+    var ws = wb.addWorksheet('สรุป', { views: [{ showGridLines: false, state: 'frozen', ySplit: 3 }] });
+    ws.orderNo = -1;
+    ws.columns = [
+      { key: 'no',     width: 6 },
+      { key: 'course', width: 42 },
+      { key: 'date',   width: 20 },
+      { key: 'slot',   width: 16 },
+      { key: 'round',  width: 12 },
+      { key: 'people', width: 10 },
+      { key: 'pages',  width: 10 }
+    ];
+
+    var gs = keys.map(function(k){ return groups[k]; });
+    var totalPeople = gs.reduce(function(a, g){ return a + g.rows.length; }, 0);
+    var totalPages  = gs.reduce(function(a, g){ return a + (Math.ceil(g.rows.length / rowsPerPage) || 1); }, 0);
+
+    var t = ws.getCell('A1');
+    t.value = 'แบบฟอร์มคำขออบรม — สรุปรายรอบ';
+    t.font = { bold: true, size: 16 };
+    ws.mergeCells('A1:G1');
+    ws.getRow(1).height = 26;
+
+    var sub = ws.getCell('A2');
+    sub.value = 'รวม ' + gs.length + ' รอบ · ' + totalPeople + ' คน · ต้องพิมพ์ ' + totalPages + ' ใบ'
+              + '   (สร้างเมื่อ ' + _fhNowThai() + ')';
+    sub.font = { size: 11, color: { argb: 'FF666666' } };
+    ws.mergeCells('A2:G2');
+
+    var head = ['ลำดับ', 'หลักสูตร', 'วันอบรม', 'รอบ', 'รุ่น', 'จำนวนคน', 'จำนวนใบ'];
+    var hr = ws.getRow(3);
+    head.forEach(function(h, i){
+      var c = hr.getCell(i + 1);
+      c.value = h;
+      c.font = { bold: true, size: 11, color: { argb: 'FFFFFFFF' } };
+      c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF334155' } };
+      c.alignment = { horizontal: 'center', vertical: 'middle' };
+    });
+    hr.height = 22;
+
+    /* เรียงตามวันจริง แล้วค่อยตามรอบ — ตรงกับลำดับชีตที่อยู่ถัดไป */
+    gs.sort(function(a, b){
+      var ka = 0, kb = 0;
+      try { var da = parseAnyDate(a.trainDate); if (da) ka = da.getTime(); } catch (e) {}
+      try { var db = parseAnyDate(b.trainDate); if (db) kb = db.getTime(); } catch (e) {}
+      if (ka !== kb) return ka - kb;
+      return String(a.slot).localeCompare(String(b.slot));
+    });
+
+    gs.forEach(function(g, i){
+      var pages = Math.ceil(g.rows.length / rowsPerPage) || 1;
+      var r = ws.addRow([i + 1, g.course, g.trainDate || '—', g.slot + ' น.', g.round || '—', g.rows.length, pages]);
+      r.eachCell(function(c, ci){
+        c.font = { size: 11 };
+        c.alignment = { vertical: 'middle', horizontal: (ci === 2) ? 'left' : 'center' };
+        c.border = { bottom: { style: 'hair', color: { argb: 'FFDDDDDD' } } };
+      });
+      if (i % 2 === 1) r.eachCell(function(c){ c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF7F8FA' } }; });
+    });
+
+    var tr = ws.addRow(['', 'รวมทั้งหมด', '', '', '', totalPeople, totalPages]);
+    tr.eachCell(function(c, ci){
+      c.font = { bold: true, size: 11 };
+      c.alignment = { vertical: 'middle', horizontal: (ci === 2) ? 'left' : 'center' };
+      c.border = { top: { style: 'thin', color: { argb: 'FF334155' } } };
+    });
+  } catch (e) { console.warn('สร้างชีตสรุปไม่สำเร็จ (ข้ามไป):', e); }
+}
+
+/* วัน-เวลาแบบไทยสั้น ๆ ใช้กำกับว่าไฟล์สร้างเมื่อไร */
+function _fhNowThai() {
+  var d = new Date(), p = function(x){ return String(x).padStart(2, '0'); };
+  return p(d.getDate()) + '/' + p(d.getMonth() + 1) + '/' + (d.getFullYear() + 543)
+       + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
 }
 
 /* Reveal step 2 (form) — called when user clicks the CTA in step 1 */
