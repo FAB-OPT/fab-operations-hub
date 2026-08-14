@@ -656,9 +656,9 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
       <button class="nav" data-v="coverage"><span class="ic">◍</span> สรุปการเข้าตรวจสาขา</button>
 
       <div class="navgrp">บันทึกการตรวจ</div>
-      <button class="nav" data-v="fqa"><span class="ic">✓</span> ฟอร์ม FQA</button>
-      <button class="nav" data-v="fsq"><span class="ic">!</span> FSQ กรณี Complaint</button>
-      <button class="nav" data-v="visit"><span class="ic">◎</span> ฟอร์ม Visit</button>
+      <button class="nav" data-v="fqa" data-form="FQA"><span class="ic">✓</span> ฟอร์ม FQA</button>
+      <button class="nav" data-v="fsq" data-form="FSQ"><span class="ic">!</span> FSQ กรณี Complaint</button>
+      <button class="nav" data-v="visit" data-form="VISIT"><span class="ic">◎</span> ฟอร์ม Visit</button>
 
       <div class="navgrp">รายงานและข้อมูล</div>
       <button class="nav" data-v="report"><span class="ic">📄</span> ออกรายงาน</button>
@@ -696,9 +696,9 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
         <div class="typebar">
           <span class="seg typeseg" id="segType">
             <button data-t="" class="on" onclick="Dash.setType('')">ทั้งหมด</button>
-            <button data-t="FQA" onclick="Dash.setType('FQA')">FQA</button>
-            <button data-t="FSQ" onclick="Dash.setType('FSQ')">Complaint</button>
-            <button data-t="VISIT" onclick="Dash.setType('VISIT')">Visit</button>
+            <button data-t="FQA" data-form="FQA" onclick="Dash.setType('FQA')">FQA</button>
+            <button data-t="FSQ" data-form="FSQ" onclick="Dash.setType('FSQ')">Complaint</button>
+            <button data-t="VISIT" data-form="VISIT" onclick="Dash.setType('VISIT')">Visit</button>
           </span>
         </div>
         <div class="card noprint filtercard" id="fcDash">
@@ -819,7 +819,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
           <div class="bd" style="padding:14px 18px">
             <div class="grid g3" style="gap:12px">
               <div class="fld"><label class="lbl">ค้นหา</label><input class="inp" id="qText" placeholder="สาขา / เมนู / ปัญหา" oninput="Rec.render()"></div>
-              <div class="fld"><label class="lbl">ประเภทฟอร์ม</label><select class="inp" id="qType" onchange="Rec.render()"><option value="">ทั้งหมด</option><option value="FQA">FQA</option><option value="FSQ">FSQ Complaint</option><option value="VISIT">Visit</option></select></div>
+              <div class="fld"><label class="lbl">ประเภทฟอร์ม</label><select class="inp" id="qType" onchange="Rec.render()"><option value="">ทั้งหมด</option><option value="FQA" data-form="FQA">FQA</option><option value="FSQ" data-form="FSQ">FSQ Complaint</option><option value="VISIT" data-form="VISIT">Visit</option></select></div>
               <div class="fld" id="fldQVisit" style="display:none"><label class="lbl">ประเภทการเข้า Visit</label><select class="inp" id="qVisit" onchange="Rec.render()"></select></div>
               <div class="fld"><label class="lbl">สาขา</label><select class="inp" id="qBranch" onchange="Rec.render()"></select></div>
               <div class="fld"><label class="lbl">ตั้งแต่วันที่</label><input type="date" class="inp" id="qFrom" onchange="Rec.render()"></div>
@@ -855,6 +855,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
           <button class="mtab" data-t="materials" onclick="Master.tab('materials')"><span>🥬</span>วัตถุดิบ</button>
           <button class="mtab" data-t="menus" onclick="Master.tab('menus')"><span>🍽️</span>เมนู</button>
           <button class="mtab" data-t="lists" onclick="Master.tab('lists')"><span>⚙️</span>ตัวเลือกในฟอร์ม</button>
+          <button class="mtab" data-t="nstopics" onclick="Master.tab('nstopics')"><span>🎓</span>หัวข้อสอนงาน</button>
           <button class="mtab" data-t="system" onclick="Master.tab('system')"><span>📊</span>ข้อมูลในระบบ</button>
           <button class="mtab" data-t="backup" onclick="Master.tab('backup')"><span>💾</span>สำรองข้อมูล</button>
         </div>
@@ -981,16 +982,72 @@ const MAT_CAT = {
 };
 
 /* =======================================================================
-   BRAND — โมดูลนี้ใช้กับแบรนด์เจ๊แดงแบรนด์เดียว (ไม่มีหน้าเลือกแบรนด์)
-   คงตัวแปรไว้เพื่อให้คีย์จัดเก็บข้อมูลและการซิงค์สาขาอ้างอิงแบรนด์ได้ชัดเจน
+   BRAND — ระบบนี้ใช้ได้หลายแบรนด์ ข้อมูลของแต่ละแบรนด์แยกกันสนิท
+   (คีย์ที่เก็บในเครื่อง · คิวซิงค์ · ทะเบียนสาขา · ข้อมูลหลัก แยกตามแบรนด์อยู่แล้ว
+   และหลังบ้านก็กรองตามแบรนด์ให้ — จึงเปิดแบรนด์ใหม่ได้โดยไม่ต้องแตะที่เก็บข้อมูล)
+
+   forms = ฟอร์มที่แบรนด์นั้นใช้จริง · แบรนด์ไหนไม่ได้ใช้จะไม่โผล่ให้เห็นเลย
+   ทั้งเมนู ปุ่มเพิ่ม ตัวกรอง และแดชบอร์ด — ดีกว่าโชว์แล้วกดไปเจอหน้าว่าง
    ======================================================================= */
-const Brand = { cur:'jaedaeng', info(){ return {key:'jaedaeng', name:'เจ๊แดง'}; } };
+const BRANDS = {
+  jaedaeng: {
+    key:'jaedaeng', name:'เจ๊แดง', sub:'ร้านส้มตำเจ๊แดง',
+    logo:'../icons/brand-jaedaeng.png',
+    forms:['FQA','FSQ','VISIT'],
+    theme:{ accent:'#D6142B', hover:'#AE0F20', light:'#FCEAEC' }
+  },
+  santafe: {
+    key:'santafe', name:'ซานตาเฟ่', sub:'Santa Fe Steak',
+    logo:'../logo-santafe.png',
+    /* เข้าตรวจสาขาอย่างเดียว — สุ่มตรวจวัตถุดิบกับเคสร้องเรียนยังไม่ได้ใช้
+       เพิ่มทีหลังได้โดยเติมชื่อฟอร์มลงในรายการนี้ ไม่ต้องแก้ที่อื่น */
+    forms:['VISIT'],
+    theme:{ accent:'#D63622', hover:'#A82518', light:'#FDECE9' }
+  }
+};
+
+const Brand = {
+  cur: 'jaedaeng',
+  info(){ return BRANDS[this.cur] || BRANDS.jaedaeng; },
+  /* แบรนด์นี้ใช้ฟอร์มชนิดนี้ไหม — ที่เดียวที่ตัดสิน ทุกหน้าถามผ่านตัวนี้ */
+  has(type){ return this.info().forms.indexOf(type) >= 0; },
+  only(){ return this.info().forms.length === 1 ? this.info().forms[0] : ''; },
+  /* ลำดับการตัดสินว่าเป็นแบรนด์ไหน: ที่ส่งมากับลิงก์ → ที่เลือกไว้ครั้งก่อน → เจ๊แดง
+     ฮับส่งมากับลิงก์เสมอ ส่วน localStorage ไว้กันกรณีรีเฟรชหน้าแล้ว query หาย */
+  resolve(){
+    let b='';
+    try{ b=new URLSearchParams(location.search).get('brand')||''; }catch(e){}
+    if(!BRANDS[b]){ try{ b=localStorage.getItem('fqa_brand')||''; }catch(e){} }
+    if(!BRANDS[b]) b='jaedaeng';
+    this.cur=b;
+    try{ localStorage.setItem('fqa_brand', b); }catch(e){}
+    return b;
+  },
+  /* ทาสีตามแบรนด์ + เปลี่ยนโลโก้และชื่อบนหัวเมนู */
+  paint(){
+    const i=this.info(), r=document.documentElement.style;
+    r.setProperty('--accent', i.theme.accent);
+    r.setProperty('--accent-hover', i.theme.hover);
+    r.setProperty('--accent-light', i.theme.light);
+    const img=document.querySelector('.brandbar .dot img');
+    if(img){ img.src=i.logo; img.alt=i.name; }
+    const sub=document.querySelector('.brandbar div:last-child span');
+    if(sub) sub.textContent=i.sub;
+    const t=document.querySelector('meta[name=theme-color]');
+    if(t) t.setAttribute('content', i.theme.accent);
+    document.title='Visit สาขา · '+i.name;
+  }
+};
+Brand.resolve();
 
 /* ค่าตั้งต้นของข้อมูลหลักแยกตามแบรนด์ —
    วัตถุดิบ/เมนูอ้างอิงชุดที่ฝังมาเป็นของเจ๊แดง แบรนด์อื่นจึงเริ่มจากศูนย์ */
 function defaultMaster(brand){
   const m=JSON.parse(JSON.stringify(DEFAULT_MASTER));
   m.branches=[]; m.bzms=[];              // สาขา/เขต ดึงจากฮับเสมอ
+  /* หัวข้อสอนงานชุดตั้งต้นเป็นของเจ๊แดง (อ้างอิงเมนูส้มตำ/ปลาร้า)
+     แบรนด์อื่นจึงเริ่มจากว่าง แล้วเติมเองในหน้าข้อมูลหลัก */
+  m.nsTopics = (brand==='jaedaeng') ? JSON.parse(JSON.stringify(NS_TOPICS)) : {};
   if(brand!=='jaedaeng'){ m.materials=[]; m.menus=[]; m.trainers=[]; }
   return m;
 }
@@ -1563,11 +1620,25 @@ const Mobile = {
 /* =======================================================================
    APP SHELL
    ======================================================================= */
-const APP_VERSION = 'v2026.08.13-3';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
+/* ซ่อนทุกอย่างที่ผูกกับฟอร์มที่แบรนด์นี้ไม่ได้ใช้ — ทำที่เดียวจบ
+   ทุกจุดติดป้าย data-form ไว้ ไม่ต้องไล่แก้ทีละหน้าเวลาเพิ่มแบรนด์ */
+function fvApplyBrandForms(){
+  document.querySelectorAll('[data-form]').forEach(el=>{
+    const on = Brand.has(el.getAttribute('data-form'));
+    if(el.tagName==='OPTION'){ el.hidden=!on; el.disabled=!on; }
+    else el.style.display = on ? '' : 'none';
+  });
+}
+
+const APP_VERSION = 'v2026.08.14-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
   boot(){
-    console.log('[Visit สาขา] build', APP_VERSION, '| role=', (Hub.session()&&Hub.session().role)||Hub.role()||'-', '| isAdmin=', Hub.isAdmin());
+    /* ทาสีและซ่อนของที่แบรนด์นี้ไม่ได้ใช้ ก่อนวาดอะไรทั้งนั้น
+       ไม่งั้นจะเห็นสีเก่าแวบหนึ่งแล้วค่อยเปลี่ยน */
+    Brand.paint();
+    fvApplyBrandForms();
+    console.log('[Visit สาขา] build', APP_VERSION, '| brand=', Brand.cur, '| role=', (Hub.session()&&Hub.session().role)||Hub.role()||'-', '| isAdmin=', Hub.isAdmin());
     document.getElementById('sfUser').textContent = Hub.who();
     const uName=(Hub.session()&&(Hub.session().nick||Hub.session().name))||Hub.branchName()||'ผู้ใช้';
     document.getElementById('topUser').textContent = uName;
@@ -1605,11 +1676,17 @@ const App = {
   },
   closeSheet(){ document.getElementById('sheet').classList.remove('on'); document.body.style.overflow=''; },
   /* ปุ่ม ＋ : เลือกชนิดฟอร์มที่จะบันทึก */
-  newSheet(){ this.sheet('บันทึกการตรวจแบบใด', [
-    {icon:'✓', label:'ฟอร์ม FQA', sub:'ตรวจวัตถุดิบและเมนู', run:()=>this.go('fqa'), v:'fqa'},
-    {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq'},
-    {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit'}
-  ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]))); },
+  newSheet(){
+    const items=[
+      {icon:'✓', label:'ฟอร์ม FQA', sub:'ตรวจวัตถุดิบและเมนู', run:()=>this.go('fqa'), v:'fqa', t:'FQA'},
+      {icon:'!', label:'FSQ กรณี Complaint', sub:'บันทึกเคสร้องเรียน', run:()=>this.go('fsq'), v:'fsq', t:'FSQ'},
+      {icon:'◎', label:'ฟอร์ม Visit', sub:'บันทึกการเข้าพบสาขา', run:()=>this.go('visit'), v:'visit', t:'VISIT'}
+    ].filter(it=>Brand.has(it.t) && fvCan(FV_VIEW_ACTION[it.v]));
+    /* แบรนด์ที่ใช้ฟอร์มเดียว ไม่ต้องให้เลือก — กดปุ่มเพิ่มแล้วเข้าฟอร์มเลย */
+    if(items.length===1) return items[0].run();
+    if(!items.length) return App.toast('ยังไม่ได้เปิดสิทธิ์บันทึกการตรวจ');
+    this.sheet('บันทึกการตรวจแบบใด', items);
+  },
   /* ปุ่มล่างขวา: แอดมิน = เปิดเมนูเพิ่มเติม · ไม่ใช่แอดมิน = ไปหน้าออกรายงานเลย */
   moreTap(){ if(Hub.isAdmin()) this.moreSheet(); else this.go('report'); },
   /* ปุ่ม เพิ่มเติม : เมนูที่เหลือ (แผนอยู่ในแถบล่างแล้ว จึงไม่ซ้ำที่นี่) */
@@ -1747,7 +1824,15 @@ const NS_TOPICS = {
   'ลักษณะวัตถุดิบ (Ingredient Specification)': ['หมวดเนื้อสัตว์','หมวดผัก','หมวดเครื่องปรุงรส','หมวดเครื่องดื่ม'],
   'การเตรียมวัตถุดิบ (Product Preparation)': ['ส้มตำ - เตรียมผัก','ส้มตำ - เตรียมเนื้อสัตว์','ส้มตำ - เตรียมเครื่องปรุงรส','ย่าง ทอด - เตรียมผัก','ย่าง ทอด - เตรียมเนื้อสัตว์','ย่าง ทอด - เตรียมเครื่องปรุงรส','ต้ม ลาบ น้ำตก ยำ - เตรียมผัก','ต้ม ลาบ น้ำตก ยำ - เตรียมเนื้อสัตว์','ต้ม ลาบ น้ำตก ยำ - เตรียมเครื่องปรุง','หมวด ข้าว เส้น น้ำจิ้ม น้ำยำ','หมวด อาหารจานเดียว']
 };
-const NS_MAINS = Object.keys(NS_TOPICS);
+/* NS_TOPICS ข้างบนเป็นชุดตั้งต้นของเจ๊แดง — แบรนด์อื่นเริ่มจากว่างเปล่า
+   แล้วพิมพ์เองในหน้า "ข้อมูลหลัก → หัวข้อสอนงาน" ไม่ต้องเรียกคนแก้โค้ด
+   อ่านผ่านสองตัวนี้เท่านั้น อย่าอ่าน NS_TOPICS ตรง ๆ ไม่งั้นแบรนด์อื่นจะเห็นของเจ๊แดง */
+function nsTopics(){
+  const t = M.m.nsTopics;
+  return (t && typeof t === 'object') ? t : {};
+}
+function nsMains(){ return Object.keys(nsTopics()); }
+function nsSubs(main){ const a = nsTopics()[main]; return Array.isArray(a) ? a : []; }
 const NS_METHODS = ['A = สังเกตการณ์','B = การสัมภาษณ์','C = ตรวจงาน','D = การทดสอบ'];
 const NS_SCORES = [['1','1 = ยังทำไม่ได้ตามมาตรฐาน (0-49%)'],['2','2 = ทำได้บางส่วน (50-69%)'],['3','3 = ทำได้ตามมาตรฐาน (70-79%)'],['4','4 = สูงกว่ามาตรฐาน (80-89%)'],['5','5 = สูงกว่ามาตรฐานมาก (90-100%)']];
 
@@ -2141,9 +2226,9 @@ const Form = {
             <button class="btn sm dgr rmv" onclick="Form.delEval(${si},${ei})">ลบ</button>
             <div class="grid g4">
               <div class="fld"><label class="lbl">หัวข้อหลัก</label>
-                <select class="inp" onchange="Form.setEval(${si},${ei},'main',this.value)"><option value="">— เลือก —</option>${opt(NS_MAINS, e.main)}</select></div>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'main',this.value)"><option value="">${nsMains().length?'— เลือก —':'ยังไม่ได้ตั้งหัวข้อ'}</option>${opt(nsMains(), e.main)}</select></div>
               <div class="fld"><label class="lbl">หัวข้อย่อย</label>
-                <select class="inp" onchange="Form.setEval(${si},${ei},'sub',this.value)" ${e.main?'':'disabled'}><option value="">${e.main?'— เลือก —':'เลือกหัวข้อหลักก่อน'}</option>${e.main?opt(NS_TOPICS[e.main]||[], e.sub):''}</select></div>
+                <select class="inp" onchange="Form.setEval(${si},${ei},'sub',this.value)" ${e.main?'':'disabled'}><option value="">${e.main?'— เลือก —':'เลือกหัวข้อหลักก่อน'}</option>${e.main?opt(nsSubs(e.main), e.sub):''}</select></div>
               <div class="fld"><label class="lbl">วิธีการประเมิน</label>
                 <select class="inp" onchange="Form.setEval(${si},${ei},'method',this.value)"><option value="">— เลือก —</option>${opt(NS_METHODS, e.method)}</select></div>
               <div class="fld"><label class="lbl">คะแนน</label>
@@ -2494,6 +2579,7 @@ const Master = {
     : this.cur==='bzm'   ? this.bzmPane()
     : this.cur==='trainer'? this.trainerPane()
     : this.cur==='lists' ? this.listsPane()
+    : this.cur==='nstopics'? this.nstopicsPane()
     : this.cur==='system'? this.systemPane()
     : this.cur==='backup'? this.backupPane()
     : this.refPane(this.cur);
@@ -2679,6 +2765,90 @@ const Master = {
         </div>`).join('')}
       </div></div>`;
   },
+  /* ── หัวข้อสอนงาน (ใช้ในหัวข้อ "ประเมินพนักงานใหม่" ของฟอร์ม Visit) ──
+     เก็บเป็น หัวข้อหลัก → รายการหัวข้อย่อย · แต่ละแบรนด์มีชุดของตัวเอง */
+  nstopicsPane(){
+    const t=nsTopics(), mains=Object.keys(t);
+    return `<div style="padding:18px">
+      <p class="hint" style="margin:0 0 14px">ใช้เป็นตัวเลือกในหัวข้อ <b>ประเมินพนักงานใหม่</b> ของฟอร์ม Visit ·
+        เพิ่มหัวข้อหลักก่อน แล้วค่อยเติมหัวข้อย่อยข้างใน · แก้ได้ตลอด ไม่กระทบใบที่บันทึกไปแล้ว</p>
+      ${mains.length ? '' : `<div class="empty" style="padding:26px 16px"><div class="big">🎓</div>
+        <h4>ยังไม่ได้ตั้งหัวข้อสอนงาน</h4><p>เพิ่มหัวข้อหลักด้านล่างเพื่อเริ่มใช้งาน</p></div>`}
+      <div class="grid g2">
+      ${mains.map((mn,mi)=>`
+        <div class="card" style="margin:0">
+          <div class="hd">
+            <input class="inp" style="padding:6px 9px;font-weight:700" value="${attr(mn)}"
+                   onchange="Master.renameNsMain(${mi},this.value)" title="ชื่อหัวข้อหลัก">
+            <div class="sp"></div>
+            <span class="note">${nsSubs(mn).length} ย่อย</span>
+            <button class="btn sm dgr" onclick="Master.delNsMain(${mi})">ลบ</button>
+          </div>
+          <div class="bd" style="padding:12px 14px">
+            ${nsSubs(mn).map((sb,si)=>`<div style="display:flex;gap:6px;margin-bottom:6px">
+              <span class="mono" style="width:20px;color:var(--text3);font-size:11px;padding-top:8px">${si+1}</span>
+              <input class="inp" style="padding:6px 9px" value="${attr(sb)}" onchange="Master.setNsSub(${mi},${si},this.value)">
+              <button class="btn sm gho" title="เลื่อนขึ้น" onclick="Master.moveNsSub(${mi},${si},-1)">↑</button>
+              <button class="btn sm dgr" onclick="Master.delNsSub(${mi},${si})">ลบ</button></div>`).join('')}
+            <div style="display:flex;gap:6px;margin-top:10px">
+              <input class="inp" style="padding:6px 9px" id="ns_sub_${mi}" placeholder="เพิ่มหัวข้อย่อย">
+              <button class="btn sm pri" onclick="Master.addNsSub(${mi})">เพิ่ม</button></div>
+          </div>
+        </div>`).join('')}
+      </div>
+      <div class="card" style="margin-top:14px">
+        <div class="bd" style="padding:12px 14px;display:flex;gap:6px">
+          <input class="inp" style="padding:6px 9px" id="ns_main_new" placeholder="เพิ่มหัวข้อหลัก เช่น ความปลอดภัยอาหาร">
+          <button class="btn sm pri" onclick="Master.addNsMain()">เพิ่มหัวข้อหลัก</button>
+        </div>
+      </div></div>`;
+  },
+  _ns(fn){ this.save(m=>{ if(!m.nsTopics || typeof m.nsTopics!=='object') m.nsTopics={}; fn(m.nsTopics); }); },
+  addNsMain(){
+    const el=document.getElementById('ns_main_new'), v=el.value.trim();
+    if(!v) return App.toast('กรุณากรอกชื่อหัวข้อหลัก');
+    if(nsMains().includes(v)) return App.toast('มีหัวข้อนี้อยู่แล้ว');
+    this._ns(t=>{ t[v]=[]; }); App.toast('เพิ่มหัวข้อหลักแล้ว');
+  },
+  renameNsMain(mi,v){
+    v=v.trim();
+    const mains=nsMains(), was=mains[mi];
+    if(!v || v===was) return this.render();
+    if(mains.includes(v)){ App.toast('มีหัวข้อนี้อยู่แล้ว'); return this.render(); }
+    /* เขียนกลับทั้งก้อนตามลำดับเดิม — ถ้าลบแล้วเพิ่มใหม่ หัวข้อจะเด้งไปท้ายสุด */
+    this._ns(t=>{
+      const keep = mains.map(k => [k===was ? v : k, t[k]]);
+      mains.forEach(k => delete t[k]);
+      keep.forEach(pair => { t[pair[0]] = pair[1]; });
+    });
+    this.render();
+  },
+  delNsMain(mi){
+    const nm=nsMains()[mi];
+    App.confirm({icon:'🗑', title:'ลบหัวข้อหลัก', msg:`ลบ "${nm}" พร้อมหัวข้อย่อยทั้งหมด?`, okText:'ลบ', onOk:()=>{
+      this._ns(t=>{ delete t[nm]; }); App.toast('ลบแล้ว'); }});
+  },
+  addNsSub(mi){
+    const mn=nsMains()[mi], el=document.getElementById('ns_sub_'+mi), v=el.value.trim();
+    if(!v) return App.toast('กรุณากรอกหัวข้อย่อย');
+    if(nsSubs(mn).includes(v)) return App.toast('มีหัวข้อย่อยนี้อยู่แล้ว');
+    this._ns(t=>{ (t[mn]=t[mn]||[]).push(v); }); App.toast('เพิ่มแล้ว');
+  },
+  setNsSub(mi,si,v){
+    v=v.trim(); if(!v) return this.render();
+    const mn=nsMains()[mi];
+    this._ns(t=>{ t[mn][si]=v; });
+  },
+  moveNsSub(mi,si,d){
+    const mn=nsMains()[mi], j=si+d;
+    if(j<0 || j>=nsSubs(mn).length) return;
+    this._ns(t=>{ const a=t[mn]; [a[si],a[j]]=[a[j],a[si]]; });
+  },
+  delNsSub(mi,si){
+    const mn=nsMains()[mi];
+    this._ns(t=>{ t[mn].splice(si,1); }); App.toast('ลบแล้ว');
+  },
+
   addListItem(k){
     const el=document.getElementById('nl_'+k), v=el.value.trim();
     if(!v) return App.toast('กรุณากรอกข้อความ');
@@ -3236,7 +3406,7 @@ const Coverage = {
             <div class="fld"><label class="lbl">นับเฉพาะประเภท</label>
               <select class="inp" onchange="Coverage.setType(this.value)">
                 <option value="">ทุกประเภท</option>
-                ${['FQA','FSQ','VISIT'].map(t => `<option value="${t}"${this.type===t?' selected':''}>${TYPE_LABEL[t]}</option>`).join('')}
+                ${['FQA','FSQ','VISIT'].filter(t=>Brand.has(t)).map(t => `<option value="${t}"${this.type===t?' selected':''}>${TYPE_LABEL[t]}</option>`).join('')}
               </select></div>
             <div class="fld"><label class="lbl">สถานะ</label>
               <select class="inp" onchange="Coverage.setState(this.value)">
@@ -3866,9 +4036,8 @@ const Report = {
         <div class="fld"><label class="lbl">ประเภทการตรวจ</label>
           <select class="inp" onchange="Report.set('type',this.value)">
             <option value="">— ทั้งหมด —</option>
-            <option value="FQA" ${f.type==='FQA'?'selected':''}>FQA</option>
-            <option value="FSQ" ${f.type==='FSQ'?'selected':''}>Complaint</option>
-            <option value="VISIT" ${f.type==='VISIT'?'selected':''}>Visit</option>
+            ${[['FQA','FQA'],['FSQ','Complaint'],['VISIT','Visit']].filter(p=>Brand.has(p[0]))
+              .map(p=>`<option value="${p[0]}"${f.type===p[0]?' selected':''}>${p[1]}</option>`).join('')}
           </select></div>
         ${f.type==='VISIT' ? `<div class="fld"><label class="lbl">ประเภทการเข้า Visit</label>${sel('visit',M.list('visitTypes'),'— ทุกประเภท —')}</div>` : ''}
         <div class="fld"><label class="lbl">สาขา</label>${sel('branch',M.branches().map(b=>b.name),'— ทุกสาขา —')}</div>
@@ -4122,7 +4291,7 @@ const ReportView = {
         let doc; try{ doc=PDF.recordDoc(rec); }
         catch(e){ console.error('[ReportView] recordDoc error', e, rec); host.innerHTML=`<div class="rep-load">แสดงรายงานไม่ได้ — ข้อมูลบางส่วนไม่สมบูรณ์</div>`; return; }
         host.innerHTML=`<div class="rep-bar">
-            <div class="rep-ttl">รายงานการตรวจสาขา · เจ๊แดง</div>
+            <div class="rep-ttl">รายงานการตรวจสาขา · ${esc(Brand.info().name)}</div>
             <button class="btn pri" onclick="ReportView.print()">⬇️ บันทึกเป็น PDF</button>
           </div>
           <div class="rep-paper"><div class="pdfdoc">${doc}</div></div>`;

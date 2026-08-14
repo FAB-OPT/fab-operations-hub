@@ -4005,7 +4005,10 @@ function goToExamApp() {
   window.location.href = 'modules/online-exam.html?v=' + Date.now();
 }
 
-function goToFqaApp() {
+/* brand = แบรนด์ที่จะเปิด · โมดูลเดียวใช้ได้ทุกแบรนด์ ข้อมูลแยกกันสนิท
+   ต้องส่งไปกับลิงก์เสมอ ไม่งั้นจะไปหยิบแบรนด์ที่เปิดค้างไว้ครั้งก่อน
+   แล้วผู้ใช้จะงงว่ากดปุ่มซานตาเฟ่แต่ได้ข้อมูลเจ๊แดง */
+function goToFqaApp(brand) {
   // Hand off session to FQA / FSQ / Visit module
   sessionStorage.setItem('fab_role', isAdminMode ? 'admin' : 'branch');
   sessionStorage.setItem('fab_branch_pin', branchPin || '');
@@ -4013,7 +4016,8 @@ function goToFqaApp() {
   try {
     if (branchPin) saveFabSession(isAdminMode ? 'tm' : 'branch', branchPin, branchPin, currentBranchName);
   } catch (e) {}
-  window.location.href = 'modules/fqa-visit.html?v=' + Date.now();
+  window.location.href = 'modules/fqa-visit.html?brand=' + encodeURIComponent(brand || 'jaedaeng')
+    + '&v=' + Date.now();
 }
 
 function goToMenu() {
@@ -4101,10 +4105,21 @@ var DEFAULT_SYSTEMS = [{
   endDate: '',
   builtIn: true
 }, {
+  id: 'fqa-visit-santafe',
+  emoji: '🔎',
+  icon: 'icons/brand-santafe.png',
+  name: 'ระบบตรวจสาขา Visit Store — ซานตาเฟ่',
+  desc: 'บันทึกการเข้าพบสาขา · แผนการตรวจ · แดชบอร์ด · ออกรายงาน PDF / Excel',
+  url: '',                       // internal route → modules/fqa-visit.html?brand=santafe
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
   id: 'fqa-visit',
   emoji: '🔎',
   icon: 'icons/checklist.png',
-  name: 'ระบบตรวจสาขา FQA / FSQ / Visit',
+  name: 'ระบบตรวจสาขา FQA / FSQ / Visit — เจ๊แดง',
   desc: 'บันทึกผลตรวจวัตถุดิบ · เคส Complaint · การเข้าพบสาขา + แดชบอร์ดสรุป',
   url: '',                       // internal route → modules/fqa-visit.html
   visibleBranches: [],
@@ -4640,7 +4655,8 @@ function openSystem(systemId) {
   // Internal routes
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'online-exam') { goToExamApp(); return; }
-  if (systemId === 'fqa-visit') { goToFqaApp(); return; }
+  if (systemId === 'fqa-visit')         { goToFqaApp('jaedaeng'); return; }
+  if (systemId === 'fqa-visit-santafe') { goToFqaApp('santafe');  return; }
   if (systemId === 'santafe-sales-report') {
     // SSO: re-save session → navigate same-tab → Santa Fe Sales Report อ่าน fab_session
     try {
