@@ -17,18 +17,21 @@ function openExportPDFModal() {
       }
       _exportPDFCache = reqs;
       // เก็บรายชื่อ branches/courses/slots/types ที่ไม่ซ้ำ
-      var brSet={}, coSet={}, slSet={}, tySet={};
+      var brSet={}, coSet={}, slSet={}, tySet={}, dtSet={};
       _expBranchType = {};
       reqs.forEach(function(r){
         var b = r.branch || r['สาขา'] || ''; if (b) brSet[b]=true;
         var c = r.course || r['หลักสูตร'] || ''; if (c) coSet[c]=true;
         var s = _normSlot(r.timeSlot || r['รอบ'] || ''); if (s) slSet[s]=true;
+        var d = _expNormDate(r.trainDate || r['วันอบรม'] || ''); if (d) dtSet[d]=true;
         var t = _reqBrandType(r); if (t) tySet[t]=true;
         if (b) _expBranchType[b] = t;   // จำประเภทของแต่ละสาขา
       });
       var branches = Object.keys(brSet).sort();
       var courses = Object.keys(coSet).sort();
       var slots = Object.keys(slSet).sort();
+      /* เรียงตามเวลาจริง วันใกล้อยู่บน — คนมักออกรายงานของรอบที่กำลังจะถึง */
+      var dates = Object.keys(dtSet).sort(function(a,b){ return _expDateKey(a) - _expDateKey(b); });
       // ถ้ามีเจ๊แดงตระกูลใดในข้อมูล → ให้เลือกแยก "เจ๊แดง" / "เจ๊แดง จุ่มนัวร์" ได้ทั้งคู่
       if (tySet['เจ๊แดง'] || tySet['เจ๊แดง จุ่มนัวร์']) { tySet['เจ๊แดง'] = true; tySet['เจ๊แดง จุ่มนัวร์'] = true; }
       // ประเภท: เรียงตามลำดับมาตรฐาน
@@ -48,6 +51,9 @@ function openExportPDFModal() {
       document.getElementById('expFilterCourses').innerHTML = courses.map(function(c){
         return '<label class="exp-chip"><input type="checkbox" data-kind="course" value="'+escapeAttr(c)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(c)+' <b class="exp-ct"></b></span></label>';
       }).join('');
+      document.getElementById('expFilterDates').innerHTML = dates.map(function(d){
+        return '<label class="exp-chip"><input type="checkbox" data-kind="date" value="'+escapeAttr(d)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(d)+' <b class="exp-ct">0</b></span></label>';
+      }).join('') || '<span style="color:var(--text3);font-size:12px;">— ไม่มีข้อมูล —</span>';
       document.getElementById('expFilterSlots').innerHTML = slots.map(function(s){
         return '<label class="exp-chip"><input type="checkbox" data-kind="slot" value="'+escapeAttr(s)+'" onchange="updateExportPDFCount()"> <span>'+escapeHtml(s)+' น. <b class="exp-ct"></b></span></label>';
       }).join('');
@@ -82,6 +88,26 @@ document.addEventListener('click', function(e){
   if (!dd || !dd.classList.contains('open')) return;
   if (!dd.contains(e.target)) dd.classList.remove('open');
 });
+/* วันอบรมในระบบเก็บมาหลายรูปแบบ — "19 สิงหาคม 2569" บ้าง ISO
+   "2569-06-09T17:00:00.000Z" บ้าง (แล้วแต่ว่ามาจากฟอร์มหรือจากไฟล์ Excel)
+   ถ้าเอาข้อความดิบมาทำชิปเลย วันเดียวกันจะแตกเป็นสองปุ่ม
+   จึงแปลงให้เป็นข้อความไทยแบบเดียวกันก่อนเสมอ · แปลงไม่ได้ก็ใช้ของเดิม
+   ดีกว่าโยนทิ้งแล้วคนหาไม่เจอ */
+function _expNormDate(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  try {
+    var d = parseAnyDate(s);
+    if (d) { var t = formatThaiDate(d); if (t) return t; }
+  } catch (e) {}
+  return s;
+}
+/* เรียงตามเวลาจริง ไม่ใช่ตามตัวอักษร — ไม่งั้น "9 มิถุนายน" จะมาก่อน "19 สิงหาคม" */
+function _expDateKey(v) {
+  try { var d = parseAnyDate(v); if (d) return d.getTime(); } catch (e) {}
+  return Number.MAX_SAFE_INTEGER;   /* อ่านไม่ออก = ไปท้ายสุด */
+}
+
 function getExportPDFFiltered() {
   /* Returns null when no checkbox in that category is ticked — meaning "no filter for this kind (allow all)" */
   var picks = function(kind){
@@ -91,14 +117,16 @@ function getExportPDFFiltered() {
     arr.forEach(function(cb){ s[cb.value]=true; });
     return s;
   };
-  var br = picks('branch'), co = picks('course'), sl = picks('slot'), ty = picks('type');
+  var br = picks('branch'), co = picks('course'), sl = picks('slot'), ty = picks('type'), dt = picks('date');
   return _exportPDFCache.filter(function(r){
     var b = r.branch || r['สาขา'] || '';
     var c = r.course || r['หลักสูตร'] || '';
     var s = _normSlot(r.timeSlot || r['รอบ'] || '');
+    var d = _expNormDate(r.trainDate || r['วันอบรม'] || '');
     if (ty && !ty[_reqBrandType(r)]) return false;
     if (br && b && !br[b]) return false;
     if (co && c && !co[c]) return false;
+    if (dt && d && !dt[d]) return false;
     if (sl && s && !sl[s]) return false;
     return true;
   });
@@ -107,6 +135,7 @@ function getExportPDFFiltered() {
 function _expValOf(kind, r) {
   if (kind === 'course') return r.course || r['หลักสูตร'] || '';
   if (kind === 'slot')   return _normSlot(r.timeSlot || r['รอบ'] || '');
+  if (kind === 'date')   return _expNormDate(r.trainDate || r['วันอบรม'] || '');
   if (kind === 'type')   return _reqBrandType(r);
   return r.branch || r['สาขา'] || '';
 }
@@ -118,7 +147,7 @@ function _expPicks(kind) {
 // นับ record ต่อค่าในหมวด kind โดยผ่าน filter ของ "ทุกหมวดที่ไม่ใช่ตัวเอง" (faceted)
 function _expCountsFor(kind) {
   var others = {};
-  ['course','slot','type','branch'].forEach(function(k){ if (k !== kind) others[k] = _expPicks(k); });
+  ['course','slot','date','type','branch'].forEach(function(k){ if (k !== kind) others[k] = _expPicks(k); });
   var counts = {};
   _exportPDFCache.forEach(function(r){
     for (var k in others) { var p = others[k]; if (p) { var v = _expValOf(k, r); if (v && !p[v]) return; } }
@@ -126,9 +155,9 @@ function _expCountsFor(kind) {
   });
   return counts;
 }
-var _EXP_FACET_EL = { course:'expFilterCourses', slot:'expFilterSlots', type:'expFilterTypes', branch:'expFilterBranches' };
+var _EXP_FACET_EL = { course:'expFilterCourses', slot:'expFilterSlots', date:'expFilterDates', type:'expFilterTypes', branch:'expFilterBranches' };
 function _refreshExpFacets() {
-  ['course','slot','type','branch'].forEach(function(kind){
+  ['course','slot','date','type','branch'].forEach(function(kind){
     var counts = _expCountsFor(kind);
     var box = document.getElementById(_EXP_FACET_EL[kind]); if (!box) return;
     box.querySelectorAll('.exp-chip').forEach(function(chip){
