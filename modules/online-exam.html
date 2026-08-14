@@ -1442,6 +1442,7 @@ function oeLoadPermsFromHub(){
         OE_PERMS = res.perms.onlineexam;
         try{ localStorage.setItem(OE_PERM_KEY, JSON.stringify(OE_PERMS)); }catch(e){}
         oeApplyPerms();
+        _oeResyncMode();
       }
     })
     .catch(function(e){ console.warn('[perms] โหลดสิทธิ์จาก HUB ไม่ได้ — ใช้ค่าเดิม', e); });
@@ -1461,6 +1462,23 @@ function oeCan(actionId){
 /* ใช้ class แทนการเซ็ต style.display ตรง ๆ
    เดิม: มีสิทธิ์ = สั่ง display='' ซึ่งไป "เปิด" ของที่ตั้งใจซ่อนไว้ด้วยเหตุอื่น
    ใหม่: ไม่มีสิทธิ์ = ใส่ class ซ่อน · มีสิทธิ์ = ถอด class ปล่อยให้ logic เดิมคุมเอง */
+/* ใครควรเห็นหน้าจัดการ — แอดมินผ่านเสมอ กันตั้งสิทธิ์พลาดแล้วล็อกตัวเองออก
+   นอกนั้นดูจากสิทธิ์ "เข้าหน้าจัดการ" ที่เปิด/ปิดได้ในฮับ */
+function _oeAdminAllowed(sess){
+  if(sess && sess.role === 'admin') return true;
+  return oeCan('view-admin');
+}
+
+/* สิทธิ์จากฮับมาถึงทีหลัง (ตอนเปิดหน้าใช้ของที่แคชไว้ก่อน)
+   ถ้าค่าที่ได้ใหม่ต่างจากที่ตัดสินไว้ ต้องพาไปหน้าที่ถูก ไม่งั้นจะค้างผิดหน้า
+   จนกว่าจะรีเฟรชเอง — คนที่เพิ่งถูกเปิดสิทธิ์จะงงว่าทำไมยังไม่เห็น */
+function _oeResyncMode(){
+  var should = _oeAdminAllowed(getHubSession());
+  if(should === isAdminMode) return;
+  isAdminMode = should;
+  showBrandGate();
+}
+
 function oeApplyPerms(){
   document.querySelectorAll('[data-oe-action]').forEach(function(el){
     el.classList.toggle('oe-noperm', !oeCan(el.getAttribute('data-oe-action')));
@@ -1473,9 +1491,11 @@ window.addEventListener('DOMContentLoaded', function(){
   if(!role){ window.location.href='../index.html'; return; }
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
   currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
-  // เฉพาะ role 'admin' จริงเท่านั้นที่จัดการข้อสอบได้ · ผู้ใช้อื่น (coo/vp/bzm/สาขา) ดู+ทำข้อสอบอย่างเดียว
   var _sess = getHubSession();
-  isAdminMode = !!(_sess && _sess.role === 'admin');
+  /* เดิมตัดสินจากบทบาทอย่างเดียว แปลว่าตารางสิทธิ์ในฮับจะตั้งยังไงก็ไม่มีผล
+     คนที่ไม่ใช่แอดมินถูกโยนเข้าหน้าสาขาเสมอ · ตอนนี้ให้สิทธิ์ "เข้าหน้าจัดการ"
+     เป็นตัวตัดสิน จะเปิดให้ทีมไหนก็ได้จากหน้าตั้งค่าสิทธิ์ ไม่ต้องแก้โค้ด */
+  isAdminMode = _oeAdminAllowed(_sess);
 
   if(isAdminMode){
     $('userChip').textContent = (_sess && (_sess.nick || _sess.name)) || 'Admin';
