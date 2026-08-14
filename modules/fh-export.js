@@ -374,6 +374,49 @@ function exportTrainingPDF(preloadedReqs, opts) {
     .catch(function(err){ showInfo('PDF export ผิดพลาด', escapeHtml(err.message||String(err))); });
 }
 
+/* ─────────── เทมเพลตนำเข้ารายชื่ออบรม ───────────
+   หัวคอลัมน์ในเทมเพลตต้องเป็นคำที่ตัวอ่านไฟล์จับได้จริง — ดูเงื่อนไขที่
+   handleImportRequestsXLSX() · มีจุดที่พลาดง่ายคือคอลัมน์ "รอบ" ตัวอ่านจะข้าม
+   ถ้าหัวคอลัมน์มีคำว่า "อบรม" ปนอยู่ (กันสับสนกับ "วันอบรม") จึงต้องเป็น "รอบ"
+   เฉย ๆ ห้ามเขียนว่า "รอบอบรม" */
+var REQ_TEMPLATE_HEADERS = [
+  'ชื่อ-นามสกุล', 'รหัสพนักงาน', 'เลขบัตรประชาชน', 'สาขา', 'ตำแหน่ง',
+  'หลักสูตร', 'วันอบรม', 'รอบ', 'รุ่น', 'หมายเหตุ'
+];
+
+function downloadRequestTemplate() {
+  if (typeof XLSX === 'undefined') {
+    showInfo('ยังโหลดไม่เสร็จ', 'ตัวสร้างไฟล์ Excel ยังโหลดไม่เสร็จ รอสัก 2-3 วินาทีแล้วกดใหม่');
+    return;
+  }
+  /* ตัวอย่างอิงตารางอบรมจริงที่ตั้งไว้ในระบบ ถ้ามี — คนกรอกจะได้เห็นรูปแบบ
+     วันที่และรอบที่ระบบอ่านออก ไม่ต้องเดาเอง */
+  var courses = (typeof COURSE_SCHEDULES !== 'undefined') ? Object.keys(COURSE_SCHEDULES) : [];
+  var c1 = courses[0] || 'การสุขาภิบาลอาหาร สำหรับผู้สัมผัสอาหาร';
+  var s1 = (courses[0] && COURSE_SCHEDULES[c1]) || {};
+  var slot1 = (s1.slots && s1.slots[0]) || '9.00-13.00';
+  var round1 = (s1.rounds && s1.rounds[slot1]) || '';
+
+  var rows = [
+    REQ_TEMPLATE_HEADERS,
+    ['สมชาย ใจดี', '100234', '1234567890123', 'สามย่าน', 'พนักงานครัว', c1, s1.date || '', slot1, round1, ''],
+    ['สมหญิง ดีใจ', '100567', '9876543210987', 'ทองหล่อ', 'พนักงานเสิร์ฟ', c1, s1.date || '', slot1, round1, 'แทนคนลาออก']
+  ];
+
+  var ws = XLSX.utils.aoa_to_sheet(rows);
+  /* กว้างพอให้อ่านหัวคอลัมน์ออกโดยไม่ต้องลากขยายเอง */
+  ws['!cols'] = [
+    { wch: 22 }, { wch: 12 }, { wch: 18 }, { wch: 18 }, { wch: 16 },
+    { wch: 38 }, { wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 22 }
+  ];
+  var wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'รายชื่ออบรม');
+  XLSX.writeFile(wb, 'เทมเพลตนำเข้ารายชื่ออบรม.xlsx');
+  showInfo('ดาวน์โหลดเทมเพลตแล้ว',
+    'ไฟล์มีตัวอย่างการกรอกไว้ 2 แถว — <b>ลบแถวตัวอย่างออกก่อน</b> แล้วใส่รายชื่อจริงแทน<br>' +
+    'ลำดับคอลัมน์สลับได้ ขอแค่ชื่อหัวคอลัมน์ตรงกับที่ให้มา');
+}
+
 /* ─────────── IMPORT REQUESTS XLSX (admin) ─────────── */
 var _importReqParsed = []; // staged records before save
 function openImportRequestsModal() {
