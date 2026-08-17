@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-13d';
+var BACKEND_VERSION = '2026-08-14';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -615,6 +615,7 @@ function getConfig() {
   var brCached  = cache.get('cfg_branches_v2');
   var jdCached  = cache.get('cfg_jaedaengBranches_v2');
   var prmCached = cache.get('cfg_perms_v2');
+  var brdCached = cache.get('cfg_brands_v2');
   var systems          = sysCached ? JSON.parse(sysCached) : readConfig_('systems', []);
   var announcements    = annCached ? JSON.parse(annCached) : readConfig_('announcements', []);
   var users            = usrCached ? JSON.parse(usrCached) : readConfig_('users', null);
@@ -623,13 +624,19 @@ function getConfig() {
   // สิทธิ์ปุ่มของแต่ละระบบ — { checklist:{...}, foodhandler:{...}, training:{...} }
   // null = ยังไม่เคยตั้ง → ให้ client ใช้ค่า default ในโค้ดตัวเอง
   var perms            = prmCached ? JSON.parse(prmCached) : readConfig_('perms', null);
+  /* ทะเบียนแบรนด์ (ชื่อ · สี · โลโก้ · รหัสนำหน้าสาขา)
+     บั๊กเดิม: ฮับส่งขึ้นมาเก็บด้วย set-config key='brands' แต่ตรงนี้ไม่เคยอ่านกลับ
+     แบรนด์ที่เพิ่มใหม่จึงอยู่แค่ในเบราว์เซอร์เครื่องที่สร้าง เครื่องอื่นไม่เห็นเลย
+     null = ยังไม่เคยตั้ง → ให้ฮับใช้ค่าตั้งต้นในโค้ดตัวเอง (ซานตาเฟ่ + เจ๊แดง) */
+  var brands           = brdCached ? JSON.parse(brdCached) : readConfig_('brands', null);
   if (!sysCached) try { cache.put('cfg_systems_v2', JSON.stringify(systems), CACHE_SEC); } catch(e) {}
   if (!annCached) try { cache.put('cfg_announcements_v2', JSON.stringify(announcements), CACHE_SEC); } catch(e) {}
   if (!usrCached) try { cache.put('cfg_users_v2', JSON.stringify(users), CACHE_SEC); } catch(e) {}
   if (!brCached)  try { cache.put('cfg_branches_v2', JSON.stringify(branches), CACHE_SEC); } catch(e) {}
   if (!jdCached)  try { cache.put('cfg_jaedaengBranches_v2', JSON.stringify(jaedaengBranches), CACHE_SEC); } catch(e) {}
   if (!prmCached) try { cache.put('cfg_perms_v2', JSON.stringify(perms), CACHE_SEC); } catch(e) {}
-  return { ok: true, version: BACKEND_VERSION, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches, perms: perms };
+  if (!brdCached) try { cache.put('cfg_brands_v2', JSON.stringify(brands), CACHE_SEC); } catch(e) {}
+  return { ok: true, version: BACKEND_VERSION, systems: systems, announcements: announcements, users: users, branches: branches, jaedaengBranches: jaedaengBranches, perms: perms, brands: brands };
 }
 
 // อ่าน config ทีละ key · dflt = ค่า default ถ้าไม่เจอ/parse ไม่ได้
@@ -706,7 +713,7 @@ function uploadIcon(base64, filename) {
 
 /* ──────────────────── CACHE ──────────────────── */
 function clearAllCacheReturn() {
-  CacheService.getScriptCache().removeAll(['cert_v2','emp_v1','req_v2','cfg_systems_v2','cfg_announcements_v2','cfg_users_v2','cfg_branches_v2']
+  CacheService.getScriptCache().removeAll(['cert_v2','emp_v1','req_v2','cfg_systems_v2','cfg_announcements_v2','cfg_users_v2','cfg_branches_v2','cfg_brands_v2','cfg_perms_v2','cfg_jaedaengBranches_v2']
     .concat(EXAM_CACHE_KEYS));
   _fqaCacheKill();   /* ของฟอร์มตรวจเก็บเป็นหลายท่อน ต้องล้างด้วยตัวของมันเอง */
   return { ok: true, cleared: true };
