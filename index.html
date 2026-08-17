@@ -2180,6 +2180,11 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           <input type="text" class="adm-input" id="brandRegName" placeholder="เช่น เจ๊แดง / Santa Fe / แบรนด์ใหม่" maxlength="60">
         </div>
         <div class="adm-section">
+          <label class="adm-label">ชื่อบริษัท <span style="font-weight:500;color:var(--text3);">— ขึ้นหัวรายงาน PDF/Excel</span></label>
+          <input type="text" class="adm-input" id="brandRegCompany" placeholder="เช่น บริษัท เอฟเอบี ฟู้ด โฮลดิ้ง จำกัด" maxlength="120">
+          <div style="font-size:11px;color:var(--text3);margin-top:4px;">เว้นว่างได้ — ระบบจะใช้ชื่อแบรนด์แทน</div>
+        </div>
+        <div class="adm-section">
           <label class="adm-label">รหัสแบรนด์ (key อังกฤษ ห้ามซ้ำ) <span style="color:var(--red);">*</span></label>
           <input type="text" class="adm-input" id="brandRegKey" placeholder="เช่น newbrand" maxlength="30">
           <div style="font-size:11px;color:var(--text3);margin-top:4px;">ใช้อ้างอิงในระบบ (ผูกกับผู้ใช้) · แก้ไม่ได้หลังสร้าง</div>
@@ -6514,6 +6519,7 @@ function openBrandEdit(key){
   var b = key ? brandByKey(key) : null;
   _brandLogoData = '';
   document.getElementById('brandRegName').value = b ? b.name : '';
+  document.getElementById('brandRegCompany').value = (b && b.company) || '';
   var keyEl = document.getElementById('brandRegKey');
   keyEl.value = b ? b.key : '';
   keyEl.readOnly = !!b;
@@ -6727,7 +6733,11 @@ function saveBrandEdit(){
   var logo = _brandLogoCleared ? '' : (_brandLogoData || (existing && existing.logo) || '');
 
   var color = (document.getElementById('brandRegColor').value || '').trim();
+  var company = (document.getElementById('brandRegCompany').value || '').trim();
   var obj = { key: (existing? existing.key : key), name: name, prefixes: prefixes };
+  /* เก็บเฉพาะตอนกรอกจริง — ทะเบียนแบรนด์ทั้งก้อนมีเพดานขนาดเพราะเก็บโลโก้
+     ด้วย ช่องว่างเปล่าจึงไม่ควรกินที่ */
+  if(company) obj.company = company;
   if(color) obj.color = color;
   if(logo) obj.logo = logo;
   if(existing){ var i=BRAND_REGISTRY.findIndex(function(b){return b.key===existing.key;}); if(i>=0) BRAND_REGISTRY[i]=obj; }
