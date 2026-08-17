@@ -4083,6 +4083,17 @@ var DEFAULT_SYSTEMS = [{
   endDate: '',
   builtIn: true
 }, {
+  id: 'checklist-yamachan',
+  emoji: '✅',
+  icon: 'icons/checklist.png',
+  name: 'Operations Checklist (ยามะจัง)',
+  desc: 'ระบบตรวจสอบมาตรฐานการทำงาน · แบรนด์ยามะจัง',
+  url: '',
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
   id: 'training-record',
   emoji: '🎓',
   icon: 'icons/training.png',
@@ -4669,11 +4680,14 @@ function openSystem(systemId) {
     window.location.href = salesBase;
     return;
   }
-  if (systemId === 'checklist' || systemId === 'checklist-santafe' || systemId === 'checklist-jaedaeng') {
-    // brand override จาก id ปุ่ม (Hub แยกเป็น 2 ปุ่ม ส่งไป Checklist ผ่าน ?brand=)
-    var brandParam = (systemId === 'checklist-jaedaeng') ? 'jaedaeng'
-                    : (systemId === 'checklist-santafe') ? 'santafe'
-                    : '';
+  if (systemId === 'checklist' || systemId === 'checklist-santafe'
+      || systemId === 'checklist-jaedaeng' || systemId === 'checklist-yamachan') {
+    /* แบรนด์มาจาก id ปุ่ม (ฮับแยกปุ่มต่อแบรนด์ แล้วส่งไป Checklist ผ่าน ?brand=)
+       ตัดคำนำหน้า 'checklist-' ออกแล้วเทียบกับทะเบียนแบรนด์ — เพิ่มแบรนด์ใหม่
+       ไม่ต้องมาต่อ if ตรงนี้อีก ขอแค่ตั้ง id ปุ่มเป็น checklist-<คีย์แบรนด์> */
+    var brandParam = '';
+    var _bk = systemId.replace(/^checklist-?/, '');
+    if (_bk && typeof brandByKey === 'function' && brandByKey(_bk)) brandParam = _bk;
     // SSO: ก่อน redirect → re-save session ให้ fresh (refresh loggedInAt)
     try {
       var role = sessionStorage.getItem('fab_role'); // 'admin' | 'branch'
