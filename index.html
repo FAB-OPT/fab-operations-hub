@@ -2121,11 +2121,9 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
         <input type="text" id="branchMgmtSearch" placeholder="ค้นหาด้วยรหัส / ชื่อสาขา..." class="adm-input" style="flex:1;min-width:220px;padding:8px 12px;font-size:13px;" oninput="renderBranchMgmtList()">
+        <!-- ตัวเลือกสร้างจากทะเบียนแบรนด์ ดู _fillBrandFilterOptions -->
         <select id="branchMgmtFilter" class="adm-input" style="width:auto;padding:8px 12px;font-size:13px;" onchange="renderBranchMgmtList()">
           <option value="">ทุกแบรนด์</option>
-          <option value="50">Santa Fe</option>
-          <option value="55">Santa Fe Easy</option>
-          <option value="40">เจ๊แดง</option>
         </select>
       </div>
       <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;max-height:520px;overflow-y:auto;">
@@ -2222,11 +2220,9 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
     <div class="adm-modal-body">
       <div class="adm-section">
         <label class="adm-label">แบรนด์</label>
+        <!-- ตัวเลือกสร้างจากทะเบียนแบรนด์ตอนเปิดหน้าต่าง ดู openBranchEditModal -->
         <select class="adm-input" id="branchEditBrand">
           <option value="">— เลือกแบรนด์ —</option>
-          <option value="50">Santa Fe</option>
-          <option value="55">Santa Fe Easy</option>
-          <option value="40">เจ๊แดง จุ่มนัวร์</option>
         </select>
         <div style="font-size:11px;color:var(--text3);margin-top:4px;">เลือกแบรนด์ได้อิสระ · ถ้าไม่เลือก ระบบจะใช้ตามเลขขึ้นต้นรหัสให้</div>
       </div>
@@ -3434,10 +3430,7 @@ loadBranchesLocal();
 
 function getBranchPrefix(code) {
   if (!code) return '';
-  if (code.indexOf('55') === 0) return 'Santa Fe Easy';
-  if (code.indexOf('50') === 0) return 'Santa Fe';
-  if (code.indexOf('40') === 0) return 'เจ๊แดง จุ่มนัวร์';
-  return '';
+  return prefixLabelOf(_prefixCodeOf(code));  // ดูตัวช่วยกลางด้านล่าง
 }
 function getBranchFullName(code) {
   var prefix = getBranchPrefix(code);
@@ -5207,9 +5200,24 @@ function _syncUsersSync(msg, color) {
 /* ─────────── BRANCH MANAGEMENT (admin CRUD) ─────────── */
 var _editingBranchCode = null;  // null = adding new
 
+/* เติมตัวเลือกแบรนด์ในช่องกรองจากทะเบียน — คงค่าที่ผู้ใช้เลือกไว้
+   เดิมเขียนตายตัวสามอัน สาขาของแบรนด์ใหม่จึงกรองดูไม่ได้ */
+function _fillBrandFilterOptions() {
+  var sel = document.getElementById('branchMgmtFilter');
+  if (!sel) return;
+  var keep = sel.value || '';
+  sel.innerHTML = '<option value="">ทุกแบรนด์</option>' +
+    _brandPrefixList().slice().sort(function (a, b) { return a.p.localeCompare(b.p); })
+      .map(function (x) {
+        return '<option value="' + escapeHtml(x.p) + '">' + escapeHtml(prefixLabelOf(x.p)) + '</option>';
+      }).join('');
+  sel.value = keep;
+  if (sel.value !== keep) sel.value = '';   // แบรนด์ที่เลือกไว้หายไปแล้ว → กลับไปดูทุกแบรนด์
+}
 function renderBranchMgmtList() {
   var tbody = document.getElementById('branchMgmtTbody');
   if (!tbody) return;
+  _fillBrandFilterOptions();
   var search = (document.getElementById('branchMgmtSearch').value || '').trim().toLowerCase();
   var filter = document.getElementById('branchMgmtFilter').value || '';
 
@@ -5226,7 +5234,7 @@ function renderBranchMgmtList() {
   codes.forEach(function(code){
     var name = BRANCHES[code] || '';
     var bp = getBranchBrand(code);
-    var brand = brandLabelOf(bp) || '-';
+    var brand = prefixLabelOf(bp) || '-';
     var bzmNick = BRANCH_BZM_MAP[code] || '';
     var bzmUser = bzmNick ? USERS.find(function(u){ return u.role === 'bzm' && (u.nick === bzmNick || u.name === bzmNick); }) : null;
     var bzmHtml = bzmNick
@@ -6416,6 +6424,12 @@ function openBranchEditModal(code) {
   // แบรนด์: เลือกได้อิสระ · ตั้งค่าเริ่มจากแบรนด์ที่ใช้จริง (override หรือ prefix)
   var brandSel = document.getElementById('branchEditBrand');
   if (brandSel) {
+    // เติมตัวเลือกจากทะเบียนแบรนด์ทุกครั้งที่เปิด — เพิ่มแบรนด์ใหม่แล้วมีให้เลือกทันที
+    brandSel.innerHTML = '<option value="">— เลือกแบรนด์ —</option>' +
+      _brandPrefixList().slice().sort(function (a, b) { return a.p.localeCompare(b.p); })
+        .map(function (x) {
+          return '<option value="' + escapeHtml(x.p) + '">' + escapeHtml(prefixLabelOf(x.p)) + '</option>';
+        }).join('');
     brandSel.value = isEdit ? getBranchBrand(code) : '';
     brandSel.disabled = false;
   }
@@ -6424,22 +6438,45 @@ function openBranchEditModal(code) {
   document.getElementById('branchEditModal').classList.add('show');
 }
 
-// prefix แบรนด์จากเลขขึ้นต้นรหัส ('50' | '55' | '40' | '')
+/* ── เลขขึ้นต้นรหัสสาขา → แบรนด์ ──
+   เดิมเขียนไว้ตายตัว 3 ค่า เพิ่มแบรนด์ในทะเบียนแล้วสาขาของแบรนด์นั้น
+   จะไม่มีป้ายกำกับและเลือกในหน้าจัดการสาขาไม่ได้ ตอนนี้อ่านจากทะเบียน
+
+   ตัวระบุแบรนด์ตรงนี้ยังเป็น "เลขขึ้นต้น" ไม่ใช่คีย์แบรนด์ เพราะข้อมูล
+   ที่บันทึกไว้แล้ว (brandMap) เก็บเป็นเลข เปลี่ยนไปใช้คีย์จะอ่านของเก่าไม่ออก */
+var PREFIX_LABEL_OVERRIDE = {
+  // 55 เป็นรูปแบบร้านย่อยของซานตาเฟ่ ไม่ใช่แบรนด์แยก ทะเบียนจึงไม่มีชื่อนี้
+  '55': 'Santa Fe Easy',
+  // ทะเบียนเก็บชื่อสั้นว่า "เจ๊แดง" แต่ป้ายในหน้าจัดการสาขาใช้ชื่อเต็มมาแต่เดิม
+  '40': 'เจ๊แดง จุ่มนัวร์'
+};
+function _brandPrefixList() {
+  var out = [];
+  (BRAND_REGISTRY || []).forEach(function (b) {
+    (b.prefixes || []).forEach(function (p) {
+      if (p) out.push({ p: String(p), key: b.key, name: b.name || b.key });
+    });
+  });
+  // เลขยาวกว่าต้องมาก่อน กันกรณีเลขสั้นเป็นส่วนหน้าของเลขยาว
+  out.sort(function (a, b) { return b.p.length - a.p.length; });
+  return out;
+}
 function _prefixCodeOf(code) {
   var c = String(code || '');
-  if (c.indexOf('55') === 0) return '55';
-  if (c.indexOf('50') === 0) return '50';
-  if (c.indexOf('40') === 0) return '40';
-  return '';
+  var hit = _brandPrefixList().filter(function (x) { return c.indexOf(x.p) === 0; })[0];
+  return hit ? hit.p : '';
 }
 // แบรนด์ที่ใช้จริงของสาขา = override ที่เลือกไว้ ถ้าไม่มีค่อยใช้ตามเลขขึ้นต้นรหัส
 function getBranchBrand(code) { return BRANCH_BRAND_MAP[code] || _prefixCodeOf(code); }
-// ป้ายชื่อแบรนด์จาก prefix code
-function brandLabelOf(p) {
-  if (p === '55') return 'Santa Fe Easy';
-  if (p === '50') return 'Santa Fe';
-  if (p === '40') return 'เจ๊แดง จุ่มนัวร์';
-  return '';
+/* ป้ายชื่อแบรนด์จากเลขขึ้นต้นรหัสสาขา
+   ห้ามตั้งชื่อว่า brandLabelOf ซ้ำกับตัวที่รับคีย์แบรนด์ด้านบน —
+   ประกาศชื่อซ้ำกันตัวหลังจะทับตัวแรกทิ้งทั้งไฟล์ ซึ่งเคยเป็นแบบนั้นมาก่อน
+   ทำให้ป้ายแบรนด์ที่ส่งคีย์เข้าไป (เช่นในทะเบียนผู้ใช้) ขึ้นว่างเปล่า */
+function prefixLabelOf(p) {
+  if (!p) return '';
+  if (PREFIX_LABEL_OVERRIDE[p]) return PREFIX_LABEL_OVERRIDE[p];
+  var hit = _brandPrefixList().filter(function (x) { return x.p === String(p); })[0];
+  return hit ? hit.name : '';
 }
 
 /* ═══════════ ADMIN: จัดการแบรนด์ (ทะเบียนแบรนด์กลาง) ═══════════ */
