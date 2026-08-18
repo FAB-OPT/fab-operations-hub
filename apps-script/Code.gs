@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-14';
+var BACKEND_VERSION = '2026-08-18';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -67,6 +67,7 @@ function doPost(e) {
     if (data.type === 'verify-exam-code')   return jsonOut(verifyExamCode(data.code, data.examId));
     if (data.type === 'use-exam-code')      return jsonOut(useExamCode(data.code));
     if (data.type === 'delete-exam-request')return jsonOut(deleteExamRequest(data.id));
+    if (data.type === 'delete-exam-result') return jsonOut(deleteExamResult(data.submittedAt, data.empId, data.examId));
     if (data.type === 'save-fqa-record')    return jsonOut(saveFqaRecord(data.record));
     if (data.type === 'delete-fqa-record')  return jsonOut(deleteFqaRecord(data.id));
     if (data.type === 'upload-fqa-photo')   return jsonOut(uploadFqaPhoto(data.base64, data.filename));
@@ -888,6 +889,41 @@ function saveExamResult(r) {
     sh.appendRow(row);
     _examCacheKill();
     return { ok: true, saved: 1 };
+  } finally { lock.releaseLock(); }
+}
+
+/* ลบผลสอบหนึ่งรายการ
+   ผลสอบไม่มี id ประจำตัว (เก็บเป็นแถวในชีต) จึงระบุด้วยเวลาที่ส่ง + รหัสพนักงาน
+   + รหัสชุดข้อสอบรวมกัน คนเดียวกันสอบชุดเดียวกันซ้ำในวินาทีเดียวกันไม่ได้อยู่แล้ว
+
+   เวลาที่ส่งเก็บเป็นข้อความ ISO แต่ Sheets อาจตีความเป็นวันที่แล้วคืนมาเป็น Date
+   จึงเทียบด้วยค่าเวลา (มิลลิวินาที) ไม่ใช่เทียบข้อความตรง ๆ */
+function deleteExamResult(submittedAt, empId, examId) {
+  if (!submittedAt) return { ok: false, error: 'no submittedAt' };
+  var want = new Date(submittedAt).getTime();
+  if (isNaN(want)) return { ok: false, error: 'bad submittedAt' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet('ExamResults', EXAMRESULT_HEADERS);
+    var values = sh.getDataRange().getValues();
+    if (values.length < 2) return { ok: false, error: 'not found' };
+    var headers = values[0].map(function(h){ return String(h).trim(); });
+    var cAt = headers.indexOf('submittedAt');
+    var cEmp = headers.indexOf('empId');
+    var cEx = headers.indexOf('examId');
+    if (cAt < 0) return { ok: false, error: 'no submittedAt column' };
+    for (var i = values.length - 1; i >= 1; i--) {
+      var v = values[i][cAt];
+      var t = (v instanceof Date) ? v.getTime() : new Date(String(v)).getTime();
+      if (isNaN(t) || t !== want) continue;
+      if (empId && cEmp >= 0 && String(values[i][cEmp]).trim() !== String(empId).trim()) continue;
+      if (examId && cEx >= 0 && String(values[i][cEx]).trim() !== String(examId).trim()) continue;
+      sh.deleteRow(i + 1);
+      _examCacheKill();
+      return { ok: true };
+    }
+    return { ok: false, error: 'not found' };
   } finally { lock.releaseLock(); }
 }
 
