@@ -2627,6 +2627,22 @@ function _oeResAnswers(r){
   if(typeof a === 'string'){ try { a = JSON.parse(a); } catch(e){ a = null; } }
   return Array.isArray(a) ? a : null;
 }
+/* เวลาที่ใช้ทำข้อสอบ — ไม่ได้เก็บไว้ตรง ๆ คำนวณจากเริ่มถึงส่ง
+   คืนเป็นนาที (ทศนิยม) เพื่อเอาไปหารเฉลี่ยต่อข้อได้ · คืน null ถ้าคำนวณไม่ได้
+   กันค่าเพี้ยน: ติดลบ หรือเกินหนึ่งวัน = เวลาเครื่องคลาดเคลื่อน ไม่ใช่เวลาสอบจริง */
+function _oeUsedMin(r){
+  if(!r || !r.startedAt || !r.submittedAt) return null;
+  var ms = new Date(r.submittedAt) - new Date(r.startedAt);
+  if(isNaN(ms) || ms <= 0 || ms > 86400000) return null;
+  return ms / 60000;
+}
+function _oeFmtMin(m){
+  if(m == null) return '';
+  if(m < 1) return Math.round(m * 60) + ' วินาที';
+  if(m < 60) return (m < 10 ? Math.round(m * 10) / 10 : Math.round(m)) + ' นาที';
+  var h = Math.floor(m / 60);
+  return h + ' ชม. ' + Math.round(m - h * 60) + ' นาที';
+}
 function _oeResDetailHtml(r){
   var pass = isPass(r);
   var v = Number(r.violations || 0);
@@ -2647,14 +2663,12 @@ function _oeResDetailHtml(r){
     '</div></div>';
 
   /* ข้อมูลประกอบ — เวลาที่ใช้คำนวณจากเริ่มถึงส่ง ไม่ได้เก็บไว้ตรง ๆ */
-  var used = '';
-  if(r.startedAt && r.submittedAt){
-    var ms = new Date(r.submittedAt) - new Date(r.startedAt);
-    if(ms > 0 && ms < 86400000) used = Math.round(ms / 60000) + ' นาที';
-  }
+  var um = _oeUsedMin(r);
+  var per = (um != null && Number(r.total) > 0) ? (um / Number(r.total)) : null;
   var facts = [
     ['ส่งเมื่อ', fmtDT(r.submittedAt)],
-    ['เวลาที่ใช้', used || '—'],
+    ['เวลาที่ใช้', _oeFmtMin(um) || '—'],
+    ['เฉลี่ยต่อข้อ', _oeFmtMin(per) || '—'],
     ['การเตือน', v > 0 ? v + ' ครั้ง' : 'ไม่มี'],
     ['จบการสอบโดย', r.finishReason || '—']
   ];
@@ -2710,82 +2724,97 @@ function printResultReport(){
 function _oeReportHtml(r){
   var pass = isPass(r);
   var ans = _oeResAnswers(r) || [];
-  var wrong = ans.filter(function(a){ return !_oeAnsOk(a); }).length;
+  var total = Number(r.total) || ans.length || 0;
+  var right = Number(r.correct);
+  if(isNaN(right)) right = ans.filter(_oeAnsOk).length;
+  var wrong = Math.max(0, total - right);
+  var pct = (total > 0) ? Math.round(right / total * 100) : Number(r.pct) || 0;
   var v = Number(r.violations || 0);
-  var used = '';
-  if(r.startedAt && r.submittedAt){
-    var ms = new Date(r.submittedAt) - new Date(r.startedAt);
-    if(ms > 0 && ms < 86400000) used = Math.round(ms / 60000) + ' นาที';
-  }
+  var um = _oeUsedMin(r);
+  var per = (um != null && total > 0) ? (um / total) : null;
   var bi = brandInfo(r.brand || currentBrand) || {};
-  var rows = ans.map(function(a, i){
-    var ok = _oeAnsOk(a);
-    return '<tr class="' + (ok ? 'ok' : 'bad') + '">' +
-      '<td class="n">' + (i + 1) + '</td>' +
-      '<td>' + esc(a.q || '') + '</td>' +
-      '<td>' + esc(a.my || '(ไม่ตอบ)') + '</td>' +
-      '<td>' + (ok ? '<span class="tick">ถูก</span>' : esc(a.correct || '')) + '</td></tr>';
-  }).join('');
+
+  /* สี่ช่องสรุป — เวลาที่ใช้ · เฉลี่ยต่อข้อ · ถูก · ผิด
+     ตัวเลขเป็นพระเอกของใบนี้ ไม่ใช่รายละเอียดรายข้อ */
+  var stats = [
+    ['เวลาที่ใช้ทั้งหมด', _oeFmtMin(um) || '-'],
+    ['เฉลี่ยต่อข้อ', _oeFmtMin(per) || '-'],
+    ['ตอบถูก', right + ' ข้อ'],
+    ['ตอบผิด', wrong + ' ข้อ']
+  ];
 
   var css = [
-    '@page{size:A4;margin:14mm 13mm}',
+    '@page{size:A4;margin:16mm 14mm}',
     '*{box-sizing:border-box}',
-    "body{font-family:'Sarabun','Leelawadee UI',sans-serif;color:#101828;font-size:10.5pt;line-height:1.5;margin:0}",
-    '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:14px;border-bottom:2.5pt solid #101828;padding-bottom:9pt;margin-bottom:12pt}',
+    "body{font-family:'Sarabun','Leelawadee UI',sans-serif;color:#101828;font-size:11pt;line-height:1.55;margin:0}",
+    '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2.5pt solid #101828;padding-bottom:10pt;margin-bottom:16pt}',
     '.org{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#667085}',
-    'h1{font-size:16pt;font-weight:800;margin:3pt 0 0;letter-spacing:-.02em}',
+    'h1{font-size:18pt;font-weight:800;margin:4pt 0 0;letter-spacing:-.02em}',
+    '.sub{font-size:10.5pt;color:#475467;margin-top:4pt}',
     '.hd-r{text-align:right;flex:0 0 auto}',
-    '.verdict{display:inline-block;padding:4pt 14pt;border-radius:99pt;font-size:12pt;font-weight:800;border:1.5pt solid}',
+    '.verdict{display:inline-block;padding:5pt 18pt;border-radius:99pt;font-size:13pt;font-weight:800;border:1.5pt solid}',
     '.verdict.p{color:#0f7a52;border-color:#0f7a52;background:#eefaf4}',
     '.verdict.f{color:#c02626;border-color:#c02626;background:#fdeded}',
-    '.pct{font-size:26pt;font-weight:800;line-height:1;margin-top:6pt;letter-spacing:-.03em}',
-    '.pct small{font-size:11pt;font-weight:600;color:#667085}',
-    '.who{display:grid;grid-template-columns:repeat(4,1fr);border:.8pt solid #d6dae2;border-radius:5pt;overflow:hidden;margin-bottom:12pt}',
-    '.who>div{padding:7pt 9pt;border-right:.8pt solid #eaecf0;border-bottom:.8pt solid #eaecf0}',
-    '.who span{display:block;font-size:7.5pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase}',
-    '.who b{display:block;font-size:10.5pt;margin-top:2pt;font-weight:700}',
+    /* คะแนนเป็นวงกลมใหญ่กลางใบ อ่านจากระยะไกลได้ */
+    '.score{display:flex;align-items:center;gap:18pt;padding:14pt 18pt;border:1pt solid #d6dae2;border-radius:8pt;margin-bottom:14pt;background:#fafbfc}',
+    '.ring{width:96pt;height:96pt;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;text-align:center;border:6pt solid #0f7a52}',
+    '.ring.f{border-color:#c02626}',
+    '.ring b{display:block;font-size:28pt;font-weight:800;line-height:1;letter-spacing:-.03em}',
+    '.ring span{display:block;font-size:8.5pt;color:#667085;margin-top:2pt}',
+    '.score-r{flex:1;min-width:0}',
+    '.bar{height:11pt;border-radius:99pt;background:#eaecf0;overflow:hidden;margin:8pt 0 6pt}',
+    '.bar i{display:block;height:100%;background:#0f7a52}',
+    '.bar i.f{background:#c02626}',
+    '.barlab{display:flex;justify-content:space-between;font-size:8.5pt;color:#667085}',
+    '.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1pt solid #d6dae2;border-radius:8pt;overflow:hidden;margin-bottom:14pt}',
+    '.stats>div{padding:10pt 12pt;border-right:1pt solid #eaecf0}',
+    '.stats>div:last-child{border-right:none}',
+    '.stats span{display:block;font-size:8pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase}',
+    '.stats b{display:block;font-size:14pt;margin-top:3pt;font-weight:800;letter-spacing:-.02em}',
+    '.who{display:grid;grid-template-columns:repeat(2,1fr);border:1pt solid #d6dae2;border-radius:8pt;overflow:hidden}',
+    '.who>div{padding:8pt 12pt;border-right:1pt solid #eaecf0;border-bottom:1pt solid #eaecf0}',
+    '.who>div:nth-child(2n){border-right:none}',
+    '.who>div:nth-last-child(-n+2){border-bottom:none}',
+    '.who span{display:block;font-size:8pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase}',
+    '.who b{display:block;font-size:11pt;margin-top:2pt;font-weight:700}',
     '.who b.hot{color:#c02626}',
-    '.sec{font-size:11pt;font-weight:800;margin:0 0 6pt;display:flex;justify-content:space-between;align-items:baseline}',
-    '.sec em{font-style:normal;font-size:9pt;font-weight:600;color:#667085}',
-    'table{width:100%;border-collapse:collapse;font-size:9.5pt}',
-    'th{background:#f2f4f7;text-align:left;padding:5pt 7pt;font-size:8pt;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:#475467;border-bottom:.8pt solid #d6dae2}',
-    'td{padding:5pt 7pt;border-bottom:.6pt solid #eaecf0;vertical-align:top}',
-    'td.n{text-align:center;color:#667085;width:22pt;font-weight:700}',
-    'tr.bad td{background:#fdf3f3}',
-    'tr.bad td.n{color:#c02626}',
-    '.tick{color:#0f7a52;font-weight:700}',
-    'tr{page-break-inside:avoid}',
-    'thead{display:table-header-group}',
-    '.ft{margin-top:14pt;padding-top:7pt;border-top:.8pt solid #d6dae2;font-size:8pt;color:#667085;display:flex;justify-content:space-between;gap:10pt}',
-    '.sign{margin-top:22pt;display:grid;grid-template-columns:1fr 1fr;gap:30pt}',
-    '.sign div{border-top:.8pt dotted #98a2b3;padding-top:5pt;font-size:8.5pt;color:#667085;text-align:center}',
-    '.none{padding:14pt;border:.8pt dashed #d6dae2;border-radius:5pt;text-align:center;color:#667085;font-size:9.5pt}'
+    '.sign{margin-top:34pt;display:grid;grid-template-columns:1fr 1fr;gap:36pt}',
+    '.sign div{border-top:1pt dotted #98a2b3;padding-top:6pt;font-size:9pt;color:#667085;text-align:center}',
+    '.ft{margin-top:16pt;padding-top:8pt;border-top:1pt solid #d6dae2;font-size:8pt;color:#667085;display:flex;justify-content:space-between;gap:10pt}'
   ].join('');
 
   var body = '<div class="hd"><div>' +
       '<div class="org">' + esc(bi.name || 'FAB Operations') + '</div>' +
       '<h1>ใบรายงานผลสอบ</h1>' +
-      '<div style="font-size:10pt;color:#475467;margin-top:3pt">' + esc(r.examTitle || '') + '</div>' +
+      '<div class="sub">' + esc(r.examTitle || '') + '</div>' +
     '</div><div class="hd-r">' +
       '<span class="verdict ' + (pass ? 'p' : 'f') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
-      '<div class="pct">' + esc(r.pct) + '<small>%</small></div>' +
-      '<div style="font-size:9pt;color:#667085">' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</div>' +
     '</div></div>' +
+
+    '<div class="score">' +
+      '<div class="ring' + (pass ? '' : ' f') + '"><div><b>' + pct + '%</b>' +
+        '<span>' + right + '/' + total + ' ข้อ</span></div></div>' +
+      '<div class="score-r">' +
+        '<div style="font-size:9pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase">สัดส่วนคำตอบ</div>' +
+        '<div class="bar"><i class="' + (pass ? '' : 'f') + '" style="width:' + pct + '%"></i></div>' +
+        '<div class="barlab"><span>ถูก ' + right + ' ข้อ</span><span>ผิด ' + wrong + ' ข้อ</span></div>' +
+      '</div>' +
+    '</div>' +
+
+    '<div class="stats">' + stats.map(function(x){
+      return '<div><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>';
+    }).join('') + '</div>' +
+
     '<div class="who">' +
       '<div><span>ชื่อ-สกุล</span><b>' + esc(r.name || '-') + '</b></div>' +
       '<div><span>รหัสพนักงาน</span><b>' + esc(r.empId || '-') + '</b></div>' +
       '<div><span>สาขา</span><b>' + esc(r.branch || '-') + '</b></div>' +
       '<div><span>วันที่สอบ</span><b>' + esc(fmtDT(r.submittedAt)) + '</b></div>' +
-      '<div><span>เวลาที่ใช้</span><b>' + esc(used || '-') + '</b></div>' +
-      '<div><span>ตอบถูก</span><b>' + esc(r.correct) + ' ข้อ</b></div>' +
-      '<div><span>ตอบผิด</span><b>' + (ans.length ? wrong + ' ข้อ' : '-') + '</b></div>' +
-      '<div><span>การเตือน</span><b' + (v > 0 ? ' class="hot"' : '') + '>' + (v > 0 ? v + ' ครั้ง' : 'ไม่มี') + '</b></div>' +
+      '<div><span>จำนวนข้อทั้งหมด</span><b>' + total + ' ข้อ</b></div>' +
+      '<div><span>การเตือนระหว่างสอบ</span><b' + (v > 0 ? ' class="hot"' : '') + '>' +
+        (v > 0 ? v + ' ครั้ง' : 'ไม่มี') + '</b></div>' +
     '</div>' +
-    (ans.length
-      ? '<div class="sec">คำตอบรายข้อ<em>' + (wrong ? 'ผิด ' + wrong + ' ข้อ' : 'ถูกทุกข้อ') + '</em></div>' +
-        '<table><thead><tr><th>ข้อ</th><th>คำถาม</th><th>คำตอบที่เลือก</th><th>คำตอบที่ถูก</th></tr></thead>' +
-        '<tbody>' + rows + '</tbody></table>'
-      : '<div class="none">ผลสอบครั้งนี้ไม่ได้เก็บคำตอบรายข้อไว้</div>') +
+
     '<div class="sign"><div>ลงชื่อผู้เข้าสอบ</div><div>ลงชื่อผู้ตรวจ / ผู้จัดการ</div></div>' +
     '<div class="ft"><span>ออกจากระบบสอบออนไลน์ · FAB Operations &amp; Training Hub</span>' +
       '<span>พิมพ์เมื่อ ' + esc(fmtDT(new Date().toISOString())) + '</span></div>';
