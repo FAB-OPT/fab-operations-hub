@@ -1434,10 +1434,27 @@ var OE_PERMS = null;
 function oeLoadPermsCache(){
   try{ OE_PERMS = JSON.parse(localStorage.getItem(OE_PERM_KEY) || 'null'); }catch(e){ OE_PERMS = null; }
 }
+/* ทะเบียนแบรนด์มากับคำตอบเดียวกับสิทธิ์ ไม่ต้องยิงเพิ่ม
+   ของเดิมอ่านแต่ในเครื่อง ซึ่งมีแต่ฮับที่เขียน — เครื่องที่ยังไม่เคย
+   เปิดฮับ (หรือเปิดก่อนมีแบรนด์ใหม่) จะเห็นแบรนด์ไม่ครบ
+   คืนค่าว่ารายชื่อแบรนด์เปลี่ยนไปไหม เพื่อวาดหน้าเลือกแบรนด์ใหม่ */
+function _oeApplyBrandsFromHub(res){
+  var arr = res && res.brands;
+  if(!Array.isArray(arr) || !arr.length) return false;
+  var before = BRANDS.map(function(b){ return b.key; }).join('|');
+  try{ localStorage.setItem('fab_brands_v1', JSON.stringify(arr)); }catch(e){}
+  BRANDS = buildBrands();
+  return BRANDS.map(function(b){ return b.key; }).join('|') !== before;
+}
 function oeLoadPermsFromHub(){
   return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(res){
+      /* วาดหน้าเลือกแบรนด์ใหม่เฉพาะตอนรายชื่อเปลี่ยนจริง และต้องยัง
+         ค้างอยู่หน้านั้น — ถ้าเลือกแบรนด์ไปแล้วห้ามลากกลับมา */
+      if(_oeApplyBrandsFromHub(res) && !$('brandGate').classList.contains('hidden')){
+        showBrandGate();
+      }
       if(res && res.ok && res.perms && res.perms.onlineexam){
         OE_PERMS = res.perms.onlineexam;
         try{ localStorage.setItem(OE_PERM_KEY, JSON.stringify(OE_PERMS)); }catch(e){}
