@@ -57,6 +57,29 @@ button{font-family:inherit;cursor:pointer;border:none;background:none;color:inhe
 input,select,textarea{font-family:inherit}
 .hidden{display:none!important}
 .oe-noperm{display:none!important}
+/* ── กล่องยืนยัน ── */
+.cf-box{max-width:430px}
+.cf-body{padding:26px 26px 20px;text-align:center}
+.cf-ic{width:52px;height:52px;margin:0 auto 14px;border-radius:15px;display:grid;place-items:center;
+  font-size:24px;background:var(--red-soft);border:1px solid var(--red-line)}
+.cf-body h3{font-size:18px;font-weight:800;letter-spacing:-.02em;margin-bottom:7px}
+.cf-body #cfText{font-size:14.5px;color:var(--text2);line-height:1.6}
+.cf-body #cfText b{color:var(--text);font-weight:700}
+/* รายละเอียดของสิ่งที่กำลังจะลบ — ให้อ่านทวนได้ว่าเลือกถูกตัวไหม */
+.cf-facts{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);
+  background:var(--bg3);text-align:left;overflow:hidden}
+.cf-facts:empty{display:none}
+.cf-facts>div{display:flex;justify-content:space-between;gap:12px;padding:8px 13px;font-size:13px}
+.cf-facts>div+div{border-top:1px solid var(--border)}
+.cf-facts span{color:var(--text3);flex:0 0 auto}
+.cf-facts b{font-weight:700;text-align:right;min-width:0;word-break:break-word}
+.cf-warn{margin-top:14px;font-size:12.5px;font-weight:700;color:var(--red)}
+.cf-warn:empty{display:none}
+.cf-foot{justify-content:stretch;gap:9px}
+.cf-foot .btn{flex:1;justify-content:center}
+.btn-danger{background:var(--red);color:#fff;border:1px solid var(--red)}
+.btn-danger:hover{filter:brightness(.94)}
+.btn-danger:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 /* ข้อความที่มีไว้ให้เครื่องอ่านหน้าจอ ไม่ต้องเห็นบนจอ */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -1413,6 +1436,23 @@ label.fld>span>b{font-weight:800}
   </div>
 </div>
 
+<!-- ═══════════ กล่องยืนยัน (ใช้แทน confirm ของเบราว์เซอร์) ═══════════ -->
+<div class="modal" id="cfModal">
+  <div class="modal-box cf-box" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle">
+    <div class="cf-body">
+      <div class="cf-ic" id="cfIcon">🗑</div>
+      <h3 id="cfTitle">ยืนยัน</h3>
+      <div id="cfText"></div>
+      <div class="cf-facts" id="cfFacts"></div>
+      <p class="cf-warn" id="cfWarn"></p>
+    </div>
+    <div class="modal-foot cf-foot">
+      <button class="btn btn-soft" id="cfNo">ยกเลิก</button>
+      <button class="btn btn-danger" id="cfYes">ยืนยัน</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════ กล่องข้อความสั้น ═══════════ -->
 <div class="modal" id="infoModal">
   <div class="modal-box" style="max-width:420px">
@@ -2472,10 +2512,21 @@ function saveExam(){
     .finally(function(){ btn.innerHTML=old; btn.disabled=false; });
 }
 
-function deleteExam(id){
+async function deleteExam(id){
   var ex = EXAMS.find(function(x){return x.id===id;});
   if(!ex) return;
-  if(!confirm('ลบชุดข้อสอบ “'+ex.title+'” ?\nผลสอบที่เคยบันทึกไว้จะยังคงอยู่')) return;
+  var okDel = await oeConfirm({
+    icon: '🗑',
+    title: 'ลบชุดข้อสอบ?',
+    text: 'ชุดนี้จะหายจากรายการและสาขาจะทำไม่ได้อีก',
+    facts: [
+      ['ชุดข้อสอบ', ex.title || ''],
+      ['จำนวนคำถาม', ((ex.questions || []).length) + ' ข้อ']
+    ],
+    warn: 'ผลสอบที่เคยบันทึกไว้จะยังคงอยู่',
+    yes: 'ลบชุดข้อสอบ'
+  });
+  if(!okDel) return;
   apiPost({ type:'delete-exam', id:id }).then(function(res){
     if(res && res.ok){ EXAMS=EXAMS.filter(function(x){return x.id!==id;}); renderAdminExams(); fillExamFilter(); toast('ลบแล้ว','ok'); }
     else toast('ลบไม่สำเร็จ: '+((res&&res.error)||''),'err');
@@ -2845,14 +2896,24 @@ function _oeReportHtml(r){
 /* ── ลบผลสอบ ── */
 function deleteResultFromDetail(){ deleteResultAt(RESULTS.indexOf(_oeResCur)); }
 /* ลบผลสอบตามตำแหน่งในรายการ — เรียกได้ทั้งจากปุ่มในแถวและจากในกล่อง */
-function deleteResultAt(i){
+async function deleteResultAt(i){
   var r = RESULTS[i];
   if(!r) return;
   if(!oeCan('exam-delete')){ toast('ไม่มีสิทธิ์ลบผลสอบ','err'); return; }
-  var msg = 'ลบผลสอบของ "' + (r.name || '') + '" ออกถาวร?\n\n' +
-    'ชุด: ' + (r.examTitle || '') + '\n' +
-    'คะแนน: ' + r.pct + '% (' + r.correct + '/' + r.total + ')\n\nลบแล้วกู้คืนไม่ได้';
-  if(!confirm(msg)) return;
+  var okDel = await oeConfirm({
+    icon: '🗑',
+    title: 'ลบผลสอบนี้?',
+    text: 'ผลสอบของ <b>' + esc(r.name || '') + '</b> จะหายออกจากระบบ',
+    facts: [
+      ['ชุดข้อสอบ', r.examTitle || ''],
+      ['สาขา', r.branch || '-'],
+      ['คะแนน', r.pct + '% (' + r.correct + '/' + r.total + ')'],
+      ['วันที่สอบ', fmtDT(r.submittedAt)]
+    ],
+    warn: 'ลบแล้วกู้คืนไม่ได้',
+    yes: 'ลบผลสอบ'
+  });
+  if(!okDel) return;
   apiPost({ type:'delete-exam-result', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '' })
     .then(function(res){
       if(res && res.ok){
@@ -3505,6 +3566,43 @@ function decideReq(id, decision){
     loadExamRequests();
   }).catch(function(e){ showExamInfo('ทำรายการไม่สำเร็จ', esc(e.message || '')); });
 }
+
+/* ── กล่องยืนยัน ──
+   ใช้แทน confirm() ของเบราว์เซอร์ ซึ่งหน้าตาเป็นของเบราว์เซอร์ จัดรูปข้อความ
+   ไม่ได้ และปุ่มเขียนว่า "ตกลง" เสมอ ซึ่งไม่บอกว่ากดแล้วจะเกิดอะไร
+
+   คืน Promise เพื่อให้เขียนต่อแบบ await ได้เหมือน confirm เดิม
+   ปุ่มยกเลิกถูกโฟกัสไว้ก่อน — งานลบข้อมูล การเผลอกด Enter ต้องไม่ทำลายของ */
+var _cfResolve = null;
+function oeConfirm(o){
+  o = o || {};
+  $('cfIcon').textContent = o.icon || '🗑';
+  $('cfTitle').textContent = o.title || 'ยืนยัน';
+  $('cfText').innerHTML = o.text || '';
+  $('cfFacts').innerHTML = (o.facts || []).map(function(f){
+    return '<div><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>';
+  }).join('');
+  $('cfWarn').textContent = o.warn || '';
+  $('cfYes').textContent = o.yes || 'ยืนยัน';
+  $('cfNo').textContent = o.no || 'ยกเลิก';
+  $('cfModal').classList.add('show');
+  setTimeout(function(){ $('cfNo').focus(); }, 30);
+  return new Promise(function(res){ _cfResolve = res; });
+}
+function _cfClose(v){
+  $('cfModal').classList.remove('show');
+  var r = _cfResolve; _cfResolve = null;
+  if(r) r(v);
+}
+document.addEventListener('DOMContentLoaded', function(){
+  $('cfYes').addEventListener('click', function(){ _cfClose(true); });
+  $('cfNo').addEventListener('click', function(){ _cfClose(false); });
+  /* กดพื้นหลังหรือ Esc = ยกเลิก — ทางออกที่ปลอดภัยเสมอ */
+  $('cfModal').addEventListener('click', function(e){ if(e.target === this) _cfClose(false); });
+  document.addEventListener('keydown', function(e){
+    if(e.key === 'Escape' && $('cfModal').classList.contains('show')) _cfClose(false);
+  });
+});
 
 /* กล่องข้อความสั้น ๆ ใช้ร่วมกันทั้งสองฝั่ง (หน้านี้ไม่มี showInfo แบบระบบอื่น) */
 function showExamInfo(title, html){
