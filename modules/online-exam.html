@@ -157,6 +157,17 @@ input,select,textarea{font-family:inherit}
 .btn-icon svg{width:16px;height:16px}
 
 /* ───────────── ผลสอบรายคน ───────────── */
+.res-ck{width:38px;text-align:center}
+.res-ck input{width:17px;height:17px;accent-color:var(--gold);cursor:pointer;vertical-align:middle}
+.res-row.is-sel{background:var(--gold-soft)}
+.res-row.is-sel:hover{background:var(--gold-soft)}
+/* แถบสรุปตอนเลือกแล้ว — ลอยอยู่ล่างจอ ไม่ต้องเลื่อนกลับไปหาปุ่ม */
+.selbar{position:sticky;bottom:14px;z-index:5;display:none;align-items:center;gap:10px;flex-wrap:wrap;
+  margin-top:14px;padding:11px 15px;border-radius:var(--radius-lg);background:var(--bg2);
+  border:1px solid var(--border2);box-shadow:var(--shadow-lg)}
+.selbar.show{display:flex}
+.selbar-n{font-size:14px;font-weight:700;margin-right:auto}
+.selbar-n b{font-variant-numeric:tabular-nums;color:var(--gold);font-size:16px}
 .res-del{width:30px;height:30px;border-radius:8px;display:inline-grid;place-items:center;
   font-size:14px;color:var(--text3);border:1px solid transparent;transition:.14s;line-height:1}
 .res-del:hover{background:var(--red-soft);border-color:var(--red-line);color:var(--red)}
@@ -1078,16 +1089,24 @@ label.fld>span>b{font-weight:800}
         <div class="tbl-scroll">
           <table>
             <thead><tr>
+              <th class="res-ck"><input type="checkbox" id="resSelAll" data-oe-action="exam-delete"
+                  onchange="oeSelectAll(this.checked)" aria-label="เลือกทั้งหมด"></th>
               <th>วันที่-เวลา</th><th>ผู้เข้าสอบ</th><th>สาขา</th><th>ชุดข้อสอบ</th>
               <th style="text-align:center">คะแนน</th><th style="text-align:center">ผล</th><th style="text-align:center">เตือน</th><th>หมายเหตุ</th><th style="text-align:center;width:44px"><span class="sr-only">ลบ</span></th>
             </tr></thead>
-            <tbody id="resultsBody"><tr><td colspan="9"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr></tbody>
+            <tbody id="resultsBody"><tr><td colspan="10"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr></tbody>
           </table>
         </div>
       </div>
 
       <!-- จอแคบ: การ์ด — ตาราง 8 คอลัมน์บนมือถืออ่านไม่ออก -->
       <div class="rescards" id="resCards"></div>
+      <!-- แถบนี้โผล่เมื่อมีรายการถูกเลือก — ลอยอยู่ล่างจอ ไม่ต้องเลื่อนกลับขึ้นไปหาปุ่ม -->
+      <div class="selbar" id="resSelBar">
+        <span class="selbar-n"><b id="resSelN">0</b> รายการที่เลือก</span>
+        <button class="btn btn-soft" onclick="oeClearSel()">ยกเลิกการเลือก</button>
+        <button class="btn btn-danger" data-oe-action="exam-delete" onclick="deleteSelectedResults()">🗑 ลบที่เลือก</button>
+      </div>
     </div>
   </div>
 </section>
@@ -2540,6 +2559,8 @@ function previewExam(id){
 
 /* ═════════════════════ RESULTS (admin) ═════════════════════ */
 function loadResults(force){
+  /* ตำแหน่งในรายการเปลี่ยนหลังโหลดใหม่ ของที่เลือกไว้จะไม่ตรงคนเดิม */
+  _oeSel = {};
   var old = _oeStashed('results');
   if(old){ RESULTS = old.d; fillBranchFilter(); renderResults(); }
   else {
@@ -2557,7 +2578,7 @@ function loadResults(force){
     if(RESULTS.length){ _oeStaleNote('results', e); return; }
     var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadResults(true)">ลองใหม่</button>');
-    $('resultsBody').innerHTML = '<tr><td colspan="9">' + err + '</td></tr>';
+    $('resultsBody').innerHTML = '<tr><td colspan="10">' + err + '</td></tr>';
     var c = $('resCards'); if(c) c.innerHTML = err;
   });
 }
@@ -2615,8 +2636,12 @@ function _oeResChips(list){
 function _oeResRow(r){
   var pass = isPass(r);
   var v = Number(r.violations || 0);
-  return '<tr class="res-row" tabindex="0" onclick="openResultDetail(' + _oeResKey(r) + ')"' +
-    ' onkeydown="_oeRowKey(event,' + _oeResKey(r) + ')">' +
+  var k = _oeResKey(r);
+  return '<tr class="res-row' + (_oeSel[k] ? ' is-sel' : '') + '" tabindex="0"' +
+    ' onclick="openResultDetail(' + k + ')" onkeydown="_oeRowKey(event,' + k + ')">' +
+    '<td class="res-ck" onclick="event.stopPropagation()">' +
+      '<input type="checkbox" data-oe-action="exam-delete" onchange="oeToggleSel(' + k + ',this.checked)"' +
+      (_oeSel[k] ? ' checked' : '') + ' aria-label="เลือกผลสอบนี้"></td>' +
     '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.submittedAt)) + '</td>' +
     '<td><div class="who-n">' + esc(r.name) + '</div>' +
       (r.empId ? '<div class="who-s mono">' + esc(r.empId) + '</div>' : '') + '</td>' +
@@ -2667,6 +2692,80 @@ function _oeResCard(r){
    อ้างถึงผลสอบด้วยตำแหน่งในอาร์เรย์ เพราะผลสอบไม่มี id ที่ยืนยันได้
    (หลังบ้านเก็บเป็นแถวในชีต) ตำแหน่งใช้ได้เพราะเปิดจากรายการที่เพิ่งวาด */
 function _oeResKey(r){ return RESULTS.indexOf(r); }
+
+/* ── เลือกหลายรายการเพื่อลบทีเดียว ──
+   เก็บเป็นแมพของตำแหน่งในรายการ ไม่ใช่อาร์เรย์ เพื่อให้เช็ค/สลับได้ทันที
+   ล้างทุกครั้งที่โหลดผลใหม่ เพราะตำแหน่งเปลี่ยนแล้วของที่เลือกไว้จะไม่ตรง */
+var _oeSel = {};
+function oeSelCount(){ return Object.keys(_oeSel).length; }
+function oeToggleSel(i, on){
+  if(on) _oeSel[i] = 1; else delete _oeSel[i];
+  _oePaintSel();
+}
+function oeSelectAll(on){
+  _oeSel = {};
+  if(on) filteredResults().forEach(function(r){ _oeSel[_oeResKey(r)] = 1; });
+  renderResults();
+}
+function oeClearSel(){ _oeSel = {}; renderResults(); }
+/* อัปเดตเฉพาะแถบสรุปกับสีแถว ไม่วาดตารางใหม่ทั้งอัน
+   ไม่งั้นติ๊กทีเดียวแล้วตารางกระพริบและเลื่อนจอกลับขึ้นบน */
+function _oePaintSel(){
+  var c = oeSelCount();
+  var bar = $('resSelBar');
+  if(bar){ bar.classList.toggle('show', c > 0); }
+  var nEl = $('resSelN'); if(nEl) nEl.textContent = c;
+  document.querySelectorAll('#resultsBody tr.res-row').forEach(function(tr){
+    var cb = tr.querySelector('.res-ck input');
+    if(cb) tr.classList.toggle('is-sel', cb.checked);
+  });
+  /* ช่องหัวตาราง: ติ๊กเมื่อเลือกครบทุกแถวที่เห็นอยู่ */
+  var all = $('resSelAll');
+  if(all){
+    var total = filteredResults().length;
+    all.checked = total > 0 && c >= total;
+    all.indeterminate = c > 0 && c < total;
+  }
+}
+
+/* ลบรายการที่เลือกทั้งหมด
+   ยิงทีละรายการเรียงกัน ไม่ใช่พร้อมกัน — หลังบ้านลบแถวในชีต ซึ่งดัชนีเลื่อน
+   ทุกครั้งที่ลบ ยิงพร้อมกันจะลบผิดแถว */
+async function deleteSelectedResults(){
+  if(!oeCan('exam-delete')){ toast('ไม่มีสิทธิ์ลบผลสอบ','err'); return; }
+  var picked = Object.keys(_oeSel).map(function(k){ return RESULTS[k]; }).filter(Boolean);
+  if(!picked.length){ toast('ยังไม่ได้เลือกรายการ','err'); return; }
+
+  var names = picked.slice(0, 4).map(function(r){ return r.name || '(ไม่มีชื่อ)'; });
+  var okDel = await oeConfirm({
+    icon: '🗑',
+    title: 'ลบผลสอบ ' + picked.length + ' รายการ?',
+    text: 'ผลสอบที่เลือกไว้จะหายออกจากระบบทั้งหมด',
+    facts: [
+      ['จำนวน', picked.length + ' รายการ'],
+      ['ผู้เข้าสอบ', names.join(', ') + (picked.length > names.length ? ' และอีก ' + (picked.length - names.length) + ' คน' : '')]
+    ],
+    warn: 'ลบแล้วกู้คืนไม่ได้',
+    yes: 'ลบ ' + picked.length + ' รายการ'
+  });
+  if(!okDel) return;
+
+  var okN = 0, failN = 0;
+  for(var i = 0; i < picked.length; i++){
+    var r = picked[i];
+    toast('กำลังลบ ' + (i + 1) + '/' + picked.length + '…');
+    try {
+      var res = await apiPost({ type:'delete-exam-result', submittedAt: r.submittedAt,
+        empId: r.empId || '', examId: r.examId || '' });
+      if(res && res.ok) okN++; else failN++;
+    } catch(e){ failN++; }
+  }
+  _oeSel = {};
+  /* บอกผลตามจริง ลบไม่ครบต้องรู้ ไม่ใช่ขึ้นว่าสำเร็จเฉย ๆ */
+  if(failN) toast('ลบสำเร็จ ' + okN + ' · ไม่สำเร็จ ' + failN + ' รายการ','err');
+  else toast('ลบแล้ว ' + okN + ' รายการ');
+  loadResults(true);
+}
 /* เปิดด้วยคีย์บอร์ดได้ด้วย — แถวเป็น <tr> ไม่ใช่ปุ่ม จึงไม่มีพฤติกรรมนี้มาเอง
    แยกเป็นฟังก์ชันแทนที่จะเขียนเงื่อนไขในแอตทริบิวต์ ซึ่งต้องซ้อนเครื่องหมาย
    คำพูดหลายชั้นและพังง่ายเวลาแก้ */
@@ -2946,12 +3045,14 @@ function renderResults(){
       : _oeEmpty('📊', 'ยังไม่มีใครทำข้อสอบ',
           'ผลสอบจะขึ้นที่นี่ทันทีที่สาขาส่งข้อสอบชุดแรก — ตรวจว่าชุดข้อสอบเปิดใช้งานอยู่และอยู่ในช่วงวันที่เปิดรับ',
           '<button class="btn btn-soft" onclick="switchTab(\'exams\')">ไปดูชุดข้อสอบ</button>');
-    if(body)  body.innerHTML  = '<tr><td colspan="9">' + empty + '</td></tr>';
+    if(body)  body.innerHTML  = '<tr><td colspan="10">' + empty + '</td></tr>';
     if(cards) cards.innerHTML = empty;
     return;
   }
   if(body)  body.innerHTML  = list.map(_oeResRow).join('');
   if(cards) cards.innerHTML = list.map(_oeResCard).join('');
+  oeApplyPerms();   // ช่องติ๊กเพิ่งถูกวาดใหม่ ต้องบังคับสิทธิ์ซ้ำ
+  _oePaintSel();
 }
 
 function exportResultsCSV(){
