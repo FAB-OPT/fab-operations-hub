@@ -2940,11 +2940,13 @@ function _oeReportHtml(r){
     return (r.examId && e.id === r.examId) || (!r.examId && e.title === r.examTitle);
   });
 
-  /* หัวใบใช้โลโก้ของแบรนด์เจ้าของผลสอบ ไม่ใช่แบรนด์ที่แอดมินเปิดค้างอยู่
-     ผลเก่าบางใบไม่มี brand ติดมา จึงถอยไปดูที่ชุดข้อสอบก่อน ค่อยมาที่แบรนด์ที่เลือก
-     ถ้าเปิดอยู่แบบ "ทุกแบรนด์" ก็ปล่อยหัวว่าง ดีกว่าขึ้นคำว่าทุกแบรนด์บนใบที่ต้องเซ็น */
-  var bkey = r.brand || (ex && ex.brand) || currentBrand;
-  var bi = (bkey && bkey !== 'all') ? (brandInfo(bkey) || {}) : {};
+  /* หัวใบยึดแบรนด์ที่แอดมินเปิดค้างอยู่เป็นหลัก — เปิดแบรนด์ไหนก็ออกใบในนามแบรนด์นั้น
+     จะไปดูว่าผลสอบใบนั้นเป็นของแบรนด์อะไร ก็ต่อเมื่อเปิดอยู่แบบ "ทุกแบรนด์"
+     ผลเก่าบางใบไม่มี brand ติดมา จึงต้องถอยไปดูที่ชุดข้อสอบให้อีกชั้น */
+  var bkey = (currentBrand && currentBrand !== 'all')
+    ? currentBrand
+    : (r.brand || (ex && ex.brand) || '');
+  var bi = bkey ? (brandInfo(bkey) || {}) : {};
   var passMark = (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
 
   /* ช่องติ๊กแบบฟอร์มกระดาษ — เอกสารทางการตัดสินด้วยเครื่องหมายถูก ไม่ใช่ป้ายสี
@@ -3030,7 +3032,7 @@ function _oeReportHtml(r){
     '.srole{font-weight:700;margin-top:2.5mm}',
     '.ssub{font-size:.9em;color:#6b7280;margin-top:.8mm}',
     '.sdate{font-size:.9em;color:#6b7280;margin-top:2.5mm}',
-    '.ft{margin-top:3mm;display:flex;justify-content:space-between;font-size:.78em;color:#9ca3af}'
+    '.ft{margin-top:3mm;display:flex;justify-content:flex-end;font-size:.78em;color:#9ca3af}'
   ].join('');
 
   var logo = bi.logo
@@ -3067,8 +3069,7 @@ function _oeReportHtml(r){
       '</tr></table></td></tr>' +
     '</table>' +
 
-    '<div class="ft"><span>' + esc(bi.company || bi.name || 'FAB Operations') + ' · ระบบสอบออนไลน์</span>' +
-      '<span>พิมพ์เมื่อ ' + esc(fmtDT(new Date().toISOString())) + '</span></div>';
+    '<div class="ft"><span>พิมพ์เมื่อ ' + esc(fmtDT(new Date().toISOString())) + '</span></div>';
 
   return '<!doctype html><html lang="th"><head><meta charset="utf-8">' +
     '<title>ใบรายงานผลสอบ - ' + esc(r.name || '') + '</title>' +
