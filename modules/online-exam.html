@@ -219,6 +219,12 @@ input,select,textarea{font-family:inherit}
 .rd-secthead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:22px 0 10px}
 .rd-secthead b{font-size:15px}
 .rd-secthead>span{font-size:13px;color:var(--text2)}
+.rd-tally{display:flex;gap:6px;flex-wrap:wrap}
+.rd-tally i{font-style:normal;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text2)}
+.rd-tally i.ok{color:#0b7a55;background:var(--green-soft);border-color:var(--green-line)}
+.rd-tally i.bad{color:#a51c1c;background:var(--red-soft);border-color:var(--red-line)}
+.rd-tally i.blank{color:var(--gold);background:var(--gold-soft);border-color:var(--gold-line)}
 .rd-only{margin-left:auto;padding:6px 12px;border-radius:8px;border:1px solid var(--border);
   background:var(--bg2);font-size:12.5px;font-weight:700;color:var(--text2);transition:.14s}
 .rd-only:hover{border-color:var(--border2);color:var(--text)}
@@ -233,8 +239,11 @@ input,select,textarea{font-family:inherit}
   border-radius:7px;display:grid;place-items:center;font-size:11.5px;font-weight:700;
   font-variant-numeric:tabular-nums}
 .rd-q.ok::before{background:var(--green-soft);color:var(--green);border:1px solid var(--green-line)}
-.rd-q.bad{border-color:var(--red-line);background:var(--red-soft)}
+.rd-q.bad{box-shadow:inset 3px 0 0 var(--red)}
 .rd-q.bad::before{background:var(--red);color:#fff}
+.rd-q.blank{box-shadow:inset 3px 0 0 var(--gold)}
+.rd-q.blank::before{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
+.rd-q-a b.none{color:var(--gold);font-weight:700}
 .rd-q-t{font-size:13.5px;font-weight:600;line-height:1.45}
 /* คำตอบกับเฉลยอยู่บรรทัดเดียวกัน ของเดิมแยกสองบรรทัดทำให้การ์ดสูงขึ้นอีกเท่าตัว */
 .rd-q-a{display:flex;gap:5px;align-items:baseline;flex-wrap:wrap;font-size:12.5px;margin-top:3px}
@@ -3065,17 +3074,32 @@ function _oeResDetailHtml(r){
       '<span>ผลที่บันทึกก่อนระบบเริ่มเก็บคำตอบรายข้อจะดูย้อนหลังไม่ได้</span></div>';
     return h;
   }
-  var wrong = ans.filter(function(a){ return !_oeAnsOk(a); });
+  var nOk = ans.filter(_oeAnsOk).length;
+  var nBlank = ans.filter(function(a){ return !_oeAnsOk(a) && _oeAnsBlank(a); }).length;
+  var nWrong = ans.length - nOk - nBlank;
+  var miss = ans.length - nOk;
+
+  /* เปิดมาโชว์เฉพาะข้อที่ยังไม่ถูกก่อน — คนเปิดกล่องนี้มาเพื่อดูว่าพลาดตรงไหน
+     ไม่ใช่มาไล่อ่านข้อที่ถูกทั้ง 50 ข้อ · อยากเห็นครบค่อยกดปุ่มสลับ */
   h += '<div class="rd-secthead">' +
       '<b>คำตอบรายข้อ</b>' +
-      '<span>' + (wrong.length ? 'ผิด ' + wrong.length + ' ข้อ' : 'ถูกทุกข้อ') + '</span>' +
-      (wrong.length ? '<button type="button" class="rd-only" id="rdOnlyWrong" onclick="toggleOnlyWrong(this)">ดูเฉพาะข้อที่ผิด</button>' : '') +
+      '<span class="rd-tally">' +
+        '<i class="ok">ถูก ' + nOk + '</i>' +
+        (nWrong ? '<i class="bad">ตอบผิด ' + nWrong + '</i>' : '') +
+        (nBlank ? '<i class="blank">ไม่ได้ตอบ ' + nBlank + '</i>' : '') +
+      '</span>' +
+      (miss ? '<button type="button" class="rd-only on" id="rdOnlyWrong" onclick="toggleOnlyWrong(this)">' +
+        'ดูทุกข้อ (' + ans.length + ')</button>' : '') +
     '</div>';
-  h += '<ol class="rd-qs" id="rdQs">' + ans.map(function(a, i){
+  h += '<ol class="rd-qs' + (miss ? ' only-wrong' : '') + '" id="rdQs">' + ans.map(function(a){
     var ok = _oeAnsOk(a);
-    return '<li class="rd-q ' + (ok ? 'ok' : 'bad') + '">' +
+    var blank = !ok && _oeAnsBlank(a);
+    return '<li class="rd-q ' + (ok ? 'ok' : (blank ? 'blank' : 'bad')) + '">' +
       '<div class="rd-q-t">' + esc(a.q || '') + '</div>' +
-      '<div class="rd-q-a"><span>ตอบ</span><b>' + esc(a.my || '(ไม่ตอบ)') + '</b>' +
+      '<div class="rd-q-a">' +
+        (blank
+          ? '<b class="none">ไม่ได้ตอบ</b>'
+          : '<span>ตอบ</span><b>' + esc(a.my) + '</b>') +
         (ok ? '' : '<i class="sep">·</i><span>เฉลย</span><b class="right">' + esc(a.correct || '—') + '</b>') +
       '</div>' +
     '</li>';
@@ -3084,6 +3108,13 @@ function _oeResDetailHtml(r){
 }
 /* ถูกไหม — เทียบข้อความคำตอบที่เลือกกับคำตอบที่ถูก
    เก็บมาเป็นข้อความ ไม่ใช่ดัชนี จึงต้องตัดช่องว่างหัวท้ายก่อนเทียบ */
+/* ไม่ได้ตอบ ต่างจากตอบผิด — คนถูกตัดสิทธิ์กลางคันจะได้ "ไม่ตอบ" ยาวเป็นพรืด
+   ถ้านับรวมเป็นตอบผิดหมด จะอ่านไม่ออกว่าเขาไม่รู้ หรือแค่ทำไม่ทัน */
+function _oeAnsBlank(a){
+  if(!a) return true;
+  var my = String(a.my == null ? '' : a.my).trim();
+  return my === '' || my === '(ไม่ตอบ)';
+}
 function _oeAnsOk(a){
   if(!a) return false;
   var my = String(a.my == null ? '' : a.my).trim();
@@ -3330,9 +3361,10 @@ async function deleteResultAt(i){
 }
 
 function toggleOnlyWrong(btn){
-  var on = $('rdQs').classList.toggle('only-wrong');
+  var qs = $('rdQs');
+  var on = qs.classList.toggle('only-wrong');
   btn.classList.toggle('on', on);
-  btn.textContent = on ? 'ดูทุกข้อ' : 'ดูเฉพาะข้อที่ผิด';
+  btn.textContent = on ? ('ดูทุกข้อ (' + qs.children.length + ')') : 'ดูเฉพาะข้อที่ยังไม่ถูก';
 }
 function renderResults(){
   var list = filteredResults();
