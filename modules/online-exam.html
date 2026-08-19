@@ -1712,8 +1712,8 @@ var LOGOS = {
 // แบรนด์: ดึงจากทะเบียนแบรนด์กลางของฮับ (localStorage 'fab_brands_v1')
 // ถ้าไม่มี → ใช้ค่าเริ่มต้น 2 แบรนด์ · โลโก้ 2 แบรนด์เดิมฝังในไฟล์นี้ (LOGOS) เป็น fallback
 var DEFAULT_EXAM_BRANDS = [
-  { key:'jaedaeng', name:'เจ๊แดง',   emoji:'🌶️', desc:'เจ๊แดง สามย่าน' },
-  { key:'santafe',  name:'ซานตาเฟ่', emoji:'🥩', desc:'Santa Fe' }
+  { key:'jaedaeng', name:'เจ๊แดง',   emoji:'🌶️', desc:'เจ๊แดง สามย่าน', prefixes:['40'] },
+  { key:'santafe',  name:'ซานตาเฟ่', emoji:'🥩', desc:'Santa Fe',      prefixes:['50','55'] }
 ];
 function buildBrands(){
   var reg=null;
@@ -1732,7 +1732,9 @@ function buildBrands(){
       logo: b.logo || LOGOS[b.key] || def.logo || '',
       /* ชื่อนิติบุคคลจากทะเบียนแบรนด์ — ใช้ขึ้นหัวเอกสารที่ต้องเซ็น
          ชื่อแบรนด์ไว้คุยกันในระบบ แต่ใบที่ออกไปข้างนอกต้องเป็นชื่อบริษัทจริง */
-      company: b.company || def.company || ''
+      company: b.company || def.company || '',
+      /* เลขขึ้นต้นรหัสสาขา — ใช้บอกว่าสาขาไหนเป็นของแบรนด์นี้ ตอนไล่รายชื่อสาขา */
+      prefixes: (b.prefixes && b.prefixes.length) ? b.prefixes : (def.prefixes || [])
     };
   });
 }
@@ -3914,18 +3916,36 @@ function paintReqCount(){
 /* ═══ ทะเบียนสาขา (ยืมจากฮับ) ═══
    ฮับเก็บไว้ที่ localStorage 'fab_branches_v1' — รหัสสาขา → ชื่อ พร้อมแมพแบรนด์และสถานะ
    ระบบสอบแค่อ่านอย่างเดียว ไม่แก้ ไม่งั้นสองที่จะเถียงกันเองว่าสาขาไหนมีอยู่จริง */
+function _oeBranchStore(){
+  try{ return JSON.parse(localStorage.getItem('fab_branches_v1') || 'null') || null; }catch(e){ return null; }
+}
+
+/* สาขานี้เป็นของแบรนด์ไหน — ตามฮับเป๊ะ ๆ: ยึดค่าที่ตั้งทับไว้ก่อน ไม่มีค่อยดูเลขขึ้นต้นรหัส
+   ถ้าเขียนคนละแบบกับฮับ สองที่จะตอบไม่ตรงกันว่าสาขาไหนอยู่แบรนด์ไหน */
+function _oeBrandOfBranch(code, brandMap){
+  var over = (brandMap || {})[code];
+  if(over){
+    if(BRANDS.some(function(b){ return b.key === over; })) return over;
+    var byPfx = BRANDS.filter(function(b){ return (b.prefixes || []).indexOf(over) >= 0; })[0];
+    if(byPfx) return byPfx.key;
+  }
+  var hit = BRANDS.filter(function(b){
+    return (b.prefixes || []).some(function(p){ return String(code).indexOf(p) === 0; });
+  })[0];
+  return hit ? hit.key : '';
+}
+
 function oeBranchRegistry(){
-  var obj = null;
-  try{ obj = JSON.parse(localStorage.getItem('fab_branches_v1') || 'null'); }catch(e){}
+  var obj = _oeBranchStore();
   if(!obj || !obj.branches) return [];
   var brandMap = obj.brandMap || {}, statusMap = obj.statusMap || {};
+  var all = currentBrand === 'all' || !currentBrand;
   var out = [];
   Object.keys(obj.branches).forEach(function(code){
-    if(statusMap[code] === 'closed') return;          // สาขาปิดแล้ว ไม่ต้องเอามาให้เลือก
-    /* กรองตามแบรนด์ที่เปิดอยู่ · สาขาที่ยังไม่ได้ระบุแบรนด์ในทะเบียนก็ปล่อยผ่าน
-       ดีกว่าซ่อนจนเลือกไม่ได้เลยเพราะทะเบียนกรอกไม่ครบ */
-    var b = brandMap[code];
-    if(b && currentBrand && currentBrand !== 'all' && b !== currentBrand) return;
+    if(statusMap[code] === 'closed') return;   // สาขาปิดแล้ว ไม่ต้องเอามาให้เลือก
+    /* เปิดแบรนด์ไหนอยู่ ก็ให้เลือกได้เฉพาะสาขาของแบรนด์นั้น
+       สาขาที่เทียบแบรนด์ไม่ได้เลยก็ตัดทิ้ง ดีกว่าปล่อยให้สาขาต่างแบรนด์หลุดเข้ามา */
+    if(!all && _oeBrandOfBranch(code, brandMap) !== currentBrand) return;
     out.push({ code: code, name: String(obj.branches[code] || '').trim() });
   });
   return out.filter(function(x){ return x.name; })
@@ -3966,7 +3986,13 @@ function oeBranchSelPaint(){
   picked.forEach(function(nm){
     if(!all.some(function(b){ return b.name === nm; })) all.unshift({ code: '', name: nm });
   });
-  if(!all.length){ host.innerHTML = '<div class="bsel-none">ไม่พบสาขาที่ค้นหา</div>'; return; }
+  if(!all.length){
+    /* แยกให้ออกว่า "ค้นแล้วไม่เจอ" กับ "แบรนด์นี้ยังไม่มีสาขาในทะเบียน" — คนละทางแก้ */
+    host.innerHTML = '<div class="bsel-none">' +
+      (q ? 'ไม่พบสาขาที่ค้นหา'
+         : 'ยังไม่มีสาขาของแบรนด์นี้ในทะเบียน<br>เพิ่มได้ที่หน้าตั้งค่าสาขาในฮับ') + '</div>';
+    return;
+  }
   host.innerHTML = all.map(function(b){
     var on = picked.indexOf(b.name) >= 0;
     return '<label class="bsel-item"><input type="checkbox"' + (on ? ' checked' : '') +
