@@ -170,9 +170,15 @@ input,select,textarea{font-family:inherit}
 .selbar.show{display:flex}
 .selbar-n{font-size:14px;font-weight:700;margin-right:auto}
 .selbar-n b{font-variant-numeric:tabular-nums;color:var(--gold);font-size:16px}
-.res-del{width:30px;height:30px;border-radius:8px;display:inline-grid;place-items:center;
-  font-size:14px;color:var(--text3);border:1px solid transparent;transition:.14s;line-height:1}
-.res-del:hover{background:var(--red-soft);border-color:var(--red-line);color:var(--red)}
+/* ปุ่มถังขยะ — ของเดิมเป็นอีโมจิสีจาง ๆ ไม่เหมือนปุ่ม มองแทบไม่เห็นว่ากดได้
+   ตอนนี้เป็นกรอบจาง ๆ ให้รู้ว่าเป็นปุ่ม แล้วค่อยแดงเต็มตอนเอาเมาส์ไปจ่อ
+   จะได้ไม่ชวนให้เผลอกด แต่หาเจอตอนตั้งใจจะลบ */
+.res-del{width:30px;height:30px;border-radius:9px;display:inline-grid;place-items:center;
+  color:var(--text3);background:var(--bg2);border:1px solid var(--border);
+  transition:background .14s,border-color .14s,color .14s;line-height:1}
+.res-del svg{width:15px;height:15px;display:block}
+.res-row:hover .res-del{border-color:var(--border2);color:var(--text2)}
+.res-del:hover,.res-row:hover .res-del:hover{background:var(--red);border-color:var(--red);color:#fff}
 .res-del:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rc{position:relative}
 .rc-del{position:absolute;right:10px;bottom:10px}
@@ -456,6 +462,30 @@ tbody td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 .scorecell span{font-size:11px;color:var(--text3)}
 .vio{font-variant-numeric:tabular-nums;font-weight:600}
 .vio.hot{color:var(--red)}
+td.c,th.c{text-align:center}
+
+/* ตารางผลสอบ — กำหนดสัดส่วนคอลัมน์เอง ไม่ปล่อยให้เบราว์เซอร์เกลี่ยตามความยาวข้อความ
+   จอกว้างทำให้คอลัมน์ถ่างจนสายตาต้องวิ่งไกลกว่าจะอ่านจบแถว
+   แถบสลับสียังช่วยไม่ให้สายตาหลุดแถวระหว่างกวาดจากชื่อคนไปถึงผล */
+.res-tbl{table-layout:fixed}
+.res-tbl td{padding:10px 14px}
+.res-tbl .ell{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.res-tbl tbody tr:nth-child(even){background:var(--bg)}
+.res-tbl tbody tr:nth-child(even):hover{background:var(--bg3)}
+.res-tbl .res-row.is-sel,.res-tbl .res-row.is-sel:hover{background:var(--gold-soft)}
+.res-why{font-size:11.5px;color:var(--text3);margin-top:2px}
+/* ขีดสีที่หัวแถว — กวาดสายตาลงมาทีเดียวรู้เลยว่าแถวไหนตก ไม่ต้องอ่านป้ายทีละแถว
+   ใช้ inset shadow ไม่ใช่ border เพราะตารางรวมเส้นขอบ (border-collapse) จะกินขอบซ้ายทิ้ง */
+.res-tbl .res-row.ok td:first-child{box-shadow:inset 3px 0 0 var(--green)}
+.res-tbl .res-row.no td:first-child{box-shadow:inset 3px 0 0 var(--red)}
+.scorecell b.ok{color:var(--green)}
+.scorecell b.no{color:var(--red)}
+/* แถบคะแนนเส้นบาง ๆ ใต้ตัวเลข — เห็นว่าห่างจากเกณฑ์แค่ไหนโดยไม่ต้องคิดเลขในหัว */
+.sc-bar{width:56px;height:4px;border-radius:99px;background:var(--bg3);overflow:hidden;margin-top:4px}
+.sc-bar i{display:block;height:100%;border-radius:99px}
+.sc-bar i.ok{background:var(--green)}
+.sc-bar i.no{background:var(--red)}
+.vio-chip{display:block;margin-top:5px;font-size:11px;font-weight:700;color:var(--red)}
 
 /* สรุปผลสอบตามตัวกรอง */
 .reschips{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:14px}
@@ -1182,14 +1212,20 @@ label.fld>span>b{font-weight:800}
       <!-- จอกว้าง: ตาราง -->
       <div class="table-wrap" id="resTableWrap">
         <div class="tbl-scroll">
-          <table>
+          <table class="res-tbl">
+            <!-- ล็อกสัดส่วนคอลัมน์ไว้ ไม่งั้นจอกว้างจะถ่างคอลัมน์ออกจนอ่านข้ามแถวยาก -->
+            <colgroup>
+              <col style="width:44px"><col style="width:145px"><col style="width:21%">
+              <col style="width:19%"><col><col style="width:105px">
+              <col style="width:125px"><col style="width:54px">
+            </colgroup>
             <thead><tr>
               <th class="res-ck"><input type="checkbox" id="resSelAll" data-oe-action="exam-delete"
                   onchange="oeSelectAll(this.checked)" aria-label="เลือกทั้งหมด"></th>
               <th>วันที่-เวลา</th><th>ผู้เข้าสอบ</th><th>สาขา</th><th>ชุดข้อสอบ</th>
-              <th style="text-align:center">คะแนน</th><th style="text-align:center">ผล</th><th style="text-align:center">เตือน</th><th>หมายเหตุ</th><th style="text-align:center;width:44px"><span class="sr-only">ลบ</span></th>
+              <th class="c">คะแนน</th><th class="c">ผล</th><th class="c"><span class="sr-only">ลบ</span></th>
             </tr></thead>
-            <tbody id="resultsBody"><tr><td colspan="10"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr></tbody>
+            <tbody id="resultsBody"><tr><td colspan="8"><div class="center-load"><span class="loading dark"></span> กำลังโหลด…</div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1200,7 +1236,7 @@ label.fld>span>b{font-weight:800}
       <div class="selbar" id="resSelBar">
         <span class="selbar-n"><b id="resSelN">0</b> รายการที่เลือก</span>
         <button class="btn btn-soft" onclick="oeClearSel()">ยกเลิกการเลือก</button>
-        <button class="btn btn-danger" data-oe-action="exam-delete" onclick="deleteSelectedResults()">🗑 ลบที่เลือก</button>
+        <button class="btn btn-danger" data-oe-action="exam-delete" onclick="deleteSelectedResults()"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg> ลบที่เลือก</button>
       </div>
     </div>
   </div>
@@ -1360,7 +1396,7 @@ label.fld>span>b{font-weight:800}
     </header>
     <div class="modal-body" id="rdBody"></div>
     <footer class="modal-foot">
-      <button class="btn btn-soft" data-oe-action="exam-delete" onclick="deleteResultFromDetail()">🗑 ลบผลสอบนี้</button>
+      <button class="btn btn-soft" data-oe-action="exam-delete" onclick="deleteResultFromDetail()"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg> ลบผลสอบนี้</button>
       <div style="flex:1"></div>
       <button class="btn btn-soft" onclick="closeResultDetail()">ปิด</button>
       <button class="btn btn-primary" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>
@@ -2725,7 +2761,7 @@ function loadResults(force){
     if(RESULTS.length){ _oeStaleNote('results', e); return; }
     var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ', _apiWhy(e),
       '<button class="btn btn-soft" onclick="loadResults(true)">ลองใหม่</button>');
-    $('resultsBody').innerHTML = '<tr><td colspan="10">' + err + '</td></tr>';
+    $('resultsBody').innerHTML = '<tr><td colspan="8">' + err + '</td></tr>';
     var c = $('resCards'); if(c) c.innerHTML = err;
   });
 }
@@ -2784,7 +2820,9 @@ function _oeResRow(r){
   var pass = isPass(r);
   var v = Number(r.violations || 0);
   var k = _oeResKey(r);
-  return '<tr class="res-row' + (_oeSel[k] ? ' is-sel' : '') + '" tabindex="0"' +
+  var why = String(r.finishReason || '').trim();
+  var tone = pass ? 'ok' : 'no';
+  return '<tr class="res-row ' + tone + (_oeSel[k] ? ' is-sel' : '') + '" tabindex="0"' +
     ' onclick="openResultDetail(' + k + ')" onkeydown="_oeRowKey(event,' + k + ')">' +
     '<td class="res-ck" onclick="event.stopPropagation()">' +
       '<input type="checkbox" data-oe-action="exam-delete" onchange="oeToggleSel(' + k + ',this.checked)"' +
@@ -2792,18 +2830,22 @@ function _oeResRow(r){
     '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.submittedAt)) + '</td>' +
     '<td><div class="who-n">' + esc(r.name) + '</div>' +
       (r.empId ? '<div class="who-s mono">' + esc(r.empId) + '</div>' : '') + '</td>' +
-    '<td>' + esc(r.branch || '—') + '</td>' +
-    '<td>' + esc(r.examTitle) + '</td>' +
-    '<td style="text-align:center"><div class="scorecell"><b>' + esc(r.pct) + '%</b>' +
-      '<span>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</span></div></td>' +
-    '<td style="text-align:center"><span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span></td>' +
-    '<td style="text-align:center"><span class="vio' + (v > 0 ? ' hot' : '') + '">' + v + '</span></td>' +
-    '<td style="font-size:12px;color:var(--text3)">' + esc(r.finishReason || '') + '</td>' +
+    '<td class="ell">' + esc(r.branch || '—') + '</td>' +
+    '<td><div class="ell">' + esc(r.examTitle) + '</div>' +
+      (why ? '<div class="res-why ell">' + esc(why) + '</div>' : '') + '</td>' +
+    '<td class="c"><div class="scorecell"><b class="' + tone + '">' + esc(r.pct) + '%</b>' +
+      '<span>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</span>' +
+      '<span class="sc-bar"><i class="' + tone + '" style="width:' + Math.max(0, Math.min(100, Number(r.pct) || 0)) + '%"></i></span>' +
+      '</div></td>' +
+    '<td class="c"><span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
+      (v > 0 ? '<span class="vio-chip">เตือน ' + v + ' ครั้ง</span>' : '') + '</td>' +
     /* ปุ่มลบในแถวเลย ไม่ต้องกดเข้าไปหาในกล่องรายละเอียด
        stopPropagation กันไม่ให้กดปุ่มแล้วเปิดกล่องรายละเอียดตามมาด้วย */
-    '<td style="text-align:center">' +
+    '<td class="c">' +
       '<button class="res-del" data-oe-action="exam-delete" title="ลบผลสอบนี้"' +
-      ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">🗑</button>' +
+      ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
+      '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</td>' +
   '</tr>';
 }
@@ -2828,7 +2870,9 @@ function _oeResCard(r){
     '</div>' +
     '<div class="rc-mid">' + line.join(' · ') + '</div>' +
     '<button class="res-del rc-del" data-oe-action="exam-delete" title="ลบผลสอบนี้"' +
-      ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">🗑</button>' +
+      ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
+      '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
   '</article>';
 }
 
@@ -3285,7 +3329,7 @@ function renderResults(){
       : _oeEmpty('📊', 'ยังไม่มีใครทำข้อสอบ',
           'ผลสอบจะขึ้นที่นี่ทันทีที่สาขาส่งข้อสอบชุดแรก — ตรวจว่าชุดข้อสอบเปิดใช้งานอยู่และอยู่ในช่วงวันที่เปิดรับ',
           '<button class="btn btn-soft" onclick="switchTab(\'exams\')">ไปดูชุดข้อสอบ</button>');
-    if(body)  body.innerHTML  = '<tr><td colspan="10">' + empty + '</td></tr>';
+    if(body)  body.innerHTML  = '<tr><td colspan="8">' + empty + '</td></tr>';
     if(cards) cards.innerHTML = empty;
     return;
   }
