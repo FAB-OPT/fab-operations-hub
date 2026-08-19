@@ -2968,58 +2968,83 @@ function _oeReportHtml(r){
     ['ผู้อนุมัติ', '(ผู้จัดการสาขา / VP.)']
   ];
 
+  /* ฟอนต์ตามแบบฟอร์มของบริษัท (ดูไฟล์ ฟอร์ม.xlsx): ไทยเป็น Angsana New
+     ส่วนตัวเลขกับภาษาอังกฤษเป็น Tahoma — Excel แยกสองฟอนต์ในเซลล์เดียวได้
+     บนเว็บต้องใช้ unicode-range บังคับ ไม่งั้น Angsana จะกินตัวอังกฤษไปด้วย
+     size-adjust ย่อ Tahoma ลงให้สูงเท่า Angsana เพราะขนาด pt เท่ากันแต่ตัวไม่เท่า
+
+     Angsana ตัวเล็กกว่าฟอนต์ระบบมาก ใบนี้จึงตั้งฐานไว้ 15pt · ขนาดจุดอื่นผูกกับ em
+     เครื่องไหนไม่มีฟอนต์ไทยพวกนี้ สคริปต์ข้างล่างจะย่อฐานลงให้ที่เดียวจบ */
   var css = [
     '@page{size:A4;margin:12mm 12mm 10mm}',
     '*{box-sizing:border-box;margin:0;padding:0}',
-    "body{font-family:'Sarabun','Leelawadee UI',sans-serif;color:#111827;font-size:10pt;",
-    '  line-height:1.45;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    "@font-face{font-family:'DocLatin';src:local('Tahoma'),local('Segoe UI');size-adjust:74%;",
+    '  unicode-range:U+0000-052F,U+2000-206F,U+2190-2BFF}',
+    "body{font-family:'DocLatin','Angsana New','AngsanaUPC','TH Sarabun New','Sarabun',",
+    '  \'Leelawadee UI\',Tahoma,sans-serif;',
+    '  font-size:15pt;color:#111827;line-height:1.35;',
+    '  -webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    "html.sysfont body{font-family:'Sarabun','Leelawadee UI',Tahoma,sans-serif;",
+    '  font-size:10.5pt;line-height:1.45}',
     /* หัวกระดาษเป็นตาราง ไม่ใช่ flex — ชื่อเรื่องจะได้อยู่กลางแผ่นจริง
        ไม่ขยับตามความกว้างโลโก้ของแต่ละแบรนด์ */
     '.hd{width:100%;border-collapse:collapse}',
     '.hd td{padding:0;vertical-align:middle}',
     '.hd-l{width:36mm}',
     '.hd-l img{height:15mm;max-width:34mm;object-fit:contain;display:block}',
-    '.corp{font-size:5.5pt;letter-spacing:.09em;text-transform:uppercase;font-weight:700;',
-    '  color:#6b7280;margin-top:1.2mm;max-width:34mm;line-height:1.3}',
+    '.corp{font-size:.62em;font-weight:700;color:#6b7280;margin-top:1.2mm;max-width:34mm;line-height:1.25}',
     '.hd-c{text-align:center}',
-    '.hd-c h1{font-size:16pt;font-weight:800;letter-spacing:-.01em}',
-    '.hd-r{width:26mm;text-align:right;font-size:8pt;font-weight:700;letter-spacing:.06em;color:#4b5563}',
-    '.rule{height:2.2pt;background:#111827;margin:2mm 0 3mm}',
+    '.hd-c h1{font-size:1.55em;font-weight:700}',
+    '.hd-r{width:26mm;text-align:right;font-size:.8em;font-weight:700;color:#4b5563}',
+    '.rule{height:2pt;background:#111827;margin:1.5mm 0 2.5mm}',
     '.grid{width:100%;border-collapse:collapse;table-layout:fixed}',
-    '.grid th,.grid td{border:.7pt solid #111827;padding:2.4mm 3mm;text-align:left;vertical-align:middle}',
-    '.grid th{width:33%;font-weight:700;font-size:9.5pt}',
+    '.grid th,.grid td{border:.7pt solid #111827;padding:1.8mm 2.5mm;text-align:left;',
+    '  vertical-align:middle;font-size:.95em}',
+    '.grid th{width:30%;font-weight:700}',
     /* ช่องที่มีข้อมูลของคนสอบลงสีครีมจาง เหมือนฟอร์มที่กรอกแล้ว
        แยกออกจากช่องที่ระบบคำนวณให้เอง */
     '.grid td.fill{background:#fffdf3}',
     '.grid td b{font-weight:700}',
-    '.gap{margin-left:9mm}',
-    '.big{font-size:15pt;font-weight:800;letter-spacing:-.02em;color:#0f7a52}',
+    '.gap{margin-left:8mm}',
+    '.big{font-size:1.45em;font-weight:700;color:#0f7a52}',
     '.big.bad{color:#c02626}',
-    '.sec td{background:#e9edf2;font-weight:800;font-size:9pt}',
-    '.cb{display:inline-flex;align-items:center;gap:2mm;margin-right:12mm}',
-    '.cb i{width:3.6mm;height:3.6mm;border:.8pt solid #111827;display:inline-flex;',
-    '  align-items:center;justify-content:center;font-style:normal;font-size:8pt;font-weight:800;line-height:1}',
+    '.sec td{background:#e9edf2;font-weight:700}',
+    '.cb{display:inline-flex;align-items:center;gap:1.8mm;margin-right:11mm}',
+    '.cb i{width:3.3mm;height:3.3mm;border:.8pt solid #111827;display:inline-flex;',
+    '  align-items:center;justify-content:center;font-style:normal;font-size:.8em;',
+    '  font-weight:700;line-height:1;flex:0 0 auto}',
     '.cb.on{font-weight:700}',
     '.cb.on.ok{color:#0f7a52}',
     '.cb.on.ok i{background:#0f7a52;border-color:#0f7a52;color:#fff}',
     '.cb.on.bad{color:#c02626}',
     '.cb.on.bad i{background:#c02626;border-color:#c02626;color:#fff}',
-    '.note{font-size:9pt;color:#374151}',
+    '.note{color:#374151}',
     '.nopad{padding:0 !important}',
     '.sig{width:100%;border-collapse:collapse;table-layout:fixed}',
-    '.sig td{border-right:.7pt solid #111827;padding:4mm 4mm 3.5mm;text-align:center;',
-    '  vertical-align:bottom;height:33mm}',
+    '.sig td{border-right:.7pt solid #111827;padding:4mm 4mm 3mm;text-align:center;',
+    '  vertical-align:bottom;height:32mm;font-size:.95em}',
     '.sig td:last-child{border-right:none}',
     '.sline{border-bottom:.7pt dotted #6b7280;height:13mm}',
-    '.srole{font-weight:700;font-size:9.5pt;margin-top:2.5mm}',
-    '.ssub{font-size:8.5pt;color:#6b7280;margin-top:1mm}',
-    '.sdate{font-size:8.5pt;color:#6b7280;margin-top:3mm}',
-    '.ft{margin-top:3.5mm;display:flex;justify-content:space-between;font-size:7.5pt;color:#9ca3af}'
+    '.srole{font-weight:700;margin-top:2.5mm}',
+    '.ssub{font-size:.9em;color:#6b7280;margin-top:.8mm}',
+    '.sdate{font-size:.9em;color:#6b7280;margin-top:2.5mm}',
+    '.ft{margin-top:3mm;display:flex;justify-content:space-between;font-size:.78em;color:#9ca3af}'
   ].join('');
+
+  /* วัดว่าเครื่องนี้มีฟอนต์ไทยของเอกสารจริงไหม — เทียบความกว้างข้อความกับฟอนต์อ้างอิง
+     ถ้าไม่มีแล้วยังตั้งฐานไว้ 15pt ใบจะบวมล้นไปหน้าสอง */
+  var probe = '<script>(function(){try{' +
+    'var c=document.createElement("canvas").getContext("2d");' +
+    'function w(f){c.font="40px "+f;return c.measureText("ทดสอบเอกสาร ABC 123").width;}' +
+    'var base=w("monospace"),i,ok=false;' +
+    'var fonts=["\'Angsana New\'","AngsanaUPC","\'TH Sarabun New\'","\'TH SarabunPSK\'"];' +
+    'for(i=0;i<fonts.length;i++){ if(w(fonts[i]+",monospace")!==base){ok=true;break;} }' +
+    'if(!ok){document.documentElement.className="sysfont";}' +
+    '}catch(e){}})();<\/script>';
 
   var logo = bi.logo
     ? '<img src="' + bi.logo + '" alt="">'
-    : '<div style="font-size:13pt;font-weight:800">' + esc(bi.name || '') + '</div>';
+    : '<div style="font-size:1.3em;font-weight:700">' + esc(bi.name || '') + '</div>';
 
   var body =
     '<table class="hd"><tr>' +
@@ -3056,7 +3081,7 @@ function _oeReportHtml(r){
 
   return '<!doctype html><html lang="th"><head><meta charset="utf-8">' +
     '<title>ใบรายงานผลสอบ - ' + esc(r.name || '') + '</title>' +
-    '<style>' + css + '</style></head><body>' + body + '</body></html>';
+    '<style>' + css + '</style>' + probe + '</head><body>' + body + '</body></html>';
 }
 
 /* ── ลบผลสอบ ── */
