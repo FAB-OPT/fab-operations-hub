@@ -2919,96 +2919,109 @@ function _oeReportHtml(r){
   var right = Number(r.correct);
   if(isNaN(right)) right = ans.filter(_oeAnsOk).length;
   var wrong = Math.max(0, total - right);
-  var pct = (total > 0) ? Math.round(right / total * 100) : Number(r.pct) || 0;
+  var pct = (total > 0) ? Math.round(right / total * 100) : (Number(r.pct) || 0);
   var v = Number(r.violations || 0);
   var um = _oeUsedMin(r);
   var per = (um != null && total > 0) ? (um / total) : null;
   var bi = brandInfo(r.brand || currentBrand) || {};
+  var accent = pass ? '#0f7a52' : '#c02626';
 
-  /* สี่ช่องสรุป — เวลาที่ใช้ · เฉลี่ยต่อข้อ · ถูก · ผิด
-     ตัวเลขเป็นพระเอกของใบนี้ ไม่ใช่รายละเอียดรายข้อ */
   var stats = [
     ['เวลาที่ใช้ทั้งหมด', _oeFmtMin(um) || '-'],
     ['เฉลี่ยต่อข้อ', _oeFmtMin(per) || '-'],
-    ['ตอบถูก', right + ' ข้อ'],
-    ['ตอบผิด', wrong + ' ข้อ']
+    ['การเตือนระหว่างสอบ', v > 0 ? v + ' ครั้ง' : 'ไม่มี']
+  ];
+  var who = [
+    ['ชื่อ-สกุล', r.name || '-'],
+    ['รหัสพนักงาน', r.empId || '-'],
+    ['สาขา', r.branch || '-'],
+    ['วันที่สอบ', fmtDT(r.submittedAt)]
   ];
 
   var css = [
-    '@page{size:A4;margin:16mm 14mm}',
-    '*{box-sizing:border-box}',
-    "body{font-family:'Sarabun','Leelawadee UI',sans-serif;color:#101828;font-size:11pt;line-height:1.55;margin:0}",
-    '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2.5pt solid #101828;padding-bottom:10pt;margin-bottom:16pt}',
-    '.org{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#667085}',
-    'h1{font-size:18pt;font-weight:800;margin:4pt 0 0;letter-spacing:-.02em}',
-    '.sub{font-size:10.5pt;color:#475467;margin-top:4pt}',
-    '.hd-r{text-align:right;flex:0 0 auto}',
-    '.verdict{display:inline-block;padding:5pt 18pt;border-radius:99pt;font-size:13pt;font-weight:800;border:1.5pt solid}',
-    '.verdict.p{color:#0f7a52;border-color:#0f7a52;background:#eefaf4}',
-    '.verdict.f{color:#c02626;border-color:#c02626;background:#fdeded}',
-    /* คะแนนเป็นวงกลมใหญ่กลางใบ อ่านจากระยะไกลได้ */
-    '.score{display:flex;align-items:center;gap:18pt;padding:14pt 18pt;border:1pt solid #d6dae2;border-radius:8pt;margin-bottom:14pt;background:#fafbfc}',
-    '.ring{width:96pt;height:96pt;border-radius:50%;flex:0 0 auto;display:grid;place-items:center;text-align:center;border:6pt solid #0f7a52}',
-    '.ring.f{border-color:#c02626}',
-    '.ring b{display:block;font-size:28pt;font-weight:800;line-height:1;letter-spacing:-.03em}',
-    '.ring span{display:block;font-size:8.5pt;color:#667085;margin-top:2pt}',
-    '.score-r{flex:1;min-width:0}',
-    '.bar{height:11pt;border-radius:99pt;background:#eaecf0;overflow:hidden;margin:8pt 0 6pt}',
-    '.bar i{display:block;height:100%;background:#0f7a52}',
-    '.bar i.f{background:#c02626}',
-    '.barlab{display:flex;justify-content:space-between;font-size:8.5pt;color:#667085}',
-    '.stats{display:grid;grid-template-columns:repeat(4,1fr);border:1pt solid #d6dae2;border-radius:8pt;overflow:hidden;margin-bottom:14pt}',
-    '.stats>div{padding:10pt 12pt;border-right:1pt solid #eaecf0}',
+    '@page{size:A4;margin:0}',
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    "body{font-family:'Sarabun','Leelawadee UI',sans-serif;color:#0f172a;font-size:11pt;line-height:1.55;-webkit-print-color-adjust:exact;print-color-adjust:exact}",
+    '.sheet{padding:16mm 15mm 14mm;min-height:296mm;display:flex;flex-direction:column}',
+    /* แถบสีแบรนด์บนสุด — ทำให้เอกสารดูมีเจ้าของ ไม่ใช่กระดาษเปล่าพิมพ์ตัวหนังสือ */
+    '.tape{position:fixed;top:0;left:0;right:0;height:7mm;background:' + accent + '}',
+    '.hd{display:flex;justify-content:space-between;align-items:flex-start;gap:14mm;margin-bottom:9mm}',
+    '.org{font-size:8pt;letter-spacing:.16em;text-transform:uppercase;font-weight:800;color:#64748b}',
+    'h1{font-size:20pt;font-weight:800;letter-spacing:-.03em;margin-top:2mm}',
+    '.exam{font-size:11pt;color:#475569;margin-top:1.5mm}',
+    '.no{text-align:right;font-size:8.5pt;color:#64748b;line-height:1.7;white-space:nowrap}',
+    /* แถบผลตัดสิน — สิ่งแรกที่คนเปิดมาดู จึงกินความกว้างเต็มและมีน้ำหนักที่สุด */
+    '.verdict{display:flex;align-items:center;gap:7mm;padding:7mm 8mm;border-radius:3mm;',
+    '  background:' + (pass ? '#f0fdf6' : '#fef2f2') + ';border:1.2pt solid ' + accent + '}',
+    '.vlabel{font-size:22pt;font-weight:800;letter-spacing:-.02em;color:' + accent + ';white-space:nowrap}',
+    '.vbar{flex:1;min-width:0}',
+    '.vbar-t{display:flex;justify-content:space-between;font-size:9pt;color:#475569;margin-bottom:2mm}',
+    '.vbar-t b{color:#0f172a}',
+    '.track{height:5mm;border-radius:99pt;background:#e2e8f0;overflow:hidden}',
+    '.track i{display:block;height:100%;background:' + accent + '}',
+    '.vpct{font-size:30pt;font-weight:800;letter-spacing:-.04em;line-height:1;color:' + accent + ';white-space:nowrap}',
+    '.vpct small{font-size:13pt;font-weight:600}',
+    /* ตัวเลขสรุป — แถวเดียว เทียบกันได้ในสายตาเดียว */
+    '.stats{display:flex;gap:0;margin:8mm 0;border:.8pt solid #e2e8f0;border-radius:3mm;overflow:hidden}',
+    '.stats>div{flex:1;padding:5mm 4mm;border-right:.8pt solid #e2e8f0;text-align:center}',
     '.stats>div:last-child{border-right:none}',
-    '.stats span{display:block;font-size:8pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase}',
-    '.stats b{display:block;font-size:14pt;margin-top:3pt;font-weight:800;letter-spacing:-.02em}',
-    '.who{display:grid;grid-template-columns:repeat(2,1fr);border:1pt solid #d6dae2;border-radius:8pt;overflow:hidden}',
-    '.who>div{padding:8pt 12pt;border-right:1pt solid #eaecf0;border-bottom:1pt solid #eaecf0}',
+    '.stats span{display:block;font-size:7.5pt;color:#64748b;font-weight:700;letter-spacing:.05em;text-transform:uppercase}',
+    '.stats b{display:block;font-size:13pt;font-weight:800;margin-top:1.5mm;letter-spacing:-.02em}',
+    '.stats b.hot{color:#c02626}',
+    '.sec{font-size:8pt;letter-spacing:.14em;text-transform:uppercase;font-weight:800;color:#64748b;margin-bottom:3mm}',
+    '.who{display:grid;grid-template-columns:1fr 1fr;gap:0;border:.8pt solid #e2e8f0;border-radius:3mm;overflow:hidden}',
+    '.who>div{padding:4mm 5mm;border-right:.8pt solid #e2e8f0;border-bottom:.8pt solid #e2e8f0}',
     '.who>div:nth-child(2n){border-right:none}',
     '.who>div:nth-last-child(-n+2){border-bottom:none}',
-    '.who span{display:block;font-size:8pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase}',
-    '.who b{display:block;font-size:11pt;margin-top:2pt;font-weight:700}',
-    '.who b.hot{color:#c02626}',
-    '.sign{margin-top:34pt;display:grid;grid-template-columns:1fr 1fr;gap:36pt}',
-    '.sign div{border-top:1pt dotted #98a2b3;padding-top:6pt;font-size:9pt;color:#667085;text-align:center}',
-    '.ft{margin-top:16pt;padding-top:8pt;border-top:1pt solid #d6dae2;font-size:8pt;color:#667085;display:flex;justify-content:space-between;gap:10pt}'
+    '.who span{display:block;font-size:7.5pt;color:#64748b;font-weight:700;letter-spacing:.05em;text-transform:uppercase}',
+    '.who b{display:block;font-size:11.5pt;font-weight:700;margin-top:1mm}',
+    '.note{margin-top:6mm;padding:4mm 5mm;border-left:2.5pt solid #cbd5e1;background:#f8fafc;',
+    '  font-size:9pt;color:#475569;border-radius:0 2mm 2mm 0}',
+    '.spacer{flex:1;min-height:12mm}',
+    '.sign{display:grid;grid-template-columns:1fr 1fr;gap:14mm;margin-bottom:6mm}',
+    '.sign div{border-top:.8pt solid #94a3b8;padding-top:2.5mm;text-align:center;font-size:9pt;color:#64748b}',
+    '.ft{border-top:.8pt solid #e2e8f0;padding-top:3mm;display:flex;justify-content:space-between;',
+    '  font-size:7.5pt;color:#94a3b8}'
   ].join('');
 
-  var body = '<div class="hd"><div>' +
+  var body =
+    '<div class="tape"></div><div class="sheet">' +
+    '<div class="hd"><div>' +
       '<div class="org">' + esc(bi.name || 'FAB Operations') + '</div>' +
       '<h1>ใบรายงานผลสอบ</h1>' +
-      '<div class="sub">' + esc(r.examTitle || '') + '</div>' +
-    '</div><div class="hd-r">' +
-      '<span class="verdict ' + (pass ? 'p' : 'f') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
+      '<div class="exam">' + esc(r.examTitle || '') + '</div>' +
+    '</div><div class="no">' +
+      'เอกสารออกโดยระบบสอบออนไลน์<br>' + esc(fmtDT(new Date().toISOString())) +
     '</div></div>' +
 
-    '<div class="score">' +
-      '<div class="ring' + (pass ? '' : ' f') + '"><div><b>' + pct + '%</b>' +
-        '<span>' + right + '/' + total + ' ข้อ</span></div></div>' +
-      '<div class="score-r">' +
-        '<div style="font-size:9pt;color:#667085;font-weight:700;letter-spacing:.04em;text-transform:uppercase">สัดส่วนคำตอบ</div>' +
-        '<div class="bar"><i class="' + (pass ? '' : 'f') + '" style="width:' + pct + '%"></i></div>' +
-        '<div class="barlab"><span>ถูก ' + right + ' ข้อ</span><span>ผิด ' + wrong + ' ข้อ</span></div>' +
+    '<div class="verdict">' +
+      '<div class="vlabel">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</div>' +
+      '<div class="vbar">' +
+        '<div class="vbar-t"><span>ตอบถูก <b>' + right + '</b> จาก <b>' + total + '</b> ข้อ</span>' +
+          '<span>ตอบผิด <b>' + wrong + '</b> ข้อ</span></div>' +
+        '<div class="track"><i style="width:' + pct + '%"></i></div>' +
       '</div>' +
+      '<div class="vpct">' + pct + '<small>%</small></div>' +
     '</div>' +
 
     '<div class="stats">' + stats.map(function(x){
+      var hot = (x[0] === 'การเตือนระหว่างสอบ' && v > 0);
+      return '<div><span>' + esc(x[0]) + '</span><b' + (hot ? ' class="hot"' : '') + '>' + esc(x[1]) + '</b></div>';
+    }).join('') + '</div>' +
+
+    '<div class="sec">ข้อมูลผู้เข้าสอบ</div>' +
+    '<div class="who">' + who.map(function(x){
       return '<div><span>' + esc(x[0]) + '</span><b>' + esc(x[1]) + '</b></div>';
     }).join('') + '</div>' +
 
-    '<div class="who">' +
-      '<div><span>ชื่อ-สกุล</span><b>' + esc(r.name || '-') + '</b></div>' +
-      '<div><span>รหัสพนักงาน</span><b>' + esc(r.empId || '-') + '</b></div>' +
-      '<div><span>สาขา</span><b>' + esc(r.branch || '-') + '</b></div>' +
-      '<div><span>วันที่สอบ</span><b>' + esc(fmtDT(r.submittedAt)) + '</b></div>' +
-      '<div><span>จำนวนข้อทั้งหมด</span><b>' + total + ' ข้อ</b></div>' +
-      '<div><span>การเตือนระหว่างสอบ</span><b' + (v > 0 ? ' class="hot"' : '') + '>' +
-        (v > 0 ? v + ' ครั้ง' : 'ไม่มี') + '</b></div>' +
-    '</div>' +
+    '<div class="note">ใบนี้แสดงเฉพาะผลสรุป ไม่มีคำถามและเฉลย ' +
+      'ผู้ดูแลระบบสามารถเปิดดูคำตอบรายข้อได้ในระบบสอบออนไลน์</div>' +
 
+    '<div class="spacer"></div>' +
     '<div class="sign"><div>ลงชื่อผู้เข้าสอบ</div><div>ลงชื่อผู้ตรวจ / ผู้จัดการ</div></div>' +
-    '<div class="ft"><span>ออกจากระบบสอบออนไลน์ · FAB Operations &amp; Training Hub</span>' +
-      '<span>พิมพ์เมื่อ ' + esc(fmtDT(new Date().toISOString())) + '</span></div>';
+    '<div class="ft"><span>' + esc(bi.name || 'FAB Operations') + ' · ระบบสอบออนไลน์</span>' +
+      '<span>FAB Operations &amp; Training Hub</span></div>' +
+    '</div>';
 
   return '<!doctype html><html lang="th"><head><meta charset="utf-8">' +
     '<title>ใบรายงานผลสอบ - ' + esc(r.name || '') + '</title>' +
