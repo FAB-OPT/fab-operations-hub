@@ -828,15 +828,6 @@ select.txt{appearance:none;-webkit-appearance:none;
 /* ชุดที่คุมเวลาเริ่ม: สาขาไม่เห็นรหัส ต้องรอผู้คุมสอบบอกแล้วพิมพ์เอง */
 .reqok{margin:11px 0 10px;padding:9px;border-radius:10px;text-align:center;
   font-size:12.5px;font-weight:700;background:var(--green-soft,var(--bg3));color:var(--text2)}
-.reqtype{margin:11px 0 10px}
-.reqtype label{display:block;font-size:11.5px;font-weight:700;color:var(--text2);margin-bottom:5px}
-.reqtype input{width:100%;box-sizing:border-box;padding:10px;border-radius:11px;
-  border:1px dashed var(--gold-line);background:var(--gold-soft);color:#b23a10;
-  text-align:center;font-size:21px;font-weight:800;letter-spacing:.2em;text-transform:uppercase}
-.reqtype input:focus{outline:none;border-style:solid;box-shadow:0 0 0 3px rgba(234,88,12,.12)}
-.codepill{display:inline-block;padding:3px 10px;border-radius:8px;background:var(--gold-soft);
-  border:1px solid var(--gold-line);color:#b23a10;font-weight:800;letter-spacing:.14em;font-size:13px}
-.bigcode{display:inline-block;margin-top:6px;font-size:30px;font-weight:800;letter-spacing:.2em;color:var(--gold)}
 /* แท็บคำขอมีจุดแดงเมื่อมีของรออนุมัติ — เห็นได้โดยไม่ต้องกดเข้าไปดู */
 .seg.has-new em{background:var(--red);color:#fff}
 .seg.active.has-new em{background:#fff;color:var(--red)}
@@ -1513,7 +1504,6 @@ label.fld>span>b{font-weight:800}
             ความปลอดภัยระหว่างสอบ
           </div>
           <div class="switch-row"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ทำได้ครั้งเดียว ส่งแล้วปิดทันที</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
-          <div class="switch-row"><div><div class="sw-t">ใช้รหัสคุมเวลาเริ่มสอบ</div><div class="sw-d">ปกติอนุมัติแล้วสาขากดเริ่มได้เลย · เปิดอันนี้เมื่อ<b>นัดสอบพร้อมกัน</b> — รหัสจะไม่ขึ้นที่หน้าสาขา ผู้คุมสอบถือไว้แล้วบอกเมื่อถึงเวลา</div></div><label class="sw"><input type="checkbox" id="edNeedCode"><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
@@ -2677,7 +2667,6 @@ function openExamEditor(id){
   oeBranchSelPaint();
   $('edNeedApprove').checked = ex ? ex.requireApproval!==false : true;
   /* ต้องเป็น ===true — ชุดเก่าที่ไม่มีค่านี้ถือว่าไม่ใช้รหัส กดเริ่มได้เลย */
-  $('edNeedCode').checked = ex ? ex.requireCode===true : false;
   $('edShufQ').checked = ex ? ex.shuffleQuestions!==false : true;
   $('edShufC').checked = ex ? ex.shuffleChoices!==false : true;
   $('edFs').checked = ex ? ex.requireFullscreen!==false : true;
@@ -2980,7 +2969,6 @@ function collectExamFromForm(){
     endDate: $('edEnd').value,
     visibleBranches: branches,
     requireApproval: $('edNeedApprove').checked,
-    requireCode: $('edNeedCode').checked,
     shuffleQuestions: $('edShufQ').checked,
     shuffleChoices: $('edShufC').checked,
     requireFullscreen: $('edFs').checked,
@@ -4312,7 +4300,9 @@ function examNeedsApproval(ex){ return !ex || ex.requireApproval !== false; }
 /* รหัสเป็นของเสริม ใช้ตอนอยากคุมว่าเริ่มสอบได้เมื่อไร (นัดสอบพร้อมกัน)
    ปกติปิด — อนุมัติแล้วสาขากดเริ่มได้เลย ระบบยังปิดสิทธิ์ให้หลังส่งเหมือนเดิม
    ไม่มีอนุมัติ = ไม่มีรหัสให้พูดถึง */
-function examNeedsCode(ex){ return examNeedsApproval(ex) && !!(ex && ex.requireCode === true); }
+/* เลิกใช้รหัสเข้าสอบแล้ว — เหลือไว้เป็น false ตายตัวเพื่อไม่ต้องไล่แก้ทุกจุดที่เคยเรียก
+   ชุดข้อสอบเก่าที่เคยตั้ง requireCode ไว้ก็ไม่มีผลอีกต่อไป */
+function examNeedsCode(){ return false; }
 function _examOf(id){ return EXAMS.find(function(x){ return x.id === id; }); }
 
 function loadExamRequests(){
@@ -4672,17 +4662,12 @@ function renderBranchReqs(){
   host.innerHTML = '<div class="sec-h">คำขอสอบของสาขา</div>'
     + '<div class="reqcards">' + mine.map(function(r){
       var st = _reqSt(r.status);
-      var needCode = examNeedsCode(_examOf(r.examId));
       var act = r.status === 'approved'
         ? '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
           + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>'
         : '';
-      /* ชุดที่คุมเวลาเริ่ม: ห้ามโชว์รหัสตรงนี้ ไม่งั้นก็กดเองได้ทันที ผิดวัตถุประสงค์ */
       var code = r.status === 'approved'
-        ? (needCode
-            ? '<div class="reqtype"><label>กรอกรหัสจากผู้คุมสอบ</label>'
-              + '<input id="rqc_' + esc(r.id) + '" maxlength="6" autocomplete="off" placeholder="••••••"></div>'
-            : '<div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>')
+        ? '<div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>'
         : (r.status === 'used'
             ? (isAdminMode
                 ? '<button class="btn btn-soft" data-oe-action="view-results" onclick="oeSeeMyResult(\'' + _oeAttr(r.name) + '\')">' +
@@ -4717,15 +4702,6 @@ function startWithCode(reqId){
   var ex = _examOf(r.examId);
   if(!ex){ showExamInfo('ไม่พบชุดข้อสอบ', 'ชุดข้อสอบนี้อาจถูกลบหรือปิดไปแล้ว'); return; }
   var code = r.code;
-  if(examNeedsCode(ex)){
-    var box = $('rqc_' + r.id);
-    code = ((box && box.value) || '').trim().toUpperCase();
-    if(!code){
-      showExamInfo('ต้องกรอกรหัสก่อน', 'ชุดนี้เริ่มสอบพร้อมกันตามเวลานัด — ขอรหัสจากผู้คุมสอบแล้วพิมพ์ลงในช่อง');
-      if(box) box.focus();
-      return;
-    }
-  }
   /* เปิดหน้าเตรียมสอบให้เลย แล้วตรวจรหัสคู่ขนานไป */
   openExamRunner(ex, false, {
     code: code, name: r.name, empId: r.empId,
@@ -4776,7 +4752,7 @@ function renderExamRequests(){
   }
   host.innerHTML = '<div class="table-wrap"><div class="tbl-scroll"><table><thead><tr>'
     + '<th>วันที่ขอ</th><th>ผู้ขอสอบ</th><th>สาขา</th><th>ชุดข้อสอบ</th>'
-    + '<th class="c">สถานะ</th><th class="c">รหัสเข้าสอบ</th><th>จัดการ</th>'
+    + '<th class="c">สถานะ</th><th>จัดการ</th>'
     + '</tr></thead><tbody>' + list.map(_reqRow).join('') + '</tbody></table></div></div>';
   oeApplyPerms();
 }
@@ -4797,11 +4773,6 @@ function _reqRow(r){
     + '<td>' + esc(r.branchName || '—') + '</td>'
     + '<td>' + esc(r.examTitle) + '</td>'
     + '<td class="c"><span class="st ' + st.c + '">' + st.t + '</span></td>'
-    + '<td class="c">' + (r.code
-        ? '<code class="codepill">' + esc(r.code) + '</code>'
-          + (examNeedsCode(_examOf(r.examId)) && r.status === 'approved'
-              ? '<div class="who-s" style="margin-top:3px">บอกรหัสนี้เมื่อถึงเวลาสอบ</div>' : '')
-        : '—') + '</td>'
     + '<td>' + act + '</td></tr>';
 }
 function decideReq(id, decision){
@@ -4810,8 +4781,9 @@ function decideReq(id, decision){
   apiPost({ type: 'decide-exam-request', id: id, decision: decision, by: who }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ทำรายการไม่สำเร็จ');
     if(decision === 'approve'){
-      showExamInfo('อนุมัติแล้ว', 'รหัสเข้าสอบคือ <b class="bigcode">' + esc(res.code) + '</b>'
-        + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">รหัสนี้ขึ้นที่หน้าสาขาให้เองแล้ว ใช้ได้ครั้งเดียว</div>');
+      showExamInfo('อนุมัติแล้ว',
+        'ปุ่มเริ่มทำข้อสอบขึ้นที่หน้าของผู้ขอแล้ว'
+        + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">ทำได้ครั้งเดียว ส่งแล้วสิทธิ์ปิดทันที</div>');
     }
     loadExamRequests();
   }).catch(function(e){ showExamInfo('ทำรายการไม่สำเร็จ', esc(e.message || '')); });
