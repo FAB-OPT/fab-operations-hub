@@ -927,8 +927,9 @@ select.txt{appearance:none;-webkit-appearance:none;
   box-shadow:0 18px 44px rgba(15,23,42,.09),0 2px 6px rgba(15,23,42,.04);padding:34px 38px;
   display:flex;flex-direction:column}
 /* ดันแถวปุ่มลงไปติดก้นการ์ด ขอบล่างของสองคอลัมน์จะได้ตรงกัน */
-.q-nav{display:flex;justify-content:space-between;gap:12px;margin-top:auto;padding-top:22px;
+.q-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:auto;padding-top:22px;
   border-top:1px solid var(--border)}
+.q-hintnav{font-size:12.5px;color:var(--text3);font-weight:600}
 .choices{margin-bottom:28px}
 /* แผงข้าง — ติดขอบบนไว้ ผู้สอบจะได้เห็นความคืบหน้ากับปุ่มส่งตลอดโดยไม่ต้องเลื่อน
    แยกเป็นการ์ดย่อยแทนที่จะเป็นแผงยาวใบเดียว สายตาจะได้แยกออกว่าคนละเรื่องกัน */
@@ -1044,6 +1045,13 @@ select.txt{appearance:none;-webkit-appearance:none;
 .stat .n.bad{color:var(--red)}
 .stat .l{font-size:11.5px;color:var(--text3);margin-top:4px}
 .review{border-top:1px solid var(--border);margin-top:6px}
+.rev-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:14px 2px 4px}
+.rev-h b{font-size:15px;font-weight:800}
+.rev-h span{font-size:12px;color:var(--text3);font-weight:600}
+.rev-all{margin-left:auto;padding:6px 12px;border-radius:9px;border:1px solid var(--border);
+  background:var(--bg2);font-size:12.5px;font-weight:700;color:var(--text2)}
+.rev-all:hover{border-color:var(--border2);color:var(--text)}
+.rev-list.only-wrong .rev-q.ok{display:none}
 .rev-q{padding:14px 2px;border-bottom:1px solid var(--border)}
 .rev-q:last-child{border-bottom:none}
 .rev-q .rq-head{display:flex;gap:10px;align-items:flex-start;margin-bottom:8px}
@@ -1653,7 +1661,7 @@ label.fld>span>b{font-weight:800}
         <!-- ปุ่มเดินหน้า-ถอยหลังอยู่ในการ์ด ตรงใต้ตัวเลือกที่เพิ่งกด ไม่ต้องลากสายตาลงไปที่ขอบจอ -->
         <div class="q-nav">
           <button class="enav ghost" id="btnPrev" onclick="prevQ()">ย้อนกลับ</button>
-          <button class="enav amber" id="btnNext" onclick="nextQ()">ถัดไป</button>
+          <span class="q-hintnav">เลือกคำตอบแล้วระบบจะพาไปข้อถัดไปให้เอง</span>
         </div>
       </div>
       <!-- แผงข้าง: ตอบไปกี่ข้อแล้ว · ผังเลขข้อครบทุกข้อในตาเดียว · ปุ่มส่ง -->
@@ -3915,16 +3923,28 @@ function renderQuestion(){
     return '<button class="choice '+(sel===i?'sel':'')+'" onclick="pickChoice('+i+')"><span class="key">'+keys[i]+'</span><span class="ctxt">'+esc(c.text)+'</span></button>';
   }).join('');
   $('btnPrev').style.visibility = R.current===0?'hidden':'visible';
-  $('btnNext').textContent = R.current===total-1?'ส่งข้อสอบ':'ถัดไป';
   var main=document.querySelector('.exam-main'); main.classList.remove('fade'); void main.offsetWidth;
 }
 function pickChoice(i){
   R.answers[R.current]=i; renderQuestion(); renderNav();
-  // เลือกคำตอบแล้วไปข้อถัดไปอัตโนมัติ (ยกเว้นข้อสุดท้าย)
-  if(R.current < R.questions.length-1){
-    var cur=R.current;
-    setTimeout(function(){ if(!R.finished && R.current===cur && R.answers[cur]!=null){ R.current++; renderQuestion(); renderNav(); } }, 380);
+  var total=R.questions.length, cur=R.current;
+
+  /* ข้อที่ยังไม่ได้ตอบข้อแรกนับจากตำแหน่งที่กำหนด — ใช้ทั้งตอนหาข้อถัดไปและตอนเช็กว่าครบหรือยัง */
+  function nextBlank(from){
+    for(var k=from; k<total; k++) if(R.answers[k]==null) return k;
+    for(var k2=0; k2<total; k2++) if(R.answers[k2]==null) return k2;
+    return -1;
   }
+
+  setTimeout(function(){
+    if(R.finished || R.current!==cur || R.answers[cur]==null) return;
+    var blank = nextBlank(cur+1);
+    /* ตอบครบทุกข้อแล้ว — ถามเลยว่าส่งไหม ไม่ต้องให้ไปหาปุ่มส่งเอง */
+    if(blank < 0){ openSubmitModal(); return; }
+    /* ยังไม่ครบ: ปกติไปข้อถัดไปตามลำดับ · ถ้าอยู่ข้อท้าย ๆ แล้วก็วนไปข้อที่ยังว่างอยู่ */
+    R.current = (cur+1 < total && R.answers[cur+1]==null) ? cur+1 : blank;
+    renderQuestion(); renderNav();
+  }, 380);
 }
 function renderNav(){
   $('vCount').textContent=R.violations;
@@ -3945,7 +3965,6 @@ function renderNav(){
 }
 function gotoQ(i){ R.current=i; renderQuestion(); renderNav(); }
 function prevQ(){ if(R.current>0){ R.current--; renderQuestion(); renderNav(); } }
-function nextQ(){ if(R.current<R.questions.length-1){ R.current++; renderQuestion(); renderNav(); } else openSubmitModal(); }
 
 function openSubmitModal(){
   var un=R.questions.filter(function(_,i){return R.answers[i]==null;}).length;
@@ -4053,6 +4072,12 @@ function finishExam(reason){
   R.finishReason=reason;
   computeAndShow();
 }
+/* สลับระหว่าง "เฉพาะข้อที่ยังไม่ถูก" กับ "ทุกข้อ" ในหน้าผลสอบ */
+function toggleRevAll(btn){
+  var list=$('revList'); if(!list) return;
+  var on=list.classList.toggle('only-wrong');
+  btn.textContent = on ? ('ดูทุกข้อ (' + list.children.length + ')') : 'ดูเฉพาะข้อที่ยังไม่ถูก';
+}
 function computeAndShow(){
   var total=R.questions.length, correct=0;
   R.questions.forEach(function(q,i){ var sel=R.answers[i]; if(sel!=null && q.choices[sel].correct) correct++; });
@@ -4075,19 +4100,31 @@ function computeAndShow(){
   $('resWrong').textContent=wrong;
   $('resViol').textContent=R.violations; $('resViol').className='n'+(R.violations>0?' bad':'');
 
-  if(R.exam.showReview){
-    $('review').innerHTML=R.questions.map(function(q,i){
-      var sel=R.answers[i];
-      var ok=sel!=null && q.choices[sel].correct;
-      var opts='';
-      q.choices.forEach(function(c,ci){
-        if(c.correct) opts+='<div class="rev-opt correct"><span class="rtag">เฉลย</span>'+esc(c.text)+'</div>';
-        else if(ci===sel) opts+='<div class="rev-opt wrong"><span class="rtag">คุณตอบ</span>'+esc(c.text)+'</div>';
-      });
-      if(sel==null) opts+='<div class="rev-opt wrong"><span class="rtag">—</span>ไม่ได้ตอบ</div>';
-      return '<div class="rev-q"><div class="rq-head"><span class="rev-mark '+(ok?'ok':'no')+'">'+(ok?'✓':'✕')+'</span><span class="rq-text">'+(i+1)+'. '+esc(q.q)+'</span></div>'+opts+'</div>';
-    }).join('');
-  } else { $('review').innerHTML=''; }
+  var showAns = R.exam.showReview !== false;
+  var miss = R.questions.filter(function(q,i){
+    var sel=R.answers[i]; return !(sel!=null && q.choices[sel].correct);
+  }).length;
+  if(!miss){
+    $('review').innerHTML = '<div class="rev-h"><b>ตอบถูกทุกข้อ</b></div>';
+  } else {
+    $('review').innerHTML =
+      '<div class="rev-h"><b>ข้อที่ยังไม่ถูก ' + miss + ' ข้อ</b>' +
+      (showAns ? '' : '<span>ชุดนี้ไม่เปิดให้ดูเฉลย</span>') +
+      '<button type="button" class="rev-all" id="revAll" onclick="toggleRevAll(this)">ดูทุกข้อ (' + total + ')</button></div>' +
+      '<div class="rev-list only-wrong" id="revList">' + R.questions.map(function(q,i){
+        var sel=R.answers[i];
+        var ok=sel!=null && q.choices[sel].correct;
+        var opts='';
+        if(sel==null) opts+='<div class="rev-opt wrong"><span class="rtag">—</span>ไม่ได้ตอบ</div>';
+        else opts+='<div class="rev-opt '+(ok?'correct':'wrong')+'"><span class="rtag">คุณตอบ</span>'+esc(q.choices[sel].text)+'</div>';
+        /* เฉลยขึ้นเฉพาะตอนชุดข้อสอบเปิดให้ดู และเฉพาะข้อที่ตอบไม่ถูก */
+        if(showAns && !ok) q.choices.forEach(function(c){
+          if(c.correct) opts+='<div class="rev-opt correct"><span class="rtag">เฉลย</span>'+esc(c.text)+'</div>';
+        });
+        return '<div class="rev-q '+(ok?'ok':'no')+'"><div class="rq-head"><span class="rev-mark '+(ok?'ok':'no')+'">'+(ok?'✓':'✕')+'</span>' +
+          '<span class="rq-text">'+(i+1)+'. '+esc(q.q)+'</span></div>'+opts+'</div>';
+      }).join('') + '</div>';
+  }
 
   exShow('ex-result');
   submitResultToBackend();
