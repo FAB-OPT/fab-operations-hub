@@ -3916,9 +3916,15 @@ function paintReqCount(){
 /* ═══ ทะเบียนสาขา (ยืมจากฮับ) ═══
    ฮับเก็บไว้ที่ localStorage 'fab_branches_v1' — รหัสสาขา → ชื่อ พร้อมแมพแบรนด์และสถานะ
    ระบบสอบแค่อ่านอย่างเดียว ไม่แก้ ไม่งั้นสองที่จะเถียงกันเองว่าสาขาไหนมีอยู่จริง */
-function _oeBranchStore(){
-  try{ return JSON.parse(localStorage.getItem('fab_branches_v1') || 'null') || null; }catch(e){ return null; }
+/* ฮับเก็บสาขาไว้สองที่ ไม่ใช่ที่เดียว (โมดูล FQA ก็อ่านสองที่แบบนี้เหมือนกัน)
+     · เจ๊แดง   → fab_jaedaeng_branches_v1  = อาเรย์ [{name, manager, ...}] ไม่มีรหัสสาขา
+     · แบรนด์อื่น → fab_branches_v1          = {branches:{รหัส:ชื่อ}, brandMap, statusMap}
+   อ่านที่เดียวจึงได้สาขามาไม่ครบ — เจ๊แดง 46 สาขาไม่ได้อยู่ในทะเบียนที่มีรหัสเลย */
+function _oeLSJson(key){
+  try{ return JSON.parse(localStorage.getItem(key) || 'null'); }catch(e){ return null; }
 }
+function _oeBranchStore(){ return _oeLSJson('fab_branches_v1'); }
+function _oeJdBranchStore(){ return _oeLSJson('fab_jaedaeng_branches_v1'); }
 
 /* สาขานี้เป็นของแบรนด์ไหน — ตามฮับเป๊ะ ๆ: ยึดค่าที่ตั้งทับไว้ก่อน ไม่มีค่อยดูเลขขึ้นต้นรหัส
    ถ้าเขียนคนละแบบกับฮับ สองที่จะตอบไม่ตรงกันว่าสาขาไหนอยู่แบรนด์ไหน */
@@ -3936,20 +3942,38 @@ function _oeBrandOfBranch(code, brandMap){
 }
 
 function oeBranchRegistry(){
-  var obj = _oeBranchStore();
-  if(!obj || !obj.branches) return [];
-  var brandMap = obj.brandMap || {}, statusMap = obj.statusMap || {};
   var all = currentBrand === 'all' || !currentBrand;
   var out = [];
-  Object.keys(obj.branches).forEach(function(code){
-    if(statusMap[code] === 'closed') return;   // สาขาปิดแล้ว ไม่ต้องเอามาให้เลือก
-    /* เปิดแบรนด์ไหนอยู่ ก็ให้เลือกได้เฉพาะสาขาของแบรนด์นั้น
-       สาขาที่เทียบแบรนด์ไม่ได้เลยก็ตัดทิ้ง ดีกว่าปล่อยให้สาขาต่างแบรนด์หลุดเข้ามา */
-    if(!all && _oeBrandOfBranch(code, brandMap) !== currentBrand) return;
-    out.push({ code: code, name: String(obj.branches[code] || '').trim() });
-  });
-  return out.filter(function(x){ return x.name; })
-            .sort(function(a, b){ return a.name.localeCompare(b.name, 'th'); });
+
+  /* ทะเบียนเจ๊แดง — ใช้ชื่อสาขาเป็นตัวระบุ ไม่มีรหัส 4 หลักให้เทียบแบรนด์
+     อยู่ในทะเบียนนี้ก็คือเป็นของเจ๊แดงอยู่แล้ว */
+  if(all || currentBrand === 'jaedaeng'){
+    var jd = _oeJdBranchStore();
+    if(Array.isArray(jd)) jd.forEach(function(b){
+      if(b && b.name) out.push({ code: '', name: String(b.name).trim() });
+    });
+  }
+
+  /* ทะเบียนที่มีรหัสสาขา — เทียบแบรนด์จากเลขขึ้นต้นรหัส หรือแบรนด์ที่ตั้งทับไว้ */
+  var obj = _oeBranchStore();
+  if(obj && obj.branches){
+    var brandMap = obj.brandMap || {}, statusMap = obj.statusMap || {};
+    Object.keys(obj.branches).forEach(function(code){
+      if(statusMap[code] === 'closed') return;   // สาขาปิดแล้ว ไม่ต้องเอามาให้เลือก
+      /* เปิดแบรนด์ไหนอยู่ ก็ให้เลือกได้เฉพาะสาขาของแบรนด์นั้น
+         สาขาที่เทียบแบรนด์ไม่ได้เลยก็ตัดทิ้ง ดีกว่าปล่อยให้สาขาต่างแบรนด์หลุดเข้ามา */
+      if(!all && _oeBrandOfBranch(code, brandMap) !== currentBrand) return;
+      out.push({ code: code, name: String(obj.branches[code] || '').trim() });
+    });
+  }
+
+  /* ชื่อเดียวกันโผล่ทั้งสองทะเบียนก็เก็บอันเดียวพอ ไม่งั้นในรายการจะมีสาขาซ้ำให้ติ๊กสองที */
+  var seen = {};
+  return out.filter(function(x){
+    if(!x.name || seen[x.name]) return false;
+    seen[x.name] = 1;
+    return true;
+  }).sort(function(a, b){ return a.name.localeCompare(b.name, 'th'); });
 }
 
 /* ── ดรอปดาวน์เลือกสาขาในตัวแก้ไขชุดข้อสอบ ── */
