@@ -754,7 +754,7 @@ function ocrImage(imageBase64, filename, mimeType) {
    - Exam ทั้งชุด (config + คำถาม) เก็บเป็น JSON ในคอลัมน์ 'json'
    ═══════════════════════════════════════════════════════════════ */
 var EXAM_HEADERS = ['id','title','brand','active','startDate','endDate','questions','updatedAt','json'];
-var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson'];
+var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson','position'];
 
 /* ═══ แคชของระบบสอบ ═══
    วัดจริง: ยิง action=exams ใช้เวลา 3 - 36 วินาที และบางครั้งตอบกลับมาไม่ครบ
@@ -785,8 +785,14 @@ function _examCacheKill() {
 function _getOrCreateSheet(name, headers) {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
   var sh = ss.getSheetByName(name);
-  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(headers); }
-  else if (sh.getLastRow() === 0) { sh.appendRow(headers); }
+  if (!sh) { sh = ss.insertSheet(name); sh.appendRow(headers); return sh; }
+  if (sh.getLastRow() === 0) { sh.appendRow(headers); return sh; }
+  /* ชีตมีอยู่แล้ว — เติมเฉพาะคอลัมน์ที่ยังไม่มี ต่อท้ายแถวหัว
+     ไม่ย้ายไม่เรียงคอลัมน์เดิม ข้อมูลเก่าจึงยังตรงช่องเหมือนเดิม */
+  var have = sh.getRange(1, 1, 1, Math.max(1, sh.getLastColumn())).getValues()[0]
+    .map(function (h) { return String(h).trim(); });
+  var add = headers.filter(function (h) { return have.indexOf(h) < 0; });
+  if (add.length) sh.getRange(1, have.length + 1, 1, add.length).setValues([add]);
   return sh;
 }
 
@@ -884,7 +890,8 @@ function saveExamResult(r) {
       r.correct != null ? r.correct : '', r.total != null ? r.total : '',
       r.result || '', r.violations != null ? r.violations : 0,
       r.finishReason || '', r.startedAt || '',
-      r.answers ? JSON.stringify(r.answers) : ''
+      r.answers ? JSON.stringify(r.answers) : '',
+      r.position || ''
     ];
     sh.appendRow(row);
     _examCacheKill();
@@ -1255,7 +1262,8 @@ function setupDailyBackup() {
    จึงส่งรหัสกลับเฉพาะแถวของสาขาที่ถาม (ต้องระบุ branch) เพื่อลดการเห็นรหัสคนอื่นโดยบังเอิญ
    ═════════════════════════════════════════════════ */
 var EXAMREQ_HEADERS = ['id','createdAt','examId','examTitle','brand','branchCode','branchName',
-                       'name','empId','status','code','approvedAt','approvedBy','usedAt','note'];
+                       'name','empId','status','code','approvedAt','approvedBy','usedAt','note',
+                       'position'];
 
 function _reqSheet() { return _getOrCreateSheet('ExamRequests', EXAMREQ_HEADERS); }
 
@@ -1304,6 +1312,7 @@ function getExamRequests(branch, scope) {
     out.push({
       id: r.id, createdAt: r.createdAt, examId: r.examId, examTitle: r.examTitle, brand: r.brand,
       branchCode: r.branchCode, branchName: r.branchName, name: r.name, empId: r.empId,
+      position: r.position || '',
       status: r.status || 'pending', code: r.code || '',
       approvedAt: r.approvedAt, approvedBy: r.approvedBy, usedAt: r.usedAt, note: r.note || ''
     });
@@ -1336,6 +1345,7 @@ function saveExamRequest(req) {
       examId: req.examId || '', examTitle: req.examTitle || '', brand: req.brand || '',
       branchCode: req.branchCode || '', branchName: req.branchName || '',
       name: String(req.name).trim(), empId: String(req.empId || '').trim(),
+      position: String(req.position || '').trim(),
       status: 'pending', code: '', approvedAt: '', approvedBy: '', usedAt: '', note: ''
     };
     d.sh.appendRow(d.headers.map(function (h) { return map.hasOwnProperty(h) ? map[h] : ''; }));
@@ -1389,6 +1399,7 @@ function verifyExamCode(code, examId) {
     if (String(r.status) !== 'approved') return { ok: false, error: 'รหัสนี้ยังไม่ได้รับอนุมัติ' };
     if (examId && String(r.examId) !== String(examId)) return { ok: false, error: 'รหัสนี้ไม่ใช่ของชุดข้อสอบนี้' };
     return { ok: true, request: { id: r.id, examId: r.examId, name: r.name, empId: r.empId,
+                                  position: r.position || '',
                                   branchName: r.branchName, branchCode: r.branchCode } };
   }
   return { ok: false, error: 'ไม่พบรหัสนี้' };

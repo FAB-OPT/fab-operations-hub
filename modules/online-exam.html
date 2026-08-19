@@ -1661,6 +1661,7 @@ label.fld>span>b{font-weight:800}
             <label class="p-fld"><span>รหัสพนักงาน *</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           </div>
           <label class="p-fld"><span>สาขา *</span><select class="p-txt" id="inBranch" onchange="this.parentNode.classList.remove('bad')"></select></label>
+          <label class="p-fld"><span>ตำแหน่ง *</span><input class="p-txt" id="inPosition" placeholder="เช่น พนักงานครัว" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
           <p class="p-hint">แนะนำให้ทำบนคอมพิวเตอร์และไม่สลับหน้าจอ เพื่อให้ระบบกันโกงทำงานเต็มที่</p>
         </div>
@@ -1782,10 +1783,13 @@ label.fld>span>b{font-weight:800}
     <div class="modal-body">
       <div class="reqinfo">
         <div><span>ชุดข้อสอบ</span><b id="reqFormExam">—</b></div>
-        <div><span>สาขา</span><b id="reqFormBranch">—</b></div>
       </div>
+      <label class="fld"><span>สาขา <b class="req">*</b></span>
+        <select class="txt" id="reqBranch"></select></label>
       <label class="fld"><span>ชื่อ–สกุลผู้เข้าสอบ <b class="req">*</b></span>
         <input class="txt" id="reqName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
+      <label class="fld"><span>ตำแหน่ง <b class="req">*</b></span>
+        <input class="txt" id="reqPosition" placeholder="เช่น พนักงานครัว / ผู้ช่วยผู้จัดการ" autocomplete="off"></label>
       <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน <b class="req">*</b></span>
         <input class="txt" id="reqEmpId" placeholder="เช่น 100234" autocomplete="off">
         <em class="fld-hint">ชื่อที่กรอกตรงนี้จะถูกใช้เป็นชื่อในผลสอบ แก้ตอนสอบไม่ได้</em></label>
@@ -3380,7 +3384,7 @@ function _oeResDetailHtml(r){
   h += '<div class="rd-hero ' + (pass ? 'pass' : 'fail') + '">' +
     '<div class="rd-hero-l">' +
       '<div class="rd-name">' + esc(r.name || '—') + '</div>' +
-      '<div class="rd-meta">' + [r.empId, r.branch].filter(Boolean).map(esc).join(' · ') + '</div>' +
+      '<div class="rd-meta">' + [r.empId, r.position, r.branch].filter(Boolean).map(esc).join(' · ') + '</div>' +
       '<div class="rd-exam">' + esc(r.examTitle || '') + '</div>' +
     '</div>' +
     '<div class="rd-hero-r">' +
@@ -3734,9 +3738,9 @@ function renderResults(){
 function exportResultsCSV(){
   var list=filteredResults();
   if(!list.length){ toast('ไม่มีข้อมูลให้ดาวน์โหลด','err'); return; }
-  var head=['วันที่-เวลา','ชื่อ-สกุล','รหัสพนักงาน','สาขา','ชุดข้อสอบ','คะแนน(%)','ตอบถูก','ทั้งหมด','ผลสอบ','จำนวนเตือน','หมายเหตุ'];
+  var head=['วันที่-เวลา','ชื่อ-สกุล','รหัสพนักงาน','ตำแหน่ง','สาขา','ชุดข้อสอบ','คะแนน(%)','ตอบถูก','ทั้งหมด','ผลสอบ','จำนวนเตือน','หมายเหตุ'];
   var rows=[head].concat(list.map(function(r){
-    return [fmtDT(r.submittedAt), r.name, r.empId, r.branch, r.examTitle, r.pct, r.correct, r.total, (isPass(r)?'ผ่าน':'ไม่ผ่าน'), r.violations||0, r.finishReason||''];
+    return [fmtDT(r.submittedAt), r.name, r.empId, r.position||'', r.branch, r.examTitle, r.pct, r.correct, r.total, (isPass(r)?'ผ่าน':'ไม่ผ่าน'), r.violations||0, r.finishReason||''];
   }));
   var csv='﻿'+rows.map(function(row){ return row.map(function(c){ return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
@@ -3821,7 +3825,9 @@ function openExamRunner(exam, isPreview, ticket){
   R = {
     exam: exam, isPreview: !!isPreview,
     accessCode: (ticket && ticket.code) || '',
-    student:{name:(ticket&&ticket.name)||'',id:(ticket&&ticket.empId)||'',branch:currentBranchName||''},
+    student:{name:(ticket&&ticket.name)||'',id:(ticket&&ticket.empId)||'',
+             position:(ticket&&ticket.position)||'',
+             branch:currentBranchName||(ticket&&ticket.branchName)||''},
     questions:[], answers:{}, current:0,
     timeLeft:0, timerId:null,
     violations:0, violationLog:[],
@@ -3872,6 +3878,8 @@ function openExamRunner(exam, isPreview, ticket){
      และล็อกไว้ ผลสอบจะได้ตรงกับคนที่ขออนุมัติจริง ๆ */
   $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
   $('inId').value = R.student.id || '';
+  /* ตำแหน่งที่กรอกไว้ตอนขอสิทธิ์ เติมมาให้เลย แต่ยังแก้ได้ เผื่อย้ายตำแหน่งระหว่างรออนุมัติ */
+  $('inPosition').value = R.student.position || '';
   $('inName').readOnly = !!(R.accessCode && R.student.name);
   $('inId').readOnly = !!(R.accessCode && R.student.id);
   /* สาขาที่ล็อกอินอยู่มีตัวเดียว ก็ให้เหลือตัวเลือกเดียว เลือกผิดไม่ได้
@@ -3879,6 +3887,8 @@ function openExamRunner(exam, isPreview, ticket){
   var bsel = $('inBranch');
   if(bsel){
     var reg = oeBranchRegistry();
+    /* สาขาที่ระบุไว้ตอนขอสิทธิ์ ถือเป็นค่าตั้งต้น — ยังเปลี่ยนได้ถ้าย้ายสาขา */
+    var want = currentBranchName || R.student.branch || '';
     if(currentBranchName){
       bsel.innerHTML = '<option>' + esc(currentBranchName) + '</option>';
     } else {
@@ -3886,7 +3896,12 @@ function openExamRunner(exam, isPreview, ticket){
         reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('') +
         (reg.length ? '' : '<option value="">(ยังไม่มีทะเบียนสาขาในเครื่องนี้)</option>');
     }
-    bsel.value = currentBranchName || '';
+    bsel.value = want;
+    /* สาขาที่ขอไว้ไม่มีในทะเบียนแล้ว (เปลี่ยนชื่อ/ปิด) ก็ยังต้องเลือกได้ ไม่งั้นเริ่มสอบไม่ได้ */
+    if(want && bsel.value !== want){
+      bsel.insertAdjacentHTML('afterbegin', '<option>' + esc(want) + '</option>');
+      bsel.value = want;
+    }
   }
   renderPwaTip(isPreview);
   exShow('ex-start');
@@ -3918,7 +3933,7 @@ function _oeFieldFail(id, msg){
   return false;
 }
 function beginExam(){
-  ['inName','inId','inBranch'].forEach(function(id){
+  ['inName','inId','inBranch','inPosition'].forEach(function(id){
     var el = $(id);
     if(el && el.parentNode && el.parentNode.classList) el.parentNode.classList.remove('bad');
   });
@@ -3927,6 +3942,8 @@ function beginExam(){
   if(!name) return _oeFieldFail('inName', 'กรุณากรอกชื่อ–สกุลก่อนเริ่ม');
   var empId = $('inId').value.trim();
   if(!empId) return _oeFieldFail('inId', 'กรุณากรอกรหัสพนักงานก่อนเริ่ม');
+  var position = $('inPosition').value.trim();
+  if(!position) return _oeFieldFail('inPosition', 'กรุณากรอกตำแหน่งก่อนเริ่ม');
 
   var branch = currentBranchName || $('inBranch').value.trim();
   if(!branch){
@@ -3938,7 +3955,7 @@ function beginExam(){
     return _oeFieldFail('inBranch', 'ยังไม่มีทะเบียนสาขาในเครื่องนี้ — เปิดหน้าฮับหนึ่งครั้งแล้วลองใหม่');
   }
 
-  R.student={ name:name, id:empId, branch:branch };
+  R.student={ name:name, id:empId, branch:branch, position:position };
   var CFG=R.exam;
   var qs=(CFG.questions||[]).map(function(item,qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
@@ -4228,7 +4245,7 @@ function submitResultToBackend(){
     type:'submit-exam-result',
     result:{
       examId:R.exam.id, examTitle:R.exam.title, brand:R.exam.brand||'',
-      name:R.student.name, empId:R.student.id, branch:R.student.branch,
+      name:R.student.name, empId:R.student.id, branch:R.student.branch, position:R.student.position||'',
       pct:R.result.pct, correct:R.result.correct, total:R.result.total,
       result: R.result.pass?'ผ่าน':'ไม่ผ่าน', pass:R.result.pass,
       violations:R.violations, finishReason:R.finishReason,
@@ -4281,7 +4298,16 @@ function _examOf(id){ return EXAMS.find(function(x){ return x.id === id; }); }
 function loadExamRequests(){
   var q = isAdminMode ? 'scope=all'
         : 'branch=' + encodeURIComponent(currentBranchName || '');
+  var ck = 'reqs_' + (isAdminMode ? 'all' : (currentBranchName || '-'));
+  var old = _oeStashed(ck);
+  if(old && !_reqsLoaded){
+    EXAM_REQS = old.d;
+    _reqsLoaded = true;
+    if(isAdminMode){ renderExamRequests(); paintReqCount(); }
+    if(!$('branchView').classList.contains('hidden')) renderBranchExams();
+  }
   return apiGet('exam-requests', q).then(function(res){
+    if(res && res.ok && res.requests) _oeStash(ck, res.requests);
     EXAM_REQS = (res && res.ok && res.requests) ? res.requests : [];
     _reqsLoaded = true;
     if(isAdminMode){
@@ -4519,9 +4545,16 @@ function openReqForm(examId){
   if(!ex) return;
   _reqExam = ex;
   $('reqFormExam').textContent = ex.title;
-  $('reqFormBranch').textContent = currentBranchName || '—';
+  /* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนค่อยให้เลือกเอง */
+  var reg = oeBranchRegistry();
+  $('reqBranch').innerHTML = currentBranchName
+    ? '<option>' + esc(currentBranchName) + '</option>'
+    : '<option value="">— เลือกสาขา —</option>' +
+      reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('');
+  $('reqBranch').value = currentBranchName || '';
   $('reqName').value = '';
   $('reqEmpId').value = '';
+  $('reqPosition').value = '';
   $('reqFormMsg').textContent = '';
   $('reqModal').classList.add('show');
   setTimeout(function(){ $('reqName').focus(); }, 60);
@@ -4531,13 +4564,17 @@ function submitExamRequest(){
   var name = $('reqName').value.trim();
   if(!name){ $('reqFormMsg').textContent = 'กรุณากรอกชื่อ–สกุล'; $('reqName').focus(); return; }
   if(!$('reqEmpId').value.trim()){ $('reqFormMsg').textContent = 'กรุณากรอกรหัสพนักงาน'; $('reqEmpId').focus(); return; }
+  var branch = (currentBranchName || $('reqBranch').value || '').trim();
+  if(!branch){ $('reqFormMsg').textContent = 'กรุณาเลือกสาขา'; $('reqBranch').focus(); return; }
+  var position = $('reqPosition').value.trim();
+  if(!position){ $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); return; }
   if(!_reqExam) return;
   var btn = $('reqSendBtn'), old = btn.innerHTML;
   btn.innerHTML = '<span class="loading"></span> กำลังส่ง…'; btn.disabled = true;
   apiPost({ type: 'request-exam', req: {
     examId: _reqExam.id, examTitle: _reqExam.title, brand: _reqExam.brand || '',
-    branchCode: branchPin || '', branchName: currentBranchName || '',
-    name: name, empId: $('reqEmpId').value.trim(),
+    branchCode: branchPin || '', branchName: branch,
+    name: name, empId: $('reqEmpId').value.trim(), position: position,
   }}).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
     closeReqForm();
@@ -4674,7 +4711,9 @@ function _reqRow(r){
   return '<tr>'
     + '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.createdAt)) + '</td>'
     + '<td><div class="who-n">' + esc(r.name) + '</div>'
-    + (r.empId ? '<div class="who-s">' + esc(r.empId) + '</div>' : '') + '</td>'
+    + (r.empId || r.position
+        ? '<div class="who-s">' + [r.empId, r.position].filter(Boolean).map(esc).join(' · ') + '</div>'
+        : '') + '</td>'
     + '<td>' + esc(r.branchName || '—') + '</td>'
     + '<td>' + esc(r.examTitle) + '</td>'
     + '<td class="c"><span class="st ' + st.c + '">' + st.t + '</span></td>'
