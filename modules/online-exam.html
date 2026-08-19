@@ -875,6 +875,10 @@ select.txt{appearance:none;-webkit-appearance:none;
 .p-txt{width:100%;padding:12px 13px;border:1px solid var(--border);border-radius:11px;font-size:15px;background:var(--bg2);color:var(--text)}
 .p-txt:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(234,88,12,.12)}
 .p-txt[readonly]{background:var(--bg3);color:var(--text3)}
+/* ช่องที่ยังว่างตอนกดเริ่ม — ทำเครื่องหมายไว้ที่ช่องเลย ไม่ใช่ให้ไปไล่หาเอง */
+.p-fld.bad>span{color:var(--red)}
+.p-fld.bad .p-txt{border-color:var(--red);background:var(--red-soft)}
+.p-fld.bad .p-txt:focus{box-shadow:0 0 0 3px rgba(239,68,68,.14)}
 .p-btn{width:100%;padding:15px;border-radius:14px;font-weight:800;font-size:16px;background:var(--gold);color:#fff;
   box-shadow:0 10px 22px -12px rgba(234,88,12,.6);transition:background .15s}
 .p-btn:hover{background:#d94f0a}
@@ -1615,10 +1619,10 @@ label.fld>span>b{font-weight:800}
           </div>
           <div class="rules" id="exRules"></div>
           <div class="row-flex">
-            <label class="p-fld"><span>ชื่อ–สกุล *</span><input class="p-txt" id="inName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
-            <label class="p-fld"><span>รหัสพนักงาน</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off"></label>
+            <label class="p-fld"><span>ชื่อ–สกุล *</span><input class="p-txt" id="inName" placeholder="เช่น สมชาย ใจดี" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
+            <label class="p-fld"><span>รหัสพนักงาน *</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           </div>
-          <label class="p-fld"><span>สาขา</span><select class="p-txt" id="inBranch"></select></label>
+          <label class="p-fld"><span>สาขา *</span><select class="p-txt" id="inBranch" onchange="this.parentNode.classList.remove('bad')"></select></label>
           <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
           <p class="p-hint">แนะนำให้ทำบนคอมพิวเตอร์และไม่สลับหน้าจอ เพื่อให้ระบบกันโกงทำงานเต็มที่</p>
         </div>
@@ -1740,7 +1744,7 @@ label.fld>span>b{font-weight:800}
       </div>
       <label class="fld"><span>ชื่อ–สกุลผู้เข้าสอบ <b class="req">*</b></span>
         <input class="txt" id="reqName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
-      <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน</span>
+      <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน <b class="req">*</b></span>
         <input class="txt" id="reqEmpId" placeholder="เช่น 100234" autocomplete="off">
         <em class="fld-hint">ชื่อที่กรอกตรงนี้จะถูกใช้เป็นชื่อในผลสอบ แก้ตอนสอบไม่ได้</em></label>
       <div id="reqFormMsg" style="margin-top:10px;font-size:12.5px;color:var(--red);min-height:16px"></div>
@@ -3695,8 +3699,8 @@ function openExamRunner(exam, isPreview, ticket){
      และล็อกไว้ ผลสอบจะได้ตรงกับคนที่ขออนุมัติจริง ๆ */
   $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
   $('inId').value = R.student.id || '';
-  $('inName').readOnly = !!R.accessCode;
-  $('inId').readOnly = !!R.accessCode;
+  $('inName').readOnly = !!(R.accessCode && R.student.name);
+  $('inId').readOnly = !!(R.accessCode && R.student.id);
   /* สาขาที่ล็อกอินอยู่มีตัวเดียว ก็ให้เหลือตัวเลือกเดียว เลือกผิดไม่ได้
      โหมดทดลองของแอดมินไม่ได้ผูกกับสาขาไหน จึงให้เลือกจากทะเบียนได้ */
   var bsel = $('inBranch');
@@ -3728,10 +3732,40 @@ function closeExamOverlay(){
   if(isAdminMode){ loadResults(); }
 }
 
+/* ทำเครื่องหมายช่องที่ยังว่าง แล้วเด้งไปที่ช่องนั้น — บอกแค่ toast อย่างเดียว
+   ผู้สอบต้องไล่หาเองว่าช่องไหนขาด */
+function _oeFieldFail(id, msg){
+  var el = $(id);
+  if(el){
+    var wrap = el.parentNode;
+    if(wrap && wrap.classList) wrap.classList.add('bad');
+    el.focus();
+  }
+  toast(msg, 'err');
+  return false;
+}
 function beginExam(){
-  var name=$('inName').value.trim();
-  if(!name){ toast('กรุณากรอกชื่อ–สกุลก่อนเริ่ม','err'); $('inName').focus(); return; }
-  R.student={ name:name, id:$('inId').value.trim(), branch:currentBranchName||$('inBranch').value.trim() };
+  ['inName','inId','inBranch'].forEach(function(id){
+    var el = $(id);
+    if(el && el.parentNode && el.parentNode.classList) el.parentNode.classList.remove('bad');
+  });
+
+  var name = $('inName').value.trim();
+  if(!name) return _oeFieldFail('inName', 'กรุณากรอกชื่อ–สกุลก่อนเริ่ม');
+  var empId = $('inId').value.trim();
+  if(!empId) return _oeFieldFail('inId', 'กรุณากรอกรหัสพนักงานก่อนเริ่ม');
+
+  var branch = currentBranchName || $('inBranch').value.trim();
+  if(!branch){
+    /* ไม่มีสาขาให้เลือกเลย (ทะเบียนสาขายังไม่ถูกโหลดในเครื่องนี้) ก็บังคับไม่ได้
+       บอกให้ไปตั้งทะเบียนที่ฮับ ดีกว่ากั้นไว้เฉย ๆ โดยไม่มีทางไปต่อ */
+    var opts = $('inBranch').options, has = false;
+    for(var i = 0; i < opts.length; i++) if(opts[i].value) { has = true; break; }
+    if(has) return _oeFieldFail('inBranch', 'กรุณาเลือกสาขาก่อนเริ่ม');
+    return _oeFieldFail('inBranch', 'ยังไม่มีทะเบียนสาขาในเครื่องนี้ — เปิดหน้าฮับหนึ่งครั้งแล้วลองใหม่');
+  }
+
+  R.student={ name:name, id:empId, branch:branch };
   var CFG=R.exam;
   var qs=(CFG.questions||[]).map(function(item,qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
@@ -4272,6 +4306,7 @@ function closeReqForm(){ $('reqModal').classList.remove('show'); }
 function submitExamRequest(){
   var name = $('reqName').value.trim();
   if(!name){ $('reqFormMsg').textContent = 'กรุณากรอกชื่อ–สกุล'; $('reqName').focus(); return; }
+  if(!$('reqEmpId').value.trim()){ $('reqFormMsg').textContent = 'กรุณากรอกรหัสพนักงาน'; $('reqEmpId').focus(); return; }
   if(!_reqExam) return;
   var btn = $('reqSendBtn'), old = btn.innerHTML;
   btn.innerHTML = '<span class="loading"></span> กำลังส่ง…'; btn.disabled = true;
