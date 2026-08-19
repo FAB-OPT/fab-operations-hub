@@ -2186,8 +2186,15 @@ function pickBrand(key){
     switchTab(_oeFirstAllowedTab());
     if(!_dataLoaded){
       _dataLoaded=true;
-      /* ใช้ชุดข้อสอบก้อนเดียวกัน ไม่เรียกซ้ำสองรอบ — แค่วาดรายการฝั่งสาขาเพิ่มหลังโหลดเสร็จ */
-      loadExams().then(function(){ if(alsoBranch) renderBranchExams(); });
+      /* ใช้ชุดข้อสอบก้อนเดียวกัน ไม่เรียกซ้ำสองรอบ */
+      var _pExams = loadExams();
+      if(alsoBranch){
+        /* loadExams() วาดจากแคชในเครื่องให้ตั้งแต่ก่อนยิงเน็ต — ฝั่งสาขาก็ใช้ก้อนเดียวกันได้เลย
+           มีของอยู่แล้วจึงไม่ต้องขึ้น "กำลังโหลด" ให้รอเปล่า ๆ */
+        if(EXAMS.length) renderBranchExams();
+        else $('branchList').innerHTML = _oeSkelCards(3);
+        _pExams.then(function(){ renderBranchExams(); });
+      }
       loadResults(); loadExamRequests();
     } else {
       renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount();
@@ -4192,7 +4199,12 @@ function loadExamRequests(){
         : 'branch=' + encodeURIComponent(currentBranchName || '');
   return apiGet('exam-requests', q).then(function(res){
     EXAM_REQS = (res && res.ok && res.requests) ? res.requests : [];
-    if(isAdminMode){ renderExamRequests(); paintReqCount(); }
+    if(isAdminMode){
+      renderExamRequests();
+      paintReqCount();
+      /* บล็อกฝั่งสาขาโผล่มาด้วยเมื่อไร ก็ต้องวาดคำขอของตัวเองใหม่ด้วย */
+      if(!$('branchView').classList.contains('hidden')) renderBranchExams();
+    }
     else renderBranchExams();
   }).catch(function(e){
     /* ตั้งใจไม่เก็บคำขอลงเครื่อง — สถานะเปลี่ยนตลอด (รออนุมัติ → อนุมัติ → สอบแล้ว)
