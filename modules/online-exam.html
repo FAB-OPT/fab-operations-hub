@@ -806,6 +806,12 @@ select.txt{appearance:none;-webkit-appearance:none;
 
 /* ══════════════ คำขอสอบ + รหัสเข้าสอบ ══════════════ */
 .sec-h{font-weight:800;font-size:15px;letter-spacing:-.01em;margin:26px 0 12px}
+/* บล็อกฝั่งสาขาตอนไปเกาะอยู่ในหน้าจัดการ — ลดเหลือหัวข้อย่อย ไม่ต้องมีหัวเรื่องใหญ่ซ้อนอีกอัน */
+.ph-mini{display:none;font-weight:800;font-size:17px;letter-spacing:-.02em;margin-bottom:14px}
+#branchView.as-section .pagehead{display:none}
+#branchView.as-section .ph-mini{display:block}
+#branchView.as-section .shell{padding-bottom:0}
+#branchView.as-section .sec-h{margin-top:20px}
 .reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 .reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
 .rq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
@@ -1285,6 +1291,8 @@ label.fld>span>b{font-weight:800}
         <p class="ph-sub" id="branchSub">เลือกชุดข้อสอบที่ต้องทำด้านล่าง</p>
       </div>
     </header>
+    <!-- หัวข้อย่อยนี้ใช้แทนหัวเรื่องใหญ่ ตอนบล็อกนี้ไปเกาะอยู่ในหน้าจัดการ -->
+    <div class="ph-mini">สอบของฉัน</div>
     <div id="branchList"><div class="center-load"><span class="loading dark"></span> กำลังโหลดชุดข้อสอบ…</div></div>
     <div id="branchReqs"></div>
   </div>
@@ -2224,6 +2232,8 @@ function pickBrand(key){
      จึงต้องเห็นบล็อกฝั่งสาขาไว้ขอสิทธิ์สอบและกดทำข้อสอบด้วย · แอดมินเต็มไม่ต้อง */
   var _sess = getHubSession() || {};
   var alsoBranch = isAdminMode && _sess.role !== 'admin' && oeCan('request-exam');
+  /* as-section = โผล่มาเป็นส่วนหนึ่งของหน้าจัดการ ไม่ใช่หน้าเต็มของตัวเอง */
+  $('branchView').classList.toggle('as-section', !!alsoBranch);
   if(alsoBranch) $('branchView').classList.remove('hidden');
 
   if(isAdminMode){
@@ -4566,7 +4576,12 @@ function renderBranchReqs(){
             ? '<div class="reqtype"><label>กรอกรหัสจากผู้คุมสอบ</label>'
               + '<input id="rqc_' + esc(r.id) + '" maxlength="6" autocomplete="off" placeholder="••••••"></div>'
             : '<div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>')
-        : (r.status === 'used' ? '<div class="reqused">ทำเสร็จแล้ว</div>' : '<div class="reqwait">รอผู้ดูแลอนุมัติ</div>');
+        : (r.status === 'used'
+            ? (isAdminMode
+                ? '<button class="btn btn-soft" data-oe-action="view-results" onclick="oeSeeMyResult(\'' + _oeAttr(r.name) + '\')">' +
+                  '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> ดูผลสอบ</button>'
+                : '<div class="reqused">ทำเสร็จแล้ว</div>')
+            : '<div class="reqwait">รอผู้ดูแลอนุมัติ</div>');
       return '<article class="reqcard">'
         + '<div class="rq-top"><div><b>' + esc(r.name) + '</b>'
         + (r.empId ? '<span class="rq-id">' + esc(r.empId) + '</span>' : '') + '</div>'
@@ -4575,6 +4590,16 @@ function renderBranchReqs(){
         + code + act + '</article>';
     }).join('') + '</div>';
   oeApplyPerms();
+}
+
+/* ทางลัดจากการ์ดคำขอ → ตารางผลสอบ กรองชื่อคนนั้นไว้ให้เลย
+   ไม่ทำหน้าประวัติซ้อนขึ้นมาอีกชุด เพราะจะกลายเป็นสองที่ที่ต้องดูแลให้ตรงกัน */
+function oeSeeMyResult(name){
+  switchTab('results');
+  var q = $('fltSearch');
+  if(q){ q.value = name || ''; renderResults(); }
+  var t = $('paneResults');
+  if(t && t.scrollIntoView) t.scrollIntoView({ behavior:'smooth', block:'start' });
 }
 
 /* เริ่มสอบจากคำขอที่อนุมัติแล้ว — ตรวจรหัสกับหลังบ้านอีกรอบก่อนเปิดข้อสอบ
