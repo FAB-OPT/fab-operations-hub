@@ -681,13 +681,13 @@ select.txt{appearance:none;-webkit-appearance:none;
 .modal.show{display:flex;animation:fade .2s ease}
 .modal-box{background:var(--bg2);border-radius:20px;max-width:720px;width:100%;box-shadow:var(--shadow-lg);margin:auto}
 .modal-head{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 22px;
-  border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg2);border-radius:20px 20px 0 0;z-index:2}
+  border-bottom:1px solid var(--border);background:var(--bg2);border-radius:20px 20px 0 0}
 .modal-head h3{font-size:17px;font-weight:800;letter-spacing:-.015em}
 .modal-x{width:32px;height:32px;border-radius:9px;color:var(--text3);display:grid;place-items:center;font-size:19px;flex:0 0 auto}
 .modal-x:hover{background:var(--bg3);color:var(--text)}
 .modal-body{padding:20px 22px;background:var(--bg3)}
 .modal-foot{display:flex;gap:10px;justify-content:flex-end;padding:14px 22px;border-top:1px solid var(--border);
-  position:sticky;bottom:0;background:var(--bg2);border-radius:0 0 20px 20px}
+  background:var(--bg2);border-radius:0 0 20px 20px}
 .etabs{display:flex;gap:3px;margin:0 0 18px;padding:4px;background:var(--bg2);border:1px solid var(--border);border-radius:12px}
 .etab{flex:1;padding:9px 12px;font-size:13.5px;font-weight:700;color:var(--text2);border-radius:9px;transition:.14s;white-space:nowrap;text-align:center}
 .etab:hover{color:var(--text)}
@@ -4008,7 +4008,21 @@ document.addEventListener('DOMContentLoaded', function(){
   /* กดพื้นหลังหรือ Esc = ยกเลิก — ทางออกที่ปลอดภัยเสมอ */
   $('cfModal').addEventListener('click', function(e){ if(e.target === this) _cfClose(false); });
   document.addEventListener('keydown', function(e){
-    if(e.key === 'Escape' && $('cfModal').classList.contains('show')) _cfClose(false);
+    if(e.key !== 'Escape') return;
+    /* กล่องยืนยันมาก่อนเสมอ — มันซ้อนอยู่บนสุดและเป็นทางออกที่ปลอดภัย */
+    if($('cfModal').classList.contains('show')){ _cfClose(false); return; }
+    /* หัวกล่องไม่ได้ยึดติดขอบจอแล้ว กล่องยาว ๆ จะได้ปิดได้โดยไม่ต้องเลื่อนกลับขึ้นไปหาปุ่ม */
+    var boxes = [
+      ['infoModal',   closeExamInfo],
+      ['reqModal',    closeReqForm],
+      ['importModal', closeImport],
+      ['rdModal',     closeResultDetail],
+      ['editorModal', closeEditor]
+    ];
+    for(var i = 0; i < boxes.length; i++){
+      var el = $(boxes[i][0]);
+      if(el && el.classList.contains('show')){ boxes[i][1](); return; }
+    }
   });
 });
 
