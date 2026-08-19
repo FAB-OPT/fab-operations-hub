@@ -1150,7 +1150,7 @@ label.fld>span>b{font-weight:800}
     <nav class="segbar">
       <button class="seg active" id="tabExams" data-oe-action="view-exams" onclick="switchTab('exams')">
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
-        <span>ชุดข้อสอบ</span><em id="cntExams">0</em>
+        <span>ชุดข้อสอบ</span><em id="cntExams" hidden>0</em>
       </button>
       <button class="seg" id="tabReqs" data-oe-action="exam-approve" onclick="switchTab('reqs')">
         <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-6.2-8.6"/></svg>
@@ -1158,7 +1158,7 @@ label.fld>span>b{font-weight:800}
       </button>
       <button class="seg" id="tabResults" data-oe-action="view-results" onclick="switchTab('results')">
         <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
-        <span>ผลสอบ</span><em id="cntResults">0</em>
+        <span>ผลสอบ</span><em id="cntResults" hidden>0</em>
       </button>
     </nav>
 
@@ -2284,16 +2284,18 @@ function renderAdminRail(){
   h += '</section>';
 
   var pend = EXAM_REQS.filter(function(q){ return q.status === 'pending' && brandMatch(q); });
-  h += '<section class="rp"><div class="rp-h"><b>คำขอสอบที่รออนุมัติ</b>' +
-    (pend.length ? '<button onclick="switchTab(\'reqs\')">จัดการ</button>' : '') + '</div>';
-  h += pend.length
-    ? '<div class="rp-b">' + pend.slice(0, 5).map(function(q){
+  /* ไม่มีคำขอค้างก็ไม่ต้องมีกล่อง — กล่องเปล่าที่บอกว่า "ไม่มีอะไร" กินที่เปล่า ๆ
+     และซ้ำกับแท็บคำขอสอบที่บอกอยู่แล้วว่าไม่มี */
+  if(pend.length){
+    h += '<section class="rp"><div class="rp-h"><b>คำขอสอบที่รออนุมัติ</b>' +
+      '<button onclick="switchTab(\'reqs\')">จัดการ</button></div>' +
+      '<div class="rp-b">' + pend.slice(0, 5).map(function(q){
         return '<div class="ri"><span class="ri-id"><span class="ri-n">' + esc(q.name || q.empId || '—') + '</span>' +
           '<span class="ri-m">' + esc([q.branchName, q.examTitle].filter(Boolean).join(' · ')) + '</span></span></div>';
       }).join('') +
-      (pend.length > 5 ? '<div class="rp-empty">และอีก ' + (pend.length - 5) + ' คำขอ</div>' : '') + '</div>'
-    : '<div class="rp-empty">ไม่มีคำขอค้างอยู่</div>';
-  h += '</section>';
+      (pend.length > 5 ? '<div class="rp-empty">และอีก ' + (pend.length - 5) + ' คำขอ</div>' : '') +
+      '</div></section>';
+  }
 
   host.innerHTML = h;
 }
@@ -3791,7 +3793,8 @@ function loadExamRequests(){
 }
 function paintReqCount(){
   var n = EXAM_REQS.filter(function(r){ return r.status === 'pending' && brandMatch(r); }).length;
-  var el = $('cntReqs'); if(el) el.textContent = n;
+  /* ป้ายคำขอเป็นสัญญาณเตือน ไม่ใช่สถิติ — ไม่มีของค้างก็ไม่ต้องขึ้นเลข 0 ให้รก */
+  var el = $('cntReqs'); if(el){ el.textContent = n; el.hidden = !n; }
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
   renderAdminRail();
 }
