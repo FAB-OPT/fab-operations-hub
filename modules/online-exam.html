@@ -494,6 +494,8 @@ td.c,th.c{text-align:center}
 .rchip b{font-variant-numeric:tabular-nums;font-size:16px;font-weight:600;color:var(--text)}
 .rchip.ok b{color:#0b7a55}
 .rchip.bad b{color:var(--red)}
+.rchip i{font-style:normal;font-size:11.5px;color:var(--text3);margin-left:-2px}
+.rchip-lab{display:flex;align-items:center;font-size:12.5px;font-weight:700;color:var(--text3)}
 
 /* ผลสอบบนมือถือ — ตาราง 9 ช่องอ่านไม่ได้บนจอแคบ จึงวาดเป็นการ์ดแทน */
 .rescards{display:none}
@@ -2804,13 +2806,18 @@ function isPass(r){ return String(r.result)==='ผ่าน' || r.pass===true ||
 function fmtDT(iso){ if(!iso) return '—'; var d=new Date(iso); if(isNaN(d)) return iso; return d.toLocaleString('th-TH',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 
 /* สรุปตามตัวกรองที่เลือกอยู่ — ตัวเลขต้องขยับตามตัวกรอง ไม่งั้นดูแล้วเข้าใจผิด */
+/* แถบนี้เคยขึ้นตลอด ทั้งที่ตอนยังไม่กรองอะไร ตัวเลขซ้ำกับสี่ช่องสรุปหัวหน้าเป๊ะ ๆ
+   ให้โผล่เฉพาะตอนตัวกรองตัดรายการออกไปแล้ว — ตอนนั้นมันบอกสิ่งที่หัวหน้าบอกไม่ได้
+   คือ "เฉพาะที่กรองอยู่ตอนนี้ ผลเป็นยังไง" */
 function _oeResChips(list){
   var host = $('resChips'); if(!host) return;
-  if(!list.length){ host.innerHTML = ''; return; }
+  var all = RESULTS.filter(brandMatch).length;
+  if(!list.length || list.length === all){ host.innerHTML = ''; return; }
   var pass = list.filter(isPass).length;
   var flagged = list.filter(function(r){ return Number(r.violations||0) > 0; }).length;
   host.innerHTML =
-    '<div class="rchip">ทั้งหมด <b>' + list.length + '</b></div>' +
+    '<span class="rchip-lab">เฉพาะที่กรองอยู่</span>' +
+    '<div class="rchip">ผลที่กรองได้ <b>' + list.length + '</b> <i>จาก ' + all + '</i></div>' +
     '<div class="rchip ok">ผ่าน <b>' + pass + '</b></div>' +
     '<div class="rchip bad">ไม่ผ่าน <b>' + (list.length - pass) + '</b></div>' +
     '<div class="rchip">อัตราผ่าน <b>' + Math.round(pass / list.length * 100) + '%</b></div>' +
