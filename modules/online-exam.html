@@ -685,6 +685,42 @@ select.txt{appearance:none;-webkit-appearance:none;
 .q-choice .rm:hover,.q-head .rm:hover{background:var(--red-soft);color:var(--red)}
 .hint-line{font-size:11.5px;color:var(--text3);margin-top:5px}
 
+/* ── ดรอปดาวน์เลือกสาขา ──
+   ของเดิมให้พิมพ์ชื่อสาขาเองบรรทัดละอัน พิมพ์ผิดตัวเดียวสาขานั้นก็ไม่เห็นข้อสอบ
+   และไม่มีอะไรบอกว่าพิมพ์ถูกไหม · ดึงรายชื่อจากทะเบียนสาขาของฮับมาให้ติ๊กเลย */
+.bsel{position:relative}
+.bsel-btn{width:100%;display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:11px 13px;border:1px solid var(--border);border-radius:11px;background:var(--bg2);
+  font-size:13.5px;font-weight:600;color:var(--text);text-align:left;transition:.14s}
+.bsel-btn:hover{border-color:var(--border2)}
+.bsel-btn.on{border-color:var(--gold);box-shadow:0 0 0 3px rgba(255,122,26,.15)}
+.bsel-btn .cnt{color:var(--text3);font-weight:600}
+.bsel-btn svg{width:15px;height:15px;flex:0 0 auto;color:var(--text3)}
+.bsel-pop{position:absolute;left:0;right:0;top:calc(100% + 5px);z-index:30;display:none;
+  background:var(--bg2);border:1px solid var(--border2);border-radius:13px;box-shadow:var(--shadow-lg);
+  overflow:hidden}
+.bsel.open .bsel-pop{display:block}
+.bsel-search{padding:9px 11px;border-bottom:1px solid var(--border)}
+.bsel-search input{width:100%;border:1px solid var(--border);border-radius:9px;padding:8px 11px;
+  font-size:13px;font-family:inherit;background:var(--bg3)}
+.bsel-search input:focus{outline:none;border-color:var(--gold);background:var(--bg2)}
+.bsel-list{max-height:230px;overflow:auto;padding:5px}
+.bsel-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;
+  font-size:13px;cursor:pointer}
+.bsel-item:hover{background:var(--bg3)}
+.bsel-item input{width:16px;height:16px;accent-color:var(--gold);flex:0 0 auto}
+.bsel-item .cd{color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums}
+.bsel-none{padding:14px;text-align:center;font-size:12.5px;color:var(--text3)}
+.bsel-foot{display:flex;justify-content:space-between;gap:8px;padding:8px 11px;
+  border-top:1px solid var(--border);background:var(--bg3)}
+.bsel-foot button{font-size:12.5px;font-weight:700;color:var(--text2)}
+.bsel-foot button:hover{color:var(--gold)}
+.bsel-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.bsel-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
+  padding:4px 8px;border-radius:999px;background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold)}
+.bsel-tag button{color:inherit;font-size:14px;line-height:1;opacity:.7}
+.bsel-tag button:hover{opacity:1}
+
 .modal{position:fixed;inset:0;z-index:2000;display:none;align-items:flex-start;justify-content:center;
   padding:24px;background:rgba(16,24,40,.45);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);overflow-y:auto}
 .modal.show{display:flex;animation:fade .2s ease}
@@ -1334,9 +1370,27 @@ label.fld>span>b{font-weight:800}
               <input class="txt" id="edEnd" type="date">
               <em class="fld-hint">ว่างไว้ = ไม่กำหนดวันปิด</em></label>
           </div>
-          <label class="fld" style="margin:14px 0 0"><span>จำกัดเฉพาะบางสาขา</span>
-            <textarea class="txt" id="edBranches" rows="3" placeholder="สามย่าน&#10;ทองหล่อ&#10;เซ็นทรัลพระราม 2"></textarea>
-            <em class="fld-hint">บรรทัดละ 1 สาขา · ใส่บางส่วนของชื่อก็พอ · <b>เว้นว่าง = ทุกสาขาในแบรนด์</b></em></label>
+          <div class="fld" style="margin:14px 0 0"><span>จำกัดเฉพาะบางสาขา</span>
+            <!-- เก็บค่าจริงไว้ในช่องซ่อน (ชื่อสาขาบรรทัดละอัน) ตัวบันทึกชุดข้อสอบจึงไม่ต้องแก้ -->
+            <input type="hidden" id="edBranches">
+            <div class="bsel" id="edBranchSel">
+              <button type="button" class="bsel-btn" onclick="oeBranchSelToggle(event)">
+                <span id="edBranchLabel">ทุกสาขาในแบรนด์</span>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="bsel-pop">
+                <div class="bsel-search">
+                  <input type="text" id="edBranchSearch" placeholder="ค้นหาสาขา" oninput="oeBranchSelPaint()" autocomplete="off">
+                </div>
+                <div class="bsel-list" id="edBranchList"></div>
+                <div class="bsel-foot">
+                  <button type="button" onclick="oeBranchSelClear()">ล้างที่เลือก</button>
+                  <button type="button" onclick="oeBranchSelToggle(event,true)">เสร็จแล้ว</button>
+                </div>
+              </div>
+            </div>
+            <div class="bsel-tags" id="edBranchTags"></div>
+            <em class="fld-hint"><b>ไม่เลือกเลย = ทุกสาขาในแบรนด์นี้ทำได้</b></em></div>
         </section>
 
         <section class="form-sec">
@@ -1492,7 +1546,7 @@ label.fld>span>b{font-weight:800}
             <label class="p-fld"><span>ชื่อ–สกุล *</span><input class="p-txt" id="inName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
             <label class="p-fld"><span>รหัสพนักงาน</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off"></label>
           </div>
-          <label class="p-fld"><span>สาขา</span><input class="p-txt" id="inBranch" readonly></label>
+          <label class="p-fld"><span>สาขา</span><select class="p-txt" id="inBranch"></select></label>
           <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
           <p class="p-hint">แนะนำให้ทำบนคอมพิวเตอร์และไม่สลับหน้าจอ เพื่อให้ระบบกันโกงทำงานเต็มที่</p>
         </div>
@@ -2401,7 +2455,9 @@ function openExamEditor(id){
   $('edDraw').value = ex ? (parseInt(ex.drawCount) || 0) : 0;
   $('edStart').value = ex ? (ex.startDate||'') : '';
   $('edEnd').value = ex ? (ex.endDate||'') : '';
-  $('edBranches').value = ex && ex.visibleBranches ? ex.visibleBranches.join('\n') : '';
+  oeBranchSelSet((ex && ex.visibleBranches) ? ex.visibleBranches.slice() : []);
+  if($('edBranchSearch')) $('edBranchSearch').value = '';
+  oeBranchSelPaint();
   $('edNeedApprove').checked = ex ? ex.requireApproval!==false : true;
   /* ต้องเป็น ===true — ชุดเก่าที่ไม่มีค่านี้ถือว่าไม่ใช้รหัส กดเริ่มได้เลย */
   $('edNeedCode').checked = ex ? ex.requireCode===true : false;
@@ -3516,7 +3572,20 @@ function openExamRunner(exam, isPreview, ticket){
   $('inId').value = R.student.id || '';
   $('inName').readOnly = !!R.accessCode;
   $('inId').readOnly = !!R.accessCode;
-  $('inBranch').value = currentBranchName || (isPreview?'—':'');
+  /* สาขาที่ล็อกอินอยู่มีตัวเดียว ก็ให้เหลือตัวเลือกเดียว เลือกผิดไม่ได้
+     โหมดทดลองของแอดมินไม่ได้ผูกกับสาขาไหน จึงให้เลือกจากทะเบียนได้ */
+  var bsel = $('inBranch');
+  if(bsel){
+    var reg = oeBranchRegistry();
+    if(currentBranchName){
+      bsel.innerHTML = '<option>' + esc(currentBranchName) + '</option>';
+    } else {
+      bsel.innerHTML = '<option value="">— เลือกสาขา —</option>' +
+        reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('') +
+        (reg.length ? '' : '<option value="">(ยังไม่มีทะเบียนสาขาในเครื่องนี้)</option>');
+    }
+    bsel.value = currentBranchName || '';
+  }
   renderPwaTip(isPreview);
   exShow('ex-start');
   $('examOverlay').classList.add('show');
@@ -3842,6 +3911,92 @@ function paintReqCount(){
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
   renderAdminRail();
 }
+
+/* ═══ ทะเบียนสาขา (ยืมจากฮับ) ═══
+   ฮับเก็บไว้ที่ localStorage 'fab_branches_v1' — รหัสสาขา → ชื่อ พร้อมแมพแบรนด์และสถานะ
+   ระบบสอบแค่อ่านอย่างเดียว ไม่แก้ ไม่งั้นสองที่จะเถียงกันเองว่าสาขาไหนมีอยู่จริง */
+function oeBranchRegistry(){
+  var obj = null;
+  try{ obj = JSON.parse(localStorage.getItem('fab_branches_v1') || 'null'); }catch(e){}
+  if(!obj || !obj.branches) return [];
+  var brandMap = obj.brandMap || {}, statusMap = obj.statusMap || {};
+  var out = [];
+  Object.keys(obj.branches).forEach(function(code){
+    if(statusMap[code] === 'closed') return;          // สาขาปิดแล้ว ไม่ต้องเอามาให้เลือก
+    /* กรองตามแบรนด์ที่เปิดอยู่ · สาขาที่ยังไม่ได้ระบุแบรนด์ในทะเบียนก็ปล่อยผ่าน
+       ดีกว่าซ่อนจนเลือกไม่ได้เลยเพราะทะเบียนกรอกไม่ครบ */
+    var b = brandMap[code];
+    if(b && currentBrand && currentBrand !== 'all' && b !== currentBrand) return;
+    out.push({ code: code, name: String(obj.branches[code] || '').trim() });
+  });
+  return out.filter(function(x){ return x.name; })
+            .sort(function(a, b){ return a.name.localeCompare(b.name, 'th'); });
+}
+
+/* ── ดรอปดาวน์เลือกสาขาในตัวแก้ไขชุดข้อสอบ ── */
+/* ชื่อสาขาถูกยัดลงในแอตทริบิวต์ onclick — esc() แปลงให้แค่ & < > ไม่แตะเครื่องหมายคำพูด
+   ชื่อที่มี " หรือ ' ติดมาจะทำให้แท็กแตกทั้งรายการ จึงต้องแปลงเพิ่มเองก่อนใช้ */
+function _oeAttr(v){ return esc(v).replace(/"/g, '&quot;').replace(/'/g, '&#39;'); }
+function oeBranchSelValues(){
+  return ($('edBranches').value || '').split('\n').map(function(x){ return x.trim(); }).filter(Boolean);
+}
+function oeBranchSelSet(list){
+  $('edBranches').value = list.join('\n');
+  var lab = $('edBranchLabel');
+  if(lab) lab.textContent = list.length ? ('เลือกไว้ ' + list.length + ' สาขา') : 'ทุกสาขาในแบรนด์';
+  var tags = $('edBranchTags');
+  if(tags) tags.innerHTML = list.map(function(nm){
+    return '<span class="bsel-tag">' + esc(nm) +
+      '<button type="button" title="เอาออก" onclick="oeBranchSelDrop(\'' + _oeAttr(nm) + '\')">×</button></span>';
+  }).join('');
+}
+function oeBranchSelDrop(name){
+  oeBranchSelSet(oeBranchSelValues().filter(function(x){ return x !== name; }));
+  oeBranchSelPaint();
+}
+function oeBranchSelClear(){ oeBranchSelSet([]); oeBranchSelPaint(); }
+function oeBranchSelPaint(){
+  var host = $('edBranchList'); if(!host) return;
+  var q = (($('edBranchSearch') && $('edBranchSearch').value) || '').trim().toLowerCase();
+  var picked = oeBranchSelValues();
+  var all = oeBranchRegistry().filter(function(b){
+    return !q || b.name.toLowerCase().indexOf(q) >= 0 || b.code.indexOf(q) >= 0;
+  });
+  /* สาขาที่เคยบันทึกไว้แต่ไม่มีในทะเบียนแล้ว (เปลี่ยนชื่อ/ปิดไป) ต้องยังโชว์ให้เห็น
+     ไม่งั้นเปิดมาแก้ทีเดียวข้อจำกัดเดิมหายไปเงียบ ๆ */
+  picked.forEach(function(nm){
+    if(!all.some(function(b){ return b.name === nm; })) all.unshift({ code: '', name: nm });
+  });
+  if(!all.length){ host.innerHTML = '<div class="bsel-none">ไม่พบสาขาที่ค้นหา</div>'; return; }
+  host.innerHTML = all.map(function(b){
+    var on = picked.indexOf(b.name) >= 0;
+    return '<label class="bsel-item"><input type="checkbox"' + (on ? ' checked' : '') +
+      ' onchange="oeBranchSelPick(this,\'' + _oeAttr(b.name) + '\')">' +
+      '<span>' + esc(b.name) + '</span>' +
+      (b.code ? '<span class="cd">' + esc(b.code) + '</span>' : '') + '</label>';
+  }).join('');
+}
+function oeBranchSelPick(cb, name){
+  var list = oeBranchSelValues();
+  var i = list.indexOf(name);
+  if(cb.checked && i < 0) list.push(name);
+  if(!cb.checked && i >= 0) list.splice(i, 1);
+  oeBranchSelSet(list);
+}
+function oeBranchSelToggle(e, close){
+  if(e) e.stopPropagation();
+  var box = $('edBranchSel'); if(!box) return;
+  var open = close ? false : !box.classList.contains('open');
+  box.classList.toggle('open', open);
+  var btn = box.querySelector('.bsel-btn');
+  if(btn) btn.classList.toggle('on', open);
+  if(open){ oeBranchSelPaint(); setTimeout(function(){ $('edBranchSearch').focus(); }, 40); }
+}
+/* กดที่อื่นแล้วปิด — ไม่งั้นต้องกดปุ่มเดิมซ้ำถึงจะหุบ */
+document.addEventListener('click', function(e){
+  var box = $('edBranchSel');
+  if(box && box.classList.contains('open') && !box.contains(e.target)) oeBranchSelToggle(null, true);
+});
 
 /* ── ฝั่งสาขา: ขอสิทธิ์สอบ ── */
 function openReqForm(examId){
