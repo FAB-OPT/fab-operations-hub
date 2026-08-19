@@ -2239,7 +2239,8 @@ function pickBrand(key){
         else $('branchList').innerHTML = _oeSkelCards(3);
         _pExams.then(function(){ renderBranchExams(); });
       }
-      loadResults(); loadExamRequests();
+      if(alsoBranch){ loadExamRequests(); loadResults(); }
+      else { loadResults(); loadExamRequests(); }
     } else {
       renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount();
       if(alsoBranch) renderBranchExams();
@@ -3071,10 +3072,23 @@ function _oeScopeResults(rows){
   var zone = _oeMyZoneBranches();
   var note = $('admScopeNote');
   if(!zone){ if(note) note.textContent = ''; return rows; }
-  var kept = rows.filter(function(r){ return zone[_brandKey(r.branch)]; });
+
+  /* ชื่อสาขาทุกสาขาในทะเบียน (ทุกโซน) — ใช้แยกว่า "คนละโซน" กับ "ไม่รู้จักสาขานี้เลย" */
+  var known = {};
+  oeBranchRegistry().forEach(function(b){ known[_brandKey(b.name)] = 1; });
+
+  var hidden = 0;
+  var kept = rows.filter(function(r){
+    var k = _brandKey(r.branch);
+    if(zone[k]) return true;
+    if(!known[k]) return true;   // ทะเบียนไม่มีสาขานี้ ไม่รู้ว่าโซนใคร — ไม่ซ่อน
+    hidden++;
+    return false;
+  });
   if(note){
     note.textContent = 'แสดงเฉพาะผลสอบของสาขาในโซนที่คุณดูแล (' +
-      Object.keys(zone).length + ' สาขา)';
+      Object.keys(zone).length + ' สาขา)' +
+      (hidden ? ' · ซ่อนของโซนอื่นไว้ ' + hidden + ' รายการ' : '');
   }
   return kept;
 }
@@ -4234,6 +4248,7 @@ function submitResultToBackend(){
    เหมือนส่วนอื่นของระบบ · สิ่งที่กันได้จริงคือ "สอบโดยไม่มีใครอนุมัติ" กับ "สอบซ้ำ"
    ════════════════════════════════════════════════════════════════ */
 var EXAM_REQS = [];              // คำขอสอบทั้งหมดที่ดึงมาได้
+var _reqsLoaded = false;         // ดึงคำขอมาแล้วหรือยัง — ใช้แยก "ไม่มีคำขอ" ออกจาก "ยังโหลดไม่เสร็จ"
 var _reqFilter = 'pending';      // ตัวกรองสถานะฝั่งแอดมิน
 var _reqExam = null;             // ชุดข้อสอบที่กำลังขอสิทธิ์
 
@@ -4258,6 +4273,7 @@ function loadExamRequests(){
         : 'branch=' + encodeURIComponent(currentBranchName || '');
   return apiGet('exam-requests', q).then(function(res){
     EXAM_REQS = (res && res.ok && res.requests) ? res.requests : [];
+    _reqsLoaded = true;
     if(isAdminMode){
       renderExamRequests();
       paintReqCount();
@@ -4530,7 +4546,12 @@ function renderBranchReqs(){
   var host = $('branchReqs'); if(!host) return;
   var mine = EXAM_REQS.filter(function(r){ return brandMatch(r) && r.status !== 'rejected'; })
     .sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
-  if(!mine.length){ host.innerHTML = ''; return; }
+  if(!mine.length){
+    /* ยังโหลดไม่เสร็จ ≠ ไม่มีคำขอ — ขึ้นโครงการ์ดไว้ให้รู้ว่ากำลังรออยู่ */
+    host.innerHTML = _reqsLoaded ? '' :
+      '<div class="sec-h">คำขอสอบของสาขา</div>' + _oeSkelCards(2);
+    return;
+  }
   host.innerHTML = '<div class="sec-h">คำขอสอบของสาขา</div>'
     + '<div class="reqcards">' + mine.map(function(r){
       var st = _reqSt(r.status);
