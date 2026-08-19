@@ -806,12 +806,7 @@ select.txt{appearance:none;-webkit-appearance:none;
 
 /* ══════════════ คำขอสอบ + รหัสเข้าสอบ ══════════════ */
 .sec-h{font-weight:800;font-size:15px;letter-spacing:-.01em;margin:26px 0 12px}
-/* บล็อกฝั่งสาขาตอนไปเกาะอยู่ในหน้าจัดการ — ลดเหลือหัวข้อย่อย ไม่ต้องมีหัวเรื่องใหญ่ซ้อนอีกอัน */
-.ph-mini{display:none;font-weight:800;font-size:17px;letter-spacing:-.02em;margin-bottom:14px}
-#branchView.as-section .pagehead{display:none}
-#branchView.as-section .ph-mini{display:block}
-#branchView.as-section .shell{padding-bottom:0}
-#branchView.as-section .sec-h{margin-top:20px}
+#paneMine .sec-h:first-child{margin-top:0}
 .reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
 /* การ์ดสูงเท่ากันทั้งแถว แล้วดันปุ่มลงก้นการ์ด ปุ่มจะได้อยู่ระดับเดียวกันทุกใบ */
 .reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
@@ -1337,29 +1332,13 @@ label.fld>span>b{font-weight:800}
 </section>
 
 <!-- ═══════════ BRANCH VIEW (สาขา) ═══════════ -->
-<section id="branchView" class="hidden">
-  <div class="shell">
-    <header class="pagehead">
-      <div class="ph-main">
-        <div class="ph-eyebrow">ระบบสอบออนไลน์</div>
-        <h1 class="ph-title">แบบทดสอบสำหรับสาขา</h1>
-        <p class="ph-sub" id="branchSub">เลือกชุดข้อสอบที่ต้องทำด้านล่าง</p>
-      </div>
-    </header>
-    <!-- หัวข้อย่อยนี้ใช้แทนหัวเรื่องใหญ่ ตอนบล็อกนี้ไปเกาะอยู่ในหน้าจัดการ -->
-    <div class="ph-mini">สอบของฉัน</div>
-    <div id="branchList"><div class="center-load"><span class="loading dark"></span> กำลังโหลดชุดข้อสอบ…</div></div>
-    <div id="branchReqs"></div>
-  </div>
-</section>
-
 <!-- ═══════════ ADMIN VIEW ═══════════ -->
 <section id="adminView" class="hidden">
   <div class="shell">
     <header class="pagehead">
       <div class="ph-main">
-        <h1 class="ph-title">ภาพรวมระบบสอบ</h1>
-        <p class="ph-sub">สร้างชุดข้อสอบ มอบหมายให้สาขา และติดตามผลสอบทั้งหมดในที่เดียว</p>
+        <h1 class="ph-title" id="phTitle">ภาพรวมระบบสอบ</h1>
+        <p class="ph-sub" id="phSub">สร้างชุดข้อสอบ มอบหมายให้สาขา และติดตามผลสอบทั้งหมดในที่เดียว</p>
         <p class="ph-scope" id="admScopeNote"></p>
       </div>
       <div class="ph-actions">
@@ -1371,7 +1350,7 @@ label.fld>span>b{font-weight:800}
     <!-- ตัวเลขสรุป — ตอบคำถามแรกที่แอดมินอยากรู้โดยไม่ต้องกดเข้าไปดู -->
     <div class="kpis" id="admKpis"></div>
 
-    <nav class="segbar">
+    <nav class="segbar" id="segbar">
       <button class="seg active" id="tabExams" data-oe-action="view-exams" onclick="switchTab('exams')">
         <svg viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg>
         <span>ชุดข้อสอบ</span><em id="cntExams" hidden>0</em>
@@ -1384,7 +1363,17 @@ label.fld>span>b{font-weight:800}
         <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
         <span>ผลสอบ</span><em id="cntResults" hidden>0</em>
       </button>
+      <button class="seg" id="tabMine" data-oe-action="request-exam" onclick="switchTab('mine')">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>
+        <span>สอบของฉัน</span>
+      </button>
     </nav>
+
+    <!-- ══ แท็บ: สอบของฉัน (เดิมเป็นหน้าสาขาแยกต่างหาก) ══ -->
+    <div id="paneMine" class="hidden">
+      <div id="branchList"><div class="center-load"><span class="loading dark"></span> กำลังโหลดชุดข้อสอบ…</div></div>
+      <div id="branchReqs"></div>
+    </div>
 
     <!-- ══ แท็บ: ชุดข้อสอบ ══ -->
     <div id="paneExams" class="admwrap">
@@ -2233,7 +2222,6 @@ function showBrandGate(){
   }
   $('brandGate').classList.remove('hidden');
   $('adminView').classList.add('hidden');
-  $('branchView').classList.add('hidden');
   $('brandChip').classList.add('hidden');
   var extra = (isAdminMode && isAllBrandAdmin())
     ? '<button class="brand-all" onclick="pickBrand(\'all\')">ดูรวมทุกแบรนด์</button>'
@@ -2282,44 +2270,44 @@ function pickBrand(key){
   $('brandChip').classList.toggle('hidden', !multi);
   $('brandGate').classList.add('hidden');
 
-  /* สั่งทั้งสองหน้าเสมอ ไม่ใช่แค่เปิดหน้าที่ต้องการ — ไม่งั้นหน้าที่เปิดค้างไว้ก่อนหน้าจะไม่ถูกปิด */
-  $('adminView').classList.toggle('hidden', !isAdminMode);
-  $('branchView').classList.toggle('hidden', isAdminMode);
+  /* หน้าเดียวสำหรับทุกสิทธิ์ — ต่างกันแค่มีแท็บไหนบ้าง */
+  $('adminView').classList.remove('hidden');
 
-  /* บางบทบาท (เช่น BZM) เข้าหน้าจัดการเพื่อดูผลของโซนตัวเอง แต่ยังต้องสอบเองด้วย
-     จึงต้องเห็นบล็อกฝั่งสาขาไว้ขอสิทธิ์สอบและกดทำข้อสอบด้วย · แอดมินเต็มไม่ต้อง */
   var _sess = getHubSession() || {};
-  var alsoBranch = isAdminMode && _sess.role !== 'admin' && oeCan('request-exam');
-  /* as-section = โผล่มาเป็นส่วนหนึ่งของหน้าจัดการ ไม่ใช่หน้าเต็มของตัวเอง */
-  $('branchView').classList.toggle('as-section', !!alsoBranch);
-  if(alsoBranch) $('branchView').classList.remove('hidden');
+  var mine = oeCan('request-exam') || oeCan('take-exam');   // ต้องสอบเองด้วยไหม
 
-  if(isAdminMode){
-    switchTab(_oeFirstAllowedTab());
-    oeStartReqPoll();
-    if(!_dataLoaded){
-      _dataLoaded=true;
-      /* ใช้ชุดข้อสอบก้อนเดียวกัน ไม่เรียกซ้ำสองรอบ */
-      var _pExams = loadExams();
-      if(alsoBranch){
-        /* loadExams() วาดจากแคชในเครื่องให้ตั้งแต่ก่อนยิงเน็ต — ฝั่งสาขาก็ใช้ก้อนเดียวกันได้เลย
-           มีของอยู่แล้วจึงไม่ต้องขึ้น "กำลังโหลด" ให้รอเปล่า ๆ */
-        if(EXAMS.length) renderBranchExams();
-        else $('branchList').innerHTML = _oeSkelCards(3);
-        _pExams.then(function(){ renderBranchExams(); });
-      }
-      if(alsoBranch){ loadExamRequests(); loadResults(); }
-      else { loadResults(); loadExamRequests(); }
-    } else {
-      renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount();
-      if(alsoBranch) renderBranchExams();
+  /* หัวเรื่องเปลี่ยนตามว่าเข้ามาทำอะไร — คนที่เข้ามาสอบอย่างเดียวไม่ควรเจอคำว่า
+     "สร้างชุดข้อสอบ มอบหมายให้สาขา" ซึ่งไม่ใช่เรื่องของเขา */
+  var onlyMine = mine && !isAdminMode;
+  var who = currentBranchName || _sess.name || _sess.nick || ('รหัส ' + branchPin);
+  $('phTitle').textContent = onlyMine ? 'แบบทดสอบสำหรับสาขา' : 'ภาพรวมระบบสอบ';
+  $('phSub').textContent = onlyMine
+    ? (who + ' · แบรนด์ ' + b.name + ' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง')
+    : 'สร้างชุดข้อสอบ มอบหมายให้สาขา และติดตามผลสอบทั้งหมดในที่เดียว';
+  /* ตัวเลขสรุปเป็นเรื่องของคนที่ดูภาพรวม ไม่ใช่คนที่เข้ามาสอบ */
+  $('admKpis').classList.toggle('hidden', onlyMine);
+
+  _oePaintTabBar();
+  switchTab(_oeFirstAllowedTab());
+  if(isAdminMode || mine) oeStartReqPoll();
+
+  if(!_dataLoaded){
+    _dataLoaded = true;
+    /* ชุดข้อสอบใช้ก้อนเดียวกันทั้งฝั่งจัดการและฝั่งสอบเอง ไม่เรียกซ้ำสองรอบ */
+    var pExams = isAdminMode ? loadExams() : loadBranchExams();
+    if(mine && isAdminMode){
+      /* loadExams() วาดจากแคชในเครื่องให้ตั้งแต่ก่อนยิงเน็ต — ฝั่งสอบเองใช้ก้อนเดียวกันได้เลย */
+      if(EXAMS.length) renderBranchExams();
+      else $('branchList').innerHTML = _oeSkelCards(3);
+      pExams.then(function(){ renderBranchExams(); });
     }
+    /* คนที่ต้องสอบเองด้วย ให้คำขอมาก่อนผลสอบ — Apps Script รับทีละคำขอ
+       และคำขอคือของที่เขากดเข้ามาเพื่อจะสอบ ส่วนผลสอบเอาไว้ดูย้อนหลัง */
+    if(mine){ loadExamRequests(); if(isAdminMode) loadResults(); }
+    else { loadResults(); loadExamRequests(); }
   } else {
-    var _s = getHubSession();
-    var who = currentBranchName || (_s && (_s.name || _s.nick)) || ('รหัส '+branchPin);
-    $('branchSub').textContent = who+' · แบรนด์ '+b.name+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
-    if(!_dataLoaded){ _dataLoaded=true; loadBranchExams(); loadExamRequests(); }
-    else { renderBranchExams(); }
+    if(isAdminMode){ renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount(); }
+    if(mine) renderBranchExams();
   }
 }
 // กรองชุดข้อสอบตามแบรนด์ที่เลือก (แบรนด์ว่าง = ใช้ได้ทุกแบรนด์)
@@ -2392,20 +2380,28 @@ function brandMatch(ex){
 }
 
 /* ═════════════════════ ADMIN: TABS ═════════════════════ */
-/* แท็บแรกที่ผู้ใช้คนนี้มีสิทธิ์เข้าจริง — ใช้เป็นแท็บตั้งต้นตอนเปิดหน้า
-   ไม่ใช่เปิดแท็บชุดข้อสอบไว้ตายตัวแล้วหวังว่าทุกคนจะมีสิทธิ์ */
-function _oeFirstAllowedTab(){
-  if(oeCan('view-exams')) return 'exams';
-  if(oeCan('exam-approve')) return 'reqs';
-  return 'results';
-}
+var OE_TABS = [
+  { id:'exams',   btn:'tabExams',   pane:'paneExams',   perm:'view-exams' },
+  { id:'reqs',    btn:'tabReqs',    pane:'paneReqs',    perm:'exam-approve' },
+  { id:'results', btn:'tabResults', pane:'paneResults', perm:'view-results' },
+  { id:'mine',    btn:'tabMine',    pane:'paneMine',    perm:'request-exam' }
+];
 function switchTab(t){
-  $('tabExams').classList.toggle('active', t==='exams');
-  $('tabReqs').classList.toggle('active', t==='reqs');
-  $('tabResults').classList.toggle('active', t==='results');
-  $('paneExams').classList.toggle('hidden', t!=='exams');
-  $('paneReqs').classList.toggle('hidden', t!=='reqs');
-  $('paneResults').classList.toggle('hidden', t!=='results');
+  OE_TABS.forEach(function(x){
+    $(x.btn).classList.toggle('active', t === x.id);
+    $(x.pane).classList.toggle('hidden', t !== x.id);
+  });
+}
+/* แท็บแรกที่ผู้ใช้คนนี้มีสิทธิ์เข้าจริง — ใช้เป็นแท็บตั้งต้นตอนเปิดหน้า */
+function _oeFirstAllowedTab(){
+  var ok = OE_TABS.filter(function(x){ return oeCan(x.perm); });
+  return ok.length ? ok[0].id : 'mine';
+}
+/* มีแท็บให้เลือกอันเดียวก็ไม่ต้องมีแถบแท็บ — กดไปก็ไม่ได้ไปไหน มีแต่กินที่ */
+function _oePaintTabBar(){
+  var vis = OE_TABS.filter(function(x){ return oeCan(x.perm); }).length;
+  var bar = $('segbar');
+  if(bar) bar.classList.toggle('hidden', vis <= 1);
 }
 
 /* ═════════════════════ LOAD EXAMS ═════════════════════ */
@@ -4378,7 +4374,7 @@ function loadExamRequests(){
     EXAM_REQS = old.d;
     _reqsLoaded = true;
     if(isAdminMode){ renderExamRequests(); paintReqCount(); }
-    if(!$('branchView').classList.contains('hidden')) renderBranchExams();
+    if(oeCan('request-exam')) renderBranchExams();
   }
   return apiGet('exam-requests', q).then(function(res){
     if(res && res.ok && res.requests) _oeStash(ck, res.requests);
@@ -4387,8 +4383,8 @@ function loadExamRequests(){
     if(isAdminMode){
       renderExamRequests();
       paintReqCount();
-      /* บล็อกฝั่งสาขาโผล่มาด้วยเมื่อไร ก็ต้องวาดคำขอของตัวเองใหม่ด้วย */
-      if(!$('branchView').classList.contains('hidden')) renderBranchExams();
+      /* มีแท็บสอบของฉันอยู่ด้วยเมื่อไร ก็ต้องวาดคำขอของตัวเองใหม่ด้วย */
+      if(oeCan('request-exam')) renderBranchExams();
     }
     else renderBranchExams();
   }).catch(function(e){
@@ -4405,7 +4401,8 @@ var _reqTick = 0;           // นับรอบจับเวลา ใช้
 /* เงื่อนไขที่ควรดึงคำขอซ้ำ — หน้าจัดการเปิดอยู่ แท็บนี้ถูกมองอยู่ และไม่ได้กำลังสอบ
    ไม่ดึงตอนกำลังสอบ เพราะ Apps Script รับทีละคำขอ จะไปแย่งคิวของคนที่กำลังทำข้อสอบ */
 function _oeShouldPollReqs(){
-  if(document.hidden || !isAdminMode) return false;
+  if(document.hidden) return false;
+  if(!isAdminMode && !oeCan('request-exam')) return false;
   if($('adminView').classList.contains('hidden')) return false;
   if($('examOverlay').classList.contains('show')) return false;
   return true;
@@ -4419,8 +4416,11 @@ function oeStartReqPoll(){
        อยู่แท็บอื่น = ดึงห่างหน่อย (ทุก ~50 วิ) พอให้ป้ายเลขบนแท็บอัปเดตทัน
        ไม่ตั้งไวกว่า 10 วิ เพราะ Apps Script คิด "เวลารันรวมต่อวัน" เป็นโควตา
        ยิงถี่ทั้งวันจะกินโควตาจนทั้งฮับใช้ไม่ได้ ไม่ใช่แค่ระบบสอบ */
-    var onReqTab = $('tabReqs').classList.contains('active');
-    if(onReqTab || _reqTick % 5 === 0) loadExamRequests();
+    /* จ้องแท็บที่เกี่ยวกับคำขออยู่ = กำลังรอของ ดึงทุก 10 วิ
+       ฝั่งผู้ดูแลคือแท็บคำขอสอบ · ฝั่งสาขาคือแท็บสอบของฉัน */
+    var watching = $('tabReqs').classList.contains('active') ||
+                   $('tabMine').classList.contains('active');
+    if(watching || _reqTick % 5 === 0) loadExamRequests();
   }, 10000);
   /* กลับมาที่แท็บนี้เมื่อไรก็ดึงทันที ไม่ต้องรอครบรอบ */
   document.addEventListener('visibilitychange', function(){
