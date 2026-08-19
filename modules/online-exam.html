@@ -4569,23 +4569,37 @@ function submitExamRequest(){
   var position = $('reqPosition').value.trim();
   if(!position){ $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); return; }
   if(!_reqExam) return;
-  var btn = $('reqSendBtn'), old = btn.innerHTML;
-  btn.innerHTML = '<span class="loading"></span> กำลังส่ง…'; btn.disabled = true;
-  apiPost({ type: 'request-exam', req: {
+  var req = {
     examId: _reqExam.id, examTitle: _reqExam.title, brand: _reqExam.brand || '',
     branchCode: branchPin || '', branchName: branch,
-    name: name, empId: $('reqEmpId').value.trim(), position: position,
-  }}).then(function(res){
+    name: name, empId: $('reqEmpId').value.trim(), position: position
+  };
+
+  /* ขึ้นการ์ด "รออนุมัติ" ไว้ก่อนเลย · id ขึ้นต้นด้วย _tmp_ เพื่อให้รู้ว่ายังไม่ใช่ของจริง
+     การ์ดสถานะนี้ไม่มีปุ่มอะไรให้กด จึงไม่มีทางเผลอทำอะไรกับแถวปลอม */
+  var tmpId = '_tmp_' + Date.now();
+  EXAM_REQS = EXAM_REQS.concat([{
+    id: tmpId, createdAt: new Date().toISOString(), status: 'pending',
+    examId: req.examId, examTitle: req.examTitle, brand: req.brand,
+    branchCode: req.branchCode, branchName: req.branchName,
+    name: req.name, empId: req.empId, position: req.position, code: ''
+  }]);
+  closeReqForm();
+  renderBranchExams();
+  toast('ส่งคำขอแล้ว — รอผู้ดูแลอนุมัติ');
+
+  apiPost({ type: 'request-exam', req: req }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
-    closeReqForm();
-    showExamInfo(res.duplicate ? 'ส่งคำขอไปแล้ว' : 'ส่งคำขอแล้ว',
-      res.duplicate
-        ? 'คำขอของ <b>' + esc(name) + '</b> อยู่ในระบบอยู่แล้ว' + (res.code ? ' · รหัสเข้าสอบ <b>' + esc(res.code) + '</b>' : ' รออนุมัติอยู่')
-        : 'รอผู้ดูแลอนุมัติ แล้วรหัสเข้าสอบจะขึ้นที่หน้านี้');
+    if(res.duplicate){
+      toast(res.code ? ('มีคำขอนี้อยู่แล้ว · รหัสเข้าสอบ ' + res.code) : 'มีคำขอนี้อยู่แล้ว รออนุมัติอยู่');
+    }
     loadExamRequests();
   }).catch(function(e){
-    $('reqFormMsg').textContent = e.message || 'ส่งคำขอไม่สำเร็จ';
-  }).finally(function(){ btn.innerHTML = old; btn.disabled = false; });
+    /* ถอนการ์ดที่ขึ้นไว้ก่อนออก ไม่งั้นจะเข้าใจว่าส่งไปแล้วทั้งที่ยังไม่ถึงระบบ */
+    EXAM_REQS = EXAM_REQS.filter(function(x){ return x.id !== tmpId; });
+    renderBranchExams();
+    toast('ส่งคำขอไม่สำเร็จ: ' + (e.message || 'เชื่อมต่อไม่ได้') + ' — ลองใหม่อีกครั้ง', 'err');
+  });
 }
 
 /* รายการคำขอของสาขาตัวเอง — ที่ที่รหัสเข้าสอบจะมาโผล่ */
