@@ -4346,6 +4346,7 @@ function loadExamRequests(){
 }
 var _reqPollId = null;      // ตัวจับเวลาดึงคำขอซ้ำ — มีได้ตัวเดียว
 var _reqSeenPending = null; // จำนวนที่ค้างอยู่รอบก่อน ใช้ดูว่ามีของใหม่เข้ามาไหม
+var _reqTick = 0;           // นับรอบจับเวลา ใช้ยืดจังหวะดึงตอนไม่ได้จ้องแท็บคำขอ
 
 /* เงื่อนไขที่ควรดึงคำขอซ้ำ — หน้าจัดการเปิดอยู่ แท็บนี้ถูกมองอยู่ และไม่ได้กำลังสอบ
    ไม่ดึงตอนกำลังสอบ เพราะ Apps Script รับทีละคำขอ จะไปแย่งคิวของคนที่กำลังทำข้อสอบ */
@@ -4358,8 +4359,15 @@ function _oeShouldPollReqs(){
 function oeStartReqPoll(){
   if(_reqPollId) return;
   _reqPollId = setInterval(function(){
-    if(_oeShouldPollReqs()) loadExamRequests();
-  }, 45000);
+    if(!_oeShouldPollReqs()) return;
+    _reqTick++;
+    /* จ้องแท็บคำขออยู่ = กำลังรอของ ดึงทุก 10 วิ
+       อยู่แท็บอื่น = ดึงห่างหน่อย (ทุก ~50 วิ) พอให้ป้ายเลขบนแท็บอัปเดตทัน
+       ไม่ตั้งไวกว่า 10 วิ เพราะ Apps Script คิด "เวลารันรวมต่อวัน" เป็นโควตา
+       ยิงถี่ทั้งวันจะกินโควตาจนทั้งฮับใช้ไม่ได้ ไม่ใช่แค่ระบบสอบ */
+    var onReqTab = $('tabReqs').classList.contains('active');
+    if(onReqTab || _reqTick % 5 === 0) loadExamRequests();
+  }, 10000);
   /* กลับมาที่แท็บนี้เมื่อไรก็ดึงทันที ไม่ต้องรอครบรอบ */
   document.addEventListener('visibilitychange', function(){
     if(_oeShouldPollReqs()) loadExamRequests();
