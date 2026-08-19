@@ -3956,6 +3956,25 @@ function beginExam(){
   }
 
   R.student={ name:name, id:empId, branch:branch, position:position };
+
+  /* ตรวจรหัสยังไม่จบ (เน็ตช้ากว่าคนกรอกฟอร์ม) — รอให้จบก่อน ห้ามเปิดคำถาม
+     ตรวจไม่ผ่านก็ปิดหน้าสอบแล้วบอกเหตุผล */
+  if(R.verify){
+    var vb = $('btnBeginExam'), vOld = vb.innerHTML;
+    vb.disabled = true; vb.innerHTML = '<span class="loading"></span> กำลังตรวจรหัส…';
+    R.verify.then(function(){
+      vb.disabled = false; vb.innerHTML = vOld;
+      R.verify = null;
+      beginExam();
+    }).catch(function(e){
+      vb.disabled = false; vb.innerHTML = vOld;
+      closeExamOverlay();
+      showExamInfo('เริ่มสอบไม่ได้', esc(e.message || 'ใช้รหัสนี้ไม่ได้'));
+      loadExamRequests();
+    });
+    return;
+  }
+
   var CFG=R.exam;
   var qs=(CFG.questions||[]).map(function(item,qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
@@ -4670,18 +4689,28 @@ function startWithCode(reqId){
       return;
     }
   }
+  /* เปิดหน้าเตรียมสอบให้เลย แล้วตรวจรหัสคู่ขนานไป */
+  openExamRunner(ex, false, {
+    code: code, name: r.name, empId: r.empId,
+    position: r.position, branchName: r.branchName
+  });
+
   /* ถามหลังบ้านทุกครั้งก่อนเปิดข้อสอบ ต่อให้ไม่ได้ใช้รหัส — หน้าจอที่ค้างข้อมูลเก่าไว้
      จะได้ไม่เปิดสอบซ้ำหลังคนอื่นทำไปแล้วจากอีกเครื่อง */
-  apiPost({ type: 'verify-exam-code', code: code, examId: r.examId }).then(function(res){
+  R.verify = apiPost({ type: 'verify-exam-code', code: code, examId: r.examId }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ใช้รหัสนี้ไม่ได้');
     /* ยึดชื่อตามเจ้าของรหัสที่หลังบ้านตอบมา ไม่ใช่ชื่อบนการ์ดที่กด
        พิมพ์รหัสของอีกคนก็จะสอบในนามเจ้าของรหัสนั้น ผลไม่หลงคน */
     var who = (res.request || r);
-    openExamRunner(ex, false, { code: code, name: who.name || r.name, empId: who.empId || r.empId });
-  }).catch(function(e){
-    showExamInfo('เริ่มสอบไม่ได้', esc(e.message || 'ใช้รหัสนี้ไม่ได้'));
-    loadExamRequests();
+    if(who.name){  $('inName').value = who.name; }
+    if(who.empId){ $('inId').value  = who.empId; }
+    if(who.position && !$('inPosition').value) $('inPosition').value = who.position;
+    /* ตรวจผ่านก่อนที่คนจะกดเริ่ม — เคลียร์ทิ้งเลย ตอนกดเริ่มจะได้ไม่ต้องแวะรออีก */
+    if(R) R.verify = null;
+    return true;
   });
+  /* ผูก catch เปล่าไว้กันคำเตือน unhandled rejection · ตัวจริงไปจัดการตอนกดเริ่ม */
+  R.verify.catch(function(){});
 }
 
 /* ── ฝั่งแอดมิน: อนุมัติ ── */
