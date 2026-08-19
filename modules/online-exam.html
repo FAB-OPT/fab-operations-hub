@@ -2009,16 +2009,36 @@ function oeLoadPermsFromHub(){
     })
     .catch(function(e){ console.warn('[perms] โหลดสิทธิ์จาก HUB ไม่ได้ — ใช้ค่าเดิม', e); });
 }
+/* ค่าเริ่มต้นของสิทธิ์ — ชุดเดียวกับที่ประกาศไว้ในหน้าตั้งค่าสิทธิ์ของฮับ (index.html)
+   ใช้ตอนที่แถวนั้นยังไม่เคยถูกบันทึก · แก้ที่ฮับเมื่อไรต้องแก้ตรงนี้ให้ตรงกันด้วย */
+var OE_PERM_DEFAULTS = {
+  'view-admin':   ['admin','support'],
+  'view-exams':   ['admin','support','coo','vp','bzm'],
+  'view-results': ['admin','support','coo','vp','bzm'],
+  'exam-create':  ['admin','support'],
+  'exam-import':  ['admin','support'],
+  'exam-delete':  ['admin'],
+  'exam-approve': ['admin','support'],
+  'request-exam': ['branch'],
+  'take-exam':    ['branch']
+};
+function _oeRole(){
+  var s = getHubSession() || {};
+  return s.role || sessionStorage.getItem('fab_role') || '';
+}
 function oeCan(actionId){
-  if(!OE_PERMS || !actionId) return true;
-  var p = OE_PERMS[actionId];
-  if(!p) return true;
+  if(!actionId) return true;
+  var p = OE_PERMS && OE_PERMS[actionId];
+  /* ไม่มีแถวนี้ในตารางที่บันทึกไว้ → ใช้ค่าเริ่มต้น ไม่ใช่ปล่อยผ่านให้ทุกคน */
+  if(!p){
+    var def = OE_PERM_DEFAULTS[actionId];
+    return def ? def.indexOf(_oeRole()) >= 0 : true;
+  }
   var s = getHubSession() || {};
   var code = String(s.code || '');
   if(code && (p.deny  || []).indexOf(code) >= 0) return false;
   if(code && (p.allow || []).indexOf(code) >= 0) return true;
-  var role = s.role || sessionStorage.getItem('fab_role') || '';
-  return (p.roles || []).indexOf(role) >= 0;
+  return (p.roles || []).indexOf(_oeRole()) >= 0;
 }
 /* ซ่อนแท็บ/ปุ่มที่ไม่มีสิทธิ์ — ใส่ data-oe-action ไว้ที่ element ที่ต้องการคุม */
 /* ใช้ class แทนการเซ็ต style.display ตรง ๆ
@@ -2028,7 +2048,7 @@ function oeCan(actionId){
    นอกนั้นดูจากสิทธิ์ "เข้าหน้าจัดการ" ที่เปิด/ปิดได้ในฮับ */
 function _oeAdminAllowed(sess){
   if(sess && sess.role === 'admin') return true;
-  return oeCan('view-admin');
+  return oeCan('view-admin') || oeCan('view-results');
 }
 
 /* สิทธิ์จากฮับมาถึงทีหลัง (ตอนเปิดหน้าใช้ของที่แคชไว้ก่อน)
@@ -2038,7 +2058,10 @@ function _oeResyncMode(){
   var should = _oeAdminAllowed(getHubSession());
   if(should === isAdminMode) return;
   isAdminMode = should;
-  showBrandGate();
+  /* เลือกแบรนด์ไปแล้วก็เข้าแบรนด์เดิมต่อเลย ไม่ต้องลากกลับไปหน้าเลือกแบรนด์
+     ให้เห็นหน้าเลือกแบรนด์แวบหนึ่งแล้วเด้งกลับ ดูเหมือนหน้าเว็บกระตุก */
+  if(currentBrand) pickBrand(currentBrand);
+  else showBrandGate();
 }
 
 function oeApplyPerms(){
