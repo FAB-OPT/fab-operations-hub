@@ -2912,8 +2912,16 @@ function printResultReport(){
   if(!w){ toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up แล้วลองใหม่','err'); return; }
   w.document.write(_oeReportHtml(r));
   w.document.close();
-  /* รอให้ฟอนต์กับเลย์เอาต์นิ่งก่อนสั่งพิมพ์ ไม่งั้นบางเครื่องได้หน้าเปล่า */
-  w.onload = function(){ setTimeout(function(){ w.focus(); w.print(); }, 350); };
+  /* รอให้ฟอนต์โหลดเสร็จจริงก่อนค่อยสั่งพิมพ์ — นับเวลาเอาเฉย ๆ ไม่พอ
+     เน็ตอืดทีไรก็ได้ใบที่ตกไปเป็นฟอนต์ระบบแทน · ตั้งเพดานไว้กันเหนียวด้วย
+     เผื่อกรณีโหลดฟอนต์ไม่ได้เลย จะได้ไม่ค้างไม่ยอมพิมพ์ */
+  var printed = false;
+  function go(){ if(printed) return; printed = true; w.focus(); w.print(); }
+  w.onload = function(){
+    var ready = w.document.fonts && w.document.fonts.ready;
+    if(ready && ready.then) ready.then(function(){ setTimeout(go, 120); });
+    setTimeout(go, 2500);
+  };
 }
 function _oeReportHtml(r){
   var pass = isPass(r);
@@ -2926,13 +2934,17 @@ function _oeReportHtml(r){
   var v = Number(r.violations || 0);
   var um = _oeUsedMin(r);
   var per = (um != null && total > 0) ? (um / total) : null;
-  var bi = brandInfo(r.brand || currentBrand) || {};
-
   /* เกณฑ์ผ่านติดอยู่กับชุดข้อสอบ ไม่ได้เก็บลงผลสอบ — ตามไปหาจะได้พิมพ์ลงใบ
      ถ้าชุดถูกลบไปแล้วก็เว้นแถวนั้นทิ้ง ดีกว่าเดาตัวเลขใส่เอกสารที่ต้องเซ็น */
   var ex = (EXAMS || []).find(function(e){
     return (r.examId && e.id === r.examId) || (!r.examId && e.title === r.examTitle);
   });
+
+  /* หัวใบใช้โลโก้ของแบรนด์เจ้าของผลสอบ ไม่ใช่แบรนด์ที่แอดมินเปิดค้างอยู่
+     ผลเก่าบางใบไม่มี brand ติดมา จึงถอยไปดูที่ชุดข้อสอบก่อน ค่อยมาที่แบรนด์ที่เลือก
+     ถ้าเปิดอยู่แบบ "ทุกแบรนด์" ก็ปล่อยหัวว่าง ดีกว่าขึ้นคำว่าทุกแบรนด์บนใบที่ต้องเซ็น */
+  var bkey = r.brand || (ex && ex.brand) || currentBrand;
+  var bi = (bkey && bkey !== 'all') ? (brandInfo(bkey) || {}) : {};
   var passMark = (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
 
   /* ช่องติ๊กแบบฟอร์มกระดาษ — เอกสารทางการตัดสินด้วยเครื่องหมายถูก ไม่ใช่ป้ายสี
@@ -2968,24 +2980,14 @@ function _oeReportHtml(r){
     ['ผู้อนุมัติ', '(ผู้จัดการสาขา / VP.)']
   ];
 
-  /* ฟอนต์ตามแบบฟอร์มของบริษัท (ดูไฟล์ ฟอร์ม.xlsx): ไทยเป็น Angsana New
-     ส่วนตัวเลขกับภาษาอังกฤษเป็น Tahoma — Excel แยกสองฟอนต์ในเซลล์เดียวได้
-     บนเว็บต้องใช้ unicode-range บังคับ ไม่งั้น Angsana จะกินตัวอังกฤษไปด้วย
-     size-adjust ย่อ Tahoma ลงให้สูงเท่า Angsana เพราะขนาด pt เท่ากันแต่ตัวไม่เท่า
-
-     Angsana ตัวเล็กกว่าฟอนต์ระบบมาก ใบนี้จึงตั้งฐานไว้ 15pt · ขนาดจุดอื่นผูกกับ em
-     เครื่องไหนไม่มีฟอนต์ไทยพวกนี้ สคริปต์ข้างล่างจะย่อฐานลงให้ที่เดียวจบ */
+  /* Sarabun ตัวเดียวกับทั้งฮับ — ใบนี้เคยเป็นที่เดียวในระบบที่ใช้ฟอนต์อื่น
+     ขนาดฐาน 11pt · ขนาดจุดอื่นในใบผูกกับ em หมด ปรับที่เดียวขยับทั้งใบ */
   var css = [
     '@page{size:A4;margin:12mm 12mm 10mm}',
     '*{box-sizing:border-box;margin:0;padding:0}',
-    "@font-face{font-family:'DocLatin';src:local('Tahoma'),local('Segoe UI');size-adjust:74%;",
-    '  unicode-range:U+0000-052F,U+2000-206F,U+2190-2BFF}',
-    "body{font-family:'DocLatin','Angsana New','AngsanaUPC','TH Sarabun New','Sarabun',",
-    '  \'Leelawadee UI\',Tahoma,sans-serif;',
-    '  font-size:15pt;color:#111827;line-height:1.35;',
+    "body{font-family:'Sarabun','Leelawadee UI',Tahoma,sans-serif;",
+    '  font-size:11pt;color:#111827;line-height:1.5;',
     '  -webkit-print-color-adjust:exact;print-color-adjust:exact}',
-    "html.sysfont body{font-family:'Sarabun','Leelawadee UI',Tahoma,sans-serif;",
-    '  font-size:10.5pt;line-height:1.45}',
     /* หัวกระดาษเป็นตาราง ไม่ใช่ flex — ชื่อเรื่องจะได้อยู่กลางแผ่นจริง
        ไม่ขยับตามความกว้างโลโก้ของแต่ละแบรนด์ */
     '.hd{width:100%;border-collapse:collapse}',
@@ -3031,17 +3033,6 @@ function _oeReportHtml(r){
     '.ft{margin-top:3mm;display:flex;justify-content:space-between;font-size:.78em;color:#9ca3af}'
   ].join('');
 
-  /* วัดว่าเครื่องนี้มีฟอนต์ไทยของเอกสารจริงไหม — เทียบความกว้างข้อความกับฟอนต์อ้างอิง
-     ถ้าไม่มีแล้วยังตั้งฐานไว้ 15pt ใบจะบวมล้นไปหน้าสอง */
-  var probe = '<script>(function(){try{' +
-    'var c=document.createElement("canvas").getContext("2d");' +
-    'function w(f){c.font="40px "+f;return c.measureText("ทดสอบเอกสาร ABC 123").width;}' +
-    'var base=w("monospace"),i,ok=false;' +
-    'var fonts=["\'Angsana New\'","AngsanaUPC","\'TH Sarabun New\'","\'TH SarabunPSK\'"];' +
-    'for(i=0;i<fonts.length;i++){ if(w(fonts[i]+",monospace")!==base){ok=true;break;} }' +
-    'if(!ok){document.documentElement.className="sysfont";}' +
-    '}catch(e){}})();<\/script>';
-
   var logo = bi.logo
     ? '<img src="' + bi.logo + '" alt="">'
     : '<div style="font-size:1.3em;font-weight:700">' + esc(bi.name || '') + '</div>';
@@ -3081,7 +3072,11 @@ function _oeReportHtml(r){
 
   return '<!doctype html><html lang="th"><head><meta charset="utf-8">' +
     '<title>ใบรายงานผลสอบ - ' + esc(r.name || '') + '</title>' +
-    '<style>' + css + '</style>' + probe + '</head><body>' + body + '</body></html>';
+    '<link rel="preconnect" href="https://fonts.googleapis.com">' +
+    '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>' +
+    '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?' +
+      'family=Sarabun:wght@400;600;700&display=swap">' +
+    '<style>' + css + '</style></head><body>' + body + '</body></html>';
 }
 
 /* ── ลบผลสอบ ── */
