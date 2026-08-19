@@ -2242,6 +2242,7 @@ function pickBrand(key){
 
   if(isAdminMode){
     switchTab(_oeFirstAllowedTab());
+    oeStartReqPoll();
     if(!_dataLoaded){
       _dataLoaded=true;
       /* ใช้ชุดข้อสอบก้อนเดียวกัน ไม่เรียกซ้ำสองรอบ */
@@ -4343,11 +4344,39 @@ function loadExamRequests(){
       '<button class="btn btn-soft" onclick="loadExamRequests()">ลองใหม่</button>');
   });
 }
+var _reqPollId = null;      // ตัวจับเวลาดึงคำขอซ้ำ — มีได้ตัวเดียว
+var _reqSeenPending = null; // จำนวนที่ค้างอยู่รอบก่อน ใช้ดูว่ามีของใหม่เข้ามาไหม
+
+/* เงื่อนไขที่ควรดึงคำขอซ้ำ — หน้าจัดการเปิดอยู่ แท็บนี้ถูกมองอยู่ และไม่ได้กำลังสอบ
+   ไม่ดึงตอนกำลังสอบ เพราะ Apps Script รับทีละคำขอ จะไปแย่งคิวของคนที่กำลังทำข้อสอบ */
+function _oeShouldPollReqs(){
+  if(document.hidden || !isAdminMode) return false;
+  if($('adminView').classList.contains('hidden')) return false;
+  if($('examOverlay').classList.contains('show')) return false;
+  return true;
+}
+function oeStartReqPoll(){
+  if(_reqPollId) return;
+  _reqPollId = setInterval(function(){
+    if(_oeShouldPollReqs()) loadExamRequests();
+  }, 45000);
+  /* กลับมาที่แท็บนี้เมื่อไรก็ดึงทันที ไม่ต้องรอครบรอบ */
+  document.addEventListener('visibilitychange', function(){
+    if(_oeShouldPollReqs()) loadExamRequests();
+  });
+}
+
 function paintReqCount(){
   var n = EXAM_REQS.filter(function(r){ return r.status === 'pending' && brandMatch(r); }).length;
   /* ป้ายคำขอเป็นสัญญาณเตือน ไม่ใช่สถิติ — ไม่มีของค้างก็ไม่ต้องขึ้นเลข 0 ให้รก */
   var el = $('cntReqs'); if(el){ el.textContent = n; el.hidden = !n; }
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
+  /* มีของใหม่เข้ามาระหว่างที่เปิดหน้าค้างไว้ — บอกให้รู้ ไม่ใช่ให้ไปสังเกตเลขเอง
+     รอบแรกไม่นับ (ยังไม่รู้ค่าเดิม) จะได้ไม่เด้งทักตอนเพิ่งเปิดหน้า */
+  if(_reqSeenPending != null && n > _reqSeenPending){
+    toast('มีคำขอสอบใหม่ ' + (n - _reqSeenPending) + ' รายการ');
+  }
+  _reqSeenPending = n;
   renderAdminRail();
 }
 
