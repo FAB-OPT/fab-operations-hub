@@ -813,7 +813,24 @@ select.txt{appearance:none;-webkit-appearance:none;
 #branchView.as-section .shell{padding-bottom:0}
 #branchView.as-section .sec-h{margin-top:20px}
 .reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-.reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px}
+/* การ์ดสูงเท่ากันทั้งแถว แล้วดันปุ่มลงก้นการ์ด ปุ่มจะได้อยู่ระดับเดียวกันทุกใบ */
+.reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:14px;display:flex;flex-direction:column}
+.rq-act{margin-top:auto;padding-top:11px}
+.rq-who{min-width:0}
+/* รายการที่สอบไปแล้ว — บรรทัดเดียวจบ */
+.sec-h-sm{font-size:13px;margin:20px 0 9px;color:var(--text2)}
+.sec-h-sm i{font-style:normal;color:var(--text3);font-weight:700}
+.rq-done{display:flex;flex-direction:column;gap:1px;background:var(--border);
+  border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+.rq-done-it{display:flex;align-items:center;gap:12px;width:100%;text-align:left;
+  padding:11px 14px;background:var(--bg2);font-size:13px}
+button.rq-done-it{cursor:pointer;transition:background .13s}
+button.rq-done-it:hover{background:var(--bg3)}
+.rq-done-it .dn{font-weight:700;flex:0 0 auto}
+.rq-done-it .dx{flex:1;min-width:0;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.rq-done-it .dgo{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--gold)}
+.rq-done-it .dgo.off{color:var(--text3)}
 .rq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
 .rq-top b{font-size:14.5px;font-weight:800}
 .rq-id{display:block;font-size:11.5px;color:var(--text3);margin-top:1px}
@@ -822,11 +839,11 @@ select.txt{appearance:none;-webkit-appearance:none;
 .reqcode{margin:11px 0 10px;padding:11px;border-radius:11px;text-align:center;
   background:var(--gold-soft);border:1px dashed var(--gold-line);
   font-size:24px;font-weight:800;letter-spacing:.22em;color:#b23a10}
-.reqwait,.reqused{margin:11px 0 0;padding:9px;border-radius:10px;text-align:center;
+.reqwait,.reqused{margin:0;padding:9px;border-radius:10px;text-align:center;
   font-size:12.5px;font-weight:700;background:var(--bg3);color:var(--text3)}
 .reqcard .btn{width:100%}
 /* ชุดที่คุมเวลาเริ่ม: สาขาไม่เห็นรหัส ต้องรอผู้คุมสอบบอกแล้วพิมพ์เอง */
-.reqok{margin:11px 0 10px;padding:9px;border-radius:10px;text-align:center;
+.reqok{margin:0 0 10px;padding:9px;border-radius:10px;text-align:center;
   font-size:12.5px;font-weight:700;background:var(--green-soft,var(--bg3));color:var(--text2)}
 /* แท็บคำขอมีจุดแดงเมื่อมีของรออนุมัติ — เห็นได้โดยไม่ต้องกดเข้าไปดู */
 .seg.has-new em{background:var(--red);color:#fff}
@@ -4706,28 +4723,48 @@ function renderBranchReqs(){
       '<div class="sec-h">คำขอสอบของสาขา</div>' + _oeSkelCards(2);
     return;
   }
-  host.innerHTML = '<div class="sec-h">คำขอสอบของสาขา</div>'
-    + '<div class="reqcards">' + mine.map(function(r){
-      var st = _reqSt(r.status);
-      var act = r.status === 'approved'
-        ? '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
-          + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button>'
-        : '';
-      var code = r.status === 'approved'
-        ? '<div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>'
-        : (r.status === 'used'
-            ? (isAdminMode
-                ? '<button class="btn btn-soft" data-oe-action="view-results" onclick="oeSeeMyResult(\'' + _oeAttr(r.name) + '\')">' +
-                  '<svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg> ดูผลสอบ</button>'
-                : '<div class="reqused">ทำเสร็จแล้ว</div>')
-            : '<div class="reqwait">รอผู้ดูแลอนุมัติ</div>');
-      return '<article class="reqcard">'
-        + '<div class="rq-top"><div><b>' + esc(r.name) + '</b>'
-        + (r.empId ? '<span class="rq-id">' + esc(r.empId) + '</span>' : '') + '</div>'
-        + '<span class="st ' + st.c + '">' + st.t + '</span></div>'
-        + '<div class="rq-ex">' + esc(r.examTitle) + '</div>'
-        + code + act + '</article>';
-    }).join('') + '</div>';
+  var live = mine.filter(function(r){ return r.status !== 'used'; });
+  var done = mine.filter(function(r){ return r.status === 'used'; });
+
+  var h = '';
+  if(live.length){
+    h += '<div class="sec-h">รายการที่ขอไว้</div>'
+      + '<div class="reqcards">' + live.map(function(r){
+        var st = _reqSt(r.status);
+        var ready = r.status === 'approved';
+        return '<article class="reqcard">'
+          + '<div class="rq-top"><div class="rq-who"><b>' + esc(r.name) + '</b>'
+          + (r.empId || r.position
+              ? '<span class="rq-id">' + [r.empId, r.position].filter(Boolean).map(esc).join(' · ') + '</span>'
+              : '') + '</div>'
+          + '<span class="st ' + st.c + '">' + st.t + '</span></div>'
+          + '<div class="rq-ex">' + esc(r.examTitle) + '</div>'
+          + (ready
+              ? '<div class="rq-act"><div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>'
+                + '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
+                + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'
+              : '<div class="rq-act"><div class="reqwait">รอผู้ดูแลอนุมัติ</div></div>')
+          + '</article>';
+      }).join('') + '</div>';
+  }
+
+  /* ที่สอบไปแล้วเก็บเป็นบรรทัดเดียว — ไม่มีอะไรให้ทำต่อนอกจากกดดูผล
+     ถ้าปล่อยเป็นการ์ดใบใหญ่ ยิ่งสอบมากยิ่งดันของที่ต้องทำจริงหายลงไปข้างล่าง */
+  if(done.length){
+    h += '<div class="sec-h sec-h-sm">สอบไปแล้ว <i>' + done.length + '</i></div>'
+      + '<div class="rq-done">' + done.map(function(r){
+        var go = isAdminMode
+          ? ' onclick="oeSeeMyResult(\'' + _oeAttr(r.name) + '\')"'
+          : '';
+        return '<' + (isAdminMode ? 'button' : 'div') + ' class="rq-done-it"' + go + '>'
+          + '<span class="dn">' + esc(r.name) + '</span>'
+          + '<span class="dx">' + esc(r.examTitle) + '</span>'
+          + (isAdminMode ? '<span class="dgo">ดูผลสอบ</span>' : '<span class="dgo off">ทำเสร็จแล้ว</span>')
+          + '</' + (isAdminMode ? 'button' : 'div') + '>';
+      }).join('') + '</div>';
+  }
+
+  host.innerHTML = h;
   oeApplyPerms();
 }
 
