@@ -2908,20 +2908,49 @@ function _oeAnsOk(a){
 function printResultReport(){
   var r = _oeResCur;
   if(!r){ toast('ไม่พบผลสอบ','err'); return; }
-  var w = window.open('', '_blank');
-  if(!w){ toast('เบราว์เซอร์บล็อกหน้าต่างใหม่ — อนุญาต pop-up แล้วลองใหม่','err'); return; }
-  w.document.write(_oeReportHtml(r));
-  w.document.close();
+
+  /* พิมพ์ผ่าน iframe ที่ซ่อนไว้ ไม่เปิดแท็บใหม่
+     ของเดิมเปิดแท็บแล้วผูก onload ทีหลัง document.close() ซึ่งอีเวนต์ยิงไปแล้ว
+     กล่องพิมพ์เลยไม่ขึ้น เหลือแท็บเปล่าค้างให้คนงงว่านี่หน้าอะไร
+     ทำแบบนี้ยังไม่ต้องไปสู้กับตัวบล็อก pop-up ของเบราว์เซอร์อีกด้วย */
+  var old = document.getElementById('oePrintFrame');
+  if(old && old.parentNode) old.parentNode.removeChild(old);
+
+  var fr = document.createElement('iframe');
+  fr.id = 'oePrintFrame';
+  fr.setAttribute('aria-hidden','true');
+  fr.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
+  document.body.appendChild(fr);
+
+  var d = fr.contentWindow.document;
+  d.open(); d.write(_oeReportHtml(r)); d.close();
+
+  function drop(){ if(fr.parentNode) fr.parentNode.removeChild(fr); }
+
   /* รอให้ฟอนต์โหลดเสร็จจริงก่อนค่อยสั่งพิมพ์ — นับเวลาเอาเฉย ๆ ไม่พอ
-     เน็ตอืดทีไรก็ได้ใบที่ตกไปเป็นฟอนต์ระบบแทน · ตั้งเพดานไว้กันเหนียวด้วย
-     เผื่อกรณีโหลดฟอนต์ไม่ได้เลย จะได้ไม่ค้างไม่ยอมพิมพ์ */
+     เน็ตอืดทีไรก็ได้ใบที่ตกไปเป็นฟอนต์ระบบแทน · ตั้งเพดานไว้กันเหนียว
+     เผื่อโหลดฟอนต์ไม่ได้เลย จะได้ไม่ค้างไม่ยอมพิมพ์ */
   var printed = false;
-  function go(){ if(printed) return; printed = true; w.focus(); w.print(); }
-  w.onload = function(){
-    var ready = w.document.fonts && w.document.fonts.ready;
-    if(ready && ready.then) ready.then(function(){ setTimeout(go, 120); });
-    setTimeout(go, 2500);
-  };
+  function go(){
+    if(printed) return;
+    printed = true;
+    try{
+      fr.contentWindow.focus();
+      fr.contentWindow.print();
+    }catch(e){
+      drop();
+      toast('พิมพ์ไม่สำเร็จ ลองใหม่อีกครั้ง','err');
+      return;
+    }
+    /* เก็บ iframe ทิ้งหลังกล่องพิมพ์ปิด · เบราว์เซอร์บางตัวไม่ยิง afterprint
+       จึงตั้งเวลากวาดทิ้งไว้ด้วย และหน่วงก่อนลบ ไม่งั้นงานพิมพ์โดนตัดกลางคัน */
+    fr.contentWindow.onafterprint = function(){ setTimeout(drop, 800); };
+    setTimeout(drop, 60000);
+  }
+
+  var ready = d.fonts && d.fonts.ready;
+  if(ready && ready.then) ready.then(function(){ setTimeout(go, 120); });
+  setTimeout(go, 2500);
 }
 function _oeReportHtml(r){
   var pass = isPass(r);
@@ -2936,9 +2965,8 @@ function _oeReportHtml(r){
   var per = (um != null && total > 0) ? (um / total) : null;
   /* เกณฑ์ผ่านติดอยู่กับชุดข้อสอบ ไม่ได้เก็บลงผลสอบ — ตามไปหาจะได้พิมพ์ลงใบ
      ถ้าชุดถูกลบไปแล้วก็เว้นแถวนั้นทิ้ง ดีกว่าเดาตัวเลขใส่เอกสารที่ต้องเซ็น */
-  var ex = (EXAMS || []).find(function(e){
-    return (r.examId && e.id === r.examId) || (!r.examId && e.title === r.examTitle);
-  });
+  var ex = (EXAMS || []).find(function(e){ return r.examId && e.id === r.examId; }) ||
+           (EXAMS || []).find(function(e){ return r.examTitle && e.title === r.examTitle; });
 
   /* หัวใบยึดแบรนด์ที่แอดมินเปิดค้างอยู่เป็นหลัก — เปิดแบรนด์ไหนก็ออกใบในนามแบรนด์นั้น
      จะไปดูว่าผลสอบใบนั้นเป็นของแบรนด์อะไร ก็ต่อเมื่อเปิดอยู่แบบ "ทุกแบรนด์"
