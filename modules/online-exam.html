@@ -135,6 +135,9 @@ input,select,textarea{font-family:inherit}
 .ph-eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.02em;color:var(--gold);margin-bottom:6px}
 .ph-title{font-size:clamp(20px,2.4vw,26px);font-weight:800;letter-spacing:-.025em;line-height:1.25}
 .ph-sub{color:var(--text2);font-size:14px;margin-top:5px;line-height:1.55}
+/* บอกว่ากำลังดูแบบจำกัดโซนอยู่ — ไม่งั้น BZM จะนึกว่าผลสอบหายไปไหน */
+.ph-scope{font-size:12.5px;font-weight:700;color:var(--gold);margin-top:6px}
+.ph-scope:empty{display:none}
 .ph-actions{display:flex;gap:9px;flex-wrap:wrap}
 /* ชื่อเดิม — ยังมีที่อื่นเรียกใช้ */
 .view-title{font-size:21px;font-weight:800;letter-spacing:-.02em;margin:2px 0 4px}
@@ -1271,6 +1274,7 @@ label.fld>span>b{font-weight:800}
       <div class="ph-main">
         <h1 class="ph-title">ภาพรวมระบบสอบ</h1>
         <p class="ph-sub">สร้างชุดข้อสอบ มอบหมายให้สาขา และติดตามผลสอบทั้งหมดในที่เดียว</p>
+        <p class="ph-scope" id="admScopeNote"></p>
       </div>
       <div class="ph-actions">
         <button class="btn btn-soft" onclick="refreshAll()"><svg viewBox="0 0 24 24"><path d="M23 4v6h-6M1 20v-6h6"/><path d="M3.5 9a9 9 0 0114.9-3.4L23 10M1 14l4.6 4.4A9 9 0 0020.5 15"/></svg> รีเฟรช</button>
@@ -2160,12 +2164,14 @@ function pickBrand(key){
   $('brandChip').classList.toggle('hidden', !multi);
   $('brandGate').classList.add('hidden');
 
+  /* สั่งทั้งสองหน้าเสมอ ไม่ใช่แค่เปิดหน้าที่ต้องการ — ไม่งั้นหน้าที่เปิดค้างไว้ก่อนหน้าจะไม่ถูกปิด */
+  $('adminView').classList.toggle('hidden', !isAdminMode);
+  $('branchView').classList.toggle('hidden', isAdminMode);
+
   if(isAdminMode){
-    $('adminView').classList.remove('hidden');
     if(!_dataLoaded){ _dataLoaded=true; loadExams(); loadResults(); loadExamRequests(); }
     else { renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount(); }
   } else {
-    $('branchView').classList.remove('hidden');
     var _s = getHubSession();
     var who = currentBranchName || (_s && (_s.name || _s.nick)) || ('รหัส '+branchPin);
     $('branchSub').textContent = who+' · แบรนด์ '+b.name+' · เลือกชุดข้อสอบที่ต้องทำด้านล่าง';
@@ -2936,19 +2942,77 @@ function previewExam(id){
 }
 
 /* ═════════════════════ RESULTS (admin) ═════════════════════ */
+/* ชื่อคนสำหรับเทียบกัน — ตัดคำนำหน้า คำว่า "พี่" และช่องว่างทิ้ง
+   เพราะทะเบียนกับ session กรอกกันคนละแบบ ("นางสาว คณสวรรณ" / "พี่เฟิร์น" / "เฟิร์น") */
+function _oeNameKey(v){
+  return String(v || '')
+    .replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/, '')
+    .replace(/^พี่\s*/, '')
+    .replace(/\s+/g, '')
+    .toLowerCase();
+}
+
+/* สาขาที่ผู้ใช้คนนี้ดูแลในฐานะ BZM — คืน null ถ้าไม่ได้ดูแลสาขาไหนเลย (ไม่ต้องจำกัด)
+   ไม่ต้องตั้งสิทธิ์เพิ่ม: ใครที่ชื่อไปตรงกับผู้จัดการเขตในทะเบียนสาขา ก็ถูกจำกัดเอง
+   แอดมินข้ามการจำกัดนี้เสมอ */
+function _oeMyZoneBranches(){
+  var sess = getHubSession() || {};
+  /* oeCan() คืน true ให้กับสิทธิ์ที่ยังไม่มีในตาราง จึงเอามาเป็นทางยกเว้นไม่ได้
+     ใช้บทบาทแอดมินอย่างเดียวพอ */
+  if(sess.role === 'admin') return null;
+  var me = [sess.nick, sess.name].filter(Boolean).map(_oeNameKey).filter(Boolean);
+  if(!me.length) return null;
+
+  var set = {}, hit = false;
+  function take(name){
+    var k = _brandKey(name);
+    if(k){ set[k] = 1; hit = true; }
+  }
+  var jd = _oeJdBranchStore();
+  if(Array.isArray(jd)) jd.forEach(function(b){
+    if(!b || !b.name) return;
+    var who = [b.managerNick, b.manager].filter(Boolean).map(_oeNameKey);
+    if(who.some(function(k){ return me.indexOf(k) >= 0; })) take(b.name);
+  });
+  var st = _oeBranchStore();
+  if(st && st.branches){
+    var bz = st.bzmMap || {};
+    Object.keys(st.branches).forEach(function(code){
+      var k = _oeNameKey(bz[code]);
+      if(k && me.indexOf(k) >= 0) take(st.branches[code]);
+    });
+  }
+  return hit ? set : null;
+}
+
+/* กรองผลสอบให้เหลือเฉพาะโซนของตัวเอง — ทำตั้งแต่ตอนโหลด ตัวเลขสรุป รางข้าง
+   ตาราง และไฟล์ CSV จึงตรงกันหมด ไม่ต้องไปไล่กรองทีละที่ */
+function _oeScopeResults(rows){
+  var zone = _oeMyZoneBranches();
+  var note = $('admScopeNote');
+  if(!zone){ if(note) note.textContent = ''; return rows; }
+  var kept = rows.filter(function(r){ return zone[_brandKey(r.branch)]; });
+  if(note){
+    note.textContent = 'แสดงเฉพาะผลสอบของสาขาในโซนที่คุณดูแล (' +
+      Object.keys(zone).length + ' สาขา)';
+  }
+  return kept;
+}
+
 function loadResults(force){
   /* ตำแหน่งในรายการเปลี่ยนหลังโหลดใหม่ ของที่เลือกไว้จะไม่ตรงคนเดิม */
   _oeSel = {};
   var old = _oeStashed('results');
-  if(old){ RESULTS = old.d; fillBranchFilter(); renderResults(); }
+  if(old){ RESULTS = _oeScopeResults(old.d); fillBranchFilter(); renderResults(); }
   else {
     $('resultsBody').innerHTML = _oeSkelRows(8, 8);
     var _c0 = $('resCards'); if(_c0) _c0.innerHTML = _oeSkelList(5);
     var _ch = $('resChips'); if(_ch) _ch.innerHTML = '';
   }
   return apiGet('exam-results').then(function(res){
-    RESULTS = (res && res.ok && res.results) ? res.results : [];
-    _oeStash('results', RESULTS);
+    var _all = (res && res.ok && res.results) ? res.results : [];
+    _oeStash('results', _all);
+    RESULTS = _oeScopeResults(_all);
     fillBranchFilter();
     renderResults();
     renderAdminExams();   // การ์ดชุดข้อสอบโชว์สถิติผลสอบด้วย — ผลมาถึงทีหลังต้องวาดใหม่
