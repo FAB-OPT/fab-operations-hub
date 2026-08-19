@@ -703,10 +703,20 @@ select.txt{appearance:none;-webkit-appearance:none;
 .bsel-search input{width:100%;border:1px solid var(--border);border-radius:9px;padding:8px 11px;
   font-size:13px;font-family:inherit;background:var(--bg3)}
 .bsel-search input:focus{outline:none;border-color:var(--gold);background:var(--bg2)}
-.bsel-list{max-height:230px;overflow:auto;padding:5px}
-.bsel-item{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:8px;
-  font-size:13px;cursor:pointer}
+.bsel-list{max-height:330px;overflow:auto;padding:5px}
+/* หัวกลุ่มโซน — ติดขอบบนตอนเลื่อน จะได้รู้ตลอดว่ากำลังดูโซนใคร */
+.bsel-gp{position:sticky;top:0;z-index:1;display:flex;align-items:center;justify-content:space-between;
+  gap:10px;padding:7px 9px;margin-top:4px;background:var(--bg3);border-radius:8px;
+  font-size:11.5px;font-weight:800;color:var(--text2)}
+.bsel-gp:first-child{margin-top:0}
+.bsel-gp i{font-style:normal;font-weight:700;color:var(--text3)}
+.bsel-gp button{font-size:11.5px;font-weight:700;color:var(--gold);white-space:nowrap}
+.bsel-gp button:hover{text-decoration:underline}
+/* แถวติ๊กสูงขึ้นและกดได้ทั้งแถว — เดิมเล็กจนต้องเล็งเอา */
+.bsel-item{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;
+  font-size:13px;cursor:pointer;user-select:none}
 .bsel-item:hover{background:var(--bg3)}
+.bsel-item.on{background:var(--gold-soft)}
 .bsel-item input{width:16px;height:16px;accent-color:var(--gold);flex:0 0 auto}
 .bsel-item .cd{color:var(--text3);font-size:11.5px;font-variant-numeric:tabular-nums}
 .bsel-none{padding:14px;text-align:center;font-size:12.5px;color:var(--text3)}
@@ -714,6 +724,7 @@ select.txt{appearance:none;-webkit-appearance:none;
   border-top:1px solid var(--border);background:var(--bg3)}
 .bsel-foot button{font-size:12.5px;font-weight:700;color:var(--text2)}
 .bsel-foot button:hover{color:var(--gold)}
+.bsel-foot button.done{color:var(--gold)}
 .bsel-tags{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .bsel-tag{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;
   padding:4px 8px;border-radius:999px;background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold)}
@@ -1383,8 +1394,9 @@ label.fld>span>b{font-weight:800}
                 </div>
                 <div class="bsel-list" id="edBranchList"></div>
                 <div class="bsel-foot">
+                  <button type="button" onclick="oeBranchSelAll()">เลือกทั้งหมดที่เห็น</button>
                   <button type="button" onclick="oeBranchSelClear()">ล้างที่เลือก</button>
-                  <button type="button" onclick="oeBranchSelToggle(event,true)">เสร็จแล้ว</button>
+                  <button type="button" class="done" onclick="oeBranchSelToggle(event,true)">เสร็จแล้ว</button>
                 </div>
               </div>
             </div>
@@ -3941,17 +3953,29 @@ function _oeBrandOfBranch(code, brandMap){
   return hit ? hit.key : '';
 }
 
+/* ชื่อโซน (BZM ที่ดูแล) — ตัดคำนำหน้าชื่อออกก่อน กันชื่อเดียวกันแตกเป็นสองโซน
+   เพราะบางแถวกรอก "นางสาว พิมพ์พิชชา" บางแถวกรอก "พิมพ์พิชชา" · เขียนตามโมดูล FQA */
+function _oeZoneName(b){
+  var nm = String((b && b.manager) || '').trim()
+    .replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/, '').trim();
+  var nick = String((b && b.managerNick) || '').trim();
+  if(!nm && !nick) return '';
+  return (nick ? ('คุณ ' + nm + ' (' + nick + ')') : ('คุณ ' + nm)).replace(/\s+/g, ' ').trim();
+}
+
 function oeBranchRegistry(){
   var all = currentBrand === 'all' || !currentBrand;
   var out = [];
 
-  /* ทะเบียนเจ๊แดง — ใช้ชื่อสาขาเป็นตัวระบุ ไม่มีรหัส 4 หลักให้เทียบแบรนด์
-     อยู่ในทะเบียนนี้ก็คือเป็นของเจ๊แดงอยู่แล้ว */
+  /* ทะเบียนเจ๊แดง — ใช้ชื่อสาขาเป็นตัวระบุ ไม่มีรหัส 4 หลัก */
   if(all || currentBrand === 'jaedaeng'){
     var jd = _oeJdBranchStore();
     if(Array.isArray(jd)) jd.forEach(function(b){
-      if(b && b.name) out.push({ code: '', name: String(b.name).trim() });
+      if(b && b.name) out.push({ code: '', name: String(b.name).trim(), bzm: _oeZoneName(b) });
     });
+    /* เปิดแบรนด์เจ๊แดงอยู่ก็จบแค่ทะเบียนนี้ ไม่ต้องไปควานในทะเบียนที่มีรหัสอีก
+       ไม่งั้นสาขาเดิมจะโผล่ซ้ำสองแบบ */
+    if(!all) return _oeBranchTidy(out);
   }
 
   /* ทะเบียนที่มีรหัสสาขา — เทียบแบรนด์จากเลขขึ้นต้นรหัส หรือแบรนด์ที่ตั้งทับไว้ */
@@ -3963,13 +3987,17 @@ function oeBranchRegistry(){
       /* เปิดแบรนด์ไหนอยู่ ก็ให้เลือกได้เฉพาะสาขาของแบรนด์นั้น
          สาขาที่เทียบแบรนด์ไม่ได้เลยก็ตัดทิ้ง ดีกว่าปล่อยให้สาขาต่างแบรนด์หลุดเข้ามา */
       if(!all && _oeBrandOfBranch(code, brandMap) !== currentBrand) return;
-      out.push({ code: code, name: String(obj.branches[code] || '').trim() });
+      out.push({ code: code, name: String(obj.branches[code] || '').trim(),
+                 bzm: String((obj.bzmMap || {})[code] || '').trim() });
     });
   }
+  return _oeBranchTidy(out);
+}
 
-  /* ชื่อเดียวกันโผล่ทั้งสองทะเบียนก็เก็บอันเดียวพอ ไม่งั้นในรายการจะมีสาขาซ้ำให้ติ๊กสองที */
+/* ตัดชื่อซ้ำแล้วเรียงตามชื่อ — ใช้ร่วมกันทุกทางที่ประกอบรายชื่อสาขา */
+function _oeBranchTidy(list){
   var seen = {};
-  return out.filter(function(x){
+  return list.filter(function(x){
     if(!x.name || seen[x.name]) return false;
     seen[x.name] = 1;
     return true;
@@ -3998,32 +4026,89 @@ function oeBranchSelDrop(name){
   oeBranchSelPaint();
 }
 function oeBranchSelClear(){ oeBranchSelSet([]); oeBranchSelPaint(); }
-function oeBranchSelPaint(){
-  var host = $('edBranchList'); if(!host) return;
+/* รายชื่อที่ตรงกับคำค้นตอนนี้ · ใช้ทั้งตอนวาดรายการและตอนกดเลือกทั้งโซน/ทั้งหมด
+   จะได้ "เลือกทั้งหมด" = ทั้งหมดที่เห็นอยู่จริง ไม่ใช่ทั้งทะเบียนที่มองไม่เห็น */
+function _oeBranchFiltered(){
   var q = (($('edBranchSearch') && $('edBranchSearch').value) || '').trim().toLowerCase();
-  var picked = oeBranchSelValues();
-  var all = oeBranchRegistry().filter(function(b){
-    return !q || b.name.toLowerCase().indexOf(q) >= 0 || b.code.indexOf(q) >= 0;
+  var list = oeBranchRegistry().filter(function(b){
+    return !q || b.name.toLowerCase().indexOf(q) >= 0 ||
+      (b.code || '').indexOf(q) >= 0 || (b.bzm || '').toLowerCase().indexOf(q) >= 0;
   });
   /* สาขาที่เคยบันทึกไว้แต่ไม่มีในทะเบียนแล้ว (เปลี่ยนชื่อ/ปิดไป) ต้องยังโชว์ให้เห็น
      ไม่งั้นเปิดมาแก้ทีเดียวข้อจำกัดเดิมหายไปเงียบ ๆ */
-  picked.forEach(function(nm){
-    if(!all.some(function(b){ return b.name === nm; })) all.unshift({ code: '', name: nm });
+  oeBranchSelValues().forEach(function(nm){
+    if(!list.some(function(b){ return b.name === nm; })) list.unshift({ code: '', name: nm, bzm: '' });
   });
-  if(!all.length){
+  return list;
+}
+var OE_NO_ZONE = 'ไม่ระบุโซน';
+function oeBranchSelPaint(){
+  var host = $('edBranchList'); if(!host) return;
+  var q = (($('edBranchSearch') && $('edBranchSearch').value) || '').trim();
+  var picked = oeBranchSelValues();
+  var list = _oeBranchFiltered();
+  if(!list.length){
     /* แยกให้ออกว่า "ค้นแล้วไม่เจอ" กับ "แบรนด์นี้ยังไม่มีสาขาในทะเบียน" — คนละทางแก้ */
     host.innerHTML = '<div class="bsel-none">' +
       (q ? 'ไม่พบสาขาที่ค้นหา'
          : 'ยังไม่มีสาขาของแบรนด์นี้ในทะเบียน<br>เพิ่มได้ที่หน้าตั้งค่าสาขาในฮับ') + '</div>';
     return;
   }
-  host.innerHTML = all.map(function(b){
-    var on = picked.indexOf(b.name) >= 0;
-    return '<label class="bsel-item"><input type="checkbox"' + (on ? ' checked' : '') +
-      ' onchange="oeBranchSelPick(this,\'' + _oeAttr(b.name) + '\')">' +
-      '<span>' + esc(b.name) + '</span>' +
-      (b.code ? '<span class="cd">' + esc(b.code) + '</span>' : '') + '</label>';
+
+  /* จัดกลุ่มตาม BZM ที่ดูแล — คนตั้งข้อสอบคิดเป็นโซน ("เปิดให้โซนพี่กัสทำ")
+     ไม่ได้คิดเป็นสาขาทีละร้าน · โซนที่ยังไม่ได้ระบุไว้ท้ายสุด */
+  var groups = {}, order = [];
+  list.forEach(function(b){
+    var z = b.bzm || OE_NO_ZONE;
+    if(!groups[z]){ groups[z] = []; order.push(z); }
+    groups[z].push(b);
+  });
+  order.sort(function(a, b){
+    if(a === OE_NO_ZONE) return 1;
+    if(b === OE_NO_ZONE) return -1;
+    return a.localeCompare(b, 'th');
+  });
+
+  host.innerHTML = order.map(function(z){
+    var items = groups[z];
+    var allOn = items.every(function(b){ return picked.indexOf(b.name) >= 0; });
+    return '<div class="bsel-gp">' +
+        '<span>' + esc(z) + ' <i>' + items.length + '</i></span>' +
+        '<button type="button" onclick="oeBranchSelZone(\'' + _oeAttr(z) + '\',' + (allOn ? 'false' : 'true') + ')">' +
+          (allOn ? 'เอาออกทั้งโซน' : 'เลือกทั้งโซน') + '</button>' +
+      '</div>' +
+      items.map(function(b){
+        var on = picked.indexOf(b.name) >= 0;
+        return '<label class="bsel-item' + (on ? ' on' : '') + '"><input type="checkbox"' + (on ? ' checked' : '') +
+          ' onchange="oeBranchSelPick(this,\'' + _oeAttr(b.name) + '\')">' +
+          '<span>' + esc(b.name) + '</span>' +
+          (b.code ? '<span class="cd">' + esc(b.code) + '</span>' : '') + '</label>';
+      }).join('');
   }).join('');
+}
+
+/* ติ๊กทีละสาขา 46 รอบมันทรมาน — เลือกทั้งโซนหรือทั้งหมดทีเดียวจบ */
+function oeBranchSelZone(zone, on){
+  var names = _oeBranchFiltered()
+    .filter(function(b){ return (b.bzm || OE_NO_ZONE) === zone; })
+    .map(function(b){ return b.name; });
+  _oeBranchSelBulk(names, on);
+}
+function oeBranchSelAll(){
+  var names = _oeBranchFiltered().map(function(b){ return b.name; });
+  var picked = oeBranchSelValues();
+  var allOn = names.length && names.every(function(nm){ return picked.indexOf(nm) >= 0; });
+  _oeBranchSelBulk(names, !allOn);
+}
+function _oeBranchSelBulk(names, on){
+  var list = oeBranchSelValues();
+  names.forEach(function(nm){
+    var i = list.indexOf(nm);
+    if(on && i < 0) list.push(nm);
+    if(!on && i >= 0) list.splice(i, 1);
+  });
+  oeBranchSelSet(list);
+  oeBranchSelPaint();
 }
 function oeBranchSelPick(cb, name){
   var list = oeBranchSelValues();
