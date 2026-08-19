@@ -883,6 +883,30 @@ function saveExamResult(r) {
   lock.waitLock(20000);
   try {
     var sh = _getOrCreateSheet('ExamResults', EXAMRESULT_HEADERS);
+
+    /* กันบันทึกซ้ำ — ผลเดียวกันถูกยิงเข้ามาสองรอบได้หลายทาง
+       (เน็ตสะดุดแล้วเบราว์เซอร์ส่งซ้ำ · กดส่งซ้อน · ปิดจอแล้วเปิดใหม่)
+       ไล่อุดทีละทางไม่จบ กันที่ปลายทางทีเดียวพอ
+       เทียบแค่ 40 แถวท้าย เพราะถ้าซ้ำจริงมันจะอยู่ติดกัน ไม่ต้องอ่านทั้งชีตให้ช้า */
+    var last = sh.getLastRow();
+    if (last > 1) {
+      var hdr = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0]
+        .map(function (h) { return String(h).trim(); });
+      var cSub = hdr.indexOf('submittedAt'), cEx = hdr.indexOf('examId'),
+          cEmp = hdr.indexOf('empId'), cName = hdr.indexOf('name');
+      var from = Math.max(2, last - 39);
+      var tail = sh.getRange(from, 1, last - from + 1, hdr.length).getValues();
+      var key = function (sub, ex, emp, nm) {
+        return [sub, ex, emp, nm].map(function (x) { return String(x || '').trim(); }).join('|');
+      };
+      var mine = key(r.submittedAt, r.examId, r.empId, r.name);
+      for (var i = 0; i < tail.length; i++) {
+        if (key(tail[i][cSub], tail[i][cEx], tail[i][cEmp], tail[i][cName]) === mine) {
+          return { ok: true, saved: 0, duplicate: true };
+        }
+      }
+    }
+
     var row = [
       r.submittedAt || new Date().toISOString(),
       r.examId || '', r.examTitle || '', r.name || '', r.empId || '',
