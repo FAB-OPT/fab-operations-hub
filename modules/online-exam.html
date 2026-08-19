@@ -2168,9 +2168,23 @@ function pickBrand(key){
   $('adminView').classList.toggle('hidden', !isAdminMode);
   $('branchView').classList.toggle('hidden', isAdminMode);
 
+  /* บางบทบาท (เช่น BZM) เข้าหน้าจัดการเพื่อดูผลของโซนตัวเอง แต่ยังต้องสอบเองด้วย
+     จึงต้องเห็นบล็อกฝั่งสาขาไว้ขอสิทธิ์สอบและกดทำข้อสอบด้วย · แอดมินเต็มไม่ต้อง */
+  var _sess = getHubSession() || {};
+  var alsoBranch = isAdminMode && _sess.role !== 'admin' && oeCan('request-exam');
+  if(alsoBranch) $('branchView').classList.remove('hidden');
+
   if(isAdminMode){
-    if(!_dataLoaded){ _dataLoaded=true; loadExams(); loadResults(); loadExamRequests(); }
-    else { renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount(); }
+    switchTab(_oeFirstAllowedTab());
+    if(!_dataLoaded){
+      _dataLoaded=true;
+      /* ใช้ชุดข้อสอบก้อนเดียวกัน ไม่เรียกซ้ำสองรอบ — แค่วาดรายการฝั่งสาขาเพิ่มหลังโหลดเสร็จ */
+      loadExams().then(function(){ if(alsoBranch) renderBranchExams(); });
+      loadResults(); loadExamRequests();
+    } else {
+      renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount();
+      if(alsoBranch) renderBranchExams();
+    }
   } else {
     var _s = getHubSession();
     var who = currentBranchName || (_s && (_s.name || _s.nick)) || ('รหัส '+branchPin);
@@ -2249,6 +2263,13 @@ function brandMatch(ex){
 }
 
 /* ═════════════════════ ADMIN: TABS ═════════════════════ */
+/* แท็บแรกที่ผู้ใช้คนนี้มีสิทธิ์เข้าจริง — ใช้เป็นแท็บตั้งต้นตอนเปิดหน้า
+   ไม่ใช่เปิดแท็บชุดข้อสอบไว้ตายตัวแล้วหวังว่าทุกคนจะมีสิทธิ์ */
+function _oeFirstAllowedTab(){
+  if(oeCan('view-exams')) return 'exams';
+  if(oeCan('exam-approve')) return 'reqs';
+  return 'results';
+}
 function switchTab(t){
   $('tabExams').classList.toggle('active', t==='exams');
   $('tabReqs').classList.toggle('active', t==='reqs');
@@ -2444,8 +2465,8 @@ function _oeExamRow(ex){
     '</div>' +
     '<div class="xr-perf">' + perf + '</div>' +
     '<div class="xr-act">' +
-      '<button class="btn btn-soft btn-sm" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
-      '<button class="btn btn-soft btn-sm" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
+      '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
+      '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
       '<button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-delete" onclick="deleteExam(\'' + ex.id + '\')" title="ลบชุดข้อสอบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</div></article>';
 }
