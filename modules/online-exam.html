@@ -1018,6 +1018,21 @@ select.txt{appearance:none;-webkit-appearance:none;
 .emodal{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:24px;background:rgba(16,24,40,.6);backdrop-filter:blur(6px)}
 .emodal.show{display:grid;animation:fade .2s ease}
 .emodal-card{background:var(--bg2);border-radius:18px;max-width:410px;width:100%;padding:24px;box-shadow:var(--shadow-lg)}
+.emodal-card.wide{max-width:600px}
+/* รายการสรุปคำตอบ — สูงจำกัดแล้วเลื่อนในตัว กล่องจะได้ไม่ยาวเลยจอตอนมี 50 ข้อ */
+.sum-list{max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:12px;
+  padding:5px;margin-bottom:17px;background:var(--bg3)}
+.sum-it{display:flex;align-items:center;gap:10px;width:100%;text-align:left;padding:8px 9px;
+  border-radius:9px;font-size:13px;transition:background .12s}
+.sum-it:hover{background:var(--bg2)}
+.sum-it .sn{flex:0 0 24px;height:24px;border-radius:7px;display:grid;place-items:center;
+  background:var(--bg2);border:1px solid var(--border);font-size:11.5px;font-weight:700;
+  color:var(--text3);font-variant-numeric:tabular-nums}
+.sum-it .sq{flex:1;min-width:0;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum-it .sa{flex:0 0 auto;max-width:44%;font-weight:700;color:var(--text);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sum-it.none .sn{background:var(--red);border-color:var(--red);color:#fff}
+.sum-it.none .sa{color:var(--red)}
 .emodal-card h3{font-size:18px;font-weight:800;margin-bottom:7px;letter-spacing:-.02em}
 .emodal-card p{margin-bottom:17px;color:var(--text2);font-size:14px;line-height:1.55}
 .warn-line{color:var(--red);font-weight:700}
@@ -1497,7 +1512,7 @@ label.fld>span>b{font-weight:800}
           <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ / ออกหน้าจอ</div><div class="sw-d">ออกจากหน้านี้เมื่อไร นับเป็นการเตือน</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen และเครื่องมือจับภาพ</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
           <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์และส่งข้อสอบทันทีเมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
-          <div class="switch-row" style="border-bottom:none;padding-bottom:0"><div><div class="sw-t">แสดงเฉลยหลังสอบ</div><div class="sw-d">ผู้สอบเห็นข้อที่ตอบผิดและคำตอบที่ถูก</div></div><label class="sw"><input type="checkbox" id="edReview" checked><span class="track"></span></label></div>
+          <div class="switch-row" style="border-bottom:none;padding-bottom:0"><div><div class="sw-t">ให้ผู้สอบเห็นข้อที่ตอบผิด</div><div class="sw-d">เห็นว่าพลาดข้อไหนและตัวเองตอบอะไรไป · <b>ไม่เห็นเฉลย</b> (เฉลยดูได้จากหน้าผลสอบฝั่งผู้ดูแล)</div></div><label class="sw"><input type="checkbox" id="edReview" checked><span class="track"></span></label></div>
         </section>
 
         <div class="step-nav">
@@ -1733,11 +1748,13 @@ label.fld>span>b{font-weight:800}
 
   <!-- submit confirm -->
   <div class="emodal" id="submitModal">
-    <div class="emodal-card">
-      <h3>ยืนยันส่งข้อสอบ?</h3>
+    <div class="emodal-card wide">
+      <h3>ตรวจคำตอบก่อนส่ง</h3>
       <p id="submitMsg">เมื่อส่งแล้วจะไม่สามารถแก้ไขคำตอบได้อีก</p>
+      <!-- รายการคำตอบทั้งหมด กดข้อไหนก็เด้งกลับไปแก้ข้อนั้นได้ -->
+      <div class="sum-list" id="submitList"></div>
       <div class="emodal-actions">
-        <button class="p-btn ghost" onclick="document.getElementById('submitModal').classList.remove('show')">ยังไม่ส่ง</button>
+        <button class="p-btn ghost" onclick="document.getElementById('submitModal').classList.remove('show')">กลับไปแก้</button>
         <button class="p-btn" onclick="confirmSubmit()">ส่งเลย</button>
       </div>
     </div>
@@ -4002,8 +4019,26 @@ function prevQ(){ if(R.current>0){ R.current--; renderQuestion(); renderNav(); }
 
 function openSubmitModal(){
   var un=R.questions.filter(function(_,i){return R.answers[i]==null;}).length;
-  $('submitMsg').innerHTML = un>0 ? 'คุณยังไม่ได้ตอบ <span class="warn-line">'+un+' ข้อ</span> เมื่อส่งแล้วจะไม่สามารถแก้ไขได้อีก' : 'ตอบครบทุกข้อแล้ว เมื่อส่งแล้วจะไม่สามารถแก้ไขคำตอบได้อีก';
+  $('submitMsg').innerHTML = un>0
+    ? 'คุณยังไม่ได้ตอบ <span class="warn-line">'+un+' ข้อ</span> · เมื่อส่งแล้วแก้ไม่ได้อีก'
+    : 'ตอบครบทั้ง '+R.questions.length+' ข้อแล้ว · เมื่อส่งแล้วแก้ไม่ได้อีก';
+  /* สรุปให้เห็นก่อนว่าตอบอะไรไปบ้าง — กดข้อไหนก็เด้งกลับไปแก้ข้อนั้นได้เลย
+     ไม่ต้องปิดกล่องแล้วไปไล่หาเองว่าข้อที่ยังว่างอยู่ตรงไหน */
+  var keys=['A','B','C','D','E','F','G','H'];
+  $('submitList').innerHTML = R.questions.map(function(q,i){
+    var sel=R.answers[i];
+    return '<button type="button" class="sum-it'+(sel==null?' none':'')+'" onclick="gotoFromSummary('+i+')">' +
+      '<span class="sn">'+(i+1)+'</span>' +
+      '<span class="sq">'+esc(q.q)+'</span>' +
+      '<span class="sa">'+(sel==null ? 'ยังไม่ตอบ' : (keys[sel]+' · '+esc(q.choices[sel].text)))+'</span>' +
+    '</button>';
+  }).join('');
   $('submitModal').classList.add('show');
+}
+/* กดข้อในสรุป = ปิดกล่องแล้วไปที่ข้อนั้น */
+function gotoFromSummary(i){
+  $('submitModal').classList.remove('show');
+  gotoQ(i);
 }
 function confirmSubmit(){ $('submitModal').classList.remove('show'); finishExam('ส่งด้วยตนเอง'); }
 
@@ -4134,16 +4169,17 @@ function computeAndShow(){
   $('resWrong').textContent=wrong;
   $('resViol').textContent=R.violations; $('resViol').className='n'+(R.violations>0?' bad':'');
 
-  var showAns = R.exam.showReview !== false;
+  var showList = R.exam.showReview !== false;
   var miss = R.questions.filter(function(q,i){
     var sel=R.answers[i]; return !(sel!=null && q.choices[sel].correct);
   }).length;
-  if(!miss){
+  if(!showList){
+    $('review').innerHTML = '';
+  } else if(!miss){
     $('review').innerHTML = '<div class="rev-h"><b>ตอบถูกทุกข้อ</b></div>';
   } else {
     $('review').innerHTML =
       '<div class="rev-h"><b>ข้อที่ยังไม่ถูก ' + miss + ' ข้อ</b>' +
-      (showAns ? '' : '<span>ชุดนี้ไม่เปิดให้ดูเฉลย</span>') +
       '<button type="button" class="rev-all" id="revAll" onclick="toggleRevAll(this)">ดูทุกข้อ (' + total + ')</button></div>' +
       '<div class="rev-list only-wrong" id="revList">' + R.questions.map(function(q,i){
         var sel=R.answers[i];
@@ -4151,10 +4187,6 @@ function computeAndShow(){
         var opts='';
         if(sel==null) opts+='<div class="rev-opt wrong"><span class="rtag">—</span>ไม่ได้ตอบ</div>';
         else opts+='<div class="rev-opt '+(ok?'correct':'wrong')+'"><span class="rtag">คุณตอบ</span>'+esc(q.choices[sel].text)+'</div>';
-        /* เฉลยขึ้นเฉพาะตอนชุดข้อสอบเปิดให้ดู และเฉพาะข้อที่ตอบไม่ถูก */
-        if(showAns && !ok) q.choices.forEach(function(c){
-          if(c.correct) opts+='<div class="rev-opt correct"><span class="rtag">เฉลย</span>'+esc(c.text)+'</div>';
-        });
         return '<div class="rev-q '+(ok?'ok':'no')+'"><div class="rq-head"><span class="rev-mark '+(ok?'ok':'no')+'">'+(ok?'✓':'✕')+'</span>' +
           '<span class="rq-text">'+(i+1)+'. '+esc(q.q)+'</span></div>'+opts+'</div>';
       }).join('') + '</div>';
