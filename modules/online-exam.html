@@ -3273,14 +3273,14 @@ function _oeScopeResults(rows){
 
   /* ผลที่ผูกกับคำขอของเรา — ขอเองก็ต้องได้เห็นผล ถึงสาขาจะอยู่นอกโซน */
   var ofMine = {};
-  EXAM_REQS.forEach(function(q){ if(_oeIsMyReq(q)) ofMine[_oeResKey(q)] = 1; });
+  EXAM_REQS.forEach(function(q){ if(_oeIsMyReq(q)) ofMine[_oeResIdent(q)] = 1; });
 
   var hidden = 0, extra = 0;
   var kept = rows.filter(function(r){
     var k = _brandKey(r.branch);
     if(zone[k]) return true;
     if(!known[k]) return true;   // ทะเบียนไม่มีสาขานี้ ไม่รู้ว่าโซนใคร — ไม่ซ่อน
-    if(ofMine[_oeResKey(r)]){ extra++; return true; }
+    if(ofMine[_oeResIdent(r)]){ extra++; return true; }
     hidden++;
     return false;
   });
@@ -3450,6 +3450,7 @@ function _oeResCard(r){
 
    อ้างถึงผลสอบด้วยตำแหน่งในอาร์เรย์ เพราะผลสอบไม่มี id ที่ยืนยันได้
    (หลังบ้านเก็บเป็นแถวในชีต) ตำแหน่งใช้ได้เพราะเปิดจากรายการที่เพิ่งวาด */
+/* ตำแหน่งของผลสอบใบนี้ในรายการ — ใช้ส่งเข้า onclick ของแถว ต้องเป็นตัวเลขเสมอ */
 function _oeResKey(r){ return RESULTS.indexOf(r); }
 
 /* ── เลือกหลายรายการเพื่อลบทีเดียว ──
@@ -4577,14 +4578,16 @@ function submitResultToBackend(){
 /* ผลสอบของคำขอที่เห็นอยู่ — ใช้โชว์คะแนนในรายการ "สอบไปแล้ว"
    เก็บเฉพาะใบที่ตรงกับคำขอที่หน้านี้แสดงอยู่ ไม่เก็บของคนอื่นไว้ในหน่วยความจำ */
 var MY_RESULTS = [];
-function _oeResKey(x){
+/* คีย์ระบุตัวตนของผลสอบ/คำขอ — ใช้จับคู่ว่าผลใบไหนมาจากคำขอใบไหน
+   (คนละเรื่องกับ _oeResKey ที่คืนตำแหน่งในรายการ) */
+function _oeResIdent(x){
   return String(x.examId || '') + '|' + _oeNameKey(x.name) + '|' + String(x.empId || '').trim();
 }
 function _oeResultOfReq(q){
-  var k = _oeResKey(q), hit = null;
+  var k = _oeResIdent(q), hit = null;
   for(var i = 0; i < MY_RESULTS.length; i++){
     var r = MY_RESULTS[i];
-    if(_oeResKey(r) !== k) continue;
+    if(_oeResIdent(r) !== k) continue;
     /* สอบซ้ำได้หลายรอบ — เอาใบล่าสุดเป็นคำตอบ */
     if(!hit || String(r.submittedAt || '') > String(hit.submittedAt || '')) hit = r;
   }
@@ -4598,8 +4601,8 @@ function loadMyResults(){
   return apiGet('exam-results').then(function(res){
     var all = (res && res.ok && res.results) ? res.results : [];
     var want = {};
-    used.forEach(function(q){ want[_oeResKey(q)] = 1; });
-    MY_RESULTS = all.filter(function(r){ return want[_oeResKey(r)]; });
+    used.forEach(function(q){ want[_oeResIdent(q)] = 1; });
+    MY_RESULTS = all.filter(function(r){ return want[_oeResIdent(r)]; });
     renderBranchReqs();
   }).catch(function(){});
 }
