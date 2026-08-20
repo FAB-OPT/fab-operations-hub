@@ -884,6 +884,11 @@ button.rq-done-it:hover{background:var(--bg3)}
 .meta .n{font-variant-numeric:tabular-nums;font-size:23px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.03em}
 .meta .l{font-size:11px;color:var(--text3);margin-top:6px;font-weight:600}
 .rules{border:1px solid var(--border);border-radius:15px;padding:2px 8px;margin-bottom:18px;background:var(--bg2)}
+/* นาฬิกาย่อบนแถบบนสุดของหน้าสอบ — ซ่อนบนจอกว้าง เพราะการ์ดสถานะเห็นอยู่แล้ว */
+.et-clock{display:none;align-items:center;gap:6px;flex:0 0 auto;
+  font-variant-numeric:tabular-nums;font-size:17px;font-weight:800;letter-spacing:-.02em}
+.et-clock.warn{color:var(--gold)}
+.et-clock.danger{color:var(--red);animation:pulse 1s infinite}
 .rule{display:flex;gap:12px;align-items:flex-start;padding:11px 8px;border-bottom:1px dashed var(--border);font-size:13.5px;color:var(--text2);line-height:1.55}
 .rule:last-child{border-bottom:none}
 .rule .ic{flex:0 0 26px;height:26px;border-radius:9px;display:grid;place-items:center;
@@ -977,15 +982,19 @@ button.rq-done-it:hover{background:var(--bg3)}
   /* display:contents ทำให้การ์ดในแผงข้างกลายเป็นลูกของตารางหลักโดยตรง
      สั่ง order แยกทีละใบได้ — การ์ดเวลาจึงขึ้นไปอยู่เหนือคำถามได้ */
   .q-side,.q-side-in{display:contents}
-  .qs-card.status{order:-1;position:sticky;top:49px;z-index:30}
-  .qs-card.status .timer .clock{font-size:27px}
-  .qs-card.status{padding:13px 16px 12px}
+  /* คำถามมาก่อนเสมอ — คนเปิดมาเพื่อทำข้อสอบ ไม่ใช่มาดูผังเลขข้อ */
+  .q-card{order:0}
+  .qs-card{order:1}
+  .enav.wide{order:2}
+  /* ห้ามตรึงการ์ดสถานะบนจอแคบ มันสูงกว่าจอทั้งใบ ตรึงแล้วจะบังทุกอย่าง */
+  .qs-card.status{position:static;padding:15px 16px 13px}
   .qs-clock{display:flex;align-items:baseline;justify-content:center;gap:9px}
   .qs-cl{margin-top:0}
-  .qs-row{margin-top:11px;padding-top:11px}
-  .q-card{order:0}
-  .qs-card.nav{order:1}
-  .enav.wide{order:2}
+  .qs-card.status .timer .clock{font-size:27px}
+  .qs-row{margin-top:12px;padding-top:12px}
+  /* เวลาไปเกาะแถบบนสุดแทน แถบนั้นตรึงอยู่แล้วและเตี้ย ไม่บังใคร */
+  .exam-top{justify-content:space-between;gap:10px}
+  .et-clock{display:flex}
 }
 .q-head-blk{border-left:3px solid var(--gold);padding-left:18px;margin-bottom:28px}
 .q-index{display:flex;align-items:baseline;gap:6px;font-size:14.5px;font-weight:700;
@@ -1729,6 +1738,8 @@ label.fld>span>b{font-weight:800}
   <section id="ex-exam" class="exam-scr">
     <div class="exam-top">
       <div class="exam-title"><span class="dot"></span><span id="exRunTitle">แบบทดสอบ</span></div>
+      <!-- นาฬิกาย่อ โผล่เฉพาะจอแคบ ที่การ์ดสถานะไม่ได้ถูกตรึงไว้แล้ว -->
+      <div class="et-clock" id="etClock"><span id="clockMini">--:--</span></div>
     </div>
     <div class="progress-bar"><i id="prog" style="width:0%"></i></div>
     <div class="exam-main">
@@ -4093,9 +4104,16 @@ function startTimer(){
   R.timerId=setInterval(function(){ R.timeLeft--; updateClock(); if(R.timeLeft<=0){ clearInterval(R.timerId); finishExam('หมดเวลา'); } },1000);
 }
 function updateClock(){
-  $('clock').textContent=fmtClock(Math.max(0,R.timeLeft));
-  var box=$('timerBox'); box.classList.remove('warn','danger');
-  if(R.timeLeft<=30) box.classList.add('danger'); else if(R.timeLeft<=120) box.classList.add('warn');
+  var t = fmtClock(Math.max(0,R.timeLeft));
+  $('clock').textContent = t;
+  /* นาฬิกามีสองที่ (การ์ดสถานะ กับ แถบบนสุดสำหรับจอแคบ) — อัปเดตให้ตรงกันทั้งคู่ */
+  var mini = $('clockMini'); if(mini) mini.textContent = t;
+  var lvl = R.timeLeft<=30 ? 'danger' : (R.timeLeft<=120 ? 'warn' : '');
+  [$('timerBox'), $('etClock')].forEach(function(el){
+    if(!el) return;
+    el.classList.remove('warn','danger');
+    if(lvl) el.classList.add(lvl);
+  });
 }
 function renderQuestion(){
   var q=R.questions[R.current], total=R.questions.length;
