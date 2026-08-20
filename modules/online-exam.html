@@ -4881,8 +4881,8 @@ function openDocSet(){
   _docR = r;
   closeResultDetail();
   $('docsPick').innerHTML =
-    '<label class="off" title="ยังไม่ได้ทำแบบฟอร์มนี้"><input type="checkbox" disabled>แบบประเมินผลการบริการ</label>' +
-    '<label class="off" title="ยังไม่ได้ทำแบบฟอร์มนี้"><input type="checkbox" disabled>แบบประเมินผลงานครัว</label>';
+    '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
+    '<label><input type="checkbox" id="pickKitchen" onchange="docsPickForm(\'kitchen\',this.checked)">แบบประเมินผลงานครัว</label>';
   $('docsSheets').innerHTML = _docSheetAdjust(r) + _docSheetExam(r);
   /* เติมของที่ระบบรู้ให้ก่อน แล้วค่อยทับด้วยร่างที่เคยกรอกค้างไว้ */
   _docSet('emp_id', r.empId);
@@ -5046,8 +5046,55 @@ window.addEventListener('resize', function(){
   if(!$('docsView').classList.contains('hidden')) _docFitWidth();
 });
 
+/* แบบประเมินที่แนบเพิ่มได้ · ลำดับในชุดเอกสารตายตัว: บริการมาก่อนครัวเสมอ */
+var DOC_FORMS = {
+  service: { file: 'docs/service.html', title: 'แบบฟอร์มการประเมินผลการบริการ' },
+  kitchen: { file: 'docs/kitchen.html', title: 'แบบฟอร์มการประเมินผลงานครัว' }
+};
+var _docCache = {};
+function docsPickForm(kind, on){
+  var box = $('docsSheets');
+  var old = box.querySelector('[data-doc="' + kind + '"]');
+  if(!on){
+    if(old){ _docSaveDraft(true); old.remove(); _docFitWidth(); }
+    return;
+  }
+  if(old) return;
+  var cfg = DOC_FORMS[kind];
+  var put = function(html){
+    var art = document.createElement('article');
+    art.className = 'sheet xsheet';
+    art.setAttribute('data-doc', kind);
+    art.innerHTML = html;
+    /* ครัวต่อท้ายบริการเสมอ — ลำดับเอกสารต้องเหมือนกันทุกครั้งที่พิมพ์ */
+    var after = (kind === 'service') ? box.querySelector('[data-doc="kitchen"]') : null;
+    if(after) box.insertBefore(art, after); else box.appendChild(art);
+    _docMarkSign();
+    _docLoadDraft();
+    _docFitWidth();
+  };
+  if(_docCache[kind]) return put(_docCache[kind]);
+  toast('กำลังโหลด' + cfg.title + '…');
+  fetch(cfg.file).then(function(r){
+    if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
+    return r.text();
+  }).then(function(t){
+    _docCache[kind] = t;
+    put(t);
+    toast('แนบ' + cfg.title + 'แล้ว');
+  }).catch(function(){
+    var el = $(kind === 'service' ? 'pickService' : 'pickKitchen');
+    if(el) el.checked = false;
+    toast('โหลดแบบฟอร์มไม่สำเร็จ — ลองใหม่อีกครั้ง','err');
+  });
+}
+
 function closeDocSet(){
   _docSaveDraft(true);      // เก็บสิ่งที่พิมพ์ค้างไว้ให้เงียบ ๆ ก่อนปิด
+  ['service','kitchen'].forEach(function(k){
+    var el = $('docsSheets').querySelector('[data-doc="' + k + '"]');
+    if(el) el.remove();
+  });
   $('docsView').classList.add('hidden');
   document.body.style.overflow = '';
   _docR = null;
