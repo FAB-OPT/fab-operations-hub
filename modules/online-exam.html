@@ -911,6 +911,7 @@ button.rq-done-it:hover{background:var(--bg3)}
 .p-btn:hover{background:#d94f0a}
 .p-hint{font-size:11.5px;color:var(--text3);text-align:center;margin-top:14px;line-height:1.55}
 
+/* sticky เป็น positioned อยู่แล้ว แถบความคืบหน้าที่วางแบบ absolute จึงยึดกับแถบนี้ได้เลย */
 .exam-top{position:sticky;top:0;z-index:40;background:rgba(255,255,255,.94);
   backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-bottom:1px solid var(--border);
   display:flex;align-items:center;justify-content:center;gap:12px;padding:13px 22px}
@@ -944,9 +945,8 @@ button.rq-done-it:hover{background:var(--bg3)}
 .q-side-in{position:sticky;top:90px;display:flex;flex-direction:column;gap:12px}
 .qs-card{background:var(--bg2);border:1px solid rgba(226,232,240,.9);border-radius:20px;
   box-shadow:0 6px 18px rgba(15,23,42,.05);padding:20px 18px 17px}
-.qs-bar{height:6px;border-radius:99px;background:#eef1f6;overflow:hidden;
-  margin-top:16px;padding-top:0;border-top:none}
-.qs-bar i{display:block;height:100%;border-radius:99px;transition:width .35s;
+.qs-bar{position:absolute;left:0;right:0;bottom:-1px;height:4px;background:#eef1f6;overflow:hidden}
+.qs-bar i{display:block;height:100%;transition:width .35s;
   background:linear-gradient(90deg,var(--gold2),var(--gold))}
 .qs-hint{display:block;text-align:center;font-size:13px;font-weight:700;color:var(--gold);
   margin-top:16px;padding:10px 12px;border-radius:12px;
@@ -975,7 +975,7 @@ button.rq-done-it:hover{background:var(--bg3)}
   /* ลำดับบนจอแคบ: เวลา+ตัวเลข → คำถาม → ผังเลขข้อ → ปุ่มส่ง */
   .qs-head{order:-1;position:sticky;top:49px;z-index:30;
     background:var(--bg2);border:1px solid rgba(226,232,240,.9);
-    border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.05);padding:18px 18px 16px}
+    border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.05);padding:15px 18px 14px}
   .q-card{order:0}
   .qs-navwrap{order:1}
   .enav.wide{order:2}
@@ -1041,6 +1041,9 @@ button.rq-done-it:hover{background:var(--bg3)}
   padding:7px 14px;border-radius:999px;background:var(--red-soft);border:1px solid var(--red-line)}
 .lock-count b{font-size:17px;font-weight:800}
 .lock-count[hidden]{display:none}
+/* บรรทัดเตือนครั้งสุดท้าย — โผล่เฉพาะตอนเหลือโอกาสอีกครั้งเดียว */
+.lock-last{margin:-8px 0 18px;font-size:13.5px;font-weight:800;color:var(--red)}
+.lock-last[hidden]{display:none}
 .p-btn.red{background:var(--red)}.p-btn.red:hover{background:#c01f1f}
 .flash{position:fixed;inset:0;z-index:99;background:#000;display:none}
 .flash.show{display:block;animation:flashout .5s ease}
@@ -1742,6 +1745,8 @@ label.fld>span>b{font-weight:800}
       <div class="exam-title"><span class="dot"></span><span id="exRunTitle">แบบทดสอบ</span></div>
       <!-- นาฬิกาย่อ โผล่เฉพาะจอแคบ ที่การ์ดสถานะไม่ได้ถูกตรึงไว้แล้ว -->
       <div class="et-clock" id="etClock"><span id="clockMini">--:--</span></div>
+      <!-- แถบความคืบหน้า เกาะขอบล่างของแถบหัว — เห็นตลอดโดยไม่กินที่เหนือคำถาม -->
+      <div class="qs-bar"><i id="ansBar" style="width:0%"></i></div>
     </div>
     <div class="exam-main">
       <div class="q-card">
@@ -1760,9 +1765,6 @@ label.fld>span>b{font-weight:800}
           <div class="qs-clock">
             <div class="timer" id="timerBox"><span class="clock" id="clock">--:--</span></div>
             <div class="qs-cl">เวลาที่เหลือ</div>
-          </div>
-          <div class="qs-stats">
-            <div class="qs-bar"><i id="ansBar" style="width:0%"></i></div>
           </div>
           </div>
           <div class="qs-navwrap">
@@ -1820,6 +1822,7 @@ label.fld>span>b{font-weight:800}
       <h2 id="lockTitle">ตรวจพบการออกจากหน้าจอ</h2>
       <p id="lockMsg">ระบบกำลังบันทึกการทำข้อสอบ ห้ามสลับแท็บ ย่อหน้าจอ หรือออกจากหน้านี้</p>
       <div class="lock-count">เตือนครั้งที่ <b id="lockN">1</b> จาก <span id="lockMax">3</span></div>
+      <div class="lock-last" id="lockLast" hidden></div>
       <button class="p-btn red" onclick="resumeExam()">กลับเข้าทำข้อสอบ</button>
     </div>
   </div>
@@ -4270,6 +4273,13 @@ function triggerLock(title,msg){
   var cnt = $('lock').querySelector('.lock-count');
   if(cnt) cnt.hidden = !!R.isPreview;
   $('lockN').textContent = R.violations;
+  /* เหลือโอกาสอีกครั้งเดียว = ต้องพูดให้แรงกว่าเดิม ไม่ใช่ขึ้นตัวเลขเฉย ๆ */
+  var left = Math.max(0, (Number(R.exam.maxViolations) || 0) - R.violations);
+  var last = $('lockLast');
+  if(last){
+    last.hidden = !(!R.isPreview && left === 1);
+    last.textContent = 'อีกครั้งเดียวระบบจะตัดสิทธิ์และส่งข้อสอบทันที';
+  }
   $('lock').classList.add('show');
 }
 function resumeExam(){
