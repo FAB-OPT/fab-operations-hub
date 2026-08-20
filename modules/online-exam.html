@@ -1008,6 +1008,10 @@ button.rq-done-it:hover{background:var(--bg3)}
 .q-index b{font-size:21px;font-weight:800;color:var(--gold);letter-spacing:-.025em;
   font-variant-numeric:tabular-nums;line-height:1}
 .q-index i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--text3)}
+/* ชื่อผู้สอบต่อท้ายเลขข้อ — คั่นด้วยเส้นตั้ง ไม่ใช่จุด จะได้ไม่อ่านรวมกับตัวเลข */
+.q-index u{text-decoration:none;color:var(--text2);font-weight:700;padding-left:9px;
+  border-left:1px solid var(--border);margin-left:3px;min-width:0;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .q-text{font-size:25px;line-height:1.45;font-weight:800;user-select:none;letter-spacing:-.02em}
 .choices{display:flex;flex-direction:column;gap:10px}
 .choices{display:flex;flex-direction:column;gap:11px}
@@ -1040,12 +1044,21 @@ button.rq-done-it:hover{background:var(--bg3)}
 .lock.show{display:grid;animation:fade .2s ease}
 .lock-card{max-width:430px;width:100%;text-align:center;background:var(--bg2);border-radius:20px;padding:28px 26px;
   box-shadow:var(--shadow-lg);border:1px solid var(--border)}
-.lock-ic{width:68px;height:68px;border-radius:19px;background:var(--red-soft);border:1px solid var(--red-line);
-  display:grid;place-items:center;margin:0 auto 16px;font-size:31px}
-.lock-card h2{font-size:21px;font-weight:800;margin-bottom:9px;letter-spacing:-.02em}
+.lock-ic{width:60px;height:60px;border-radius:50%;background:var(--red-soft);border:1px solid var(--red-line);
+  display:grid;place-items:center;margin:0 auto 15px;color:var(--red)}
+.lock-ic svg{width:27px;height:27px}
+/* ป้ายบอกว่าเป็นโหมดทดลอง — แยกออกมาจากหัวเรื่อง ไม่งั้นหัวเรื่องยาวจนตกบรรทัด */
+.lock-tag{display:inline-block;margin-bottom:10px;padding:4px 12px;border-radius:999px;
+  background:var(--bg3);border:1px solid var(--border);
+  font-size:11.5px;font-weight:800;color:var(--text3);letter-spacing:.02em}
+.lock-tag[hidden]{display:none}
+.lock-card h2{font-size:20px;font-weight:800;margin-bottom:8px;letter-spacing:-.02em;line-height:1.35}
 .lock-card p{color:var(--text2);font-size:14.5px;line-height:1.6}
-.lock-count{font-variant-numeric:tabular-nums;font-size:13.5px;color:var(--text2);margin:15px 0 20px}
-.lock-count b{color:var(--red);font-weight:600}
+.lock-count{display:inline-flex;align-items:baseline;gap:6px;font-variant-numeric:tabular-nums;
+  font-size:13px;font-weight:700;color:#a51c1c;margin:16px 0 20px;
+  padding:7px 14px;border-radius:999px;background:var(--red-soft);border:1px solid var(--red-line)}
+.lock-count b{font-size:17px;font-weight:800}
+.lock-count[hidden]{display:none}
 .p-btn.red{background:var(--red)}.p-btn.red:hover{background:#c01f1f}
 .flash{position:fixed;inset:0;z-index:99;background:#000;display:none}
 .flash.show{display:block;animation:flashout .5s ease}
@@ -1817,10 +1830,13 @@ label.fld>span>b{font-weight:800}
   <!-- lock overlay -->
   <div class="lock" id="lock">
     <div class="lock-card">
-      <div class="lock-ic">⚠️</div>
+      <div class="lock-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9"
+        stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9.5 17H2.5L12 3z"/>
+        <path d="M12 10v4.5M12 17.5h.01"/></svg></div>
+      <div class="lock-tag" id="lockTag" hidden>โหมดทดลอง · ไม่นับและไม่บันทึก</div>
       <h2 id="lockTitle">ตรวจพบการออกจากหน้าจอ</h2>
       <p id="lockMsg">ระบบกำลังบันทึกการทำข้อสอบ ห้ามสลับแท็บ ย่อหน้าจอ หรือออกจากหน้านี้</p>
-      <div class="lock-count">การเตือนครั้งที่ <b id="lockN">1</b> จากทั้งหมด <span id="lockMax">3</span> ครั้ง</div>
+      <div class="lock-count">เตือนครั้งที่ <b id="lockN">1</b> จาก <span id="lockMax">3</span></div>
       <button class="p-btn red" onclick="resumeExam()">กลับเข้าทำข้อสอบ</button>
     </div>
   </div>
@@ -4122,7 +4138,8 @@ function updateClock(){
 }
 function renderQuestion(){
   var q=R.questions[R.current], total=R.questions.length;
-  $('qIndex').innerHTML='ข้อ <b>'+(R.current+1)+'</b><i>/ '+total+'</i>';
+  $('qIndex').innerHTML='ข้อ <b>'+(R.current+1)+'</b><i>/ '+total+'</i>' +
+    (R.student && R.student.name ? '<u>'+esc(R.student.name)+'</u>' : '');
   $('qText').textContent=q.q;
   var keys=['A','B','C','D','E','F','G','H'];
   var sel=R.answers[R.current];
@@ -4262,8 +4279,14 @@ function triggerLock(title,msg){
   if(!R.isPreview) registerViolation(title);   // นับเฉพาะสอบจริง
   if(R.finished) return;
   R.locked=true;
-  $('lockTitle').textContent = (R.isPreview?'👁️ ทดลอง — ':'')+title;
-  $('lockMsg').textContent = R.isPreview ? (msg+' · โหมดทดลอง: ไม่นับ/ไม่บันทึก (เวลาสอบจริงจะนับเป็นการเตือน)') : msg;
+  /* โหมดทดลองบอกด้วยป้ายแยก ไม่ยัดต่อท้ายหัวเรื่องจนตกบรรทัด */
+  $('lockTitle').textContent = title;
+  $('lockMsg').textContent = msg;
+  var tag = $('lockTag');
+  if(tag) tag.hidden = !R.isPreview;
+  /* โหมดทดลองไม่ได้นับ จึงไม่ควรโชว์ตัวนับให้เข้าใจผิดว่าโดนไปแล้ว */
+  var cnt = $('lock').querySelector('.lock-count');
+  if(cnt) cnt.hidden = !!R.isPreview;
   $('lockN').textContent = R.violations;
   $('lock').classList.add('show');
 }
