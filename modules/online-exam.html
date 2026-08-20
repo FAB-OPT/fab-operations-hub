@@ -185,6 +185,20 @@ input,select,textarea{font-family:inherit}
 .xlogo-w{display:block;height:0;overflow:visible}
 .xlogo{position:relative;top:7pt;margin-left:9pt;height:45pt;display:block}
 .xlogo[src=""]{display:none}
+/* ── เซ็นชื่อ ──
+   ช่องที่เซ็นได้ต้องดูออกว่ากดได้ ไม่ใช่เส้นเปล่า ๆ ที่ไม่มีใครกล้าแตะ */
+.sigslot{cursor:pointer;position:relative}
+.xt .sigwrap{position:relative;display:inline-block;width:100%;cursor:pointer}
+.sigimg{position:absolute;left:0;bottom:0.5pt;height:170%;max-width:100%;
+  object-fit:contain;object-position:left bottom;pointer-events:none}
+.sigslot .sigimg{height:9mm;bottom:1pt}
+.modal-box.sig-box{max-width:520px}
+.sig-pad{position:relative;border:1px dashed var(--border2);border-radius:12px;
+  background:var(--bg2);overflow:hidden;touch-action:none}
+.sig-pad canvas{display:block;width:100%;height:190px;cursor:crosshair}
+.sig-hint{position:absolute;inset:0;display:grid;place-items:center;
+  color:var(--text3);font-size:14px;pointer-events:none}
+.sig-pad.has .sig-hint{display:none}
 /* หน้าผลสอบในชุดเอกสาร */
 .sh-kv{width:100%;border-collapse:collapse;margin-top:3mm}
 .sh-kv th,.sh-kv td{border:0.8pt solid #374151;padding:2mm 3mm;font-size:11pt}
@@ -2041,6 +2055,26 @@ label.fld>span>b{font-weight:800}
   </div>
   <div class="docs-scroll"><div id="docsSheets"></div></div>
 </section>
+
+<!-- ═══════════ เซ็นชื่อ ═══════════
+     เซ็นด้วยนิ้วบนมือถือหรือเมาส์บนคอม แล้ววางลงบนเส้นลงชื่อในเอกสาร -->
+<div class="modal" id="sigModal">
+  <div class="modal-box sig-box" role="dialog" aria-modal="true">
+    <header class="modal-head">
+      <div><h3>เซ็นชื่อ</h3><div class="mh-sub" id="sigWho">ลากนิ้วหรือเมาส์ในกรอบด้านล่าง</div></div>
+      <button class="modal-x" onclick="sigClose()" aria-label="ปิด">✕</button>
+    </header>
+    <div class="modal-body">
+      <div class="sig-pad"><canvas id="sigCanvas"></canvas><span class="sig-hint" id="sigHint">เซ็นตรงนี้</span></div>
+    </div>
+    <footer class="modal-foot">
+      <button class="btn btn-soft" onclick="sigWipe()">ล้าง</button>
+      <div style="flex:1"></div>
+      <button class="btn btn-soft" onclick="sigClose()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="sigApply()">ใช้ลายเซ็นนี้</button>
+    </footer>
+  </div>
+</div>
 
 <!-- ═══════════ ขอสิทธิ์สอบ (ฝั่งสาขา) ═══════════ -->
 <div class="modal" id="reqModal">
@@ -4821,9 +4855,10 @@ function _docSheetExam(r){
     '<div class="sh-note">เอกสารนี้ออกจากระบบสอบออนไลน์โดยอัตโนมัติ ตัวเลขทั้งหมดตรงกับที่บันทึกไว้ในระบบ ' +
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
-      '<div><div class="ln"></div><b>ผู้เข้าสอบ</b><span>วันที่ ......../......../........</span></div>' +
-      '<div><div class="ln"></div><b>ผู้คุมสอบ / ผู้ประเมิน</b><span>วันที่ ......../......../........</span></div>' +
-      '<div><div class="ln"></div><b>ผู้จัดการเขต</b><span>วันที่ ......../......../........</span></div>' +
+      '<div><div class="ln sigslot" data-d="sig_exam_taker"></div><b>ผู้เข้าสอบ</b>' +
+        '<span>วันที่ ......../......../........</span></div>' +
+      '<div><div class="ln sigslot" data-d="sig_exam_zm"></div><b>ผู้จัดการเขต</b>' +
+        '<span>วันที่ ......../......../........</span></div>' +
     '</div>' +
   '</article>';
 }
@@ -4843,11 +4878,107 @@ function openDocSet(){
   _docSet('emp_name', r.name);
   _docSet('emp_pos', r.position);
   _docSet('emp_branch', r.branch);
+  _docMarkSign();
   _docLoadDraft();
   $('docsView').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   _docFitWidth();
 }
+/* ── เซ็นชื่อ ──
+   ช่อง "ลงชื่อ" ในฟอร์มมาจากไฟล์ Excel เป็นช่องพิมพ์ธรรมดา ไม่มีอะไรบอกว่าเป็นช่องเซ็น
+   จึงหาเอาจากป้ายในช่องซ้ายมือของแถวเดียวกัน แล้วเปลี่ยนช่องนั้นให้กดเซ็นได้ */
+var _sigTarget = null, _sigCtx = null, _sigDrew = false;
+
+function _docMarkSign(){
+  var rows = document.querySelectorAll('#docsSheets .xt tr');
+  [].forEach.call(rows, function(tr){
+    var tds = tr.children, want = false;
+    for(var i = 0; i < tds.length; i++){
+      var txt = (tds[i].textContent || '').replace(/\s/g, '');
+      if(want){
+        var el = tds[i].querySelector('input.xi');
+        if(el){ _docMakeSignable(el); want = false; continue; }
+      }
+      want = (txt === 'ลงชื่อ');
+    }
+  });
+  /* เส้นเซ็นในใบผลสอบทำเป็นช่องเซ็นมาแต่แรกแล้ว */
+  [].forEach.call(document.querySelectorAll('#docsSheets .sigslot'), function(el){
+    el.onclick = function(){ sigOpen(el); };
+  });
+}
+function _docMakeSignable(el){
+  if(el.parentNode.classList.contains('sigwrap')) return;
+  var w = document.createElement('span');
+  w.className = 'sigwrap';
+  el.parentNode.insertBefore(w, el);
+  w.appendChild(el);
+  el.readOnly = true;
+  el.style.cursor = 'pointer';
+  w.onclick = function(){ sigOpen(el); };
+}
+
+function sigOpen(target){
+  _sigTarget = target;
+  var lbl = target.getAttribute('data-d') || '';
+  $('sigWho').textContent = 'ลากนิ้วหรือเมาส์ในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้"';
+  $('sigModal').classList.add('show');
+  setTimeout(_sigInit, 30);
+}
+function _sigInit(){
+  var c = $('sigCanvas');
+  /* ปรับความละเอียดตามจอ ไม่งั้นลายเซ็นออกมาเป็นขั้นบันไดตอนพิมพ์ */
+  var r = c.getBoundingClientRect(), dpr = Math.max(2, window.devicePixelRatio || 1);
+  c.width = Math.round(r.width * dpr);
+  c.height = Math.round(r.height * dpr);
+  _sigCtx = c.getContext('2d');
+  _sigCtx.scale(dpr, dpr);
+  _sigCtx.lineWidth = 2.2;
+  _sigCtx.lineCap = 'round';
+  _sigCtx.lineJoin = 'round';
+  _sigCtx.strokeStyle = '#111827';
+  _sigDrew = false;
+  $('sigCanvas').parentNode.classList.remove('has');
+
+  var drawing = false;
+  function pos(e){
+    var b = c.getBoundingClientRect();
+    var p = e.touches ? e.touches[0] : e;
+    return { x: p.clientX - b.left, y: p.clientY - b.top };
+  }
+  function down(e){ e.preventDefault(); drawing = true; var p = pos(e);
+    _sigCtx.beginPath(); _sigCtx.moveTo(p.x, p.y); }
+  function move(e){ if(!drawing) return; e.preventDefault(); var p = pos(e);
+    _sigCtx.lineTo(p.x, p.y); _sigCtx.stroke();
+    if(!_sigDrew){ _sigDrew = true; c.parentNode.classList.add('has'); } }
+  function up(){ drawing = false; }
+  c.onpointerdown = down; c.onpointermove = move;
+  c.onpointerup = up; c.onpointerleave = up; c.onpointercancel = up;
+}
+function sigWipe(){
+  var c = $('sigCanvas');
+  if(_sigCtx) _sigCtx.clearRect(0, 0, c.width, c.height);
+  _sigDrew = false;
+  c.parentNode.classList.remove('has');
+}
+function sigClose(){ $('sigModal').classList.remove('show'); _sigTarget = null; }
+function sigApply(){
+  if(!_sigTarget) return sigClose();
+  if(!_sigDrew){ toast('ยังไม่ได้เซ็น','err'); return; }
+  _docSetSign(_sigTarget, $('sigCanvas').toDataURL('image/png'));
+  sigClose();
+  toast('ใส่ลายเซ็นแล้ว');
+}
+/* วางรูปลายเซ็นทับเส้น — เก็บไว้ที่ตัวช่องเอง ร่างจะได้บันทึกไปด้วย */
+function _docSetSign(el, uri){
+  el.dataset.sig = uri || '';
+  var host = el.classList.contains('sigslot') ? el : el.parentNode;
+  var img = host.querySelector('.sigimg');
+  if(!uri){ if(img) img.remove(); return; }
+  if(!img){ img = document.createElement('img'); img.className = 'sigimg'; host.appendChild(img); }
+  img.src = uri;
+}
+
 function _docFitWidth(){
   var host = $('docsSheets'); if(!host) return;
   host.style.transform = ''; host.style.marginBottom = '';
@@ -4884,11 +5015,16 @@ function _docSet(name, val){
 function _docFields(){
   return [].slice.call(document.querySelectorAll('#docsSheets [data-d]'));
 }
+function _docClearSigns(){
+  _docFields().forEach(function(el){ if(el.dataset && el.dataset.sig) _docSetSign(el, ''); });
+}
 function _docSaveDraft(quiet){
   if(!_docR) return;
   var d = {};
   _docFields().forEach(function(el){
-    d[el.getAttribute('data-d')] = (el.type === 'checkbox') ? (el.checked ? 1 : 0) : el.value;
+    var k = el.getAttribute('data-d');
+    d[k] = (el.type === 'checkbox') ? (el.checked ? 1 : 0) : (el.value || '');
+    if(el.dataset && el.dataset.sig) d['@' + k] = el.dataset.sig;   // ลายเซ็นเก็บแยกคีย์
   });
   try{ localStorage.setItem(_docDraftKey(_docR), JSON.stringify(d)); }
   catch(e){ if(!quiet) toast('บันทึกร่างไม่ได้ — พื้นที่ในเครื่องเต็ม','err'); return; }
@@ -4902,9 +5038,10 @@ function _docLoadDraft(){
   if(!d) return;
   _docFields().forEach(function(el){
     var k = el.getAttribute('data-d');
+    if(d['@' + k]) _docSetSign(el, d['@' + k]);
     if(!(k in d)) return;
     if(el.type === 'checkbox') el.checked = !!d[k];
-    else el.value = d[k];
+    else if(el.value !== undefined) el.value = d[k];
   });
 }
 async function docsClear(){
@@ -4915,8 +5052,9 @@ async function docsClear(){
   });
   if(!ok) return;
   _docFields().forEach(function(el){
-    if(el.type === 'checkbox') el.checked = false; else el.value = '';
+    if(el.type === 'checkbox') el.checked = false; else if(el.value !== undefined) el.value = '';
   });
+  _docClearSigns();
   try{ localStorage.removeItem(_docDraftKey(_docR)); }catch(e){}
   toast('ล้างฟอร์มแล้ว');
 }
