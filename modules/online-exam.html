@@ -4669,6 +4669,16 @@ var _reqTick = 0;           // นับรอบจับเวลา ใช้
 
 /* เงื่อนไขที่ควรดึงคำขอซ้ำ — หน้าจัดการเปิดอยู่ แท็บนี้ถูกมองอยู่ และไม่ได้กำลังสอบ
    ไม่ดึงตอนกำลังสอบ เพราะ Apps Script รับทีละคำขอ จะไปแย่งคิวของคนที่กำลังทำข้อสอบ */
+/* อย่าดึงผลสอบทับตอนคนกำลังทำอะไรกับตารางอยู่ — ตารางถูกวาดใหม่ทั้งก้อน
+   ของที่ติ๊กเลือกไว้จะหลุด และกล่องรายละเอียดที่เปิดค้างจะกลายเป็นของคนละใบ */
+function _oeResBusy(){
+  if(Object.keys(_oeSel || {}).length) return true;
+  var d = $('rdModal');
+  if(d && d.classList.contains('show')) return true;
+  var q = $('fltSearch');
+  if(q && document.activeElement === q) return true;
+  return false;
+}
 function _oeShouldPollReqs(){
   if(document.hidden) return false;
   if(!isAdminMode && !oeCan('request-exam')) return false;
@@ -4690,10 +4700,20 @@ function oeStartReqPoll(){
     var watching = $('tabReqs').classList.contains('active') ||
                    $('tabMine').classList.contains('active');
     if(watching || _reqTick % 5 === 0) loadExamRequests();
+
+    /* จ้องตารางผลสอบอยู่ = รอผลของคนที่กำลังสอบ ดึงทุก 20 วิ
+       อยู่แท็บอื่นดึงทุก ~100 วิ พอให้ตัวเลขสรุปด้านบนไม่ค้างของเก่า
+       ไม่ดึงถี่กว่านี้ด้วยเหตุผลเดียวกับคำขอ — โควตาเป็นเวลารันรวมต่อวัน */
+    if(oeCan('view-results') && !_oeResBusy()){
+      var onRes = $('tabResults').classList.contains('active');
+      if((onRes && _reqTick % 2 === 0) || _reqTick % 10 === 0) loadResults();
+    }
   }, 10000);
   /* กลับมาที่แท็บนี้เมื่อไรก็ดึงทันที ไม่ต้องรอครบรอบ */
   document.addEventListener('visibilitychange', function(){
-    if(_oeShouldPollReqs()) loadExamRequests();
+    if(!_oeShouldPollReqs()) return;
+    loadExamRequests();
+    if(oeCan('view-results') && !_oeResBusy()) loadResults();
   });
 }
 
@@ -5201,15 +5221,36 @@ function _reqRow(r){
 function decideReq(id, decision){
   var who = (typeof FH_USER !== 'undefined' && FH_USER) ? (FH_USER.name || FH_USER.nick) : '';
   if(!who){ var s = getHubSession() || {}; who = s.name || s.nick || s.code || 'admin'; }
+
+  /* ขยับจอก่อน แล้วค่อยรอหลังบ้าน — Apps Script ตอบช้าเป็นปกติ
+     ถ้ารอให้ตอบก่อนค่อยขยับ คนกดจะนึกว่าปุ่มไม่ทำงานแล้วกดซ้ำ */
+  var q = EXAM_REQS.filter(function(x){ return x.id === id; })[0];
+  var prev = q ? q.status : null;
+  if(q){
+    q.status = decision === 'reject' ? 'rejected' : 'approved';
+    renderExamRequests();
+    paintReqCount();
+    if(oeCan('request-exam')) renderBranchExams();
+  }
+  if(decision === 'approve'){
+    showExamInfo('อนุมัติแล้ว',
+      'ปุ่มเริ่มทำข้อสอบขึ้นที่หน้าของผู้ขอแล้ว'
+      + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">ทำได้ครั้งเดียว ส่งแล้วสิทธิ์ปิดทันที</div>');
+  }
+
   apiPost({ type: 'decide-exam-request', id: id, decision: decision, by: who }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ทำรายการไม่สำเร็จ');
-    if(decision === 'approve'){
-      showExamInfo('อนุมัติแล้ว',
-        'ปุ่มเริ่มทำข้อสอบขึ้นที่หน้าของผู้ขอแล้ว'
-        + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">ทำได้ครั้งเดียว ส่งแล้วสิทธิ์ปิดทันที</div>');
-    }
     loadExamRequests();
-  }).catch(function(e){ showExamInfo('ทำรายการไม่สำเร็จ', esc(e.message || '')); });
+  }).catch(function(e){
+    /* คืนสถานะเดิม ไม่งั้นจอจะบอกว่าอนุมัติแล้วทั้งที่หลังบ้านยังไม่รู้เรื่อง */
+    if(q && prev != null){
+      q.status = prev;
+      renderExamRequests();
+      paintReqCount();
+      if(oeCan('request-exam')) renderBranchExams();
+    }
+    showExamInfo('ทำรายการไม่สำเร็จ', esc(e.message || ''));
+  });
 }
 
 /* ── กล่องยืนยัน ──
