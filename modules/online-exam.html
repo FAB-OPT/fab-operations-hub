@@ -1061,6 +1061,11 @@ button.rq-done-it:hover{background:var(--bg3)}
 .emodal.show{display:grid;animation:fade .2s ease}
 .emodal-card{background:var(--bg2);border-radius:18px;max-width:410px;width:100%;padding:24px;box-shadow:var(--shadow-lg)}
 .emodal-card.wide{max-width:600px}
+/* หัวรายการ: บอกว่ากำลังดูอะไรอยู่ และสลับไปดูอีกชุดได้ */
+.sum-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
+.sum-h b{font-size:13.5px;font-weight:800}
+.sum-tog{font-size:12.5px;font-weight:700;color:var(--gold)}
+.sum-tog:hover{text-decoration:underline}
 /* รายการสรุปคำตอบ — สูงจำกัดแล้วเลื่อนในตัว กล่องจะได้ไม่ยาวเลยจอตอนมี 50 ข้อ */
 .sum-list{max-height:46vh;overflow:auto;border:1px solid var(--border);border-radius:12px;
   padding:5px;margin-bottom:17px;background:var(--bg3)}
@@ -1093,10 +1098,10 @@ button.rq-done-it:hover{background:var(--bg3)}
 .ring .rt .pct{font-variant-numeric:tabular-nums;font-size:29px;font-weight:600;line-height:1;letter-spacing:-.02em}
 .ring .rt .sub{font-size:11.5px;color:var(--text3);margin-top:3px}
 .verdict{flex:1;min-width:190px}
-.badge{display:inline-flex;align-items:center;gap:7px;padding:6px 14px;border-radius:999px;font-weight:700;font-size:14px}
-.badge.pass{background:var(--green-soft);color:#0b7a55}
-.badge.fail{background:var(--red-soft);color:#a51c1c}
-.verdict h2{margin:11px 0 4px;font-size:21px;font-weight:800;letter-spacing:-.02em}
+.verdict h2{margin:0 0 5px;font-size:23px;font-weight:800;letter-spacing:-.025em}
+.verdict h2.ok{color:#0b7a55}
+.verdict h2.no{color:#a51c1c}
+.paper-card .ch p span{display:block;color:var(--text3);font-size:13px;margin-top:2px}
 .verdict p{color:var(--text2);font-size:14px;line-height:1.55}
 .stat-row{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);border-radius:13px;overflow:hidden;margin:18px 0}
 .stat{padding:13px 8px;text-align:center;border-right:1px solid var(--border)}
@@ -1771,7 +1776,7 @@ label.fld>span>b{font-weight:800}
   <section id="ex-result" class="exam-scr">
     <div class="paper-wrap">
       <div class="paper-card">
-        <div class="ch"><div class="eyebrow">Result</div><h1>ผลการทำข้อสอบ</h1><p id="resWho"></p></div>
+        <div class="ch"><h1>ผลการทำข้อสอบ</h1><p id="resWho"></p></div>
         <div class="cb">
           <div class="ring-wrap">
             <div class="ring">
@@ -1781,7 +1786,7 @@ label.fld>span>b{font-weight:800}
               </svg>
               <div class="rt"><div class="pct" id="resPct">0%</div><div class="sub">คะแนน</div></div>
             </div>
-            <div class="verdict"><span class="badge" id="resBadge"></span><h2 id="resHead"></h2><p id="resSub"></p></div>
+            <div class="verdict"><h2 id="resHead"></h2><p id="resSub"></p></div>
           </div>
           <div class="stat-row">
             <div class="stat"><div class="n" id="resCorrect">0</div><div class="l">ตอบถูก</div></div>
@@ -1818,8 +1823,8 @@ label.fld>span>b{font-weight:800}
     <div class="emodal-card wide">
       <h3>ตรวจคำตอบก่อนส่ง</h3>
       <p id="submitMsg">เมื่อส่งแล้วจะไม่สามารถแก้ไขคำตอบได้อีก</p>
-      <!-- รายการคำตอบทั้งหมด กดข้อไหนก็เด้งกลับไปแก้ข้อนั้นได้ -->
-      <div class="sum-list" id="submitList"></div>
+      <!-- รายการคำตอบ กดข้อไหนก็เด้งกลับไปแก้ข้อนั้นได้ -->
+      <div id="submitList"></div>
       <div class="emodal-actions">
         <button class="p-btn ghost" onclick="document.getElementById('submitModal').classList.remove('show')">กลับไปแก้</button>
         <button class="p-btn" onclick="confirmSubmit()">ส่งเลย</button>
@@ -4163,17 +4168,32 @@ function openSubmitModal(){
     : 'ตอบครบทั้ง '+R.questions.length+' ข้อแล้ว · เมื่อส่งแล้วแก้ไม่ได้อีก';
   /* สรุปให้เห็นก่อนว่าตอบอะไรไปบ้าง — กดข้อไหนก็เด้งกลับไปแก้ข้อนั้นได้เลย
      ไม่ต้องปิดกล่องแล้วไปไล่หาเองว่าข้อที่ยังว่างอยู่ตรงไหน */
-  var keys=['A','B','C','D','E','F','G','H'];
-  $('submitList').innerHTML = R.questions.map(function(q,i){
-    var sel=R.answers[i];
-    return '<button type="button" class="sum-it'+(sel==null?' none':'')+'" onclick="gotoFromSummary('+i+')">' +
-      '<span class="sn">'+(i+1)+'</span>' +
-      '<span class="sq">'+esc(q.q)+'</span>' +
-      '<span class="sa">'+(sel==null ? 'ยังไม่ตอบ' : (keys[sel]+' · '+esc(q.choices[sel].text)))+'</span>' +
-    '</button>';
-  }).join('');
+  _oePaintSummary(un > 0);
   $('submitModal').classList.add('show');
 }
+/* วาดรายการในกล่องตรวจคำตอบ · onlyBlank = โชว์เฉพาะข้อที่ยังไม่ได้ตอบ */
+function _oePaintSummary(onlyBlank){
+  var keys=['A','B','C','D','E','F','G','H'];
+  var host=$('submitList'); if(!host) return;
+  var rows = R.questions.map(function(q,i){ return { q:q, i:i, sel:R.answers[i] }; });
+  var show = onlyBlank ? rows.filter(function(r){ return r.sel==null; }) : rows;
+  var un = rows.filter(function(r){ return r.sel==null; }).length;
+
+  host.innerHTML =
+    '<div class="sum-h">' +
+      '<b>' + (onlyBlank ? 'ข้อที่ยังไม่ได้ตอบ ' + un + ' ข้อ' : 'คำตอบทั้งหมด ' + rows.length + ' ข้อ') + '</b>' +
+      (un ? '<button type="button" class="sum-tog" onclick="_oePaintSummary(' + (onlyBlank ? 'false' : 'true') + ')">' +
+        (onlyBlank ? 'ดูทั้งหมด' : 'ดูเฉพาะที่ยังไม่ตอบ') + '</button>' : '') +
+    '</div>' +
+    '<div class="sum-list">' + show.map(function(r){
+      return '<button type="button" class="sum-it'+(r.sel==null?' none':'')+'" onclick="gotoFromSummary('+r.i+')">' +
+        '<span class="sn">'+(r.i+1)+'</span>' +
+        '<span class="sq">'+esc(r.q.q)+'</span>' +
+        '<span class="sa">'+(r.sel==null ? 'ยังไม่ตอบ' : (keys[r.sel]+' · '+esc(r.q.choices[r.sel].text)))+'</span>' +
+      '</button>';
+    }).join('') + '</div>';
+}
+
 /* กดข้อในสรุป = ปิดกล่องแล้วไปที่ข้อนั้น */
 function gotoFromSummary(i){
   $('submitModal').classList.remove('show');
@@ -4305,9 +4325,12 @@ function computeAndShow(){
   arc.style.stroke = pass ? '#10b981' : '#ef4444';
   arc.style.strokeDashoffset = C-(C*pct/100);
   $('resPct').textContent=pct+'%';
-  $('resWho').textContent = R.student.name+(R.student.id?' · รหัส '+R.student.id:'')+(R.student.branch?' · '+R.student.branch:'');
-  var badge=$('resBadge'); badge.className='badge '+(pass?'pass':'fail'); badge.innerHTML=pass?'✓ ผ่านเกณฑ์':'✕ ไม่ผ่านเกณฑ์';
-  $('resHead').textContent = pass?'ยินดีด้วย! ผ่านการทดสอบ':'ยังไม่ผ่านเกณฑ์';
+  $('resWho').innerHTML = esc(R.student.name + (R.student.id ? ' · ' + R.student.id : '')) +
+    (R.student.branch ? '<span>' + esc(R.student.branch) + '</span>' : '');
+  /* คำตัดสินพูดครั้งเดียว แล้วใช้สีเป็นตัวบอกว่าผ่านหรือไม่ */
+  var head=$('resHead');
+  head.className = pass ? 'ok' : 'no';
+  head.textContent = pass ? 'ผ่านเกณฑ์' : 'ยังไม่ผ่านเกณฑ์';
   var sub='ทำได้ '+correct+' จาก '+total+' ข้อ · เกณฑ์ผ่าน '+R.exam.passingScorePercent+'%';
   if(R.finishReason && R.finishReason!=='ส่งด้วยตนเอง') sub+=' · เหตุผลจบ: '+R.finishReason;
   $('resSub').textContent=sub;
