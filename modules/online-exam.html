@@ -865,6 +865,10 @@ button.rq-done-it:hover{background:var(--bg3)}
 .rq-done-it .dx{flex:1;min-width:0;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rq-done-it .dgo{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--gold)}
 .rq-done-it .dgo.off{color:var(--text3)}
+/* คะแนนของคำขอที่สอบไปแล้ว — คนที่ไม่มีตารางผลสอบต้องรู้ผลจากตรงนี้ */
+.rq-done-it .dsc{flex:0 0 auto;font-size:12.5px;font-weight:800;padding:3px 9px;border-radius:999px}
+.rq-done-it .dsc.ok{background:var(--green-soft);color:#0b7a55}
+.rq-done-it .dsc.no{background:var(--red-soft);color:#b91c1c}
 /* ชื่อได้บรรทัดเต็มของตัวเอง — ชื่อไทยไม่มีช่องว่างให้ตัดคำ ถ้าโดนบีบก็แตกกลางคำ */
 .rq-who b{display:block;font-size:15px;font-weight:800;line-height:1.35;letter-spacing:-.01em}
 .rq-id{display:block;font-size:12px;color:var(--text3);margin-top:3px;line-height:1.4}
@@ -4100,8 +4104,9 @@ function closeExamOverlay(){
   detachGuards();
   if(document.fullscreenElement){ document.exitFullscreen().catch(function(){}); }
   R=null;
-  // refresh list
-  if(isAdminMode){ loadResults(); }
+  /* ไม่ต้องดึงซ้ำตรงนี้ — ตอนบันทึกผลสำเร็จดึงให้แล้ว และหน้าผลสอบค้างอยู่นานพอ
+     ให้ของใหม่มาถึงก่อนจะกดปิด · ยิงซ้ำมีแต่ทำให้ Apps Script ช้าลงเปล่า ๆ
+     ปิดโดยไม่ได้ส่งข้อสอบก็ไม่มีอะไรใหม่ให้ดึงอยู่ดี */
 }
 
 /* ทำเครื่องหมายช่องที่ยังว่าง แล้วเด้งไปที่ช่องนั้น — บอกแค่ toast อย่างเดียว
@@ -4520,7 +4525,8 @@ function submitResultToBackend(){
       /* หลังบ้านปิดรหัสให้ตอนบันทึกผลอยู่แล้ว — ยิงซ้ำอีกทางกันกรณีคอลัมน์รหัสหาย
          และรีเฟรชรายการของสาขาให้เห็นว่าปิดแล้วทันที */
       if(R && R.accessCode) apiPost({ type:'use-exam-code', code:R.accessCode }).catch(function(){});
-      if(!isAdminMode) loadExamRequests();
+      loadExamRequests();
+      if(oeCan('view-results')) loadResults(true);
     }
     else st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ: '+((res&&res.error)||'')+'</span>';
   }).catch(function(e){ st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ (เชื่อมต่อไม่ได้) — แจ้งผู้ดูแล</span>'; });
@@ -4534,6 +4540,36 @@ function submitResultToBackend(){
    รหัสเป็นตัวคุมลำดับงาน ไม่ใช่กำแพงกันคนตั้งใจโกง — หลังบ้านเป็นเว็บแอปเปิด
    เหมือนส่วนอื่นของระบบ · สิ่งที่กันได้จริงคือ "สอบโดยไม่มีใครอนุมัติ" กับ "สอบซ้ำ"
    ════════════════════════════════════════════════════════════════ */
+/* ผลสอบของคำขอที่เห็นอยู่ — ใช้โชว์คะแนนในรายการ "สอบไปแล้ว"
+   เก็บเฉพาะใบที่ตรงกับคำขอที่หน้านี้แสดงอยู่ ไม่เก็บของคนอื่นไว้ในหน่วยความจำ */
+var MY_RESULTS = [];
+function _oeResKey(x){
+  return String(x.examId || '') + '|' + _oeNameKey(x.name) + '|' + String(x.empId || '').trim();
+}
+function _oeResultOfReq(q){
+  var k = _oeResKey(q), hit = null;
+  for(var i = 0; i < MY_RESULTS.length; i++){
+    var r = MY_RESULTS[i];
+    if(_oeResKey(r) !== k) continue;
+    /* สอบซ้ำได้หลายรอบ — เอาใบล่าสุดเป็นคำตอบ */
+    if(!hit || String(r.submittedAt || '') > String(hit.submittedAt || '')) hit = r;
+  }
+  return hit;
+}
+/* ผู้ดูแลมีตารางผลสอบอยู่แล้ว ไม่ต้องดึงซ้ำ */
+function loadMyResults(){
+  if(isAdminMode) return Promise.resolve();
+  var used = EXAM_REQS.filter(function(q){ return q.status === 'used'; });
+  if(!used.length){ MY_RESULTS = []; return Promise.resolve(); }
+  return apiGet('exam-results').then(function(res){
+    var all = (res && res.ok && res.results) ? res.results : [];
+    var want = {};
+    used.forEach(function(q){ want[_oeResKey(q)] = 1; });
+    MY_RESULTS = all.filter(function(r){ return want[_oeResKey(r)]; });
+    renderBranchReqs();
+  }).catch(function(){});
+}
+
 var EXAM_REQS = [];              // คำขอสอบทั้งหมดที่ดึงมาได้
 var _reqsLoaded = false;         // ดึงคำขอมาแล้วหรือยัง — ใช้แยก "ไม่มีคำขอ" ออกจาก "ยังโหลดไม่เสร็จ"
 var _reqFilter = 'pending';      // ตัวกรองสถานะฝั่งแอดมิน
@@ -4578,7 +4614,7 @@ function loadExamRequests(){
       /* มีแท็บการสอบอยู่ด้วยเมื่อไร ก็ต้องวาดคำขอของตัวเองใหม่ด้วย */
       if(oeCan('request-exam')) renderBranchExams();
     }
-    else renderBranchExams();
+    else { renderBranchExams(); loadMyResults(); }
   }).catch(function(e){
     /* ตั้งใจไม่เก็บคำขอลงเครื่อง — สถานะเปลี่ยนตลอด (รออนุมัติ → อนุมัติ → สอบแล้ว)
        เอาของเก่ามาโชว์เสี่ยงให้กดเริ่มสอบจากสิทธิ์ที่ถูกใช้ไปแล้ว */
@@ -4980,10 +5016,18 @@ function renderBranchReqs(){
         var go = isAdminMode
           ? ' onclick="oeSeeMyResult(\'' + _oeAttr(r.name) + '\')"'
           : '';
+        var got = isAdminMode ? null : _oeResultOfReq(r);
+        var tail = isAdminMode
+          ? '<span class="dgo">ดูผลสอบ</span>'
+          : (got
+              ? '<span class="dsc ' + (got.pass || got.result === 'ผ่าน' ? 'ok' : 'no') + '">'
+                + esc(got.pct) + '% · ' + (got.pass || got.result === 'ผ่าน' ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>'
+              /* ยังดึงผลไม่ถึง ≠ ไม่มีผล — บอกว่ากำลังรออยู่ ดีกว่าบอกผิด */
+              : '<span class="dgo off">กำลังดึงผล…</span>');
         return '<' + (isAdminMode ? 'button' : 'div') + ' class="rq-done-it"' + go + '>'
           + '<span class="dn">' + esc(r.name) + '</span>'
           + '<span class="dx">' + esc(r.examTitle) + '</span>'
-          + (isAdminMode ? '<span class="dgo">ดูผลสอบ</span>' : '<span class="dgo off">ทำเสร็จแล้ว</span>')
+          + tail
           + '</' + (isAdminMode ? 'button' : 'div') + '>';
       }).join('') + '</div>';
   }
