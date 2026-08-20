@@ -981,20 +981,22 @@ button.rq-done-it:hover{background:var(--bg3)}
   .exam-main{grid-template-columns:1fr;max-width:760px}
   /* display:contents ทำให้การ์ดในแผงข้างกลายเป็นลูกของตารางหลักโดยตรง
      สั่ง order แยกทีละใบได้ — การ์ดเวลาจึงขึ้นไปอยู่เหนือคำถามได้ */
-  .q-side,.q-side-in{display:contents}
-  /* คำถามมาก่อนเสมอ — คนเปิดมาเพื่อทำข้อสอบ ไม่ใช่มาดูผังเลขข้อ */
-  .q-card{order:0}
-  .qs-card{order:1}
-  .enav.wide{order:2}
-  /* ห้ามตรึงการ์ดสถานะบนจอแคบ มันสูงกว่าจอทั้งใบ ตรึงแล้วจะบังทุกอย่าง */
-  .qs-card.status{position:static;padding:15px 16px 13px}
-  .qs-clock{display:flex;align-items:baseline;justify-content:center;gap:9px}
-  .qs-cl{margin-top:0}
-  .qs-card.status .timer .clock{font-size:27px}
-  .qs-row{margin-top:12px;padding-top:12px}
+  /* คลายกล่องทุกชั้น เพื่อสั่งลำดับทีละท่อนได้ */
+  .q-side,.q-side-in,.qs-card.status{display:contents}
   /* เวลาไปเกาะแถบบนสุดแทน แถบนั้นตรึงอยู่แล้วและเตี้ย ไม่บังใคร */
+  .qs-clock{display:none}
   .exam-top{justify-content:space-between;gap:10px}
   .et-clock{display:flex}
+  /* ลำดับบนจอแคบ: ตัวเลขความคืบหน้า → คำถาม → ผังเลขข้อ → ปุ่มส่ง */
+  .qs-stats{order:-1}
+  .q-card{order:0}
+  .qs-navwrap{order:1}
+  .enav.wide{order:2}
+  /* สองท่อนนี้เคยอยู่ในการ์ดเดียวกัน พอแยกออกมาก็ต้องมีกล่องของตัวเอง */
+  .qs-stats,.qs-navwrap{background:var(--bg2);border:1px solid rgba(226,232,240,.9);
+    border-radius:18px;box-shadow:0 6px 18px rgba(15,23,42,.05);padding:14px 16px}
+  .qs-stats .qs-row{margin-top:0;padding-top:0;border-top:none}
+  .qs-navwrap .nav-grid{margin-top:0;padding-top:0;border-top:none}
 }
 .q-head-blk{border-left:3px solid var(--gold);padding-left:18px;margin-bottom:28px}
 .q-index{display:flex;align-items:baseline;gap:6px;font-size:14.5px;font-weight:700;
@@ -1123,7 +1125,7 @@ button.rq-done-it:hover{background:var(--bg3)}
   .meta:nth-child(2){border-right:none}
   .meta:nth-child(1),.meta:nth-child(2){border-bottom:1px solid var(--border)}
   .exam-top{padding:10px 14px}
-  .exam-title span{max-width:70px}
+
   .q-card{padding:22px 18px;border-radius:16px}
   .exam-main{padding:20px 14px 40px}
   .q-text{font-size:19px}
@@ -1140,8 +1142,8 @@ button.rq-done-it:hover{background:var(--bg3)}
   .brand-chip{display:none}
   .topbar .t-title{font-size:14.5px}
   .topbar .t-sub{display:none}
-  .btn-back .bt-label{display:none}
-  .btn-back{padding:8px 10px}
+  /* ปุ่มย้อนกลับเหลือแต่ลูกศรทำให้เดาไม่ออกว่าไปไหน — คงคำว่า "กลับหน้าหลัก" ไว้ */
+  .btn-back{padding:8px 11px;font-size:12.5px}
   .chip{padding:7px 10px;font-size:12px}
   .toolbar{gap:8px}
   .sel select{max-width:none;width:100%}
@@ -1762,15 +1764,19 @@ label.fld>span>b{font-weight:800}
             <div class="timer" id="timerBox"><span class="clock" id="clock">--:--</span></div>
             <div class="qs-cl">เวลาที่เหลือ</div>
           </div>
-          <div class="qs-row">
-            <div><b id="ansDone">0</b><span id="ansTotal">/ 0</span><em>ตอบแล้ว</em></div>
-            <div class="shield" id="shield"><b id="vCount">0</b><span>/ <i id="vMax">0</i></span><em>ถูกเตือน</em></div>
+          <div class="qs-stats">
+            <div class="qs-row">
+              <div><b id="ansDone">0</b><span id="ansTotal">/ 0</span><em>ตอบแล้ว</em></div>
+              <div class="shield" id="shield"><b id="vCount">0</b><span>/ <i id="vMax">0</i></span><em>ถูกเตือน</em></div>
+            </div>
+            <div class="qs-bar"><i id="ansBar" style="width:0%"></i></div>
           </div>
-          <div class="qs-bar"><i id="ansBar" style="width:0%"></i></div>
-          <div class="nav-grid" id="navGrid"></div>
-          <div class="qs-legend">
-            <span><i class="lg done"></i>ตอบแล้ว</span>
-            <span><i class="lg"></i>ยังไม่ตอบ</span>
+          <div class="qs-navwrap">
+            <div class="nav-grid" id="navGrid"></div>
+            <div class="qs-legend">
+              <span><i class="lg done"></i>ตอบแล้ว</span>
+              <span><i class="lg"></i>ยังไม่ตอบ</span>
+            </div>
           </div>
         </div>
         <button class="enav amber wide" onclick="openSubmitModal()">ส่งข้อสอบ</button>
