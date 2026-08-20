@@ -2078,6 +2078,11 @@ function _oeIsMyReq(q){
   if(!q) return false;
   if(currentBranchName) return true;
   if(String(q.id).indexOf('_tmp_') === 0) return true;
+  /* หลังบ้านจำไว้ว่าใครกด — เชื่อถือได้กว่าทุกทางที่เหลือ และข้ามเครื่องได้
+     (คำขอเก่าที่บันทึกก่อนมีคอลัมน์นี้จะว่าง แล้วตกไปใช้ทางอื่นตามเดิม) */
+  var _me = getHubSession() || {};
+  var _code = String(_me.code || '').trim();
+  if(_code && String(q.requestedBy || '').trim() === _code) return true;
   if(_oeMyReqIds().indexOf(q.id) >= 0) return true;
   if(_oeMyReqSigs.indexOf(_oeMyReqSig(q)) >= 0) return true;
   var ses = getHubSession();
@@ -4937,10 +4942,14 @@ function submitExamRequest(){
   var position = $('reqPosition').value.trim();
   if(!position){ $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); return; }
   if(!_reqExam) return;
+  var _who = getHubSession() || {};
   var req = {
     examId: _reqExam.id, examTitle: _reqExam.title, brand: _reqExam.brand || '',
     branchCode: branchPin || '', branchName: branch,
-    name: name, empId: $('reqEmpId').value.trim(), position: position
+    name: name, empId: $('reqEmpId').value.trim(), position: position,
+    /* ผูกคำขอกับคนกดขอ ไม่ใช่กับเบราว์เซอร์ — เปลี่ยนเครื่องแล้วยังตามเจอ */
+    requestedBy: String(_who.code || currentBranchName || '').trim(),
+    requestedByName: String(_who.nick || _who.name || currentBranchName || '').trim()
   };
   /* จดไว้ว่ารอบนี้เราขอให้ใคร ชุดไหน — ใช้จับคู่ตอนของจริงกลับมา
      เผื่อ id ที่หลังบ้านตอบมาหายไประหว่างทาง จะได้ไม่หลุดจากสายตา */

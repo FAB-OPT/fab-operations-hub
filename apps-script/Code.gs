@@ -1287,7 +1287,7 @@ function setupDailyBackup() {
    ═════════════════════════════════════════════════ */
 var EXAMREQ_HEADERS = ['id','createdAt','examId','examTitle','brand','branchCode','branchName',
                        'name','empId','status','code','approvedAt','approvedBy','usedAt','note',
-                       'position'];
+                       'position','requestedBy','requestedByName'];
 
 function _reqSheet() { return _getOrCreateSheet('ExamRequests', EXAMREQ_HEADERS); }
 
@@ -1338,7 +1338,8 @@ function getExamRequests(branch, scope) {
       branchCode: r.branchCode, branchName: r.branchName, name: r.name, empId: r.empId,
       position: r.position || '',
       status: r.status || 'pending', code: r.code || '',
-      approvedAt: r.approvedAt, approvedBy: r.approvedBy, usedAt: r.usedAt, note: r.note || ''
+      approvedAt: r.approvedAt, approvedBy: r.approvedBy, usedAt: r.usedAt, note: r.note || '',
+      requestedBy: r.requestedBy || '', requestedByName: r.requestedByName || ''
     });
   });
   return { ok: true, requests: out };
@@ -1370,6 +1371,9 @@ function saveExamRequest(req) {
       branchCode: req.branchCode || '', branchName: req.branchName || '',
       name: String(req.name).trim(), empId: String(req.empId || '').trim(),
       position: String(req.position || '').trim(),
+      /* คนกดขอ ไม่ใช่คนที่ถูกขอให้ไปสอบ — หัวหน้าขอแทนลูกน้องได้ ชื่อในคำขอจึงไม่ใช่ตัวเขา */
+      requestedBy: String(req.requestedBy || '').trim(),
+      requestedByName: String(req.requestedByName || '').trim(),
       status: 'pending', code: '', approvedAt: '', approvedBy: '', usedAt: '', note: ''
     };
     d.sh.appendRow(d.headers.map(function (h) { return map.hasOwnProperty(h) ? map[h] : ''; }));
