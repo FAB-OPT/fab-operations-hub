@@ -58,29 +58,33 @@ input,select,textarea{font-family:inherit}
 .hidden{display:none!important}
 .oe-noperm{display:none!important}
 /* ── กล่องยืนยัน ── */
-.cf-box{max-width:430px}
-.cf-body{padding:26px 26px 20px;text-align:center}
-.cf-ic{width:52px;height:52px;margin:0 auto 14px;border-radius:15px;display:grid;place-items:center;
-  font-size:24px;background:var(--red-soft);border:1px solid var(--red-line)}
-.cf-body h3{font-size:18px;font-weight:800;letter-spacing:-.02em;margin-bottom:7px}
-.cf-body #cfText{font-size:14.5px;color:var(--text2);line-height:1.6}
+/* ต้องเจาะจงกว่า .modal-box ที่ประกาศทีหลังในไฟล์ ไม่งั้นความกว้าง 720px ทับทิ้ง
+   — นี่คือเหตุผลที่กล่องยืนยันกว้างเต็มจอมาตลอด ทั้งที่ตั้ง max-width ไว้แล้ว */
+.modal-box.cf-box{max-width:396px}
+.cf-body{padding:20px 20px 16px;text-align:center}
+/* ไอคอนอยู่ข้างหัวเรื่อง ไม่ใช่บล็อกของตัวเองกลางจอ — บอกเรื่องเดียวกันในที่เดียว */
+.cf-body h3{display:flex;align-items:center;justify-content:center;gap:8px;
+  font-size:17px;font-weight:800;letter-spacing:-.02em;margin-bottom:6px}
+.cf-ic{flex:0 0 auto;width:28px;height:28px;border-radius:9px;display:grid;place-items:center;
+  font-size:15px;background:var(--red-soft);border:1px solid var(--red-line)}
+.cf-body #cfText{font-size:14px;color:var(--text2);line-height:1.55}
 .cf-body #cfText b{color:var(--text);font-weight:700}
 /* รายละเอียดของสิ่งที่กำลังจะลบ — ให้อ่านทวนได้ว่าเลือกถูกตัวไหม */
-.cf-facts{margin-top:14px;border:1px solid var(--border);border-radius:var(--radius);
+.cf-facts{margin-top:13px;border:1px solid var(--border);border-radius:12px;
   background:var(--bg3);text-align:left;overflow:hidden}
 .cf-facts:empty{display:none}
-.cf-facts>div{display:flex;justify-content:space-between;gap:12px;padding:8px 13px;font-size:13px}
+.cf-facts>div{display:flex;justify-content:space-between;gap:12px;padding:6px 12px;font-size:12.5px}
 .cf-facts>div+div{border-top:1px solid var(--border)}
 .cf-facts span{color:var(--text3);flex:0 0 auto}
 .cf-facts b{font-weight:700;text-align:right;min-width:0;word-break:break-word}
-.cf-warn{display:flex;align-items:center;justify-content:center;gap:7px;margin-top:14px;
-  padding:9px 12px;border-radius:11px;font-size:12.5px;font-weight:700;color:#a51c1c;
-  background:var(--red-soft);border:1px solid var(--red-line)}
+/* บรรทัดเตือน — ตัวหนังสือบรรทัดเดียว ไม่ต้องมีกรอบ สีแดงบอกน้ำหนักได้อยู่แล้ว */
+.cf-warn{display:flex;align-items:center;justify-content:center;gap:6px;
+  margin-top:12px;font-size:12.5px;font-weight:700;color:#a51c1c}
 .cf-warn:empty{display:none}
-.cf-warn::before{content:'!';flex:0 0 auto;width:15px;height:15px;border-radius:50%;
-  background:var(--red);color:#fff;font-size:10.5px;font-weight:800;line-height:15px;text-align:center}
-.cf-foot{justify-content:stretch;gap:10px;padding:14px 22px 18px}
-.cf-foot .btn{flex:1;justify-content:center;padding:12px 16px;font-size:14.5px}
+.cf-warn::before{content:'!';flex:0 0 auto;width:14px;height:14px;border-radius:50%;
+  background:var(--red);color:#fff;font-size:10px;font-weight:800;line-height:14px;text-align:center}
+.cf-foot{justify-content:stretch;gap:9px;padding:12px 20px 16px}
+.cf-foot .btn{flex:1;justify-content:center;padding:10px 14px;font-size:14px}
 /* ข้อความที่มีไว้ให้เครื่องอ่านหน้าจอ ไม่ต้องเห็นบนจอ */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
   clip:rect(0,0,0,0);white-space:nowrap;border:0}
@@ -1910,8 +1914,7 @@ label.fld>span>b{font-weight:800}
 <div class="modal" id="cfModal">
   <div class="modal-box cf-box" role="alertdialog" aria-modal="true" aria-labelledby="cfTitle">
     <div class="cf-body">
-      <div class="cf-ic" id="cfIcon">🗑</div>
-      <h3 id="cfTitle">ยืนยัน</h3>
+      <h3 id="cfTitle"><span class="cf-ic" id="cfIcon">🗑</span><span>ยืนยัน</span></h3>
       <div id="cfText"></div>
       <div class="cf-facts" id="cfFacts"></div>
       <p class="cf-warn" id="cfWarn"></p>
@@ -5219,7 +5222,7 @@ var _cfResolve = null;
 function oeConfirm(o){
   o = o || {};
   $('cfIcon').textContent = o.icon || '🗑';
-  $('cfTitle').textContent = o.title || 'ยืนยัน';
+  $('cfTitle').lastElementChild.textContent = o.title || 'ยืนยัน';
   $('cfText').innerHTML = o.text || '';
   $('cfFacts').innerHTML = (o.facts || []).map(function(f){
     return '<div><span>' + esc(f[0]) + '</span><b>' + esc(f[1]) + '</b></div>';
