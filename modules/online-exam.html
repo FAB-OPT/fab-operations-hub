@@ -99,6 +99,17 @@ input,select,textarea{font-family:inherit}
 .docs-pick label.off{color:var(--text3);cursor:not-allowed}
 .docs-acts{display:flex;gap:8px;flex:0 0 auto}
 .docs-scroll{flex:1;overflow:auto;padding:22px 16px 60px}
+/* มือถือ: แถบบนเรียงเป็นชั้น ๆ ไม่ให้ชื่อเรื่องกับช่องเลือกทับกัน
+   และปุ่มยาวเต็มแถวให้กดถนัด */
+@media screen and (max-width:820px){
+  .docs-bar{gap:8px;padding:8px 10px}
+  .docs-title{font-size:14px;flex:1;min-width:0}
+  .docs-pick{flex:1 1 100%;order:3;gap:12px}
+  .docs-pick label{font-size:12px}
+  .docs-acts{flex:1 1 100%;order:4}
+  .docs-acts .btn{flex:1;justify-content:center}
+  .docs-scroll{padding:10px 8px 40px}
+}
 /* กระดาษหนึ่งแผ่น = หนึ่งหน้าพิมพ์ */
 .sheet{width:210mm;min-height:297mm;margin:0 auto 20px;background:#fff;color:#111827;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
@@ -167,7 +178,8 @@ input,select,textarea{font-family:inherit}
 /* ช่องติ๊กในต้นฉบับเป็นสี่เหลี่ยมวาดไว้ ไม่ใช่ค่าในเซลล์ — วาดขึ้นใหม่ให้กาได้ */
 .xt-ck{display:inline-block;vertical-align:middle;margin-right:4px}
 .xt-ck input{appearance:none;-webkit-appearance:none;width:9pt;height:9pt;margin:0;
-  border:0.5pt solid #111827;background:#fff7d6;position:relative;vertical-align:middle}
+  border:0.5pt solid #111827;border-radius:0;background:#fff7d6;
+  position:relative;vertical-align:middle;flex:0 0 auto}
 .xt-ck input:checked::after{content:'✓';position:absolute;left:0;right:0;top:-3pt;
   font-size:10pt;font-weight:700;text-align:center;line-height:1}
 .xlogo-w{display:block;height:0;overflow:visible}
@@ -181,6 +193,10 @@ input,select,textarea{font-family:inherit}
   font-size:15pt;font-weight:800}
 @media screen and (max-width:900px){
   .sheet{width:100%;min-height:0;padding:16px 14px}
+  /* กระดาษในชุดเอกสารต้องคงขนาด A4 เสมอ แล้วค่อยย่อทั้งแผ่นให้พอดีจอ
+     ถ้าปล่อยให้กว้าง 100% ตารางจะถูกบีบจนข้อความล้นออกนอกช่องและโดนตัดข้างขวา */
+  #docsSheets .sheet{width:210mm;padding:24px 30px 26px}
+  #docsSheets .xsheet{padding:5mm 8mm 8mm}
   .fcell{flex:1 1 100%}
   .sh-sign{grid-template-columns:1fr 1fr}
 }
@@ -200,6 +216,8 @@ input,select,textarea{font-family:inherit}
   .fld{border-bottom:0.75pt dotted #6b7280;background:transparent!important}
   .xi{background:transparent!important}
   .xt-ck input{background:#fff!important}
+  /* ตอนพิมพ์ใช้ขนาดจริงเสมอ ไม่เอาที่ย่อไว้ให้พอดีจอมือถือ */
+  #docsSheets{transform:none!important;margin-bottom:0!important}
 }
 /* ข้อความที่มีไว้ให้เครื่องอ่านหน้าจอ ไม่ต้องเห็นบนจอ */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
@@ -4828,7 +4846,27 @@ function openDocSet(){
   _docLoadDraft();
   $('docsView').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
+  _docFitWidth();
 }
+function _docFitWidth(){
+  var host = $('docsSheets'); if(!host) return;
+  host.style.transform = ''; host.style.marginBottom = '';
+  var sheet = host.querySelector('.sheet'); if(!sheet) return;
+  var avail = $('docsView').clientWidth - 16;
+  var w = sheet.offsetWidth;
+  if(!(w > avail) || avail < 100) return;
+  var k = avail / w, h = host.offsetHeight;
+  /* ใช้การย่อภาพ ไม่ใช่ zoom เพราะ zoom สั่งให้จัดหน้าใหม่ ความกว้างคอลัมน์
+     ถูกปัดเศษจนข้อความที่เคยพอดีล้นออกนอกช่อง · การย่อภาพคงหน้าตาเดิมเป๊ะ */
+  host.style.transformOrigin = 'top left';
+  host.style.transform = 'scale(' + k.toFixed(4) + ')';
+  /* ย่อภาพไม่ทำให้ที่ว่างด้านล่างหดตาม ต้องหักส่วนเกินออกเอง ไม่งั้นเลื่อนลงไปเจอที่ว่างยาว */
+  host.style.marginBottom = (-Math.round(h * (1 - k))) + 'px';
+}
+window.addEventListener('resize', function(){
+  if(!$('docsView').classList.contains('hidden')) _docFitWidth();
+});
+
 function closeDocSet(){
   _docSaveDraft(true);      // เก็บสิ่งที่พิมพ์ค้างไว้ให้เงียบ ๆ ก่อนปิด
   $('docsView').classList.add('hidden');
