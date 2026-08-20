@@ -2071,6 +2071,19 @@ function apiGet(action, qs){
    และถ้าโหลดรอบนี้ล้ม ก็ยังทำงานต่อได้ด้วยของเดิม แทนที่จะเจอหน้าว่าง */
 var OE_MYREQ_KEY = 'oe_my_reqs_v1';
 var _oeMyReqMem = null;
+/* คำขอใบนี้เป็นของเราไหม — ใช้ทั้งตอนวาดการ์ดคำขอและตอนตัดสินว่าผลสอบใบไหนต้องเห็น
+   ล็อกอินสาขาเป็นเครื่องกลางของร้าน พนักงานผลัดกันใช้ ถือว่าของทั้งสาขาเป็นของตัวเอง
+   บัญชีส่วนตัวนับสามทาง: id ที่จำไว้ตอนกด · เนื้อคำขอที่เพิ่งกรอกรอบนี้ · ชื่อตรงกับ session */
+function _oeIsMyReq(q){
+  if(!q) return false;
+  if(currentBranchName) return true;
+  if(String(q.id).indexOf('_tmp_') === 0) return true;
+  if(_oeMyReqIds().indexOf(q.id) >= 0) return true;
+  if(_oeMyReqSigs.indexOf(_oeMyReqSig(q)) >= 0) return true;
+  var ses = getHubSession();
+  var myName = _oeNameKey((ses && (ses.name || ses.nick)) || '');
+  return !!myName && _oeNameKey(q.name) === myName;
+}
 function _oeMyReqIds(){
   if(!_oeMyReqMem){
     try{ var a = JSON.parse(localStorage.getItem(OE_MYREQ_KEY) || '[]'); _oeMyReqMem = Array.isArray(a) ? a : []; }
@@ -3253,27 +3266,42 @@ function _oeScopeResults(rows){
   var known = {};
   oeBranchRegistry().forEach(function(b){ known[_brandKey(b.name)] = 1; });
 
-  var hidden = 0;
+  /* ผลที่ผูกกับคำขอของเรา — ขอเองก็ต้องได้เห็นผล ถึงสาขาจะอยู่นอกโซน */
+  var ofMine = {};
+  EXAM_REQS.forEach(function(q){ if(_oeIsMyReq(q)) ofMine[_oeResKey(q)] = 1; });
+
+  var hidden = 0, extra = 0;
   var kept = rows.filter(function(r){
     var k = _brandKey(r.branch);
     if(zone[k]) return true;
     if(!known[k]) return true;   // ทะเบียนไม่มีสาขานี้ ไม่รู้ว่าโซนใคร — ไม่ซ่อน
+    if(ofMine[_oeResKey(r)]){ extra++; return true; }
     hidden++;
     return false;
   });
   if(note){
     note.innerHTML =
       'เฉพาะโซนที่คุณดูแล <b>' + Object.keys(zone).length + ' สาขา</b>'
+      + (extra ? '<i>รวมคำขอของคุณนอกโซน ' + extra + ' รายการ</i>' : '')
       + (hidden ? '<i>ซ่อนของโซนอื่น ' + hidden + ' รายการ</i>' : '');
   }
   return kept;
+}
+
+/* ผลสอบดิบก่อนคัดตามโซน — เก็บไว้คัดใหม่ได้เมื่อรายการคำขอเปลี่ยน โดยไม่ต้องยิงซ้ำ */
+var ALL_RESULTS = [];
+function _oeRescopeResults(){
+  if(!ALL_RESULTS.length) return;
+  RESULTS = _oeScopeResults(ALL_RESULTS);
+  fillBranchFilter();
+  renderResults();
 }
 
 function loadResults(force){
   /* ตำแหน่งในรายการเปลี่ยนหลังโหลดใหม่ ของที่เลือกไว้จะไม่ตรงคนเดิม */
   _oeSel = {};
   var old = _oeStashed('results');
-  if(old){ RESULTS = _oeScopeResults(old.d); fillBranchFilter(); renderResults(); }
+  if(old){ ALL_RESULTS = old.d; RESULTS = _oeScopeResults(old.d); fillBranchFilter(); renderResults(); }
   else {
     $('resultsBody').innerHTML = _oeSkelRows(8, 8);
     var _c0 = $('resCards'); if(_c0) _c0.innerHTML = _oeSkelList(5);
@@ -3282,6 +3310,7 @@ function loadResults(force){
   return apiGet('exam-results').then(function(res){
     var _all = (res && res.ok && res.results) ? res.results : [];
     _oeStash('results', _all);
+    ALL_RESULTS = _all;
     RESULTS = _oeScopeResults(_all);
     fillBranchFilter();
     renderResults();
@@ -4613,6 +4642,7 @@ function loadExamRequests(){
       paintReqCount();
       /* มีแท็บการสอบอยู่ด้วยเมื่อไร ก็ต้องวาดคำขอของตัวเองใหม่ด้วย */
       if(oeCan('request-exam')) renderBranchExams();
+      _oeRescopeResults();
     }
     else { renderBranchExams(); loadMyResults(); }
   }).catch(function(e){
@@ -4954,17 +4984,8 @@ function renderBranchReqs(){
        · id ที่จำไว้ตอนกดขอ — ครอบคลุมกรณีขอแทนคนอื่น (ชื่อในคำขอไม่ใช่ชื่อเรา)
        · ชื่อในคำขอตรงกับชื่อใน session — ครอบคลุมกรณีเปลี่ยนเครื่อง/ล้างเบราว์เซอร์
                                              แล้ว id ที่จำไว้หายไป */
-  var isBranchLogin = !!currentBranchName;
-  var myIds = isBranchLogin ? null : _oeMyReqIds();
-  var _ses = getHubSession();
-  var myName = isBranchLogin ? '' : _oeNameKey((_ses && (_ses.name || _ses.nick)) || '');
   var mine = EXAM_REQS.filter(function(r){
-    if(!brandMatch(r) || r.status === 'rejected') return false;
-    if(isBranchLogin) return true;
-    if(String(r.id).indexOf('_tmp_') === 0) return true;
-    if(myIds.indexOf(r.id) >= 0) return true;
-    if(_oeMyReqSigs.indexOf(_oeMyReqSig(r)) >= 0) return true;
-    return !!myName && _oeNameKey(r.name) === myName;
+    return brandMatch(r) && r.status !== 'rejected' && _oeIsMyReq(r);
   }).sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
   if(!mine.length){
     /* ยังโหลดไม่เสร็จ ≠ ไม่มีคำขอ — ขึ้นโครงการ์ดไว้ให้รู้ว่ากำลังรออยู่ */
