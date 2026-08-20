@@ -50,7 +50,7 @@ body{font-family:'Sarabun',system-ui,sans-serif;color:var(--text);min-height:100
 /* ปุ่มและช่องกรอกทุกตัวต้องแตะได้ถนัดบนมือถือ — ของเดิมเล็กหลายจุด */
 @media(max-width:760px){
   button,.btn,.btn-sm,select,input[type=text],input[type=number],input[type=date]{min-height:var(--tap)}
-  .btn-icon,.btn-back{min-width:var(--tap);min-height:var(--tap)}
+  .btn-icon,.btn-back,.rq-del{min-width:var(--tap);min-height:var(--tap);width:auto;height:auto}
 }
 .mono{font-variant-numeric:tabular-nums}
 button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit}
@@ -427,6 +427,11 @@ button.ri:hover{background:var(--bg3)}
 .st::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
 .st.on{background:var(--green-soft);color:#0b7a55}
 .st.off{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+/* สถานะคำขอสอบ: รออนุมัติ · อนุมัติแล้ว · สอบแล้ว · ไม่อนุมัติ */
+.st.warn{background:var(--gold-soft);color:#b23a10}
+.st.ok{background:var(--green-soft);color:#0b7a55}
+.st.na{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+.st.bad{background:var(--red-soft);color:#b91c1c}
 .xc-facts{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--border);border-radius:11px;overflow:hidden}
 .xc-facts>div{padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
 .xc-facts>div:last-child{border-right:none}
@@ -817,11 +822,18 @@ select.txt{appearance:none;-webkit-appearance:none;
 /* ══════════════ คำขอสอบ + รหัสเข้าสอบ ══════════════ */
 .sec-h{font-weight:800;font-size:15px;letter-spacing:-.01em;margin:26px 0 12px}
 #paneMine .sec-h:first-child{margin-top:0}
-.reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:12px}
-/* การ์ดสูงเท่ากันทั้งแถว แล้วดันปุ่มลงก้นการ์ด ปุ่มจะได้อยู่ระดับเดียวกันทุกใบ */
-.reqcard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
-  padding:14px;display:flex;flex-direction:column}
-.rq-act{margin-top:auto;padding-top:11px}
+.reqcards{display:grid;grid-template-columns:repeat(auto-fill,minmax(258px,1fr));gap:12px;
+  align-items:start}
+/* แถบสีที่ขอบซ้าย = อ่านสถานะได้โดยไม่ต้องอ่านตัวหนังสือ
+   ส้ม = ยังรออยู่ · เขียว = อนุมัติแล้ว เริ่มได้เลย */
+.reqcard{position:relative;overflow:hidden;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
+  padding:11px 14px 14px;display:flex;flex-direction:column}
+.reqcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gold)}
+.reqcard.is-ready::before{background:var(--green)}
+.reqcard.is-ready{border-color:var(--green-line)}
+.rq-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}
+.rq-act{margin-top:13px}
 .rq-who{min-width:0}
 /* รายการที่สอบไปแล้ว — บรรทัดเดียวจบ */
 .sec-h-sm{font-size:13px;margin:20px 0 9px;color:var(--text2)}
@@ -836,28 +848,20 @@ button.rq-done-it:hover{background:var(--bg3)}
 .rq-done-it .dx{flex:1;min-width:0;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .rq-done-it .dgo{flex:0 0 auto;font-size:12px;font-weight:700;color:var(--gold)}
 .rq-done-it .dgo.off{color:var(--text3)}
-.rq-top{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
-.rq-top b{font-size:14.5px;font-weight:800}
-.rq-id{display:block;font-size:11.5px;color:var(--text3);margin-top:1px}
-.rq-ex{font-size:12.5px;color:var(--text2);margin-top:6px;line-height:1.45}
-/* ปุ่มลบคำขอ — มุมขวาบนของการ์ด จาง ๆ ไว้ก่อน แดงตอนจ่อเมาส์ */
-.reqcard{position:relative}
-.rq-del{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;
+/* ชื่อได้บรรทัดเต็มของตัวเอง — ชื่อไทยไม่มีช่องว่างให้ตัดคำ ถ้าโดนบีบก็แตกกลางคำ */
+.rq-who b{display:block;font-size:15px;font-weight:800;line-height:1.35;letter-spacing:-.01em}
+.rq-id{display:block;font-size:12px;color:var(--text3);margin-top:3px;line-height:1.4}
+/* ชุดข้อสอบเป็นคนละเรื่องกับตัวคน — คั่นด้วยเส้นบาง ๆ แล้วนำด้วยไอคอนเอกสาร */
+.rq-ex{display:flex;align-items:flex-start;gap:7px;margin-top:11px;padding-top:11px;
+  border-top:1px solid var(--border);font-size:12.5px;color:var(--text2);line-height:1.45}
+.rq-ex svg{flex:0 0 auto;margin-top:2px;color:var(--text3)}
+/* ถังขยะ — จาง ๆ ไว้ก่อน แดงตอนจ่อเมาส์ */
+.rq-del{width:28px;height:28px;border-radius:8px;flex:0 0 auto;
   display:grid;place-items:center;color:var(--text3);background:transparent;
   border:1px solid transparent;transition:.14s}
 .reqcard:hover .rq-del{border-color:var(--border);color:var(--text2)}
 .rq-del:hover{background:var(--red);border-color:var(--red);color:#fff}
-.rq-top{padding-right:32px}
-/* รหัสต้องอ่านผ่านโทรศัพท์แล้วพิมพ์ตามได้ — ตัวใหญ่ เว้นระยะตัวอักษร */
-.reqcode{margin:11px 0 10px;padding:11px;border-radius:11px;text-align:center;
-  background:var(--gold-soft);border:1px dashed var(--gold-line);
-  font-size:24px;font-weight:800;letter-spacing:.22em;color:#b23a10}
-.reqwait,.reqused{margin:0;padding:9px;border-radius:10px;text-align:center;
-  font-size:12.5px;font-weight:700;background:var(--bg3);color:var(--text3)}
 .reqcard .btn{width:100%}
-/* ชุดที่คุมเวลาเริ่ม: สาขาไม่เห็นรหัส ต้องรอผู้คุมสอบบอกแล้วพิมพ์เอง */
-.reqok{margin:0 0 10px;padding:9px;border-radius:10px;text-align:center;
-  font-size:12.5px;font-weight:700;background:var(--green-soft,var(--bg3));color:var(--text2)}
 /* แท็บคำขอมีจุดแดงเมื่อมีของรออนุมัติ — เห็นได้โดยไม่ต้องกดเข้าไปดู */
 .seg.has-new em{background:var(--red);color:#fff}
 .seg.active.has-new em{background:#fff;color:var(--red)}
@@ -2037,9 +2041,23 @@ function apiGet(action, qs){
    หน้าจอมีของทันที ไม่ต้องนั่งดูโครงร่างเทา ๆ 30 วินาที
    และถ้าโหลดรอบนี้ล้ม ก็ยังทำงานต่อได้ด้วยของเดิม แทนที่จะเจอหน้าว่าง */
 var OE_MYREQ_KEY = 'oe_my_reqs_v1';
+var _oeMyReqMem = null;
 function _oeMyReqIds(){
-  try{ var a = JSON.parse(localStorage.getItem(OE_MYREQ_KEY) || '[]'); return Array.isArray(a) ? a : []; }
-  catch(e){ return []; }
+  if(!_oeMyReqMem){
+    try{ var a = JSON.parse(localStorage.getItem(OE_MYREQ_KEY) || '[]'); _oeMyReqMem = Array.isArray(a) ? a : []; }
+    catch(e){ _oeMyReqMem = []; }
+  }
+  return _oeMyReqMem;
+}
+/* คำขอที่กรอกจากเครื่องนี้ในรอบนี้ — จับคู่ด้วยเนื้อคำขอ ไม่ใช่ id
+   เพราะ id เกิดที่หลังบ้าน กว่าจะรู้ก็หลังส่งไปแล้ว */
+var _oeMyReqSigs = [];
+function _oeMyReqSig(r){
+  return String(r.examId) + '|' + _oeNameKey(r.name) + '|' + String(r.empId || '').trim();
+}
+function _oeMyReqMark(r){
+  var k = _oeMyReqSig(r);
+  if(_oeMyReqSigs.indexOf(k) < 0) _oeMyReqSigs.push(k);
 }
 function _oeMyReqAdd(id){
   if(!id) return;
@@ -2047,6 +2065,7 @@ function _oeMyReqAdd(id){
   if(a.indexOf(id) < 0) a.push(id);
   /* เก็บแค่ 200 รายการล่าสุดพอ ไม่งั้นโตไปเรื่อย ๆ ไม่มีที่สิ้นสุด */
   if(a.length > 200) a = a.slice(-200);
+  _oeMyReqMem = a;
   try{ localStorage.setItem(OE_MYREQ_KEY, JSON.stringify(a)); }catch(e){}
 }
 function _oeStash(key, data){
@@ -4765,6 +4784,9 @@ function submitExamRequest(){
     branchCode: branchPin || '', branchName: branch,
     name: name, empId: $('reqEmpId').value.trim(), position: position
   };
+  /* จดไว้ว่ารอบนี้เราขอให้ใคร ชุดไหน — ใช้จับคู่ตอนของจริงกลับมา
+     เผื่อ id ที่หลังบ้านตอบมาหายไประหว่างทาง จะได้ไม่หลุดจากสายตา */
+  _oeMyReqMark(req);
 
   /* ขึ้นการ์ด "รออนุมัติ" ไว้ก่อนเลย · id ขึ้นต้นด้วย _tmp_ เพื่อให้รู้ว่ายังไม่ใช่ของจริง
      การ์ดสถานะนี้ไม่มีปุ่มอะไรให้กด จึงไม่มีทางเผลอทำอะไรกับแถวปลอม */
@@ -4813,6 +4835,7 @@ function renderBranchReqs(){
     if(isBranchLogin) return true;
     if(String(r.id).indexOf('_tmp_') === 0) return true;
     if(myIds.indexOf(r.id) >= 0) return true;
+    if(_oeMyReqSigs.indexOf(_oeMyReqSig(r)) >= 0) return true;
     return !!myName && _oeNameKey(r.name) === myName;
   }).sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
   if(!mine.length){
@@ -4830,21 +4853,26 @@ function renderBranchReqs(){
       + '<div class="reqcards">' + live.map(function(r){
         var st = _reqSt(r.status);
         var ready = r.status === 'approved';
-        return '<article class="reqcard">'
-          + '<div class="rq-top"><div class="rq-who"><b>' + esc(r.name) + '</b>'
+        return '<article class="reqcard' + (ready ? ' is-ready' : '') + '">'
+          /* แถวบน: สถานะซ้าย ถังขยะขวา — สองอย่างนี้เป็นเรื่องของ "คำขอ" ไม่ใช่เรื่องของตัวคน */
+          + '<div class="rq-head"><span class="st ' + st.c + '">' + st.t + '</span>'
+          + '<button class="rq-del" title="ลบคำขอนี้" onclick="deleteReq(\'' + esc(r.id) + '\')">'
+            + '<svg viewBox="0 0 24 24" width="15" height="15">'
+            + '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button></div>'
+          + '<div class="rq-who"><b>' + esc(r.name) + '</b>'
           + (r.empId || r.position
               ? '<span class="rq-id">' + [r.empId, r.position].filter(Boolean).map(esc).join(' · ') + '</span>'
               : '') + '</div>'
-          + '<span class="st ' + st.c + '">' + st.t + '</span></div>'
-          + '<div class="rq-ex">' + esc(r.examTitle) + '</div>'
-          + '<button class="rq-del" title="ลบคำขอนี้" onclick="deleteReq(\'' + esc(r.id) + '\')">'
-            + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">'
-            + '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'
+          + '<div class="rq-ex">'
+            + '<svg viewBox="0 0 24 24" width="14" height="14">'
+            + '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/></svg>'
+            + '<span>' + esc(r.examTitle) + '</span></div>'
+          /* ยังไม่อนุมัติ = ไม่มีอะไรให้กด · ป้าย "รออนุมัติ" ข้างบนบอกครบแล้ว
+             กล่องเทา "รอผู้ดูแลอนุมัติ" ที่เคยมีคือการพูดซ้ำ แถมกินที่ครึ่งการ์ด */
           + (ready
-              ? '<div class="rq-act"><div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>'
-                + '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
+              ? '<div class="rq-act"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
                 + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'
-              : '<div class="rq-act"><div class="reqwait">รอผู้ดูแลอนุมัติ</div></div>')
+              : '')
           + '</article>';
       }).join('') + '</div>';
   }
