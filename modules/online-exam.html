@@ -187,8 +187,16 @@ input,select,textarea{font-family:inherit}
 .xlogo[src=""]{display:none}
 /* ── เซ็นชื่อ ──
    ช่องที่เซ็นได้ต้องดูออกว่ากดได้ ไม่ใช่เส้นเปล่า ๆ ที่ไม่มีใครกล้าแตะ */
-.sigslot{cursor:pointer;position:relative}
-.xt .sigwrap{position:relative;display:inline-block;width:100%;cursor:pointer}
+.sigwrap{position:relative;display:inline-block;width:100%}
+.sigwrap .xi{width:100%}
+/* ปุ่มปากกา — บอกว่าช่องนี้เซ็นได้ ไม่ใช่พิมพ์ได้อย่างเดียว · ไม่ติดไปกับงานพิมพ์ */
+.sigbtn{position:absolute;right:0;top:50%;transform:translateY(-50%);
+  width:14pt;height:14pt;display:grid;place-items:center;border-radius:4px;
+  color:var(--text3);background:rgba(255,255,255,.9);
+  border:0.5pt solid var(--border);cursor:pointer;z-index:2;padding:0}
+.sigbtn svg{width:11px;height:11px}
+.sigbtn:hover{color:var(--gold);border-color:var(--gold-line);background:#fff}
+.sigline{min-width:40mm}
 .sigimg{position:absolute;left:2%;bottom:0.8pt;height:185%;max-height:4.4mm;max-width:96%;
   object-fit:contain;object-position:left bottom;pointer-events:none}
 .sigslot .sigimg{height:9mm;max-height:9mm;bottom:1pt}
@@ -232,6 +240,7 @@ input,select,textarea{font-family:inherit}
   .xt-ck input{background:#fff!important}
   /* ตอนพิมพ์ใช้ขนาดจริงเสมอ ไม่เอาที่ย่อไว้ให้พอดีจอมือถือ */
   #docsSheets{transform:none!important;margin-bottom:0!important}
+  .sigbtn{display:none!important}
 }
 /* ข้อความที่มีไว้ให้เครื่องอ่านหน้าจอ ไม่ต้องเห็นบนจอ */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
@@ -2069,6 +2078,7 @@ label.fld>span>b{font-weight:800}
     </div>
     <footer class="modal-foot">
       <button class="btn btn-soft" onclick="sigWipe()">ล้าง</button>
+      <button class="btn btn-soft" id="sigDrop" onclick="sigDrop()" hidden>ลบลายเซ็นเดิม</button>
       <div style="flex:1"></div>
       <button class="btn btn-soft" onclick="sigClose()">ยกเลิก</button>
       <button class="btn btn-primary" onclick="sigApply()">ใช้ลายเซ็นนี้</button>
@@ -4855,10 +4865,10 @@ function _docSheetExam(r){
     '<div class="sh-note">เอกสารนี้ออกจากระบบสอบออนไลน์โดยอัตโนมัติ ตัวเลขทั้งหมดตรงกับที่บันทึกไว้ในระบบ ' +
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
-      '<div><div class="ln sigslot" data-d="sig_exam_taker"></div><b>ผู้เข้าสอบ</b>' +
-        '<span>วันที่ ......../......../........</span></div>' +
-      '<div><div class="ln sigslot" data-d="sig_exam_zm"></div><b>ผู้จัดการเขต</b>' +
-        '<span>วันที่ ......../......../........</span></div>' +
+      '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_taker"></div>' +
+        '<b>ผู้เข้าสอบ</b><span>วันที่ ......../......../........</span></div>' +
+      '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_zm"></div>' +
+        '<b>ผู้จัดการเขต</b><span>วันที่ ......../......../........</span></div>' +
     '</div>' +
   '</article>';
 }
@@ -4890,6 +4900,7 @@ function openDocSet(){
 var _sigTarget = null, _sigCtx = null, _sigDrew = false;
 
 function _docMarkSign(){
+  [].forEach.call(document.querySelectorAll('#docsSheets input.sigline'), _docMakeSignable);
   var rows = document.querySelectorAll('#docsSheets .xt tr');
   [].forEach.call(rows, function(tr){
     var tds = tr.children, want = false;
@@ -4902,10 +4913,6 @@ function _docMarkSign(){
       want = (txt === 'ลงชื่อ');
     }
   });
-  /* เส้นเซ็นในใบผลสอบทำเป็นช่องเซ็นมาแต่แรกแล้ว */
-  [].forEach.call(document.querySelectorAll('#docsSheets .sigslot'), function(el){
-    el.onclick = function(){ sigOpen(el); };
-  });
 }
 function _docMakeSignable(el){
   if(el.parentNode.classList.contains('sigwrap')) return;
@@ -4913,15 +4920,24 @@ function _docMakeSignable(el){
   w.className = 'sigwrap';
   el.parentNode.insertBefore(w, el);
   w.appendChild(el);
-  el.readOnly = true;
-  el.style.cursor = 'pointer';
-  w.onclick = function(){ sigOpen(el); };
+  var b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'sigbtn';
+  b.title = 'เซ็นชื่อด้วยนิ้วหรือเมาส์';
+  b.innerHTML = '<svg viewBox="0 0 24 24" width="11" height="11">' +
+    '<path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>';
+  b.onclick = function(e){ e.preventDefault(); e.stopPropagation(); sigOpen(el); };
+  w.appendChild(b);
+  /* พิมพ์เองเมื่อไร = เลือกทางพิมพ์ ลายเซ็นเดิมจึงต้องหายไป ไม่ให้ทับกัน */
+  el.addEventListener('input', function(){
+    if(el.dataset.sig && el.value){ _docSetSign(el, ''); toast('เอาลายเซ็นออกแล้ว'); }
+  });
 }
 
 function sigOpen(target){
   _sigTarget = target;
-  var lbl = target.getAttribute('data-d') || '';
-  $('sigWho').textContent = 'ลากนิ้วหรือเมาส์ในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้"';
+  $('sigDrop').hidden = !(target.dataset && target.dataset.sig);
+  $('sigWho').textContent = 'ลากนิ้วหรือเมาส์ในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้" · หรือปิดกล่องนี้แล้วพิมพ์ชื่อลงช่องก็ได้';
   $('sigModal').classList.add('show');
   setTimeout(_sigInit, 30);
 }
@@ -4933,7 +4949,7 @@ function _sigInit(){
   c.height = Math.round(r.height * dpr);
   _sigCtx = c.getContext('2d');
   _sigCtx.scale(dpr, dpr);
-  _sigCtx.lineWidth = 4.8;
+  _sigCtx.lineWidth = 7;
   _sigCtx.lineCap = 'round';
   _sigCtx.lineJoin = 'round';
   _sigCtx.strokeStyle = '#0b1220';
@@ -4962,9 +4978,15 @@ function sigWipe(){
   c.parentNode.classList.remove('has');
 }
 function sigClose(){ $('sigModal').classList.remove('show'); _sigTarget = null; }
+function sigDrop(){
+  if(_sigTarget) _docSetSign(_sigTarget, '');
+  sigClose();
+  toast('ลบลายเซ็นแล้ว — พิมพ์ชื่อลงช่องได้เลย');
+}
 function sigApply(){
   if(!_sigTarget) return sigClose();
   if(!_sigDrew){ toast('ยังไม่ได้เซ็น','err'); return; }
+  if(_sigTarget.value) _sigTarget.value = '';
   _docSetSign(_sigTarget, _sigTrim($('sigCanvas')));
   sigClose();
   toast('ใส่ลายเซ็นแล้ว');
