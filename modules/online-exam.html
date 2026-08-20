@@ -926,20 +926,6 @@ button.rq-done-it:hover{background:var(--bg3)}
 @keyframes pulse{50%{opacity:.55}}
 .qs-cl{font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.05em;margin-top:7px}
 /* ตอบแล้วกี่ข้อ กับถูกเตือนกี่ครั้ง — ตัวเลขสองตัวที่ต้องดูคู่กัน วางเทียบกันไปเลย */
-.qs-row{display:flex;align-items:baseline;justify-content:space-between;gap:14px;flex-wrap:wrap;
-  margin-top:16px;padding-top:15px;border-top:1px solid var(--border)}
-.qs-row>div{display:flex;align-items:baseline;gap:6px}
-.qs-row b{font-size:22px;font-weight:800;letter-spacing:-.025em;font-variant-numeric:tabular-nums;color:var(--gold)}
-.qs-row span{font-size:12.5px;color:var(--text3);font-weight:700;font-variant-numeric:tabular-nums}
-.qs-row i{font-style:normal}
-.qs-row em{font-style:normal;font-size:12px;color:var(--text3);font-weight:700}
-/* ถูกเตือนเป็นของที่ปกติเป็น 0 — ไม่ควรเด่นเท่าจำนวนข้อที่ตอบไปแล้ว */
-.shield b{font-size:17px;color:var(--text3)}
-.shield.hot b,.shield.hot em,.shield.hot span{color:var(--red)}
-/* ยังไม่โดนเตือน = เรื่องปกติ ไม่ต้องเน้นสี · โดนแล้วค่อยแดง */
-.shield b{color:var(--text3)}
-.shield.hot b{color:var(--red)}
-.shield.hot em{color:var(--red)}
 /* พื้นหลังหน้าสอบไล่เฉดอ่อน ๆ — ของเดิมพื้นกับการ์ดเป็นสีเดียวกันเกือบเป๊ะ (#f8fafc กับขาว)
    การ์ดเลยดูแบนติดพื้น ไม่มีอะไรนำสายตา */
 #ex-exam{background:linear-gradient(180deg,#eaeff7 0%,#f6f8fc 46%,#f8fafc 100%)}
@@ -958,7 +944,8 @@ button.rq-done-it:hover{background:var(--bg3)}
 .q-side-in{position:sticky;top:90px;display:flex;flex-direction:column;gap:12px}
 .qs-card{background:var(--bg2);border:1px solid rgba(226,232,240,.9);border-radius:20px;
   box-shadow:0 6px 18px rgba(15,23,42,.05);padding:20px 18px 17px}
-.qs-bar{height:5px;border-radius:99px;background:#eef1f6;overflow:hidden;margin-top:14px}
+.qs-bar{height:6px;border-radius:99px;background:#eef1f6;overflow:hidden;
+  margin-top:16px;padding-top:0;border-top:none}
 .qs-bar i{display:block;height:100%;border-radius:99px;transition:width .35s;
   background:linear-gradient(90deg,var(--gold2),var(--gold))}
 .qs-hint{display:block;text-align:center;font-size:13px;font-weight:700;color:var(--gold);
@@ -1007,10 +994,6 @@ button.rq-done-it:hover{background:var(--bg3)}
 .q-index b{font-size:21px;font-weight:800;color:var(--gold);letter-spacing:-.025em;
   font-variant-numeric:tabular-nums;line-height:1}
 .q-index i{font-style:normal;font-variant-numeric:tabular-nums;color:var(--text3)}
-/* ชื่อผู้สอบต่อท้ายเลขข้อ — คั่นด้วยเส้นตั้ง ไม่ใช่จุด จะได้ไม่อ่านรวมกับตัวเลข */
-.q-index u{text-decoration:none;color:var(--text2);font-weight:700;padding-left:9px;
-  border-left:1px solid var(--border);margin-left:3px;min-width:0;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .q-text{font-size:25px;line-height:1.45;font-weight:800;user-select:none;letter-spacing:-.02em}
 .choices{display:flex;flex-direction:column;gap:10px}
 .choices{display:flex;flex-direction:column;gap:11px}
@@ -1779,10 +1762,6 @@ label.fld>span>b{font-weight:800}
             <div class="qs-cl">เวลาที่เหลือ</div>
           </div>
           <div class="qs-stats">
-            <div class="qs-row">
-              <div class="qs-main"><em>ตอบแล้ว</em><b id="ansDone">0</b><span id="ansTotal">/ 0</span></div>
-              <div class="shield" id="shield"><em>ถูกเตือน</em><b id="vCount">0</b><span>/ <i id="vMax">0</i></span></div>
-            </div>
             <div class="qs-bar"><i id="ansBar" style="width:0%"></i></div>
           </div>
           </div>
@@ -3953,7 +3932,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('mT').textContent = CFG.timeLimitMinutes;
   $('mP').textContent = CFG.passingScorePercent + '%';
   $('mV').textContent = CFG.maxViolations;
-  $('vMax').textContent = CFG.maxViolations;
+  var _vm = $('vMax'); if(_vm) _vm.textContent = CFG.maxViolations;
   $('lockMax').textContent = CFG.maxViolations;
 
   /* ไอคอนเส้นแทนอีโมจิ — อีโมจิหน้าตาไม่เหมือนกันในแต่ละเครื่อง และดูไม่เข้าชุดกับที่อื่นในระบบ */
@@ -4142,11 +4121,7 @@ function updateClock(){
 }
 function renderQuestion(){
   var q=R.questions[R.current], total=R.questions.length;
-  var who = R.student
-    ? [R.student.name, R.student.id].filter(Boolean).join(' · ')
-    : '';
-  $('qIndex').innerHTML='ข้อ <b>'+(R.current+1)+'</b><i>/ '+total+'</i>' +
-    (who ? '<u>'+esc(who)+'</u>' : '');
+  $('qIndex').innerHTML='ข้อ <b>'+(R.current+1)+'</b><i>/ '+total+'</i>';
   $('qText').textContent=q.q;
   var keys=['A','B','C','D','E','F','G','H'];
   var sel=R.answers[R.current];
@@ -4177,7 +4152,7 @@ function pickChoice(i){
   }, 380);
 }
 function renderNav(){
-  $('vCount').textContent=R.violations;
+  var vc = $('vCount'); if(vc) vc.textContent = R.violations;
   var total=R.questions.length;
   $('navGrid').innerHTML=R.questions.map(function(_,i){
     return '<button class="nav-dot '+(R.answers[i]!=null?'done':'')+' '+(i===R.current?'here':'')+'" onclick="gotoQ('+i+')" title="ข้อ '+(i+1)+'">'+(i+1)+'</button>';
@@ -4305,8 +4280,8 @@ function resumeExam(){
 function registerViolation(reason){
   R.violations++;
   R.violationLog.push({t:new Date().toISOString(), reason:reason});
-  $('vCount').textContent=R.violations;
-  if(R.violations>0) $('shield').classList.add('hot');
+  var vc2 = $('vCount'); if(vc2) vc2.textContent = R.violations;
+  var sh = $('shield'); if(sh && R.violations>0) sh.classList.add('hot');
   if(R.violations>=R.exam.maxViolations && R.exam.autoSubmitOnMaxViolations && !R.finished){
     finishExam('ถูกตัดสิทธิ์ (เตือนครบกำหนด)');
   }
