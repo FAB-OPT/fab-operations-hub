@@ -840,6 +840,14 @@ button.rq-done-it:hover{background:var(--bg3)}
 .rq-top b{font-size:14.5px;font-weight:800}
 .rq-id{display:block;font-size:11.5px;color:var(--text3);margin-top:1px}
 .rq-ex{font-size:12.5px;color:var(--text2);margin-top:6px;line-height:1.45}
+/* ปุ่มลบคำขอ — มุมขวาบนของการ์ด จาง ๆ ไว้ก่อน แดงตอนจ่อเมาส์ */
+.reqcard{position:relative}
+.rq-del{position:absolute;top:10px;right:10px;width:28px;height:28px;border-radius:8px;
+  display:grid;place-items:center;color:var(--text3);background:transparent;
+  border:1px solid transparent;transition:.14s}
+.reqcard:hover .rq-del{border-color:var(--border);color:var(--text2)}
+.rq-del:hover{background:var(--red);border-color:var(--red);color:#fff}
+.rq-top{padding-right:32px}
 /* รหัสต้องอ่านผ่านโทรศัพท์แล้วพิมพ์ตามได้ — ตัวใหญ่ เว้นระยะตัวอักษร */
 .reqcode{margin:11px 0 10px;padding:11px;border-radius:11px;text-align:center;
   background:var(--gold-soft);border:1px dashed var(--gold-line);
@@ -2028,6 +2036,19 @@ function apiGet(action, qs){
    หลังบ้านช้าและช้าไม่คงที่ ระหว่างรอจึงเอาของครั้งก่อนขึ้นให้ดูก่อน
    หน้าจอมีของทันที ไม่ต้องนั่งดูโครงร่างเทา ๆ 30 วินาที
    และถ้าโหลดรอบนี้ล้ม ก็ยังทำงานต่อได้ด้วยของเดิม แทนที่จะเจอหน้าว่าง */
+var OE_MYREQ_KEY = 'oe_my_reqs_v1';
+function _oeMyReqIds(){
+  try{ var a = JSON.parse(localStorage.getItem(OE_MYREQ_KEY) || '[]'); return Array.isArray(a) ? a : []; }
+  catch(e){ return []; }
+}
+function _oeMyReqAdd(id){
+  if(!id) return;
+  var a = _oeMyReqIds();
+  if(a.indexOf(id) < 0) a.push(id);
+  /* เก็บแค่ 200 รายการล่าสุดพอ ไม่งั้นโตไปเรื่อย ๆ ไม่มีที่สิ้นสุด */
+  if(a.length > 200) a = a.slice(-200);
+  try{ localStorage.setItem(OE_MYREQ_KEY, JSON.stringify(a)); }catch(e){}
+}
 function _oeStash(key, data){
   try { localStorage.setItem('oe_cache_'+key, JSON.stringify({ t:Date.now(), d:data })); }
   catch(e) {}   // เต็มโควตาก็ช่างมัน ไม่ใช่เรื่องคอขาดบาดตาย
@@ -3397,7 +3418,7 @@ async function deleteSelectedResults(){
     try {
       var res = await apiPost({ type:'delete-exam-result', submittedAt: r.submittedAt,
         empId: r.empId || '', examId: r.examId || '' });
-      if(res && res.ok) okN++; else failN++;
+      if(res && res.ok){ okN++; _oeDropReqsOf(r); } else failN++;
     } catch(e){ failN++; }
   }
   _oeSel = {};
@@ -3750,6 +3771,27 @@ function _oeReportHtml(r){
 
 /* ── ลบผลสอบ ── */
 function deleteResultFromDetail(){ deleteResultAt(RESULTS.indexOf(_oeResCur)); }
+/* คำขอที่ผูกกับผลสอบใบนี้ — เทียบด้วยชุดข้อสอบ + รหัสพนักงาน + ชื่อ
+   ใช้ตอนลบผลสอบ เพื่อไม่ให้คำขอค้างสถานะ "สอบแล้ว" ทั้งที่ผลไม่มีแล้ว */
+function _oeReqOfResult(r){
+  return EXAM_REQS.filter(function(q){
+    if(q.status !== 'used') return false;
+    if(r.examId && q.examId && q.examId !== r.examId) return false;
+    if(r.empId && q.empId && String(q.empId).trim() !== String(r.empId).trim()) return false;
+    return _oeNameKey(q.name) === _oeNameKey(r.name);
+  });
+}
+function _oeDropReqsOf(r){
+  var list = _oeReqOfResult(r);
+  if(!list.length) return;
+  var ids = list.map(function(q){ return q.id; });
+  EXAM_REQS = EXAM_REQS.filter(function(q){ return ids.indexOf(q.id) < 0; });
+  ids.forEach(function(id){ apiPost({ type:'delete-exam-request', id: id }).catch(function(){}); });
+  /* วาดใหม่ทุกที่ที่คำขอโผล่ ผู้เรียกจะได้ไม่ต้องไล่จำเอง */
+  renderBranchExams();
+  if(isAdminMode){ renderExamRequests(); paintReqCount(); }
+}
+
 /* ลบผลสอบตามตำแหน่งในรายการ — เรียกได้ทั้งจากปุ่มในแถวและจากในกล่อง */
 async function deleteResultAt(i){
   var r = RESULTS[i];
@@ -3772,6 +3814,7 @@ async function deleteResultAt(i){
   apiPost({ type:'delete-exam-result', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '' })
     .then(function(res){
       if(res && res.ok){
+        _oeDropReqsOf(r);        // คำขอที่ผูกกับผลใบนี้ต้องหายตามไปด้วย
         toast('ลบผลสอบแล้ว');
         closeResultDetail();
         loadResults();
@@ -3857,6 +3900,7 @@ function renderBranchExams(){
   if(!list.length){
     host.innerHTML = _oeEmpty('☕', 'ยังไม่มีข้อสอบสำหรับสาขาของคุณ',
       'เมื่อผู้ดูแลเปิดชุดข้อสอบให้สาขานี้ จะขึ้นที่หน้านี้ทันที ไม่ต้องรอใครแจ้ง');
+    renderBranchReqs();   // ไม่มีข้อสอบเปิดอยู่ แต่คำขอเก่ายังต้องวาดใหม่
     return;
   }
   host.innerHTML = '<div class="grid">' + list.map(function(ex){
@@ -4737,6 +4781,8 @@ function submitExamRequest(){
 
   apiPost({ type: 'request-exam', req: req }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
+    /* จำไว้ว่าคำขอนี้ขอจากเครื่องนี้ — ใช้ตอนกรองให้เห็นเฉพาะของตัวเอง */
+    _oeMyReqAdd(res.id);
     if(res.duplicate){
       toast(res.code ? ('มีคำขอนี้อยู่แล้ว · รหัสเข้าสอบ ' + res.code) : 'มีคำขอนี้อยู่แล้ว รออนุมัติอยู่');
     }
@@ -4752,8 +4798,23 @@ function submitExamRequest(){
 /* รายการคำขอของสาขาตัวเอง — ที่ที่รหัสเข้าสอบจะมาโผล่ */
 function renderBranchReqs(){
   var host = $('branchReqs'); if(!host) return;
-  var mine = EXAM_REQS.filter(function(r){ return brandMatch(r) && r.status !== 'rejected'; })
-    .sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
+  /* ล็อกอินสาขาเป็นเครื่องกลางของร้าน พนักงานหลายคนผลัดกันใช้ ต้องเห็นของทั้งสาขา
+     ส่วนบัญชีส่วนตัว (BZM/ผู้ดูแล) เห็นเฉพาะคำขอของตัวเอง — ของคนอื่นไม่ใช่เรื่องของเรา
+     "ของตัวเอง" นับสองทาง เพราะทางเดียวไม่พอ:
+       · id ที่จำไว้ตอนกดขอ — ครอบคลุมกรณีขอแทนคนอื่น (ชื่อในคำขอไม่ใช่ชื่อเรา)
+       · ชื่อในคำขอตรงกับชื่อใน session — ครอบคลุมกรณีเปลี่ยนเครื่อง/ล้างเบราว์เซอร์
+                                             แล้ว id ที่จำไว้หายไป */
+  var isBranchLogin = !!currentBranchName;
+  var myIds = isBranchLogin ? null : _oeMyReqIds();
+  var _ses = getHubSession();
+  var myName = isBranchLogin ? '' : _oeNameKey((_ses && (_ses.name || _ses.nick)) || '');
+  var mine = EXAM_REQS.filter(function(r){
+    if(!brandMatch(r) || r.status === 'rejected') return false;
+    if(isBranchLogin) return true;
+    if(String(r.id).indexOf('_tmp_') === 0) return true;
+    if(myIds.indexOf(r.id) >= 0) return true;
+    return !!myName && _oeNameKey(r.name) === myName;
+  }).sort(function(a, b){ return String(b.createdAt || '').localeCompare(String(a.createdAt || '')); });
   if(!mine.length){
     /* ยังโหลดไม่เสร็จ ≠ ไม่มีคำขอ — ขึ้นโครงการ์ดไว้ให้รู้ว่ากำลังรออยู่ */
     host.innerHTML = _reqsLoaded ? '' :
@@ -4776,6 +4837,9 @@ function renderBranchReqs(){
               : '') + '</div>'
           + '<span class="st ' + st.c + '">' + st.t + '</span></div>'
           + '<div class="rq-ex">' + esc(r.examTitle) + '</div>'
+          + '<button class="rq-del" title="ลบคำขอนี้" onclick="deleteReq(\'' + esc(r.id) + '\')">'
+            + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">'
+            + '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>'
           + (ready
               ? '<div class="rq-act"><div class="reqok">✓ อนุมัติแล้ว · กดเริ่มได้เลย</div>'
                 + '<button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
@@ -4806,6 +4870,38 @@ function renderBranchReqs(){
 
   host.innerHTML = h;
   oeApplyPerms();
+}
+
+/* ลบคำขอสอบ — ใช้ได้ทั้งการ์ดฝั่งสอบเองและตารางฝั่งผู้ดูแล
+   ลบคำขอที่ยังไม่ได้ใช้ = ยกเลิกการขอ · ลบคำขอที่สอบไปแล้ว = เก็บกวาดรายการเก่า
+   ผลสอบที่บันทึกไว้แล้วไม่ได้หายไปด้วย เป็นคนละก้อนกัน */
+async function deleteReq(id){
+  var r = EXAM_REQS.find(function(x){ return x.id === id; });
+  if(!r) return;
+  var okDel = await oeConfirm({
+    icon: '🗑',
+    title: 'ลบคำขอสอบนี้?',
+    text: 'คำขอของ <b>' + esc(r.name || '') + '</b> จะหายออกจากระบบ',
+    facts: [
+      ['ชุดข้อสอบ', r.examTitle || ''],
+      ['สาขา', r.branchName || '-'],
+      ['สถานะ', _reqSt(r.status).t]
+    ],
+    warn: r.status === 'approved' ? 'สิทธิ์สอบที่อนุมัติไว้จะถูกยกเลิกด้วย' : 'ลบแล้วกู้คืนไม่ได้',
+    yes: 'ลบคำขอ'
+  });
+  if(!okDel) return;
+  /* เอาออกจากจอก่อน แล้วค่อยรอหลังบ้าน — ถ้าพลาดค่อยดึงของจริงกลับมาทับ */
+  EXAM_REQS = EXAM_REQS.filter(function(x){ return x.id !== id; });
+  renderBranchExams();
+  if(isAdminMode){ renderExamRequests(); paintReqCount(); }
+  apiPost({ type:'delete-exam-request', id: id }).then(function(res){
+    if(!res || !res.ok) throw new Error((res && res.error) || 'ลบไม่สำเร็จ');
+    toast('ลบคำขอแล้ว');
+  }).catch(function(e){
+    toast('ลบคำขอไม่สำเร็จ: ' + (e.message || ''), 'err');
+    loadExamRequests();
+  });
 }
 
 /* ทางลัดจากการ์ดคำขอ → ตารางผลสอบ กรองชื่อคนนั้นไว้ให้เลย
@@ -4887,7 +4983,10 @@ function _reqRow(r){
       + ' <button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'reject\')">ไม่อนุมัติ</button>'
     : (r.status === 'rejected'
         ? '<button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'approve\')">อนุมัติภายหลัง</button>'
-        : '<span style="color:var(--text3);font-size:12px">—</span>');
+        : '');   /* สอบไปแล้ว ไม่มีอะไรให้ตัดสินใจ เหลือแค่ปุ่มลบ */
+  act += ' <button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-approve"'
+    + ' title="ลบคำขอนี้" onclick="deleteReq(\'' + esc(r.id) + '\')">'
+    + '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>';
   return '<tr>'
     + '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.createdAt)) + '</td>'
     + '<td><div class="who-n">' + esc(r.name) + '</div>'
