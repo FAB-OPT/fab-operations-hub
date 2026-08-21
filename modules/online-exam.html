@@ -1581,6 +1581,59 @@ label.fld>span>b{font-weight:800}
   font-size:13px;color:var(--text);line-height:1.95}
 .pt-steps.show{display:block}
 .pt-steps b{font-weight:700}
+
+/* ═══════════ มือถือ: จัดหน้าใหม่ทั้งชุด ═══════════
+   แท็บหลักเดิมเป็นแถบเลื่อนแนวนอน แท็บที่ 4 โดนดันตกขอบจอ ไม่รู้ด้วยซ้ำว่ามีอยู่
+   ย้ายลงไปติดขอบล่างแบบแอปมือถือ ไอคอนบนชื่อล่าง เห็นครบทั้งสี่ในตาเดียวและนิ้วโป้งถึง
+   แล้วบีบแถบบนกับหัวเรื่องให้เตี้ยลง เนื้อหาจะได้ขึ้นมาให้เห็นเร็วขึ้น ไม่ต้องเลื่อนไกล */
+@media(max-width:760px){
+  .topbar{padding:9px 13px;gap:8px}
+  .topbar .t-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  /* ที่ว่างล่างเผื่อไว้ให้แถบแท็บ ไม่งั้นรายการบรรทัดสุดท้ายจะโดนทับ */
+  .shell{padding:16px 14px calc(84px + env(safe-area-inset-bottom))}
+  .pagehead{margin-bottom:15px;gap:10px}
+  .ph-title{font-size:20px}
+  .ph-sub{font-size:13px;margin-top:5px}
+  .ph-scope{margin-top:10px;font-size:12.5px}
+  .kpis{gap:9px;margin-bottom:16px}
+  .kpi{padding:11px 12px}
+  .kpi .k-n{font-size:23px}
+
+  .segbar{position:fixed;left:0;right:0;bottom:0;z-index:70;
+    /* บางบทบาทเห็นแท็บไม่ครบสี่ · ให้เท่าที่มีหารความกว้างกันเอง
+       ถ้าล็อกไว้สี่ช่อง คนที่มีสองแท็บจะเห็นปุ่มกองอยู่ซ้ายแล้วเหลือที่ว่างครึ่งจอ */
+    display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:0;
+    margin:0;padding:5px 4px calc(5px + env(safe-area-inset-bottom));
+    background:rgba(255,255,255,.94);
+    backdrop-filter:blur(18px);-webkit-backdrop-filter:blur(18px);
+    border:none;border-top:1px solid var(--border);border-radius:0;
+    overflow:visible;box-shadow:0 -6px 22px rgba(15,23,42,.07)}
+  .segbar .seg{position:relative;flex-direction:column;justify-content:center;gap:3px;
+    padding:7px 2px 5px;border-radius:12px;font-size:11px;letter-spacing:-.01em}
+  .segbar .seg svg{width:21px;height:21px;opacity:.55}
+  .segbar .seg:hover{background:none;color:var(--text2)}
+  .segbar .seg:active{background:var(--bg3)}
+  /* แท็บที่เลือกใช้แค่สี ไม่ต้องถมพื้น — พื้นสีเต็มก้อนในแถบล่างดูหนักเกินไป */
+  .segbar .seg.active{background:none;color:var(--gold);box-shadow:none}
+  .segbar .seg.active svg{opacity:1}
+  /* ตัวเลขไปเกาะมุมไอคอนแบบป้ายแจ้งเตือนในแอป ไม่ใช่กล่องต่อท้ายชื่อ */
+  .segbar .seg em{position:absolute;top:3px;left:calc(50% + 5px);
+    min-width:16px;padding:0 4px;border-radius:99px;
+    font-size:10px;line-height:16px;font-weight:800;
+    background:var(--bg3);color:var(--text3)}
+  .segbar .seg.has-new em,
+  .segbar .seg.active.has-new em{background:var(--red);color:#fff}
+  /* ข้อความแจ้งผลต้องลอยเหนือแถบล่าง ไม่ใช่ไปซ่อนอยู่ข้างหลัง */
+  .toast{bottom:calc(86px + env(safe-area-inset-bottom))}
+  body.no-tabbar .shell{padding-bottom:28px}
+  body.no-tabbar .toast{bottom:24px}
+}
+@media(max-width:460px){
+  /* จอเล็กมาก: ปุ่มกลับหน้าหลักเหลือแต่ลูกศร ชื่อระบบจะได้ไม่ตกบรรทัด */
+  .topbar .bt-label{display:none}
+  .btn-back{padding:9px 11px}
+  .chip{padding:6px 10px;font-size:12px}
+}
 </style>
 <!-- SheetJS — นำเข้า/สร้างแบบฟอร์มข้อสอบ Excel -->
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
@@ -2807,6 +2860,8 @@ function _oePaintTabBar(){
   var vis = OE_TABS.filter(function(x){ return oeCan(x.perm); }).length;
   var bar = $('segbar');
   if(bar) bar.classList.toggle('hidden', vis <= 1);
+  /* ไม่มีแถบล่าง = ไม่ต้องเว้นที่ให้มันบนมือถือ */
+  document.body.classList.toggle('no-tabbar', vis <= 1);
 }
 
 /* ═════════════════════ LOAD EXAMS ═════════════════════ */
