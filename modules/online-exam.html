@@ -1435,6 +1435,21 @@ button.rq-done-it:hover{background:var(--bg3)}
 .res-doc:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .rc-acts{display:flex;gap:8px;align-items:center;margin-top:11px}
 .rc-acts .res-doc,.rc-acts .res-del{flex:1;height:34px;justify-content:center;font-size:13px}
+/* กติกาที่มีผลกับใบนี้ — วางไว้ใต้ผลเลย ไม่ใช่ไปซ่อนท้ายกล่อง */
+#resRules .rd-rules{margin:14px 0 4px}
+/* คำเตือนบนการ์ดคำขอที่ให้สอบใหม่ได้ */
+.rq-again{margin-top:9px;padding:9px 11px;border-radius:10px;background:var(--gold-soft);
+  color:#b23a10;font-size:12px;font-weight:700;line-height:1.5}
+.rq-again span{display:block;font-weight:600;color:#8a4b1f;margin-top:2px}
+.rd-rules{display:flex;flex-direction:column;gap:6px;margin-top:11px}
+.rn{display:flex;align-items:flex-start;gap:7px;font-size:12.5px;font-weight:700;
+  line-height:1.45;padding:8px 11px;border-radius:10px}
+.rn::before{content:'';flex:0 0 auto;width:4px;align-self:stretch;border-radius:99px}
+.rn.warn{background:var(--gold-soft);color:#b23a10}
+.rn.warn::before{background:var(--gold)}
+.rn.ok{background:var(--green-soft);color:#0b7a55}
+.rn.ok::before{background:var(--green)}
+.sc-cap{display:block;font-size:10.5px;color:var(--text3);margin-top:3px}
 .rd-acts{display:flex;gap:9px;margin:12px 0 4px}
 .rd-acts .btn{flex:1;justify-content:center}
 .result-actions{display:flex;gap:11px;flex-wrap:wrap}
@@ -2236,6 +2251,7 @@ label.fld>span>b{font-weight:800}
             <div class="verdict"><h2 id="resHead"></h2><p id="resSub"></p></div>
           </div>
           <div class="res-note" id="resNote" hidden></div>
+          <div id="resRules"></div>
           <div id="saveState"></div>
           <!-- ทำเสร็จแล้วส่วนใหญ่ต้องพิมพ์เอกสารต่อทันที ให้ปุ่มอยู่ตรงนี้เลย
                ไม่ต้องกลับไปเปิดรายการผลสอบแล้วหาคนของตัวเองใหม่ -->
@@ -2697,6 +2713,54 @@ function _oeResyncMode(){
      ให้เห็นหน้าเลือกแบรนด์แวบหนึ่งแล้วเด้งกลับ ดูเหมือนหน้าเว็บกระตุก */
   if(currentBrand) pickBrand(currentBrand);
   else showBrandGate();
+}
+
+/* ═══════════ กติกาคะแนน ═══════════
+   ผ่านที่ 70% · ไม่ถึงเกณฑ์สอบใหม่ได้อีกครั้งเดียวภายใน 14 วัน โดยไม่ต้องขอสิทธิ์ใหม่
+   รอบสองต่อให้ทำได้เท่าไร ก็คิดเป็น 70% เท่านั้น (ไม่ถึง 70% คือตก)
+   คะแนนดิบยังเก็บครบทุกรอบ ปรับเฉพาะตอนแสดงผลกับตอนคิดฐานเงินเดือน
+   จะได้ย้อนดูได้ว่าจริง ๆ ทำได้เท่าไร */
+var OE_PASS_PCT   = 70;
+var OE_RETAKE_DAY = 14;
+var OE_BUMP = [[90, 1500], [80, 1000], [70, 500]];   /* คะแนนตั้งแต่ → ฐานเงินเดือนที่เพิ่ม */
+
+function _oeAllResults(){
+  var a = [];
+  if(typeof RESULTS !== 'undefined' && RESULTS) a = a.concat(RESULTS);
+  if(typeof MY_RESULTS !== 'undefined' && MY_RESULTS) a = a.concat(MY_RESULTS);
+  return a;
+}
+/* ครั้งที่เท่าไรของคนนี้กับชุดข้อสอบนี้ — นับจากใบที่ส่งก่อนหน้าแล้วบวกหนึ่ง
+   นับแบบนี้ใช้ได้ทั้งใบที่อยู่ในรายการแล้ว และใบที่เพิ่งสอบเสร็จยังไม่เข้ารายการ */
+function _oeAttempt(r){
+  if(!r) return 1;
+  var k = _oeResIdent(r), t = String(r.submittedAt || ''), seen = {};
+  _oeAllResults().forEach(function(x){
+    if(_oeResIdent(x) !== k) return;
+    var st = String(x.submittedAt || '');
+    if(st && st < t) seen[st] = 1;
+  });
+  return Object.keys(seen).length + 1;
+}
+/* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ */
+function _oeCapped(r){
+  return _oeAttempt(r) >= 2 && (Number(r && r.pct) || 0) > OE_PASS_PCT;
+}
+function _oeEffPct(r){
+  var raw = Number(r && r.pct) || 0;
+  return _oeCapped(r) ? OE_PASS_PCT : raw;
+}
+function _oeBump(pct){
+  for(var i = 0; i < OE_BUMP.length; i++) if(pct >= OE_BUMP[i][0]) return OE_BUMP[i][1];
+  return 0;
+}
+/* เหลือกี่วันที่ยังสอบใหม่ได้ · null = สอบใหม่ไม่ได้แล้ว (ผ่านแล้ว/ครบสองรอบ/เลย 14 วัน) */
+function _oeRetakeLeft(r){
+  if(!r || isPass(r) || _oeAttempt(r) >= 2) return null;
+  var t = new Date(r.submittedAt);
+  if(isNaN(t.getTime())) return null;
+  var left = OE_RETAKE_DAY - Math.floor((Date.now() - t.getTime()) / 86400000);
+  return left > 0 ? left : null;
 }
 
 /* คำโปรยหัวเพจ — ประกอบจากสิทธิ์ที่มีจริง ไม่ใช่ข้อความตายตัวชุดเดียว */
@@ -3891,9 +3955,10 @@ function _oeResRow(r){
     '<td class="ell">' + esc(r.branch || '—') + '</td>' +
     '<td><div class="ell">' + esc(r.examTitle) + '</div>' +
       (why ? '<div class="res-why ell">' + esc(why) + '</div>' : '') + '</td>' +
-    '<td class="c"><div class="scorecell"><b class="' + tone + '">' + esc(r.pct) + '%</b>' +
+    '<td class="c"><div class="scorecell"><b class="' + tone + '">' + _oeEffPct(r) + '%</b>' +
       '<span>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</span>' +
-      '<span class="sc-bar"><i class="' + tone + '" style="width:' + Math.max(0, Math.min(100, Number(r.pct) || 0)) + '%"></i></span>' +
+      '<span class="sc-bar"><i class="' + tone + '" style="width:' + Math.max(0, Math.min(100, _oeEffPct(r))) + '%"></i></span>' +
+      (_oeCapped(r) ? '<span class="sc-cap">รอบ 2 · จริง ' + esc(r.pct) + '%</span>' : '') +
       '</div></td>' +
     '<td class="c"><span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
       (v > 0 ? '<span class="vio-chip">เตือน ' + v + ' ครั้ง</span>' : '') + '</td>' +
@@ -3929,8 +3994,9 @@ function _oeResCard(r){
         '<span>' + ([r.empId, r.position].filter(Boolean).map(esc).join(' · ') || '—') + '</span>' +
         '<span>' + esc(r.branch || '—') + '</span></div>' +
       '<div class="rc-sc">' +
-        '<b>' + esc(r.pct) + '%</b>' +
+        '<b>' + _oeEffPct(r) + '%</b>' +
         '<small>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</small>' +
+        (_oeCapped(r) ? '<small>รอบ 2 · จริง ' + esc(r.pct) + '%</small>' : '') +
         '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
       '</div>' +
     '</div>' +
@@ -4084,6 +4150,19 @@ function _oeFmtMin(m){
   var h = Math.floor(m / 60);
   return h + ' ชม. ' + Math.round(m - h * 60) + ' นาที';
 }
+/* บอกกติกาที่มีผลกับใบนี้ — คนอ่านผลสอบต้องรู้ว่าทำอะไรต่อได้ และได้อะไร
+   ไม่ต้องไปเปิดคู่มือหรือถามใคร */
+function _oeRuleNote(r){
+  var out = [];
+  if(_oeCapped(r)) out.push('<span class="rn warn">สอบรอบที่ 2 — ทำได้ ' + esc(r.pct)
+    + '% นับเป็น ' + OE_PASS_PCT + '% ตามกติกา</span>');
+  var left = _oeRetakeLeft(r);
+  if(left != null) out.push('<span class="rn warn">สอบใหม่ได้อีก 1 ครั้ง ภายใน ' + left
+    + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่</span>');
+  var bump = isPass(r) ? _oeBump(_oeEffPct(r)) : 0;
+  if(bump) out.push('<span class="rn ok">ได้ฐานเงินเดือนเพิ่ม ' + bump.toLocaleString() + ' บาท</span>');
+  return out.length ? '<div class="rd-rules">' + out.join('') + '</div>' : '';
+}
 function _oeResDetailHtml(r){
   var pass = isPass(r);
   var v = Number(r.violations || 0);
@@ -4100,11 +4179,13 @@ function _oeResDetailHtml(r){
     '<div class="rd-hero-r">' +
       /* วงแหวนบอกสัดส่วนคะแนน — ตัวเลขลอย ๆ อ่านแล้วไม่เห็นภาพว่าใกล้เกณฑ์แค่ไหน
          ใช้ conic-gradient วาด ไม่ต้องพึ่ง SVG หรือไลบรารีกราฟ */
-      '<div class="rd-ring' + (pass ? ' pass' : ' fail') + '" style="--p:' + (Number(r.pct) || 0) + '">' +
-        '<div class="rd-ring-in"><b>' + esc(r.pct) + '<small>%</small></b>' +
+      '<div class="rd-ring' + (pass ? ' pass' : ' fail') + '" style="--p:' + _oeEffPct(r) + '">' +
+        '<div class="rd-ring-in"><b>' + _oeEffPct(r) + '<small>%</small></b>' +
           '<span>' + esc(r.correct) + '/' + esc(r.total) + '</span></div></div>' +
       '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
     '</div></div>';
+
+  h += _oeRuleNote(r);
 
   /* ปุ่มเอกสารอยู่ใต้ผลเลย — เดิมอยู่ท้ายกล่อง ต้องเลื่อนผ่านคำตอบทุกข้อ
      กว่าจะเจอ ทั้งที่คนเปิดผลสอบส่วนใหญ่มาเพื่อพิมพ์เอกสาร */
@@ -4244,6 +4325,8 @@ function _oeReportHtml(r){
   if(isNaN(right)) right = ans.filter(_oeAnsOk).length;
   var wrong = Math.max(0, total - right);
   var pct = (total > 0) ? Math.round(right / total * 100) : (Number(r.pct) || 0);
+  /* คะแนนที่ใช้จริงตามกติกา (รอบสองตัดเหลือเท่าเกณฑ์) กับฐานเงินเดือนที่ได้ */
+  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff) : 0;
   var v = Number(r.violations || 0);
   var um = _oeUsedMin(r);
   var per = (um != null && total > 0) ? (um / total) : null;
@@ -4280,10 +4363,20 @@ function _oeReportHtml(r){
     ['ผลคะแนน',
       'ตอบถูก <b>' + right + '</b> จาก <b>' + total + '</b> ข้อ' +
       '<span class="gap">ตอบผิด <b>' + wrong + '</b> ข้อ</span>' +
-      '<span class="gap">คิดเป็น <b class="big' + (pass ? '' : ' bad') + '">' + pct + '</b> %</span>', 0]
+      '<span class="gap">คิดเป็น <b class="big' + (pass ? '' : ' bad') + '">' + eff + '</b> %</span>' +
+      (capped ? '<span class="gap">(สอบรอบที่ 2 · ทำได้จริง ' + pct + ' % นับเป็น '
+        + OE_PASS_PCT + ' % ตามกติกา)</span>' : ''), 0]
   ];
   if(passMark != null) rows.push(['เกณฑ์ผ่าน', '<b>' + passMark + '</b> % ขึ้นไป', 0]);
   rows.push(['ผลการประเมิน', cbox(pass, 'ผ่าน', 'ok') + cbox(!pass, 'ไม่ผ่าน', 'bad'), 0]);
+  /* ตัวเลขนี้คือเหตุผลที่คนสอบอยากรู้ผลที่สุด ต้องอยู่ในใบที่พิมพ์ */
+  rows.push(['ฐานเงินเดือนที่เพิ่ม', bump
+    ? '<b class="big">' + bump.toLocaleString() + '</b> บาท <span class="gap">(เกณฑ์ '
+      + OE_BUMP.map(function(b2, i){
+          var hi = i ? (OE_BUMP[i - 1][0] - 1) : 100;
+          return b2[0] + '-' + hi + ' % = ' + b2[1].toLocaleString();
+        }).reverse().join(' · ') + ' บาท)</span>'
+    : '<b>-</b> <span class="gap">ได้เมื่อผ่านเกณฑ์เท่านั้น</span>', 0]);
   rows.push(['การเตือนระหว่างสอบ',
     cbox(v === 0, 'ไม่มี', 'ok') + cbox(v > 0, 'มี ' + (v || '') + ' ครั้ง', 'bad'), 0]);
 
@@ -5033,6 +5126,8 @@ function computeAndShow(){
   /* โหมดทดลองไม่มีผลจริงให้พิมพ์ ซ่อนปุ่มเอกสารไว้ */
   R.record = _oeRunResult();
   _oeResCur = R.isPreview ? null : R.record;
+  /* กติกาที่มีผลกับรอบนี้ — คนเพิ่งสอบเสร็จต้องรู้ทันทีว่าทำอะไรต่อได้ */
+  $('resRules').innerHTML = R.isPreview ? '' : _oeRuleNote(R.record);
   $('resPrint').hidden = !!R.isPreview;
   $('resDocs').hidden  = !!R.isPreview;
 
@@ -5172,6 +5267,7 @@ function _docSheetExam(r){
   var right = Number(r.correct);
   if(isNaN(right)) right = ans.filter(_oeAnsOk).length;
   var pct = (total > 0) ? Math.round(right / total * 100) : (Number(r.pct) || 0);
+  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff) : 0;
   var ex = (EXAMS || []).find(function(e){ return r.examId && e.id === r.examId; });
   var passMark = (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
   var um = _oeUsedMin(r);
@@ -5188,10 +5284,12 @@ function _docSheetExam(r){
       '</div>' +
     '</header>' +
     '<div class="exs-band ' + (pass ? 'ok' : 'no') + '">' +
-      '<div class="exs-pct"><b>' + pct + '</b><i>%</i></div>' +
+      '<div class="exs-pct"><b>' + eff + '</b><i>%</i></div>' +
       '<div class="exs-meta">' +
         '<div><span>ตอบถูก</span>' + right + ' จาก ' + total + ' ข้อ</div>' +
         (passMark != null ? '<div><span>เกณฑ์ผ่าน</span>' + passMark + '%</div>' : '') +
+        (capped ? '<div><span>สอบรอบที่ 2</span>ทำได้จริง ' + pct + '% นับเป็น ' + OE_PASS_PCT + '%</div>' : '') +
+        (bump ? '<div><span>ฐานเงินเดือน</span>เพิ่ม ' + bump.toLocaleString() + ' บาท</div>' : '') +
       '</div>' +
       '<div class="exs-vd">' + (pass ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์') + '</div>' +
     '</div>' +
@@ -6457,6 +6555,11 @@ function submitExamRequest(){
 }
 
 /* รายการคำขอของสาขาตัวเอง — ที่ที่รหัสเข้าสอบจะมาโผล่ */
+/* คำขอที่ใช้ไปแล้วแต่ผลตก และยังอยู่ในกำหนด — คืนจำนวนวันที่เหลือ (null = ไม่ได้แล้ว) */
+function _oeReqRetake(q){
+  if(!q || q.status !== 'used') return null;
+  return _oeRetakeLeft(_oeResultOfReq(q));
+}
 function renderBranchReqs(){
   var host = $('branchReqs'); if(!host) return;
   /* ล็อกอินสาขาเป็นเครื่องกลางของร้าน พนักงานหลายคนผลัดกันใช้ ต้องเห็นของทั้งสาขา
@@ -6474,15 +6577,18 @@ function renderBranchReqs(){
       '<div class="sec-h">คำขอสอบของสาขา</div>' + _oeSkelCards(2);
     return;
   }
-  var live = mine.filter(function(r){ return r.status !== 'used'; });
-  var done = mine.filter(function(r){ return r.status === 'used'; });
+  /* ตกแล้วสอบใหม่ได้ภายใน 14 วันโดยไม่ต้องขอสิทธิ์ใหม่ — คำขอเดิมจึงยังไม่จบ
+     ยกกลับขึ้นมาอยู่กับรายการที่ยังทำได้ จะได้ไม่ต้องไปหาในกองที่สอบไปแล้ว */
+  var live = mine.filter(function(r){ return r.status !== 'used' || _oeReqRetake(r); });
+  var done = mine.filter(function(r){ return r.status === 'used' && !_oeReqRetake(r); });
 
   var h = '';
   if(live.length){
     h += '<div class="sec-h">รายการที่ขอไว้</div>'
       + '<div class="reqcards">' + live.map(function(r){
         var st = _reqSt(r.status);
-        var ready = r.status === 'approved';
+        var again = _oeReqRetake(r);
+        var ready = r.status === 'approved' || !!again;
         return '<article class="reqcard' + (ready ? ' is-ready' : '') + '">'
           /* แถวบน: สถานะซ้าย ถังขยะขวา — สองอย่างนี้เป็นเรื่องของ "คำขอ" ไม่ใช่เรื่องของตัวคน */
           + '<div class="rq-head"><span class="st ' + st.c + '">' + st.t + '</span>'
@@ -6499,9 +6605,14 @@ function renderBranchReqs(){
             + '<span>' + esc(r.examTitle) + '</span></div>'
           /* ยังไม่อนุมัติ = ไม่มีอะไรให้กด · ป้าย "รออนุมัติ" ข้างบนบอกครบแล้ว
              กล่องเทา "รอผู้ดูแลอนุมัติ" ที่เคยมีคือการพูดซ้ำ แถมกินที่ครึ่งการ์ด */
+          + (again
+              ? '<div class="rq-again">รอบแรกยังไม่ผ่าน · สอบใหม่ได้อีก 1 ครั้ง ภายใน <b>' + again
+                + ' วัน</b><span>คะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี</span></div>'
+              : '')
           + (ready
               ? '<div class="rq-act"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="startWithCode(\'' + esc(r.id) + '\')">'
-                + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> เริ่มทำข้อสอบ</button></div>'
+                + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> '
+                + (again ? 'สอบใหม่ (ครั้งที่ 2)' : 'เริ่มทำข้อสอบ') + '</button></div>'
               : '')
           + '</article>';
       }).join('') + '</div>';
@@ -6593,6 +6704,10 @@ function startWithCode(reqId){
     code: code, name: r.name, empId: r.empId,
     position: r.position, branchName: r.branchName
   });
+
+  /* รอบสองใช้คำขอใบเดิมที่รหัสถูกปิดไปตั้งแต่รอบแรก ถามหลังบ้านไปก็ตอบว่า
+     "รหัสนี้ถูกใช้ไปแล้ว" · สิทธิ์รอบสองตัดสินจากผลสอบที่มีอยู่แล้ว ไม่ใช่จากรหัส */
+  if(_oeReqRetake(r)){ R.verify = null; return; }
 
   /* ถามหลังบ้านทุกครั้งก่อนเปิดข้อสอบ ต่อให้ไม่ได้ใช้รหัส — หน้าจอที่ค้างข้อมูลเก่าไว้
      จะได้ไม่เปิดสอบซ้ำหลังคนอื่นทำไปแล้วจากอีกเครื่อง */
