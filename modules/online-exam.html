@@ -233,7 +233,10 @@ input,select,textarea{font-family:inherit}
 /* ── ใบรายงานผลสอบ ──
    อยู่ในชุดเดียวกับใบปรับสภาพและใบประเมิน หัวกระดาษกับน้ำหนักเส้นจึงต้องพูดภาษาเดียวกัน
    สีพื้นห้ามใช้สื่อความหมาย เพราะถ้าคนพิมพ์ไม่ติ๊ก "กราฟิกพื้นหลัง" มันจะหายไปทั้งดุ้น */
+/* กล่อง flex ไว้ดันลายเซ็นลงไปอยู่ท้ายกระดาษ · ห้ามให้ของข้างในหดตาม
+   พื้นที่ที่เหลือ ไม่งั้นวันไหนเนื้อหายาวเกินหน้า ตารางจะถูกบีบจนเสียรูป */
 .sheet.exs{display:flex;flex-direction:column}
+.sheet.exs>*{flex:0 0 auto}
 /* โลโก้ลอยไว้ซ้าย ไม่ให้ไปเบียดชื่อเรื่องจนหลุดกึ่งกลางหน้า */
 .exs-head{position:relative;display:flex;align-items:center;min-height:18mm;
   border-bottom:1.5pt solid #111827;padding-bottom:3mm}
@@ -254,21 +257,24 @@ input,select,textarea{font-family:inherit}
 .exs-meta span{color:#4b5563;flex:0 0 22mm}
 .exs-vd{flex:0 0 auto;border:1.2pt solid #111827;padding:2.4mm 5mm;
   font-weight:800;font-size:13pt;text-align:center;min-width:33mm}
+.exs-band.ok .exs-vd,.exs-band.ok .exs-pct{color:#15803d}
+.exs-band.ok .exs-vd{border-color:#15803d}
+.exs-band.no .exs-vd,.exs-band.no .exs-pct{color:#b91c1c}
+.exs-band.no .exs-vd{border-color:#b91c1c}
 .exs-sec{font-weight:800;font-size:11pt;margin:5.5mm 0 1.5mm;
   border-left:2.4pt solid #111827;padding-left:2.5mm}
-.exs-lines{display:flex;flex-direction:column;gap:3.4mm;margin:2mm 0 0}
-.exs-lines .fld{width:100%;border-bottom:0.75pt dotted #6b7280}
-.sheet.exs .sh-sign{margin-top:auto;padding-top:8mm}
+.sheet.exs .sh-sign{margin-top:auto;padding-top:8mm;flex:0 0 auto}
 .sh-kv{width:100%;border-collapse:collapse;margin-top:3mm}
 .sh-kv th,.sh-kv td{border:0.8pt solid #374151;padding:2mm 3mm;font-size:11pt}
 .sh-kv th{background:#f3f4f6;text-align:left;font-weight:700;width:38%}
+.sh-kv tbody tr:last-child td{border-bottom:0.8pt solid #374151}
 .sh-verdict{margin:4mm 0;padding:3mm;border:1.2pt solid #374151;text-align:center;
   font-size:15pt;font-weight:800}
 @media screen and (max-width:900px){
   .sheet{width:100%;min-height:0;padding:16px 14px}
   /* กระดาษในชุดเอกสารต้องคงขนาด A4 เสมอ แล้วค่อยย่อทั้งแผ่นให้พอดีจอ
      ถ้าปล่อยให้กว้าง 100% ตารางจะถูกบีบจนข้อความล้นออกนอกช่องและโดนตัดข้างขวา */
-  #docsSheets .sheet{width:210mm;padding:24px 30px 26px}
+  #docsSheets .sheet{width:210mm;min-height:297mm;padding:24px 30px 26px}
   #docsSheets .xsheet{padding:5mm 8mm 8mm}
   .sh-sign{gap:6mm 8mm}
   .fcell{flex:1 1 100%}
@@ -4923,7 +4929,7 @@ function _docSheetExam(r){
         '<div class="exs-sub">ระบบสอบออนไลน์</div>' +
       '</div>' +
     '</header>' +
-    '<div class="exs-band">' +
+    '<div class="exs-band ' + (pass ? 'ok' : 'no') + '">' +
       '<div class="exs-pct"><b>' + pct + '</b><i>%</i></div>' +
       '<div class="exs-meta">' +
         '<div><span>ตอบถูก</span>' + right + ' จาก ' + total + ' ข้อ</div>' +
@@ -4946,12 +4952,6 @@ function _docSheetExam(r){
       kv('การเตือนระหว่างสอบ', (Number(r.violations) || 0) + ' ครั้ง') +
       kv('จบการสอบโดย', r.finishReason || 'ส่งด้วยตนเอง') +
     '</table>' +
-    '<div class="exs-sec">ความเห็นเพิ่มเติม / แนวทางพัฒนา</div>' +
-    '<div class="exs-lines">' +
-      '<input class="fld" data-d="exam_note1">' +
-      '<input class="fld" data-d="exam_note2">' +
-      '<input class="fld" data-d="exam_note3">' +
-    '</div>' +
     '<div class="sh-note">เอกสารนี้ออกจากระบบสอบออนไลน์โดยอัตโนมัติ ตัวเลขทั้งหมดตรงกับที่บันทึกไว้ในระบบ ' +
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
