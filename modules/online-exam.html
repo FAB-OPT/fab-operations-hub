@@ -420,7 +420,6 @@ input,select,textarea{font-family:inherit}
 .res-del:hover,.res-row:hover .res-del:hover{background:var(--red);border-color:var(--red);color:#fff}
 .res-del:focus-visible{outline:2px solid var(--red);outline-offset:2px}
 .rc{position:relative}
-.rc-del{position:absolute;right:10px;bottom:10px}
 /* บอกว่าแถวกดดูรายละเอียดได้ — ไม่งั้นไม่มีอะไรชวนให้กด */
 .res-row{cursor:pointer;transition:background .12s}
 .res-row:hover{background:var(--bg3)}
@@ -1412,6 +1411,13 @@ button.rq-done-it:hover{background:var(--bg3)}
 #saveState{display:flex;align-items:center;justify-content:center;gap:7px;
   margin:24px 0 12px;font-size:12.5px;font-weight:700;color:var(--text3)}
 #saveState:empty{display:none}
+/* ปุ่มท้ายแถวผลสอบ — เอกสารกับลบ อยู่คู่กัน */
+.res-acts{display:inline-flex;gap:5px;align-items:center}
+.res-doc{width:29px;height:29px;display:grid;place-items:center;border-radius:9px;
+  border:1px solid var(--border);background:var(--bg2);color:var(--text3);transition:.14s}
+.res-doc:hover{border-color:var(--gold-line);color:var(--gold);background:var(--gold-soft)}
+.rc-acts{display:flex;gap:8px;align-items:center;margin-top:11px}
+.rc-acts .btn{flex:1;justify-content:center}
 .rd-acts{display:flex;gap:9px;margin:12px 0 4px}
 .rd-acts .btn{flex:1;justify-content:center}
 .result-actions{display:flex;gap:11px;flex-wrap:wrap}
@@ -3855,12 +3861,17 @@ function _oeResRow(r){
       (v > 0 ? '<span class="vio-chip">เตือน ' + v + ' ครั้ง</span>' : '') + '</td>' +
     /* ปุ่มลบในแถวเลย ไม่ต้องกดเข้าไปหาในกล่องรายละเอียด
        stopPropagation กันไม่ให้กดปุ่มแล้วเปิดกล่องรายละเอียดตามมาด้วย */
-    '<td class="c">' +
+    '<td class="c"><div class="res-acts">' +
+      '<button class="res-doc" title="ชุดเอกสารประกอบผลสอบ"' +
+      ' onclick="event.stopPropagation();openDocsAt(' + _oeResKey(r) + ')">' +
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
+      '<path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6"/>' +
+      '<path d="M8 13h8M8 17h5"/></svg></button>' +
       '<button class="res-del" data-oe-action="exam-delete" title="ลบผลสอบนี้"' +
       ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
       '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
-    '</td>' +
+    '</div></td>' +
   '</tr>';
 }
 /* การ์ดสำหรับจอแคบ — ตาราง 8 คอลัมน์บนมือถือต้องเลื่อนซ้ายขวาจนอ่านไม่รู้เรื่อง */
@@ -3883,10 +3894,13 @@ function _oeResCard(r){
       '</div>' +
     '</div>' +
     '<div class="rc-mid">' + line.join(' · ') + '</div>' +
-    '<button class="res-del rc-del" data-oe-action="exam-delete" title="ลบผลสอบนี้"' +
-      ' onclick="event.stopPropagation();deleteResultAt(' + _oeResKey(r) + ')">' +
-      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
-      '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
+    '<div class="rc-acts" onclick="event.stopPropagation()">' +
+      '<button class="btn btn-soft btn-sm" onclick="openDocsAt(' + _oeResKey(r) + ')">📑 ชุดเอกสาร</button>' +
+      '<button class="res-del" data-oe-action="exam-delete" title="ลบผลสอบนี้"' +
+        ' onclick="deleteResultAt(' + _oeResKey(r) + ')">' +
+        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" width="15" height="15">' +
+        '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
+    '</div>' +
   '</article>';
 }
 
@@ -3987,6 +4001,14 @@ function openResultDetail(i){
   $('rdBody').innerHTML = _oeResDetailHtml(r);
   $('rdModal').classList.add('show');
   document.body.style.overflow = 'hidden';
+}
+/* เปิดชุดเอกสารจากแถวในตารางได้เลย ไม่ต้องเข้าไปเปิดกล่องรายละเอียดก่อน
+   คนที่มากดตรงนี้ส่วนใหญ่รู้อยู่แล้วว่าจะพิมพ์ของใคร */
+function openDocsAt(i){
+  var r = RESULTS[i];
+  if(!r){ toast('ไม่พบผลสอบ','err'); return; }
+  _oeResCur = r;
+  openDocSet();
 }
 function closeResultDetail(){
   $('rdModal').classList.remove('show');
