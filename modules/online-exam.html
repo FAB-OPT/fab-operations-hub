@@ -5265,6 +5265,50 @@ function _docFillBlanks(html, kind){
    ต้นฉบับวางโลโก้ไว้ช่องขวาสุดของแถวแรก ชื่อเรื่องเลยถูกบีบให้อยู่กึ่งกลาง
    ของช่องที่เหลือ ไม่ใช่กึ่งกลางหน้า · ย้ายโลโก้ไปลอยมุมซ้ายบน (ให้เหมือน
    ใบปรับสภาพกับใบผลสอบ) แล้วขยายช่องชื่อเรื่องให้เต็มแถว จะได้กึ่งกลางจริง */
+/* ── ความกว้างคอลัมน์ในตารางหัวข้อประเมิน ──
+   ต้นฉบับเผื่อช่องหัวข้องานไว้กว้างมาก เพราะสมัยเขียนมือจะได้เขียนหัวข้อยาว ๆ ได้
+   ของจริงหัวข้อสั้นทั้งนั้น ที่เหลือเลยว่างเปล่า ส่วนช่องหมายเหตุที่คนต้องพิมพ์จริง
+   กลับแคบ · ย้ายส่วนเกินจากหัวข้องานไปให้หมายเหตุ
+   หั่นจากคอลัมน์สุดท้ายของช่วงหัวข้องาน เพราะคอลัมน์ต้น ๆ เป็นตัวกำหนดจุดแบ่ง
+   ซ้าย/ขวาของบล็อกข้อมูลด้านบนด้วย แตะแล้วหัวกระดาษจะเบี้ยวตาม */
+var HEADMAX = 50;   /* หัวข้องานกว้างได้ไม่เกินกี่ % ของตาราง */
+var COLMIN = 6;     /* คอลัมน์ที่ถูกหั่นต้องเหลืออย่างน้อยเท่านี้ */
+function _docWidenNotes(html){
+  var cg = (html.match(/<colgroup>[\s\S]*?<\/colgroup>/) || [''])[0];
+  if(!cg) return html;
+  var w = (cg.match(/width:([\d.]+)%/g) || []).map(function(x){ return Number(x.slice(6, -1)); });
+  if(!w.length) return html;
+
+  /* หาแถวหัวตารางที่มีทั้งสองป้าย แล้วไล่ colspan เพื่อรู้ว่าแต่ละป้ายกินคอลัมน์ไหนบ้าง */
+  var rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+  var head = null, note = null;
+  rows.forEach(function(row){
+    if(head) return;
+    var t = row.replace(/<[^>]+>/g, '');
+    if(t.indexOf('หัวข้องาน') < 0 || t.indexOf('หมายเหตุ') < 0) return;
+    var c = 0;
+    (row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g) || []).forEach(function(cell){
+      var span = Number((cell.match(/colspan="(\d+)"/) || [0, 1])[1]);
+      var txt = cell.replace(/<[^>]*>/g, '').trim();
+      if(txt === 'หัวข้องาน') head = { a: c, b: c + span - 1 };
+      if(txt === 'หมายเหตุ') note = c;
+      c += span;
+    });
+  });
+  if(!head || note == null || note >= w.length) return html;
+
+  var tot = 0;
+  for(var i = head.a; i <= head.b; i++) tot += w[i] || 0;
+  var move = Math.min(tot - HEADMAX, (w[head.b] || 0) - COLMIN);
+  if(move <= 0.5) return html;
+  w[head.b] -= move;
+  w[note] += move;
+
+  var k = -1;
+  var out = cg.replace(/width:[\d.]+%/g, function(){ k++; return 'width:' + w[k].toFixed(3) + '%'; });
+  return html.replace(cg, out);
+}
+
 var LOGOH = 44;   /* สูงเท่ากับ .xlogo ใน CSS */
 function _docHeadLeft(html){
   var cols = ((html.match(/<colgroup>[\s\S]*?<\/colgroup>/) || [''])[0].match(/<col\b/g) || []).length;
@@ -5322,7 +5366,7 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docHeadLeft(_docSameLogo(t))), kind))), kind);
+      _docFillBlanks(_docFillLines(_docWidenNotes(_docHeadLeft(_docSameLogo(t)))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
