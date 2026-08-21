@@ -4858,7 +4858,7 @@ function _docSheetExam(r){
   function kv(k, v){ return '<tr><th>' + esc(k) + '</th><td>' + esc(v) + '</td></tr>'; }
 
   return '<article class="sheet" data-doc="exam">' +
-    (co.logo ? '<img class="sh-logo" src="' + esc(co.logo) + '" alt="">' : '') +
+    '<img class="sh-logo" src="' + _docAdjustLogo + '" alt="">' +
     '<div class="sh-co">' + esc(co.name) + '</div>' +
     '<div class="sh-ti">ผลการทดสอบความรู้ (ระบบสอบออนไลน์)</div>' +
     '<table class="sh-kv">' +
@@ -5064,6 +5064,11 @@ var DOC_FORMS = {
   kitchen: { file: 'docs/kitchen.html', title: 'แบบฟอร์มการประเมินผลงานครัว' }
 };
 var _docCache = {};
+/* โลโก้ในเอกสารทุกใบต้องเป็นตัวเดียวกัน ไม่งั้นชุดเดียวกันแต่หน้าไม่เหมือนกัน
+   ไฟล์แบบประเมินฝังโลโก้คนละแบบมาจาก .xlsx ต้นทาง จึงสลับเป็นตัวของหน้าแรกตอนโหลด */
+function _docSameLogo(html){
+  return html.replace(/(<img class="xlogo" src=")data:[^"]*(")/g, '$1' + _docAdjustLogo + '$2');
+}
 function docsPickForm(kind, on){
   var box = $('docsSheets');
   var old = box.querySelector('[data-doc="' + kind + '"]');
@@ -5091,6 +5096,7 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
+    t = _docSameLogo(t);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
