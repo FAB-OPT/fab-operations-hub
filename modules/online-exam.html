@@ -145,6 +145,10 @@ input,select,textarea{font-family:inherit}
 .sh-sign .ln{border-bottom:0.75pt dotted #6b7280;height:9mm;width:52mm;max-width:100%;margin:0 auto 1.5mm}
 .sh-sign b{display:block;font-weight:700}
 .sh-sign span{display:block;color:#4b5563;margin-top:.6mm}
+/* วัน/เดือน/ปี ต้องอยู่บรรทัดเดียวกัน · .fld มี min-width ไว้กันช่องแคบเกิน
+   แต่ช่องวันที่ตั้งใจให้แคบ ต้องปลดออก ไม่งั้นดันกันจนตกบรรทัด */
+.sh-sign span{white-space:nowrap}
+.sh-sign .fld.wd{width:8mm;min-width:0;text-align:center}
 .sh-note{font-size:9.5pt;color:#4b5563;margin-top:3mm}
 /* ── ใบปรับสภาพ: ตารางที่แปลงมาจาก Excel ──
    ทุกอย่างที่กำหนดรูปร่าง (ความกว้าง ความสูง เส้นขอบ ขนาดอักษร) ฝังมากับ HTML แล้ว
@@ -174,6 +178,8 @@ input,select,textarea{font-family:inherit}
 .xt .dln.dtop{bottom:auto;top:-0.6pt}
 /* ช่องกรอกที่แทรกกลางข้อความ — จุดไข่ปลารองอยู่ใต้ช่อง เหมือนที่ต้นฉบับเว้นไว้ */
 .xt .dfld{position:relative;display:inline-block;vertical-align:baseline}
+/* ขีดล่างในต้นฉบับ — ทำเป็นเส้นทึบจริง ไม่ใช่ตัวอักษร _ ที่จะถูกดันไปตอนพิมพ์ */
+.xt .dfld.xu{border-bottom:0.5pt solid #111827}
 .xt .dfld .xi{width:100%;position:relative;z-index:1}
 .xt .dln{position:absolute;left:0;right:0;bottom:-0.6pt;overflow:hidden;white-space:nowrap;
   font-style:normal;font-size:8pt;letter-spacing:-0.62pt;line-height:1;color:#111827;
@@ -224,6 +230,35 @@ input,select,textarea{font-family:inherit}
   color:var(--text3);font-size:14px;pointer-events:none}
 .sig-pad.has .sig-hint{display:none}
 /* หน้าผลสอบในชุดเอกสาร */
+/* ── ใบรายงานผลสอบ ──
+   อยู่ในชุดเดียวกับใบปรับสภาพและใบประเมิน หัวกระดาษกับน้ำหนักเส้นจึงต้องพูดภาษาเดียวกัน
+   สีพื้นห้ามใช้สื่อความหมาย เพราะถ้าคนพิมพ์ไม่ติ๊ก "กราฟิกพื้นหลัง" มันจะหายไปทั้งดุ้น */
+.sheet.exs{display:flex;flex-direction:column}
+/* โลโก้ลอยไว้ซ้าย ไม่ให้ไปเบียดชื่อเรื่องจนหลุดกึ่งกลางหน้า */
+.exs-head{position:relative;display:flex;align-items:center;min-height:18mm;
+  border-bottom:1.5pt solid #111827;padding-bottom:3mm}
+.exs-logo{position:absolute;left:0;top:calc(50% - 1.5mm);
+  transform:translateY(-50%);height:17mm}
+.exs-id{flex:1;text-align:center}
+.exs-co{font-weight:800;font-size:12.5pt;line-height:1.25}
+.exs-ti{font-weight:800;font-size:15pt;line-height:1.3}
+.exs-sub{font-size:9.5pt;color:#4b5563}
+/* แถบคะแนน — คนอ่านใบนี้อยากรู้อย่างแรกว่าผ่านไหม ได้เท่าไร ต้องเห็นก่อนอย่างอื่น */
+.exs-band{display:flex;align-items:center;gap:6mm;margin:5mm 0 0;
+  border:1.2pt solid #111827;padding:3.5mm 5mm}
+.exs-pct{flex:0 0 auto;display:flex;align-items:baseline;line-height:1}
+.exs-pct b{font-size:30pt;font-weight:800;letter-spacing:-.02em}
+.exs-pct i{font-size:14pt;font-weight:700;font-style:normal;margin-left:1mm}
+.exs-meta{flex:1;display:flex;flex-direction:column;gap:1.2mm;font-size:10.5pt}
+.exs-meta>div{display:flex;align-items:baseline;gap:2mm}
+.exs-meta span{color:#4b5563;flex:0 0 22mm}
+.exs-vd{flex:0 0 auto;border:1.2pt solid #111827;padding:2.4mm 5mm;
+  font-weight:800;font-size:13pt;text-align:center;min-width:33mm}
+.exs-sec{font-weight:800;font-size:11pt;margin:5.5mm 0 1.5mm;
+  border-left:2.4pt solid #111827;padding-left:2.5mm}
+.exs-lines{display:flex;flex-direction:column;gap:3.4mm;margin:2mm 0 0}
+.exs-lines .fld{width:100%;border-bottom:0.75pt dotted #6b7280}
+.sheet.exs .sh-sign{margin-top:auto;padding-top:8mm}
 .sh-kv{width:100%;border-collapse:collapse;margin-top:3mm}
 .sh-kv th,.sh-kv td{border:0.8pt solid #374151;padding:2mm 3mm;font-size:11pt}
 .sh-kv th{background:#f3f4f6;text-align:left;font-weight:700;width:38%}
@@ -4825,6 +4860,24 @@ function _docCo(r){
   return { name: bi.company || bi.name || 'FAB Food', logo: bi.logo || '' };
 }
 
+/* ชื่อบริษัทบนหัวกระดาษ — หยิบจากใบปรับสภาพ จะได้ตรงกันทั้งชุด
+   ทะเบียนแบรนด์ในระบบเก็บชื่อไว้เป็นภาษาอังกฤษ ใช้ตรง ๆ แล้วหน้านี้จะแปลกกว่าใบอื่น */
+var _docCoLine;
+function _docCoName(fallback){
+  if(_docCoLine === undefined){
+    _docCoLine = _docAdjustTpl.split(/<[^>]+>/)
+      .map(function(x){ return x.trim(); }).filter(Boolean)[0] || '';
+  }
+  return _docCoLine || fallback || '';
+}
+
+/* วันที่ใต้ช่องลงชื่อ — แยกวัน/เดือน/ปี ตามรูปแบบเดิมของใบ */
+function _docDateFld(k){
+  return '<span>วันที่ <input class="fld wd" data-d="' + k + '_d">/' +
+    '<input class="fld wd" data-d="' + k + '_m">/' +
+    '<input class="fld wd" data-d="' + k + '_y"></span>';
+}
+
 /* ── ช่องกรอก ── */
 function _docF(name, val, cls){
   return '<input class="fld ' + (cls || '') + '" data-d="' + esc(name) + '" value="' + esc(val == null ? '' : val) + '">';
@@ -4861,31 +4914,51 @@ function _docSheetExam(r){
 
   function kv(k, v){ return '<tr><th>' + esc(k) + '</th><td>' + esc(v) + '</td></tr>'; }
 
-  return '<article class="sheet" data-doc="exam">' +
-    '<img class="sh-logo" src="' + _docAdjustLogo + '" alt="">' +
-    '<div class="sh-co">' + esc(co.name) + '</div>' +
-    '<div class="sh-ti">ผลการทดสอบความรู้ (ระบบสอบออนไลน์)</div>' +
+  return '<article class="sheet exs" data-doc="exam">' +
+    '<header class="exs-head">' +
+      '<img class="exs-logo" src="' + _docAdjustLogo + '" alt="">' +
+      '<div class="exs-id">' +
+        '<div class="exs-co">' + esc(_docCoName(co.name)) + '</div>' +
+        '<div class="exs-ti">ใบรายงานผลการทดสอบความรู้</div>' +
+        '<div class="exs-sub">ระบบสอบออนไลน์</div>' +
+      '</div>' +
+    '</header>' +
+    '<div class="exs-band">' +
+      '<div class="exs-pct"><b>' + pct + '</b><i>%</i></div>' +
+      '<div class="exs-meta">' +
+        '<div><span>ตอบถูก</span>' + right + ' จาก ' + total + ' ข้อ</div>' +
+        (passMark != null ? '<div><span>เกณฑ์ผ่าน</span>' + passMark + '%</div>' : '') +
+      '</div>' +
+      '<div class="exs-vd">' + (pass ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์') + '</div>' +
+    '</div>' +
+    '<div class="exs-sec">ข้อมูลผู้เข้าสอบ</div>' +
     '<table class="sh-kv">' +
       kv('ชื่อ – นามสกุล', r.name || '-') +
       kv('รหัสพนักงาน', r.empId || '-') +
       kv('ตำแหน่ง', r.position || '-') +
       kv('สาขา / หน่วยงาน', r.branch || '-') +
+    '</table>' +
+    '<div class="exs-sec">รายละเอียดการสอบ</div>' +
+    '<table class="sh-kv">' +
       kv('ชุดข้อสอบ', r.examTitle || '-') +
       kv('วันที่สอบ', fmtDT(r.submittedAt)) +
-      kv('คะแนนที่ได้', right + ' จาก ' + total + ' ข้อ  (' + pct + '%)') +
-      (passMark != null ? kv('เกณฑ์ผ่าน', passMark + '%') : '') +
       (um != null ? kv('เวลาที่ใช้', Math.round(um) + ' นาที') : '') +
       kv('การเตือนระหว่างสอบ', (Number(r.violations) || 0) + ' ครั้ง') +
       kv('จบการสอบโดย', r.finishReason || 'ส่งด้วยตนเอง') +
     '</table>' +
-    '<div class="sh-verdict">' + (pass ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์') + '</div>' +
+    '<div class="exs-sec">ความเห็นเพิ่มเติม / แนวทางพัฒนา</div>' +
+    '<div class="exs-lines">' +
+      '<input class="fld" data-d="exam_note1">' +
+      '<input class="fld" data-d="exam_note2">' +
+      '<input class="fld" data-d="exam_note3">' +
+    '</div>' +
     '<div class="sh-note">เอกสารนี้ออกจากระบบสอบออนไลน์โดยอัตโนมัติ ตัวเลขทั้งหมดตรงกับที่บันทึกไว้ในระบบ ' +
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
       '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_taker"></div>' +
-        '<b>ผู้เข้าสอบ</b><span>วันที่ ......../......../........</span></div>' +
+        '<b>ผู้เข้าสอบ</b>' + _docDateFld('dt_taker') + '</div>' +
       '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_zm"></div>' +
-        '<b>ผู้จัดการเขต</b><span>วันที่ ......../......../........</span></div>' +
+        '<b>ผู้จัดการเขต</b>' + _docDateFld('dt_zm') + '</div>' +
     '</div>' +
   '</article>';
 }
@@ -5077,7 +5150,7 @@ var _docCache = {};
    ซึ่งเป็นตัวอย่างคำพูด ไม่ใช่ช่องให้เติม
    ตัวสร้างฟอร์มเห็นเป็นช่องว่างเหมือนกันหมด แยกไม่ออก จึงระบุไว้ตรงนี้ */
 var DOC_NOFILL = {
-  adjust:  /^f_(A1[012]|I19|L4[123]|N4[45]|Y4[1245])(_\d+)?$/,
+  adjust:  /^f_(A1[012]|L4[123]|N4[45]|Y4[1245])(_\d+)?$/,
   service: /^f_D\d/,
   kitchen: /^f_D\d/
 };
@@ -5099,6 +5172,72 @@ function _docDropBlankRows(html){
   return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
     if(row.indexOf('type="checkbox"') < 0) return row;
     return row.replace(/<[^>]+>/g, '').replace(/[\s.]+/g, '') ? row : '';
+  });
+}
+/* ── เส้นที่ต้องกรอกได้ ──
+   ต้นฉบับเว้นที่ให้เขียนด้วยมือหลายแบบ · เส้นจุดไข่ปลายาวทั้งแถว (ความคิดเห็นเพิ่มเติม)
+   เส้นทึบใต้ชื่อผู้เซ็น และขีดล่างกลางข้อความ ("1.________" ในใบครัว)
+   ตัวสร้างฟอร์มเห็นเป็นเซลล์ว่างกับตัวอักษรธรรมดา เลยไม่มีช่องพิมพ์ให้
+   ตรงนี้เติมกลับเข้าไป โดยยุบเซลล์ที่ต่อกันเป็นเส้นเดียวให้เหลือช่องเดียว */
+function _docFillLines(html){
+  var rows = html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) || [];
+  var signAt = -1;
+  rows.forEach(function(r, i){
+    if(signAt >= 0) return;
+    var t = r.replace(/<[^>]+>/g, '');
+    if(t.indexOf('ผู้ประเมิน') >= 0 && t.indexOf('ทีมบริหาร') >= 0) signAt = i;
+  });
+  var i = -1;
+  return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
+    i++;
+    return _docFillRow(row, i, signAt >= 0 && i > signAt && i <= signAt + 3);
+  });
+}
+function _docFillRow(row, idx, nearSign){
+  var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+  if(!cells) return row;
+  var kind = cells.map(function(c){
+    if(c.indexOf('<input') >= 0) return '';
+    if(c.replace(/<[^>]*>/g, '').replace(/[\s.]+/g, '')) return '';
+    if(c.indexOf('class="dln"') >= 0) return 'dot';
+    if(nearSign && /border-bottom:[\d.]+pt solid/.test(c)) return 'line';
+    return '';
+  });
+  /* เส้นจุดไข่ปลาต้องว่างทั้งแถวถึงนับว่าเป็นบรรทัดให้เขียน
+     ไม่งั้นจะไปโดนเส้นใต้ของช่องอื่นที่แค่บังเอิญว่าง */
+  if(kind.indexOf('dot') >= 0 && kind.some(function(k){ return k !== 'dot'; })){
+    kind = kind.map(function(k){ return k === 'dot' ? '' : k; });
+  }
+  var out = '', j = 0, hit = false;
+  while(j < cells.length){
+    if(!kind[j]){ out += cells[j]; j++; continue; }
+    var k = j;
+    while(k + 1 < cells.length && kind[k + 1] === kind[j]) k++;
+    /* เส้นทึบเดี่ยว ๆ คือเส้นขอบตารางธรรมดา ไม่ใช่ที่ให้เขียน */
+    if(k === j && kind[j] === 'line'){ out += cells[j]; j++; continue; }
+    var span = 0;
+    for(var m = j; m <= k; m++) span += Number((cells[m].match(/colspan="(\d+)"/) || [0, 1])[1]);
+    var st = (cells[j].match(/style="([^"]*)"/) || ['', ''])[1];
+    /* จุดไข่ปลาของเซลล์เดียวสั้นเกินกว่าจะพาดตลอดช่องที่ยุบรวมแล้ว ต้องต่อให้ยาวพอ */
+    var dot = (cells[j].match(/<i class="dln">([^<]*)<\/i>/) || ['', ''])[1];
+    var dln = dot ? '<i class="dln">' + new Array(k - j + 2).join(dot) + '</i>' : '';
+    out += '<td colspan="' + span + '" class="dl" style="' + st + '">' + dln +
+      '<input class="xi xfull" data-d="fill_' + idx + '_' + j + '"></td>';
+    hit = true;
+    j = k + 1;
+  }
+  return hit ? row.match(/^<tr[^>]*>/)[0] + out + '</tr>' : row;
+}
+/* ขีดล่างกลางข้อความ = ที่ให้เติมคำ · ยาวเท่าไรก็ทำช่องกว้างเท่านั้น */
+function _docFillBlanks(html, kind){
+  var seq = 0;
+  return html.replace(/>([^<>]*)</g, function(all, txt){
+    if(txt.indexOf('___') < 0) return all;
+    return '>' + txt.replace(/_{3,}/g, function(run){
+      var w = run.length;
+      return '<span class="dfld xu" style="width:' + w + 'ch">' +
+        '<input class="xi" data-d="blank_' + kind + '_' + (++seq) + '" style="width:' + w + 'ch"></span>';
+    }) + '<';
   });
 }
 function _docSameLogo(html){
@@ -5131,7 +5270,8 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
-    t = _docLock(_docDropBlankRows(_docSameLogo(t)), kind);
+    t = _docLock(_docDropBlankRows(
+      _docFillBlanks(_docFillLines(_docSameLogo(t)), kind)), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
