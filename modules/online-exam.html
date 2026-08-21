@@ -5068,12 +5068,12 @@ function openDocSet(){
   _docR = r;
   closeResultDetail();
   $('docsPick').innerHTML =
+    '<label><input type="checkbox" id="pickAdjust" onchange="docsPickForm(\'adjust\',this.checked)">ใบปรับสภาพ</label>' +
     '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
     '<label><input type="checkbox" id="pickKitchen" onchange="docsPickForm(\'kitchen\',this.checked)">แบบประเมินผลงานครัว</label>';
-  $('docsSheets').innerHTML = _docSheetAdjust(r) + _docSheetExam(r);
-  /* ใบปรับสภาพเว้นว่างไว้ให้กรอกเอง เหมือนสองใบประเมิน — เดิมเติมชื่อ/รหัส/
-     ตำแหน่ง/สาขา จากผลสอบให้ แต่ใบนี้ใช้กับเรื่องอื่นด้วย ข้อมูลที่เติมมา
-     ไม่ได้ตรงกับที่ต้องการเสมอ แล้วต้องมาลบทิ้งทุกครั้ง */
+  /* เปิดมาเห็นแค่ใบผลสอบ ที่เหลือติ๊กเอาเองตามที่ต้องใช้จริง
+     ไม่ใช่ทุกครั้งที่ต้องมีใบปรับสภาพ กางมาให้ทุกทีก็ต้องเลื่อนผ่านเปล่า ๆ */
+  $('docsSheets').innerHTML = _docSheetExam(r);
   _docMarkSign();
   _docLoadDraft();
   $('docsView').classList.remove('hidden');
@@ -5232,6 +5232,19 @@ window.addEventListener('resize', function(){
 });
 
 /* แบบประเมินที่แนบเพิ่มได้ · ลำดับในชุดเอกสารตายตัว: บริการมาก่อนครัวเสมอ */
+/* ลำดับเอกสารในชุดต้องคงที่เสมอ ไม่ว่าจะติ๊กเลือกตอนไหน
+   แทรกใบใหม่ไว้หน้าใบแรกที่ลำดับมากกว่าตัวเอง */
+var DOC_ORDER = ['adjust', 'exam', 'service', 'kitchen'];
+function _docPlace(box, art, kind){
+  var mine = DOC_ORDER.indexOf(kind);
+  var at = null;
+  [].forEach.call(box.children, function(el){
+    if(at) return;
+    var k = DOC_ORDER.indexOf(el.getAttribute('data-doc'));
+    if(k > mine) at = el;
+  });
+  if(at) box.insertBefore(art, at); else box.appendChild(art);
+}
 var DOC_FORMS = {
   service: { file: 'docs/service.html', title: 'แบบฟอร์มการประเมินผลการบริการ' },
   kitchen: { file: 'docs/kitchen.html', title: 'แบบฟอร์มการประเมินผลงานครัว' }
@@ -5660,15 +5673,28 @@ function docsPickForm(kind, on){
     return;
   }
   if(old) return;
+  /* ใบปรับสภาพสร้างจากแม่แบบในตัวโมดูลเอง ไม่ต้องโหลดไฟล์ */
+  if(kind === 'adjust'){
+    var wrap = document.createElement('div');
+    wrap.innerHTML = _docSheetAdjust(_docR);
+    _docPlace(box, wrap.firstChild, kind);
+    /* เติมของที่ระบบรู้ให้ก่อน แล้วค่อยทับด้วยร่างที่เคยพิมพ์ค้างไว้ */
+    _docSet('emp_id', _docR.empId);
+    _docSet('emp_name', _docR.name);
+    _docSet('emp_pos', _docR.position);
+    _docSet('emp_branch', _docR.branch);
+    _docMarkSign();
+    _docLoadDraft();
+    _docFitWidth();
+    return;
+  }
   var cfg = DOC_FORMS[kind];
   var put = function(html){
     var art = document.createElement('article');
     art.className = 'sheet xsheet';
     art.setAttribute('data-doc', kind);
     art.innerHTML = html;
-    /* ครัวต่อท้ายบริการเสมอ — ลำดับเอกสารต้องเหมือนกันทุกครั้งที่พิมพ์ */
-    var after = (kind === 'service') ? box.querySelector('[data-doc="kitchen"]') : null;
-    if(after) box.insertBefore(art, after); else box.appendChild(art);
+    _docPlace(box, art, kind);
     _docMarkSign();
     _docLoadDraft();
     _docFitWidth();
