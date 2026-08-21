@@ -2496,7 +2496,9 @@ function toast(msg, kind){ var t=$('toast'); t.className='toast show'+(kind?' '+
    ทุกคำขอผ่านตรงนี้ที่เดียว เพื่อให้ "โหลดไม่สำเร็จ" บอกได้ว่าเพราะอะไร
    เดิมพังตรงไหนก็ขึ้นข้อความเดียวกันหมด (เน็ตไม่ติด · Apps Script ยังไม่ deploy ·
    หลังบ้านตอบเป็นหน้า error) แยกไม่ออก ต้องมานั่งเดากันทีละรอบ */
-var API_TIMEOUT_MS = 30000;   // Apps Script ตื่นครั้งแรกช้าได้ ให้เวลาพอสมควร
+/* วัดจริงแล้วมีรอบที่ Apps Script ใช้ 36 วินาที (ดูบันทึกการวัดใต้ฟังก์ชันนี้)
+   ตั้งไว้ 30 วินาทีจึงตัดสายทั้งที่อีกแป๊บเดียวก็ตอบ · เผื่อให้พ้นค่าที่วัดได้ */
+var API_TIMEOUT_MS = 45000;
 
 function _apiFetch(url, init){
   var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
@@ -2517,7 +2519,13 @@ function _apiFetch(url, init){
     });
   }).catch(function(e){
     if(timer) clearTimeout(timer);
-    if(timedOut || (e && e.name === 'AbortError')) throw new Error('รอเกิน ' + Math.round(API_TIMEOUT_MS/1000) + ' วินาทีแล้วยังไม่ตอบ');
+    if(timedOut || (e && e.name === 'AbortError')){
+      /* หมดเวลารอ ≠ ทำไม่สำเร็จ — คำสั่งอาจถึงหลังบ้านแล้วแต่คำตอบมาช้า
+         ติดป้ายไว้ให้คนเรียกแยกออก จะได้ไม่ประกาศว่าล้มเหลวทั้งที่ยังไม่รู้ */
+      var te = new Error('หลังบ้านตอบช้าเกิน ' + Math.round(API_TIMEOUT_MS/1000) + ' วินาที');
+      te.timeout = true;
+      throw te;
+    }
     if(e instanceof TypeError) throw new Error('ต่อเน็ตไม่ได้ หรือ Apps Script ยังไม่ได้ Deploy ตัวใหม่');
     throw e;
   });
@@ -6827,7 +6835,18 @@ function decideReq(id, decision){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ทำรายการไม่สำเร็จ');
     loadExamRequests();
   }).catch(function(e){
-    /* คืนสถานะเดิม ไม่งั้นจอจะบอกว่าอนุมัติแล้วทั้งที่หลังบ้านยังไม่รู้เรื่อง */
+    /* หมดเวลารอ = ยังไม่รู้ผล คำสั่งอาจถึงหลังบ้านไปแล้ว · ย้อนสถานะทันที
+       จะกลายเป็นบอกผิดอีกทาง · ไปถามรายการล่าสุดมาแทน แล้วให้ของจริงตัดสิน */
+    if(e && e.timeout){
+      loadExamRequests();
+      showExamInfo('หลังบ้านตอบช้า',
+        'คำสั่งถูกส่งไปแล้ว แต่ยังไม่ได้รับคำตอบกลับมา'
+        + '<div style="margin-top:8px;font-size:12.5px;color:var(--text2)">'
+        + 'กำลังดึงรายการล่าสุดมาตรวจให้ · ถ้าสถานะยังไม่เปลี่ยน ให้กดอนุมัติซ้ำอีกครั้ง</div>');
+      return;
+    }
+    /* ผิดพลาดจริง = รู้แล้วว่าไม่สำเร็จ คืนสถานะเดิม ไม่งั้นจอจะบอกว่าอนุมัติแล้ว
+       ทั้งที่หลังบ้านยังไม่รู้เรื่อง */
     if(q && prev != null){
       q.status = prev;
       renderExamRequests();
