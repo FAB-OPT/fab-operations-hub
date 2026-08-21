@@ -5427,6 +5427,24 @@ function _docJoinSplitRows(html){
   return parts.join('');
 }
 
+/* ── ขนาดตัวอักษรของสองใบให้เท่ากัน ──
+   ต้นฉบับสองไฟล์ตั้งฟอนต์เนื้อหาไม่เท่ากัน (ใบบริการ 11pt ใบครัว 10pt)
+   พอย่อลงมาเป็น pt บนกระดาษเลยกลายเป็น 8.25 กับ 7.50 · อยู่ในชุดเอกสารเดียวกัน
+   แต่ตัวหนังสือคนละขนาด อ่านแล้วสะดุด
+   ปรับเฉพาะขนาดที่ใช้มากที่สุดในไฟล์ (= ขนาดของเนื้อหา) ให้เท่ากัน
+   หัวข้อเรื่องกับช่องติ๊กใช้ขนาดอื่น ปล่อยไว้ตามเดิม ไม่งั้นหัวข้อจะโตไม่เท่ากันแทน */
+var DOCFONT = 8.25;
+function _docBodyFont(html){
+  var tally = {}, best = 0, mode = 0;
+  (html.match(/font-size:([\d.]+)pt/g) || []).forEach(function(x){
+    var v = x.slice(10, -2);
+    tally[v] = (tally[v] || 0) + 1;
+    if(tally[v] > best){ best = tally[v]; mode = Number(v); }
+  });
+  if(!mode || Math.abs(mode - DOCFONT) < 0.01) return html;
+  return html.split('font-size:' + mode.toFixed(2) + 'pt').join('font-size:' + DOCFONT + 'pt');
+}
+
 /* ── เรื่องเดียวกันที่ถูกซอยเป็นสองท่อน ──
    ต้นฉบับพอเนื้อหาเรื่องหนึ่งยาวเกินหน้า ก็ขึ้นหัวข้อเดิมซ้ำอีกรอบ (บางที่ต่อท้ายว่า
    "(ต่อ)") พร้อมหัวตารางชุดเดิม แล้วเดินเลขลำดับต่อจากท่อนแรก
@@ -5635,8 +5653,8 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(_docJoinSections(
-        _docWidenNotes(_docHeadLeft(_docSameLogo(t))))))), kind))), kind);
+      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(_docJoinSections(_docBodyFont(
+        _docWidenNotes(_docHeadLeft(_docSameLogo(t)))))))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
