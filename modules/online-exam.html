@@ -3909,6 +3909,9 @@ function loadResults(force){
     fillBranchFilter();
     renderResults();
     renderAdminExams();   // การ์ดชุดข้อสอบโชว์สถิติผลสอบด้วย — ผลมาถึงทีหลังต้องวาดใหม่
+    /* สิทธิ์สอบใหม่ตัดสินจากผลสอบ ซึ่งเพิ่งมาถึงตอนนี้ · การ์ดคำขอต้องวาดใหม่
+       ไม่งั้นปุ่มสอบใหม่ไม่โผล่จนกว่าจะสลับแท็บหรือรีเฟรชเอง */
+    renderBranchReqs();
   }).catch(function(e){
     if(RESULTS.length){ _oeStaleNote('results', e); return; }
     var err = _oeEmpty('📡', 'โหลดผลสอบไม่สำเร็จ', _apiWhy(e),
@@ -4755,14 +4758,14 @@ function openExamRunner(exam, isPreview, ticket){
       'stroke-linecap="round" stroke-linejoin="round">'+r[0]+'</svg></span><div>'+r[1]+'</div></div>';
   }).join('');
 
-  /* มาจากคำขอที่อนุมัติแล้ว = รู้ชื่อกับรหัสพนักงานอยู่แล้ว เติมให้เลย ไม่ต้องพิมพ์ซ้ำ
-     และล็อกไว้ ผลสอบจะได้ตรงกับคนที่ขออนุมัติจริง ๆ */
+  /* มาจากคำขอที่อนุมัติแล้ว = รู้ชื่อ รหัส ตำแหน่ง สาขา อยู่แล้ว เติมให้ครบทุกช่อง
+     ไม่ต้องพิมพ์ซ้ำ · แต่ไม่ล็อกไว้ เพราะตอนขอสิทธิ์อาจพิมพ์ผิดหรือย้ายตำแหน่ง
+     ระหว่างรออนุมัติ ต้องแก้ตรงนี้ได้เลย ไม่ต้องย้อนไปลบคำขอแล้วขอใหม่ */
   $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
   $('inId').value = R.student.id || '';
-  /* ตำแหน่งที่กรอกไว้ตอนขอสิทธิ์ เติมมาให้เลย แต่ยังแก้ได้ เผื่อย้ายตำแหน่งระหว่างรออนุมัติ */
   $('inPosition').value = R.student.position || '';
-  $('inName').readOnly = !!(R.accessCode && R.student.name);
-  $('inId').readOnly = !!(R.accessCode && R.student.id);
+  $('inName').readOnly = false;
+  $('inId').readOnly = false;
   /* สาขาที่ล็อกอินอยู่มีตัวเดียว ก็ให้เหลือตัวเลือกเดียว เลือกผิดไม่ได้
      โหมดทดลองของแอดมินไม่ได้ผูกกับสาขาไหน จึงให้เลือกจากทะเบียนได้ */
   var bsel = $('inBranch');
@@ -6171,10 +6174,14 @@ var MY_RESULTS = [];
 function _oeResIdent(x){
   return String(x.examId || '') + '|' + _oeNameKey(x.name) + '|' + String(x.empId || '').trim();
 }
+/* หาผลสอบของคำขอใบนี้ — ดูจากผลทุกกองที่โหลดมา ไม่ใช่แค่ MY_RESULTS
+   เพราะฝั่งผู้ดูแล/BZM ไม่โหลด MY_RESULTS เลย (loadMyResults ออกทันที)
+   ถ้าดูกองเดียวจะหาผลไม่เจอ แล้วปุ่มสอบใหม่ก็ไม่ขึ้น ทั้งที่ในตารางเห็นว่าตกอยู่ */
 function _oeResultOfReq(q){
   var k = _oeResIdent(q), hit = null;
-  for(var i = 0; i < MY_RESULTS.length; i++){
-    var r = MY_RESULTS[i];
+  var pool = _oeAllResults();
+  for(var i = 0; i < pool.length; i++){
+    var r = pool[i];
     if(_oeResIdent(r) !== k) continue;
     /* สอบซ้ำได้หลายรอบ — เอาใบล่าสุดเป็นคำตอบ */
     if(!hit || String(r.submittedAt || '') > String(hit.submittedAt || '')) hit = r;
