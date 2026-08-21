@@ -5228,6 +5228,24 @@ function _docFillRow(row, idx, nearSign){
   }
   return hit ? row.match(/^<tr[^>]*>/)[0] + out + '</tr>' : row;
 }
+/* ── ช่องหมายเหตุ ──
+   ทุกแถวที่ติ๊กผ่าน/ไม่ผ่านได้ ควรจดเหตุผลกำกับได้ด้วย ไม่งั้นติ๊กไม่ผ่านแล้ว
+   ไม่รู้ว่าติดตรงไหน · หมายเหตุอยู่ช่องสุดท้ายของแถวเสมอในทั้งสองใบ
+   ข้ามแถวที่ช่องสุดท้ายมีของอยู่แล้ว (เช่นแถวสรุปผลที่ท้ายแถวเป็นช่องติ๊ก) */
+function _docFillNotes(html){
+  var i = -1;
+  return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
+    i++;
+    if(row.indexOf('type="checkbox"') < 0) return row;
+    var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+    if(!cells) return row;
+    var last = cells[cells.length - 1];
+    if(last.indexOf('<input') >= 0) return row;
+    if(last.replace(/<[^>]*>/g, '').replace(/[\s.]+/g, '')) return row;
+    var filled = last.replace(/<\/td>$/, '<input class="xi xfull" data-d="note_' + i + '"></td>');
+    return row.slice(0, row.lastIndexOf(last)) + filled + '</tr>';
+  });
+}
 /* ขีดล่างกลางข้อความ = ที่ให้เติมคำ · ยาวเท่าไรก็ทำช่องกว้างเท่านั้น */
 function _docFillBlanks(html, kind){
   var seq = 0;
@@ -5270,8 +5288,8 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
-    t = _docLock(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docSameLogo(t)), kind)), kind);
+    t = _docLock(_docFillNotes(_docDropBlankRows(
+      _docFillBlanks(_docFillLines(_docSameLogo(t)), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
