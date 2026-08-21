@@ -5091,6 +5091,16 @@ function _docLock(html, kind){
       return '<span class="xb' + cls + '" ' + w + '></span>';
     });
 }
+/* ── แถวเปล่าท้ายตารางหัวข้อประเมิน ──
+   ต้นฉบับเผื่อแถวว่างไว้ให้เขียนหัวข้อเพิ่มด้วยมือ พอมาอยู่บนจอกลายเป็น
+   ช่องติ๊กลอย ๆ ที่ไม่มีหัวข้อกำกับ ติ๊กไปก็ไม่รู้ว่าติ๊กอะไร จึงตัดทิ้ง
+   จับจากแถวที่มีช่องติ๊กแต่ไม่มีตัวอักษรเลย */
+function _docDropBlankRows(html){
+  return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
+    if(row.indexOf('type="checkbox"') < 0) return row;
+    return row.replace(/<[^>]+>/g, '').replace(/[\s.]+/g, '') ? row : '';
+  });
+}
 function _docSameLogo(html){
   return html.replace(/(<img class="xlogo" src=")data:[^"]*(")/g, '$1' + _docAdjustLogo + '$2');
 }
@@ -5121,7 +5131,7 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
-    t = _docLock(_docSameLogo(t), kind);
+    t = _docLock(_docDropBlankRows(_docSameLogo(t)), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
