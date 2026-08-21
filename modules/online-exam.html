@@ -164,8 +164,11 @@ input,select,textarea{font-family:inherit}
    (เช่นบรรทัดให้เขียนความคิดเห็น) จะยุบติดกันจนกลายเป็นแถบทึบ */
 .xsheet:not([data-doc="adjust"]) .xt td{height:11pt}
 /* โลโก้ในแบบประเมินให้กินที่จริงในช่องของมัน ไม่ลอยทับช่องกรอกด้านล่าง */
-.xsheet:not([data-doc="adjust"]) .xlogo-w{height:auto}
-.xsheet:not([data-doc="adjust"]) .xlogo{position:static;margin:0;height:44pt}
+/* ยึดกับตาราง ไม่ใช่กับกระดาษ — ขอบซ้ายบนของตารางคือขอบเนื้อหาจริง
+   ถ้ายึดกับกระดาษ โลโก้จะไปนั่งทับระยะขอบกระดาษ */
+.xsheet:not([data-doc="adjust"]) .xt{position:relative}
+.xsheet:not([data-doc="adjust"]) .xlogo-w{height:0}
+.xsheet:not([data-doc="adjust"]) .xlogo{position:absolute;left:0;top:0;margin:0;height:44pt}
 .xt tbody tr:hover{background:none}
 /* แถวไม่ควรถูกตัดครึ่งตอนขึ้นหน้าใหม่ */
 .xt tr{page-break-inside:avoid;break-inside:avoid}
@@ -5258,6 +5261,36 @@ function _docFillBlanks(html, kind){
     }) + '<';
   });
 }
+/* ── หัวกระดาษ ──
+   ต้นฉบับวางโลโก้ไว้ช่องขวาสุดของแถวแรก ชื่อเรื่องเลยถูกบีบให้อยู่กึ่งกลาง
+   ของช่องที่เหลือ ไม่ใช่กึ่งกลางหน้า · ย้ายโลโก้ไปลอยมุมซ้ายบน (ให้เหมือน
+   ใบปรับสภาพกับใบผลสอบ) แล้วขยายช่องชื่อเรื่องให้เต็มแถว จะได้กึ่งกลางจริง */
+var LOGOH = 44;   /* สูงเท่ากับ .xlogo ใน CSS */
+function _docHeadLeft(html){
+  var cols = ((html.match(/<colgroup>[\s\S]*?<\/colgroup>/) || [''])[0].match(/<col\b/g) || []).length;
+  if(!cols) return html;
+  var done = false;
+  return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
+    if(done) return row;
+    var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+    if(!cells) return row;
+    done = true;
+    var logo = '', title = '';
+    cells.forEach(function(c){
+      var m = c.match(/<span class="xlogo-w">[\s\S]*?<\/span>/);
+      if(m) logo = m[0];
+      if(!title && c.replace(/<[^>]*>/g, '').trim()) title = c;
+    });
+    if(!title) return row;
+    var st = (title.match(/style="([^"]*)"/) || ['', ''])[1];
+    if(st.indexOf('text-align') < 0) st = 'text-align:center;' + st;
+    /* โลโก้ลอยอยู่นอกแถวแล้ว ต้องกันความสูงไว้ให้ ไม่งั้นไปทับหัวข้อ "ข้อมูล" ข้างล่าง */
+    st = 'height:' + (LOGOH + 2) + 'pt;' + st;
+    var inner = title.replace(/^<td\b[^>]*>/, '').replace(/<\/td>$/, '');
+    return row.match(/^<tr[^>]*>/)[0] +
+      '<td colspan="' + cols + '" style="' + st + '">' + logo + inner + '</td></tr>';
+  });
+}
 function _docSameLogo(html){
   return html.replace(/(<img class="xlogo" src=")data:[^"]*(")/g, '$1' + _docAdjustLogo + '$2');
 }
@@ -5289,7 +5322,7 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docSameLogo(t)), kind))), kind);
+      _docFillBlanks(_docFillLines(_docHeadLeft(_docSameLogo(t))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
