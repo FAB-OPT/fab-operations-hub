@@ -5326,6 +5326,67 @@ function _docFillBlanks(html, kind){
    กลับแคบ · ย้ายส่วนเกินจากหัวข้องานไปให้หมายเหตุ
    หั่นจากคอลัมน์สุดท้ายของช่วงหัวข้องาน เพราะคอลัมน์ต้น ๆ เป็นตัวกำหนดจุดแบ่ง
    ซ้าย/ขวาของบล็อกข้อมูลด้านบนด้วย แตะแล้วหัวกระดาษจะเบี้ยวตาม */
+/* ── แถวที่ถูกหั่นครึ่ง ──
+   คนทำต้นฉบับใน Excel เจอข้อความยาวเกินหน้า เลยหั่นท่อนหลังไปวางเป็นอีกแถว
+   แล้วแทรกแถวเปล่าคั่นให้มันตกไปอยู่หน้าถัดไปพอดี · พอมาเรียงบนจอเป็นแผ่นเดียว
+   กลายเป็นช่องว่างกลางตารางแล้วมีท่อนลอย ๆ ที่ไม่มีลำดับกำกับ อ่านไม่รู้เรื่อง
+   ต่อท่อนหลังกลับเข้าแถวเดิม แล้วลบแถวเปล่าที่คั่นอยู่ทิ้ง
+   แถวข้อมูลจริงดูจากช่องติ๊กผ่าน/ไม่ผ่าน ท่อนต่อคือแถวที่ไม่มีช่องติ๊ก
+   ไม่มีเลขลำดับ แต่มีข้อความ */
+function _docRowCols(row){
+  var out = [], c = 0;
+  (row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g) || []).forEach(function(cell, i){
+    var span = Number((cell.match(/colspan="(\d+)"/) || [0, 1])[1]);
+    out.push({ i: i, at: c, span: span, html: cell });
+    c += span;
+  });
+  return out;
+}
+function _docMergeRow(dataRow, contRow){
+  var a = _docRowCols(dataRow);
+  var cells = dataRow.match(/<td\b[^>]*>[\s\S]*?<\/td>/g) || [];
+  var changed = false;
+  _docRowCols(contRow).forEach(function(cb){
+    var inner = cb.html.replace(/^<td\b[^>]*>/, '').replace(/<\/td>$/, '');
+    if(!inner.replace(/<[^>]*>/g, '').trim()) return;
+    var hit = null;
+    a.forEach(function(ca){ if(!hit && cb.at >= ca.at && cb.at < ca.at + ca.span) hit = ca; });
+    if(!hit) return;
+    cells[hit.i] = cells[hit.i].replace(/<\/td>$/, '<br>' + inner + '</td>');
+    changed = true;
+  });
+  return changed ? dataRow.match(/^<tr[^>]*>/)[0] + cells.join('') + '</tr>' : dataRow;
+}
+function _docJoinSplitRows(html){
+  var parts = html.split(/(<tr[^>]*>[\s\S]*?<\/tr>)/);
+  var last = -1, blanks = [];
+  function bare(c){ return c.replace(/<[^>]*>/g, '').replace(/[\s.]+/g, ''); }
+  for(var p = 0; p < parts.length; p++){
+    if(p % 2 === 0){
+      /* ข้ามตารางไม่ได้ — ท่อนต่อต้องอยู่ตารางเดียวกับแถวที่มันขาดมา */
+      if(parts[p].indexOf('</table>') >= 0){ last = -1; blanks = []; }
+      continue;
+    }
+    var row = parts[p];
+    var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g) || [];
+    if(!cells.some(bare)){ blanks.push(p); continue; }
+    if(row.indexOf('type="checkbox"') >= 0){
+      /* แถวเปล่าที่คั่นระหว่างแถวข้อมูลสองแถวก็มาจากการดันหน้าเหมือนกัน
+         บนจอมันคือรอยแยกกลางตารางเฉย ๆ · เว้นไว้เฉพาะที่คั่นก่อนหัวข้อเรื่องใหม่ */
+      if(last >= 0) blanks.forEach(function(x){ parts[x] = ''; });
+      last = p; blanks = []; continue;
+    }
+    /* หัวข้อเรื่อง (ช่องเดียวเต็มแถว) หรือแถวที่มีเลขลำดับ = เริ่มของใหม่ ไม่ใช่ท่อนต่อ */
+    if(cells.length <= 1 || bare(cells[0])){ last = -1; blanks = []; continue; }
+    if(last < 0){ blanks = []; continue; }
+    parts[last] = _docMergeRow(parts[last], row);
+    parts[p] = '';
+    blanks.forEach(function(b){ parts[b] = ''; });
+    blanks = [];
+  }
+  return parts.join('');
+}
+
 var HEADMAX = 50;   /* หัวข้องานกว้างได้ไม่เกินกี่ % ของตาราง */
 var COLMIN = 6;     /* คอลัมน์ที่ถูกหั่นต้องเหลืออย่างน้อยเท่านี้ */
 function _docWidenNotes(html){
@@ -5421,7 +5482,8 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docWidenNotes(_docHeadLeft(_docSameLogo(t)))), kind))), kind);
+      _docFillBlanks(_docFillLines(_docJoinSplitRows(
+        _docWidenNotes(_docHeadLeft(_docSameLogo(t))))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
