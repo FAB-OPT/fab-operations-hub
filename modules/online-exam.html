@@ -5427,6 +5427,77 @@ function _docJoinSplitRows(html){
   return parts.join('');
 }
 
+/* ── เก็บเส้นในตารางประเมิน ──
+   ต้นฉบับทิ้งไว้สองอย่างที่พอมาอยู่บนจอแล้วดูเหมือนตารางพัง
+   1) ช่องคำพูดของบางแถวถูกซอยเป็นสองช่องว่าง เลยมีเส้นตั้งโผล่กลางช่อง
+   2) ช่องคำพูดที่ผสานคร่อมสองแถว ทำให้แถวข้อมูลสองแถวไม่มีเส้นคั่น ดูเป็นแถวเดียว
+   แตะเฉพาะแถวที่ติ๊กผ่าน/ไม่ผ่านได้ (แถวข้อมูลจริง) ไม่ยุ่งกับหัวตารางหรือแถวคั่น */
+function _docCellBlank(c){
+  return !c.replace(/<[^>]*>/g, '').replace(/[\s.]+/g, '')
+    && c.indexOf('<input') < 0 && c.indexOf('rowspan') < 0
+    && /border-left:[\d.]+pt solid/.test(c) && /border-right:[\d.]+pt solid/.test(c);
+}
+/* ช่องว่างที่ติดกันในแถวเดียว = ช่องเดียวที่ถูกซอย ยุบกลับให้เหลือช่องเดียว */
+function _docJoinBlankCells(row){
+  var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+  if(!cells) return row;
+  var out = [], j = 0, hit = false;
+  while(j < cells.length){
+    var k = j;
+    if(_docCellBlank(cells[j])) while(k + 1 < cells.length && _docCellBlank(cells[k + 1])) k++;
+    if(k === j){ out.push(cells[j]); j++; continue; }
+    var span = 0;
+    for(var m = j; m <= k; m++) span += Number((cells[m].match(/colspan="(\d+)"/) || [0, 1])[1]);
+    out.push(cells[j].match(/^<td\b[^>]*>/)[0]
+      .replace(/ colspan="\d+"/, '').replace(/^<td/, '<td colspan="' + span + '"') + '</td>');
+    hit = true;
+    j = k + 1;
+  }
+  return hit ? row.match(/^<tr[^>]*>/)[0] + out.join('') + '</tr>' : row;
+}
+/* ช่องที่ผสานลงมาคลุมแถวข้อมูลถัดไป — คืนแถวล่างให้มีช่องของตัวเอง
+   ข้อความยังอยู่แถวบนเหมือนเดิม ได้แค่เส้นคั่นกลับมา
+   ทำเฉพาะที่คลุมสองแถว ซึ่งเป็นรูปแบบเดียวที่มีในไฟล์จริง */
+function _docUnspan(a, b){
+  var ca = a.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+  var cb = b.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+  if(!ca || !cb) return [a, b];
+  var col = 0, target = -1, blank = '';
+  for(var i = 0; i < ca.length; i++){
+    var rs = Number((ca[i].match(/rowspan="(\d+)"/) || [0, 1])[1]);
+    if(rs === 2 && target < 0){
+      target = col;
+      blank = ca[i].match(/^<td\b[^>]*>/)[0].replace(/ rowspan="\d+"/, '') + '</td>';
+      ca[i] = ca[i].replace(/ rowspan="2"/, '');
+    }
+    col += Number((ca[i].match(/colspan="(\d+)"/) || [0, 1])[1]);
+  }
+  if(target < 0) return [a, b];
+  var c2 = 0, at = cb.length;
+  for(var j = 0; j < cb.length; j++){
+    if(c2 >= target){ at = j; break; }
+    c2 += Number((cb[j].match(/colspan="(\d+)"/) || [0, 1])[1]);
+  }
+  cb.splice(at, 0, blank);
+  return [a.match(/^<tr[^>]*>/)[0] + ca.join('') + '</tr>',
+          b.match(/^<tr[^>]*>/)[0] + cb.join('') + '</tr>'];
+}
+function _docTidyGrid(html){
+  var parts = html.split(/(<tr[^>]*>[\s\S]*?<\/tr>)/);
+  var idx = [];
+  for(var i = 1; i < parts.length; i += 2) idx.push(i);
+  idx.forEach(function(p, k){
+    if(parts[p].indexOf('type="checkbox"') < 0) return;
+    parts[p] = _docJoinBlankCells(parts[p]);
+    var nx = idx[k + 1];
+    if(nx == null || parts[nx].indexOf('type="checkbox"') < 0) return;
+    var pair = _docUnspan(parts[p], parts[nx]);
+    parts[p] = pair[0];
+    parts[nx] = pair[1];
+  });
+  return parts.join('');
+}
+
 var HEADMAX = 50;   /* หัวข้องานกว้างได้ไม่เกินกี่ % ของตาราง */
 var COLMIN = 6;     /* คอลัมน์ที่ถูกหั่นต้องเหลืออย่างน้อยเท่านี้ */
 function _docWidenNotes(html){
@@ -5522,8 +5593,8 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docJoinSplitRows(
-        _docWidenNotes(_docHeadLeft(_docSameLogo(t))))), kind))), kind);
+      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(
+        _docWidenNotes(_docHeadLeft(_docSameLogo(t)))))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
