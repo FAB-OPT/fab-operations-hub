@@ -678,7 +678,9 @@ button.ri:hover{background:var(--bg3)}
 .xc-perf{border-top:1px dashed var(--border);padding-top:11px}
 .xp-line{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--text2);margin-bottom:7px}
 .xp-line b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text)}
-.xp-bar{display:flex;height:6px;border-radius:99px;overflow:hidden;background:var(--bg3)}
+.xp-line .ok{color:#0b7a55}
+.xp-line .bad{color:var(--red)}
+.xp-bar{display:flex;height:3px;border-radius:99px;overflow:hidden;background:var(--bg3)}
 .xp-bar i{display:block;height:100%}
 .xp-bar i.ok{background:var(--green)}
 .xp-bar i.bad{background:var(--red)}
@@ -695,12 +697,24 @@ button.ri:hover{background:var(--bg3)}
 .bx{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:18px;
   display:flex;flex-direction:column;gap:14px;transition:border-color .15s,box-shadow .15s}
 .bx:hover{border-color:var(--gold-line);box-shadow:var(--shadow)}
+.bx>.btn{padding:12px;font-size:15px}
 .bx-top{display:flex;align-items:flex-start;gap:12px}
 .bx-icon{width:44px;height:44px;border-radius:13px;flex:0 0 auto;display:grid;place-items:center;font-size:21px;
   background:var(--gold-soft);border:1px solid var(--gold-line)}
 .bx-title{font-weight:800;font-size:17px;line-height:1.3;letter-spacing:-.015em}
 .bx-brand{font-size:12px;color:var(--text3);margin-top:2px}
-.bx-tags{display:flex;flex-wrap:wrap;gap:6px}
+/* ตัวเลขสำคัญสามตัวเรียงเป็นแถวเดียว กว้างเท่ากัน กวาดตาทีเดียวจบ */
+.bx-facts{display:grid;grid-template-columns:repeat(3,1fr);
+  border:1px solid var(--border);border-radius:12px;overflow:hidden;background:var(--bg)}
+.bx-facts>div{padding:9px 6px;text-align:center;border-right:1px solid var(--border)}
+.bx-facts>div:last-child{border-right:none}
+.bx-facts b{display:block;font-variant-numeric:tabular-nums;font-size:18px;font-weight:700;
+  letter-spacing:-.02em;line-height:1.15}
+.bx-facts span{display:block;font-size:10.5px;color:var(--text3);margin-top:3px}
+/* รายละเอียดรองอยู่บรรทัดเดียวเล็ก ๆ ไม่ต้องเป็นป้ายแย่งสายตากับตัวเลขหลัก */
+.bx-note{display:flex;flex-wrap:wrap;gap:4px 14px;font-size:11.5px;color:var(--text3);font-weight:600}
+.bx-note span{display:inline-flex;align-items:center;gap:5px}
+.bx-note span::before{content:'';width:4px;height:4px;border-radius:50%;background:var(--border2)}
 .bx .btn{width:100%;padding:13px;font-size:15px;border-radius:11px}
 
 /* ───────────── ตารางผลสอบ ───────────── */
@@ -3274,9 +3288,12 @@ function _oeExamRow(ex){
     sub.push((ex.startDate ? _oeDate(ex.startDate) : 'เปิดแล้ว') + ' – ' + (ex.endDate ? _oeDate(ex.endDate) : 'ไม่กำหนดปิด'));
   }
   /* แถบสัดส่วนผ่าน/ไม่ผ่าน — เห็นภาพก่อนอ่านตัวเลข ถ้ายังไม่มีใครทำก็บอกตรง ๆ */
+  /* แถบสัดส่วนผ่าน/ไม่ผ่าน — เห็นภาพก่อนอ่านตัวเลข ถ้ายังไม่มีใครทำก็บอกไปตรง ๆ
+     แถบเดิมหนา 6px เต็มสี พอผ่าน 0% เลยกลายเป็นแท่งแดงยาวสะดุดตากว่าชื่อชุดข้อสอบ
+     ทั้งที่เป็นแค่ข้อมูลประกอบ · ลดให้บางลงและเว้นให้ตัวเลขเป็นตัวนำ */
   var perf = s.n
     ? '<div class="xp-line"><span>ทำแล้ว <b>' + s.n + '</b> ครั้ง</span>' +
-      '<span>ผ่าน <b>' + s.pct + '%</b></span></div>' +
+      '<span class="' + (s.pct >= 50 ? 'ok' : 'bad') + '">ผ่าน <b>' + s.pct + '%</b></span></div>' +
       '<div class="xp-bar"><i class="ok" style="width:' + s.pct + '%"></i>' +
       '<i class="bad" style="width:' + (100 - s.pct) + '%"></i></div>'
     : '<div class="xp-none">ยังไม่มีใครทำชุดนี้</div>';
@@ -4643,13 +4660,19 @@ function renderBranchExams(){
       '<div class="bx-top"><div class="bx-icon">📝</div>' +
         '<div style="min-width:0"><div class="bx-title">' + esc(ex.title) + '</div>' +
           (ex.brand ? '<div class="bx-brand">' + esc(ex.brand) + '</div>' : '') + '</div></div>' +
-      '<div class="bx-tags">' +
-        '<span class="tag b">' + nDraw + ' ข้อ</span>' +
-        (nDraw < nQ ? '<span class="tag">🎲 สุ่มจากคลัง ' + nQ + ' ข้อ</span>' : '') +
-        '<span class="tag o">' + esc(ex.timeLimitMinutes) + ' นาที</span>' +
-        '<span class="tag">เกณฑ์ผ่าน ' + esc(ex.passingScorePercent) + '%</span>' +
-        (ex.endDate ? '<span class="tag r">ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '') +
+      /* สามตัวเลขที่ต้องรู้ก่อนกดสอบ — จำนวนข้อ เวลา เกณฑ์ผ่าน
+         เดิมเป็นป้ายหลายอันพันบรรทัด อ่านเป็นกอง ไม่รู้ว่าอันไหนสำคัญกว่ากัน */
+      '<div class="bx-facts">' +
+        '<div><b>' + nDraw + '</b><span>ข้อ</span></div>' +
+        '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
+        '<div><b>' + esc(ex.passingScorePercent) + '%</b><span>เกณฑ์ผ่าน</span></div>' +
       '</div>' +
+      ((nDraw < nQ || ex.endDate)
+        ? '<div class="bx-note">'
+          + (nDraw < nQ ? '<span>สุ่มจากคลัง ' + nQ + ' ข้อ</span>' : '')
+          + (ex.endDate ? '<span>ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '')
+          + '</div>'
+        : '') +
       /* ชุดที่ต้องขออนุมัติ จะไม่มีปุ่มเข้าสอบตรง ๆ — ต้องขอสิทธิ์แล้วรอรหัสก่อน */
       (examNeedsApproval(ex)
         ? '<button class="btn btn-primary" data-oe-action="request-exam" onclick="openReqForm(\'' + ex.id + '\')">' +
