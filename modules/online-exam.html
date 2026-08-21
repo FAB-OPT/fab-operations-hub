@@ -1630,13 +1630,25 @@ label.fld>span>b{font-weight:800}
   .topbar .t-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* ที่ว่างล่างเผื่อไว้ให้แถบแท็บ ไม่งั้นรายการบรรทัดสุดท้ายจะโดนทับ */
   .shell{padding:16px 14px calc(84px + env(safe-area-inset-bottom))}
+  /* ปุ่มขึ้นไปอยู่แถวเดียวกับหัวเรื่อง · เดิมกินไปทั้งแถวทั้งที่รีเฟรช
+     กดนาน ๆ ที · เหลือแต่ไอคอน ข้อความบอกซ้ำกับรูปอยู่แล้ว */
   .pagehead{margin-bottom:13px;gap:9px}
   .ph-title{font-size:19px}
   /* คำโปรยเป็นข้อความอธิบายกว้าง ๆ อ่านรอบเดียวก็พอ แต่บนมือถือมันโผล่ซ้ำ
      ทุกแท็บและกินสองบรรทัดเต็ม · เก็บไว้เฉพาะจอกว้าง */
   .ph-sub{display:none}
   .ph-scope{margin-top:8px;font-size:12px;gap:8px}
-  .ph-actions .btn{padding:9px 12px;font-size:13px}
+  /* หัวเรื่องกับปุ่มอยู่แถวเดียวกัน ส่วนบรรทัดบอกโซนตกลงไปเต็มความกว้างข้างล่าง
+     display:contents ทำให้ลูกของ ph-main กลายเป็นลูกของ pagehead ตรง ๆ จัดเรียงได้อิสระ */
+  .pagehead{flex-direction:row;flex-wrap:wrap;align-items:center}
+  .ph-main{display:contents}
+  .ph-title{flex:1;min-width:0}
+  .ph-actions{width:auto;flex:0 0 auto}
+  .ph-scope{flex:1 1 100%;order:3;margin-top:0}
+  .ph-actions .btn{flex:0 0 auto;padding:9px 12px;font-size:13px}
+  /* รีเฟรชเหลือแต่ไอคอน คำว่ารีเฟรชบอกซ้ำกับรูปอยู่แล้ว */
+  .ph-actions .btn-soft{font-size:0;padding:9px 11px;gap:0}
+  .ph-actions .btn-soft svg{width:17px;height:17px}
   /* ช่องค้นหา ตัวกรอง และปุ่มในแถบเครื่องมือ เตี้ยลงให้เท่ากันหมด
      สามแถวของตัวกรองผลสอบเลยหดลงไปได้อีกราวหนึ่งบรรทัด */
   .toolbar{gap:7px;margin-bottom:12px}
@@ -1647,7 +1659,8 @@ label.fld>span>b{font-weight:800}
   /* ตัวเลขสรุปเดิมสูงกันการ์ดละเกือบ 100px สองแถวก็กินครึ่งจอ กว่าจะถึงรายการจริง
      ต้องเลื่อนผ่านไปทั้งหมด · ย้ายตัวเลขขึ้นไปอยู่บรรทัดเดียวกับป้ายชื่อ
      คำอธิบายลงบรรทัดล่าง ได้ข้อมูลเท่าเดิมแต่เตี้ยลงเกือบครึ่ง */
-  /* ย่อ = เห็นแถบบรรทัดเดียว · กาง = เห็นการ์ดเต็มเหมือนจอกว้าง */
+  /* มือถือเห็นแถบบรรทัดเดียวอย่างเดียว · เคยทำให้กางเป็นการ์ดได้ แต่พอกางแล้ว
+     ตัวเลขชุดเดิมโผล่สองที่ซ้อนกัน อ่านแล้วงงกว่าเดิม เลยตัดตัวกางทิ้ง */
   .kpi-strip{display:flex;width:100%;gap:8px;align-items:center;overflow:hidden;
     padding:9px 12px;margin-bottom:14px;background:var(--bg2);
     border:1px solid var(--border);border-radius:12px;
@@ -1659,11 +1672,7 @@ label.fld>span>b{font-weight:800}
   .kpi-strip[hidden]{display:none}
   .kpi-strip span{display:inline-flex;gap:5px;white-space:nowrap;align-items:baseline}
   .kpi-strip i{font-style:normal;font-weight:600;color:var(--text3);font-size:11px}
-  .kpi-strip em{flex:0 0 auto;font-style:normal;color:var(--text3);transition:.15s}
   .kpis{display:none}
-  body.kpi-open .kpis{display:grid}
-  body.kpi-open .kpi-strip{margin-bottom:8px}
-  body.kpi-open .kpi-strip em{transform:rotate(180deg)}
   .kpis{gap:8px;margin-bottom:14px}
   .kpi{padding:9px 11px;border-radius:12px;
     display:grid;grid-template-columns:1fr auto;align-items:baseline;column-gap:8px}
@@ -3095,30 +3104,20 @@ function _oeKpiStrip(){
   var host = $('admKpis'); if(!host) return;
   var bar = $('kpiStrip');
   if(!bar){
-    bar = document.createElement('button');
+    bar = document.createElement('div');
     bar.id = 'kpiStrip';
-    bar.type = 'button';
     bar.className = 'kpi-strip';
-    bar.setAttribute('aria-label', 'ย่อ/กางตัวเลขสรุป');
-    bar.onclick = oeToggleKpis;
     host.parentNode.insertBefore(bar, host);
   }
   var cards = host.querySelectorAll('.kpi');
   bar.hidden = host.classList.contains('hidden') || !cards.length;
   if(bar.hidden) return;
-  /* ตัวเลขเลื่อนได้ในกรอบของมันเอง ลูกศรอยู่นอกกรอบ จะได้ไม่เลื่อนหายไปด้วย */
   bar.innerHTML = '<span class="kpi-strip-in">' + [].map.call(cards, function(k){
     var l = k.querySelector('.k-l'), v = k.querySelector('.k-n');
     return '<span><i>' + (l ? l.textContent : '') + '</i>'
       + (v ? v.textContent.replace(/\s+/g, ' ').trim() : '') + '</span>';
-  }).join('') + '</span><em aria-hidden="true">⌄</em>';
+  }).join('') + '</span>';
 }
-function oeToggleKpis(){
-  var on = !document.body.classList.contains('kpi-open');
-  document.body.classList.toggle('kpi-open', on);
-  try{ localStorage.setItem('fab_oe_kpi', on ? '1' : '0'); }catch(e){}
-}
-try{ if(localStorage.getItem('fab_oe_kpi') === '1') document.body.classList.add('kpi-open'); }catch(e){}
 
 /* ตัวกรองสถานะของแท็บชุดข้อสอบ */
 var _exFilter = 'all';
