@@ -2284,8 +2284,9 @@ label.fld>span>b{font-weight:800}
           <!-- ทำเสร็จแล้วส่วนใหญ่ต้องพิมพ์เอกสารต่อทันที ให้ปุ่มอยู่ตรงนี้เลย
                ไม่ต้องกลับไปเปิดรายการผลสอบแล้วหาคนของตัวเองใหม่ -->
           <div class="result-actions">
+            <!-- ตกแล้วสิ่งที่อยากทำต่อคือสอบใหม่ ไม่ใช่กลับไปหาปุ่มเอง -->
+            <button class="p-btn" id="resAgain" onclick="oeRetakeNow()" hidden>สอบใหม่ (ครั้งที่ 2)</button>
             <button class="p-btn ghost" onclick="closeExamOverlay()">กลับไปหน้าชุดข้อสอบ</button>
-            <button class="p-btn ghost" id="resPrint" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>
             <button class="p-btn" id="resDocs" onclick="openDocSet()">📑 ชุดเอกสาร</button>
           </div>
         </div>
@@ -4168,14 +4169,17 @@ function _oeFmtMin(m){
 }
 /* บอกกติกาที่มีผลกับใบนี้ — คนอ่านผลสอบต้องรู้ว่าทำอะไรต่อได้ และได้อะไร
    ไม่ต้องไปเปิดคู่มือหรือถามใคร */
-function _oeRuleNote(r){
+function _oeRuleNote(r, isRound2){
+  /* ตอนเพิ่งสอบเสร็จ ผลรอบนี้ยังไม่ทันเข้ารายการ นับรอบจากรายการจึงยังได้ 1
+     ผู้เรียกที่รู้อยู่แล้วว่ากำลังทำรอบสอง ส่งมาบอกตรง ๆ ได้ */
   var out = [];
-  if(_oeCapped(r)) out.push('<span class="rn warn">สอบรอบที่ 2 — ทำได้ ' + esc(r.pct)
+  var capped = _oeCapped(r) || (isRound2 && (Number(r.pct) || 0) > OE_PASS_PCT);
+  if(capped) out.push('<span class="rn warn">สอบรอบที่ 2 — ทำได้ ' + esc(r.pct)
     + '% นับเป็น ' + OE_PASS_PCT + '% ตามกติกา</span>');
-  var left = _oeRetakeLeft(r);
+  var left = isRound2 ? null : _oeRetakeLeft(r);
   if(left != null) out.push('<span class="rn warn">สอบใหม่ได้อีก 1 ครั้ง ภายใน ' + left
     + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่</span>');
-  var bump = isPass(r) ? _oeBump(_oeEffPct(r)) : 0;
+  var bump = isPass(r) ? _oeBump(capped ? OE_PASS_PCT : _oeEffPct(r)) : 0;
   if(bump) out.push('<span class="rn ok">ได้ฐานเงินเดือนเพิ่ม ' + bump.toLocaleString() + ' บาท</span>');
   return out.length ? '<div class="rd-rules">' + out.join('') + '</div>' : '';
 }
@@ -4689,6 +4693,7 @@ function openExamRunner(exam, isPreview, ticket){
   R = {
     exam: exam, isPreview: !!isPreview,
     accessCode: (ticket && ticket.code) || '',
+    isRetake: !!(ticket && ticket.retake),
     student:{name:(ticket&&ticket.name)||'',id:(ticket&&ticket.empId)||'',
              position:(ticket&&ticket.position)||'',
              branch:currentBranchName||(ticket&&ticket.branchName)||''},
@@ -4795,6 +4800,17 @@ function oeEditWhoAmI(){
   $('exWhoAmI').classList.remove('show');
   $('exFields').style.display = '';
   if($('exFields').style.display !== 'none') $('inName').focus();
+}
+/* สอบรอบสองจากหน้าผลสอบ — ใช้ชุดเดิมและตัวตนเดิม ไม่ต้องกลับไปหาการ์ดเอง
+   เรียก openExamRunner ตรง ๆ ไม่ผ่าน startWithCode เพราะคำขอถูกปิดไปตั้งแต่รอบแรก
+   ถามหลังบ้านไปก็ตอบว่าใช้ไม่ได้ · สิทธิ์รอบสองตัดสินจากผลสอบที่มีอยู่แล้ว */
+function oeRetakeNow(){
+  if(!R || !R.exam) return;
+  var ex = R.exam, st = R.student || {}, code = R.accessCode;
+  openExamRunner(ex, false, {
+    code: code, name: st.name, empId: st.id,
+    position: st.position, branchName: st.branch, retake: true
+  });
 }
 function closeExamOverlay(){
   $('examOverlay').classList.remove('show');
@@ -5157,10 +5173,14 @@ function computeAndShow(){
   var pass=pct>=R.exam.passingScorePercent;
   R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass};
 
+  /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ตามกติกา — เลขบนวงต้องตรงกับ
+     ที่บันทึกไว้จริง ไม่งั้นคนสอบเห็น 85% แล้วไปเห็น 70% ในผลสอบทีหลัง */
+  var shown = (R.isRetake && pct > R.exam.passingScorePercent)
+    ? R.exam.passingScorePercent : pct;
   var arc=$('ringArc'), C=351.9;
   arc.style.stroke = pass ? '#10b981' : '#ef4444';
-  arc.style.strokeDashoffset = C-(C*pct/100);
-  $('resPct').textContent=pct+'%';
+  arc.style.strokeDashoffset = C-(C*shown/100);
+  $('resPct').textContent=shown+'%';
   $('resWho').innerHTML = esc(R.student.name + (R.student.id ? ' · ' + R.student.id : '')) +
     (R.student.branch ? '<span>' + esc(R.student.branch) + '</span>' : '');
   /* คำตัดสินพูดครั้งเดียว แล้วใช้สีเป็นตัวบอกว่าผ่านหรือไม่ */
@@ -5174,8 +5194,12 @@ function computeAndShow(){
   R.record = _oeRunResult();
   _oeResCur = R.isPreview ? null : R.record;
   /* กติกาที่มีผลกับรอบนี้ — คนเพิ่งสอบเสร็จต้องรู้ทันทีว่าทำอะไรต่อได้ */
-  $('resRules').innerHTML = R.isPreview ? '' : _oeRuleNote(R.record);
-  $('resPrint').hidden = !!R.isPreview;
+  $('resRules').innerHTML = R.isPreview ? '' : _oeRuleNote(R.record, R.isRetake);
+  /* สอบใหม่ได้ก็ให้กดจากตรงนี้เลย · รอบนี้เป็นรอบสองอยู่แล้วก็จบแค่นี้
+     เช็คจากตัวรอบที่กำลังทำ ไม่ใช่จากรายการผลสอบ เพราะผลรอบนี้ยังไม่ทันเข้ารายการ */
+  var again = !R.isPreview && !R.isRetake && _oeRetakeLeft(R.record) != null;
+  $('resAgain').hidden = !again;
+  $('resDocs').classList.toggle('ghost', again);
   $('resDocs').hidden  = !!R.isPreview;
 
   exShow('ex-result');
