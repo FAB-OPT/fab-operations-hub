@@ -5071,11 +5071,9 @@ function openDocSet(){
     '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
     '<label><input type="checkbox" id="pickKitchen" onchange="docsPickForm(\'kitchen\',this.checked)">แบบประเมินผลงานครัว</label>';
   $('docsSheets').innerHTML = _docSheetAdjust(r) + _docSheetExam(r);
-  /* เติมของที่ระบบรู้ให้ก่อน แล้วค่อยทับด้วยร่างที่เคยกรอกค้างไว้ */
-  _docSet('emp_id', r.empId);
-  _docSet('emp_name', r.name);
-  _docSet('emp_pos', r.position);
-  _docSet('emp_branch', r.branch);
+  /* ใบปรับสภาพเว้นว่างไว้ให้กรอกเอง เหมือนสองใบประเมิน — เดิมเติมชื่อ/รหัส/
+     ตำแหน่ง/สาขา จากผลสอบให้ แต่ใบนี้ใช้กับเรื่องอื่นด้วย ข้อมูลที่เติมมา
+     ไม่ได้ตรงกับที่ต้องการเสมอ แล้วต้องมาลบทิ้งทุกครั้ง */
   _docMarkSign();
   _docLoadDraft();
   $('docsView').classList.remove('hidden');
@@ -5427,6 +5425,35 @@ function _docJoinSplitRows(html){
   return parts.join('');
 }
 
+/* ── บรรทัดที่ถูกตัดไว้ตามความกว้างคอลัมน์ของต้นฉบับ ──
+   ใน Excel คนพิมพ์กด Alt+Enter ตัดบรรทัดเองให้พอดีความกว้างช่องตอนนั้น
+   พอมาอยู่บนหน้าเว็บที่ช่องกว้างไม่เท่าเดิม รอยตัดเดิมเลยค้างอยู่กลางประโยค
+   กลายเป็นบรรทัดสั้น ๆ ขาดวิ่น · ต่อกลับให้เป็นประโยคเดียวแล้วปล่อยให้พับเอง
+
+   จับสองแบบ
+   ก) บรรทัดที่ต้นฉบับย่อหน้าไว้ = ท่อนที่ล้นมาจากบรรทัดบนแน่นอน (ใบบริการ)
+   ข) เซลล์ที่ไม่มีบรรทัดไหนขึ้นต้นด้วยหัวข้อย่อยเลย = ย่อหน้าเดียวรวด (ใบครัว)
+      ใบบริการใช้ข้อ ข ไม่ได้ เพราะมีเซลล์ที่วางข้อกำหนดคนละข้อไว้คนละบรรทัด
+      โดยไม่มีเลขหรือขีดนำ ต่อไปแล้วจะกลายเป็นข้อเดียวกัน */
+var DOCITEM = /^[\s\u00a0]*(\d+[.)]|[-\u2013\u2014\u2022]|[\u201c"']|\S+[\s\u00a0]*[:\uff1a]|\S+[\s\u00a0]+-[\s\u00a0])/;
+function _docUnwrap(html, all){
+  return html.replace(/<td\b[^>]*>[\s\S]*?<\/td>/g, function(cell){
+    if(cell.indexOf('<br>') < 0) return cell;
+    var open = cell.match(/^<td\b[^>]*>/)[0];
+    var lines = cell.slice(open.length, -5).split('<br>');
+    var flow = all && !lines.some(function(L){ return DOCITEM.test(L); });
+    var out = [lines[0]];
+    for(var i = 1; i < lines.length; i++){
+      var L = lines[i];
+      var soft = flow || (/^[\s\u00a0]/.test(L) && !DOCITEM.test(L));
+      if(soft) out[out.length - 1] = out[out.length - 1].replace(/[\s\u00a0]+$/, '')
+        + ' ' + L.replace(/^[\s\u00a0]+/, '');
+      else out.push(L);
+    }
+    return open + out.join('<br>') + '</td>';
+  });
+}
+
 /* ── ขนาดตัวอักษรของสองใบให้เท่ากัน ──
    ต้นฉบับสองไฟล์ตั้งฟอนต์เนื้อหาไม่เท่ากัน (ใบบริการ 11pt ใบครัว 10pt)
    พอย่อลงมาเป็น pt บนกระดาษเลยกลายเป็น 8.25 กับ 7.50 · อยู่ในชุดเอกสารเดียวกัน
@@ -5652,9 +5679,21 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
-    t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(_docJoinSections(_docBodyFont(
-        _docWidenNotes(_docHeadLeft(_docSameLogo(t)))))))), kind))), kind);
+    /* ทุกใบต้องผ่านชุดนี้ตามลำดับ เขียนเรียงลงมาให้อ่านออกว่าอะไรมาก่อนหลัง
+       ลำดับมีผล เช่น ต่อบรรทัดก่อนค่อยรวมเรื่อง แล้วค่อยเติมช่องกรอกทีหลังสุด */
+    t = _docSameLogo(t);
+    t = _docHeadLeft(t);
+    t = _docWidenNotes(t);
+    t = _docUnwrap(t, kind === 'kitchen');
+    t = _docBodyFont(t);
+    t = _docJoinSections(t);
+    t = _docJoinSplitRows(t);
+    t = _docTidyGrid(t);
+    t = _docFillLines(t);
+    t = _docFillBlanks(t, kind);
+    t = _docDropBlankRows(t);
+    t = _docFillNotes(t);
+    t = _docLock(t, kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
