@@ -531,6 +531,8 @@ input,select,textarea{font-family:inherit}
 .kpi.calm .k-n{color:var(--text3)}
 .kpi .k-n small{font-size:14px;font-weight:600;color:var(--text3);margin-left:2px}
 .kpi .k-d{font-size:11.5px;color:var(--text3);margin-top:3px}
+/* แถบสรุปย่อมีไว้ใช้บนมือถืออย่างเดียว จอกว้างเห็นการ์ดเต็มอยู่แล้ว */
+.kpi-strip{display:none}
 @media(max-width:760px){.kpis{grid-template-columns:1fr 1fr;gap:10px}.kpi{padding:13px 14px}.kpi .k-n{font-size:26px}}
 
 /* ───────────── แท็บหลัก ───────────── */
@@ -1618,7 +1620,9 @@ label.fld>span>b{font-weight:800}
   .shell{padding:16px 14px calc(84px + env(safe-area-inset-bottom))}
   .pagehead{margin-bottom:13px;gap:9px}
   .ph-title{font-size:19px}
-  .ph-sub{font-size:12.5px;margin-top:4px;line-height:1.45}
+  /* คำโปรยเป็นข้อความอธิบายกว้าง ๆ อ่านรอบเดียวก็พอ แต่บนมือถือมันโผล่ซ้ำ
+     ทุกแท็บและกินสองบรรทัดเต็ม · เก็บไว้เฉพาะจอกว้าง */
+  .ph-sub{display:none}
   .ph-scope{margin-top:8px;font-size:12px;gap:8px}
   .ph-actions .btn{padding:9px 12px;font-size:13px}
   /* ช่องค้นหา ตัวกรอง และปุ่มในแถบเครื่องมือ เตี้ยลงให้เท่ากันหมด
@@ -1631,6 +1635,23 @@ label.fld>span>b{font-weight:800}
   /* ตัวเลขสรุปเดิมสูงกันการ์ดละเกือบ 100px สองแถวก็กินครึ่งจอ กว่าจะถึงรายการจริง
      ต้องเลื่อนผ่านไปทั้งหมด · ย้ายตัวเลขขึ้นไปอยู่บรรทัดเดียวกับป้ายชื่อ
      คำอธิบายลงบรรทัดล่าง ได้ข้อมูลเท่าเดิมแต่เตี้ยลงเกือบครึ่ง */
+  /* ย่อ = เห็นแถบบรรทัดเดียว · กาง = เห็นการ์ดเต็มเหมือนจอกว้าง */
+  .kpi-strip{display:flex;width:100%;gap:8px;align-items:center;overflow:hidden;
+    padding:9px 12px;margin-bottom:14px;background:var(--bg2);
+    border:1px solid var(--border);border-radius:12px;
+    font-size:12.5px;font-weight:700;color:var(--text);text-align:left}
+  .kpi-strip-in{display:flex;flex:1;min-width:0;gap:14px;align-items:baseline;
+    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
+  .kpi-strip-in::-webkit-scrollbar{display:none}
+  .kpi-strip::-webkit-scrollbar{display:none}
+  .kpi-strip[hidden]{display:none}
+  .kpi-strip span{display:inline-flex;gap:5px;white-space:nowrap;align-items:baseline}
+  .kpi-strip i{font-style:normal;font-weight:600;color:var(--text3);font-size:11px}
+  .kpi-strip em{flex:0 0 auto;font-style:normal;color:var(--text3);transition:.15s}
+  .kpis{display:none}
+  body.kpi-open .kpis{display:grid}
+  body.kpi-open .kpi-strip{margin-bottom:8px}
+  body.kpi-open .kpi-strip em{transform:rotate(180deg)}
   .kpis{gap:8px;margin-bottom:14px}
   .kpi{padding:9px 11px;border-radius:12px;
     display:grid;grid-template-columns:1fr auto;align-items:baseline;column-gap:8px}
@@ -2784,6 +2805,7 @@ function pickBrand(key){
     : _oeHeadSub();
   /* ตัวเลขสรุปเป็นเรื่องของคนที่ดูภาพรวม ไม่ใช่คนที่เข้ามาสอบ */
   $('admKpis').classList.toggle('hidden', onlyMine);
+  _oeKpiStrip();
 
   _oePaintTabBar();
   switchTab(_oeFirstAllowedTab());
@@ -3008,7 +3030,7 @@ function renderAdminKpis(){
   var exams = EXAMS.filter(brandMatch);
   /* แบรนด์ที่ยังไม่มีชุดข้อสอบเลย แถบนี้จะขึ้น 0 ทั้งสี่ช่อง ซึ่งไม่ได้บอกอะไร
      มีแต่กินที่ — ซ่อนไปก่อน แล้วค่อยโผล่มาตอนมีของให้สรุปจริง ๆ */
-  if(!exams.length){ host.innerHTML = ''; host.classList.add('hidden'); return; }
+  if(!exams.length){ host.innerHTML = ''; host.classList.add('hidden'); _oeKpiStrip(); return; }
   host.classList.remove('hidden');
   var idSet = {}, titleSet = {};
   exams.forEach(function(e){ if(e.id) idSet[e.id]=1; if(e.title) titleSet[e.title]=1; });
@@ -3033,7 +3055,42 @@ function renderAdminKpis(){
         res.length ? ('ผ่าน ' + pass + ' จาก ' + res.length + ' ครั้ง') : 'ยังไม่มีผลสอบ', 'results') +
     box(flagged ? 'warn' : 'calm', 'พบการเตือน', flagged, ' ครั้ง',
         flagged ? 'ครั้งที่มีการสลับหน้าจอ/จับภาพ' : 'ไม่พบพฤติกรรมผิดปกติ', 'results');
+  _oeKpiStrip();
 }
+
+/* ── แถบสรุปย่อ (เฉพาะมือถือ) ──
+   ตัวเลขสรุปอยู่เหนือแท็บ เลยติดมาทุกแท็บ · บนจอกว้างไม่เป็นไร แต่บนมือถือ
+   มันคือของชุดเดิมสูงร้อยกว่า px ที่ต้องเลื่อนผ่านทุกครั้งที่สลับแท็บ
+   ย่อลงเหลือบรรทัดเดียวที่ยังอ่านตัวเลขได้ครบ กดแล้วค่อยกางเป็นการ์ดเต็ม
+   จำไว้ด้วยว่าเปิดหรือปิดค้างไว้ จะได้ไม่ต้องกดใหม่ทุกครั้ง */
+function _oeKpiStrip(){
+  var host = $('admKpis'); if(!host) return;
+  var bar = $('kpiStrip');
+  if(!bar){
+    bar = document.createElement('button');
+    bar.id = 'kpiStrip';
+    bar.type = 'button';
+    bar.className = 'kpi-strip';
+    bar.setAttribute('aria-label', 'ย่อ/กางตัวเลขสรุป');
+    bar.onclick = oeToggleKpis;
+    host.parentNode.insertBefore(bar, host);
+  }
+  var cards = host.querySelectorAll('.kpi');
+  bar.hidden = host.classList.contains('hidden') || !cards.length;
+  if(bar.hidden) return;
+  /* ตัวเลขเลื่อนได้ในกรอบของมันเอง ลูกศรอยู่นอกกรอบ จะได้ไม่เลื่อนหายไปด้วย */
+  bar.innerHTML = '<span class="kpi-strip-in">' + [].map.call(cards, function(k){
+    var l = k.querySelector('.k-l'), v = k.querySelector('.k-n');
+    return '<span><i>' + (l ? l.textContent : '') + '</i>'
+      + (v ? v.textContent.replace(/\s+/g, ' ').trim() : '') + '</span>';
+  }).join('') + '</span><em aria-hidden="true">⌄</em>';
+}
+function oeToggleKpis(){
+  var on = !document.body.classList.contains('kpi-open');
+  document.body.classList.toggle('kpi-open', on);
+  try{ localStorage.setItem('fab_oe_kpi', on ? '1' : '0'); }catch(e){}
+}
+try{ if(localStorage.getItem('fab_oe_kpi') === '1') document.body.classList.add('kpi-open'); }catch(e){}
 
 /* ตัวกรองสถานะของแท็บชุดข้อสอบ */
 var _exFilter = 'all';
