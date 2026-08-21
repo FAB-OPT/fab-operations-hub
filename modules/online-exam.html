@@ -1614,7 +1614,11 @@ label.fld>span>b{font-weight:800}
    แล้วบีบแถบบนกับหัวเรื่องให้เตี้ยลง เนื้อหาจะได้ขึ้นมาให้เห็นเร็วขึ้น ไม่ต้องเลื่อนไกล */
 @media(max-width:760px){
   .hide-sm{display:none!important}
-  .topbar{padding:9px 13px;gap:8px}
+  /* ปุ่มกลับไปอยู่ซ้ายสุดแบบแอปมือถือ · โลโก้ออกไปก่อน ชื่อหน้าบอกอยู่แล้วว่านี่คือที่ไหน
+     และแถวบนแค่ 390px ใส่ทุกอย่างไม่พอ */
+  .topbar{padding:9px 12px;gap:9px}
+  .topbar .logo-wrap{display:none}
+  .topbar .btn-back{order:-1;padding:8px 10px;flex:0 0 auto}
   .topbar .t-title{font-size:15px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   /* ที่ว่างล่างเผื่อไว้ให้แถบแท็บ ไม่งั้นรายการบรรทัดสุดท้ายจะโดนทับ */
   .shell{padding:16px 14px calc(84px + env(safe-area-inset-bottom))}
@@ -2798,6 +2802,7 @@ function pickBrand(key){
   /* หัวเรื่องเปลี่ยนตามว่าเข้ามาทำอะไร — คนที่เข้ามาสอบอย่างเดียวไม่ควรเจอคำว่า
      "สร้างชุดข้อสอบ มอบหมายให้สาขา" ซึ่งไม่ใช่เรื่องของเขา */
   var onlyMine = mine && !isAdminMode;
+  _oeOnlyMine = onlyMine;
   var who = currentBranchName || _sess.name || _sess.nick || ('รหัส ' + branchPin);
   $('phTitle').textContent = onlyMine ? 'แบบทดสอบสำหรับสาขา' : 'ภาพรวมระบบสอบ';
   $('phSub').textContent = onlyMine
@@ -2900,16 +2905,29 @@ function brandMatch(ex){
 }
 
 /* ═════════════════════ ADMIN: TABS ═════════════════════ */
+/* คนที่เข้ามาสอบอย่างเดียวมีหัวเรื่องของตัวเอง (ชื่อสาขา/แบรนด์)
+   ไม่ต้องให้แท็บมาเขียนทับ */
+var _oeOnlyMine = false;
 var OE_TABS = [
-  { id:'exams',   btn:'tabExams',   pane:'paneExams',   perm:'view-exams' },
-  { id:'reqs',    btn:'tabReqs',    pane:'paneReqs',    perm:'exam-approve' },
-  { id:'mine',    btn:'tabMine',    pane:'paneMine',    perm:'request-exam' },
-  { id:'results', btn:'tabResults', pane:'paneResults', perm:'view-results' }
+  { id:'exams',   btn:'tabExams',   pane:'paneExams',   perm:'view-exams',
+    title:'ชุดข้อสอบ',  sub:'สร้าง แก้ไข และเปิด-ปิดชุดข้อสอบให้สาขาทำ' },
+  { id:'reqs',    btn:'tabReqs',    pane:'paneReqs',    perm:'exam-approve',
+    title:'คำขอสอบ',   sub:'อนุมัติสิทธิ์สอบให้พนักงานที่ขอเข้ามา' },
+  { id:'mine',    btn:'tabMine',    pane:'paneMine',    perm:'request-exam',
+    title:'การสอบ',    sub:'ขอสิทธิ์สอบให้พนักงาน และเริ่มทำข้อสอบ' },
+  { id:'results', btn:'tabResults', pane:'paneResults', perm:'view-results',
+    title:'ผลสอบ',     sub:'ดูคะแนน สรุปผล และพิมพ์เอกสารประกอบผลสอบ' }
 ];
+/* หัวเรื่องเดิมเป็น "ภาพรวมระบบสอบ" ค้างอยู่อันเดียวทุกแท็บ สลับแท็บแล้ว
+   ข้างบนไม่ขยับ เลยดูเหมือนหน้าเดิม · ให้เปลี่ยนตามแท็บที่เลือกไปเลย */
 function switchTab(t){
   OE_TABS.forEach(function(x){
     $(x.btn).classList.toggle('active', t === x.id);
     $(x.pane).classList.toggle('hidden', t !== x.id);
+    if(t === x.id && x.title && !_oeOnlyMine){
+      $('phTitle').textContent = x.title;
+      $('phSub').textContent = x.sub;
+    }
   });
 }
 /* แท็บแรกที่ผู้ใช้คนนี้มีสิทธิ์เข้าจริง — ใช้เป็นแท็บตั้งต้นตอนเปิดหน้า */
