@@ -5467,6 +5467,59 @@ function _docUnwrap(html, all){
   });
 }
 
+/* ── คอลัมน์ที่เป็นรายการข้อ ──
+   ช่องขั้นตอน/พฤติกรรม/คำพูด เขียนเป็นข้อ ๆ (1. 2. 3. หรือขีดนำ) แล้วท่อนที่ยาว
+   เกินความกว้างช่องเดิมถูกตัดลงบรรทัดใหม่ไว้เฉย ๆ โดยไม่ได้ย่อหน้ากำกับ
+   บรรทัดไหนไม่ได้ขึ้นต้นด้วยหัวข้อย่อย = ท่อนที่ล้นมาจากข้อบน ต่อกลับเข้าไป
+
+   ทำเฉพาะคอลัมน์พวกนี้ เพราะคอลัมน์ "รายละเอียด" ของใบบริการวางข้อกำหนด
+   คนละข้อไว้คนละบรรทัดโดยไม่มีเลขนำ (พนักงานบริการ… / พนักงานครัว…)
+   ถ้าเหมาโดยดูจากหัวข้อย่อยอย่างเดียวจะกลายเป็นข้อเดียวกัน */
+var DOCFLOW = /^(ขั้นตอน|พฤติกรรม|คำพูด|ขั้นตอนการทำ)$/;
+function _docFlowCell(cell){
+  var open = cell.match(/^<td\b[^>]*>/)[0];
+  var lines = cell.slice(open.length, -5).split('<br>');
+  var out = [lines[0]];
+  for(var i = 1; i < lines.length; i++){
+    if(DOCITEM.test(lines[i])) out.push(lines[i]);
+    else out[out.length - 1] = out[out.length - 1].replace(/[\s\u00a0]+$/, '')
+      + ' ' + lines[i].replace(/^[\s\u00a0]+/, '');
+  }
+  return open + out.join('<br>') + '</td>';
+}
+function _docUnwrapCols(html){
+  var cols = [];
+  return html.replace(/<tr[^>]*>[\s\S]*?<\/tr>/g, function(row){
+    var cells = row.match(/<td\b[^>]*>[\s\S]*?<\/td>/g);
+    if(!cells) return row;
+    function span(cell){ return Number((cell.match(/colspan="(\d+)"/) || [0, 1])[1]); }
+    var c = 0, hits = [], head = false;
+    cells.forEach(function(cell){
+      var t = cell.replace(/<[^>]*>/g, '').trim();
+      if(t === 'ลำดับ') head = true;
+      /* ตารางเดียวมีคอลัมน์แบบนี้ได้หลายอัน (ขั้นตอน + คำพูด) ต้องเก็บให้ครบทุกช่วง
+         ถ้าเก็บอันเดียว อันหลังจะทับอันหน้า แล้วคอลัมน์แรกจะไม่ถูกแตะเลย */
+      if(DOCFLOW.test(t)) hits.push({ a: c, b: c + span(cell) - 1 });
+      c += span(cell);
+    });
+    /* เจอหัวตารางเมื่อไรถือว่าขึ้นตารางใหม่ ต้องลืมช่วงคอลัมน์ของตารางก่อนหน้า
+       ไม่งั้นตารางที่ไม่มีคอลัมน์พวกนี้จะโดนกฎของตารางเก่าไปด้วย */
+    if(head){ cols = hits; return row; }
+    if(!cols.length) return row;
+    var c2 = 0, out = [], changed = false;
+    cells.forEach(function(cell){
+      var inCol = cols.some(function(r){ return c2 >= r.a && c2 <= r.b; });
+      if(inCol && cell.indexOf('<br>') >= 0){
+        var fixed = _docFlowCell(cell);
+        if(fixed !== cell){ cell = fixed; changed = true; }
+      }
+      out.push(cell);
+      c2 += span(cell);
+    });
+    return changed ? row.match(/^<tr[^>]*>/)[0] + out.join('') + '</tr>' : row;
+  });
+}
+
 /* ── ขนาดตัวอักษรของสองใบให้เท่ากัน ──
    ต้นฉบับสองไฟล์ตั้งฟอนต์เนื้อหาไม่เท่ากัน (ใบบริการ 11pt ใบครัว 10pt)
    พอย่อลงมาเป็น pt บนกระดาษเลยกลายเป็น 8.25 กับ 7.50 · อยู่ในชุดเอกสารเดียวกัน
@@ -5711,6 +5764,7 @@ function docsPickForm(kind, on){
     t = _docHeadLeft(t);
     t = _docWidenNotes(t);
     t = _docUnwrap(t, kind === 'kitchen');
+    t = _docUnwrapCols(t);
     t = _docBodyFont(t);
     t = _docJoinSections(t);
     t = _docJoinSplitRows(t);
