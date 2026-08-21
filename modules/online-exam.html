@@ -5427,6 +5427,48 @@ function _docJoinSplitRows(html){
   return parts.join('');
 }
 
+/* ── เรื่องเดียวกันที่ถูกซอยเป็นสองท่อน ──
+   ต้นฉบับพอเนื้อหาเรื่องหนึ่งยาวเกินหน้า ก็ขึ้นหัวข้อเดิมซ้ำอีกรอบ (บางที่ต่อท้ายว่า
+   "(ต่อ)") พร้อมหัวตารางชุดเดิม แล้วเดินเลขลำดับต่อจากท่อนแรก
+   บนจอที่เป็นแผ่นเดียวรวด มันคือตารางเดียวที่ถูกตัดกลางโดยไม่มีเหตุผล
+   เอาหัวข้อซ้ำกับหัวตารางซ้ำออก ให้แถวไหลต่อกันเป็นตารางเดียว
+   เทียบจากชื่อเรื่อง (ตัด "(ต่อ)" ออกก่อน) และหัวตารางต้องเป็นชุดเดิมเป๊ะ
+   ไม่งั้นถือว่าเป็นคนละเรื่องที่บังเอิญชื่อคล้ายกัน */
+function _docJoinSections(html){
+  var parts = html.split(/(<tr[^>]*>[\s\S]*?<\/tr>)/);
+  var idx = [];
+  for(var i = 1; i < parts.length; i += 2) idx.push(i);
+  function txt(p){ return parts[p].replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(); }
+  function ncells(p){ return (parts[p].match(/<td\b[^>]*>[\s\S]*?<\/td>/g) || []).length; }
+  var lastTitle = '', lastHead = [], blanks = [];
+  for(var k = 0; k < idx.length; k++){
+    var p = idx[k], t = txt(p);
+    if(!t){ blanks.push(p); continue; }
+    if(ncells(p) !== 1){ blanks = []; continue; }
+    var norm = t.replace(/\(ต่อ\)/g, '').replace(/\s+/g, '');
+    if(norm && norm === lastTitle){
+      parts[p] = '';
+      blanks.forEach(function(b){ parts[b] = ''; });
+      blanks = [];
+      var m = 0;
+      while(m < lastHead.length && k + 1 < idx.length && txt(idx[k + 1]) === lastHead[m]){
+        parts[idx[k + 1]] = '';
+        k++; m++;
+      }
+      continue;
+    }
+    lastTitle = norm; lastHead = []; blanks = [];
+    for(var j = k + 1; j < idx.length && lastHead.length < 2; j++){
+      var q = idx[j];
+      if(parts[q].indexOf('type="checkbox"') >= 0) break;
+      var qt = txt(q);
+      if(!qt) break;
+      lastHead.push(qt);
+    }
+  }
+  return parts.join('');
+}
+
 /* ── เก็บเส้นในตารางประเมิน ──
    ต้นฉบับทิ้งไว้สองอย่างที่พอมาอยู่บนจอแล้วดูเหมือนตารางพัง
    1) ช่องคำพูดของบางแถวถูกซอยเป็นสองช่องว่าง เลยมีเส้นตั้งโผล่กลางช่อง
@@ -5593,8 +5635,8 @@ function docsPickForm(kind, on){
     return r.text();
   }).then(function(t){
     t = _docLock(_docFillNotes(_docDropBlankRows(
-      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(
-        _docWidenNotes(_docHeadLeft(_docSameLogo(t)))))), kind))), kind);
+      _docFillBlanks(_docFillLines(_docTidyGrid(_docJoinSplitRows(_docJoinSections(
+        _docWidenNotes(_docHeadLeft(_docSameLogo(t))))))), kind))), kind);
     _docCache[kind] = t;
     put(t);
     toast('แนบ' + cfg.title + 'แล้ว');
