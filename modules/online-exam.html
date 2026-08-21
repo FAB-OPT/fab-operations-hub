@@ -1412,6 +1412,8 @@ button.rq-done-it:hover{background:var(--bg3)}
 #saveState{display:flex;align-items:center;justify-content:center;gap:7px;
   margin:24px 0 12px;font-size:12.5px;font-weight:700;color:var(--text3)}
 #saveState:empty{display:none}
+.rd-acts{display:flex;gap:9px;margin:12px 0 4px}
+.rd-acts .btn{flex:1;justify-content:center}
 .result-actions{display:flex;gap:11px;flex-wrap:wrap}
 .result-actions .p-btn{flex:1;min-width:150px}
 
@@ -2044,8 +2046,6 @@ label.fld>span>b{font-weight:800}
       <button class="btn btn-soft" data-oe-action="exam-delete" onclick="deleteResultFromDetail()"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg> ลบผลสอบนี้</button>
       <div style="flex:1"></div>
       <button class="btn btn-soft" onclick="closeResultDetail()">ปิด</button>
-      <button class="btn btn-soft" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>
-      <button class="btn btn-primary" onclick="openDocSet()">📑 ชุดเอกสาร</button>
     </footer>
   </div>
 </div>
@@ -2185,8 +2185,12 @@ label.fld>span>b{font-weight:800}
           </div>
           <div class="res-note" id="resNote" hidden></div>
           <div id="saveState"></div>
+          <!-- ทำเสร็จแล้วส่วนใหญ่ต้องพิมพ์เอกสารต่อทันที ให้ปุ่มอยู่ตรงนี้เลย
+               ไม่ต้องกลับไปเปิดรายการผลสอบแล้วหาคนของตัวเองใหม่ -->
           <div class="result-actions">
-            <button class="p-btn" onclick="closeExamOverlay()">กลับไปหน้าชุดข้อสอบ</button>
+            <button class="p-btn ghost" onclick="closeExamOverlay()">กลับไปหน้าชุดข้อสอบ</button>
+            <button class="p-btn ghost" id="resPrint" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>
+            <button class="p-btn" id="resDocs" onclick="openDocSet()">📑 ชุดเอกสาร</button>
           </div>
         </div>
       </div>
@@ -4035,6 +4039,13 @@ function _oeResDetailHtml(r){
       '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
     '</div></div>';
 
+  /* ปุ่มเอกสารอยู่ใต้ผลเลย — เดิมอยู่ท้ายกล่อง ต้องเลื่อนผ่านคำตอบทุกข้อ
+     กว่าจะเจอ ทั้งที่คนเปิดผลสอบส่วนใหญ่มาเพื่อพิมพ์เอกสาร */
+  h += '<div class="rd-acts">' +
+    '<button class="btn btn-soft" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>' +
+    '<button class="btn btn-primary" onclick="openDocSet()">📑 ชุดเอกสาร</button>' +
+  '</div>';
+
   /* ข้อมูลประกอบ — เวลาที่ใช้คำนวณจากเริ่มถึงส่ง ไม่ได้เก็บไว้ตรง ๆ */
   var um = _oeUsedMin(r);
   var per = (um != null && Number(r.total) > 0) ? (um / Number(r.total)) : null;
@@ -4952,6 +4963,12 @@ function computeAndShow(){
   $('resSub').innerHTML = 'ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · เกณฑ์ผ่าน ' + R.exam.passingScorePercent + '%';
   _oePaintResNote();
 
+  /* โหมดทดลองไม่มีผลจริงให้พิมพ์ ซ่อนปุ่มเอกสารไว้ */
+  R.record = _oeRunResult();
+  _oeResCur = R.isPreview ? null : R.record;
+  $('resPrint').hidden = !!R.isPreview;
+  $('resDocs').hidden  = !!R.isPreview;
+
   exShow('ex-result');
   _oeCenterRingPct();
   submitResultToBackend();
@@ -4983,13 +5000,10 @@ function _oePaintResNote(){
   box.innerHTML = '<div><b>' + esc(title) + '</b><span>' + esc(detail) + '</span></div>';
 }
 
-function submitResultToBackend(){
-  var st=$('saveState');
-  if(R.isPreview){ st.innerHTML='👁️ โหมดทดลอง — ไม่บันทึกผล'; return; }
-  st.innerHTML='<span class="loading dark"></span> กำลังบันทึกผลขึ้นระบบ…';
-  var payload={
-    type:'submit-exam-result',
-    result:{
+/* ผลของรอบที่เพิ่งสอบเสร็จ — หน้าตาเดียวกับผลที่โหลดมาจากหลังบ้าน
+   จะได้ส่งเข้าฟังก์ชันพิมพ์ใบรายงานกับชุดเอกสารได้เลย ไม่ต้องรอโหลดกลับมา */
+function _oeRunResult(){
+  return {
       examId:R.exam.id, examTitle:R.exam.title, brand:R.exam.brand||'',
       name:R.student.name, empId:R.student.id, branch:R.student.branch, position:R.student.position||'',
       pct:R.result.pct, correct:R.result.correct, total:R.result.total,
@@ -4997,9 +5011,13 @@ function submitResultToBackend(){
       violations:R.violations, finishReason:R.finishReason,
       accessCode: R.accessCode || '',
       startedAt: R.startedAt? R.startedAt.toISOString():'', submittedAt:new Date().toISOString(),
-      answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })
-    }
-  };
+      answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })};
+}
+function submitResultToBackend(){
+  var st=$('saveState');
+  if(R.isPreview){ st.innerHTML='👁️ โหมดทดลอง — ไม่บันทึกผล'; return; }
+  st.innerHTML='<span class="loading dark"></span> กำลังบันทึกผลขึ้นระบบ…';
+  var payload={ type:'submit-exam-result', result: R.record };
   apiPost(payload).then(function(res){
     if(res && res.ok){
       st.innerHTML='<span style="color:var(--green)">✓ บันทึกผลเรียบร้อยแล้ว</span>';
