@@ -648,6 +648,9 @@ button.ri:hover{background:var(--bg3)}
 @media(max-width:1000px){
   .xrow{grid-template-columns:42px minmax(0,1fr);row-gap:12px}
   .xr-facts,.xr-perf,.xr-act{grid-column:1/-1}
+  /* กล่องกินเต็มแถวแล้ว ตัวเลขข้างในต้องยืดตาม ไม่งั้นเหลือที่ว่างยาว ๆ
+     ต่อจากช่องสุดท้ายในกรอบเดียวกัน ดูเหมือนมีช่องที่ลืมใส่ค่า */
+  .xr-facts>div{flex:1}
   .xr-act .btn{flex:1}
 }
 .xc{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);
@@ -959,6 +962,13 @@ label.fld>span{display:block;font-size:12.5px;font-weight:700;color:var(--text2)
 .txt{width:100%;padding:10px 12px;border:1px solid var(--border);border-radius:10px;font-size:14px;
   background:var(--bg2);color:var(--text);transition:border-color .14s,box-shadow .14s}
 .txt:focus{outline:none;border-color:var(--gold);box-shadow:0 0 0 3px rgba(234,88,12,.12)}
+/* iOS ซูมหน้าเข้าให้เองทุกครั้งที่แตะช่องกรอกที่ตัวอักษรเล็กกว่า 16px
+   แล้วไม่ยอมซูมกลับ · หน้าต่างที่ตรึงเต็มจอ (เช่นกล่องตรวจคำตอบ) เลยกว้าง
+   เกินจอที่มองเห็น ปุ่มด้านขวาหาย · คนต้องซูมออกเอง ซึ่งไปโดนระบบกันโกงเตือนอีกที
+   16px คือเส้นที่ iOS หยุดซูม — ตั้งไว้เฉพาะเครื่องที่แตะด้วยนิ้ว จอคอมไม่กระทบ */
+@media (pointer:coarse){
+  .txt,.p-txt,.search input,.bsel-search input,.q-choice .txt{font-size:16px}
+}
 textarea.txt{resize:vertical;min-height:70px;line-height:1.55}
 select.txt{appearance:none;-webkit-appearance:none;
   background-image:linear-gradient(45deg,transparent 49%,var(--text3) 50%),linear-gradient(-45deg,transparent 49%,var(--text3) 50%);
@@ -1413,7 +1423,7 @@ button.rq-done-it:hover{background:var(--bg3)}
 }
 .emodal{position:fixed;inset:0;z-index:80;display:none;place-items:center;padding:24px;background:rgba(16,24,40,.6);backdrop-filter:blur(6px)}
 .emodal.show{display:grid;animation:fade .2s ease}
-.emodal-card{background:var(--bg2);border-radius:18px;max-width:410px;width:100%;padding:24px;box-shadow:var(--shadow-lg)}
+.emodal-card{background:var(--bg2);border-radius:18px;max-width:410px;width:100%;padding:24px;box-shadow:var(--shadow-lg);min-width:0;overflow:hidden}
 .emodal-card.wide{max-width:600px}
 /* หัวรายการ: บอกว่ากำลังดูอะไรอยู่ และสลับไปดูอีกชุดได้ */
 .sum-h{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:9px}
@@ -1565,7 +1575,11 @@ button.rq-done-it:hover{background:var(--bg3)}
   .sum-it+.sum-it{border-top:1px solid var(--border)}
   .sum-it .sn{order:0;margin-top:1px}
   .sum-it .sq{order:1;flex:1;min-width:0;white-space:normal;line-height:1.45}
-  .sum-it .sa{order:2;flex:1 1 100%;max-width:100%;margin-left:33px}
+  /* คำตอบยาว ๆ (เช่นลำดับขั้นตอนที่มีลูกศร) ห้ามบังคับให้อยู่บรรทัดเดียว
+     ไม่งั้นมันดันกล่องกว้างเกินจอ กล่องเลยเลื่อนไปทางขวาจนปุ่มส่งหาย
+     แล้วคนต้องซูมออก ซึ่งไปโดนระบบกันโกงเตือนอีกที */
+  .sum-it .sa{order:2;flex:1 1 100%;max-width:100%;margin-left:33px;
+    white-space:normal;overflow:visible;text-overflow:clip;overflow-wrap:break-word}
   .sum-list{max-height:54vh;padding:0}
 
   /* ดรอปดาวน์เลือกสาขา: แถวติ๊กต้องโตพอให้นิ้วกด */
@@ -2332,7 +2346,6 @@ label.fld>span>b{font-weight:800}
           <label class="p-fld"><span>ตำแหน่ง *</span><input class="p-txt" id="inPosition" placeholder="เช่น พนักงานครัว" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           </div>
           <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
-          <p class="p-hint">แนะนำให้ทำบนคอมพิวเตอร์และไม่สลับหน้าจอ เพื่อให้ระบบกันโกงทำงานเต็มที่</p>
         </div>
       </div>
     </div>
@@ -2806,6 +2819,7 @@ function oeLoadPermsFromHub(){
       if(_oeApplyBrandsFromHub(res) && !$('brandGate').classList.contains('hidden')){
         showBrandGate();
       }
+      if(res && res.ok) _oeCacheBranches(res);
       if(res && res.ok && res.perms && res.perms.onlineexam){
         OE_PERMS = res.perms.onlineexam;
         try{ localStorage.setItem(OE_PERM_KEY, JSON.stringify(OE_PERMS)); }catch(e){}
@@ -2817,6 +2831,22 @@ function oeLoadPermsFromHub(){
 }
 /* ค่าเริ่มต้นของสิทธิ์ — ชุดเดียวกับที่ประกาศไว้ในหน้าตั้งค่าสิทธิ์ของฮับ (index.html)
    ใช้ตอนที่แถวนั้นยังไม่เคยถูกบันทึก · แก้ที่ฮับเมื่อไรต้องแก้ตรงนี้ให้ตรงกันด้วย */
+/* เก็บทะเบียนสาขาที่ฮับส่งมากับ config ลง localStorage คีย์เดียวกับที่ฮับใช้
+   รูปแบบต้องตรงกับที่ฮับเขียนเป๊ะ ๆ ไม่งั้นฮับอ่านของที่เราเขียนไม่ออก */
+function _oeCacheBranches(res){
+  try{
+    var br = res.branches;
+    if(br && typeof br === 'object' && br.branches){
+      localStorage.setItem('fab_branches_v1', JSON.stringify(br));
+    }
+    if(Array.isArray(res.jaedaengBranches)){
+      localStorage.setItem('fab_jaedaeng_branches_v1', JSON.stringify(res.jaedaengBranches));
+    }
+  }catch(e){}
+  /* เปิดกล่องขอสิทธิ์ค้างไว้อยู่พอดี — เติมรายชื่อให้เลย ไม่ต้องปิดเปิดใหม่ */
+  if($('reqModal') && $('reqModal').classList.contains('show')) _oeFillReqBranch();
+}
+
 var OE_PERM_DEFAULTS = {
   'view-admin':   ['admin','support'],
   'view-exams':   ['admin','support','coo','vp','bzm'],
@@ -6929,19 +6959,27 @@ function openReqForm(examId){
   if(!ex) return;
   _reqExam = ex;
   $('reqFormExam').textContent = ex.title;
-  /* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนค่อยให้เลือกเอง */
-  var reg = oeBranchRegistry();
-  $('reqBranch').innerHTML = currentBranchName
-    ? '<option>' + esc(currentBranchName) + '</option>'
-    : '<option value="">— เลือกสาขา —</option>' +
-      reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('');
-  $('reqBranch').value = currentBranchName || '';
   $('reqName').value = '';
   $('reqEmpId').value = '';
   $('reqPosition').value = '';
   $('reqFormMsg').textContent = '';
   $('reqModal').classList.add('show');
+  if(!_oeFillReqBranch()) oeLoadPermsFromHub();   // ผลลัพธ์จะวิ่งกลับมาเติมเองที่ _oeCacheBranches
   setTimeout(function(){ $('reqName').focus(); }, 60);
+}
+/* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนก็ให้เลือกเอง
+   ทะเบียนว่าง = เครื่องนี้ยังไม่เคยได้ข้อมูลจากฮับ ไปดึงมาแล้วเติมให้ใหม่
+   ระหว่างรอบอกไว้ในช่องด้วย ไม่ใช่ปล่อยให้เห็นแต่ '— เลือกสาขา —' แล้วงงว่าพัง */
+function _oeFillReqBranch(){
+  var sel = $('reqBranch'); if(!sel) return 0;
+  var keep = sel.value;
+  var reg = currentBranchName ? [] : oeBranchRegistry();
+  sel.innerHTML = currentBranchName
+    ? '<option>' + esc(currentBranchName) + '</option>'
+    : '<option value="">' + (reg.length ? '— เลือกสาขา —' : '— ยังโหลดรายชื่อสาขาไม่ได้ —') + '</option>' +
+      reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('');
+  sel.value = currentBranchName || keep || '';
+  return currentBranchName ? 1 : reg.length;
 }
 function closeReqForm(){ $('reqModal').classList.remove('show'); }
 function submitExamRequest(){
