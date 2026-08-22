@@ -1604,6 +1604,20 @@ label.fld>span>b{font-weight:800}
 .q-selops{display:flex;gap:7px;flex-wrap:wrap}
 .q-selops .btn[disabled]{opacity:.45;cursor:not-allowed}
 .q-ck{width:17px;height:17px;flex:0 0 auto;accent-color:var(--gold);cursor:pointer}
+/* ใบที่พับอยู่ — สรุปให้เห็นว่าเฉลยข้อไหน โดยไม่ต้องสร้างช่องกรอกทั้งชุด */
+.q-peek{display:flex;align-items:center;gap:9px;width:100%;margin-left:52px;width:calc(100% - 52px);
+  text-align:left;font-size:12.5px;color:var(--text3);line-height:1.5;padding:5px 9px;
+  border-radius:9px;transition:.13s}
+@media (hover:hover) and (pointer:fine){ .q-peek:hover{background:var(--bg3)} }
+.qp-go{flex:0 0 auto;font-weight:800;font-size:11.5px;color:var(--gold);
+  border:1px solid var(--gold-line,var(--border));border-radius:7px;padding:2px 7px}
+.qp-txt{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.q-peek b{font-weight:700;color:var(--text2)}
+.q-peek i{font-style:normal;color:var(--red);font-weight:700}
+.q-item.open{border-color:var(--border2)}
+/* ปุ่มกาง/พับตัวเลือก — ไม่ใช่ลูกศรเลื่อนข้อ ต้องแยกออกจากกันให้เห็น */
+.qop.qtog{background:var(--bg3);border-radius:9px;margin-right:5px}
+.qop.qtog svg{width:17px;height:17px}
 .q-addmore{margin-top:4px}
 .q-addmore .btn{width:100%;border-style:dashed;padding:12px}
 .q-addmore .btn:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
@@ -3524,6 +3538,7 @@ function openExamEditor(id){
   $('edShot').checked = ex ? ex.blockScreenshot!==false : true;
   $('edAuto').checked = ex ? ex.autoSubmitOnMaxViolations!==false : true;
   draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
+  _qOpen = {};
   renderQEditor();
   _fileParsed=[];
   var _fi=$('fileImportInput'); if(_fi) _fi.value='';
@@ -3536,29 +3551,55 @@ function openExamEditor(id){
 function closeEditor(){ $('editorModal').classList.remove('show'); }
 
 function addQuestion(silent){
+  syncDraftFromDOM();
   draftQuestions.push({q:'', choices:['','','',''], answer:0});
-  if(!silent) renderQEditor();
+  /* ข้อที่เพิ่งเพิ่มต้องกางไว้ ไม่งั้นกดเพิ่มแล้วไม่มีที่ให้พิมพ์ตัวเลือก */
+  _qOpen = {}; _qOpen[draftQuestions.length - 1] = 1;
+  if(!silent){
+    renderQEditor();
+    var el = $('qi_' + (draftQuestions.length - 1));
+    if(el && el.scrollIntoView) el.scrollIntoView({ block: 'nearest' });
+  }
 }
-function removeQuestion(i){ draftQuestions.splice(i,1); renderQEditor(); }
+function removeQuestion(i){ syncDraftFromDOM(); draftQuestions.splice(i,1); _qOpen = {}; renderQEditor(); }
 function addChoice(i){
   if(draftQuestions[i].choices.length>=4){ toast('สูงสุด 4 ตัวเลือก','err'); return; }
-  draftQuestions[i].choices.push(''); renderQEditor();
+  syncDraftFromDOM();
+  draftQuestions[i].choices.push('');
+  _qPaintOne(i);
 }
 function removeChoice(qi,ci){
   var q=draftQuestions[qi];
   if(q.choices.length<=2){ toast('ต้องมีอย่างน้อย 2 ตัวเลือก','err'); return; }
+  syncDraftFromDOM();
+  var wasAns = q.answer;
   q.choices.splice(ci,1);
-  if(q.answer>=q.choices.length) q.answer=0;
-  renderQEditor();
+  if(ci < wasAns) q.answer = wasAns - 1;
+  else if(ci === wasAns) q.answer = 0;   // ลบอันที่เป็นเฉลยเอง ต้องกลับไปตั้งใหม่
+  if(q.answer >= q.choices.length) q.answer = 0;
+  _qPaintOne(qi);
 }
-// อ่านค่าจาก DOM กลับเข้า draft ก่อน re-render (กันข้อมูลหาย)
+/* อ่านค่าจาก DOM กลับเข้า draft ก่อนวาดใหม่ (กันข้อมูลหาย)
+   เดินจากช่องที่มีอยู่จริงในหน้า ไม่ใช่ไล่ถามทีละข้อจาก draft
+   เพราะการ์ดที่พับอยู่ไม่มีช่องตัวเลือกใน DOM — ชุด 148 ข้อจะเสียเวลา
+   ไปกับการหา element ที่ไม่มีอยู่เกือบพันครั้งทุกครั้งที่พิมพ์ */
 function syncDraftFromDOM(){
-  draftQuestions.forEach(function(q,qi){
-    var qt=$('q_'+qi); if(qt) q.q=qt.value;
-    q.choices.forEach(function(_,ci){ var el=$('c_'+qi+'_'+ci); if(el) q.choices[ci]=el.value; });
+  var box = $('qEditor'); if(!box) return;
+  [].forEach.call(box.querySelectorAll('.q-in'), function(el){
+    var i = +el.getAttribute('data-i');
+    if(draftQuestions[i]) draftQuestions[i].q = el.value;
+  });
+  [].forEach.call(box.querySelectorAll('.q-cin'), function(el){
+    var i = +el.getAttribute('data-i'), j = +el.getAttribute('data-j');
+    var q = draftQuestions[i];
+    if(q && q.choices[j] !== undefined) q.choices[j] = el.value;
   });
 }
-function setAnswer(qi,ci){ syncDraftFromDOM(); draftQuestions[qi].answer=ci; renderQEditor(); }
+function setAnswer(qi,ci){
+  syncDraftFromDOM();
+  draftQuestions[qi].answer = ci;
+  _qPaintOne(qi);
+}
 
 /* ตัวอักษรกำกับตัวเลือก — สูงสุด 4 ตัวเลือก ตรงกับที่ addChoice จำกัดไว้ */
 var Q_KEYS = ['ก', 'ข', 'ค', 'ง', 'จ', 'ฉ'];
@@ -3588,7 +3629,7 @@ function qDirty(qi) {
    ยาวเกินหนึ่งบรรทัดจึงเหลือแค่ท่อนแรก และท่อนที่เหลือไปโผล่เป็นตัวเลือกอันแรก
    จับจากคำถามที่ไม่มีคำถามอยู่ในนั้นเลย (ไม่มี ? ไม่มี ข้อใด/อะไร/เท่าใด …)
    ไม่แก้ให้เองเงียบ ๆ เพราะเป็นการเดา — ให้คนตรวจเห็นก่อน–หลังแล้วกดยืนยัน */
-var Q_ASKWORD = /[?？]|ข้อใด|ข้อไหน|อะไร|อย่างไร|เท่าใด|เท่าไร|เท่าไหร่|กี่|ทำไม|เพราะเหตุใด|เมื่อใด|เมื่อไร|ที่ไหน|ใคร|ยกเว้น|ไม่ถูกต้อง|ไม่ใช่|ถูกต้อง|ต่อไปนี้|จงเลือก|หมายถึง/;
+var Q_ASKWORD = /[?？]|ใด|ไหน|อะไร|อย่างไร|เท่าไร|เท่าไหร่|กี่|ทำไม|ใคร|หรือไม่|ยกเว้น|ไม่ถูกต้อง|ไม่ใช่|ถูกต้อง|ต่อไปนี้|จงเลือก|หมายถึง|ควร|คือ/;
 function _cutSuspect(q){
   if(!q) return false;
   var t = String(q.q || '').trim();
@@ -3675,6 +3716,7 @@ async function removeSelected(){
   syncDraftFromDOM();
   /* ลบจากท้ายมาหน้า ไม่งั้นลบข้อแรกแล้วเลขที่เหลือเลื่อน ลบผิดข้อทันที */
   idx.sort(function(a, b){ return b - a; }).forEach(function(i){ draftQuestions.splice(i, 1); });
+  _qOpen = {};
   renderQEditor();
   toast('ลบแล้ว ' + idx.length + ' ข้อ', 'ok');
 }
@@ -3689,6 +3731,7 @@ async function removeAllQuestions(){
   });
   if(!ok) return;
   draftQuestions = [];
+  _qOpen = {};
   renderQEditor();
   toast('ลบคำถามทั้งหมดแล้ว', 'ok');
 }
@@ -3698,11 +3741,13 @@ function moveQuestion(i, dir) {
   if (j < 0 || j >= draftQuestions.length) return;
   syncDraftFromDOM();
   var t = draftQuestions[i]; draftQuestions[i] = draftQuestions[j]; draftQuestions[j] = t;
+  _qOpen = {};
   renderQEditor();
 }
 function dupQuestion(i) {
   syncDraftFromDOM();
   draftQuestions.splice(i + 1, 0, JSON.parse(JSON.stringify(draftQuestions[i])));
+  _qOpen = {};
   renderQEditor();
   toast('ทำสำเนาข้อ ' + (i + 1) + ' แล้ว', 'ok');
 }
@@ -3734,14 +3779,24 @@ function renderQEditor() {
   }
 
   var last = draftQuestions.length - 1;
-  $('qEditor').innerHTML = draftQuestions.map(function (q, qi) {
-    var choices = q.choices.map(function (c, ci) {
+  $('qEditor').innerHTML = draftQuestions.map(function (q, qi) { return _qCardHtml(q, qi, last); }).join('');
+  qSelPaint();
+}
+
+/* ── การ์ดคำถามหนึ่งใบ ──
+   ชุดใหญ่ ๆ (ร้อยกว่าข้อ) ถ้ากางตัวเลือกไว้ทุกใบพร้อมกัน หน้าจะมีช่องกรอกเกือบพันช่อง
+   แตะอะไรทีก็หน่วงไปทั้งหน้า จึงพับไว้ก่อน แล้วกางเฉพาะใบที่กำลังแก้
+   ใบที่พับอยู่ยังเห็นคำถามและแก้คำถามได้ตามปกติ แค่ตัวเลือกยังไม่ถูกสร้างขึ้นมา */
+var _qOpen = {};
+function _qCardHtml(q, qi, last) {
+  var open = !!_qOpen[qi];
+    var choices = !open ? '' : q.choices.map(function (c, ci) {
       var isAns = q.answer === ci;
       return '<div class="q-choice' + (isAns ? ' ok' : '') + '">' +
         '<input type="radio" name="ans_' + qi + '" ' + (isAns ? 'checked' : '') +
           ' onclick="setAnswer(' + qi + ',' + ci + ')" title="ตั้งข้อนี้เป็นคำตอบที่ถูก">' +
         '<span class="q-key">' + (Q_KEYS[ci] || (ci + 1)) + '</span>' +
-        '<input class="txt" id="c_' + qi + '_' + ci + '" value="' + esc(c) +
+        '<input class="txt q-cin" data-i="' + qi + '" data-j="' + ci + '" id="c_' + qi + '_' + ci + '" value="' + esc(c) +
           '" placeholder="ตัวเลือก ' + (Q_KEYS[ci] || (ci + 1)) + '" oninput="qDirty(' + qi + ')">' +
         (isAns ? '<span class="q-ans">คำตอบที่ถูก</span>' : '') +
         '<button type="button" class="q-rm" onclick="removeChoice(' + qi + ',' + ci + ')" title="ลบตัวเลือกนี้" aria-label="ลบตัวเลือกนี้">' +
@@ -3749,29 +3804,58 @@ function renderQEditor() {
       '</div>';
     }).join('');
 
-    return '<div class="q-item' + (_qOk(q) ? '' : ' bad') + '" id="qi_' + qi + '">' +
+    return '<div class="q-item' + (_qOk(q) ? '' : ' bad') + (open ? ' open' : '') + '" id="qi_' + qi + '">' +
       '<div class="q-head">' +
         '<input type="checkbox" class="q-ck" data-i="' + qi + '" onchange="qSelPaint()" title="เลือกข้อนี้" aria-label="เลือกข้อ ' + (qi + 1) + '">' +
         '<span class="q-num">' + (qi + 1) + '</span>' +
-        '<input class="txt q-in" id="q_' + qi + '" value="' + esc(q.q) + '" placeholder="พิมพ์คำถามข้อที่ ' + (qi + 1) + '…" oninput="qDirty(' + qi + ')">' +
+        '<input class="txt q-in" data-i="' + qi + '" id="q_' + qi + '" value="' + esc(q.q) + '" placeholder="พิมพ์คำถามข้อที่ ' + (qi + 1) + '…" oninput="qDirty(' + qi + ')">' +
         '<div class="q-ops">' +
+          '<button type="button" class="qop qtog" onclick="toggleQ(' + qi + ')" title="' +
+            (open ? 'พับตัวเลือก' : 'กางตัวเลือก') + '" aria-label="กาง/พับตัวเลือก">' +
+            '<svg viewBox="0 0 24 24">' + (open ? _QOP.up : _QOP.down) + '</svg></button>' +
           _qop('up',   'moveQuestion(' + qi + ',-1)', 'เลื่อนขึ้น', qi === 0 ? ' off' : '') +
           _qop('down', 'moveQuestion(' + qi + ',1)',  'เลื่อนลง',  qi === last ? ' off' : '') +
           _qop('dup',  'dupQuestion(' + qi + ')',     'ทำสำเนาข้อนี้') +
           _qop('del',  'removeQuestion(' + qi + ')',  'ลบข้อนี้', ' danger') +
         '</div>' +
       '</div>' +
-      '<div class="q-choices">' + choices + '</div>' +
+      (open ? ('<div class="q-choices">' + choices + '</div>' +
       '<div class="q-foot">' +
         '<span class="q-hint">แตะวงกลมหน้าตัวเลือกเพื่อตั้งเป็น<b>คำตอบที่ถูก</b></span>' +
         (q.choices.length < 4
           ? '<button type="button" class="q-add" onclick="addChoice(' + qi + ')">+ เพิ่มตัวเลือก</button>'
           : '<span class="q-hint">ครบ 4 ตัวเลือกแล้ว</span>') +
-      '</div>' +
+      '</div>') : _qPeek(q, qi)) +
       '<div class="q-bad">ข้อนี้ยังไม่สมบูรณ์ — ต้องมีคำถาม และตัวเลือกที่พิมพ์แล้วอย่างน้อย 2 อัน ไม่งั้นจะไม่ถูกบันทึก</div>' +
     '</div>';
-  }).join('');
+}
+/* บรรทัดสรุปของใบที่พับอยู่ — บอกเท่าที่ต้องรู้โดยไม่ต้องกาง */
+function _qPeek(q, qi){
+  var ans = String(q.choices[q.answer] || '').trim();
+  return '<button type="button" class="q-peek" onclick="toggleQ(' + qi + ')">' +
+    '<span class="qp-go">แก้ตัวเลือก</span>' +
+    '<span class="qp-txt">' + q.choices.length + ' อัน · เฉลย ' +
+    (ans ? ('<b>' + esc(Q_KEYS[q.answer] || (q.answer + 1)) + '. ' + esc(ans) + '</b>')
+         : '<i>ยังไม่ได้ตั้ง</i>') + '</span></button>';
+}
+/* วาดใหม่ใบเดียว — ที่ติ๊กไว้ต้องไม่หายไปด้วย */
+function _qPaintOne(qi){
+  var old = $('qi_' + qi);
+  if(!old){ renderQEditor(); return; }
+  var ck = old.querySelector('.q-ck');
+  var was = !!(ck && ck.checked);
+  var box = document.createElement('div');
+  box.innerHTML = _qCardHtml(draftQuestions[qi], qi, draftQuestions.length - 1);
+  var fresh = box.firstChild;
+  old.parentNode.replaceChild(fresh, old);
+  var ck2 = fresh.querySelector('.q-ck'); if(ck2) ck2.checked = was;
+  _qWarnRefresh();
   qSelPaint();
+}
+function toggleQ(qi){
+  syncDraftFromDOM();
+  if(_qOpen[qi]) delete _qOpen[qi]; else _qOpen[qi] = 1;
+  _qPaintOne(qi);
 }
 
 /* ── นำเข้าข้อสอบ (Import) ── */
