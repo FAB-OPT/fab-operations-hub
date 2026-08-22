@@ -3060,11 +3060,14 @@ window.addEventListener('DOMContentLoaded', function(){
      คนที่ล็อกอินอยู่แล้วให้เข้าทางปกติ จะได้มีเมนูให้กดต่อหลังปิดเอกสาร */
   var role = sessionStorage.getItem('fab_role');
   var _hash = String(location.hash || '').replace(/^#/, '');
-  var _go = /^(go|report|docs)=(.+)$/.exec(_hash);
+  var _go = /^(go|report|docs|exam)=(.+)$/.exec(_hash);
   if(_go){
     var _v = decodeURIComponent(_go[2]);
     if(_go[1] === 'go'){ oeGuestBoot(_v); return; }
-    if(!role){ oeGuestDoc(_go[1], _v); return; }
+    if(!role){
+      if(_go[1] === 'exam') oeGuestExam(_v); else oeGuestDoc(_go[1], _v);
+      return;
+    }
   }
 
   if(!role){
@@ -3136,6 +3139,36 @@ function oeGuestDoc(kind, id){
     if(kind === 'report') printResultReport(); else openDocSet();
   }).catch(function(e){
     _oeGuestSay('🔒', 'เปิดเอกสารไม่ได้', (e && e.message) || 'ลิงก์นี้ใช้ไม่ได้',
+      '<button class="btn btn-soft" onclick="location.reload()">ลองใหม่</button>');
+  });
+}
+/* ── เปิดชุดข้อสอบจากลิงก์ ──
+   ลิงก์นี้ไม่ได้ระบุว่าเป็นใคร ต่างจากลิงก์เข้าสอบรายคน จึงต้องเดินตาม
+   ค่าที่ตั้งไว้ในชุดข้อสอบเอง: ชุดที่ตั้งว่าต้องขออนุมัติก่อน ก็ให้กรอกขอสิทธิ์
+   ชุดที่ไม่ต้องขอ ก็เข้าหน้าเตรียมสอบแล้วกรอกชื่อตัวเองได้เลย */
+function oeGuestExam(id){
+  document.body.classList.add('oe-guest');
+  _oeGuestSay('📝', 'กำลังเปิดชุดข้อสอบ…', 'กำลังตรวจว่าชุดนี้ยังเปิดให้ทำอยู่ไหม');
+  apiGet('exams').then(function(res){
+    var list = (res && res.ok && res.exams) ? res.exams : [];
+    var ex = list.filter(function(x){ return x.id === id; })[0];
+    if(!ex) throw new Error('ไม่พบชุดข้อสอบนี้ — อาจถูกลบไปแล้ว');
+    if(ex.active === false) throw new Error('ชุดข้อสอบนี้ปิดอยู่ ยังทำไม่ได้');
+    var t = todayStr();
+    if(ex.startDate && t < ex.startDate) throw new Error('ยังไม่ถึงวันเปิดให้ทำ (' + _oeDate(ex.startDate) + ')');
+    if(ex.endDate && t > ex.endDate) throw new Error('เลยวันปิดรับแล้ว (' + _oeDate(ex.endDate) + ')');
+    EXAMS = list;
+    currentBrand = ex.brand || 'all';
+    if(examNeedsApproval(ex)){
+      _oeGuestSay('📝', ex.title, 'ชุดนี้ต้องขออนุมัติก่อน — กรอกข้อมูลเพื่อขอสิทธิ์สอบ',
+        '<button class="btn btn-primary" onclick="openReqForm(\'' + esc(ex.id) + '\')">กรอกขอสิทธิ์สอบ</button>');
+      openReqForm(ex.id);
+      return;
+    }
+    $('guestGate').classList.add('hidden');
+    openExamRunner(ex, false);
+  }).catch(function(e){
+    _oeGuestSay('🔒', 'เปิดข้อสอบไม่ได้', (e && e.message) || 'ลิงก์นี้ใช้ไม่ได้',
       '<button class="btn btn-soft" onclick="location.reload()">ลองใหม่</button>');
   });
 }
@@ -7331,20 +7364,34 @@ function submitExamRequest(){
     name: req.name, empId: req.empId, position: req.position, code: ''
   }]);
   closeReqForm();
-  renderBranchExams();
-  toast('ส่งคำขอแล้ว — รอผู้ดูแลอนุมัติ');
+  /* เข้ามาจากลิงก์ ไม่มีรายการชุดข้อสอบให้กลับไปดู — บอกผลบนการ์ดตรงนั้นเลย */
+  var _guest = document.body.classList.contains('oe-guest');
+  if(_guest){
+    _oeGuestSay('⏳', 'ส่งคำขอแล้ว',
+      'รอผู้ดูแลอนุมัติ · อนุมัติแล้วจะส่งลิงก์เข้าสอบให้ ใช้ลิงก์นั้นเข้าสอบได้เลย');
+  } else {
+    renderBranchExams();
+    toast('ส่งคำขอแล้ว — รอผู้ดูแลอนุมัติ');
+  }
 
   apiPost({ type: 'request-exam', req: req }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
     /* จำไว้ว่าคำขอนี้ขอจากเครื่องนี้ — ใช้ตอนกรองให้เห็นเฉพาะของตัวเอง */
     _oeMyReqAdd(res.id);
     if(res.duplicate){
-      toast('มีคำขอนี้อยู่แล้ว รออนุมัติอยู่');
+      if(_guest) _oeGuestSay('⏳', 'มีคำขอนี้อยู่แล้ว', 'รอผู้ดูแลอนุมัติอยู่ ไม่ต้องส่งซ้ำ');
+      else toast('มีคำขอนี้อยู่แล้ว รออนุมัติอยู่');
     }
-    loadExamRequests();
+    if(!_guest) loadExamRequests();
   }).catch(function(e){
     /* ถอนการ์ดที่ขึ้นไว้ก่อนออก ไม่งั้นจะเข้าใจว่าส่งไปแล้วทั้งที่ยังไม่ถึงระบบ */
     EXAM_REQS = EXAM_REQS.filter(function(x){ return x.id !== tmpId; });
+    if(_guest){
+      _oeGuestSay('🔒', 'ส่งคำขอไม่สำเร็จ',
+        (e.message || 'เชื่อมต่อไม่ได้') + ' — ลองใหม่อีกครั้ง',
+        '<button class="btn btn-primary" onclick="openReqForm(\'' + esc(_reqExam ? _reqExam.id : '') + '\')">กรอกใหม่</button>');
+      return;
+    }
     renderBranchExams();
     toast('ส่งคำขอไม่สำเร็จ: ' + (e.message || 'เชื่อมต่อไม่ได้') + ' — ลองใหม่อีกครั้ง', 'err');
   });
