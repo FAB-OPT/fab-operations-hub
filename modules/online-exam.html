@@ -1595,6 +1595,15 @@ label.fld>span>b{font-weight:800}
 .q-count b{font-variant-numeric:tabular-nums;font-weight:600;color:var(--text);font-size:15px}
 .q-warn{display:inline;font-style:normal;font-size:12px;font-weight:700;color:var(--red);margin-left:4px}
 .q-tools{display:flex;gap:7px;flex-wrap:wrap}
+.q-selbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px;
+  padding:9px 13px;border:1px solid var(--border);border-radius:12px;background:var(--bg3)}
+.q-selall{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer}
+.q-selall input{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+.q-selnum{flex:1;min-width:110px;font-size:12.5px;font-weight:700;color:var(--text3);
+  font-variant-numeric:tabular-nums}
+.q-selops{display:flex;gap:7px;flex-wrap:wrap}
+.q-selops .btn[disabled]{opacity:.45;cursor:not-allowed}
+.q-ck{width:17px;height:17px;flex:0 0 auto;accent-color:var(--gold);cursor:pointer}
 .q-addmore{margin-top:4px}
 .q-addmore .btn{width:100%;border-style:dashed;padding:12px}
 .q-addmore .btn:hover{border-color:var(--gold);color:var(--gold);background:var(--gold-soft)}
@@ -2123,6 +2132,17 @@ label.fld>span>b{font-weight:800}
             <button class="btn btn-soft btn-sm" data-oe-action="exam-import" onclick="toggleImportPanel()"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าหลายข้อ</button>
             <button class="btn btn-soft btn-sm" onclick="openCutScan()"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg> ตรวจข้อที่ถูกตัด</button>
             <button class="btn btn-primary btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
+          </div>
+        </div>
+
+        <!-- ลบทีละข้อยังอยู่ที่หัวการ์ด · แถบนี้ไว้จัดการทีละหลายข้อ
+             โผล่เฉพาะตอนมีคำถามอยู่จริง ชุดเปล่าไม่ต้องมีปุ่มลบให้รก -->
+        <div class="q-selbar" id="qSelBar" hidden>
+          <label class="q-selall"><input type="checkbox" id="qSelAll" onchange="qSelAllToggle(this.checked)"> เลือกทั้งหมด</label>
+          <span class="q-selnum" id="qSelNum">ยังไม่ได้เลือก</span>
+          <div class="q-selops">
+            <button type="button" class="btn btn-danger btn-sm" id="qDelSel" onclick="removeSelected()" disabled><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg> ลบที่เลือก</button>
+            <button type="button" class="btn btn-danger btn-sm" onclick="removeAllQuestions()">ลบคำถามทั้งหมด</button>
           </div>
         </div>
 
@@ -3620,6 +3640,59 @@ function applyCutFix(){
   toast('รวมกลับเข้าคำถามแล้ว ' + picked.length + ' ข้อ · ตรวจเฉลยอีกรอบก่อนบันทึก', 'ok');
 }
 
+/* ── เลือกทีละหลายข้อแล้วลบทีเดียว ──
+   ไม่เก็บสถานะที่เลือกไว้ในตัวแปร อ่านจากช่องติ๊กตอนจะใช้เลย
+   เพราะเลขข้อขยับได้ทุกครั้งที่ลบ/สลับ/ทำสำเนา ถ้าจำเป็นเลขไว้จะชี้ผิดข้อ */
+function _qChecks(){ return [].slice.call(document.querySelectorAll('#qEditor .q-ck')); }
+function qSelPaint(){
+  var all = _qChecks();
+  var on  = all.filter(function(el){ return el.checked; });
+  var bar = $('qSelBar'); if(bar) bar.hidden = !all.length;
+  var num = $('qSelNum'); if(num) num.textContent = on.length ? ('เลือกไว้ ' + on.length + ' ข้อ') : 'ยังไม่ได้เลือก';
+  var del = $('qDelSel'); if(del) del.disabled = !on.length;
+  var alls = $('qSelAll');
+  if(alls){
+    alls.checked = all.length > 0 && on.length === all.length;
+    /* เลือกไว้บางส่วน — ขีดกลาง ไม่ใช่ติ๊กเต็มหรือว่างเปล่า จะได้ไม่หลอกตา */
+    alls.indeterminate = on.length > 0 && on.length < all.length;
+  }
+}
+function qSelAllToggle(on){
+  _qChecks().forEach(function(el){ el.checked = !!on; });
+  qSelPaint();
+}
+async function removeSelected(){
+  var idx = _qChecks().filter(function(el){ return el.checked; })
+    .map(function(el){ return Number(el.getAttribute('data-i')); });
+  if(!idx.length) return;
+  var ok = await oeConfirm({
+    icon: '🗑', title: 'ลบคำถามที่เลือก ' + idx.length + ' ข้อ?',
+    text: 'คำถามที่ติ๊กไว้จะหายไปจากชุดนี้',
+    warn: 'ยังไม่บันทึกลงระบบ — ปิดหน้าแก้ไขโดยไม่กดบันทึก ของเดิมยังอยู่ครบ',
+    yes: 'ลบที่เลือก'
+  });
+  if(!ok) return;
+  syncDraftFromDOM();
+  /* ลบจากท้ายมาหน้า ไม่งั้นลบข้อแรกแล้วเลขที่เหลือเลื่อน ลบผิดข้อทันที */
+  idx.sort(function(a, b){ return b - a; }).forEach(function(i){ draftQuestions.splice(i, 1); });
+  renderQEditor();
+  toast('ลบแล้ว ' + idx.length + ' ข้อ', 'ok');
+}
+async function removeAllQuestions(){
+  var n = draftQuestions.length;
+  if(!n) return;
+  var ok = await oeConfirm({
+    icon: '🗑', title: 'ลบคำถามทั้งหมด ' + n + ' ข้อ?',
+    text: 'ชุดนี้จะไม่เหลือคำถามเลย ไว้วางชุดใหม่เข้าไปแทน',
+    warn: 'ยังไม่บันทึกลงระบบ — ปิดหน้าแก้ไขโดยไม่กดบันทึก ของเดิมยังอยู่ครบ',
+    yes: 'ลบทั้งหมด'
+  });
+  if(!ok) return;
+  draftQuestions = [];
+  renderQEditor();
+  toast('ลบคำถามทั้งหมดแล้ว', 'ok');
+}
+
 function moveQuestion(i, dir) {
   var j = i + dir;
   if (j < 0 || j >= draftQuestions.length) return;
@@ -3656,6 +3729,7 @@ function renderQEditor() {
       '<div class="empty" style="padding:38px 20px"><div class="em-ic">📝</div>' +
       '<div class="em-t">ยังไม่มีคำถามในชุดนี้</div>' +
       '<div>กด “เพิ่มคำถาม” เพื่อพิมพ์เอง หรือ “นำเข้าหลายข้อ” ถ้ามีไฟล์อยู่แล้ว</div></div>';
+    qSelPaint();
     return;
   }
 
@@ -3677,6 +3751,7 @@ function renderQEditor() {
 
     return '<div class="q-item' + (_qOk(q) ? '' : ' bad') + '" id="qi_' + qi + '">' +
       '<div class="q-head">' +
+        '<input type="checkbox" class="q-ck" data-i="' + qi + '" onchange="qSelPaint()" title="เลือกข้อนี้" aria-label="เลือกข้อ ' + (qi + 1) + '">' +
         '<span class="q-num">' + (qi + 1) + '</span>' +
         '<input class="txt q-in" id="q_' + qi + '" value="' + esc(q.q) + '" placeholder="พิมพ์คำถามข้อที่ ' + (qi + 1) + '…" oninput="qDirty(' + qi + ')">' +
         '<div class="q-ops">' +
@@ -3696,6 +3771,7 @@ function renderQEditor() {
       '<div class="q-bad">ข้อนี้ยังไม่สมบูรณ์ — ต้องมีคำถาม และตัวเลือกที่พิมพ์แล้วอย่างน้อย 2 อัน ไม่งั้นจะไม่ถูกบันทึก</div>' +
     '</div>';
   }).join('');
+  qSelPaint();
 }
 
 /* ── นำเข้าข้อสอบ (Import) ── */
