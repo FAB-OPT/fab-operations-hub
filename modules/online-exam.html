@@ -4319,7 +4319,7 @@ function _oeResRow(r){
     '<td><div class="ell">' + esc(r.examTitle) + '</div>' +
       (why ? '<div class="res-why ell">' + esc(why) + '</div>' : '') + '</td>' +
     '<td class="c"><div class="scorecell"><b class="' + tone + '">' + _oeEffPct(r) + '%</b>' +
-      (_oeSeeKey() ? '<span>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</span>' : '') +
+      '<span>' + esc(r.correct) + '/' + esc(r.total) + ' ข้อ</span>' +
       '<span class="sc-bar"><i class="' + tone + '" style="width:' + Math.max(0, Math.min(100, _oeEffPct(r))) + '%"></i></span>' +
       (_oeCapped(r) ? '<span class="sc-cap">รอบ 2 · จริง ' + esc(r.pct) + '%</span>' : '') +
       '</div></td>' +
@@ -4359,8 +4359,8 @@ function _oeResCard(r){
       '<b>' + _oeEffPct(r) + '<i>%</i></b>' +
       '<div class="rc-bd">' +
         '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
-        '<em>' + (_oeSeeKey() ? 'ตอบถูก ' + esc(r.correct) + ' จาก ' + esc(r.total) + ' ข้อ' : '') +
-          (_oeCapped(r) ? (_oeSeeKey() ? ' · ' : '') + 'รอบ 2 ทำได้จริง ' + esc(r.pct) + '%' : '') + '</em>' +
+        '<em>ตอบถูก ' + esc(r.correct) + ' จาก ' + esc(r.total) + ' ข้อ' +
+          (_oeCapped(r) ? ' · รอบ 2 ทำได้จริง ' + esc(r.pct) + '%' : '') + '</em>' +
       '</div>' +
     '</div>' +
     '<span class="rc-when">' + line.join(' · ') + '</span>' +
@@ -4547,7 +4547,7 @@ function _oeResDetailHtml(r){
          ใช้ conic-gradient วาด ไม่ต้องพึ่ง SVG หรือไลบรารีกราฟ */
       '<div class="rd-ring' + (pass ? ' pass' : ' fail') + '" style="--p:' + _oeEffPct(r) + '">' +
         '<div class="rd-ring-in"><b>' + _oeEffPct(r) + '<small>%</small></b>' +
-          (_oeSeeKey() ? '<span>' + esc(r.correct) + '/' + esc(r.total) + '</span>' : '') + '</div></div>' +
+          '<span>' + esc(r.correct) + '/' + esc(r.total) + '</span></div></div>' +
       '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
     '</div></div>';
 
@@ -4588,16 +4588,16 @@ function _oeResDetailHtml(r){
 
   /* เปิดมาโชว์เฉพาะข้อที่ยังไม่ถูกก่อน — คนเปิดกล่องนี้มาเพื่อดูว่าพลาดตรงไหน
      ไม่ใช่มาไล่อ่านข้อที่ถูกทั้ง 50 ข้อ · อยากเห็นครบค่อยกดปุ่มสลับ */
-  /* คนที่ไม่ใช่แอดมินเห็นแค่ว่าตัวเองตอบอะไรไป · ไม่มีป้ายนับ ไม่มีปุ่มกรอง
-     ข้อที่ผิด และไม่ระบายสีรายข้อ เพราะสีก็บอกเฉลยกลาย ๆ อยู่ดี */
+  /* ถูกกี่ข้อ ผิดกี่ข้อ — บอกทุกคน
+     แต่ "ข้อไหน" ยังเป็นของแอดมิน จึงไม่มีปุ่มกรองข้อที่ผิดและไม่ระบายสีรายข้อ */
   var key = _oeSeeKey();
   h += '<div class="rd-secthead">' +
       '<b>คำตอบรายข้อ</b>' +
-      (key ? '<span class="rd-tally">' +
+      '<span class="rd-tally">' +
         '<i class="ok">ถูก ' + nOk + '</i>' +
         (nWrong ? '<i class="bad">ตอบผิด ' + nWrong + '</i>' : '') +
         (nBlank ? '<i class="blank">ไม่ได้ตอบ ' + nBlank + '</i>' : '') +
-      '</span>' : '') +
+      '</span>' +
       (key && miss ? '<button type="button" class="rd-only on" id="rdOnlyWrong" onclick="toggleOnlyWrong(this)">' +
         'ดูทุกข้อ (' + ans.length + ')</button>' : '') +
     '</div>';
@@ -4630,9 +4630,9 @@ function _oeResDetailHtml(r){
    ก็เปิดดูเฉลยจากหน้าแก้ไขอยู่แล้ว การซ่อนจากเขาไม่มีความหมาย
    ส่วนคนที่แก้ไม่ได้ ก็ไม่ควรเห็นเฉลยจากทางนี้
    ข้อดีอีกอย่างคือปรับได้จากตารางสิทธิ์ของฮับ ไม่ต้องมาแก้โค้ด */
-/* เฉลยและ "ถูกกี่ข้อ ผิดกี่ข้อ" คือของชิ้นเดียวกัน — รู้ว่าผิด 7 ข้อจาก 50
-   แล้วสอบซ้ำก็ไล่หาได้ว่าข้อไหน · ปิดพร้อมกัน เปิดให้แอดมินคนเดียว
-   คนสอบเห็นแค่เปอร์เซ็นต์กับผ่าน/ไม่ผ่าน ซึ่งพอสำหรับตัดสินผล */
+/* เฉลย — แอดมินเท่านั้น · รวมถึงของที่บอกเป็นนัยว่าข้อไหนผิด
+   (สีรายข้อ · ปุ่มกรองเฉพาะข้อที่ผิด) เพราะรู้ว่าข้อไหนผิดแล้วสอบซ้ำ
+   ก็เท่ากับได้เฉลยไปครึ่งหนึ่ง */
 function _oeSeeKey(){ return _oeRole() === 'admin'; }
 function _oeAnsBlank(a){
   if(!a) return true;
@@ -4740,11 +4740,9 @@ function _oeReportHtml(r){
       'ทั้งหมด <b>' + esc(_oeFmtMin(um) || '-') + '</b>' +
       '<span class="gap">เฉลี่ยต่อข้อ <b>' + esc(_oeFmtMin(per) || '-') + '</b></span>', 0],
     ['ผลคะแนน',
-      (_oeSeeKey()
-        ? 'ตอบถูก <b>' + right + '</b> จาก <b>' + total + '</b> ข้อ' +
-          '<span class="gap">ตอบผิด <b>' + wrong + '</b> ข้อ</span><span class="gap">คิดเป็น '
-        : 'คิดเป็น ') +
-      '<b class="big' + (pass ? '' : ' bad') + '">' + eff + '</b> %</span>' +
+      'ตอบถูก <b>' + right + '</b> จาก <b>' + total + '</b> ข้อ' +
+      '<span class="gap">ตอบผิด <b>' + wrong + '</b> ข้อ</span>' +
+      '<span class="gap">คิดเป็น <b class="big' + (pass ? '' : ' bad') + '">' + eff + '</b> %</span>' +
       (capped ? '<span class="gap">(สอบรอบที่ 2 · ทำได้จริง ' + pct + ' % นับเป็น '
         + OE_PASS_PCT + ' % ตามกติกา)</span>' : ''), 0]
   ];
@@ -4901,7 +4899,7 @@ async function deleteResultAt(i){
     facts: [
       ['ชุดข้อสอบ', r.examTitle || ''],
       ['สาขา', r.branch || '-'],
-      ['คะแนน', r.pct + '%' + (_oeSeeKey() ? ' (' + r.correct + '/' + r.total + ')' : '')],
+      ['คะแนน', r.pct + '% (' + r.correct + '/' + r.total + ')'],
       ['วันที่สอบ', fmtDT(r.submittedAt)]
     ],
     warn: 'ลบแล้วกู้คืนไม่ได้',
@@ -4955,10 +4953,9 @@ function renderResults(){
 function exportResultsCSV(){
   var list=filteredResults();
   if(!list.length){ toast('ไม่มีข้อมูลให้ดาวน์โหลด','err'); return; }
-  var key=_oeSeeKey();
   var head=['วันที่-เวลา','ชื่อ-สกุล','รหัสพนักงาน','ตำแหน่ง','สาขา','ชุดข้อสอบ','คะแนน(%)','ตอบถูก','ทั้งหมด','ผลสอบ','จำนวนเตือน','หมายเหตุ'];
   var rows=[head].concat(list.map(function(r){
-    return [fmtDT(r.submittedAt), r.name, r.empId, r.position||'', r.branch, r.examTitle, r.pct, (key?r.correct:''), (key?r.total:''), (isPass(r)?'ผ่าน':'ไม่ผ่าน'), r.violations||0, r.finishReason||''];
+    return [fmtDT(r.submittedAt), r.name, r.empId, r.position||'', r.branch, r.examTitle, r.pct, r.correct, r.total, (isPass(r)?'ผ่าน':'ไม่ผ่าน'), r.violations||0, r.finishReason||''];
   }));
   var csv='﻿'+rows.map(function(row){ return row.map(function(c){ return '"'+String(c==null?'':c).replace(/"/g,'""')+'"'; }).join(','); }).join('\r\n');
   var blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
@@ -5544,8 +5541,7 @@ function computeAndShow(){
   var head=$('resHead');
   head.className = pass ? 'ok' : 'no';
   head.textContent = pass ? 'ผ่านเกณฑ์' : 'ยังไม่ผ่านเกณฑ์';
-  $('resSub').innerHTML = (_oeSeeKey() ? 'ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · ' : '') +
-    'เกณฑ์ผ่าน ' + R.exam.passingScorePercent + '%';
+  $('resSub').innerHTML = 'ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · เกณฑ์ผ่าน ' + R.exam.passingScorePercent + '%';
   _oePaintResNote();
 
   /* โหมดทดลองไม่มีผลจริงให้พิมพ์ ซ่อนปุ่มเอกสารไว้ */
