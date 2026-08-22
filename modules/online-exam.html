@@ -1526,11 +1526,30 @@ button.rq-done-it:hover{background:var(--bg3)}
 .gg-t{font-size:19px;font-weight:800;letter-spacing:-.02em;margin-bottom:7px}
 .gg-s{font-size:13.5px;color:var(--text2);line-height:1.6}
 .gg-act{margin-top:18px}
+/* ตัวเลือกในกล่องแชร์ — แถวใหญ่กดง่ายบนมือถือ มีคำอธิบายใต้หัวข้อ
+   จะได้ไม่ต้องเดาว่าปุ่มไหนทำอะไร */
+/* กล่องนี้เปิดทับกล่องรายละเอียดผลสอบ ซึ่งเป็น .modal เหมือนกัน
+   ตัวมันอยู่ต้นเอกสารกว่า จึงต้องยกชั้นขึ้นเอง ไม่งั้นโดนบังจนไม่เห็น */
+#shareModal{z-index:2100}
+.sh-op{display:flex;align-items:center;gap:13px;width:100%;text-align:left;padding:14px;
+  border:1px solid var(--border);border-radius:12px;background:var(--bg2);transition:.14s}
+.sh-op+.sh-op{margin-top:10px}
+@media (hover:hover) and (pointer:fine){
+  .sh-op:hover{border-color:var(--gold);background:var(--gold-soft)}
+}
+.sh-ic{flex:0 0 40px;height:40px;border-radius:11px;display:grid;place-items:center;
+  background:var(--bg3);border:1px solid var(--border);color:var(--text2)}
+.sh-ic svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.9;
+  stroke-linecap:round;stroke-linejoin:round}
+.sh-tx{min-width:0}
+.sh-tx b{display:block;font-size:14.5px;font-weight:800;letter-spacing:-.01em}
+.sh-tx em{display:block;font-style:normal;font-size:12px;color:var(--text3);margin-top:2px;line-height:1.45}
 /* เข้ามาด้วยลิงก์ = ไม่มีบัญชี ไม่มีแบรนด์ให้สลับ และปุ่มกลับหน้าหลัก
    จะพาไปหน้าล็อกอินซึ่งไม่ใช่เรื่องของเขา — เอาออกให้หมด */
 body.oe-guest #userChip,
 body.oe-guest #brandChip,
-body.oe-guest .topbar .btn-back{display:none}
+body.oe-guest .topbar .btn-back,
+body.oe-guest .docs-bar>.btn-soft:first-child{display:none}
 .rd-act{display:flex;gap:6px;flex:1;min-width:0}
 .rd-acts .rd-act>.btn{flex:1;min-width:0}
 .rd-acts .btn.lnk{flex:0 0 44px;width:44px;padding:0;color:var(--text3)}
@@ -1918,6 +1937,32 @@ label.fld>span>b{font-weight:800}
 </div>
 
 <!-- ═══════════ BRAND GATE (เลือกแบรนด์ก่อนใช้งาน) ═══════════ -->
+<!-- ═══════════ กดปุ่มแล้วเลือกก่อน: เปิดเอง หรือส่งลิงก์ ═══════════
+     เดิมมีปุ่มโซ่แยกอีกอันข้าง ๆ ปุ่มจริง กลายเป็นปุ่มเล็ก ๆ เต็มแถวไปหมด
+     และไม่มีใครรู้ว่าโซ่อันไหนคู่กับใบไหน -->
+<div class="modal" id="shareModal">
+  <div class="modal-box" style="max-width:430px">
+    <div class="modal-head">
+      <div class="mh-left">
+        <div class="mh-ic" id="shIcon">📄</div>
+        <div style="min-width:0"><h3 id="shTitle">—</h3><div class="mh-sub" id="shSub">—</div></div>
+      </div>
+      <button class="modal-x" onclick="closeShare()" title="ปิด">×</button>
+    </div>
+    <div class="modal-body">
+      <button type="button" class="sh-op" id="shHere" onclick="_shGo(0)">
+        <span class="sh-ic"><svg viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2"/><path d="M8 21h8M12 17v4"/></svg></span>
+        <span class="sh-tx"><b id="shHereT">เปิดบนเครื่องนี้</b><em id="shHereS">ทำต่อบนหน้าจอนี้ได้เลย</em></span>
+      </button>
+      <button type="button" class="sh-op" id="shLink" onclick="_shGo(1)">
+        <span class="sh-ic"><svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/>
+          <path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></span>
+        <span class="sh-tx"><b>คัดลอกลิงก์</b><em id="shLinkS">ส่งให้คนอื่นเปิดได้เลย ไม่ต้องล็อกอิน</em></span>
+      </button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════ เข้าด้วยลิงก์ (ไม่ต้องล็อกอิน) ═══════════
      ลิงก์ผูกกับคำขอที่อนุมัติแล้ว ซึ่งระบุตัวตนไว้ครบและใช้สอบได้ครั้งเดียว
      ตัวลิงก์จึงทำหน้าที่เป็นกุญแจอยู่แล้ว ไม่ต้องให้ล็อกอินซ้ำอีกชั้น -->
@@ -3003,19 +3048,22 @@ function oeApplyPerms(){
 
 /* ═════════════════════ BOOT ═════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
-  /* ลิงก์เข้าสอบ (#go=รหัส) ใช้ได้เลยโดยไม่ต้องล็อกอิน — ตัวลิงก์คือกุญแจ
-     หลังบ้านตรวจให้อยู่แล้วว่ารหัสนี้อนุมัติแล้วและยังไม่ถูกใช้ */
-  var _go = /^go=(.+)$/.exec(String(location.hash || '').replace(/^#/, ''));
-  if(_go){ oeGuestBoot(decodeURIComponent(_go[1])); return; }
-
+  /* ลิงก์ที่ส่งต่อกัน (เข้าสอบ · ใบรายงาน · ชุดเอกสาร) เปิดได้เลยโดยไม่ต้องล็อกอิน
+     ตัวลิงก์เองคือกุญแจ — คนที่ได้ลิงก์ไปคือคนที่ตั้งใจส่งให้อยู่แล้ว
+     คนที่ล็อกอินอยู่แล้วให้เข้าทางปกติ จะได้มีเมนูให้กดต่อหลังปิดเอกสาร */
   var role = sessionStorage.getItem('fab_role');
+  var _hash = String(location.hash || '').replace(/^#/, '');
+  var _go = /^(go|report|docs)=(.+)$/.exec(_hash);
+  if(_go){
+    var _v = decodeURIComponent(_go[2]);
+    if(_go[1] === 'go'){ oeGuestBoot(_v); return; }
+    if(!role){ oeGuestDoc(_go[1], _v); return; }
+  }
+
   if(!role){
-    /* ลิงก์แบบอื่น (ใบรายงาน/ชุดเอกสาร) ยังต้องล็อกอิน เพราะเป็นข้อมูลของคนอื่น
+    /* ลิงก์ที่เหลือ (#exam=) ต้องรู้ว่าเป็นสาขาไหนถึงจะขอสิทธิ์ได้ จึงต้องล็อกอิน
        เด้งไปฮับเฉย ๆ แล้วลิงก์จะหาย จึงจำที่หมายไว้ก่อน พอกลับเข้ามาค่อยพาไปต่อ */
-    try{
-      var _lk = String(location.hash || '').replace(/^#/, '');
-      if(_lk) localStorage.setItem('oe_pending_link', _lk);
-    }catch(e){}
+    try{ if(_hash) localStorage.setItem('oe_pending_link', _hash); }catch(e){}
     window.location.href='../index.html'; return;
   }
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
@@ -3062,6 +3110,27 @@ function _oeGuestSay(icon, t, sub, act){
   $('ggTitle').textContent = t;
   $('ggSub').textContent = sub || '';
   $('ggAct').innerHTML = act || '';
+}
+/* ── เปิดใบรายงาน/ชุดเอกสารจากลิงก์ ──
+   ตัวชี้คือ เวลาส่ง+รหัสพนักงาน · ดึงผลสอบมาแล้วหาให้ตรงตัว
+   หาไม่เจอ = ผลถูกลบไปแล้ว หรือลิงก์ผิด บอกไปตรง ๆ ไม่ปล่อยหน้าขาว */
+function oeGuestDoc(kind, id){
+  document.body.classList.add('oe-guest');
+  _oeGuestSay(kind === 'report' ? '🖨' : '📑', 'กำลังเปิดเอกสาร…', 'กำลังดึงผลสอบจากระบบ');
+  apiGet('exam-results').then(function(res){
+    var list = (res && res.ok && res.results) ? res.results : [];
+    ALL_RESULTS = list; RESULTS = list;
+    var r = null;
+    for(var i = 0; i < list.length; i++) if(_oeResId(list[i]) === id){ r = list[i]; break; }
+    if(!r) throw new Error('ไม่พบผลสอบของลิงก์นี้ — อาจถูกลบไปแล้ว');
+    _oeResCur = r;
+    currentBrand = r.brand || 'all';
+    $('guestGate').classList.add('hidden');
+    if(kind === 'report') printResultReport(); else openDocSet();
+  }).catch(function(e){
+    _oeGuestSay('🔒', 'เปิดเอกสารไม่ได้', (e && e.message) || 'ลิงก์นี้ใช้ไม่ได้',
+      '<button class="btn btn-soft" onclick="location.reload()">ลองใหม่</button>');
+  });
 }
 function oeGuestBoot(code){
   document.body.classList.add('oe-guest');
@@ -3116,6 +3185,41 @@ function _oeResById(id){
   for(var i = 0; i < pool.length; i++) if(_oeResId(pool[i]) === id) return pool[i];
   return null;
 }
+/* ── กดปุ่มแล้วถามก่อนว่าจะเปิดเองหรือส่งต่อ ──
+   ปุ่มเดียวทำสองอย่าง ไม่ต้องมีปุ่มโซ่แยกอีกอันให้เดาว่าคู่กับอะไร */
+var OE_SHARE = {
+  exam:   { ic: '📝', t: 'ชุดข้อสอบ',        s: 'เปิดหน้าทำข้อสอบชุดนี้',   here: 'เปิดบนเครื่องนี้' },
+  go:     { ic: '📝', t: 'ลิงก์เข้าสอบ',      s: 'ของคนที่อนุมัติไปแล้ว',    here: 'เริ่มสอบบนเครื่องนี้' },
+  report: { ic: '🖨', t: 'ใบรายงานผลสอบ',   s: 'เอกสารสรุปผลสอบของคนนี้', here: 'พิมพ์บนเครื่องนี้' },
+  docs:   { ic: '📑', t: 'ชุดเอกสาร',        s: 'เอกสารประกอบผลสอบทั้งชุด', here: 'เปิดบนเครื่องนี้' }
+};
+var _shNow = null;
+function oePick(kind, id, extra){
+  var c = OE_SHARE[kind] || {};
+  _shNow = { kind: kind, id: id, extra: extra || '' };
+  $('shIcon').textContent = c.ic || '🔗';
+  $('shTitle').textContent = c.t || 'ลิงก์';
+  $('shSub').textContent = c.s || '';
+  $('shHereT').textContent = c.here || 'เปิดบนเครื่องนี้';
+  $('shareModal').classList.add('show');
+}
+function closeShare(){ $('shareModal').classList.remove('show'); _shNow = null; }
+function _shGo(asLink){
+  var it = _shNow; if(!it) return;
+  closeShare();
+  if(asLink){ oeShare(it.kind, it.id, (OE_SHARE[it.kind] || {}).t || ''); return; }
+  if(it.kind === 'go'){
+    if(it.extra) startWithCode(it.extra);
+    else oeGuestBoot(it.id);
+    return;
+  }
+  if(it.kind === 'exam'){ _oeRunLink({ kind: 'exam', id: it.id }); return; }
+  var r = _oeResById(it.id);
+  if(!r){ toast('ไม่พบผลสอบนี้แล้ว', 'err'); return; }
+  _oeResCur = r;
+  if(it.kind === 'report') printResultReport(); else openDocSet();
+}
+
 function oeShare(kind, id, what){
   var url = _oeShareUrl(kind, id);
   var ok = function(){ toast('คัดลอกลิงก์' + what + 'แล้ว'); };
@@ -3619,7 +3723,7 @@ function _oeExamRow(ex){
     '<div class="xr-act">' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
-      '<button class="btn btn-soft btn-sm btn-icon" onclick="oeShare(\'exam\',\'' + ex.id + '\',\'เข้าทำข้อสอบ\')" title="คัดลอกลิงก์เข้าทำข้อสอบ"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button>' +
+      '<button class="btn btn-soft btn-sm btn-icon" onclick="oePick(\'exam\',\'' + ex.id + '\')" title="เปิด/ส่งลิงก์เข้าทำข้อสอบ"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button>' +
       '<button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-delete" onclick="deleteExam(\'' + ex.id + '\')" title="ลบชุดข้อสอบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</div></article>';
 }
@@ -4727,6 +4831,7 @@ function _oeResDetailHtml(r){
       '<span class="pill ' + (pass ? 'pass' : 'fail') + '">' + (pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</span>' +
     '</div></div>';
 
+  var rid = _oeResId(r);
   h += _oeRuleNote(r);
 
   /* ปุ่มเอกสารอยู่ใต้ผลเลย — เดิมอยู่ท้ายกล่อง ต้องเลื่อนผ่านคำตอบทุกข้อ
@@ -4734,13 +4839,11 @@ function _oeResDetailHtml(r){
   /* ปุ่มโซ่ข้างละอัน — คัดลอกลิงก์ของสิ่งที่อยู่ติดกันนั้นเลย
      คนรับกดแล้วเปิดใบนั้นได้ทันที ไม่ต้องบอกวิธีไล่หาในระบบ */
   var rid = _oeResId(r);
+  /* ปุ่มเดียวต่อหนึ่งเรื่อง — กดแล้วค่อยถามว่าจะเปิดเองหรือส่งลิงก์ให้คนอื่น
+     เดิมมีปุ่มโซ่แยกอีกอันข้าง ๆ ทำให้แถวเต็มไปด้วยปุ่มเล็ก ๆ ที่ไม่รู้ว่าคู่กับอะไร */
   h += '<div class="rd-acts">' +
-    '<span class="rd-act"><button class="btn btn-soft" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>' +
-      '<button class="btn btn-soft btn-icon lnk" title="คัดลอกลิงก์ใบรายงานผลสอบ"' +
-      ' onclick="oeShare(\'report\',\'' + esc(rid) + '\',\'ใบรายงานผลสอบ\')"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button></span>' +
-    '<span class="rd-act"><button class="btn btn-primary" onclick="openDocSet()">📑 ชุดเอกสาร</button>' +
-      '<button class="btn btn-soft btn-icon lnk" title="คัดลอกลิงก์ชุดเอกสาร"' +
-      ' onclick="oeShare(\'docs\',\'' + esc(rid) + '\',\'ชุดเอกสาร\')"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button></span>' +
+    '<button class="btn btn-soft" onclick="oePick(\'report\',\'' + esc(rid) + '\')">🖨 ใบรายงานผลสอบ</button>' +
+    '<button class="btn btn-primary" onclick="oePick(\'docs\',\'' + esc(rid) + '\')">📑 ชุดเอกสาร</button>' +
   '</div>';
 
   /* ข้อมูลประกอบ — เวลาที่ใช้คำนวณจากเริ่มถึงส่ง ไม่ได้เก็บไว้ตรง ๆ */
@@ -7447,7 +7550,7 @@ function _reqActs(r){
      ไม่ต้องล็อกอิน ไม่ต้องกรอกอะไรซ้ำ เพราะตัวตนอยู่ในคำขอนี้แล้ว */
   if(r.status === 'approved' && r.code){
     act += ' <button class="btn btn-soft btn-sm btn-icon" title="คัดลอกลิงก์เข้าสอบของคนนี้"'
-      + ' onclick="oeShare(\'go\',\'' + esc(r.code) + '\',\'เข้าสอบ\')">'
+      + ' onclick="oePick(\'go\',\'' + esc(r.code) + '\',\'' + esc(r.id) + '\')">'
       + '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/>'
       + '<path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></button>';
   }
