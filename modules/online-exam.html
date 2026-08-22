@@ -1548,8 +1548,7 @@ button.rq-done-it:hover{background:var(--bg3)}
    จะพาไปหน้าล็อกอินซึ่งไม่ใช่เรื่องของเขา — เอาออกให้หมด */
 body.oe-guest #userChip,
 body.oe-guest #brandChip,
-body.oe-guest .topbar .btn-back,
-body.oe-guest .docs-bar>.btn-soft:first-child{display:none}
+body.oe-guest .topbar .btn-back{display:none}
 .rd-act{display:flex;gap:6px;flex:1;min-width:0}
 .rd-acts .rd-act>.btn{flex:1;min-width:0}
 .rd-acts .btn.lnk{flex:0 0 44px;width:44px;padding:0;color:var(--text3)}
@@ -3060,10 +3059,11 @@ window.addEventListener('DOMContentLoaded', function(){
      คนที่ล็อกอินอยู่แล้วให้เข้าทางปกติ จะได้มีเมนูให้กดต่อหลังปิดเอกสาร */
   var role = sessionStorage.getItem('fab_role');
   var _hash = String(location.hash || '').replace(/^#/, '');
-  var _go = /^(go|report|docs|exam)=(.+)$/.exec(_hash);
+  var _go = /^(go|retake|report|docs|exam)=(.+)$/.exec(_hash);
   if(_go){
     var _v = decodeURIComponent(_go[2]);
     if(_go[1] === 'go'){ oeGuestBoot(_v); return; }
+    if(_go[1] === 'retake'){ oeGuestRetake(_v); return; }
     if(!role){
       if(_go[1] === 'exam') oeGuestExam(_v); else oeGuestDoc(_go[1], _v);
       return;
@@ -3146,6 +3146,37 @@ function oeGuestDoc(kind, id){
    ลิงก์นี้ไม่ได้ระบุว่าเป็นใคร ต่างจากลิงก์เข้าสอบรายคน จึงต้องเดินตาม
    ค่าที่ตั้งไว้ในชุดข้อสอบเอง: ชุดที่ตั้งว่าต้องขออนุมัติก่อน ก็ให้กรอกขอสิทธิ์
    ชุดที่ไม่ต้องขอ ก็เข้าหน้าเตรียมสอบแล้วกรอกชื่อตัวเองได้เลย */
+/* ── สอบรอบสองจากลิงก์ ──
+   ตัวชี้คือผลสอบรอบแรก · สิทธิ์รอบสองตัดสินจากผลสอบอยู่แล้ว (ตกและยังไม่เกินกำหนด)
+   จึงตรวจจากตรงนั้นได้เลย ไม่ต้องพึ่งรหัสคำขอที่ถูกใช้ไปแล้ว */
+function oeGuestRetake(id){
+  document.body.classList.add('oe-guest');
+  _oeGuestSay('📝', 'กำลังเปิดข้อสอบรอบที่ 2…', 'กำลังตรวจสิทธิ์สอบใหม่');
+  var rec = null;
+  apiGet('exam-results').then(function(res){
+    var list = (res && res.ok && res.results) ? res.results : [];
+    ALL_RESULTS = list; RESULTS = list;
+    for(var i = 0; i < list.length; i++) if(_oeResId(list[i]) === id){ rec = list[i]; break; }
+    if(!rec) throw new Error('ไม่พบผลสอบของลิงก์นี้ — อาจถูกลบไปแล้ว');
+    if(_oeRetakeLeft(rec) == null) throw new Error('ลิงก์นี้ใช้ไม่ได้แล้ว — สอบครบตามกติกา หรือเลยกำหนดสอบใหม่');
+    return apiGet('exams');
+  }).then(function(ex){
+    var list = (ex && ex.ok && ex.exams) ? ex.exams : [];
+    var exam = list.filter(function(x){ return x.id === rec.examId; })[0];
+    if(!exam) throw new Error('ไม่พบชุดข้อสอบของลิงก์นี้ — อาจถูกลบไปแล้ว');
+    EXAMS = list;
+    currentBrand = exam.brand || 'all';
+    $('guestGate').classList.add('hidden');
+    openExamRunner(exam, false, {
+      code: '', name: rec.name, empId: rec.empId,
+      position: rec.position, branchName: rec.branch, retake: true
+    });
+    if(R) R.verify = null;   // สิทธิ์รอบสองตรวจจากผลสอบไปแล้ว ไม่มีรหัสให้ถาม
+  }).catch(function(e){
+    _oeGuestSay('🔒', 'เปิดข้อสอบไม่ได้', (e && e.message) || 'ลิงก์นี้ใช้ไม่ได้',
+      '<button class="btn btn-soft" onclick="location.reload()">ลองใหม่</button>');
+  });
+}
 function oeGuestExam(id){
   document.body.classList.add('oe-guest');
   _oeGuestSay('📝', 'กำลังเปิดชุดข้อสอบ…', 'กำลังตรวจว่าชุดนี้ยังเปิดให้ทำอยู่ไหม');
@@ -3231,7 +3262,8 @@ var OE_SHARE = {
   exam:   { ic: '📝', t: 'ชุดข้อสอบ',        s: 'เปิดหน้าทำข้อสอบชุดนี้',   here: 'เปิดบนเครื่องนี้' },
   go:     { ic: '📝', t: 'เริ่มทำข้อสอบ',     s: 'สิทธิ์ที่อนุมัติแล้ว · ใช้ได้ครั้งเดียว', here: 'ทำบนเครื่องนี้' },
   report: { ic: '🖨', t: 'ใบรายงานผลสอบ',   s: 'เอกสารสรุปผลสอบของคนนี้', here: 'พิมพ์บนเครื่องนี้' },
-  docs:   { ic: '📑', t: 'ชุดเอกสาร',        s: 'เอกสารประกอบผลสอบทั้งชุด', here: 'เปิดบนเครื่องนี้' }
+  docs:   { ic: '📑', t: 'ชุดเอกสาร',        s: 'เอกสารประกอบผลสอบทั้งชุด', here: 'เปิดบนเครื่องนี้' },
+  retake: { ic: '📝', t: 'สอบใหม่ (ครั้งที่ 2)', s: 'สิทธิ์สอบใหม่ตามกติกา · ทำได้อีกครั้งเดียว', here: 'ทำบนเครื่องนี้' }
 };
 var _shNow = null;
 function oePick(kind, id, extra){
@@ -3251,6 +3283,13 @@ function _shGo(asLink){
   if(it.kind === 'go'){
     if(it.extra) startWithCode(it.extra);
     else oeGuestBoot(it.id);
+    return;
+  }
+  /* รอบสองใช้คำขอใบเดิมซึ่งรหัสตายไปแล้ว — บนเครื่องนี้เข้าทางคำขอได้ตามปกติ
+     ส่วนลิงก์ต้องผูกกับผลสอบแทน เพราะสิทธิ์รอบสองตัดสินจากผลสอบอยู่แล้ว */
+  if(it.kind === 'retake'){
+    if(it.extra) startWithCode(it.extra);
+    else oeGuestRetake(it.id);
     return;
   }
   if(it.kind === 'exam'){ _oeRunLink({ kind: 'exam', id: it.id }); return; }
@@ -4660,7 +4699,7 @@ function _oeResRow(r){
        stopPropagation กันไม่ให้กดปุ่มแล้วเปิดกล่องรายละเอียดตามมาด้วย */
     '<td class="c"><div class="res-acts">' +
       '<button class="res-doc" title="ชุดเอกสารประกอบผลสอบ"' +
-      ' onclick="event.stopPropagation();openDocsAt(' + _oeResKey(r) + ')">' +
+      ' onclick="event.stopPropagation();oePick(\'docs\',\'' + esc(_oeResId(r)) + '\')">' +
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
       'stroke-linecap="round" stroke-linejoin="round">' +
       '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>' +
@@ -4696,7 +4735,7 @@ function _oeResCard(r){
     '</div>' +
     '<span class="rc-when">' + line.join(' · ') + '</span>' +
     '<div class="rc-acts" onclick="event.stopPropagation()">' +
-      '<button class="res-doc" onclick="openDocsAt(' + _oeResKey(r) + ')">' +
+      '<button class="res-doc" onclick="oePick(\'docs\',\'' + esc(_oeResId(r)) + '\')">' +
         '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
         'stroke-linecap="round" stroke-linejoin="round">' +
         '<path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 01-2-2v-5a2 2 0 012-2h16a2 2 0 012 2v5a2 2 0 01-2 2h-2"/>' +
@@ -6132,11 +6171,18 @@ function _docPayWire(){
 }
 
 /* ── เปิด/ปิดชุดเอกสาร ── */
+var _docFromExam = false;
 function openDocSet(){
   var r = _oeResCur;
   if(!r){ toast('ไม่พบผลสอบ','err'); return; }
   _docR = r;
   closeResultDetail();
+  _oeResCur = r;            // closeResultDetail ล้างทิ้ง — ต้องคืนกลับ ไม่งั้นกดเปิดรอบสองไม่ติด
+  /* เปิดจากหน้าผลสอบท้ายการทำข้อสอบ — ซ้อนสองชั้นเต็มจอทับกันแล้วเลื่อนกันเอง
+     พับชั้นข้อสอบไว้ก่อน ปิดเอกสารแล้วค่อยคืนกลับมา */
+  var ov = $('examOverlay');
+  _docFromExam = !!(ov && ov.classList.contains('show'));
+  if(_docFromExam) ov.classList.remove('show');
   $('docsPick').innerHTML =
     '<label><input type="checkbox" id="pickAdjust" onchange="docsPickForm(\'adjust\',this.checked)">ใบปรับสภาพ</label>' +
     '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
@@ -6864,6 +6910,17 @@ function closeDocSet(){
   $('docsView').classList.add('hidden');
   document.body.style.overflow = '';
   _docR = null;
+  if(_docFromExam){
+    _docFromExam = false;
+    $('examOverlay').classList.add('show');
+    return;
+  }
+  /* เข้ามาจากลิงก์ ไม่มีหน้าจัดการอยู่ข้างหลัง ปิดแล้วจะเหลือจอเปล่า
+     คืนการ์ดพร้อมปุ่มเปิดใหม่ให้แทน */
+  if(document.body.classList.contains('oe-guest')){
+    _oeGuestSay('📑', 'ปิดเอกสารแล้ว', 'ต้องดูอีกครั้งก็กดปุ่มด้านล่างได้เลย',
+      '<button class="btn btn-primary" onclick="openDocSet()">เปิดเอกสารอีกครั้ง</button>');
+  }
 }
 
 /* ── ร่าง: เก็บไว้ในเครื่อง ผูกกับผลสอบใบนั้น ──
@@ -7454,9 +7511,11 @@ function renderBranchReqs(){
               : '')
           + (ready
               ? '<div class="rq-act"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="'
-                + ((!again && r.code)
-                    ? 'oePick(\'go\',\'' + esc(r.code) + '\',\'' + esc(r.id) + '\')'
-                    : 'startWithCode(\'' + esc(r.id) + '\')')
+                + (again
+                    ? 'oePick(\'retake\',\'' + esc(_oeResId(_oeResultOfReq(r))) + '\',\'' + esc(r.id) + '\')'
+                    : (r.code
+                        ? 'oePick(\'go\',\'' + esc(r.code) + '\',\'' + esc(r.id) + '\')'
+                        : 'startWithCode(\'' + esc(r.id) + '\')'))
                 + '">'
                 + '<svg viewBox="0 0 24 24"><path d="M5 3l14 9-14 9V3z"/></svg> '
                 + (again ? 'สอบใหม่ (ครั้งที่ 2)' : 'เริ่มทำข้อสอบ') + '</button></div>'
