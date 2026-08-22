@@ -1330,8 +1330,16 @@ button.rq-done-it:hover{background:var(--bg3)}
   .choice:hover{background:var(--bg2);border-color:var(--border2);transform:translateY(-1px);
     box-shadow:0 4px 12px rgba(15,23,42,.06)}
 }
+/* แตะแล้วปุ่มยังถือโฟกัสไว้ · บางเครื่องวาดกรอบ/เงาให้เอง อันที่เพิ่งแตะเลย
+   หน้าตาไม่เหมือนเพื่อน · แถบเทาที่ iOS แปะตอนแตะก็ปิดทิ้ง
+   เหลือความต่างอย่างเดียวคือ .sel = ข้อที่เลือกอยู่จริง
+   คนใช้คีย์บอร์ดยังต้องเห็นว่าตอนนี้อยู่ปุ่มไหน จึงเปิดกรอบไว้ที่ :focus-visible */
+.choice{-webkit-tap-highlight-color:transparent}
+.choice:focus{outline:none;box-shadow:none}
+.choice:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
 .choice.sel{background:var(--gold-soft);border-color:var(--gold);transform:none;
   box-shadow:0 0 0 3px rgba(255,122,26,.14)}
+.choice.sel:focus{box-shadow:0 0 0 3px rgba(255,122,26,.14)}
 .choice .key{flex:0 0 34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--bg2);
   border:1.5px solid var(--border);font-weight:800;font-size:13.5px;color:var(--text3);transition:.13s}
 @media (hover:hover) and (pointer:fine){
@@ -5521,19 +5529,50 @@ function _docSheetExam(r){
 }
 
 /* ── ฐานเงินเดือนที่ได้จากผลสอบ ──
-   ตัวเลขนี้มาจากกติกา ไม่ใช่เรื่องที่คนกรอกจะตัดสินเอง จึงเติมให้แล้วล็อกไว้
-   ช่อง "ปัจจุบัน" ยังกรอกเองได้ตามปกติ เพราะระบบสอบไม่รู้ฐานเดิมของแต่ละคน
-   สอบไม่ผ่าน = ไม่มีตัวเลขให้ล็อก ปล่อยว่างไว้ให้กรอกเองเหมือนเดิม */
-function _docLockPay(){
-  var el = document.querySelector('#docsSheets [data-doc="adjust"] [data-d="f_V24"]');
-  if(!el) return;
+   ระบบสอบไม่รู้ฐานเดิมของแต่ละคน ช่อง "ปัจจุบัน" จึงยังกรอกเองเหมือนเดิม
+   พอใส่ฐานเดิมมา ช่อง "เปลี่ยนเป็น" คิดให้เลย = ฐานเดิม + ที่ได้เพิ่มตามคะแนน
+   แล้วล็อกไว้ เพราะตัวเลขนี้มาจากกติกา ไม่ใช่เรื่องที่คนกรอกจะตัดสินเอง
+   สอบไม่ผ่าน = ไม่มีอะไรให้บวก ปล่อยทั้งสองช่องให้กรอกเองตามปกติ */
+function _docPayNum(v){
+  /* รับได้ทั้ง 10000 · 10,000 · "10,000 บาท" — เอาเฉพาะตัวเลขกับจุดทศนิยม */
+  var t = String(v == null ? '' : v).replace(/[^\d.]/g, '');
+  if(!t) return null;
+  var x = parseFloat(t);
+  return isFinite(x) ? x : null;
+}
+function _docPayBump(){
   var r = _docR;
-  var bump = (r && isPass(r)) ? _oeBump(_oeEffPct(r)) : 0;
-  if(!bump){ el.readOnly = false; el.classList.remove('xlock'); el.title = ''; return; }
-  el.value = 'เพิ่ม ' + bump.toLocaleString() + ' บาท (ผลสอบ ' + _oeEffPct(r) + '%)';
-  el.readOnly = true;
-  el.classList.add('xlock');
-  el.title = 'มาจากผลสอบตามกติกา แก้ไม่ได้';
+  return (r && isPass(r)) ? _oeBump(_oeEffPct(r)) : 0;
+}
+function _docPayCalc(){
+  var box = document.querySelector('#docsSheets [data-doc="adjust"]');
+  if(!box) return;
+  var cur = box.querySelector('[data-d="f_G24"]');
+  var out = box.querySelector('[data-d="f_V24"]');
+  if(!cur || !out) return;
+  var bump = _docPayBump();
+  if(!bump){ out.readOnly = false; out.classList.remove('xlock'); out.placeholder = ''; out.title = ''; return; }
+  out.readOnly = true;
+  out.classList.add('xlock');
+  out.title = 'บวกให้จากผลสอบ ' + _oeEffPct(_docR) + '% (+' + bump.toLocaleString() + ' บาท) แก้ไม่ได้';
+  var base = _docPayNum(cur.value);
+  if(base == null){
+    /* ยังไม่รู้ฐานเดิม บวกไม่ได้ — บอกไว้ในช่องเลยว่ารออะไรอยู่ ไม่ใช่ปล่อยว่างเฉย ๆ */
+    out.value = '';
+    out.placeholder = 'ใส่เงินเดือนปัจจุบันก่อน (+' + bump.toLocaleString() + ')';
+    return;
+  }
+  out.placeholder = '';
+  out.value = (base + bump).toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
+function _docPayWire(){
+  var box = document.querySelector('#docsSheets [data-doc="adjust"]');
+  var cur = box && box.querySelector('[data-d="f_G24"]');
+  if(cur && !cur.dataset.paywired){
+    cur.dataset.paywired = '1';
+    cur.addEventListener('input', _docPayCalc);
+  }
+  _docPayCalc();
 }
 
 /* ── เปิด/ปิดชุดเอกสาร ── */
@@ -6211,9 +6250,9 @@ function docsPickForm(kind, on){
     _docSet('emp_name', _docR.name);
     _docSet('emp_pos', _docR.position);
     _docSet('emp_branch', _docR.branch);
-    _docLockPay();
     _docMarkSign();
     _docLoadDraft();
+    _docPayWire();          // ต้องหลังโหลดร่าง — ฐานเดิมที่เคยพิมพ์ไว้ต้องถูกคิดใหม่
     _docFitWidth();
     return;
   }
@@ -6491,9 +6530,10 @@ function paintReqCount(){
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
   /* มีของใหม่เข้ามาระหว่างที่เปิดหน้าค้างไว้ — บอกให้รู้ ไม่ใช่ให้ไปสังเกตเลขเอง
      รอบแรกไม่นับ (ยังไม่รู้ค่าเดิม) จะได้ไม่เด้งทักตอนเพิ่งเปิดหน้า
-     นับเฉพาะคำขอของคนอื่น — ที่ตัวเองเพิ่งกดขอไปเอง ไม่ต้องเด้งบอกตัวเอง */
+     นับเฉพาะคำขอของคนอื่น — ที่ตัวเองเพิ่งกดขอไปเอง ไม่ต้องเด้งบอกตัวเอง
+     และเด้งเฉพาะแอดมิน · BZM เห็นเลขบนแท็บพอ ไม่ต้องมีอะไรมาขัดจังหวะ */
   var fromOthers = pend.filter(function(r){ return !_oeIsMyReq(r); }).length;
-  if(_reqSeenPending != null && fromOthers > _reqSeenPending){
+  if(_reqSeenPending != null && fromOthers > _reqSeenPending && _oeRole() === 'admin'){
     toast('มีคำขอสอบใหม่ ' + (fromOthers - _reqSeenPending) + ' รายการ');
   }
   _reqSeenPending = fromOthers;
