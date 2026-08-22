@@ -1598,6 +1598,18 @@ label.fld>span>b{font-weight:800}
 .q-num{width:26px;height:26px;border-radius:8px;background:var(--text);color:#fff;display:grid;place-items:center;
   font-variant-numeric:tabular-nums;font-weight:600;font-size:12.5px;flex:0 0 auto}
 .q-item.bad .q-num{background:var(--red)}
+.cut-row{display:flex;gap:12px;align-items:flex-start;padding:13px 14px;border:1px solid var(--border);
+  border-radius:12px;margin-bottom:9px;cursor:pointer;transition:.14s}
+.cut-row:has(.cut-ck:checked){border-color:var(--gold);background:var(--gold-soft)}
+.cut-ck{width:17px;height:17px;margin-top:2px;flex:0 0 auto;accent-color:var(--gold)}
+.cut-in{min-width:0;flex:1}
+.cut-no{font-weight:800;font-size:12px;color:var(--text3);margin-bottom:5px}
+.cut-was,.cut-now{font-size:13.5px;line-height:1.5;word-break:break-word}
+.cut-was{color:var(--text3);margin-bottom:4px}
+.cut-was em{display:block;font-style:normal;color:var(--red);margin-top:2px}
+.cut-now{color:var(--text);font-weight:600}
+.cut-was b,.cut-now b{display:inline-block;min-width:44px;font-size:11px;font-weight:800;
+  color:var(--text3);letter-spacing:.02em}
 .q-in{flex:1;min-width:0;font-weight:700}
 .q-ops{display:flex;gap:2px;flex:0 0 auto}
 .qop{width:30px;height:30px;border-radius:8px;display:grid;place-items:center;color:var(--text3);transition:.14s}
@@ -1637,7 +1649,7 @@ label.fld>span>b{font-weight:800}
 .imp-h .ic{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:0 0 auto;
   background:var(--gold-soft);color:var(--gold)}
 .imp-h .ic svg{width:15px;height:15px}
-.imp-p{font-size:13px;color:var(--text2);line-height:1.65}
+.imp-p{font-size:13px;color:var(--text2);line-height:1.65;overflow-wrap:break-word}
 .imp-p+.imp-p{margin-top:9px}
 .imp-p b{color:var(--text);font-weight:700}
 .imp-p code{font-variant-numeric:tabular-nums;font-size:12px;background:var(--bg3);
@@ -2101,6 +2113,7 @@ label.fld>span>b{font-weight:800}
           <div class="q-count">คำถามทั้งหมด <b id="qCount">0</b> ข้อ<em id="qWarn" class="q-warn hidden"></em></div>
           <div class="q-tools">
             <button class="btn btn-soft btn-sm" data-oe-action="exam-import" onclick="toggleImportPanel()"><svg viewBox="0 0 24 24"><path d="M4 14.9V17a2 2 0 002 2h12a2 2 0 002-2v-2M7 9l5-5 5 5M12 4v12"/></svg> นำเข้าหลายข้อ</button>
+            <button class="btn btn-soft btn-sm" onclick="openCutScan()"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg> ตรวจข้อที่ถูกตัด</button>
             <button class="btn btn-primary btn-sm" onclick="addQuestion()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มคำถาม</button>
           </div>
         </div>
@@ -2176,6 +2189,12 @@ label.fld>span>b{font-weight:800}
 *0–4 °C
 5–10 °C
 10–15 °C</pre>
+        <p class="imp-p"><b>คำถามยาวเกินหนึ่งบรรทัด</b> ให้ใส่ <code>ก. ข. ค.</code> (หรือ <code>1. 2. 3.</code>) หน้าตัวเลือกด้วย ระบบจะได้รู้ว่าคำถามจบตรงไหน — ไม่งั้นบรรทัดที่สองของคำถามจะกลายเป็นตัวเลือก</p>
+        <pre class="imp-code">เมื่อพบอาหารในตู้แช่มีกลิ่นผิดปกติ
+พนักงานต้องทำอย่างไรเป็นลำดับแรก?
+*ก. แจ้งหัวหน้างานทันที
+ข. ทิ้งเอง
+ค. ชิมดูก่อน</pre>
         <p class="imp-p">หรือวาง <b>JSON</b> จากไฟล์ข้อสอบเดิมที่มี <code>questions:[{q,choices,answer}]</code> ระบบจะรู้จักเอง</p>
       </div>
       <textarea class="txt code" id="importText" placeholder="วางข้อสอบที่นี่…" oninput="previewImport()"></textarea>
@@ -2187,6 +2206,33 @@ label.fld>span>b{font-weight:800}
     <div class="modal-foot">
       <button class="btn btn-soft" onclick="closeImport()">ยกเลิก</button>
       <button class="btn btn-primary" onclick="doImport()"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg> เพิ่มต่อท้ายคำถามเดิม</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════ ตรวจข้อที่ถูกตัด ═══════════ -->
+<div class="modal" id="cutModal">
+  <div class="modal-box" style="max-width:640px">
+    <div class="modal-head">
+      <div class="mh-left">
+        <div class="mh-ic"><svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg></div>
+        <div style="min-width:0"><h3>ตรวจข้อที่ถูกตัด</h3><div class="mh-sub" id="cutSub">—</div></div>
+      </div>
+      <button class="modal-x" onclick="closeCutScan()" title="ปิด">×</button>
+    </div>
+    <div class="modal-body">
+      <div class="imp-card" style="margin-bottom:14px">
+        <div class="imp-h"><span class="ic"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>ตรวจอะไร</div>
+        <p class="imp-p">คำถามที่พิมพ์ยาวเกินหนึ่งบรรทัด ตัวนำเข้ารุ่นเก่าจะเก็บไว้แค่บรรทัดแรก
+          ส่วนที่เหลือไปโผล่เป็นตัวเลือกเกินมาหนึ่งอัน</p>
+        <p class="imp-p">ข้างล่างคือข้อที่เข้าข่าย — ดูก่อน–หลังแล้วติ๊กเฉพาะข้อที่ถูกจริง
+          ระบบจะรวมตัวเลือกอันแรกกลับเข้าคำถามให้ <b>อย่าลืมตรวจเฉลยอีกรอบก่อนบันทึก</b></p>
+      </div>
+      <div id="cutList"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-soft" onclick="closeCutScan()">ปิด</button>
+      <button class="btn btn-primary" id="cutApply" onclick="applyCutFix()">รวมกลับเข้าคำถาม</button>
     </div>
   </div>
 </div>
@@ -3509,6 +3555,63 @@ function qDirty(qi) {
   if (card) card.classList.toggle('bad', !_qOk(draftQuestions[qi]));
   _qWarnRefresh();
 }
+/* ── ตรวจข้อที่ถูกตัดตอนนำเข้า ──
+   ตัวนำเข้ารุ่นเก่าอ่านว่า "บรรทัดแรก = คำถาม · ที่เหลือ = ตัวเลือก" คำถามที่พิมพ์
+   ยาวเกินหนึ่งบรรทัดจึงเหลือแค่ท่อนแรก และท่อนที่เหลือไปโผล่เป็นตัวเลือกอันแรก
+   จับจากคำถามที่ไม่มีคำถามอยู่ในนั้นเลย (ไม่มี ? ไม่มี ข้อใด/อะไร/เท่าใด …)
+   ไม่แก้ให้เองเงียบ ๆ เพราะเป็นการเดา — ให้คนตรวจเห็นก่อน–หลังแล้วกดยืนยัน */
+var Q_ASKWORD = /[?？]|ข้อใด|ข้อไหน|อะไร|อย่างไร|เท่าใด|เท่าไร|เท่าไหร่|กี่|ทำไม|เพราะเหตุใด|เมื่อใด|เมื่อไร|ที่ไหน|ใคร|ยกเว้น|ไม่ถูกต้อง|ไม่ใช่|ถูกต้อง|ต่อไปนี้|จงเลือก|หมายถึง/;
+function _cutSuspect(q){
+  if(!q) return false;
+  var t = String(q.q || '').trim();
+  var ch = (q.choices || []).filter(function(c){ return String(c || '').trim() !== ''; });
+  /* เหลือตัวเลือกจริงอย่างน้อย 2 อันหลังรวมกลับ ไม่งั้นข้อนั้นใช้ไม่ได้ */
+  return t !== '' && ch.length >= 3 && !Q_ASKWORD.test(t);
+}
+function _cutMerged(q){ return (String(q.q || '').trim() + ' ' + String(q.choices[0] || '').trim()).trim(); }
+var _cutHits = [];
+function openCutScan(){
+  syncDraftFromDOM();
+  _cutHits = [];
+  draftQuestions.forEach(function(q, i){ if(_cutSuspect(q)) _cutHits.push(i); });
+  var sub = $('cutSub'), list = $('cutList'), btn = $('cutApply');
+  sub.textContent = 'ตรวจ ' + draftQuestions.length + ' ข้อ · น่าจะถูกตัด ' + _cutHits.length + ' ข้อ';
+  btn.hidden = !_cutHits.length;
+  if(!_cutHits.length){
+    list.innerHTML = '<div class="empty" style="padding:30px 20px"><div class="em-ic">✅</div>' +
+      '<div class="em-t">ไม่พบข้อที่ถูกตัด</div><div>คำถามทุกข้อในชุดนี้ดูครบประโยคแล้ว</div></div>';
+  } else {
+    list.innerHTML = _cutHits.map(function(i){
+      var q = draftQuestions[i];
+      return '<label class="cut-row">' +
+        '<input type="checkbox" class="cut-ck" value="' + i + '" checked>' +
+        '<div class="cut-in">' +
+          '<div class="cut-no">ข้อ ' + (i + 1) + '</div>' +
+          '<div class="cut-was"><b>ตอนนี้</b> ' + esc(q.q) + '<em>+ ตัวเลือก ก. ' + esc(q.choices[0]) + '</em></div>' +
+          '<div class="cut-now"><b>จะเป็น</b> ' + esc(_cutMerged(q)) + '</div>' +
+        '</div></label>';
+    }).join('');
+  }
+  $('cutModal').classList.add('show');
+}
+function closeCutScan(){ $('cutModal').classList.remove('show'); }
+function applyCutFix(){
+  var picked = [].slice.call(document.querySelectorAll('#cutList .cut-ck:checked'))
+    .map(function(el){ return Number(el.value); }).sort(function(a, b){ return a - b; });
+  if(!picked.length){ toast('ยังไม่ได้เลือกข้อไหนเลย', 'err'); return; }
+  picked.forEach(function(i){
+    var q = draftQuestions[i];
+    q.q = _cutMerged(q);
+    q.choices.splice(0, 1);
+    /* ตัวเลือกหายไปหนึ่งอันข้างหน้า เลขคำตอบต้องเลื่อนตาม
+       ถ้าเดิมชี้ไปที่อันที่ถูกรวมกลับ แปลว่าเฉลยเดิมผิดอยู่แล้ว ถอยไปอันแรกให้คนมาตรวจ */
+    q.answer = q.answer > 0 ? q.answer - 1 : 0;
+  });
+  renderQEditor();
+  closeCutScan();
+  toast('รวมกลับเข้าคำถามแล้ว ' + picked.length + ' ข้อ · ตรวจเฉลยอีกรอบก่อนบันทึก', 'ok');
+}
+
 function moveQuestion(i, dir) {
   var j = i + dir;
   if (j < 0 || j >= draftQuestions.length) return;
@@ -3597,18 +3700,32 @@ function loadImportSample(){
   previewImport();
 }
 // แปลงข้อความ → [{q,choices,answer}]  (บล็อกคั่นด้วยบรรทัดว่าง · * นำหน้า = คำตอบถูก)
+/* บรรทัดนี้เป็น "ตัวเลือก" ไหม — ดูจากเครื่องหมายนำหน้าเท่านั้น
+   * = คำตอบที่ถูก · ก. ข. ค. / a) b) / 1. 2. = ลำดับตัวเลือก */
+var _IMP_MARK = /^(\*\s*)?([ก-ฮ]|[a-zA-Z]|\d{1,2})[.)]\s+/;
+/* ใช้เฉพาะเครื่องหมายลำดับ (ก. / a) / 1.) เป็นตัวชี้ว่าตัวเลือกเริ่มตรงไหน
+   ดาวเดี่ยว ๆ ใช้ไม่ได้ เพราะรูปแบบมาตรฐานที่บอกไว้ในหน้านำเข้าคือ
+   บรรทัดแรก = คำถาม · ที่เหลือ = ตัวเลือก โดยมีดาวนำหน้าเฉพาะข้อที่ถูก
+   ถ้าเอาดาวมาเป็นตัวแบ่ง บรรทัดตัวเลือกก่อนหน้าดาวจะถูกดูดเข้าไปเป็นคำถามแทน */
+function _impIsOrd(ln){ return _IMP_MARK.test(ln); }
 function parseImportText(t){
   var blocks = t.replace(/\r/g,'').split(/\n\s*\n/);
   var out=[];
   blocks.forEach(function(blk){
     var lines = blk.split('\n').map(function(s){return s.trim();}).filter(Boolean);
     if(lines.length<2) return;
-    var q = lines[0].replace(/^\s*\d+[.)]\s*/,'');
+    /* คำถามยาว ๆ ที่ก๊อปมาจาก Word/Excel มักถูกขึ้นบรรทัดใหม่กลางประโยค
+       ถ้าบล็อกนี้ใส่เครื่องหมายกำกับตัวเลือกไว้ ให้ใช้เครื่องหมายเป็นตัวแบ่ง
+       ทุกบรรทัดก่อนตัวเลือกอันแรกคือคำถาม ต่อกลับเป็นประโยคเดียว
+       ไม่มีเครื่องหมายเลยก็กลับไปใช้กฎเดิม (บรรทัดแรก = คำถาม) เพราะเดาทางอื่นไม่ได้ */
+    var firstChoice = 1;
+    for(var k=1;k<lines.length;k++){ if(_impIsOrd(lines[k])){ firstChoice=k; break; } }
+    var q = lines.slice(0, firstChoice).join(' ').replace(/^\s*\d+[.)]\s*/,'');
     var choices=[], answer=0;
-    for(var i=1;i<lines.length;i++){
+    for(var i=firstChoice;i<lines.length;i++){
       var ln=lines[i], correct=false;
       if(/^\*/.test(ln)){ correct=true; ln=ln.replace(/^\*\s*/,''); }
-      ln=ln.replace(/^[ก-ฮa-zA-Z][.)]\s+/,'');
+      ln=ln.replace(/^([ก-ฮ]|[a-zA-Z]|\d{1,2})[.)]\s+/,'');
       if(correct) answer=choices.length;
       choices.push(ln);
     }
