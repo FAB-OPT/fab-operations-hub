@@ -193,6 +193,10 @@ input,select,textarea{font-family:inherit}
   background:#fff7d6;font:inherit;color:#111827;padding:0;min-width:0}
 .xi.xfull{width:100%}
 .xi:focus{outline:none;background:#ffe9ae}
+/* ช่องที่ระบบเป็นคนกรอกตามกติกา — ยังเห็นค่าแต่แก้ไม่ได้ ต้องดูออกว่าคนละพวก
+   กับช่องเหลืองที่รอให้กรอก */
+.xi.xlock{background:var(--bg3);color:var(--text2);font-weight:700;cursor:not-allowed}
+.xi.xlock:focus{background:var(--bg3)}
 /* ช่องที่ต้นฉบับตั้งใจให้เขียนด้วยลายมือ ไม่ใช่กรอกในระบบ
    เว้นที่ว่างกับเส้นจุดไข่ปลาไว้เท่าเดิม แต่ไม่มีพื้นเหลืองและพิมพ์ไม่ได้ */
 .xb{display:inline-block;height:1em;background:transparent;border:none;flex:0 0 auto}
@@ -1319,19 +1323,28 @@ button.rq-done-it:hover{background:var(--bg3)}
   border:1.5px solid transparent;border-radius:15px;padding:16px 19px;font-size:18px;line-height:1.5;
   font-weight:600;color:var(--text);
   transition:border-color .13s,background .13s,box-shadow .13s,transform .13s;user-select:none;width:100%}
-.choice:hover{background:var(--bg2);border-color:var(--border2);transform:translateY(-1px);
-  box-shadow:0 4px 12px rgba(15,23,42,.06)}
+/* เครื่องที่ไม่มีเมาส์จริง (มือถือ/แท็บเล็ต) จะค้างสถานะ hover ไว้ที่ปุ่มที่แตะล่าสุด
+   ตัวเลือกที่เพิ่งแตะเลยหน้าตาไม่เหมือนเพื่อน ทั้งที่ยังไม่ได้เลือก
+   สั่งให้กฎ hover ใช้เฉพาะเครื่องที่ชี้ได้จริง */
+@media (hover:hover) and (pointer:fine){
+  .choice:hover{background:var(--bg2);border-color:var(--border2);transform:translateY(-1px);
+    box-shadow:0 4px 12px rgba(15,23,42,.06)}
+}
 .choice.sel{background:var(--gold-soft);border-color:var(--gold);transform:none;
   box-shadow:0 0 0 3px rgba(255,122,26,.14)}
 .choice .key{flex:0 0 34px;height:34px;border-radius:50%;display:grid;place-items:center;background:var(--bg2);
   border:1.5px solid var(--border);font-weight:800;font-size:13.5px;color:var(--text3);transition:.13s}
-.choice:hover .key{border-color:var(--border2);color:var(--text2)}
+@media (hover:hover) and (pointer:fine){
+  .choice:hover .key{border-color:var(--border2);color:var(--text2)}
+}
 .choice.sel .key{background:var(--gold);color:#fff;border-color:var(--gold)}
 .choice .ctxt{flex:1}
 .nav-grid{display:flex;gap:5px;flex-wrap:wrap;justify-content:center;padding:2px}
 .nav-dot{width:30px;height:30px;border-radius:9px;background:#f4f6fa;border:1px solid transparent;color:var(--text3);
   font-variant-numeric:tabular-nums;font-size:12.5px;font-weight:700;display:grid;place-items:center;transition:.12s}
-.nav-dot:hover{background:var(--bg2);border-color:var(--border2);color:var(--text2)}
+@media (hover:hover) and (pointer:fine){
+  .nav-dot:hover{background:var(--bg2);border-color:var(--border2);color:var(--text2)}
+}
 .nav-dot.done{background:var(--gold);border-color:var(--gold);color:#fff}
 .nav-dot.here{box-shadow:0 0 0 2px var(--text);border-color:transparent}
 .enav{padding:11px 19px;border-radius:11px;font-weight:700;font-size:15px;white-space:nowrap;transition:.14s}
@@ -5390,6 +5403,22 @@ function _docSheetExam(r){
   '</article>';
 }
 
+/* ── ฐานเงินเดือนที่ได้จากผลสอบ ──
+   ตัวเลขนี้มาจากกติกา ไม่ใช่เรื่องที่คนกรอกจะตัดสินเอง จึงเติมให้แล้วล็อกไว้
+   ช่อง "ปัจจุบัน" ยังกรอกเองได้ตามปกติ เพราะระบบสอบไม่รู้ฐานเดิมของแต่ละคน
+   สอบไม่ผ่าน = ไม่มีตัวเลขให้ล็อก ปล่อยว่างไว้ให้กรอกเองเหมือนเดิม */
+function _docLockPay(){
+  var el = document.querySelector('#docsSheets [data-doc="adjust"] [data-d="f_V24"]');
+  if(!el) return;
+  var r = _docR;
+  var bump = (r && isPass(r)) ? _oeBump(_oeEffPct(r)) : 0;
+  if(!bump){ el.readOnly = false; el.classList.remove('xlock'); el.title = ''; return; }
+  el.value = 'เพิ่ม ' + bump.toLocaleString() + ' บาท (ผลสอบ ' + _oeEffPct(r) + '%)';
+  el.readOnly = true;
+  el.classList.add('xlock');
+  el.title = 'มาจากผลสอบตามกติกา แก้ไม่ได้';
+}
+
 /* ── เปิด/ปิดชุดเอกสาร ── */
 function openDocSet(){
   var r = _oeResCur;
@@ -6065,6 +6094,7 @@ function docsPickForm(kind, on){
     _docSet('emp_name', _docR.name);
     _docSet('emp_pos', _docR.position);
     _docSet('emp_branch', _docR.branch);
+    _docLockPay();
     _docMarkSign();
     _docLoadDraft();
     _docFitWidth();
@@ -6337,16 +6367,19 @@ function oeStartReqPoll(){
 }
 
 function paintReqCount(){
-  var n = EXAM_REQS.filter(function(r){ return r.status === 'pending' && brandMatch(r); }).length;
+  var pend = EXAM_REQS.filter(function(r){ return r.status === 'pending' && brandMatch(r); });
+  var n = pend.length;
   /* ป้ายคำขอเป็นสัญญาณเตือน ไม่ใช่สถิติ — ไม่มีของค้างก็ไม่ต้องขึ้นเลข 0 ให้รก */
   var el = $('cntReqs'); if(el){ el.textContent = n; el.hidden = !n; }
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
   /* มีของใหม่เข้ามาระหว่างที่เปิดหน้าค้างไว้ — บอกให้รู้ ไม่ใช่ให้ไปสังเกตเลขเอง
-     รอบแรกไม่นับ (ยังไม่รู้ค่าเดิม) จะได้ไม่เด้งทักตอนเพิ่งเปิดหน้า */
-  if(_reqSeenPending != null && n > _reqSeenPending){
-    toast('มีคำขอสอบใหม่ ' + (n - _reqSeenPending) + ' รายการ');
+     รอบแรกไม่นับ (ยังไม่รู้ค่าเดิม) จะได้ไม่เด้งทักตอนเพิ่งเปิดหน้า
+     นับเฉพาะคำขอของคนอื่น — ที่ตัวเองเพิ่งกดขอไปเอง ไม่ต้องเด้งบอกตัวเอง */
+  var fromOthers = pend.filter(function(r){ return !_oeIsMyReq(r); }).length;
+  if(_reqSeenPending != null && fromOthers > _reqSeenPending){
+    toast('มีคำขอสอบใหม่ ' + (fromOthers - _reqSeenPending) + ' รายการ');
   }
-  _reqSeenPending = n;
+  _reqSeenPending = fromOthers;
   renderAdminRail();
 }
 
