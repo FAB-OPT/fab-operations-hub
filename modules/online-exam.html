@@ -1832,17 +1832,24 @@ label.fld>span>b{font-weight:800}
      คำอธิบายลงบรรทัดล่าง ได้ข้อมูลเท่าเดิมแต่เตี้ยลงเกือบครึ่ง */
   /* มือถือเห็นแถบบรรทัดเดียวอย่างเดียว · เคยทำให้กางเป็นการ์ดได้ แต่พอกางแล้ว
      ตัวเลขชุดเดิมโผล่สองที่ซ้อนกัน อ่านแล้วงงกว่าเดิม เลยตัดตัวกางทิ้ง */
-  .kpi-strip{display:flex;width:100%;gap:8px;align-items:center;overflow:hidden;
-    padding:9px 12px;margin-bottom:14px;background:var(--bg2);
-    border:1px solid var(--border);border-radius:12px;
-    font-size:12.5px;font-weight:700;color:var(--text);text-align:left}
-  .kpi-strip-in{display:flex;flex:1;min-width:0;gap:14px;align-items:baseline;
-    overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch}
-  .kpi-strip-in::-webkit-scrollbar{display:none}
-  .kpi-strip::-webkit-scrollbar{display:none}
+  /* ช่อง 1px ระหว่างช่องใช้สีขอบเป็นพื้นหลัง — ได้เส้นคั่นคมกว่าการตีกรอบทีละช่อง
+     และไม่มีเส้นซ้อนกันตรงรอยต่อ */
+  .kpi-strip{display:grid;grid-template-columns:1fr 1fr;gap:1px;margin-bottom:14px;
+    background:var(--border);border:1px solid var(--border);border-radius:12px;overflow:hidden}
   .kpi-strip[hidden]{display:none}
-  .kpi-strip span{display:inline-flex;gap:5px;white-space:nowrap;align-items:baseline}
-  .kpi-strip i{font-style:normal;font-weight:600;color:var(--text3);font-size:11px}
+  .ks-cell{display:block;padding:10px 12px;background:var(--bg2);text-align:left;
+    font:inherit;color:inherit;width:100%}
+  .ks-cell:active{background:var(--bg3)}
+  .ks-cell b{display:block;font-size:19px;font-weight:800;line-height:1.15;letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums}
+  .ks-cell b small{font-size:11px;font-weight:700;color:var(--text3);margin-left:3px;letter-spacing:0}
+  .ks-cell i{display:block;font-style:normal;font-size:11.5px;font-weight:700;
+    color:var(--text3);margin-top:1px}
+  .ks-cell.a b{color:var(--gold)}
+  .ks-cell.b b{color:var(--green)}
+  .ks-cell.c b{color:var(--blue)}
+  .ks-cell.warn b{color:var(--red)}
+  .ks-cell.calm b{color:var(--text3)}
   /* ปุ่มกลับอยู่ในแถบล่างแล้ว มุมบนเหลือแต่ชื่อหน้ากับชื่อคนใช้
      ปุ่มท้ายหน้าเก็บไว้เผื่อคนที่มีแท็บเดียว ซึ่งไม่มีแถบล่างให้ใส่ */
   .topbar .btn-back{display:none}
@@ -3657,11 +3664,22 @@ function _oeKpiStrip(){
   var cards = host.querySelectorAll('.kpi');
   bar.hidden = host.classList.contains('hidden') || !cards.length;
   if(bar.hidden) return;
-  bar.innerHTML = '<span class="kpi-strip-in">' + [].map.call(cards, function(k){
-    var l = k.querySelector('.k-l'), v = k.querySelector('.k-n');
-    return '<span><i>' + (l ? l.textContent : '') + '</i>'
-      + (v ? v.textContent.replace(/\s+/g, ' ').trim() : '') + '</span>';
-  }).join('') + '</span>';
+  /* เดิมเป็นบรรทัดเดียวเลื่อนซ้ายขวา — เลขที่อยู่ท้ายแถบไม่มีใครเห็น
+     และป้ายกับตัวเลขติดกันจนอ่านสะดุด · จัดเป็นตาราง 2×2 เห็นครบในตาเดียว
+     ยังกดได้เหมือนเดิม กดแล้วไปแท็บที่เป็นที่มาของเลขนั้น */
+  bar.innerHTML = [].map.call(cards, function(k){
+    var l = k.querySelector('.k-l');
+    var v = k.querySelector('.k-n');
+    var u = v && v.querySelector('small');
+    var unit = u ? u.textContent.trim() : '';
+    var num = v ? v.textContent.replace(/\s+/g, ' ').trim() : '';
+    if(unit) num = num.slice(0, num.length - unit.length).trim();
+    var tone = (String(k.className).match(/kpi click ([a-z]+)/) || [])[1] || '';
+    var go = (String(k.getAttribute('onclick') || '').match(/'([^']+)'/) || [])[1] || 'exams';
+    return '<button type="button" class="ks-cell ' + tone + '" onclick="switchTab(\'' + go + '\')">' +
+      '<b>' + esc(num) + (unit ? '<small>' + esc(unit) + '</small>' : '') + '</b>' +
+      '<i>' + esc(l ? l.textContent : '') + '</i></button>';
+  }).join('');
 }
 
 /* ตัวกรองสถานะของแท็บชุดข้อสอบ */
