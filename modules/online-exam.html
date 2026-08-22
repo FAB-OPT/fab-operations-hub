@@ -1518,6 +1518,11 @@ button.rq-done-it:hover{background:var(--bg3)}
 .sc-cap{display:block;font-size:10.5px;color:var(--text3);margin-top:3px}
 .rd-acts{display:flex;gap:9px;margin:12px 0 4px}
 .rd-acts .btn{flex:1;justify-content:center}
+/* ปุ่มหลักกับปุ่มโซ่ของมันอยู่ติดกันเป็นก้อนเดียว จะได้ไม่งงว่าโซ่ไหนคู่กับใบไหน */
+.rd-act{display:flex;gap:6px;flex:1;min-width:0}
+.rd-acts .rd-act>.btn{flex:1;min-width:0}
+.rd-acts .btn.lnk{flex:0 0 44px;width:44px;padding:0;color:var(--text3)}
+.rd-acts .btn.lnk:hover{color:var(--gold);border-color:var(--gold-line)}
 .result-actions{display:flex;gap:11px;flex-wrap:wrap}
 .result-actions .p-btn{flex:1;min-width:150px}
 
@@ -2975,7 +2980,15 @@ function oeApplyPerms(){
 /* ═════════════════════ BOOT ═════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
   var role = sessionStorage.getItem('fab_role');
-  if(!role){ window.location.href='../index.html'; return; }
+  if(!role){
+    /* เปิดลิงก์มาโดยยังไม่ได้ล็อกอิน — เด้งไปฮับแล้วลิงก์จะหายไปเฉย ๆ
+       จำที่หมายไว้ก่อน พอกลับเข้าระบบสอบอีกทีค่อยพาไปต่อให้เอง */
+    try{
+      var _lk = String(location.hash || '').replace(/^#/, '');
+      if(_lk) localStorage.setItem('oe_pending_link', _lk);
+    }catch(e){}
+    window.location.href='../index.html'; return;
+  }
   branchPin = sessionStorage.getItem('fab_branch_pin') || '';
   currentBranchName = sessionStorage.getItem('fab_branch_name') || '';
   var _sess = getHubSession();
@@ -3008,6 +3021,83 @@ window.addEventListener('DOMContentLoaded', function(){
 function _pwaUA(){ return navigator.userAgent||''; }
 function _pwaMobile(){ return /Android|iPhone|iPad|iPod/i.test(_pwaUA())||(/Macintosh/.test(_pwaUA())&&navigator.maxTouchPoints>1); }
 function backToHub(){ window.location.href = '../index.html'; }
+
+/* ═════════════════════ ลิงก์ลัด (ส่งต่อให้คนอื่นเปิดได้เลย) ═════════════════════
+   สามอย่างที่คนขอกันบ่อย: ทำข้อสอบ · ใบรายงานผลสอบ · ชุดเอกสาร
+   เก็บเป็น hash ไม่ใช่ query เพราะ hash ไม่ถูกส่งขึ้นเซิร์ฟเวอร์และไม่ไปกวน
+   พารามิเตอร์อื่นของฮับ · ตัวชี้ผลสอบใช้ เวลาส่ง+รหัสพนักงาน ไม่ใช้ลำดับในรายการ
+   เพราะลำดับเปลี่ยนทุกครั้งที่มีคนส่งข้อสอบเข้ามาใหม่ ลิงก์เดิมจะชี้ผิดคน */
+var OE_LINK_HOLD = 'oe_pending_link';
+function _oeReadLink(){
+  var h = String(location.hash || '').replace(/^#/, '');
+  var m = /^(exam|report|docs)=(.+)$/.exec(h);
+  return m ? { kind: m[1], id: decodeURIComponent(m[2]) } : null;
+}
+function _oeShareUrl(kind, id){
+  return location.origin + location.pathname + '#' + kind + '=' + encodeURIComponent(id);
+}
+/* ตัวชี้ผลสอบที่อยู่ทน — ชุดเดียวกับที่ใช้ตอนสั่งลบผลสอบ */
+function _oeResId(r){
+  return String((r && r.submittedAt) || '') + '~' + String((r && r.empId) || '');
+}
+function _oeResById(id){
+  var pool = _oeAllResults();
+  for(var i = 0; i < pool.length; i++) if(_oeResId(pool[i]) === id) return pool[i];
+  return null;
+}
+function oeShare(kind, id, what){
+  var url = _oeShareUrl(kind, id);
+  var ok = function(){ toast('คัดลอกลิงก์' + what + 'แล้ว'); };
+  /* คัดลอกไม่ได้ (เบราว์เซอร์เก่า/ไม่ใช่ https) — เปิดกล่องให้ลากคัดลอกเอง
+     ดีกว่าเงียบแล้วคนไม่รู้ว่าได้ลิงก์หรือยัง */
+  var no = function(){ try{ window.prompt('คัดลอกลิงก์นี้ไปส่งต่อ', url); }catch(e){ toast(url, 'err'); } };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(url).then(ok).catch(no);
+    return;
+  }
+  try{
+    var ta = document.createElement('textarea');
+    ta.value = url; ta.style.position = 'fixed'; ta.style.opacity = '0';
+    document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); ok();
+  }catch(e){ no(); }
+}
+
+/* พาไปที่หมาย — คืน true เมื่อทำได้จริง · false = ข้อมูลยังมาไม่ถึง ให้ลองใหม่ */
+function _oeRunLink(lk){
+  if(lk.kind === 'exam'){
+    var ex = EXAMS.filter(function(x){ return x.id === lk.id; })[0];
+    if(!ex) return false;
+    if(!_oeOnlyMine && isAdminMode) switchTab('mine');
+    if(!examOpenForBranch(ex)){ toast('ชุดข้อสอบนี้ยังไม่เปิดให้สาขานี้ทำ', 'err'); return true; }
+    /* ขอสิทธิ์ไว้แล้วและอนุมัติแล้ว ก็เข้าสอบเลย ไม่ต้องให้กรอกขอใหม่ */
+    var ready = EXAM_REQS.filter(function(r){
+      return r.examId === ex.id && r.status === 'approved' && _oeIsMyReq(r);
+    })[0];
+    if(ready) startWithCode(ready.id);
+    else if(examNeedsApproval(ex)) openReqForm(ex.id);
+    else startBranchExam(ex.id);
+    return true;
+  }
+  var r = _oeResById(lk.id);
+  if(!r) return false;
+  _oeResCur = r;
+  if(lk.kind === 'report'){ printResultReport(); return true; }
+  if(lk.kind === 'docs'){ openDocSet(); return true; }
+  return false;
+}
+/* ข้อมูลทยอยมาจากหลังบ้าน ลองซ้ำจนกว่าจะเจอ แล้วค่อยล้าง hash ทิ้ง
+   ไม่ล้างก็จะเด้งซ้ำทุกครั้งที่กดรีเฟรช */
+var _oeLinkTries = 0;
+function _oeFollowLink(lk){
+  if(!lk) return;
+  if(_oeRunLink(lk)){
+    try{ history.replaceState(null, '', location.pathname + location.search); }catch(e){}
+    return;
+  }
+  if(++_oeLinkTries > 40){ toast('เปิดลิงก์ไม่สำเร็จ — ไม่พบรายการนี้ หรือไม่มีสิทธิ์ดู', 'err'); return; }
+  setTimeout(function(){ _oeFollowLink(lk); }, 500);
+}
 
 /* ═════════════════════ BRAND GATE (เลือกแบรนด์ก่อนใช้งาน) ═════════════════════ */
 function showBrandGate(){
@@ -3109,6 +3199,20 @@ function pickBrand(key){
     if(isAdminMode){ renderAdminExams(); fillExamFilter(); renderResults(); renderExamRequests(); paintReqCount(); }
     if(mine) renderBranchExams();
   }
+
+  /* ลิงก์ลัด — ทั้งที่เปิดมาตรง ๆ และที่ค้างไว้ตอนถูกเด้งไปล็อกอิน */
+  var _lk = _oeReadLink();
+  if(!_lk){
+    try{
+      var _held = localStorage.getItem(OE_LINK_HOLD);
+      if(_held){
+        localStorage.removeItem(OE_LINK_HOLD);
+        var _m = /^(exam|report|docs)=(.+)$/.exec(_held);
+        if(_m) _lk = { kind: _m[1], id: decodeURIComponent(_m[2]) };
+      }
+    }catch(e){}
+  }
+  if(_lk) _oeFollowLink(_lk);
 }
 // กรองชุดข้อสอบตามแบรนด์ที่เลือก (แบรนด์ว่าง = ใช้ได้ทุกแบรนด์)
 /* คีย์เทียบชื่อแบรนด์ — ตัดช่องว่าง/ขีด/วงเล็บ/วรรณยุกต์ ให้ "เจ๊แดง" = "เจ๊ แดง" = "เจแดง"
@@ -3444,6 +3548,7 @@ function _oeExamRow(ex){
     '<div class="xr-act">' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
+      '<button class="btn btn-soft btn-sm btn-icon" onclick="oeShare(\'exam\',\'' + ex.id + '\',\'เข้าทำข้อสอบ\')" title="คัดลอกลิงก์เข้าทำข้อสอบ"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button>' +
       '<button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-delete" onclick="deleteExam(\'' + ex.id + '\')" title="ลบชุดข้อสอบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</div></article>';
 }
@@ -4555,9 +4660,16 @@ function _oeResDetailHtml(r){
 
   /* ปุ่มเอกสารอยู่ใต้ผลเลย — เดิมอยู่ท้ายกล่อง ต้องเลื่อนผ่านคำตอบทุกข้อ
      กว่าจะเจอ ทั้งที่คนเปิดผลสอบส่วนใหญ่มาเพื่อพิมพ์เอกสาร */
+  /* ปุ่มโซ่ข้างละอัน — คัดลอกลิงก์ของสิ่งที่อยู่ติดกันนั้นเลย
+     คนรับกดแล้วเปิดใบนั้นได้ทันที ไม่ต้องบอกวิธีไล่หาในระบบ */
+  var rid = _oeResId(r);
   h += '<div class="rd-acts">' +
-    '<button class="btn btn-soft" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>' +
-    '<button class="btn btn-primary" onclick="openDocSet()">📑 ชุดเอกสาร</button>' +
+    '<span class="rd-act"><button class="btn btn-soft" onclick="printResultReport()">🖨 ใบรายงานผลสอบ</button>' +
+      '<button class="btn btn-soft btn-icon lnk" title="คัดลอกลิงก์ใบรายงานผลสอบ"' +
+      ' onclick="oeShare(\'report\',\'' + esc(rid) + '\',\'ใบรายงานผลสอบ\')"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button></span>' +
+    '<span class="rd-act"><button class="btn btn-primary" onclick="openDocSet()">📑 ชุดเอกสาร</button>' +
+      '<button class="btn btn-soft btn-icon lnk" title="คัดลอกลิงก์ชุดเอกสาร"' +
+      ' onclick="oeShare(\'docs\',\'' + esc(rid) + '\',\'ชุดเอกสาร\')"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button></span>' +
   '</div>';
 
   /* ข้อมูลประกอบ — เวลาที่ใช้คำนวณจากเริ่มถึงส่ง ไม่ได้เก็บไว้ตรง ๆ */
