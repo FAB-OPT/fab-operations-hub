@@ -1519,6 +1519,18 @@ button.rq-done-it:hover{background:var(--bg3)}
 .rd-acts{display:flex;gap:9px;margin:12px 0 4px}
 .rd-acts .btn{flex:1;justify-content:center}
 /* ปุ่มหลักกับปุ่มโซ่ของมันอยู่ติดกันเป็นก้อนเดียว จะได้ไม่งงว่าโซ่ไหนคู่กับใบไหน */
+/* การ์ดต้อนรับของคนที่เข้ามาด้วยลิงก์ — ไม่มีเมนู ไม่มีแท็บ เหลือแค่สถานะ */
+.gg-card{max-width:420px;margin:14vh auto 0;padding:30px 26px;text-align:center;
+  background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow)}
+.gg-ic{font-size:38px;line-height:1;margin-bottom:14px}
+.gg-t{font-size:19px;font-weight:800;letter-spacing:-.02em;margin-bottom:7px}
+.gg-s{font-size:13.5px;color:var(--text2);line-height:1.6}
+.gg-act{margin-top:18px}
+/* เข้ามาด้วยลิงก์ = ไม่มีบัญชี ไม่มีแบรนด์ให้สลับ และปุ่มกลับหน้าหลัก
+   จะพาไปหน้าล็อกอินซึ่งไม่ใช่เรื่องของเขา — เอาออกให้หมด */
+body.oe-guest #userChip,
+body.oe-guest #brandChip,
+body.oe-guest .topbar .btn-back{display:none}
 .rd-act{display:flex;gap:6px;flex:1;min-width:0}
 .rd-acts .rd-act>.btn{flex:1;min-width:0}
 .rd-acts .btn.lnk{flex:0 0 44px;width:44px;padding:0;color:var(--text3)}
@@ -1906,6 +1918,18 @@ label.fld>span>b{font-weight:800}
 </div>
 
 <!-- ═══════════ BRAND GATE (เลือกแบรนด์ก่อนใช้งาน) ═══════════ -->
+<!-- ═══════════ เข้าด้วยลิงก์ (ไม่ต้องล็อกอิน) ═══════════
+     ลิงก์ผูกกับคำขอที่อนุมัติแล้ว ซึ่งระบุตัวตนไว้ครบและใช้สอบได้ครั้งเดียว
+     ตัวลิงก์จึงทำหน้าที่เป็นกุญแจอยู่แล้ว ไม่ต้องให้ล็อกอินซ้ำอีกชั้น -->
+<section id="guestGate" class="hidden">
+  <div class="gg-card">
+    <div class="gg-ic" id="ggIcon">📝</div>
+    <div class="gg-t" id="ggTitle">กำลังเปิดข้อสอบ…</div>
+    <div class="gg-s" id="ggSub">กำลังตรวจสิทธิ์จากลิงก์ที่ได้รับ</div>
+    <div class="gg-act" id="ggAct"></div>
+  </div>
+</section>
+
 <section id="brandGate" class="hidden">
   <div class="gate-wrap">
     <div class="gate-card">
@@ -2979,10 +3003,15 @@ function oeApplyPerms(){
 
 /* ═════════════════════ BOOT ═════════════════════ */
 window.addEventListener('DOMContentLoaded', function(){
+  /* ลิงก์เข้าสอบ (#go=รหัส) ใช้ได้เลยโดยไม่ต้องล็อกอิน — ตัวลิงก์คือกุญแจ
+     หลังบ้านตรวจให้อยู่แล้วว่ารหัสนี้อนุมัติแล้วและยังไม่ถูกใช้ */
+  var _go = /^go=(.+)$/.exec(String(location.hash || '').replace(/^#/, ''));
+  if(_go){ oeGuestBoot(decodeURIComponent(_go[1])); return; }
+
   var role = sessionStorage.getItem('fab_role');
   if(!role){
-    /* เปิดลิงก์มาโดยยังไม่ได้ล็อกอิน — เด้งไปฮับแล้วลิงก์จะหายไปเฉย ๆ
-       จำที่หมายไว้ก่อน พอกลับเข้าระบบสอบอีกทีค่อยพาไปต่อให้เอง */
+    /* ลิงก์แบบอื่น (ใบรายงาน/ชุดเอกสาร) ยังต้องล็อกอิน เพราะเป็นข้อมูลของคนอื่น
+       เด้งไปฮับเฉย ๆ แล้วลิงก์จะหาย จึงจำที่หมายไว้ก่อน พอกลับเข้ามาค่อยพาไปต่อ */
     try{
       var _lk = String(location.hash || '').replace(/^#/, '');
       if(_lk) localStorage.setItem('oe_pending_link', _lk);
@@ -3021,6 +3050,48 @@ window.addEventListener('DOMContentLoaded', function(){
 function _pwaUA(){ return navigator.userAgent||''; }
 function _pwaMobile(){ return /Android|iPhone|iPad|iPod/i.test(_pwaUA())||(/Macintosh/.test(_pwaUA())&&navigator.maxTouchPoints>1); }
 function backToHub(){ window.location.href = '../index.html'; }
+
+/* ── เข้าสอบด้วยลิงก์ ไม่ต้องล็อกอิน ──
+   ลิงก์พกรหัสของคำขอที่อนุมัติแล้วมาด้วย · หลังบ้านเป็นคนตัดสินว่าใช้ได้ไหม
+   (อนุมัติแล้วหรือยัง · ถูกใช้ไปแล้วหรือยัง) เราไม่ตัดสินเองฝั่งหน้าเว็บ
+   ตัวตนก็เอาจากคำขอ ไม่ให้พิมพ์เอง — ผลสอบจะได้ไม่หลงคน */
+function _oeGuestSay(icon, t, sub, act){
+  var g = $('guestGate'); if(!g) return;
+  g.classList.remove('hidden');
+  $('ggIcon').textContent = icon;
+  $('ggTitle').textContent = t;
+  $('ggSub').textContent = sub || '';
+  $('ggAct').innerHTML = act || '';
+}
+function oeGuestBoot(code){
+  document.body.classList.add('oe-guest');
+  _oeGuestSay('📝', 'กำลังเปิดข้อสอบ…', 'กำลังตรวจสิทธิ์จากลิงก์ที่ได้รับ');
+  apiPost({ type: 'verify-exam-code', code: code }).then(function(res){
+    if(!res || !res.ok) throw new Error((res && res.error) || 'ใช้ลิงก์นี้ไม่ได้');
+    var req = res.request || {};
+    return apiGet('exams').then(function(ex){
+      var list = (ex && ex.ok && ex.exams) ? ex.exams : [];
+      var exam = list.filter(function(x){ return x.id === req.examId; })[0];
+      if(!exam) throw new Error('ไม่พบชุดข้อสอบของลิงก์นี้ — อาจถูกลบไปแล้ว');
+      EXAMS = list;
+      currentBrand = exam.brand || 'all';
+      $('guestGate').classList.add('hidden');
+      openExamRunner(exam, false, {
+        code: code, name: req.name, empId: req.empId,
+        position: req.position, branchName: req.branchName
+      });
+      /* เพิ่งตรวจรหัสไปเมื่อครู่ ไม่ต้องให้ตอนกดเริ่มไปถามซ้ำอีกรอบ */
+      if(R) R.verify = null;
+    });
+  }).catch(function(e){
+    var why = (e && e.message) || 'ลิงก์นี้ใช้ไม่ได้';
+    var used = why.indexOf('ถูกใช้') >= 0;
+    _oeGuestSay(used ? '✅' : '🔒',
+      used ? 'ลิงก์นี้ถูกใช้ทำข้อสอบไปแล้ว' : 'เปิดข้อสอบไม่ได้',
+      used ? 'หนึ่งลิงก์สอบได้ครั้งเดียว · ถ้าต้องสอบอีกครั้ง ขอลิงก์ใหม่จากผู้ดูแล' : why,
+      '<button class="btn btn-soft" onclick="location.reload()">ลองใหม่</button>');
+  });
+}
 
 /* ═════════════════════ ลิงก์ลัด (ส่งต่อให้คนอื่นเปิดได้เลย) ═════════════════════
    สามอย่างที่คนขอกันบ่อย: ทำข้อสอบ · ใบรายงานผลสอบ · ชุดเอกสาร
@@ -5156,6 +5227,9 @@ function fmtClock(sec){ return pad(Math.floor(sec/60))+':'+pad(sec%60); }
 function exShow(scr){ document.querySelectorAll('.exam-scr').forEach(function(s){ s.classList.remove('active'); }); $(scr).classList.add('active'); }
 
 function openExamRunner(exam, isPreview, ticket){
+  /* ชุดข้อสอบที่บันทึกไว้ก่อนมีค่านี้จะไม่มี maxViolations — ปล่อยไว้จะขึ้น
+     "หากถูกเตือนครบ undefined ครั้ง" ในหน้าเตรียมสอบ · ใช้ค่าเดียวกับค่าตั้งต้นในตัวแก้ */
+  if(exam && !(Number(exam.maxViolations) > 0)) exam.maxViolations = 3;
   R = {
     exam: exam, isPreview: !!isPreview,
     accessCode: (ticket && ticket.code) || '',
@@ -7369,6 +7443,14 @@ function _reqActs(r){
     : (r.status === 'rejected'
         ? '<button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="decideReq(\'' + esc(r.id) + '\',\'approve\')">อนุมัติภายหลัง</button>'
         : '');   /* สอบไปแล้ว ไม่มีอะไรให้ตัดสินใจ เหลือแค่ปุ่มลบ */
+  /* อนุมัติแล้วก็ส่งลิงก์ให้เจ้าตัวได้เลย — เขาเปิดแล้วเข้าสอบได้ทันที
+     ไม่ต้องล็อกอิน ไม่ต้องกรอกอะไรซ้ำ เพราะตัวตนอยู่ในคำขอนี้แล้ว */
+  if(r.status === 'approved' && r.code){
+    act += ' <button class="btn btn-soft btn-sm btn-icon" title="คัดลอกลิงก์เข้าสอบของคนนี้"'
+      + ' onclick="oeShare(\'go\',\'' + esc(r.code) + '\',\'เข้าสอบ\')">'
+      + '<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7"/>'
+      + '<path d="M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7"/></svg></button>';
+  }
   act += ' <button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-approve"'
     + ' title="ลบคำขอนี้" onclick="deleteReq(\'' + esc(r.id) + '\')">'
     + '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>';
