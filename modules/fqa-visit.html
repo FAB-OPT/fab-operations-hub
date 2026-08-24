@@ -364,7 +364,16 @@ body.not-admin #botnav [data-v="master"]{display:none}
   box-shadow:0 3px 12px rgba(214,20,43,.3);transition:.15s}
 .topback:active{transform:scale(.95)}
 .topback svg{flex:none}
-.synctop{display:none;align-items:center;font-size:11px;color:var(--text3);gap:4px;white-space:nowrap}
+.synctop{display:none;align-items:center;font-size:11px;color:var(--text3);gap:4px;white-space:nowrap;
+  border:0;background:none;font-family:inherit;cursor:pointer;padding:6px 4px}
+.synctop:active{opacity:.5}
+
+/* ปุ่มซิงค์ในเมนูข้าง — วางใต้กล่องสถานะ เพราะคนอ่านสถานะแล้วถึงจะอยากกด */
+.btn-sync{width:100%;padding:9px;margin-top:8px;border-radius:10px;cursor:pointer;font-size:12.5px;font-weight:700;
+  color:var(--text2);background:var(--surface);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;gap:7px;transition:.15s;font-family:inherit}
+.btn-sync:hover{background:var(--surface2);border-color:var(--text3);color:var(--text)}
+.btn-sync:disabled{opacity:.55;cursor:default}
 
 /* Bottom sheet (ตัวเลือกจากแถบล่าง) */
 #sheet{position:fixed;inset:0;z-index:160;display:none}
@@ -480,6 +489,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
   .layout{grid-template-columns:1fr}
   .side{display:none}
   .topback{display:inline-flex}
+  .synctop{display:inline-flex}
   .topuser{display:inline-flex}
   .botnav{display:flex}
   .top .nomob{display:none}   /* ปุ่ม Excel/PDF ไม่แสดงบนหัวมือถือ (ใช้จากหน้านำเข้า/ส่งออกแทน) */
@@ -670,6 +680,7 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
 
     <div class="side-foot">
       <div class="userbox"><b id="sfUser">FAB Group · Operations</b><span id="sfStore">—</span></div>
+      <button class="btn-sync noprint" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button>
       <button class="btn-hub-nav" onclick="Hub.back()">← กลับหน้าหลัก</button>
     </div>
   </aside>
@@ -681,7 +692,8 @@ table.pdftb td.c{text-align:center;white-space:nowrap}
       </div>
       <div class="sp"></div>
       <span class="topuser noprint" id="topUser"></span>
-      <span class="synctop noprint" id="syncTop"></span>
+      <button type="button" class="synctop noprint" id="syncTop"
+        onclick="Cloud.syncNow()" title="แตะเพื่อซิงค์เดี๋ยวนี้" aria-label="ซิงค์เดี๋ยวนี้"></button>
       <button class="topback noprint" onclick="Hub.back()" aria-label="กลับหน้าหลัก">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
         <span>หน้าหลัก</span>
@@ -2633,6 +2645,13 @@ const Master = {
   systemPane(){
     return `<div style="padding:18px">
       <div class="grid g3" id="ioStats"></div>
+      <div class="card" style="margin-top:14px"><div class="bd">
+        <div style="font-size:12px;font-weight:800;color:var(--text2);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">ซิงค์ข้ามอุปกรณ์</div>
+        <div id="ioSync" style="font-size:13px;color:var(--text2)"></div>
+        <div style="margin-top:12px"><button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button></div>
+        <p class="hint">ปกติระบบซิงค์ให้เองเป็นระยะ ปุ่มนี้ไว้ใช้ตอนอยากได้ข้อมูลล่าสุดทันที
+          หรือตอนสงสัยว่าเครื่องนี้เห็นข้อมูลไม่ครบ — กดแล้วจะดึงมาเทียบใหม่ทั้งก้อน</p>
+      </div></div>
       <div class="card" style="border-color:var(--red-light);margin-top:14px"><div class="bd">
         <div style="font-size:12px;font-weight:800;color:var(--red);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">⚠ ล้างข้อมูล — ใช้ด้วยความระวัง</div>
         <div style="display:flex;gap:9px;flex-wrap:wrap">
