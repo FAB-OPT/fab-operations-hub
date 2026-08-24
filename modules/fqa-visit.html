@@ -1119,6 +1119,14 @@ const uid = ()=> 'R'+Date.now().toString(36)+Math.random().toString(36).slice(2,
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const attr = s => esc(s).replace(/`/g,'&#96;');
 const todayISO = ()=> new Date().toISOString().slice(0,10);
+/* แสดงวันที่เป็น วัน/เดือน/ปี — ที่เก็บยังเป็น YYYY-MM-DD เหมือนเดิม
+   เพราะรูปแบบนั้นเรียงลำดับได้ตรงและเทียบช่วงวันได้ ส่วนที่เปลี่ยนคือตอนแสดงผล
+   ค่าที่ไม่ใช่รูปแบบวันที่ (ว่าง/พัง) คืนกลับไปตามเดิม ดีกว่าโชว์ NaN */
+function fmtDMY(v){
+  const t = String(v == null ? '' : v).slice(0,10);
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
+  return m ? (m[3] + '/' + m[2] + '/' + m[1]) : String(v == null ? '' : v);
+}
 const nowHM = ()=>{ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
 
 /* =======================================================================
@@ -1552,6 +1560,9 @@ const Cloud = {
     /* สลับกลับมาที่แอป / โฟกัสหน้าต่าง = ซิงค์ทันที ไม่ต้องรอรอบ */
     document.addEventListener('visibilitychange', ()=>{ if(!document.hidden) this.refresh(); });
     window.addEventListener('focus', ()=>this.refresh());
+    /* สลับหน้าในแอปก็ถือเป็นจังหวะที่คนกำลังจะอ่านข้อมูล ดึงให้สดก่อน
+       ตัว refresh มีตัวกันซ้อนอยู่แล้ว กดสลับรัว ๆ จึงไม่ยิงซ้อนกัน */
+    window.addEventListener('hashchange', ()=>this.refresh());
   },
 
   /* เปิดแอป — ดึงก่อน แล้วส่งคิวที่ค้าง + เริ่มซิงค์อัตโนมัติ */
@@ -2505,7 +2516,7 @@ const Rec = {
     host.innerHTML=`<table class="tb"><thead><tr>
       <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>สรุปสิ่งที่พบ</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
       ${list.map(r=>`<tr>
-        <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
+        <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
         <td>${planTypeTag(r.type)}</td>
         <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
         <td style="max-width:300px;color:var(--text2)">${esc(summaryLine(r))}</td>
@@ -2525,7 +2536,7 @@ const Rec = {
           ${r.type==='FQA'?`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`:''}</div>
         <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
         <div class="rc-sum">${esc(summaryLine(r))}</div>
-        <div class="rc-meta"><span>📅 ${esc(r.date)} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
+        <div class="rc-meta"><span>📅 ${esc(fmtDMY(r.date))} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
@@ -2542,7 +2553,7 @@ const Rec = {
     const r=DB.all().find(x=>x.id===id);
     const box=(t,b)=>`<div style="margin-bottom:18px"><h4 style="font-size:13.5px;margin-bottom:8px;padding-bottom:5px;border-bottom:1px solid var(--border)">${t}</h4>${b}</div>`;
     const kv=(k,v)=>`<div><div style="font-size:11px;color:var(--text3)">${k}</div><div style="font-weight:500">${esc(v||'—')}</div></div>`;
-    let h=`<div class="grid g4" style="margin-bottom:18px">${kv('วันที่',r.date)}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}</div>
+    let h=`<div class="grid g4" style="margin-bottom:18px">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}</div>
       <div class="grid g2" style="margin-bottom:18px">${kv('สาขา',r.branch)}${kv('ผู้จัดการเขต',r.bzm)}</div>`;
     if(r.type==='FQA'){
       if((r.materials||[]).length) h+=box('วัตถุดิบที่สุ่มตรวจ',`<div class="chipbar">${r.materials.map(m=>`<span class="tag">${esc(m)}</span>`).join('')}</div>`);
@@ -3825,7 +3836,7 @@ const PDF = {
         ${badge}
       </div>
       <div class="pi-grid">
-        ${kv('วันที่',r.date)}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}
+        ${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}
       </div>
     </div>`;
 
@@ -3928,7 +3939,7 @@ const PDF = {
     list = list || Rec.filtered();
     if(!list.length) return App.toast('ไม่มีรายการตามตัวกรอง');
     const rows=list.map(r=>`<tr>
-      <td>${esc(r.date)}<div class="sm">${esc(r.time)}</div></td>
+      <td>${esc(fmtDMY(r.date))}<div class="sm">${esc(r.time)}</div></td>
       <td>${esc(r.type)}${r.type==='VISIT'?`<div class="sm">${esc(visitTypeLabel(r))}</div>`:''}</td>
       <td>${esc(r.branch)}<div class="sm">${esc(r.bzm)}</div></td>
       <td>${esc(summaryLine(r))}</td>
@@ -4013,7 +4024,7 @@ const Report = {
         <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>ผู้ตรวจ</th><th>สรุปสิ่งที่พบ</th><th></th></tr></thead><tbody>
       ${list.map(r=>`<tr>
         <td><input type="checkbox" ${this.sel[r.id]?'checked':''} onchange="Report.toggle('${r.id}', this.checked)"></td>
-        <td class="mono" style="white-space:nowrap">${esc(r.date)}<div style="font-size:11px;color:var(--text3)">${esc(r.time||'')}</div></td>
+        <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time||'')}</div></td>
         <td><span class="tag">${esc(TL[r.type]||r.type)}</span>${r.type==='VISIT'?`<div style="font-size:11px;color:var(--text3);margin-top:3px">${esc(visitTypeLabel(r))}</div>`:''}</td>
         <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
         <td style="font-size:12.5px">${esc(r.trainer||'—')}</td>
