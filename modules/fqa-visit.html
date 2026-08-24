@@ -1587,6 +1587,23 @@ const Cloud = {
     return {cut:cut, mb:(bytes/1048576).toFixed(2)};
   },
 
+  /* ═══ พื้นที่จัดเก็บของทั้งเว็บ ═══
+     localStorage แชร์กันทั้งโดเมน ทุกระบบในฮับใช้ก้อนเดียวกัน โควตาก็ก้อนเดียวกัน
+     ระบบอื่นกินจนเต็มเมื่อไร โมดูลนี้พลอยเขียนไม่ลงไปด้วยทั้งที่ข้อมูลตัวเองนิดเดียว
+     ดูรายคีย์จึงจำเป็น ไม่งั้นเห็นแต่ "ของเรา 0.17 MB" แล้วสรุปผิดว่าไม่ใช่เรื่องพื้นที่ */
+  storage(){
+    let total=0; const rows=[];
+    try{
+      for(let i=0;i<localStorage.length;i++){
+        const k=localStorage.key(i);
+        const n=(((localStorage.getItem(k)||'').length)+k.length)*2;   // นับเป็นไบต์แบบ UTF-16
+        total+=n; rows.push({k:k, n:n});
+      }
+    }catch(e){}
+    rows.sort((a,b)=>b.n-a.n);
+    return {total:total, rows:rows};
+  },
+
   /* ปุ่ม "คืนพื้นที่" — เรียก slim() แล้วรายงานผลให้เห็นว่าได้คืนมาเท่าไร */
   freeUp(){
     const got=this.slim();
@@ -1626,6 +1643,7 @@ const Cloud = {
         this._diagMissing=missing;
 
         const used=(JSON.stringify({r:local,m:M.m}).length/1048576).toFixed(2);
+        const sto=this.storage(), st=(sto.total/1048576).toFixed(2);
         const b64=local.reduce((a,r)=>a+(r.photos||[]).filter(p=>p&&typeof p.data==='string'&&p.data.indexOf('data:')===0).length,0);
         const byDay=arr=>{ const m={}; arr.forEach(r=>{ const d=String(r.date||'—').slice(0,10); m[d]=(m[d]||0)+1; }); return m; };
         const cd=byDay(cloud), ld=byDay(local);
@@ -1649,11 +1667,15 @@ const Cloud = {
           <div>ขาดในเครื่องนี้ <b style="color:${missing.length?'var(--red)':'inherit'}">${missing.length}</b> ใบ ·
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
           <div>คิวค้างส่ง ${this.pending()} · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
-          <div>พื้นที่ที่ใช้ในเครื่องนี้ <b style="color:${used>4?'var(--red)':'inherit'}">${used}</b> MB
-            <span style="color:var(--text3)">(จำกัดราว 5 MB)</span>
-            ${b64>0?` · รูปที่ยังเก็บเป็นไฟล์เต็มในเครื่อง <b>${b64}</b> ใบ`:''}</div>
-          ${used>3.5?`<div style="margin-top:8px;color:var(--red)">พื้นที่ใกล้เต็ม — เครื่องจะบันทึกข้อมูลใหม่ไม่ลง
-            ทำให้ซิงค์แล้วข้อมูลไม่ขึ้น <button class="btn" style="margin-left:6px" onclick="Cloud.freeUp()">คืนพื้นที่</button></div>`:''}
+          <div>พื้นที่ที่ใช้ — ระบบนี้ <b>${used}</b> MB ·
+            <b style="color:${st>3.5?'var(--red)':'inherit'}">ทั้งเว็บรวมกัน ${st} MB</b>
+            <span style="color:var(--text3)">(จำกัดราว 5 MB ต่อเว็บ ทุกระบบใช้ก้อนเดียวกัน)</span>
+            ${b64>0?` · รูปที่ยังเก็บเป็นไฟล์เต็ม <b>${b64}</b> ใบ`:''}</div>
+          ${st>3.5?`<div style="margin-top:8px;color:var(--red)">พื้นที่ใกล้เต็ม — เครื่องนี้บันทึกข้อมูลใหม่ไม่ลง
+            ทำให้ซิงค์แล้วข้อมูลไม่ขึ้น
+            <button class="btn" style="margin-left:6px" onclick="Cloud.freeUp()">คืนพื้นที่ของระบบนี้</button></div>
+          <div style="margin-top:6px;font-size:11.5px;color:var(--text3)">คีย์ที่กินที่สุด —
+            ${sto.rows.slice(0,6).map(x=>esc(x.k)+' '+(x.n/1048576).toFixed(2)+' MB').join(' · ')}</div>`:''}
           <div style="color:var(--text3)">หมุดเวลาล่าสุด ${esc(this.since()||'—')}</div>
           ${missing.length?`<div style="margin-top:10px"><b>ใบที่ขาด (แสดง ${Math.min(missing.length,25)} ใบแรก)</b>
             ${missing.slice(0,25).map(one).join('')}
@@ -1675,8 +1697,16 @@ const Cloud = {
   adopt(){
     const miss=this._diagMissing||[];
     if(!miss.length) return App.toast('ไม่มีใบที่ขาด');
+    /* เขียนทีเดียวทั้งก้อนแล้วเช็คผล — เขียนทีละใบจะไม่รู้ว่าใบไหนตกเพราะพื้นที่เต็ม
+       และถ้าเต็มจริง ต้องบอกตรง ๆ ไม่ใช่ขึ้นว่าดึงสำเร็จแล้วข้อมูลไม่มา */
     const seen=this.synced();
-    miss.forEach(r=>{ DB.writeRecord(r); seen.add(r.id); });
+    const list=DB.all().slice();
+    const at={}; list.forEach((r,i)=>{ if(r&&r.id) at[r.id]=i; });
+    miss.forEach(r=>{ if(at[r.id]!==undefined) list[at[r.id]]=r; else list.unshift(r); seen.add(r.id); });
+    if(!DB.setAll(list)){
+      this.slim();
+      if(!DB.setAll(list)) return App.toast('พื้นที่ในเครื่องเต็ม — เขียนลงไม่ได้ ต้องล้างข้อมูลของระบบอื่นในเว็บนี้ก่อน');
+    }
     this.saveSynced(seen);
     App.toast('ดึงลงเครื่องนี้แล้ว '+miss.length+' ใบ');
     this._diagMissing=[];
