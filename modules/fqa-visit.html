@@ -1540,6 +1540,84 @@ const Cloud = {
       .catch(()=>{ this.setStatus('error'); return false; });
   },
 
+
+  /* ═══ ตรวจสอบการซิงค์ ═══
+     เวลาข้อมูลไม่ขึ้นบางเครื่อง คำถามแรกคือ "หายตรงไหน" — ยังไม่ถึงคลาวด์
+     หรือถึงแล้วแต่เครื่องนี้ไม่รับ  เดาไม่ได้ ต้องเทียบสองฝั่งให้เห็นกันจะ ๆ
+     รายงานนี้ดึงของบนคลาวด์ทั้งก้อนมาเทียบกับของในเครื่อง แล้วบอกว่าใบไหนขาด
+     และขาดเพราะอะไร (ถูกทำเครื่องหมายลบไว้ / คิวลบค้าง / ไม่มีเหตุผลชัด) */
+  diag(){
+    const box=document.getElementById('syncDiag');
+    const put=h=>{ if(box) box.innerHTML=h; };
+    if(!this.enabled()) return put('<span style="color:var(--red)">ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์</span>');
+    put('กำลังตรวจ...');
+    const brand=Brand.cur;
+    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now())
+      .then(r=>r.json())
+      .then(res=>{
+        if(!res || !res.ok || !Array.isArray(res.records)) throw new Error((res&&res.error)||'หลังบ้านตอบไม่ครบ');
+        const cloud=res.records.filter(r=>r&&r.id);
+        const local=DB.all().filter(r=>r&&r.id);
+        const cid=new Set(cloud.map(r=>r.id));
+        const lid=new Set(local.map(r=>r.id));
+        const del=new Set((res.deleted||[]).map(String));
+        const pendDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
+        const missing=cloud.filter(r=>!lid.has(r.id));
+        const extra=local.filter(r=>!cid.has(r.id));
+        this._diagMissing=missing;
+
+        const byDay=arr=>{ const m={}; arr.forEach(r=>{ const d=String(r.date||'—').slice(0,10); m[d]=(m[d]||0)+1; }); return m; };
+        const cd=byDay(cloud), ld=byDay(local);
+        const days=[...new Set(Object.keys(cd).concat(Object.keys(ld)))].sort().reverse().slice(0,12);
+        const why=r=> del.has(r.id) ? '<span style="color:var(--red)">ถูกทำเครื่องหมายลบไว้</span>'
+                   : pendDel.has(r.id) ? '<span style="color:var(--yellow)">มีคิวลบค้างในเครื่องนี้</span>'
+                   : '<span style="color:var(--text3)">ยังไม่ได้ดึงลงมา</span>';
+        const one=r=>`<div style="padding:3px 0;border-top:1px solid var(--border)">
+          ${esc(fmtDMY(r.date))} · ${esc(r.type||'—')} · ${esc(r.branch||'—')} — ${why(r)}
+          <div style="font-size:10.5px;color:var(--text3)" class="mono">${esc(r.id)} · updatedAt ${esc(String(r.updatedAt||'—'))}</div></div>`;
+        const rows=days.map(d=>{
+          const c=cd[d]||0, l=ld[d]||0;
+          const bad=c!==l;
+          return `<tr><td class="mono">${esc(fmtDMY(d))}</td><td style="text-align:right">${c}</td>
+            <td style="text-align:right;color:${bad?'var(--red)':'inherit'};font-weight:${bad?800:400}">${l}</td></tr>`;
+        }).join('');
+
+        put(`<div style="font-size:12.5px;line-height:1.75">
+          <div>แบรนด์ที่ดูอยู่: <b>${esc(brand)}</b></div>
+          <div>บนคลาวด์ <b>${cloud.length}</b> ใบ · ในเครื่องนี้ <b>${local.length}</b> ใบ</div>
+          <div>ขาดในเครื่องนี้ <b style="color:${missing.length?'var(--red)':'inherit'}">${missing.length}</b> ใบ ·
+               มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
+          <div>คิวค้างส่ง ${this.pending()} · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
+          <div style="color:var(--text3)">หมุดเวลาล่าสุด ${esc(this.since()||'—')}</div>
+          ${missing.length?`<div style="margin-top:10px"><b>ใบที่ขาด (แสดง ${Math.min(missing.length,25)} ใบแรก)</b>
+            ${missing.slice(0,25).map(one).join('')}
+            <div style="margin-top:10px"><button class="btn pri" onclick="Cloud.adopt()">⬇ ดึงใบที่ขาดลงเครื่องนี้</button></div></div>`:''}
+          ${extra.length?`<div style="margin-top:10px"><b>ใบที่มีเฉพาะในเครื่องนี้ (แสดง ${Math.min(extra.length,10)} ใบแรก)</b>
+            ${extra.slice(0,10).map(one).join('')}</div>`:''}
+          <div style="margin-top:12px"><b>จำนวนใบต่อวัน (คลาวด์ / เครื่องนี้)</b>
+            <table class="tb" style="margin-top:6px"><thead><tr><th>วันที่</th><th style="text-align:right">คลาวด์</th><th style="text-align:right">เครื่องนี้</th></tr></thead>
+            <tbody>${rows}</tbody></table></div>
+        </div>`);
+        return true;
+      })
+      .catch(e=>{ put('<span style="color:var(--red)">ตรวจไม่สำเร็จ — '+esc((e&&e.message)||String(e))+'</span>'); return false; });
+  },
+
+  /* ดึงใบที่ขาดลงเครื่องนี้แบบตรง ๆ — ข้ามการเทียบ updatedAt ทั้งหมด
+     ใช้ตอนรายงานข้างบนชี้ชัดแล้วว่าคลาวด์มีแต่เครื่องนี้ไม่มี ซึ่งแปลว่า
+     ตรรกะเทียบเวลาปกติตัดสินผิดไปด้วยเหตุใดก็ตาม จึงข้ามมันไปเลย */
+  adopt(){
+    const miss=this._diagMissing||[];
+    if(!miss.length) return App.toast('ไม่มีใบที่ขาด');
+    const seen=this.synced();
+    miss.forEach(r=>{ DB.writeRecord(r); seen.add(r.id); });
+    this.saveSynced(seen);
+    App.toast('ดึงลงเครื่องนี้แล้ว '+miss.length+' ใบ');
+    this._diagMissing=[];
+    Dash.render(); Rec.render();
+    this.diag();
+  },
+
   /* ปุ่ม "ซิงค์เดี๋ยวนี้" */
   syncNow(){
     if(!this.enabled()) return App.toast('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์');
@@ -2648,9 +2726,13 @@ const Master = {
       <div class="card" style="margin-top:14px"><div class="bd">
         <div style="font-size:12px;font-weight:800;color:var(--text2);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">ซิงค์ข้ามอุปกรณ์</div>
         <div id="ioSync" style="font-size:13px;color:var(--text2)"></div>
-        <div style="margin-top:12px"><button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button></div>
+        <div style="margin-top:12px;display:flex;gap:9px;flex-wrap:wrap">
+          <button class="btn pri" onclick="Cloud.syncNow()">⟳ ซิงค์เดี๋ยวนี้</button>
+          <button class="btn" onclick="Cloud.diag()">🔍 ตรวจสอบการซิงค์</button>
+        </div>
         <p class="hint">ปกติระบบซิงค์ให้เองเป็นระยะ ปุ่มนี้ไว้ใช้ตอนอยากได้ข้อมูลล่าสุดทันที
           หรือตอนสงสัยว่าเครื่องนี้เห็นข้อมูลไม่ครบ — กดแล้วจะดึงมาเทียบใหม่ทั้งก้อน</p>
+        <div id="syncDiag" style="margin-top:10px"></div>
       </div></div>
       <div class="card" style="border-color:var(--red-light);margin-top:14px"><div class="bd">
         <div style="font-size:12px;font-weight:800;color:var(--red);letter-spacing:.4px;text-transform:uppercase;margin-bottom:10px">⚠ ล้างข้อมูล — ใช้ด้วยความระวัง</div>
