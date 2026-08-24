@@ -5579,6 +5579,114 @@ function _oeFieldFail(id, msg){
   toast(msg, 'err');
   return false;
 }
+/* ═══════════ ทำข้อสอบค้างไว้ กลับมาทำต่อได้ ═══════════
+   เดิมออกจากหน้าไปเมื่อไร (สายเข้า · แบตหมด · เผลอปิดแท็บ) คำตอบหายหมด
+   ต้องเข้าระบบใหม่แล้วเริ่มนับหนึ่ง ทั้งที่ทำไปแล้วครึ่งชุด
+   เก็บไว้ในเครื่องคนทำ ไม่ได้ส่งขึ้นหลังบ้าน เพราะเป็นของยังไม่เสร็จ
+
+   สองอย่างที่ยังต้องคุมไว้ ไม่งั้นกลายเป็นช่องโกง:
+   · ชุดข้อและลำดับตัวเลือกเก็บไปด้วย — กลับมาได้ข้อเดิมเป๊ะ สุ่มใหม่ไม่ได้
+   · เวลาเดินจากเวลาที่กดเริ่มจริง ไม่ใช่นับใหม่ — ออกไปพักไม่ได้เวลาเพิ่ม
+     หมดเวลาไปแล้วระหว่างที่ไม่อยู่ ก็ส่งเท่าที่ทำไว้ให้เลย */
+var OE_RUN_V = 1;
+var _oeKeepStart = null;   // เวลาเริ่มเดิม ตอนเลือกเริ่มใหม่จากของค้าง
+function _oeRunKey(examId, empId){
+  return 'oe_run_v1_' + String(examId || '') + '_' + String(empId || '');
+}
+function _oeRunSave(){
+  if(!R || R.isPreview || R.finished || !R.startedAt) return;
+  try{
+    localStorage.setItem(_oeRunKey(R.exam.id, R.student.id), JSON.stringify({
+      v: OE_RUN_V,
+      examId: R.exam.id, code: R.accessCode || '', isRetake: !!R.isRetake,
+      student: R.student,
+      questions: R.questions, answers: R.answers, current: R.current,
+      startedAt: R.startedAt.toISOString(),
+      limitSec: (Number(R.exam.timeLimitMinutes) || 0) * 60,
+      violations: R.violations, violationLog: R.violationLog,
+      savedAt: new Date().toISOString()
+    }));
+  }catch(e){}
+}
+function _oeRunLoad(examId, empId){
+  try{
+    var d = JSON.parse(localStorage.getItem(_oeRunKey(examId, empId)) || 'null');
+    if(!d || d.v !== OE_RUN_V || !d.questions || !d.questions.length) return null;
+    return d;
+  }catch(e){ return null; }
+}
+function _oeRunClear(examId, empId){
+  try{ localStorage.removeItem(_oeRunKey(examId, empId)); }catch(e){}
+}
+/* เหลือเวลาเท่าไร — คิดจากเวลาที่กดเริ่มจริงเสมอ */
+function _oeRunLeft(d){
+  var t0 = new Date(d.startedAt).getTime();
+  if(!isFinite(t0)) return 0;
+  return Math.floor(d.limitSec - (Date.now() - t0) / 1000);
+}
+
+/* ── กลับมาทำต่อจากที่ค้างไว้ ──
+   เรียกตอนกดเริ่มสอบ ถ้ามีของค้างของคนคนนี้กับชุดนี้อยู่
+   หมดเวลาไปแล้วระหว่างที่ไม่อยู่ = ส่งเท่าที่ทำไว้ ไม่ใช่ให้ทำต่อฟรี ๆ */
+async function _oeRunResume(d){
+  var left = _oeRunLeft(d);
+  var done = Object.keys(d.answers || {}).length;
+
+  if(left <= 0){
+    /* ไม่ถาม เพราะไม่มีทางเลือกให้เลือก — บอกว่าเกิดอะไรขึ้นแล้วส่งให้เลย */
+    toast('ข้อสอบที่ค้างไว้หมดเวลาแล้ว — ส่งเท่าที่ทำไว้ ' + done + '/' + d.questions.length + ' ข้อ', 'err');
+  } else {
+    var ok = await oeConfirm({
+      icon: '⏳', title: 'มีข้อสอบที่ทำค้างไว้',
+      text: 'ทำต่อจากที่ค้าง หรือเริ่มใหม่ทั้งชุด',
+      facts: [
+        ['ตอบไว้แล้ว', done + ' จาก ' + d.questions.length + ' ข้อ'],
+        ['เวลาที่เหลือ', fmtClock(left) + ' นาที']
+      ],
+      warn: 'เริ่มใหม่ = ได้ข้อชุดใหม่ คำตอบเดิมหายทั้งหมด · เวลายังเดินต่อจากเดิม ไม่ได้เริ่มนับใหม่',
+      yes: 'ทำต่อ', no: 'เริ่มใหม่'
+    });
+    if(!ok){
+      _oeKeepStart = new Date(d.startedAt);   // ทิ้งคำตอบได้ แต่เวลาเดินต่อ
+      _oeRunClear(d.examId, d.student.id);
+      return false;
+    }
+  }
+
+  /* ชุดข้อและลำดับตัวเลือกใช้ของเดิมเป๊ะ — สุ่มใหม่ไม่ได้ */
+  R.student = d.student;
+  /* รหัสกับสถานะรอบสองต้องกลับมาด้วย — ตอนส่งผลใช้รหัสไปปิดคำขอ
+     และรอบสองมีกติกาคิดคะแนนคนละแบบ หายไปแล้วผลจะเพี้ยน */
+  if(d.code) R.accessCode = d.code;
+  R.isRetake = !!d.isRetake;
+  R.questions = d.questions;
+  R.answers = d.answers || {};
+  R.current = Math.min(d.current || 0, d.questions.length - 1);
+  R.violations = d.violations || 0;
+  R.violationLog = (d.violationLog || []).slice();
+  R.startedAt = new Date(d.startedAt);
+  R.finished = false;
+  R.timeLeft = Math.max(0, left);
+
+  exShow('ex-exam');
+  setupWatermark();
+  renderQuestion(); renderNav();
+  attachGuards();
+
+  /* ออกจากหน้าสอบแล้วกลับเข้ามา = การออกจากหน้าจอครั้งหนึ่ง นับเหมือนกรณีอื่น
+     ไม่งั้นปิดแท็บหนีกลายเป็นทางออกฟรีที่ไม่โดนอะไรเลย
+     ต้องนับหลังวาดหน้าเสร็จ เพราะถ้านับแล้วครบกำหนด มันจะส่งข้อสอบและ
+     สลับไปหน้าผลเอง — วาดทีหลังจะไปทับหน้าผลที่ขึ้นมาแล้ว */
+  if(!R.isPreview) registerViolation('ออกจากหน้าสอบแล้วกลับเข้ามาทำต่อ');
+  if(R.finished) return true;
+
+  if(R.timeLeft <= 0){ finishExam('หมดเวลา'); return true; }
+  startTimer();
+  if(!R.isPreview && R.exam.requireFullscreen) goFullscreen();
+  _oeRunSave();
+  return true;
+}
+
 function beginExam(){
   ['inName','inId','inBranch','inPosition'].forEach(function(id){
     var el = $(id);
@@ -5622,6 +5730,14 @@ function beginExam(){
     return;
   }
 
+  /* มีของค้างของคนคนนี้กับชุดนี้ไหม — ถามก่อนสุ่มชุดใหม่
+     ตัวตนเพิ่งกรอกเสร็จตรงนี้ จึงรู้ได้แล้วว่าจะไปหาของค้างของใคร */
+  var _held = R.isPreview ? null : _oeRunLoad(R.exam.id, R.student.id);
+  if(_held){
+    _oeRunResume(_held).then(function(went){ if(!went) beginExam(); });
+    return;
+  }
+
   var CFG=R.exam;
   var qs=(CFG.questions||[]).map(function(item,qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
@@ -5637,6 +5753,13 @@ function beginExam(){
   } else if(CFG.shuffleQuestions) qs=shuffle(qs);
   R.questions=qs; R.answers={}; R.current=0;
   R.timeLeft=CFG.timeLimitMinutes*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
+  /* มาจากการกด "เริ่มใหม่" ทับของค้าง — ใช้เวลาเริ่มเดิม นาฬิกาจึงไม่ได้เริ่มใหม่ */
+  if(_oeKeepStart){
+    R.startedAt = _oeKeepStart;
+    R.timeLeft = Math.max(0, Math.floor(CFG.timeLimitMinutes*60 - (Date.now() - _oeKeepStart.getTime())/1000));
+    _oeKeepStart = null;
+  }
+  _oeRunSave();          // เก็บตั้งแต่วินาทีแรก เผื่อหลุดตั้งแต่ข้อแรก
   exShow('ex-exam');
   setupWatermark();
   renderQuestion(); renderNav(); startTimer();
@@ -5690,6 +5813,7 @@ function renderQuestion(){
 }
 function pickChoice(i){
   R.answers[R.current]=i; renderQuestion(); renderNav();
+  _oeRunSave();          // เก็บทุกครั้งที่ตอบ ไม่ต้องรอกดอะไร
   var total=R.questions.length, cur=R.current;
 
   /* ข้อที่ยังไม่ได้ตอบข้อแรกนับจากตำแหน่งที่กำหนด — ใช้ทั้งตอนหาข้อถัดไปและตอนเช็กว่าครบหรือยัง */
@@ -5726,7 +5850,7 @@ function renderNav(){
   var left=$('ansLeft');
   if(left) left.textContent = (total-done) > 0 ? ('เหลืออีก '+(total-done)+' ข้อ') : 'ตอบครบทุกข้อแล้ว';
 }
-function gotoQ(i){ R.current=i; renderQuestion(); renderNav(); }
+function gotoQ(i){ R.current=i; renderQuestion(); renderNav(); _oeRunSave(); }
 
 function openSubmitModal(){
   var un=R.questions.filter(function(_,i){return R.answers[i]==null;}).length;
@@ -5831,7 +5955,7 @@ function screenshotAttempt(){
 var lockCooldown=false;
 function triggerLock(title,msg){
   if(!R || R.locked || lockCooldown) return;
-  if(!R.isPreview) registerViolation(title);   // นับเฉพาะสอบจริง
+  if(!R.isPreview) { registerViolation(title); _oeRunSave(); }   // นับเฉพาะสอบจริง
   if(R.finished) return;
   R.locked=true;
   /* โหมดทดลองบอกด้วยป้ายแยก ไม่ยัดต่อท้ายหัวเรื่องจนตกบรรทัด */
@@ -5871,6 +5995,8 @@ function registerViolation(reason){
 function finishExam(reason){
   if(R.finished) return;
   R.finished=true;
+  /* จบแล้วไม่มีอะไรให้ทำต่อ — ลบของค้างทิ้ง ไม่งั้นครั้งหน้าจะมาถามให้ทำต่อ */
+  if(R.student) _oeRunClear(R.exam.id, R.student.id);
   clearInterval(R.timerId);
   detachGuards();
   hideWatermark();
