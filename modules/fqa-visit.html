@@ -1089,7 +1089,7 @@ const DB = (()=>{
   return {
     all(){ return read().records; },
     save(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
-      rec.updatedAt=new Date().toISOString();
+      rec.updatedAt=new Date().toISOString();   // ISO เสมอ — ดู _fqaIsoTime ว่าทำไม
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
     /* upsert เฉพาะในเครื่อง โดยไม่แตะ updatedAt — ใช้ตอนซิงค์ (เช่น แทน base64 ด้วย URL รูป) */
     writeRecord(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
@@ -1331,6 +1331,19 @@ const HubBranches = {
      · รูปภาพ base64 → อัปโหลดขึ้น Drive ก่อนส่ง แล้วเก็บเป็น URL แทน
      · เปิดแอป → ดึงจาก cloud รวมกับของในเครื่อง (updatedAt ใหม่กว่าชนะ)
    ======================================================================= */
+/* updatedAt ต้องเป็นข้อความ ISO เสมอ เพราะการซิงค์เทียบกันแบบข้อความ
+   ของเก่าที่เคยบันทึกเป็นตัวเลข (เช่นที่นำเข้าจากไฟล์) จะเทียบแล้วน้อยกว่า
+   ทุกค่าที่เป็นปี ทำให้ถูกคัดทิ้งตลอดกาลตอนซิงค์แบบเอาเฉพาะที่เปลี่ยน
+   แปลงให้เป็น ISO ตรงจุดที่หยิบมาใช้ ของเดิมในเครื่องจึงกลับมาซิงค์ได้เอง */
+function _fqaIsoTime(v){
+  if(v == null || v === '') return '';
+  if(typeof v === 'number' || /^\d{10,}$/.test(String(v))){
+    const t = Number(v);
+    return isFinite(t) ? new Date(t < 1e12 ? t * 1000 : t).toISOString() : '';
+  }
+  return String(v);
+}
+
 const Cloud = {
   URL: HUB_SCRIPT_URL,
   syncing:false,
@@ -1353,7 +1366,16 @@ const Cloud = {
 
      หลังบ้านรองรับ "ขอเฉพาะที่เปลี่ยนหลังเวลานี้" อยู่แล้ว (พารามิเตอร์ since
      + คืนค่า now กลับมาให้จำ) แต่หน้าเว็บไม่เคยใช้ · ตรงนี้คือการเปิดใช้ */
+  /* เผื่อเวลาถอยหลังจากหมุด — updatedAt ตั้งจากนาฬิกาของเครื่องที่บันทึก
+     เครื่องไหนนาฬิกาช้ากว่าเครื่องอื่น รายการที่บันทึกจะได้เวลาย้อนหลัง
+     ถ้าขอ "หลังหมุด" ตรง ๆ รายการนั้นจะตกหล่นถาวรบนเครื่องที่หมุดเดินไปแล้ว
+     ถอยหมุด 6 ชั่วโมงเวลาขอ แลกกับข้อมูลที่ซ้อนมานิดหน่อย คุ้มกว่าข้อมูลหาย */
+  SINCE_SLACK_MS: 6*60*60*1000,
+  FULL_EVERY_MS: 24*60*60*1000,
   sinceKey(){ return 'fqa_sync_since_'+(Brand.cur||'jaedaeng'); },
+  fullKey(){ return 'fqa_sync_full_'+(Brand.cur||'jaedaeng'); },
+  lastFull(){ try{ return Number(localStorage.getItem(this.fullKey())||0)||0; }catch(e){ return 0; } },
+  markFull(){ try{ localStorage.setItem(this.fullKey(), String(Date.now())); }catch(e){} },
   since(){ try{ return localStorage.getItem(this.sinceKey())||''; }catch(e){ return ''; } },
   setSince(v){ try{ if(v) localStorage.setItem(this.sinceKey(), String(v)); }catch(e){} },
   clearSince(){ try{ localStorage.removeItem(this.sinceKey()); }catch(e){} },
@@ -1438,7 +1460,15 @@ const Cloud = {
     if(!this.enabled() || !navigator.onLine) return Promise.resolve(false);
     const brand=Brand.cur;
     /* ไม่มีหมุด หรือในเครื่องยังว่าง = ต้องขอทั้งหมด ไม่งั้นจะได้ข้อมูลไม่ครบ */
-    const since = (full || !DB.all().length) ? '' : this.since();
+    /* ดึงครบทั้งก้อนเป็นระยะ — เผื่อมีอะไรตกหล่นไปแล้วจะได้กลับมาเอง
+       โดยไม่ต้องรอให้คนสังเกตเห็นแล้วกดปุ่มซิงค์เอง */
+    const dueFull = (Date.now() - this.lastFull()) > this.FULL_EVERY_MS;
+    const wantFull = full || dueFull || !DB.all().length;
+    let since = wantFull ? '' : this.since();
+    if(since){
+      const t = Date.parse(since);
+      if(isFinite(t)) since = new Date(t - this.SINCE_SLACK_MS).toISOString();
+    }
     const incremental = !!since;
     this.setStatus('syncing');
     return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
@@ -1457,7 +1487,7 @@ const Cloud = {
         res.records.forEach(cr=>{
           if(!cr || !cr.id || pendingDel.has(cr.id) || deletedIds.has(cr.id)) return;   // กำลังจะลบ/ถูกลบแล้ว → ไม่ดึงกลับ
           const lr=byId[cr.id];
-          if(!lr || String(cr.updatedAt||'') > String(lr.updatedAt||'')){ byId[cr.id]=cr; changed=true; }
+          if(!lr || _fqaIsoTime(cr.updatedAt) > _fqaIsoTime(lr.updatedAt)){ byId[cr.id]=cr; changed=true; }
           seen.add(cr.id);
         });
         /* 2) รายการในเครื่องที่หายไปจาก cloud
@@ -1480,6 +1510,7 @@ const Cloud = {
         /* จำหมุดไว้ใช้รอบหน้า — ใช้ค่าที่หลังบ้านคืนมาเท่านั้น ห้ามใช้เวลาของเครื่องตัวเอง
            นาฬิกาสองฝั่งไม่ตรงกันเมื่อไร รายการที่อยู่ในช่วงคลาดจะหายไปเงียบ ๆ */
         if(res.now) this.setSince(res.now);
+        if(!incremental) this.markFull();   // รอบนี้ขอครบทั้งก้อนแล้ว จับเวลาไว้
         if(changed) DB.setAll(Object.keys(byId).map(k=>byId[k]));
         this.setStatus('synced');
         return changed;
@@ -4178,7 +4209,12 @@ const IO = {
       base.branch=branch;
       base.bzm=col(r,['ผู้จัดการเขต'])||(M.branchOf(branch)||{}).bzm||'';
       base.trainer=String(col(r,['ผู้ตรวจ'])||'');
-      base.updatedAt=Date.now();
+      /* ต้องเป็นข้อความ ISO เท่านั้น ห้ามเป็นตัวเลข
+         การซิงค์เทียบ updatedAt แบบข้อความ ('2026-08-24T...' > '2026-08-23T...')
+         ถ้าเป็นตัวเลข ('1756...') จะน้อยกว่าปีทุกค่าเสมอเมื่อเทียบเป็นข้อความ
+         หลังบ้านเลยคัดรายการนั้นทิ้งทุกครั้งที่ซิงค์แบบเอาเฉพาะที่เปลี่ยน
+         ผลคือเครื่องที่เคยดึงครบแล้วเห็น แต่เครื่องอื่นไม่มีวันได้รับเลย */
+      base.updatedAt=new Date().toISOString();
       const topic=String(col(r,['หัวข้อ','เมนู'])||'').trim();
       const found=String(col(r,['สิ่งที่พบ','รายละเอียด','Complaint'])||'').trim();
       const fix=String(col(r,['การแก้ไข'])||'').trim();
