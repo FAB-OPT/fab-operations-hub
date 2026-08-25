@@ -1819,7 +1819,7 @@ const Cloud = {
     const brand=Brand.cur;
     return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now())
       .then(r=>r.json())
-      .then(res=>{
+      .then(async res=>{
         if(!res || !res.ok || !Array.isArray(res.records)) throw new Error((res&&res.error)||'หลังบ้านตอบไม่ครบ');
         const cloud=res.records.filter(r=>r&&r.id);
         const local=DB.all().filter(r=>r&&r.id);
@@ -1833,6 +1833,13 @@ const Cloud = {
 
         const used=(JSON.stringify({r:local,m:M.m}).length/1048576).toFixed(2);
         const sto=this.storage(), st=(sto.total/1048576).toFixed(2);
+        /* โควตาจริงของ IndexedDB — เบราว์เซอร์คิดจากพื้นที่ว่างในเครื่อง
+           เอามาโชว์เพื่อให้เห็นว่าที่ย้ายไปแล้วมีที่เหลืออีกเท่าไร ไม่ใช่เดาเอา */
+        let quota = null;
+        try{
+          if(navigator.storage && navigator.storage.estimate) quota = await navigator.storage.estimate();
+        }catch(e){}
+        const _gb = n => (n/1073741824) >= 1 ? (n/1073741824).toFixed(1)+' GB' : Math.round(n/1048576)+' MB';
         const b64=local.reduce((a,r)=>a+(r.photos||[]).filter(p=>p&&typeof p.data==='string'&&p.data.indexOf('data:')===0).length,0);
         const byDay=arr=>{ const m={}; arr.forEach(r=>{ const d=String(r.date||'—').slice(0,10); m[d]=(m[d]||0)+1; }); return m; };
         const cd=byDay(cloud), ld=byDay(local);
@@ -1857,6 +1864,9 @@ const Cloud = {
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
           <div>คิวค้างส่ง <b style="color:${this.pending()?'var(--yellow)':'inherit'}">${this.pending()}</b> · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
           ${this.lastErr?`<div style="color:var(--red)">ส่งไม่ผ่านล่าสุด: ${esc(this.lastErr)}</div>`:''}
+          ${quota ? `<div>พื้นที่ก้อนใหญ่ (IndexedDB): ใช้ไป <b>${_gb(quota.usage||0)}</b>
+            จากทั้งหมด <b style="color:var(--green)">${_gb(quota.quota||0)}</b>
+            <span style="color:var(--text3)">— นี่คือที่ที่ย้ายข้อมูลไปอยู่แล้ว</span></div>` : ''}
           <div>พื้นที่ที่ใช้ — ระบบนี้ <b>${used}</b> MB ·
             <b style="color:${st>3.5?'var(--red)':'inherit'}">ทั้งเว็บรวมกัน ${st} MB</b>
             <span style="color:var(--text3)">(จำกัดราว 5 MB ต่อเว็บ ทุกระบบใช้ก้อนเดียวกัน)</span>
@@ -2063,6 +2073,17 @@ const App = {
     /* ยกข้อมูลจาก IndexedDB ขึ้นหน่วยความจำก่อนวาดอะไรก็ตาม
        ครั้งแรกจะย้ายของเดิมจาก localStorage ให้ด้วย · ทุกอย่างหลังจากนี้อ่านแบบเดิมได้เลย */
     try{ await DB.hydrate(); }catch(e){ console.warn('[fqa] hydrate', e); }
+    /* ขอให้เบราว์เซอร์ "ตรึง" พื้นที่ของเว็บนี้ไว้
+       ปกติเวลาเครื่องใกล้เต็ม เบราว์เซอร์จะไล่ลบข้อมูลของเว็บที่ไม่ค่อยได้ใช้ทิ้ง
+       ขอไว้แล้วจะไม่โดนลบ ต้องให้คนกดลบเองเท่านั้น · เบราว์เซอร์ให้เองเงียบ ๆ
+       ถ้าเว็บถูกใช้บ่อยหรือถูกเพิ่มลงหน้าจอโฮม ไม่ให้ก็ไม่เสียหายอะไร */
+    try{
+      if(navigator.storage && navigator.storage.persist){
+        navigator.storage.persisted().then(ok=>{ if(!ok) return navigator.storage.persist(); })
+          .then(r=>{ if(r!==undefined) console.log('[fqa] ตรึงพื้นที่:', r?'ได้':'ไม่ได้'); })
+          .catch(()=>{});
+      }
+    }catch(e){}
     console.log('[Visit สาขา] build', APP_VERSION, '| brand=', Brand.cur, '| role=', (Hub.session()&&Hub.session().role)||Hub.role()||'-', '| isAdmin=', Hub.isAdmin());
     document.getElementById('sfUser').textContent = Hub.who();
     const uName=(Hub.session()&&(Hub.session().nick||Hub.session().name))||Hub.branchName()||'ผู้ใช้';
