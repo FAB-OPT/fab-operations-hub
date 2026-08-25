@@ -1458,9 +1458,14 @@ const Cloud = {
   uploadPhotos(rec){
     const ph=(rec.photos||[]).filter(p=>p && typeof p.data==='string' && p.data.indexOf('data:')===0);
     if(!ph.length) return Promise.resolve(rec);
+    /* รูปใบไหนอัปไม่ผ่านก็ข้ามไป ห้ามล้มทั้งสาย
+       ของเดิมถ้ารูปเดียวส่งไม่ผ่าน (เน็ตสะดุด/ไฟล์ใหญ่) ทั้งใบจะค้างคิวไปเรื่อย ๆ
+       ผลคือเครื่องอื่นไม่เห็นใบนั้นเลย ทั้งที่ตัวหนังสือส่งได้ตั้งนานแล้ว
+       ตัวที่ไม่ผ่านยังเป็น base64 อยู่ ตอนส่งจริงจะถูกคัดออกและมีข้อความบอก */
     return ph.reduce((chain,p)=>chain.then(()=>
       this.post({type:'upload-fqa-photo', base64:p.data, filename:'fqa-'+rec.id+'-'+Math.random().toString(36).slice(2,7)+'.jpg'})
         .then(res=>{ if(res && res.ok && res.url) p.data=res.url; })
+        .catch(()=>{})
     ), Promise.resolve()).then(()=>{ DB.writeRecord(rec); return rec; });
   },
 
@@ -1471,6 +1476,10 @@ const Cloud = {
     if(!this.queue().length){ this.setStatus('synced'); return Promise.resolve(); }
     this.syncing=true; this.setStatus('syncing');
     const brand=Brand.cur;
+    /* งานที่ส่งไม่ผ่านซ้ำ ๆ จะถูกย้ายไปท้ายคิวหนึ่งครั้งต่อรอบ เพื่อไม่ให้บล็อกงานที่เหลือ
+       ของเดิมพอชิ้นแรกพัง ทั้งคิวหยุดหมด ใบใหม่ที่บันทึกทีหลังเลยไม่มีวันขึ้นคลาวด์
+       ทั้งที่ตัวมันเองไม่ได้มีปัญหาอะไร · rotated กันไม่ให้วนย้ายไม่รู้จบในรอบเดียว */
+    const rotated = new Set();
     const step=()=>{
       const q=this.queue();
       if(!q.length || brand!==Brand.cur){ this.syncing=false; this.setStatus('synced'); return; }
@@ -1500,6 +1509,15 @@ const Cloud = {
           this.setQueue(this.queue().filter(x=>!(x.id===item.id && x.op===item.op))); this.paint(); return step();
         }
         throw new Error((res && res.error) || 'sync failed');
+      }).catch(e=>{
+        this.lastErr=(e&&e.message)||String(e);
+        const key=item.op+':'+item.id;
+        if(rotated.has(key)){ throw e; }        // ย้ายไปแล้วยังพังอีก = หยุดรอบนี้ ค่อยลองใหม่รอบหน้า
+        rotated.add(key);
+        const rest=this.queue().filter(x=>!(x.id===item.id && x.op===item.op));
+        rest.push(item);                        // ไปต่อท้าย ให้ตัวอื่นได้ส่งก่อน
+        this.setQueue(rest); this.paint();
+        return step();
       });
     };
     return Promise.resolve().then(step).catch(e=>{ this.syncing=false; this.lastErr=(e&&e.message)||String(e); this.setStatus('error'); });
@@ -1721,7 +1739,8 @@ const Cloud = {
           <div>บนคลาวด์ <b>${cloud.length}</b> ใบ · ในเครื่องนี้ <b>${local.length}</b> ใบ</div>
           <div>ขาดในเครื่องนี้ <b style="color:${missing.length?'var(--red)':'inherit'}">${missing.length}</b> ใบ ·
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
-          <div>คิวค้างส่ง ${this.pending()} · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
+          <div>คิวค้างส่ง <b style="color:${this.pending()?'var(--yellow)':'inherit'}">${this.pending()}</b> · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
+          ${this.lastErr?`<div style="color:var(--red)">ส่งไม่ผ่านล่าสุด: ${esc(this.lastErr)}</div>`:''}
           <div>พื้นที่ที่ใช้ — ระบบนี้ <b>${used}</b> MB ·
             <b style="color:${st>3.5?'var(--red)':'inherit'}">ทั้งเว็บรวมกัน ${st} MB</b>
             <span style="color:var(--text3)">(จำกัดราว 5 MB ต่อเว็บ ทุกระบบใช้ก้อนเดียวกัน)</span>
