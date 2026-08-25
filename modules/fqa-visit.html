@@ -1133,6 +1133,9 @@ const DB = (()=>{
      ทุกฟังก์ชันที่เรียก DB.all() อยู่แล้วจึงไม่ต้องแก้อะไรสักจุด */
   const hydrated={};
   let _wTimer=null;
+  /* จดผลของการย้ายไว้ให้หน้าตรวจสอบอ่าน — ของเดิมเขียน console.warn อย่างเดียว
+     ซึ่งคนหน้าร้านไม่มีทางเห็น พอมีปัญหาจึงต้องไล่ถามทีละขั้น */
+  let _idbWhy='ยังไม่ได้เริ่ม';
   const fresh = ()=>({records:[], master:defaultMaster(Brand.cur)});
   function raw(){
     const k=KEY();
@@ -1225,7 +1228,11 @@ const DB = (()=>{
     hydrate(){
       const brand = Brand.cur || 'jaedaeng';
       if(hydrated[brand]) return Promise.resolve(true);
-      return fqaIdbGet('fqa_'+brand).then(idb=>{
+      return fqaIdb().then(db=>{
+        if(!db){ _idbWhy='เบราว์เซอร์เปิด IndexedDB ไม่ได้'; return null; }
+        return fqaIdbGet('fqa_'+brand);
+      }).then(idb=>{
+        if(idb === null && _idbWhy.indexOf('เปิด IndexedDB') >= 0) return false;
         if(idb && idb.records){
           /* เอาใบที่ค้างคิวใน localStorage มารวมด้วย เผื่อ IndexedDB เคยโดนล้าง */
           try{
@@ -1235,26 +1242,29 @@ const DB = (()=>{
               p.forEach(r=>{ if(r && r.id && !has.has(r.id)) idb.records.unshift(r); });
             }
           }catch(e){}
-          mem[brand]=idb; hydrated[brand]=true; return true;
+          mem[brand]=idb; hydrated[brand]=true; _idbWhy='อ่านจาก IndexedDB'; return true;
         }
         const old = read();                       // อ่านของเดิมจาก localStorage
         const n = (old.records||[]).length;
         return fqaIdbSet('fqa_'+brand, old).then(ok=>{
-          if(!ok) return false;                   // IndexedDB ใช้ไม่ได้ → อยู่กับของเดิมต่อ
+          if(!ok){ _idbWhy='เขียนลง IndexedDB ไม่สำเร็จ'; return false; }
           return fqaIdbGet('fqa_'+brand).then(back=>{
             if(!back || (back.records||[]).length !== n){
-              console.warn('[fqa] นับไม่ตรง — คงข้อมูลเดิมไว้');
+              _idbWhy='นับไม่ตรง ('+(back?(back.records||[]).length:0)+'/'+n+') — คงของเดิมไว้';
               return false;
             }
             mem[brand]=back; hydrated[brand]=true;
-            try{ localStorage.removeItem(KEY()); }catch(e){}
-            console.warn('[fqa] ย้าย '+n+' ใบเข้า IndexedDB เรียบร้อย');
+            /* ลบทั้งคีย์ของแบรนด์และคีย์รุ่นเก่าที่ไม่มีชื่อแบรนด์
+               ถ้าเหลือคีย์เก่าไว้ raw() จะก๊อปกลับมาสร้างคีย์แบรนด์ใหม่ให้เองอีกรอบ */
+            try{ localStorage.removeItem(KEY()); localStorage.removeItem(LEGACY_KEY); }catch(e){}
+            _idbWhy='ย้าย '+n+' ใบเข้า IndexedDB แล้ว';
             return true;
           });
         });
-      }).catch(()=>false);
+      }).catch(e=>{ _idbWhy='ผิดพลาด: '+((e&&e.message)||e); return false; });
     },
     idbReady(){ return !!hydrated[Brand.cur]; },
+    idbWhy(){ return _idbWhy; },
     setMaster(m){ const d=read(); d.master=m; write(d); },
     persistent(){ return usable; }
   };
@@ -1839,7 +1849,7 @@ const Cloud = {
         try{
           if(navigator.storage && navigator.storage.estimate) quota = await navigator.storage.estimate();
         }catch(e){}
-        const _gb = n => (n/1073741824) >= 1 ? (n/1073741824).toFixed(1)+' GB' : Math.round(n/1048576)+' MB';
+        const _gb = n => (n/1073741824) >= 1 ? (n/1073741824).toFixed(1)+' GB' : (n/1048576).toFixed(1)+' MB';
         const b64=local.reduce((a,r)=>a+(r.photos||[]).filter(p=>p&&typeof p.data==='string'&&p.data.indexOf('data:')===0).length,0);
         const byDay=arr=>{ const m={}; arr.forEach(r=>{ const d=String(r.date||'—').slice(0,10); m[d]=(m[d]||0)+1; }); return m; };
         const cd=byDay(cloud), ld=byDay(local);
@@ -1864,6 +1874,11 @@ const Cloud = {
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
           <div>คิวค้างส่ง <b style="color:${this.pending()?'var(--yellow)':'inherit'}">${this.pending()}</b> · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
           ${this.lastErr?`<div style="color:var(--red)">ส่งไม่ผ่านล่าสุด: ${esc(this.lastErr)}</div>`:''}
+          <div>โหมดที่เก็บข้อมูล:
+            ${DB.idbReady()
+              ? '<b style="color:var(--green)">IndexedDB</b>'
+              : '<b style="color:var(--red)">แบบเดิม (localStorage)</b>'}
+            <span style="color:var(--text3)">— ${esc(DB.idbWhy())}</span></div>
           ${quota ? `<div>พื้นที่ก้อนใหญ่ (IndexedDB): ใช้ไป <b>${_gb(quota.usage||0)}</b>
             จากทั้งหมด <b style="color:var(--green)">${_gb(quota.quota||0)}</b>
             <span style="color:var(--text3)">— นี่คือที่ที่ย้ายข้อมูลไปอยู่แล้ว</span></div>` : ''}
