@@ -1165,8 +1165,18 @@ const DB = (()=>{
   /* เขียนลง IndexedDB แบบหน่วงรวบ — กดบันทึกทีเดียวแต่โค้ดเรียก write หลายรอบได้
      รวบให้เหลือครั้งเดียวต่อ 400ms ลดงานเขียนโดยไม่กระทบความถูกต้อง
      เพราะตัวจริงระหว่างนั้นคือก้อนในหน่วยความจำอยู่แล้ว */
+  /* เก็บกวาดคีย์เดิมใน localStorage — ทั้งคีย์ของแบรนด์และคีย์รุ่นเก่าที่ไม่มีชื่อแบรนด์
+     ต้องลบซ้ำได้เรื่อย ๆ เพราะมีจังหวะที่โค้ดเขียนกลับไปก่อนที่จะยกข้อมูลขึ้นเสร็จ
+     (เช่นซิงค์ที่วิ่งมาพอดี) แล้วคีย์เดิมจะโผล่กลับมากินที่อีก */
+  function _dropOldKeys(brand){
+    try{
+      localStorage.removeItem('fqa_system_v2_'+brand);
+      localStorage.removeItem('fqa_system_v2');
+    }catch(e){}
+  }
   function flushIdb(brand, data){
     fqaIdbSet('fqa_'+brand, data).then(ok=>{ if(!ok) console.warn('[fqa] เขียน IndexedDB ไม่สำเร็จ'); });
+    _dropOldKeys(brand);
     /* สำรองเฉพาะใบที่ยังส่งไม่สำเร็จลง localStorage — ก้อนเล็ก ไม่ไปเบียดใคร */
     try{
       const q = JSON.parse(localStorage.getItem('fqa_sync_queue_'+brand)||'[]');
@@ -1242,7 +1252,9 @@ const DB = (()=>{
               p.forEach(r=>{ if(r && r.id && !has.has(r.id)) idb.records.unshift(r); });
             }
           }catch(e){}
-          mem[brand]=idb; hydrated[brand]=true; _idbWhy='อ่านจาก IndexedDB'; return true;
+          mem[brand]=idb; hydrated[brand]=true; _idbWhy='อ่านจาก IndexedDB';
+          _dropOldKeys(brand);          // ของเดิมไม่มีใครใช้แล้ว เก็บกวาดทิ้งทุกครั้งที่เข้ามา
+          return true;
         }
         const old = read();                       // อ่านของเดิมจาก localStorage
         const n = (old.records||[]).length;
@@ -1256,7 +1268,7 @@ const DB = (()=>{
             mem[brand]=back; hydrated[brand]=true;
             /* ลบทั้งคีย์ของแบรนด์และคีย์รุ่นเก่าที่ไม่มีชื่อแบรนด์
                ถ้าเหลือคีย์เก่าไว้ raw() จะก๊อปกลับมาสร้างคีย์แบรนด์ใหม่ให้เองอีกรอบ */
-            try{ localStorage.removeItem(KEY()); localStorage.removeItem(LEGACY_KEY); }catch(e){}
+            _dropOldKeys(brand);
             _idbWhy='ย้าย '+n+' ใบเข้า IndexedDB แล้ว';
             return true;
           });
