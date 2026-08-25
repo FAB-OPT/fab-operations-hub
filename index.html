@@ -2311,24 +2311,11 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
           </div>
           <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
         </button>
-        <button class="admin-tool-card" data-accent="orange" onclick="closeAdminToolsModal(); openBranchMgmtModal();">
-          <span class="admin-tool-stripe"></span>
-          <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M9 21V12h6v9"/></svg>
-          <div class="admin-tool-text">
-            <div class="admin-tool-title">สาขา Santa Fe</div>
-            <div class="admin-tool-desc">73 สาขา · จัดการ BZM</div>
-          </div>
-          <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
-        <button class="admin-tool-card" data-accent="red" onclick="closeAdminToolsModal(); openJdBranchMgmtModal();">
-          <span class="admin-tool-stripe"></span>
-          <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h16M5 8l1 11a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2l1-11M9 5a3 3 0 0 1 6 0v3"/></svg>
-          <div class="admin-tool-text">
-            <div class="admin-tool-title">สาขาเจ๊แดง</div>
-            <div class="admin-tool-desc">51 สาขา · จัดการ BZM</div>
-          </div>
-          <svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
-        </button>
+        <!-- การ์ดสาขาสร้างจากทะเบียนแบรนด์ ไม่เขียนตายตัว
+             ของเดิมมีสองใบคือ Santa Fe กับเจ๊แดง สาขายามะจัง (ขึ้นต้น 60) จึงไปกอง
+             อยู่ใต้ปุ่ม Santa Fe ทั้งที่เป็นคนละแบรนด์ และจำนวนสาขาก็เป็นเลขที่พิมพ์ไว้
+             ตายตัว ไม่ตรงกับของจริง · เพิ่มแบรนด์ใหม่ทีหลังก็จะเจอปัญหาเดิมซ้ำอีก -->
+        <div id="adminBranchCards" style="display:contents"></div>
         <button class="admin-tool-card" data-accent="blue" onclick="closeAdminToolsModal(); openAccessLogModal();">
           <span class="admin-tool-stripe"></span>
           <svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>
@@ -5205,6 +5192,17 @@ function _syncUsersSync(msg, color) {
 /* ─────────── BRANCH MANAGEMENT (admin CRUD) ─────────── */
 var _editingBranchCode = null;  // null = adding new
 
+/* แบรนด์ของสาขา (คีย์ในทะเบียน) — ไม่ใช่เลขขึ้นต้น
+   แบรนด์เดียวมีได้หลายเลขขึ้นต้น (Santa Fe ใช้ทั้ง 50 และ 55)
+   ถ้ากรองด้วยเลขขึ้นต้น สาขา 55xx จะหายไปตอนเลือก Santa Fe */
+function branchBrandKey(code) {
+  var p = getBranchBrand(code);
+  if (!p) return '';
+  var hit = (BRAND_REGISTRY || []).filter(function (b) {
+    return (b.prefixes || []).indexOf(p) >= 0;
+  })[0];
+  return hit ? hit.key : '';
+}
 /* เติมตัวเลือกแบรนด์ในช่องกรองจากทะเบียน — คงค่าที่ผู้ใช้เลือกไว้
    เดิมเขียนตายตัวสามอัน สาขาของแบรนด์ใหม่จึงกรองดูไม่ได้ */
 function _fillBrandFilterOptions() {
@@ -5212,10 +5210,9 @@ function _fillBrandFilterOptions() {
   if (!sel) return;
   var keep = sel.value || '';
   sel.innerHTML = '<option value="">ทุกแบรนด์</option>' +
-    _brandPrefixList().slice().sort(function (a, b) { return a.p.localeCompare(b.p); })
-      .map(function (x) {
-        return '<option value="' + escapeHtml(x.p) + '">' + escapeHtml(prefixLabelOf(x.p)) + '</option>';
-      }).join('');
+    (BRAND_REGISTRY || []).map(function (b) {
+      return '<option value="' + escapeHtml(b.key) + '">' + escapeHtml(b.name || b.key) + '</option>';
+    }).join('');
   sel.value = keep;
   if (sel.value !== keep) sel.value = '';   // แบรนด์ที่เลือกไว้หายไปแล้ว → กลับไปดูทุกแบรนด์
 }
@@ -5227,7 +5224,7 @@ function renderBranchMgmtList() {
   var filter = document.getElementById('branchMgmtFilter').value || '';
 
   var codes = Object.keys(BRANCHES).filter(function(c){
-    if (filter && getBranchBrand(c) !== filter) return false;
+    if (filter && branchBrandKey(c) !== filter) return false;
     if (search) {
       var name = (BRANCHES[c] || '').toLowerCase();
       if (c.toLowerCase().indexOf(search) < 0 && name.indexOf(search) < 0) return false;
@@ -6213,8 +6210,48 @@ function savePermsUI() {
     .catch(function(e){ if (el) { el.textContent = '✗ บันทึกไม่สำเร็จ: ' + e.message; el.style.color = 'var(--red)'; } });
 }
 
+/* หนึ่งแบรนด์ = หนึ่งการ์ด · จำนวนสาขานับสดจากทะเบียนจริง
+   เจ๊แดงเก็บสาขาคนละที่ (ใช้ชื่อร้านเป็นตัวระบุ ไม่มีรหัส 4 หลัก) จึงเปิดหน้าของตัวเอง */
+function _adminBranchCardsHtml() {
+  var ICON_SHOP = '<svg class="admin-tool-svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5M4 9v11a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V9M9 21V12h6v9"/></svg>';
+  var ARROW = '<svg class="admin-tool-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>';
+  var codes = Object.keys(BRANCHES || {});
+  return (BRAND_REGISTRY || []).map(function (b) {
+    var isJd = b.key === 'jaedaeng';
+    var n, onclick;
+    if (isJd) {
+      n = (JAEDAENG_BRANCHES || []).length;
+      onclick = 'closeAdminToolsModal(); openJdBranchMgmtModal();';
+    } else {
+      n = codes.filter(function (c) { return branchBrandKey(c) === b.key; }).length;
+      onclick = "closeAdminToolsModal(); openBranchMgmtModal('" + escapeHtml(b.key) + "');";
+    }
+    /* สีขีดข้างการ์ดใช้สีแบรนด์จริง ไม่ใช่ชุดสีสำเร็จ 4 สี
+       แบรนด์ใหม่จะได้ไม่ต้องมาเลือกสีให้ทีหลัง */
+    var col = b.color || '#64748b';
+    return '<button class="admin-tool-card" style="--accent:' + escapeHtml(col)
+      + ';--accent-soft:' + escapeHtml(col) + '1a" onclick="' + onclick + '">'
+      + '<span class="admin-tool-stripe"></span>' + ICON_SHOP
+      + '<div class="admin-tool-text">'
+      + '<div class="admin-tool-title">สาขา ' + escapeHtml(b.name || b.key) + '</div>'
+      + '<div class="admin-tool-desc">' + n + ' สาขา · จัดการ BZM</div>'
+      + '</div>' + ARROW + '</button>';
+  }).join('');
+}
+function _renderAdminBranchCards() {
+  var host = document.getElementById('adminBranchCards');
+  if (host) host.innerHTML = _adminBranchCardsHtml();
+}
+
 function openAdminToolsModal() {
+  _renderAdminBranchCards();
   document.getElementById('adminToolsModal').classList.add('show');
+  /* วาดด้วยของในเครื่องก่อนให้เห็นทันที แล้วดึงของจริงมาทับ
+     จำนวนสาขาบนการ์ดจะได้ตรง ไม่ใช่ค้างอยู่ที่ค่าที่โหลดไว้รอบก่อน */
+  Promise.all([
+    loadBranchesFromCloud().catch(function(){}),
+    loadJdBranchesFromCloud().catch(function(){})
+  ]).then(_renderAdminBranchCards).catch(function(){});
 }
 function closeAdminToolsModal() {
   document.getElementById('adminToolsModal').classList.remove('show');
@@ -6381,9 +6418,14 @@ function _doClearAllAccessLog() {
   });
 }
 
-function openBranchMgmtModal() {
+function openBranchMgmtModal(brandKey) {
   document.getElementById('branchMgmtSearch').value = '';
-  document.getElementById('branchMgmtFilter').value = '';
+  /* มาจากการ์ดของแบรนด์ไหน ก็กรองมาให้แบรนด์นั้นเลย
+     ตัวเลือก "ทุกแบรนด์" ยังอยู่ในช่องกรอง ถ้าอยากดูรวมก็เปลี่ยนได้ */
+  _fillBrandFilterOptions();
+  var sel = document.getElementById('branchMgmtFilter');
+  sel.value = brandKey || '';
+  if (brandKey && sel.value !== brandKey) sel.value = '';   // แบรนด์นั้นไม่มีในทะเบียนแล้ว
   renderBranchMgmtList();
   document.getElementById('branchMgmtModal').classList.add('show');
   // refresh จาก cloud (ถ้ามี)
