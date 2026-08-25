@@ -1097,10 +1097,36 @@ const DB = (()=>{
       return d;
     }catch(e){ return fresh(); }
   }
+  /* กันเรียกซ้อน — Cloud.slim() เขียนกลับผ่าน write() ตัวนี้เอง
+     ถ้าไม่กั้น พื้นที่เต็มจะกลายเป็นวนเรียกตัวเองไม่รู้จบ */
+  let _freeing = false;
   function write(d){
     if(!usable){ mem[Brand.cur]=d; return true; }
     try{ localStorage.setItem(KEY(), JSON.stringify(d)); return true; }
-    catch(e){ App.toast('พื้นที่จัดเก็บเต็ม — กรุณาส่งออกไฟล์สำรองแล้วล้างข้อมูลเก่า'); return false; }
+    catch(e){
+      /* พื้นที่เต็ม — ลองคืนพื้นที่เองก่อนแล้วเขียนซ้ำ
+         ของที่ตัดได้คือรูปของใบที่ขึ้นคลาวด์ไปแล้ว (บนนั้นเก็บเป็นลิงก์ Drive อยู่แล้ว)
+         คนตรวจจะได้ไม่ต้องหยุดงานไปนั่งล้างข้อมูลเองกลางคัน */
+      if(!_freeing){
+        _freeing = true;
+        try{
+          const got = (typeof Cloud !== 'undefined' && Cloud.slim) ? Cloud.slim() : {cut:0};
+          if(got && got.cut){
+            try{
+              localStorage.setItem(KEY(), JSON.stringify(d));
+              App.toast('พื้นที่เกือบเต็ม — คืนพื้นที่ให้แล้ว '+got.mb+' MB · บันทึกเรียบร้อย');
+              return true;
+            }catch(e2){}
+          }
+        }catch(e3){}
+        finally{ _freeing = false; }
+      }
+      /* ยังไม่พอจริง ๆ — บอกให้ชัดว่าข้อมูลยังอยู่ และต้องไปทำอะไรต่อ
+         ข้อความเดิมบอกให้ "ส่งออกไฟล์สำรองแล้วล้างข้อมูลเก่า" ซึ่งอยู่หลังรหัสแอดมิน
+         คนตรวจหน้าร้านทำเองไม่ได้ และไม่ได้บอกด้วยว่าตัวที่กินที่จริง ๆ อยู่คนละระบบ */
+      App.toast('พื้นที่ในเครื่องเต็ม — ข้อมูลในฟอร์มยังอยู่ ยังไม่หาย · เปิด Operations Checklist ค้างไว้สักครู่ให้คืนพื้นที่ แล้วกลับมากดบันทึกอีกครั้ง');
+      return false;
+    }
   }
   return {
     all(){ return read().records; },
