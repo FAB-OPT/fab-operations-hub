@@ -2837,13 +2837,113 @@ function _oeMyReqAdd(id){
   _oeMyReqMem = a;
   try{ localStorage.setItem(OE_MYREQ_KEY, JSON.stringify(a)); }catch(e){}
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ที่เก็บก้อนใหญ่ของระบบสอบ — IndexedDB
+   localStorage มีเพดานราว 5–10 MB ต่อ "ทั้งเว็บ" ทุกระบบในฮับใช้ก้อนเดียวกัน
+   ระบบนี้เก็บสองอย่างที่โตได้ไม่จำกัด:
+     oe_cache_*  แคชผลสอบ/ชุดข้อสอบ (โหลดใหม่ได้เสมอ)
+     oe_docs_v1:* ร่างชุดเอกสารของแต่ละคน ใบละหลายสิบ KB และเพิ่มขึ้นทุกคนที่เปิด
+   ทั้งสองอย่างเป็นของชั่วคราว ย้ายไป IndexedDB ได้โดยไม่กระทบข้อมูลจริง
+
+   ยกขึ้นหน่วยความจำตอนเปิดแอปครั้งเดียว จากนั้นอ่าน/เขียนแบบไม่ต้องรอผลเหมือนเดิม
+   ═══════════════════════════════════════════════════════════════════════ */
+var _oeIdbP = null, _oeMem = {}, _oeIdbReady = false;
+function _oeIdb(){
+  if(_oeIdbP) return _oeIdbP;
+  _oeIdbP = new Promise(function(res){
+    var req;
+    try{ req = indexedDB.open('oe_store_v1', 1); }catch(e){ return res(null); }
+    req.onupgradeneeded = function(){ try{ req.result.createObjectStore('kv'); }catch(e){} };
+    req.onsuccess = function(){ res(req.result); };
+    req.onerror = function(){ res(null); };
+    setTimeout(function(){ res(null); }, 3000);
+  });
+  return _oeIdbP;
+}
+function _oeIdbAll(){
+  return _oeIdb().then(function(db){
+    if(!db) return {};
+    return new Promise(function(res){
+      try{
+        var out = {};
+        var st = db.transaction('kv','readonly').objectStore('kv');
+        var cur = st.openCursor();
+        cur.onsuccess = function(e){
+          var c = e.target.result;
+          if(!c) return res(out);
+          out[c.key] = c.value; c.continue();
+        };
+        cur.onerror = function(){ res({}); };
+      }catch(e){ res({}); }
+    });
+  }).catch(function(){ return {}; });
+}
+function _oeIdbPut(k, v){
+  return _oeIdb().then(function(db){
+    if(!db) return false;
+    return new Promise(function(res){
+      try{
+        var tx = db.transaction('kv','readwrite');
+        if(v === null) tx.objectStore('kv').delete(k); else tx.objectStore('kv').put(v, k);
+        tx.oncomplete = function(){ res(true); };
+        tx.onerror = tx.onabort = function(){ res(false); };
+      }catch(e){ res(false); }
+    });
+  }).catch(function(){ return false; });
+}
+/* ยกของขึ้นหน่วยความจำ + ย้ายของเดิมจาก localStorage ครั้งเดียว
+   คีย์ของระบบนี้ขึ้นต้นด้วย oe_cache_ กับ oe_docs_v1: จึงกวาดตามชื่อได้เลย */
+function _oeHydrate(){
+  return _oeIdbAll().then(function(all){
+    _oeMem = all || {};
+    var move = [];
+    try{
+      for(var i=0;i<localStorage.length;i++){
+        var k = localStorage.key(i);
+        if(k && (k.indexOf('oe_cache_')===0 || k.indexOf('oe_docs_v1:')===0)) move.push(k);
+      }
+    }catch(e){}
+    return move.reduce(function(chain,k){
+      return chain.then(function(){
+        if(_oeMem[k] !== undefined) { try{ localStorage.removeItem(k); }catch(e){} return; }
+        var v = null;
+        try{ v = localStorage.getItem(k); }catch(e){}
+        if(v == null) return;
+        _oeMem[k] = v;
+        return _oeIdbPut(k, v).then(function(ok){
+          if(ok){ try{ localStorage.removeItem(k); }catch(e){} }
+        });
+      });
+    }, Promise.resolve());
+  }).then(function(){ _oeIdbReady = true; return true; })
+    .catch(function(){ _oeIdbReady = true; return false; });
+}
+/* อ่าน/เขียนแบบไม่ต้องรอผล — ใช้แทน localStorage เฉพาะคีย์ก้อนใหญ่ของระบบนี้ */
+function _oeGet(k){
+  if(_oeMem[k] !== undefined) return _oeMem[k];
+  if(_oeIdbReady) return null;
+  try{ return localStorage.getItem(k); }catch(e){ return null; }
+}
+function _oeSet(k, v){
+  _oeMem[k] = v;
+  _oeIdbPut(k, v).then(function(ok){
+    if(!ok){ try{ localStorage.setItem(k, v); }catch(e){} }
+    else { try{ localStorage.removeItem(k); }catch(e){} }
+  });
+}
+function _oeDel(k){
+  delete _oeMem[k];
+  _oeIdbPut(k, null);
+  try{ localStorage.removeItem(k); }catch(e){}
+}
+
 function _oeStash(key, data){
-  try { localStorage.setItem('oe_cache_'+key, JSON.stringify({ t:Date.now(), d:data })); }
-  catch(e) {}   // เต็มโควตาก็ช่างมัน ไม่ใช่เรื่องคอขาดบาดตาย
+  _oeSet('oe_cache_'+key, JSON.stringify({ t:Date.now(), d:data }));
 }
 function _oeStashed(key){
   try {
-    var raw = localStorage.getItem('oe_cache_'+key);
+    var raw = _oeGet('oe_cache_'+key);
     if(!raw) return null;
     var o = JSON.parse(raw);
     return (o && o.d && o.d.length) ? o : null;
@@ -3063,7 +3163,13 @@ function oeApplyPerms(){
 }
 
 /* ═════════════════════ BOOT ═════════════════════ */
+/* ยกแคชขึ้นหน่วยความจำก่อน แล้วค่อยเดินเรื่องตามปกติ
+   ครั้งแรกจะย้ายของเดิมจาก localStorage ให้ด้วย · ล้มเหลวก็เดินต่อได้ ไม่ขวางการใช้งาน */
 window.addEventListener('DOMContentLoaded', function(){
+  (typeof _oeHydrate === 'function' ? _oeHydrate() : Promise.resolve())
+    .catch(function(){}).then(_oeStart);
+});
+function _oeStart(){
   /* ลิงก์ที่ส่งต่อกัน (เข้าสอบ · ใบรายงาน · ชุดเอกสาร) เปิดได้เลยโดยไม่ต้องล็อกอิน
      ตัวลิงก์เองคือกุญแจ — คนที่ได้ลิงก์ไปคือคนที่ตั้งใจส่งให้อยู่แล้ว
      คนที่ล็อกอินอยู่แล้วให้เข้าทางปกติ จะได้มีเมนูให้กดต่อหลังปิดเอกสาร */
@@ -3108,7 +3214,7 @@ window.addEventListener('DOMContentLoaded', function(){
      (วัดจริง: config ~2s อุ่น ๆ · ~6s ตอนสคริปต์เพิ่งตื่น) */
   showBrandGate();         // เลือกแบรนด์ (กรองตามสิทธิ์ผู้ใช้) — ตัวนี้เป็นคนสั่งโหลดข้อมูล
   oeLoadPermsFromHub();
-});
+}
 /* ═══ คำแนะนำเรื่องหน้าจอตอนสอบ ═══
    เดิมกั้นทั้งหน้าตั้งแต่เข้าระบบ บังคับให้ติดตั้งลงหน้าจอโฮมก่อนถึงจะทำอะไรได้
    ปัญหาคือ iPhone สั่งเต็มจอไม่ได้อยู่แล้ว การบังคับจึงกันคนไม่เป็นออกไปเปล่า ๆ
@@ -7080,7 +7186,7 @@ function _docSaveDraft(quiet){
     d[k] = (el.type === 'checkbox') ? (el.checked ? 1 : 0) : (el.value || '');
     if(el.dataset && el.dataset.sig) d['@' + k] = el.dataset.sig;   // ลายเซ็นเก็บแยกคีย์
   });
-  try{ localStorage.setItem(_docDraftKey(_docR), JSON.stringify(d)); }
+  try{ _oeSet(_docDraftKey(_docR), JSON.stringify(d)); }
   catch(e){ if(!quiet) toast('บันทึกร่างไม่ได้ — พื้นที่ในเครื่องเต็ม','err'); return; }
   if(!quiet) toast('บันทึกร่างแล้ว');
 }
@@ -7088,7 +7194,7 @@ function docsSaveDraft(){ _docSaveDraft(false); }
 function _docLoadDraft(){
   if(!_docR) return;
   var d;
-  try{ d = JSON.parse(localStorage.getItem(_docDraftKey(_docR)) || 'null'); }catch(e){ d = null; }
+  try{ d = JSON.parse(_oeGet(_docDraftKey(_docR)) || 'null'); }catch(e){ d = null; }
   if(!d) return;
   _docFields().forEach(function(el){
     var k = el.getAttribute('data-d');
@@ -7109,7 +7215,7 @@ async function docsClear(){
     if(el.type === 'checkbox') el.checked = false; else if(el.value !== undefined) el.value = '';
   });
   _docClearSigns();
-  try{ localStorage.removeItem(_docDraftKey(_docR)); }catch(e){}
+  _oeDel(_docDraftKey(_docR));
   toast('ล้างฟอร์มแล้ว');
 }
 

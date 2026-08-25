@@ -194,7 +194,13 @@ function startFhCertFilesSync() {
     }, function(e){ console.warn('fhCertFiles sync', e); });
   } catch (e) {}
 }
-window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); startFhCertFilesSync(); loadFhPermsFromHub(); });
+/* ยกแคชจาก IndexedDB ขึ้นหน่วยความจำก่อนเริ่มทำงาน — ครั้งแรกจะย้ายของเดิมให้ด้วย
+   ทุกอย่างหลังจากนี้เรียก _fhCacheGet แบบไม่ต้องรอผลได้เหมือนเดิม */
+window.addEventListener('DOMContentLoaded', function(){
+  (window.fhHydrateCache ? fhHydrateCache() : Promise.resolve())
+    .catch(function(){})
+    .then(function(){ startFhConfigSync(); startFhCertFilesSync(); loadFhPermsFromHub(); });
+});
 </script>
 </head>
 <body>
@@ -1269,6 +1275,7 @@ window.addEventListener('DOMContentLoaded', function(){ startFhConfigSync(); sta
 <!-- Supabase — ใช้เมื่อตั้งค่า URL/KEY แล้วเท่านั้น ไม่งั้นระบบวิ่ง Apps Script เหมือนเดิม -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- โมดูลย่อยของ food-handler — ลำดับสำคัญ ห้ามสลับ (ตัวบนประกาศของที่ตัวล่างใช้) -->
+<script src="fh-store.js?v=20260825a"></script>
 <script src="fh-supabase.js?v=20260810a"></script>
 <script src="fh-import.js?v=20260810a"></script>
 <script src="fh-match.js?v=20260810a"></script>

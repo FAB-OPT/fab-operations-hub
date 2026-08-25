@@ -1092,8 +1092,7 @@ function _clearAdminReqFilters() {
 }
 
 // localStorage cache (stale-while-revalidate) — โชว์ของเดิมทันที แล้วรีเฟรชเบื้องหลัง
-function _fhCacheSet(key, data){ try { localStorage.setItem(key, JSON.stringify(data)); } catch(e) {} }
-function _fhCacheGet(key){ try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch(e) { return null; } }
+/* _fhCacheGet/_fhCacheSet ย้ายไปอยู่ fh-store.js แล้ว (เก็บลง IndexedDB) */
 function _fhBustRequests(){ try { localStorage.removeItem('fh_requests_v1'); } catch(e) {} }  // ล้างแคชหลังแก้ข้อมูล
 
 /* ฝั่งสาขาเห็นเฉพาะรอบที่ "ยังไม่ถึงวันอบรม" — ของเก่าที่อบรมไปแล้วไม่ต้องเห็น

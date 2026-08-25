@@ -56,8 +56,8 @@ function _fhMapCerts(records) {
 }
 
 /* cache ในเครื่อง (localStorage) — แสดงทันทีตอนโหลด แล้วค่อยดึงของใหม่มาทับ */
-function _fhCacheSet(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch(e){} }
-function _fhCacheGet(k){ try { var s = localStorage.getItem(k); return s ? JSON.parse(s) : null; } catch(e){ return null; } }
+/* _fhCacheGet/_fhCacheSet ย้ายไปอยู่ fh-store.js แล้ว (เก็บลง IndexedDB)
+   ของเดิมประกาศซ้ำกันสองไฟล์ ใครโหลดทีหลังก็ทับกัน ซึ่งอันตรายกว่าที่คิด */
 
 /* ทะเบียนรายชื่อมาถึงทีหลังรายการใบรับรอง ต้องวาดหน้าสาขาใหม่
    หน้าสาขาใช้ทะเบียนช่วยตัดสินว่าใบไหนเป็นของสาขา (ชื่อสาขาบนใบสะกดไม่นิ่ง)
