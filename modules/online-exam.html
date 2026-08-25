@@ -5699,10 +5699,16 @@ var _oeKeepStart = null;   // เวลาเริ่มเดิม ตอน�
 function _oeRunKey(examId, empId){
   return 'oe_run_v1_' + String(examId || '') + '_' + String(empId || '');
 }
+/* งานค้างระหว่างสอบเก็บที่ localStorage เป็นหลัก เพราะอ่านได้ทันทีและอยู่ทน
+   แต่ถ้าเครื่องนั้นพื้นที่เต็ม การเขียนจะล้มเงียบ ๆ แล้วคนสอบเสียงานทั้งหมด
+   โดยไม่มีอะไรเตือน — ตกม้าตายตอนใกล้เสร็จได้ง่าย ๆ
+   เขียนไม่ลงเมื่อไรให้ถอยไปเก็บที่ IndexedDB ซึ่งมีที่เหลือเป็น GB
+   ตอนอ่านจึงต้องมองทั้งสองที่ โดยให้ของใน localStorage มาก่อนเสมอ */
 function _oeRunSave(){
   if(!R || R.isPreview || R.finished || !R.startedAt) return;
+  var _k = _oeRunKey(R.exam.id, R.student.id), _payload = null;
   try{
-    localStorage.setItem(_oeRunKey(R.exam.id, R.student.id), JSON.stringify({
+    _payload = JSON.stringify({
       v: OE_RUN_V,
       examId: R.exam.id, code: R.accessCode || '', isRetake: !!R.isRetake,
       student: R.student,
@@ -5711,18 +5717,39 @@ function _oeRunSave(){
       limitSec: (Number(R.exam.timeLimitMinutes) || 0) * 60,
       violations: R.violations, violationLog: R.violationLog,
       savedAt: new Date().toISOString()
-    }));
-  }catch(e){}
-}
-function _oeRunLoad(examId, empId){
+    });
+  }catch(e){ return; }                    // สร้างข้อความไม่ได้ = ไม่มีอะไรให้เก็บ
   try{
-    var d = JSON.parse(localStorage.getItem(_oeRunKey(examId, empId)) || 'null');
+    localStorage.setItem(_k, _payload);
+    _oeRunFallback = false;
+  }catch(e){
+    /* พื้นที่เต็ม — เก็บที่สำรองแทน และจำไว้ว่ารอบนี้ใช้ที่สำรองอยู่ */
+    _oeRunFallback = true;
+    _oeMem[_k] = _payload;
+    _oeIdbPut(_k, _payload).then(function(ok){
+      if(!ok && !_oeRunWarned){
+        _oeRunWarned = true;
+        try{ toast('เครื่องนี้เก็บงานค้างไม่ได้ — ห้ามปิดหน้านี้จนกว่าจะส่งข้อสอบ'); }catch(e2){}
+      }
+    });
+  }
+}
+var _oeRunFallback = false, _oeRunWarned = false;
+function _oeRunLoad(examId, empId){
+  var k = _oeRunKey(examId, empId), raw = null;
+  try{ raw = localStorage.getItem(k); }catch(e){}
+  if(raw == null && _oeMem[k] !== undefined) raw = _oeMem[k];   // ที่สำรองตอนพื้นที่เต็ม
+  try{
+    var d = JSON.parse(raw || 'null');
     if(!d || d.v !== OE_RUN_V || !d.questions || !d.questions.length) return null;
     return d;
   }catch(e){ return null; }
 }
 function _oeRunClear(examId, empId){
-  try{ localStorage.removeItem(_oeRunKey(examId, empId)); }catch(e){}
+  var k = _oeRunKey(examId, empId);
+  try{ localStorage.removeItem(k); }catch(e){}
+  /* ลบที่สำรองด้วยเสมอ ไม่งั้นของเก่าจะเด้งกลับมาตอนสอบรอบถัดไป */
+  if(_oeMem[k] !== undefined){ delete _oeMem[k]; _oeIdbPut(k, null); }
 }
 /* เหลือเวลาเท่าไร — คิดจากเวลาที่กดเริ่มจริงเสมอ */
 function _oeRunLeft(d){
