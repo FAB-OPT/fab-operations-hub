@@ -6262,9 +6262,78 @@ function closeAdminToolsModal() {
   document.getElementById('adminToolsModal').classList.remove('show');
 }
 
+
+/* แคชประวัติการเข้าใช้งาน — เก็บ 300 รายการล่าสุด ราว 0.2 MB
+   ย้ายไป IndexedDB เพราะเป็นแค่สำเนา ตัวจริงอยู่บน Firestore
+   ตัวอื่นที่เหลือใน localStorage จงใจไม่ย้าย:
+     fab_brands_v1  = ทะเบียนแบรนด์ที่ทุกแอปในโดเมนอ่านร่วมกัน
+                      IndexedDB แยกกันคนละแอป ย้ายไปแล้วแอปอื่นอ่านไม่เห็น
+     fab_session    = ตัวบอกว่าใครล็อกอินอยู่ ต้องอ่านได้ทันทีตั้งแต่บรรทัดแรก */
+var _hubIdbP = null;
+function _hubIdb(){
+  if(_hubIdbP) return _hubIdbP;
+  _hubIdbP = new Promise(function(res){
+    var req;
+    try{ req = indexedDB.open('hub_store_v1', 1); }catch(e){ return res(null); }
+    req.onupgradeneeded = function(){ try{ req.result.createObjectStore('kv'); }catch(e){} };
+    req.onsuccess = function(){ res(req.result); };
+    req.onerror = function(){ res(null); };
+    setTimeout(function(){ res(null); }, 3000);
+  });
+  return _hubIdbP;
+}
+function _hubIdbGet(k){
+  return _hubIdb().then(function(db){
+    if(!db) return null;
+    return new Promise(function(res){
+      try{
+        var r = db.transaction('kv','readonly').objectStore('kv').get(k);
+        r.onsuccess = function(){ res(r.result == null ? null : r.result); };
+        r.onerror = function(){ res(null); };
+      }catch(e){ res(null); }
+    });
+  }).catch(function(){ return null; });
+}
+function _hubIdbSet(k,v){
+  return _hubIdb().then(function(db){
+    if(!db) return false;
+    return new Promise(function(res){
+      try{
+        var tx = db.transaction('kv','readwrite');
+        tx.objectStore('kv').put(v,k);
+        tx.oncomplete = function(){ res(true); };
+        tx.onerror = tx.onabort = function(){ res(false); };
+      }catch(e){ res(false); }
+    });
+  }).catch(function(){ return false; });
+}
+var _accessLogCache = null;
+function _saveAccessLogCache(rows){
+  _accessLogCache = rows;
+  _hubIdbSet('hub_accesslog_cache', rows).then(function(ok){
+    if(!ok){ try{ localStorage.setItem('hub_accesslog_cache', JSON.stringify(rows)); }catch(e){} }
+    else { try{ localStorage.removeItem('hub_accesslog_cache'); }catch(e){} }
+  });
+}
+
 /* ───────── ประวัติการเข้าใช้งาน (admin) ───────── */
 var _accessLogData = [];
 var _accessLogUnsub = null;
+/* ยกแคชขึ้นก่อนเปิดหน้า — ครั้งแรกจะย้ายของเดิมจาก localStorage ให้ด้วย */
+function _hubHydrateAccessLog(){
+  return _hubIdbGet('hub_accesslog_cache').then(function(v){
+    if(v){ _accessLogCache = v; return; }
+    var old = null;
+    try{ var r = localStorage.getItem('hub_accesslog_cache'); if(r) old = JSON.parse(r); }catch(e){}
+    if(!old) return;
+    _accessLogCache = old;
+    return _hubIdbSet('hub_accesslog_cache', old).then(function(ok){
+      if(ok){ try{ localStorage.removeItem('hub_accesslog_cache'); }catch(e){} }
+    });
+  }).catch(function(){});
+}
+try{ _hubHydrateAccessLog(); }catch(e){}
+
 function openAccessLogModal() {
   document.getElementById('accessLogModal').classList.add('show');
   loadAccessLog();
@@ -6280,14 +6349,16 @@ function loadAccessLog() {
   // cache-first: โชว์ทันทีจาก cache เครื่อง (ไม่ต้องรอเชื่อม Firestore) แล้ว realtime ค่อยอัปเดต
   var _shownCache = false;
   try {
-    var _cc = JSON.parse(localStorage.getItem('hub_accesslog_cache') || 'null');
+    /* อ่านจากหน่วยความจำที่ยกมาจาก IndexedDB ก่อน ไม่มีค่อยถอยไปของเดิม */
+    var _cc = _accessLogCache;
+    if(!_cc) _cc = JSON.parse(localStorage.getItem('hub_accesslog_cache') || 'null');
     if (Array.isArray(_cc) && _cc.length) { _accessLogData = _cc; renderAccessLog(); _shownCache = true; }
   } catch(_) {}
   if (!_shownCache) box.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text2)">กำลังโหลด…</div>';
   // realtime: อัปเดตสดทันที ไม่ต้องกดรีเฟรช
   try {
     _accessLogUnsub = hubDb.collection('hubAccessLog').orderBy('loginAt', 'desc').limit(1000)
-      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); }); renderAccessLog(); try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {} },
+      .onSnapshot(function(snap){ _accessLogData = snap.docs.map(function(d){ return Object.assign({ _id: d.id }, d.data()); }); renderAccessLog(); _saveAccessLogCache(_accessLogData.slice(0,300)); },
         function(e){
           console.warn('access log snapshot failed, fallback get', e);
           hubDb.collection('hubAccessLog').orderBy('at', 'desc').limit(1000).get()
@@ -6385,7 +6456,7 @@ function deleteAccessLogRow(id) {
     hubDb.collection('hubAccessLog').doc(String(id)).delete()
       .then(function(){
         _accessLogData = _accessLogData.filter(function(r){ return r._id !== id; });
-        try { localStorage.setItem('hub_accesslog_cache', JSON.stringify(_accessLogData.slice(0,300))); } catch(_) {}
+        _saveAccessLogCache(_accessLogData.slice(0,300));
         renderAccessLog();
       })
       .catch(function(e){ alert('ลบไม่สำเร็จ: ' + (e && e.message ? e.message : e)); });
