@@ -1817,6 +1817,7 @@ const Cloud = {
 
   /* ปุ่ม "คืนพื้นที่" — เรียก slim() แล้วรายงานผลให้เห็นว่าได้คืนมาเท่าไร */
   freeUp(){
+    if(DB.idbReady()) return App.toast('ระบบนี้ย้ายไป IndexedDB แล้ว ไม่ต้องคืนพื้นที่');
     const got=this.slim();
     if(!got.cut) return App.toast('ไม่มีรูปที่ตัดออกได้ — รูปที่เหลือยังไม่ได้ส่งขึ้นคลาวด์');
     App.toast('คืนพื้นที่แล้ว '+got.mb+' MB (รูป '+got.cut+' ใบยังดูได้จากคลาวด์)');
@@ -1886,25 +1887,20 @@ const Cloud = {
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
           <div>คิวค้างส่ง <b style="color:${this.pending()?'var(--yellow)':'inherit'}">${this.pending()}</b> · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
           ${this.lastErr?`<div style="color:var(--red)">ส่งไม่ผ่านล่าสุด: ${esc(this.lastErr)}</div>`:''}
-          <div>โหมดที่เก็บข้อมูล:
+          <div style="margin-top:8px">ที่เก็บของระบบนี้:
             ${DB.idbReady()
-              ? '<b style="color:var(--green)">IndexedDB</b>'
-              : '<b style="color:var(--red)">แบบเดิม (localStorage)</b>'}
-            <span style="color:var(--text3)">— ${esc(DB.idbWhy())}</span></div>
-          ${quota ? `<div>พื้นที่ก้อนใหญ่ (IndexedDB): ใช้ไป <b>${_gb(quota.usage||0)}</b>
-            จากทั้งหมด <b style="color:var(--green)">${_gb(quota.quota||0)}</b>
-            <span style="color:var(--text3)">— นี่คือที่ที่ย้ายข้อมูลไปอยู่แล้ว</span></div>` : ''}
-          <div>พื้นที่ที่ใช้ — ระบบนี้ <b>${used}</b> MB ·
-            <b style="color:${st>3.5?'var(--red)':'inherit'}">ทั้งเว็บรวมกัน ${st} MB</b>
-            <span style="color:var(--text3)">(ที่เก็บแบบเก่า · เพดานแล้วแต่เบราว์เซอร์ ราว 5–10 MB
-              และทุกระบบในเว็บใช้ก้อนเดียวกัน — <b>ระบบนี้</b>ย้ายของก้อนใหญ่ไป IndexedDB แล้ว
-              ตัวเลขที่เหลือเป็นของระบบอื่นที่ยังไม่ได้ย้าย ดูรายชื่อคีย์ข้างล่างว่าเป็นของใคร)</span>
-            ${b64>0?` · รูปที่ยังเก็บเป็นไฟล์เต็ม <b>${b64}</b> ใบ`:''}</div>
-          ${st>3.5?`<div style="margin-top:8px;color:var(--red)">ที่เก็บแบบเก่ายังมีของค้างอยู่มาก
-            ถ้าชนเพดานของเบราว์เซอร์เมื่อไร ระบบที่ยังใช้ที่เก็บแบบเก่าจะบันทึกไม่ลง
-            <button class="btn" style="margin-left:6px" onclick="Cloud.freeUp()">คืนพื้นที่ของระบบนี้</button>
-            <button class="btn dgr" style="margin-left:6px" onclick="Cloud.freeOther()">ล้างแคชของระบบอื่น</button></div>
-          <div style="margin-top:6px;font-size:11.5px;color:var(--text3)">คีย์ที่กินที่สุด —
+              ? '<b style="color:var(--green)">IndexedDB</b> <span style="color:var(--text3)">— ใช้ไป '
+                + (quota ? _gb(quota.usage||0) : used+' MB') + ' จาก '
+                + (quota ? _gb(quota.quota||0) : 'โควตาของเครื่อง') + ' · เหลือเฟือ</span>'
+              : '<b style="color:var(--red)">แบบเก่า</b> <span style="color:var(--text3)">— '
+                + esc(DB.idbWhy()) + '</span>'}</div>
+          <div>ที่เก็บแบบเก่า (ใช้ร่วมกันทั้งเว็บ):
+            <b style="color:${st>6?'var(--red)':(st>4?'var(--yellow)':'var(--green)')}">${st} MB</b>
+            <span style="color:var(--text3)">— เป็นของระบบอื่นที่ยังไม่ได้ย้าย</span></div>
+          ${st>6?`<div style="margin-top:8px;color:var(--red)">ใกล้ชนเพดานของเบราว์เซอร์ (ราว 5–10 MB)
+            ระบบที่ยังใช้ที่เก็บแบบเก่าอาจบันทึกไม่ลง
+            <button class="btn" style="margin-left:6px" onclick="Cloud.freeOther()">ล้างแคชของระบบอื่น</button></div>`:''}
+          ${sto.rows.length?`<div style="margin-top:6px;font-size:11.5px;color:var(--text3)">คีย์ที่กินที่สุด —
             ${sto.rows.slice(0,6).map(x=>esc(x.k)+' '+(x.n/1048576).toFixed(2)+' MB').join(' · ')}</div>`:''}
           <div style="color:var(--text3)">หมุดเวลาล่าสุด ${esc(this.since()||'—')}</div>
           ${missing.length?`<div style="margin-top:10px"><b>ใบที่ขาด (แสดง ${Math.min(missing.length,25)} ใบแรก)</b>
