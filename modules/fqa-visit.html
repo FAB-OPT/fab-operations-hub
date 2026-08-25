@@ -1068,6 +1068,59 @@ function defaultMaster(brand){
   return m;
 }
 
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ที่เก็บข้อมูลก้อนใหญ่ — IndexedDB
+   localStorage มีเพดานราว 10 MB ต่อ "ทั้งเว็บ" ทุกระบบในฮับใช้ก้อนเดียวกัน
+   ระบบนี้ใช้เองไม่เยอะ แต่รูปถ่ายทำให้โตเร็ว และเคยโดนระบบอื่นกินจนบันทึกไม่ได้
+   กลางงานมาแล้ว · ย้ายมาที่นี่แล้วทั้งสองปัญหาหมดไปพร้อมกัน
+
+   หน้าที่ของแต่ละที่:
+     IndexedDB   = ข้อมูลจริงทั้งก้อน (รายการตรวจ + ข้อมูลหลัก)
+     localStorage = คิวที่ยังส่งไม่สำเร็จ + สำเนาเฉพาะใบที่อยู่ในคิว
+                    เผื่อ IndexedDB โดนล้าง (iOS ลบให้ถ้าไม่เปิดเว็บเกิน 7 วัน)
+                    ใบที่ขึ้นคลาวด์แล้วไม่ต้องสำรอง เพราะดึงกลับได้เสมอ
+   ═══════════════════════════════════════════════════════════════════════ */
+const FQA_IDB_NAME='fqa_store_v1', FQA_IDB_STORE='kv';
+let _fqaIdbP=null;
+function fqaIdb(){
+  if(_fqaIdbP) return _fqaIdbP;
+  _fqaIdbP = new Promise(res=>{
+    let req;
+    try{ req = indexedDB.open(FQA_IDB_NAME, 1); }catch(e){ return res(null); }
+    req.onupgradeneeded = ()=>{ try{ req.result.createObjectStore(FQA_IDB_STORE); }catch(e){} };
+    req.onsuccess = ()=> res(req.result);
+    req.onerror   = ()=> res(null);
+    setTimeout(()=>res(null), 3000);   // เปิดไม่ขึ้นใน 3 วิ ถือว่าใช้ไม่ได้ ดีกว่าค้างหน้าโหลด
+  });
+  return _fqaIdbP;
+}
+function fqaIdbGet(k){
+  return fqaIdb().then(db=>{
+    if(!db) return null;
+    return new Promise(res=>{
+      try{
+        const r = db.transaction(FQA_IDB_STORE,'readonly').objectStore(FQA_IDB_STORE).get(k);
+        r.onsuccess = ()=> res(r.result == null ? null : r.result);
+        r.onerror   = ()=> res(null);
+      }catch(e){ res(null); }
+    });
+  }).catch(()=>null);
+}
+function fqaIdbSet(k,v){
+  return fqaIdb().then(db=>{
+    if(!db) return false;
+    return new Promise(res=>{
+      try{
+        const tx = db.transaction(FQA_IDB_STORE,'readwrite');
+        tx.objectStore(FQA_IDB_STORE).put(v,k);
+        tx.oncomplete = ()=> res(true);
+        tx.onerror = tx.onabort = ()=> res(false);
+      }catch(e){ res(false); }
+    });
+  }).catch(()=>false);
+}
+
 /* ---------- ชั้นจัดเก็บข้อมูล (จุดเดียวที่ต้องแก้หากจะต่อ Google Sheets) ----------
    แยกคีย์ตามแบรนด์ → รายการตรวจและข้อมูลหลักของแต่ละแบรนด์ไม่ปนกัน */
 const DB = (()=>{
@@ -1075,6 +1128,11 @@ const DB = (()=>{
   const LEGACY_KEY = 'fqa_system_v2';   // ข้อมูลก่อนแยกแบรนด์ = ของเจ๊แดง
   const mem={}; let usable=true;
   try{ localStorage.setItem('__t','1'); localStorage.removeItem('__t'); }catch(e){ usable=false; }
+  /* hydrated = ยกก้อนจาก IndexedDB ขึ้นหน่วยความจำแล้ว (ต่อแบรนด์)
+     ตั้งแต่จุดนั้นไป read() หยิบจากหน่วยความจำล้วน จึงยังเป็นแบบไม่ต้องรอผลเหมือนเดิม
+     ทุกฟังก์ชันที่เรียก DB.all() อยู่แล้วจึงไม่ต้องแก้อะไรสักจุด */
+  const hydrated={};
+  let _wTimer=null;
   const fresh = ()=>({records:[], master:defaultMaster(Brand.cur)});
   function raw(){
     const k=KEY();
@@ -1086,6 +1144,7 @@ const DB = (()=>{
     return s;
   }
   function read(){
+    if(hydrated[Brand.cur]) return mem[Brand.cur] || (mem[Brand.cur]=fresh());
     if(!usable) return mem[Brand.cur] || (mem[Brand.cur]=fresh());
     try{
       const d=JSON.parse(raw());
@@ -1100,7 +1159,28 @@ const DB = (()=>{
   /* กันเรียกซ้อน — Cloud.slim() เขียนกลับผ่าน write() ตัวนี้เอง
      ถ้าไม่กั้น พื้นที่เต็มจะกลายเป็นวนเรียกตัวเองไม่รู้จบ */
   let _freeing = false;
+  /* เขียนลง IndexedDB แบบหน่วงรวบ — กดบันทึกทีเดียวแต่โค้ดเรียก write หลายรอบได้
+     รวบให้เหลือครั้งเดียวต่อ 400ms ลดงานเขียนโดยไม่กระทบความถูกต้อง
+     เพราะตัวจริงระหว่างนั้นคือก้อนในหน่วยความจำอยู่แล้ว */
+  function flushIdb(brand, data){
+    fqaIdbSet('fqa_'+brand, data).then(ok=>{ if(!ok) console.warn('[fqa] เขียน IndexedDB ไม่สำเร็จ'); });
+    /* สำรองเฉพาะใบที่ยังส่งไม่สำเร็จลง localStorage — ก้อนเล็ก ไม่ไปเบียดใคร */
+    try{
+      const q = JSON.parse(localStorage.getItem('fqa_sync_queue_'+brand)||'[]');
+      const ids = new Set((Array.isArray(q)?q:[]).map(x=>x&&x.id).filter(Boolean));
+      const keep = (data.records||[]).filter(r=>r&&ids.has(r.id));
+      if(keep.length) localStorage.setItem('fqa_pending_'+brand, JSON.stringify(keep));
+      else localStorage.removeItem('fqa_pending_'+brand);
+    }catch(e){}
+  }
   function write(d){
+    if(hydrated[Brand.cur]){
+      mem[Brand.cur]=d;
+      const brand=Brand.cur;
+      clearTimeout(_wTimer);
+      _wTimer=setTimeout(()=>flushIdb(brand, d), 400);
+      return true;                     // หน่วยความจำรับไว้แล้ว ไม่มีเพดานให้ชน
+    }
     if(!usable){ mem[Brand.cur]=d; return true; }
     try{ localStorage.setItem(KEY(), JSON.stringify(d)); return true; }
     catch(e){
@@ -1139,6 +1219,42 @@ const DB = (()=>{
     remove(id){ const d=read(); d.records=d.records.filter(r=>r.id!==id); write(d); },
     setAll(list){ const d=read(); d.records=list; return write(d); },   // ต้องคืนผล — ตัวซิงค์ใช้ตัดสินว่าบันทึกลงจริงไหม
     master(){ return read().master; },
+    /* ยกข้อมูลของแบรนด์ปัจจุบันจาก IndexedDB ขึ้นหน่วยความจำ
+       ยังไม่เคยย้าย = อ่านของเดิมจาก localStorage แล้วเขียนลง IndexedDB ให้ครั้งเดียว
+       นับจำนวนใบให้ตรงก่อนค่อยลบของเดิม นับไม่ตรงคือไม่แตะ ยอมกินที่ต่อดีกว่าเสี่ยง */
+    hydrate(){
+      const brand = Brand.cur || 'jaedaeng';
+      if(hydrated[brand]) return Promise.resolve(true);
+      return fqaIdbGet('fqa_'+brand).then(idb=>{
+        if(idb && idb.records){
+          /* เอาใบที่ค้างคิวใน localStorage มารวมด้วย เผื่อ IndexedDB เคยโดนล้าง */
+          try{
+            const p = JSON.parse(localStorage.getItem('fqa_pending_'+brand)||'[]');
+            if(Array.isArray(p) && p.length){
+              const has = new Set((idb.records||[]).map(r=>r&&r.id));
+              p.forEach(r=>{ if(r && r.id && !has.has(r.id)) idb.records.unshift(r); });
+            }
+          }catch(e){}
+          mem[brand]=idb; hydrated[brand]=true; return true;
+        }
+        const old = read();                       // อ่านของเดิมจาก localStorage
+        const n = (old.records||[]).length;
+        return fqaIdbSet('fqa_'+brand, old).then(ok=>{
+          if(!ok) return false;                   // IndexedDB ใช้ไม่ได้ → อยู่กับของเดิมต่อ
+          return fqaIdbGet('fqa_'+brand).then(back=>{
+            if(!back || (back.records||[]).length !== n){
+              console.warn('[fqa] นับไม่ตรง — คงข้อมูลเดิมไว้');
+              return false;
+            }
+            mem[brand]=back; hydrated[brand]=true;
+            try{ localStorage.removeItem(KEY()); }catch(e){}
+            console.warn('[fqa] ย้าย '+n+' ใบเข้า IndexedDB เรียบร้อย');
+            return true;
+          });
+        });
+      }).catch(()=>false);
+    },
+    idbReady(){ return !!hydrated[Brand.cur]; },
     setMaster(m){ const d=read(); d.master=m; write(d); },
     persistent(){ return usable; }
   };
@@ -1939,11 +2055,14 @@ function fvApplyBrandForms(){
 const APP_VERSION = 'v2026.08.14-1';   /* เปลี่ยนเลขนี้ทุกครั้งที่แก้ → ดูที่มุมบนขวาว่าโหลดเวอร์ชันล่าสุดหรือยัง */
 const App = {
   view:'dash',
-  boot(){
+  async boot(){
     /* ทาสีและซ่อนของที่แบรนด์นี้ไม่ได้ใช้ ก่อนวาดอะไรทั้งนั้น
        ไม่งั้นจะเห็นสีเก่าแวบหนึ่งแล้วค่อยเปลี่ยน */
     Brand.paint();
     fvApplyBrandForms();
+    /* ยกข้อมูลจาก IndexedDB ขึ้นหน่วยความจำก่อนวาดอะไรก็ตาม
+       ครั้งแรกจะย้ายของเดิมจาก localStorage ให้ด้วย · ทุกอย่างหลังจากนี้อ่านแบบเดิมได้เลย */
+    try{ await DB.hydrate(); }catch(e){ console.warn('[fqa] hydrate', e); }
     console.log('[Visit สาขา] build', APP_VERSION, '| brand=', Brand.cur, '| role=', (Hub.session()&&Hub.session().role)||Hub.role()||'-', '| isAdmin=', Hub.isAdmin());
     document.getElementById('sfUser').textContent = Hub.who();
     const uName=(Hub.session()&&(Hub.session().nick||Hub.session().name))||Hub.branchName()||'ผู้ใช้';
