@@ -229,6 +229,11 @@ input,select,textarea{font-family:inherit}
   height:185%;max-height:4.4mm;max-width:92%;
   object-fit:contain;object-position:center bottom;pointer-events:none}
 .sigslot .sigimg{height:8mm;max-height:8mm;bottom:1pt}
+/* แบบประเมินทดลองงาน: ช่องลงชื่อสูงแค่บรรทัดเดียว (13px) ลายเซ็นย่อลงไปเท่านั้น
+   จะเหลือเป็นขีดเล็ก ๆ อ่านไม่ออก · บรรทัดเหนือช่องลงชื่อเป็นแถวว่างสำหรับเซ็นอยู่แล้ว
+   จึงให้ลายเซ็นสูงขึ้นไปคร่อมแถวนั้นได้ เหมือนเซ็นบนกระดาษจริงที่คร่อมเส้น
+   z-index กันไม่ให้ช่องกรอกที่วาดทีหลังมาบังลายเซ็น */
+.xsheet[data-doc="evaluate"] .sigimg{height:9mm;max-height:9mm;bottom:1pt;z-index:3}
 .modal-box.sig-box{max-width:520px}
 .sig-pad{position:relative;border:1px dashed var(--border2);border-radius:12px;
   background:var(--bg2);overflow:hidden;touch-action:none}
@@ -2558,6 +2563,11 @@ label.fld>span>b{font-weight:800}
     <div class="docs-title">ชุดเอกสารประกอบผลสอบ</div>
     <div class="docs-pick" id="docsPick"></div>
     <div class="docs-acts">
+      <label class="btn btn-soft btn-sm" id="docsImpBtn" style="cursor:pointer;margin:0;">
+        <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg>
+        นำเข้าไฟล์ที่กรอกแล้ว
+        <input type="file" accept=".xlsx,.xls" style="display:none" onchange="docsImportFile(event)">
+      </label>
       <button class="btn btn-soft btn-sm" onclick="docsClear()">ล้างฟอร์ม</button>
       <button class="btn btn-soft btn-sm" id="docsSaveBtn" onclick="docsSaveDraft()">บันทึกร่าง</button>
       <button class="btn btn-primary btn-sm" onclick="docsPrint()">
@@ -6379,11 +6389,15 @@ function _docDraftKey(r){
   return DOCS_KEY + ':' + _oeResIdent(r) + ':' + String(r.submittedAt || '');
 }
 /* วันที่แบบไทยสั้น ๆ สำหรับเอกสาร */
+/* ปีในไฟล์ที่คนส่งกลับมามีสองแบบปนกัน — ช่องที่กรอกเป็นวันที่จริง Excel เก็บเป็น ค.ศ.
+   (1958 แสดงผลเป็น 2501) ส่วนช่องที่คนพิมพ์เลข พ.ศ. ลงไปตรง ๆ Excel เก็บเป็น ค.ศ. 2569
+   บวก 543 ให้ทุกช่องเหมือนกันหมด ช่องหลังจะกลายเป็น 3112 · ปีเกิน 2400 ถือว่าเป็น พ.ศ. แล้ว */
+function _docYearBE(y){ return y > 2400 ? y : y + 543; }
 function _docDate(v){
   var d = v ? new Date(v) : new Date();
   if(isNaN(d.getTime())) d = new Date();
   return String(d.getDate()).padStart(2,'0') + '/' + String(d.getMonth()+1).padStart(2,'0') + '/' +
-    String((d.getFullYear() + 543) % 100).padStart(2,'0');
+    String(_docYearBE(d.getFullYear()) % 100).padStart(2,'0');
 }
 function _docCo(r){
   var bkey = (currentBrand && currentBrand !== 'all') ? currentBrand : (r.brand || '');
@@ -6553,6 +6567,7 @@ function openDocSet(){
   if(_docFromExam) ov.classList.remove('show');
   $('docsPick').innerHTML =
     '<label><input type="checkbox" id="pickAdjust" onchange="docsPickForm(\'adjust\',this.checked)">ใบปรับสภาพ</label>' +
+    '<label><input type="checkbox" id="pickEvaluate" onchange="docsPickForm(\'evaluate\',this.checked)">แบบประเมินทดลองงาน</label>' +
     '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
     '<label><input type="checkbox" id="pickKitchen" onchange="docsPickForm(\'kitchen\',this.checked)">แบบประเมินผลงานครัว</label>';
   /* เปิดมาเห็นแค่ใบผลสอบ ที่เหลือติ๊กเอาเองตามที่ต้องใช้จริง
@@ -6730,6 +6745,7 @@ function _docPlace(box, art, kind){
   if(at) box.insertBefore(art, at); else box.appendChild(art);
 }
 var DOC_FORMS = {
+  evaluate: { file: 'docs/eval.html', title: 'แบบประเมินทดลองงาน' },
   service: { file: 'docs/service.html', title: 'แบบฟอร์มการประเมินผลการบริการ' },
   kitchen: { file: 'docs/kitchen.html', title: 'แบบฟอร์มการประเมินผลงานครัว' }
 };
@@ -7200,7 +7216,11 @@ function _docHeadLeft(html){
   });
 }
 function _docSameLogo(html){
-  return html.replace(/(<img class="xlogo" src=")data:[^"]*(")/g, '$1' + _docAdjustLogo + '$2');
+  /* ฟอร์มที่แปลงจาก Excel รุ่นใหม่คายตัวยึด __LOGO__ ไว้ (ต้นฉบับฝังโลโก้เป็นวัตถุลอย
+     ตัวแปลงจึงหยิบรูปมาไม่ได้) ส่วนรุ่นเก่าฝังรูปมาเป็น data: · รับทั้งสองแบบ */
+  return html
+    .replace(/(<img class="xlogo" src=")data:[^"]*(")/g, '$1' + _docAdjustLogo + '$2')
+    .replace(/(<img class="xlogo" src=")__LOGO__(")/g, '$1' + _docAdjustLogo + '$2');
 }
 function docsPickForm(kind, on){
   var box = $('docsSheets');
@@ -7234,7 +7254,9 @@ function docsPickForm(kind, on){
     art.innerHTML = html;
     _docPlace(box, art, kind);
     _docMarkSign();
+    if(kind === 'evaluate') _docEvalFill(_docR);   // ก่อนโหลดร่าง — ร่างที่พิมพ์เองต้องทับได้
     _docLoadDraft();
+    if(kind === 'evaluate') _docEvalWire();
     _docFitWidth();
   };
   if(_docCache[kind]) return put(_docCache[kind]);
@@ -7243,6 +7265,17 @@ function docsPickForm(kind, on){
     if(!r.ok) throw new Error('โหลดไม่สำเร็จ');
     return r.text();
   }).then(function(t){
+    /* ชุดแปลงข้างล่างเขียนขึ้นเจาะจงกับใบประเมินบริการ/ครัว — รวมคอลัมน์ ตัดแถวว่าง
+       เติมช่องหมายเหตุท้ายแถวที่มีช่องติ๊ก ฯลฯ · ใบประเมินทดลองงานคนละโครงกันหมด
+       เอามาใช้แล้วเพี้ยน (ช่องหมายเหตุไปโผล่ทับคำว่า "ผ่านการทดลองงาน" ฝั่งครั้งที่ 2)
+       ใบนั้นแปลงจาก Excel มาครบตั้งแต่ตอนสร้างไฟล์แล้ว เหลือแค่สลับโลโก้ตามแบรนด์ */
+    if(kind === 'evaluate'){
+      t = _docSameLogo(t);
+      _docCache[kind] = t;
+      put(t);
+      toast('แนบ' + cfg.title + 'แล้ว');
+      return;
+    }
     /* ทุกใบต้องผ่านชุดนี้ตามลำดับ เขียนเรียงลงมาให้อ่านออกว่าอะไรมาก่อนหลัง
        ลำดับมีผล เช่น ต่อบรรทัดก่อนค่อยรวมเรื่อง แล้วค่อยเติมช่องกรอกทีหลังสุด */
     t = _docSameLogo(t);
@@ -7298,6 +7331,10 @@ function _docSet(name, val){
   var el = document.querySelector('#docsSheets [data-d="' + name + '"]');
   if(el && val != null && String(val).trim()) el.value = val;
 }
+function _docGet(name){
+  var el = document.querySelector('#docsSheets [data-d="' + name + '"]');
+  return el ? String(el.value || '').trim() : '';
+}
 function _docFields(){
   return [].slice.call(document.querySelectorAll('#docsSheets [data-d]'));
 }
@@ -7317,6 +7354,176 @@ function _docSaveDraft(quiet){
   if(!quiet) toast('บันทึกร่างแล้ว');
 }
 function docsSaveDraft(){ _docSaveDraft(false); }
+
+/* ════════ แบบประเมินทดลองงาน ════════
+   ชื่อช่องในฟอร์มตั้งตามตำแหน่งเซลล์ในไฟล์ Excel ต้นฉบับ (f_B4_1 = ช่อง B4)
+   จึงจับคู่กับไฟล์ที่กรอกมาแล้วได้ตรง ๆ โดยไม่ต้องมีตารางแปลงอีกชั้น
+   ตารางแปลงแบบนั้นคือจุดที่พังเงียบที่สุดเวลาฟอร์มถูกแก้ทีหลัง */
+var EVAL_KNOWN = {                   // ช่องที่ระบบรู้คำตอบอยู่แล้ว → เติมให้ก่อน
+  B4: 'empId', B5: 'name', F5: 'position', F6: 'branch'
+};
+function _docEvalFill(r){
+  for(var ref in EVAL_KNOWN){
+    var v = r && r[EVAL_KNOWN[ref]];
+    if(v) _docSet('f_' + ref + '_1', v);
+  }
+  if(!_docGet('f_F4_1')) _docSet('f_F4_1', _docDate());     // วันที่ = วันที่ทำเอกสาร
+}
+/* รวมคะแนนให้เอง — สิบข้อข้อละ 10 คะแนน คนกรอกไม่ต้องบวกเลขเอง
+   ช่องรวมยังพิมพ์ทับได้ เผื่อกรณีที่ต้องการเขียนต่างจากผลบวก */
+function _docEvalSum(){
+  ['E','F'].forEach(function(col){
+    var box = document.querySelector('#docsSheets [data-doc="evaluate"]');
+    if(!box) return;
+    var total = 0, any = false;
+    for(var r = 11; r <= 20; r++){
+      var el = box.querySelector('[data-d="f_' + col + r + '_1"]');
+      if(!el) continue;
+      var n = parseFloat(String(el.value || '').replace(/[^0-9.\-]/g, ''));
+      if(isFinite(n)){ total += n; any = true; }
+    }
+    var sum = box.querySelector('[data-d="f_' + col + '21_1"]');
+    if(sum && any && !sum.dataset.typed) sum.value = String(Math.round(total * 100) / 100);
+  });
+}
+function _docEvalWire(){
+  var box = document.querySelector('#docsSheets [data-doc="evaluate"]');
+  if(!box) return;
+  /* ตัวแปลงวาดเส้นจุดไข่ปลาเต็มช่องก่อน แล้วค่อยวางช่องพิมพ์ต่อท้าย
+     ช่องพิมพ์เลยถูกดันไปกองอยู่กลางหรือล้นออกนอกกรอบ ไม่ตรงกับช่องในกระดาษ
+     ช่องไหนมีที่ให้พิมพ์แล้วก็ไม่ต้องมีเส้นให้เขียนอีก — เอาเส้นออกแล้วให้ช่องกินเต็มความกว้าง */
+  [].forEach.call(box.querySelectorAll('td'), function(td){
+    var inp = td.querySelector('input.xi');
+    if(!inp) return;
+    [].forEach.call(td.querySelectorAll('i.dln'), function(d){ d.parentNode.removeChild(d); });
+    /* ช่องที่มีข้อความของมันเองอยู่ด้วย (เช่น "…………ผู้ประเมิน") ห้ามยืดช่องพิมพ์เต็มช่อง
+       ไม่งั้นคำท้ายเส้นจะไม่เหลือที่ แล้วถูกบีบเป็นบรรทัดละตัวอักษร */
+    if(td.textContent.replace(/[\s.…]+/g, '') !== '') return;
+    /* กล่องครอบช่องพิมพ์ถูกตั้งความกว้างตายตัวมาตามความยาวเส้นจุดไข่ปลา (เช่น 32ch)
+       ซึ่งกว้างกว่าช่องจริง ตัวช่องเลยล้นข้ามเส้นตารางไปทับช่องข้าง ๆ
+       ปล่อยให้กว้างตามช่องแทน แล้วกันไม่ให้อะไรล้นออกนอกช่องอีก */
+    var sp = inp.parentNode;
+    if(sp && sp.classList && sp.classList.contains('dfld')) sp.style.width = '100%';
+    inp.style.width = '100%';
+    td.style.overflow = 'hidden';
+  });
+  for(var r = 11; r <= 20; r++){
+    ['E','F'].forEach(function(col){
+      var el = box.querySelector('[data-d="f_' + col + r + '_1"]');
+      if(el && !el._sumWired){ el._sumWired = true; el.addEventListener('input', _docEvalSum); }
+    });
+  }
+  /* ช่องลงชื่อในใบนี้ไม่ได้เขียนว่า "ลงชื่อ" เหมือนใบอื่น (เขียนว่าผู้ประเมิน/รับทราบ/ผู้อนุมัติ)
+     ตัวหาช่องเซ็นอัตโนมัติจึงหาไม่เจอ · ชี้ตำแหน่งให้ตรง ๆ ตามตำแหน่งเซลล์ในต้นฉบับ
+     กดปุ่มดินสอเพื่อเซ็นด้วยนิ้วหรือเมาส์ หรือจะพิมพ์ชื่อลงไปเลยก็ได้ */
+  ['f_A38_1', 'f_C38_1', 'f_E38_1', 'f_C42_1'].forEach(function(n){
+    var el = box.querySelector('[data-d="' + n + '"]');
+    if(!el) return;
+    /* ช่องเซ็นกว้างตามความยาวเส้นจุดไข่ปลาในต้นฉบับ ซึ่งราว 2 ซม. — เซ็นแล้วถูกบีบ
+       จนเหลือเป็นขีดเล็ก ๆ ดูเหมือนเซ็นไม่ติด · ขยายให้เต็มที่ว่างในช่อง
+       เหลือที่ท้ายเส้นไว้ให้ป้ายชื่อ (ผู้ประเมิน/รับทราบ/ผู้อนุมัติ) พอดี
+       ต้องหา .dfld ก่อนทำให้เซ็นได้ เพราะหลังจากนั้นช่องจะถูกห่อด้วย .sigwrap อีกชั้น */
+    var sp = el.parentNode;
+    while(sp && !(sp.classList && sp.classList.contains('dfld'))) sp = sp.parentNode;
+    if(sp) sp.style.width = '62%';
+    _docMakeSignable(el);
+  });
+  /* พิมพ์ในช่องรวมเอง = ไม่ต้องคิดให้อีก เคารพสิ่งที่คนกรอกตั้งใจเขียน */
+  ['E21','F21'].forEach(function(ref){
+    var el = box.querySelector('[data-d="f_' + ref + '_1"]');
+    if(el && !el._typedWired){
+      el._typedWired = true;
+      el.addEventListener('input', function(){ el.dataset.typed = '1'; });
+    }
+  });
+  _docEvalSum();
+}
+
+/* ════════ นำเข้าไฟล์ที่กรอกมาแล้ว ════════
+   คนที่ไม่ได้เข้าระบบยังกรอกในไฟล์ Excel ตัวเดิมแล้วส่งกลับมาได้
+   อัปโหลดแล้วช่องในหน้าจะถูกเติมให้ตามตำแหน่งเซลล์ · ที่เหลือพิมพ์ทับได้ตามปกติ
+   ไม่ทับช่องที่พิมพ์ไว้แล้วโดยไม่บอก — ถามก่อนว่าจะเขียนทับไหม */
+function docsImportFile(ev){
+  var f = ev.target.files && ev.target.files[0];
+  ev.target.value = '';
+  if(!f) return;
+  if(typeof XLSX === 'undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
+  var box = document.querySelector('#docsSheets [data-doc="evaluate"]');
+  if(!box){
+    var cb = $('pickEvaluate');
+    if(cb && !cb.checked){ cb.checked = true; docsPickForm('evaluate', true); }
+    return setTimeout(function(){ _docImportInto(f); }, 400);   // รอฟอร์มขึ้นก่อนค่อยเติม
+  }
+  _docImportInto(f);
+}
+/* ค่าที่ควรเอามาลงจากไฟล์ที่นำเข้า — คืน null ถ้าช่องนั้นไม่ควรถูกเติม
+   1) ช่องที่มีข้อความของฟอร์มอยู่ในเซลล์เดียวกัน (เช่น "………ผู้ประเมิน") สิ่งที่อ่านได้คือ
+      ป้ายชื่อของฟอร์มเอง ไม่ใช่ของที่คนกรอก · เอามาลงจะกลายเป็น "ผู้ปผู้ประเมิน"
+   2) วันที่ใน Excel เก็บเป็นตัวเลขลำดับวัน ส่วนตัวหนังสือที่ติดมาเป็นรูปแบบของเครื่องคนส่ง
+      ("Thursday, March 02, 2569") · แปลงเป็น วัน/เดือน/ปี พ.ศ. ให้เหมือนกันทั้งใบ */
+function _docImpVal(ws, el){
+  var m = String(el.dataset.d || '').match(/^f_([A-Z]+\d+)_1$/);
+  if(!m) return null;
+  var td = el.closest ? el.closest('td') : null;
+  if(td && td.textContent.replace(/[\s.…]+/g, '') !== '') return null;
+  var c = ws[m[1]];
+  if(!c) return null;
+  var v;
+  if(c.v instanceof Date) v = _docDate(c.v);
+  else if(c.t === 'n' && c.z && /[ymd]/i.test(String(c.z)) && isFinite(c.v))
+    v = _docDate(new Date(Date.UTC(1899, 11, 30) + Math.round(c.v) * 86400000));
+  else v = (c.w != null ? c.w : c.v);
+  v = String(v == null ? '' : v).trim();
+  return (v === '' || v === '-') ? null : v;
+}
+function _docImportInto(f){
+  var box = document.querySelector('#docsSheets [data-doc="evaluate"]');
+  if(!box){ toast('เปิดแบบประเมินทดลองงานก่อน แล้วลองนำเข้าอีกครั้ง','err'); return; }
+  var rd = new FileReader();
+  rd.onload = function(e){
+    var wb, ws;
+    try{
+      /* cellDates ให้ช่องวันที่กลับมาเป็นวันที่จริง ไม่ใช่ตัวเลขลำดับวัน
+         cellNF ให้รูปแบบตัวเลขติดมาด้วย เอาไว้แยกว่าช่องไหนเป็นวันที่ในไฟล์ที่ไม่ได้แปลงให้
+         ไม่ขอสองอย่างนี้ ตัวแปลงวันที่ข้างล่างจะไม่มีอะไรให้ดูเลย แล้วตกไปใช้ตัวหนังสือ
+         ที่ติดมากับไฟล์แทน ซึ่งเป็นรูปแบบของเครื่องคนกรอก ("Thursday, March 02, 2569") */
+      wb = XLSX.read(new Uint8Array(e.target.result), { type:'array', cellDates:true, cellNF:true });
+      ws = wb.Sheets[wb.SheetNames[0]];
+    }catch(err){ toast('อ่านไฟล์ไม่ได้ — ต้องเป็นไฟล์ .xlsx ของแบบประเมินทดลองงาน','err'); return; }
+    if(!ws){ toast('ไฟล์นี้ไม่มีข้อมูล','err'); return; }
+    var filled = [], skipped = 0;
+    [].forEach.call(box.querySelectorAll('[data-d^="f_"]'), function(el){
+      var v = _docImpVal(ws, el);
+      if(v == null) return;
+      if(String(el.value || '').trim()){ skipped++; return; }     // มีของอยู่แล้ว เก็บไว้ก่อน
+      filled.push([el, v]);
+    });
+    if(!filled.length && !skipped){
+      toast('ไม่พบข้อมูลในไฟล์ — ตรวจว่าเป็นแบบฟอร์มเดียวกันไหม','err'); return;
+    }
+    var put = function(){
+      filled.forEach(function(p){ p[0].value = p[1]; });
+      _docEvalSum(); _docSaveDraft(true);
+      toast('นำเข้าแล้ว ' + filled.length + ' ช่อง');
+    };
+    if(skipped){
+      /* มีช่องที่พิมพ์ไว้แล้ว — ให้เจ้าของงานเลือกเอง ไม่ตัดสินใจแทน */
+      if(confirm('ไฟล์นี้มีข้อมูลทับกับที่กรอกไว้แล้ว ' + skipped + ' ช่อง\n\n' +
+                 'กด "ตกลง" = เขียนทับทั้งหมด\nกด "ยกเลิก" = เติมเฉพาะช่องที่ยังว่าง')){
+        [].forEach.call(box.querySelectorAll('[data-d^="f_"]'), function(el){
+          var v = _docImpVal(ws, el);
+          if(v != null) el.value = v;
+        });
+        _docEvalSum(); _docSaveDraft(true);
+        toast('เขียนทับทั้งฟอร์มแล้ว');
+        return;
+      }
+    }
+    put();
+  };
+  rd.onerror = function(){ toast('อ่านไฟล์ไม่สำเร็จ','err'); };
+  rd.readAsArrayBuffer(f);
+}
 function _docLoadDraft(){
   if(!_docR) return;
   var d;
