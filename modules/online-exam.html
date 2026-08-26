@@ -7599,17 +7599,38 @@ function _oeResultOfReq(q){
   return hit;
 }
 /* ผู้ดูแลมีตารางผลสอบอยู่แล้ว ไม่ต้องดึงซ้ำ */
+/* ปุ่ม "สอบใหม่ (ครั้งที่ 2)" ตัดสินจากผลสอบ ซึ่งฝั่งสาขาต้องรอสองคำขอเรียงกัน
+   (คำขอสอบก่อน แล้วค่อยผลสอบ) · Apps Script ใช้ 3-36 วินาทีต่อคำขอ รวมแล้วรอได้
+   เกือบนาทีกว่าปุ่มจะโผล่ · เก็บผลที่เคยได้ไว้ในเครื่อง เปิดหน้ามาก็ขึ้นปุ่มให้เลย
+   แล้วค่อยตามด้วยของจริง · กดแล้วไม่ได้สิทธิ์ก็ไม่เป็นไร เพราะตอนกดระบบตรวจสิทธิ์
+   กับหลังบ้านอีกรอบอยู่แล้ว (oeGuestRetake) ปุ่มที่ขึ้นจากแคชจึงไม่ทำให้สอบเกินสิทธิ์ */
+var MYRES_KEY = 'myres', _myResP = null;
+function _oeWarmMyResults(){
+  if(MY_RESULTS.length) return;
+  var old = _oeStashed(MYRES_KEY);
+  if(old && old.d && old.d.length){ MY_RESULTS = old.d; renderBranchReqs(); }
+}
 function loadMyResults(){
   if(isAdminMode) return Promise.resolve();
   var used = EXAM_REQS.filter(function(q){ return q.status === 'used'; });
   if(!used.length){ MY_RESULTS = []; return Promise.resolve(); }
-  return apiGet('exam-results').then(function(res){
+  if(_myResP) return _myResP;            // กำลังดึงอยู่แล้ว ไม่ต้องยิงซ้ำให้เปลืองโควตา
+  _myResP = apiGet('exam-results').then(function(res){
     var all = (res && res.ok && res.results) ? res.results : [];
     var want = {};
-    used.forEach(function(q){ want[_oeResIdent(q)] = 1; });
+    EXAM_REQS.forEach(function(q){ if(q.status === 'used') want[_oeResIdent(q)] = 1; });
     MY_RESULTS = all.filter(function(r){ return want[_oeResIdent(r)]; });
+    _oeStash(MYRES_KEY, MY_RESULTS);     // เก็บเฉพาะใบของสาขาตัวเอง ไม่เก็บของทั้งระบบ
     renderBranchReqs();
-  }).catch(function(){});
+  }).catch(function(){}).then(function(){ _myResP = null; });
+  return _myResP;
+}
+/* คำขอชุดใหม่เพิ่งมาถึง · ถ้าผลสอบกำลังดึงอยู่ด้วยรายการคำขอชุดเก่า ต้องคัดใหม่อีกรอบ
+   ไม่งั้นคำขอที่เพิ่งเปลี่ยนเป็น "สอบแล้ว" จะยังไม่มีผลของมันจนถึงรอบดึงถัดไป */
+function _oeReloadMyResults(){
+  var busy = !!_myResP;
+  var p = loadMyResults();
+  return busy ? p.then(function(){ return loadMyResults(); }) : p;
 }
 
 var EXAM_REQS = [];              // คำขอสอบทั้งหมดที่ดึงมาได้
@@ -7645,6 +7666,9 @@ function loadExamRequests(){
     _reqsLoaded = true;
     if(isAdminMode){ renderExamRequests(); paintReqCount(); }
     if(oeCan('request-exam')) renderBranchExams();
+    /* รายการคำขอจากแคชพอบอกได้แล้วว่าใครสอบไปแล้วบ้าง · เอาผลที่เก็บไว้ขึ้นก่อน
+       แล้วยิงของจริงคู่ขนานไปกับคำขอเลย ไม่ต้องรอคำขอตอบกลับก่อนค่อยเริ่มนับหนึ่ง */
+    if(!isAdminMode){ _oeWarmMyResults(); loadMyResults(); }
   }
   return apiGet('exam-requests', q).then(function(res){
     if(res && res.ok && res.requests) _oeStash(ck, res.requests);
@@ -7657,7 +7681,7 @@ function loadExamRequests(){
       if(oeCan('request-exam')) renderBranchExams();
       _oeRescopeResults();
     }
-    else { renderBranchExams(); loadMyResults(); }
+    else { renderBranchExams(); _oeReloadMyResults(); }
   }).catch(function(e){
     /* ตั้งใจไม่เก็บคำขอลงเครื่อง — สถานะเปลี่ยนตลอด (รออนุมัติ → อนุมัติ → สอบแล้ว)
        เอาของเก่ามาโชว์เสี่ยงให้กดเริ่มสอบจากสิทธิ์ที่ถูกใช้ไปแล้ว */
@@ -7708,7 +7732,12 @@ function oeStartReqPoll(){
        ไม่ดึงถี่กว่านี้ด้วยเหตุผลเดียวกับคำขอ — โควตาเป็นเวลารันรวมต่อวัน */
     if(oeCan('view-results') && !_oeResBusy()){
       var onRes = $('tabResults').classList.contains('active');
-      if((onRes && _reqTick % 2 === 0) || _reqTick % 10 === 0) loadResults();
+      /* ฝั่งสาขา: มีคำขอที่สอบไปแล้วแต่ยังไม่รู้ผล = กำลังรอคำตอบว่าสอบใหม่ได้ไหม
+         ระหว่างนั้นดึงถี่เท่าตอนจ้องตารางผล พอรู้ผลครบก็กลับไปดึงห่างตามเดิมเอง */
+      var waitRes = EXAM_REQS.some(function(q){
+        return q.status === 'used' && _oeIsMyReq(q) && !_oeResultOfReq(q);
+      });
+      if(((onRes || waitRes) && _reqTick % 2 === 0) || _reqTick % 10 === 0) loadResults();
     }
   }, 10000);
   /* กลับมาที่แท็บนี้เมื่อไรก็ดึงทันที ไม่ต้องรอครบรอบ */
