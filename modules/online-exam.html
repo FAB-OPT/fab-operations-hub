@@ -2744,6 +2744,22 @@ function toast(msg, kind){ var t=$('toast'); t.className='toast show'+(kind?' '+
    ตั้งไว้ 30 วินาทีจึงตัดสายทั้งที่อีกแป๊บเดียวก็ตอบ · เผื่อให้พ้นค่าที่วัดได้ */
 var API_TIMEOUT_MS = 45000;
 
+/* Apps Script ตอบสองจังหวะ: สคริปต์ทำงานจนจบก่อน แล้ว Google ค่อยเด้งไปหยิบคำตอบ
+   ที่ script.googleusercontent.com อีกที · จังหวะหลังนี้พังเองได้ ได้หน้า "ไม่พบเพจ"
+   ของไดรฟ์กลับมาเป็นสถานะ 404 แทนข้อมูล
+   วัดจริง: ยิง action=exams รอบหนึ่งใช้ 32 วินาทีแล้วได้ 404 · อีกสามรอบถัดมาได้ครบใน 2-19 วินาที
+   จึงไม่ใช่โค้ดเราพังและไม่ใช่ข้อมูลเสีย ติดป้ายไว้ว่าเป็นอาการที่ลองใหม่แล้วมีหวัง
+   ที่สำคัญกว่านั้น: 404 แบบนี้เกิดหลังสคริปต์ทำงานไปแล้ว การเขียนอาจลงเรียบร้อยทั้งที่
+   หน้าเว็บเห็นว่าล้ม — ประกาศว่าไม่สำเร็จทันทีจึงเป็นการโกหกผู้ใช้ */
+function _apiHttpErr(status){
+  var soft = (status === 404 || status >= 500);
+  var e = new Error(soft ? 'Google ส่งคำตอบกลับมาไม่ถึง (สถานะ ' + status + ')'
+                         : 'หลังบ้านตอบกลับมาว่าผิดพลาด (สถานะ ' + status + ')');
+  e.transient = soft;
+  return e;
+}
+function _apiWait(ms){ return new Promise(function(r){ setTimeout(r, ms); }); }
+
 function _apiFetch(url, init){
   var ctl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
   if(ctl){ init = init || {}; init.signal = ctl.signal; }
@@ -2751,7 +2767,7 @@ function _apiFetch(url, init){
   var timer = ctl ? setTimeout(function(){ timedOut = true; ctl.abort(); }, API_TIMEOUT_MS) : 0;
   return fetch(url, init).then(function(r){
     if(timer) clearTimeout(timer);
-    if(!r.ok) throw new Error('หลังบ้านตอบกลับมาว่าผิดพลาด (สถานะ ' + r.status + ')');
+    if(!r.ok) throw _apiHttpErr(r.status);
     return r.text().then(function(txt){
       try { return JSON.parse(txt); }
       catch(e){
@@ -2768,6 +2784,7 @@ function _apiFetch(url, init){
          ติดป้ายไว้ให้คนเรียกแยกออก จะได้ไม่ประกาศว่าล้มเหลวทั้งที่ยังไม่รู้ */
       var te = new Error('หลังบ้านตอบช้าเกิน ' + Math.round(API_TIMEOUT_MS/1000) + ' วินาที');
       te.timeout = true;
+      te.transient = true;
       throw te;
     }
     if(e instanceof TypeError) throw new Error('ต่อเน็ตไม่ได้ หรือ Apps Script ยังไม่ได้ Deploy ตัวใหม่');
@@ -2778,13 +2795,26 @@ function _apiFetch(url, init){
 /* วัดจริงกับหลังบ้านตัวเป็น ๆ: ยิง action=exams 5 รอบได้ 9.8 / 21 / 36 / 36 / 2.9 วินาที
    และมีรอบหนึ่ง "ตอบกลับมาไม่ครบ" (ได้ 7,764 ตัวอักษรจาก 23,923) → JSON.parse พัง
    → ขึ้นว่าโหลดไม่สำเร็จ ทั้งที่ข้อมูลไม่ได้หาย · ยิงซ้ำให้เองหนึ่งครั้งจึงคุ้มมาก
-   ยิงซ้ำเฉพาะการอ่านเท่านั้น การเขียนห้ามยิงซ้ำ เดี๋ยวผลสอบถูกบันทึกสองรอบ */
+   ยิงซ้ำติดกันทันทีมักเจอของเดิม เว้นจังหวะให้ฝั่งโน้นตั้งหลักก่อนได้ผลกว่า */
+function _apiRetry(run, label, max){
+  var n = 0;
+  function go(){
+    n++;
+    return run(n).catch(function(e){
+      /* ลองใหม่เฉพาะอาการที่ลองใหม่แล้วมีหวัง — เน็ตไม่ติดหรือ deployment ผิด
+         ยิงกี่รอบก็เหมือนเดิม อย่าให้คนนั่งรอเปล่า ๆ นานเป็นนาที */
+      if(n >= (e && (e.transient || e.timeout) ? (max || 3) : 2)) throw e;
+      try { console.warn('[online-exam] ' + label + ' รอบที่ ' + n + ' ไม่สำเร็จ (' + e.message + ') — ลองใหม่', e); } catch(_) {}
+      return _apiWait(n * 800).then(go);
+    });
+  }
+  return go();
+}
 function apiGet(action, qs){
   var url = SCRIPT_URL+'?action='+encodeURIComponent(action)+(qs?'&'+qs:'');
-  return _apiFetch(url+'&_t='+Date.now()).catch(function(e){
-    try { console.warn('[online-exam] ' + action + ' ไม่สำเร็จ กำลังลองใหม่อีกครั้ง', e); } catch(_) {}
-    return _apiFetch(url+'&_t='+Date.now()+'&r=1');
-  });
+  return _apiRetry(function(n){
+    return _apiFetch(url + '&_t=' + Date.now() + (n > 1 ? '&r=' + n : ''));
+  }, action);
 }
 
 /* ═══ ของที่เคยโหลดไว้ ═══
@@ -2962,12 +2992,19 @@ function _oeAgo(t){
   var h = Math.round(m / 60);
   return h < 24 ? h + ' ชั่วโมงที่แล้ว' : Math.round(h / 24) + ' วันที่แล้ว';
 }
+/* คำสั่งเขียนของระบบสอบยิงซ้ำได้ทุกตัว เพราะหลังบ้านกันของซ้ำไว้แล้ว:
+   ผลสอบเทียบ submittedAt+examId+empId+name · ชุดข้อสอบเขียนทับด้วย id เดิม ·
+   คำขอสอบคืนใบเดิมถ้าคนเดิมชุดเดิมยังค้างอยู่ · ลบก็คือลบ ซ้ำแล้วก็เท่าเดิม
+   เมื่อยิงซ้ำไม่ทำให้เกิดของซ้ำ การปล่อยให้งานหายเพราะคำตอบไม่กลับมาจึงแย่กว่ามาก */
 function apiPost(body){
-  return _apiFetch(SCRIPT_URL, {
-    method:'POST', mode:'cors',
-    headers:{'Content-Type':'text/plain;charset=utf-8'},
-    body: JSON.stringify(body)
-  });
+  var label = (body && body.type) || 'post';
+  return _apiRetry(function(){
+    return _apiFetch(SCRIPT_URL, {
+      method:'POST', mode:'cors',
+      headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify(body)
+    });
+  }, label);
 }
 
 /* ข้อความท้ายกล่องว่างเปล่า — บอกสาเหตุจริง ไม่ใช่ประโยคกลาง ๆ
@@ -3168,6 +3205,11 @@ function oeApplyPerms(){
 window.addEventListener('DOMContentLoaded', function(){
   (typeof _oeHydrate === 'function' ? _oeHydrate() : Promise.resolve())
     .catch(function(){}).then(_oeStart);
+  /* ผลที่ค้างจากรอบก่อนต้องได้ไปต่อ ไม่ว่าจะเปิดหน้านี้ด้วยสิทธิ์ไหนหรือผ่านลิงก์แบบใด
+     จึงแยกออกมาจาก _oeStart ที่มีทางเด้งกลับฮับกลางคัน */
+  setTimeout(function(){ try{ _oeFlushPending(); }catch(e){} }, 1200);
+  setInterval(function(){ try{ _oeFlushPending(); }catch(e){} }, 60000);
+  window.addEventListener('online', function(){ try{ _oeFlushPending(); }catch(e){} });
 });
 function _oeStart(){
   /* ลิงก์ที่ส่งต่อกัน (เข้าสอบ · ใบรายงาน · ชุดเอกสาร) เปิดได้เลยโดยไม่ต้องล็อกอิน
@@ -6248,13 +6290,63 @@ function _oeRunResult(){
       startedAt: R.startedAt? R.startedAt.toISOString():'', submittedAt:new Date().toISOString(),
       answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })};
 }
+/* ═══ ผลสอบที่ยังไม่ขึ้นระบบ ═══
+   คนสอบทำจนจบแล้ว สายที่สะดุดไม่ควรแปลว่าต้องกลับมาสอบใหม่
+   เก็บผลไว้ในเครื่องก่อน แล้วส่งซ้ำให้เองทุกนาทีและทุกครั้งที่เปิดหน้านี้
+   ส่งซ้ำได้อย่างปลอดภัยเพราะหลังบ้านกันของซ้ำด้วย submittedAt+examId+empId+name */
+var OE_PEND_KEY = 'oe_pending_results_v1';
+function _oePendKey(r){ return [r.submittedAt, r.examId, r.empId, r.name].join('|'); }
+function _oePendList(){
+  var v = _oeGet(OE_PEND_KEY);
+  /* เผื่อเครื่องที่เปิด IndexedDB ไม่ได้ — ของจะไปตกที่ localStorage แทน */
+  if(v == null){ try{ v = localStorage.getItem(OE_PEND_KEY); }catch(e){} }
+  try{ var a = JSON.parse(v || '[]'); return Array.isArray(a) ? a : []; }catch(e){ return []; }
+}
+function _oePendSave(list){
+  if(list.length) _oeSet(OE_PEND_KEY, JSON.stringify(list));
+  else _oeDel(OE_PEND_KEY);
+}
+function _oePendAdd(rec){
+  if(!rec) return;
+  var list = _oePendList(), k = _oePendKey(rec);
+  if(list.some(function(x){ return _oePendKey(x) === k; })) return;
+  list.push(rec); _oePendSave(list);
+}
+function _oePendDrop(rec){
+  if(!rec) return;
+  var k = _oePendKey(rec);
+  var left = _oePendList().filter(function(x){ return _oePendKey(x) !== k; });
+  _oePendSave(left);
+}
+var _oePendBusy = false;
+function _oeFlushPending(){
+  if(_oePendBusy) return Promise.resolve(0);
+  var list = _oePendList();
+  if(!list.length) return Promise.resolve(0);
+  _oePendBusy = true;
+  var done = 0;
+  return list.reduce(function(chain, rec){
+    return chain.then(function(){
+      return apiPost({ type:'submit-exam-result', result: rec }).then(function(res){
+        if(res && res.ok){ _oePendDrop(rec); done++; }
+      }).catch(function(){});    /* ยังส่งไม่ได้ก็เก็บไว้รอบหน้า ไม่ต้องกวนคนใช้ */
+    });
+  }, Promise.resolve()).then(function(){
+    _oePendBusy = false;
+    if(done){ try{ toast('ส่งผลสอบที่ค้างอยู่ขึ้นระบบแล้ว ' + done + ' ใบ','ok'); }catch(e){} }
+    return done;
+  }, function(){ _oePendBusy = false; return done; });
+}
+
 function submitResultToBackend(){
   var st=$('saveState');
   if(R.isPreview){ st.innerHTML='👁️ โหมดทดลอง — ไม่บันทึกผล'; return; }
   st.innerHTML='<span class="loading dark"></span> กำลังบันทึกผลขึ้นระบบ…';
-  var payload={ type:'submit-exam-result', result: R.record };
+  var _rec = R.record;
+  var payload={ type:'submit-exam-result', result: _rec };
   apiPost(payload).then(function(res){
     if(res && res.ok){
+      _oePendDrop(_rec);          /* เผื่อใบนี้เคยค้างไว้จากรอบก่อน */
       st.innerHTML='<span style="color:var(--green)">✓ บันทึกผลเรียบร้อยแล้ว</span>';
       /* หลังบ้านปิดรหัสให้ตอนบันทึกผลอยู่แล้ว — ยิงซ้ำอีกทางกันกรณีคอลัมน์รหัสหาย
          และรีเฟรชรายการของสาขาให้เห็นว่าปิดแล้วทันที */
@@ -6263,7 +6355,14 @@ function submitResultToBackend(){
       if(oeCan('view-results')) loadResults(true);
     }
     else st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ: '+((res&&res.error)||'')+'</span>';
-  }).catch(function(e){ st.innerHTML='<span style="color:var(--red)">⚠ บันทึกผลไม่สำเร็จ (เชื่อมต่อไม่ได้) — แจ้งผู้ดูแล</span>'; });
+  }).catch(function(e){
+    /* ส่งไม่ถึง ≠ ต้องสอบใหม่ · เก็บผลไว้ในเครื่องแล้วบอกตามจริงว่ายังไม่ขึ้นระบบ */
+    _oePendAdd(_rec);
+    st.innerHTML = '<span style="color:var(--gold)">⏳ ผลยังไม่ขึ้นระบบ — เก็บไว้ในเครื่องแล้ว '
+      + 'ระบบจะส่งซ้ำให้เอง</span><br><span style="font-size:12px;color:var(--text2)">'
+      + esc(_apiWhy(e)) + '</span>';
+    setTimeout(_oeFlushPending, 8000);
+  });
 }
 
 
