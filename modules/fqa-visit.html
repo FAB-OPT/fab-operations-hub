@@ -1344,6 +1344,22 @@ function fmtDMY(v){
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
   return m ? (m[3] + '/' + m[2] + '/' + (Number(m[1]) + 543)) : String(v == null ? '' : v);
 }
+/* เพดานของหลังบ้าน: ช่องหนึ่งใน Google Sheets เก็บได้ ~50,000 ตัวอักษร
+   ใบที่เกิน 48,000 จะถูก "ตัดรูปทิ้งแล้วเก็บแต่ข้อความ" ส่วนเกิน 49,000 จะไม่ถูกบันทึกเลย
+   ทั้งสองอย่างเกิดที่ฝั่งหลังบ้าน คนตรวจไม่มีทางรู้ว่ารูปหลักฐานหายไป
+   จึงต้องเตือนตั้งแต่ยังไม่ชน · ใบที่ใหญ่ที่สุดตอนนี้อยู่ราว 8,600 ยังห่างมาก */
+const FQA_SIZE_MAX = 49000, FQA_SIZE_WARN = 40000;
+/* ขนาดที่ใบนี้จะเป็น "หลังรูปถูกอัปขึ้น Drive แล้ว" — วัดจากตัวใบตรง ๆ ไม่ได้
+   เพราะตอนอยู่ในเครื่องรูปยังเป็น base64 ซึ่งใหญ่กว่ากันหลายสิบเท่า
+   แทนรูปด้วยลิงก์ Drive ความยาวจริงก่อน แล้วค่อยวัด */
+function fqaEstSize(rec){
+  try{
+    const c = JSON.parse(JSON.stringify(rec));
+    const fake = 'https://drive.google.com/thumbnail?id=' + new Array(34).join('x') + '&sz=w1200';
+    (c.photos||[]).forEach(p=>{ if(p && typeof p.data==='string' && p.data.indexOf('data:')===0) p.data=fake; });
+    return JSON.stringify(c).length;
+  }catch(e){ return 0; }
+}
 const nowHM = ()=>{ const d=new Date(); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); };
 
 /* =======================================================================
@@ -1756,7 +1772,17 @@ const Cloud = {
         this.saveSynced(seen);
         /* จำหมุดไว้ใช้รอบหน้า — ใช้ค่าที่หลังบ้านคืนมาเท่านั้น ห้ามใช้เวลาของเครื่องตัวเอง
            นาฬิกาสองฝั่งไม่ตรงกันเมื่อไร รายการที่อยู่ในช่วงคลาดจะหายไปเงียบ ๆ */
-        if(res.now) this.setSince(res.now);
+        if(res.now){
+          this.setSince(res.now);
+          /* เทียบนาฬิกาเครื่องกับหลังบ้าน — ระบบตัดสินว่าใบไหนใหม่กว่าด้วยเวลาของเครื่อง
+             ที่บันทึก เครื่องที่ตั้งเวลาผิดมาก ๆ จะได้เวลาที่หลุดกรอบเผื่อ 6 ชั่วโมง
+             แล้วใบนั้นจะไม่ถูกดึงลงเครื่องอื่นเลย หายไปเงียบ ๆ โดยไม่มีใครรู้
+             ตรวจตรงนี้เพราะเป็นจุดเดียวที่ได้เวลาจริงจากหลังบ้านมาเทียบ */
+          try{
+            const skew = Math.abs(Date.now() - Date.parse(res.now));
+            if(isFinite(skew) && skew > 10*60*1000) App.warnClockSkew(skew);
+          }catch(e){}
+        }
         if(!incremental) this.markFull();   // รอบนี้ขอครบทั้งก้อนแล้ว จับเวลาไว้
         /* เขียนลงเครื่อง — ต้องเช็คผล เพราะ localStorage เต็มเมื่อไรจะเขียนไม่ลงเงียบ ๆ
            อาการที่เห็นคือ "ซิงค์เรียบร้อย" ทุกครั้งแต่ข้อมูลใหม่ไม่ขึ้นสักที
@@ -2325,6 +2351,23 @@ const App = {
       'box-shadow:0 2px 10px rgba(0,0,0,.25)';
     b.innerHTML='⚠ เครื่องนี้ใช้ที่เก็บสำรองซึ่งมีพื้นที่จำกัด — บันทึกงานยาว ๆ อาจไม่ลง '+
       '<u style="cursor:pointer" onclick="location.reload()">โหลดหน้าใหม่</u> '+
+      '<span style="cursor:pointer;opacity:.8" onclick="this.parentNode.remove()">✕</span>';
+    document.body.appendChild(b);
+  },
+  /* นาฬิกาเครื่องไม่ตรง — ต้องรู้ก่อนออกไปตรวจ ไม่ใช่มารู้ตอนข้อมูลหาย */
+  warnClockSkew(ms){
+    if(document.getElementById('fqaClockWarn')) return;
+    const mins = Math.round(ms/60000);
+    const txt = mins >= 1440 ? (Math.round(mins/1440) + ' วัน')
+              : mins >= 60   ? (Math.round(mins/60) + ' ชั่วโมง')
+              : (mins + ' นาที');
+    const b=document.createElement('div');
+    b.id='fqaClockWarn';
+    b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9001;background:#b45309;color:#fff;'+
+      'font-size:13px;font-weight:700;padding:9px 14px;line-height:1.6;text-align:center;'+
+      'box-shadow:0 2px 10px rgba(0,0,0,.25)';
+    b.innerHTML='⚠ นาฬิกาเครื่องนี้คลาดจากเวลาจริง '+txt+' — ใบที่บันทึกอาจไม่ขึ้นให้เครื่องอื่นเห็น '+
+      '<u>ตั้งวันและเวลาของเครื่องให้เป็นแบบอัตโนมัติ</u> '+
       '<span style="cursor:pointer;opacity:.8" onclick="this.parentNode.remove()">✕</span>';
     document.body.appendChild(b);
   },
@@ -2914,6 +2957,17 @@ const Form = {
         return;
       }
       Cloud.enqueue('save', rec.id);
+      /* ใบใกล้ชนเพดานแล้ว — ต้องบอกตอนนี้ ก่อนที่รอบหน้าจะมีรูปเพิ่มจนเกิน
+         แล้วรูปหลักฐานถูกตัดทิ้งที่หลังบ้านโดยไม่มีอะไรขึ้นเตือนเลย */
+      const _sz = fqaEstSize(rec);
+      if(_sz > FQA_SIZE_WARN){
+        App.mustFix('ใบนี้ใหญ่เกือบเต็มที่เก็บแล้ว',
+          'ใบนี้ใช้พื้นที่ <b>' + _sz.toLocaleString() + '</b> จากเพดาน <b>' +
+          FQA_SIZE_MAX.toLocaleString() + '</b> (รูป ' + ((rec.photos||[]).length) + ' ใบ)<br><br>' +
+          'ถ้าเกินเพดาน <b>รูปทั้งใบจะถูกตัดทิ้งตอนขึ้นระบบ</b> โดยไม่มีอะไรเตือน — ' +
+          'ใบนี้บันทึกไว้แล้ว แต่ครั้งต่อไปให้ลดจำนวนรูปลง หรือแยกเป็นสองใบ',
+          'รับทราบ', ()=>{});
+      }
       App.toast('บันทึกผลการตรวจเรียบร้อย');
       this.drafts[this.type]=this.blank(this.type);   // ล้างฟอร์มเสมอหลังบันทึก (ทั้ง 3 ฟอร์ม)
       this.matSub='';
