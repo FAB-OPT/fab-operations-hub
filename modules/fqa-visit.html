@@ -1091,7 +1091,10 @@ function fqaIdb(){
     req.onupgradeneeded = ()=>{ try{ req.result.createObjectStore(FQA_IDB_STORE); }catch(e){} };
     req.onsuccess = ()=> res(req.result);
     req.onerror   = ()=> res(null);
-    setTimeout(()=>res(null), 3000);   // เปิดไม่ขึ้นใน 3 วิ ถือว่าใช้ไม่ได้ ดีกว่าค้างหน้าโหลด
+    /* เดิมรอ 3 วินาที ซึ่งสั้นเกินไปสำหรับเครื่องเก่า/เครื่องที่กำลังทำงานอย่างอื่นอยู่
+       พอเปิดไม่ทันจะตกไปใช้ที่เก็บแบบเก่าที่มีเพดานและเต็มได้ โดยคนใช้ไม่รู้ตัว
+       ยอมให้หน้าโหลดช้าอีกหน่อย ดีกว่าถูกลดชั้นไปใช้ที่เก็บที่บันทึกพลาดได้ */
+    setTimeout(()=>res(null), 8000);
   });
   return _fqaIdbP;
 }
@@ -1174,8 +1177,8 @@ const DB = (()=>{
       localStorage.removeItem('fqa_system_v2');
     }catch(e){}
   }
-  function flushIdb(brand, data){
-    fqaIdbSet('fqa_'+brand, data).then(ok=>{ if(!ok) console.warn('[fqa] เขียน IndexedDB ไม่สำเร็จ'); });
+  /* งานพ่วงหลังเขียน — เก็บกวาดคีย์เก่า + สำรองใบที่ยังส่งไม่สำเร็จ */
+  function _idbSide(brand, data){
     _dropOldKeys(brand);
     /* สำรองเฉพาะใบที่ยังส่งไม่สำเร็จลง localStorage — ก้อนเล็ก ไม่ไปเบียดใคร */
     try{
@@ -1185,6 +1188,32 @@ const DB = (()=>{
       if(keep.length) localStorage.setItem('fqa_pending_'+brand, JSON.stringify(keep));
       else localStorage.removeItem('fqa_pending_'+brand);
     }catch(e){}
+  }
+  function flushIdb(brand, data){
+    _wTimer = null;
+    fqaIdbSet('fqa_'+brand, data).then(ok=>{ if(!ok) console.warn('[fqa] เขียน IndexedDB ไม่สำเร็จ'); });
+    _idbSide(brand, data);
+  }
+  /* เขียนให้ถึงที่เก็บจริงเดี๋ยวนั้น แล้วบอกได้ว่าลงจริงไหม
+     ต่างจาก write() ที่ตอบว่าสำเร็จตั้งแต่ยังอยู่ในหน่วยความจำ แล้วค่อยเขียนจริงทีหลัง 0.4 วินาที
+     งานที่คนตรวจนั่งทำมาเป็นชั่วโมง ต้องรู้ให้ได้ว่าลงเครื่องแล้วจริงก่อนจะล้างฟอร์มทิ้ง */
+  function writeNow(d){
+    if(hydrated[Brand.cur]){
+      const brand = Brand.cur;
+      mem[brand] = d;
+      clearTimeout(_wTimer); _wTimer = null;      // มีตัวหน่วงค้างอยู่ก็ไม่ต้องรอแล้ว
+      return fqaIdbSet('fqa_'+brand, d).then(ok=>{ _idbSide(brand, d); return ok; })
+        .catch(()=>false);
+    }
+    return Promise.resolve(write(d));             // ที่เก็บแบบเก่ารู้ผลทันทีอยู่แล้ว
+  }
+  /* เขียนของที่ยังค้างตัวหน่วงลงให้เสร็จ — ใช้ตอนกำลังจะปิดหน้า/สลับแอป */
+  function flushPending(){
+    if(!_wTimer) return false;
+    const brand = Brand.cur;
+    clearTimeout(_wTimer); _wTimer = null;
+    if(hydrated[brand] && mem[brand]) flushIdb(brand, mem[brand]);
+    return true;
   }
   function write(d){
     if(hydrated[Brand.cur]){
@@ -1226,6 +1255,12 @@ const DB = (()=>{
     save(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       rec.updatedAt=new Date().toISOString();   // ISO เสมอ — ดู _fqaIsoTime ว่าทำไม
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
+    /* เหมือน save() แต่รอจนเขียนลงที่เก็บจริงเสร็จ แล้วคืน true/false ว่าลงจริงไหม
+       ใช้กับ "กดบันทึกผลตรวจ" ซึ่งเป็นจังหวะเดียวที่พลาดแล้วงานทั้งใบหาย */
+    saveNow(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
+      rec.updatedAt=new Date().toISOString();
+      if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return writeNow(d); },
+    flushPending(){ return flushPending(); },
     /* upsert เฉพาะในเครื่อง โดยไม่แตะ updatedAt — ใช้ตอนซิงค์ (เช่น แทน base64 ด้วย URL รูป) */
     writeRecord(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
@@ -2116,6 +2151,18 @@ const App = {
     /* ยกข้อมูลจาก IndexedDB ขึ้นหน่วยความจำก่อนวาดอะไรก็ตาม
        ครั้งแรกจะย้ายของเดิมจาก localStorage ให้ด้วย · ทุกอย่างหลังจากนี้อ่านแบบเดิมได้เลย */
     try{ await DB.hydrate(); }catch(e){ console.warn('[fqa] hydrate', e); }
+    /* ปิดแท็บ/สลับแอป — เขียนของที่ยังค้างตัวหน่วงลงให้เสร็จก่อน
+       บนมือถือไม่มีสัญญาณอื่นให้จับนอกจากสองตัวนี้ ผูกไว้ทั้งคู่เพราะแต่ละเครื่องยิงไม่เหมือนกัน */
+    if(!this._flushBound){
+      this._flushBound = true;
+      window.addEventListener('pagehide', ()=>{ try{ DB.flushPending(); }catch(e){} });
+      document.addEventListener('visibilitychange', ()=>{
+        if(document.hidden){ try{ DB.flushPending(); }catch(e){} }
+      });
+    }
+    /* เครื่องที่เปิด IndexedDB ไม่ได้จะตกไปใช้ที่เก็บแบบเก่าซึ่งมีเพดานและเต็มได้
+       ต้องบอกตั้งแต่เปิดแอป ไม่ใช่ปล่อยให้ไปรู้ตอนตรวจเสร็จทั้งใบแล้วบันทึกไม่ลง */
+    if(!DB.idbReady()) this.warnFallbackStore();
     /* ขอให้เบราว์เซอร์ "ตรึง" พื้นที่ของเว็บนี้ไว้
        ปกติเวลาเครื่องใกล้เต็ม เบราว์เซอร์จะไล่ลบข้อมูลของเว็บที่ไม่ค่อยได้ใช้ทิ้ง
        ขอไว้แล้วจะไม่โดนลบ ต้องให้คนกดลบเองเท่านั้น · เบราว์เซอร์ให้เองเงียบ ๆ
@@ -2265,6 +2312,33 @@ const App = {
     document.getElementById('modal').classList.add('on');
   },
   closeModal(){ document.getElementById('modal').classList.remove('on'); },
+  /* แถบเตือนค้างหัวจอ — ใช้กับเรื่องที่ต้องรู้ก่อนเริ่มทำงาน ไม่ใช่หลังทำเสร็จ */
+  warnFallbackStore(){
+    if(document.getElementById('fqaStoreWarn')) return;
+    const b=document.createElement('div');
+    b.id='fqaStoreWarn';
+    b.style.cssText='position:fixed;left:0;right:0;top:0;z-index:9000;background:#b91c1c;color:#fff;'+
+      'font-size:13px;font-weight:700;padding:9px 14px;line-height:1.6;text-align:center;'+
+      'box-shadow:0 2px 10px rgba(0,0,0,.25)';
+    b.innerHTML='⚠ เครื่องนี้ใช้ที่เก็บสำรองซึ่งมีพื้นที่จำกัด — บันทึกงานยาว ๆ อาจไม่ลง '+
+      '<u style="cursor:pointer" onclick="location.reload()">โหลดหน้าใหม่</u> '+
+      '<span style="cursor:pointer;opacity:.8" onclick="this.parentNode.remove()">✕</span>';
+    document.body.appendChild(b);
+  },
+  /* เรื่องที่พลาดไม่ได้ — ต้องหยุดคนให้ได้ ไม่ใช่ข้อความลอยที่เลื่อนหายไปใน 3 วินาที
+     ใช้ตอนบันทึกไม่ลง ซึ่งถ้าคนกรอกไม่เห็น จะเดินจากไปโดยคิดว่างานถูกเก็บแล้ว */
+  mustFix(title, msg, retryLabel, onRetry){
+    const id = 'mf_' + Date.now();
+    window[id] = ()=>{ App.closeModal(); try{ delete window[id]; }catch(e){} onRetry && onRetry(); };
+    this.modal(title,
+      `<div style="padding:4px 2px 2px">
+         <div style="font-size:15px;line-height:1.75;color:var(--text)">${msg}</div>
+         <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap">
+           <button class="btn pri" onclick="${id}()">${esc(retryLabel||'ลองบันทึกอีกครั้ง')}</button>
+           <button class="btn gho" onclick="App.closeModal()">ปิดไว้ก่อน</button>
+         </div>
+       </div>`);
+  },
   zoom(src){ document.getElementById('zoomImg').src=src; document.getElementById('zoom').classList.add('on'); }
 };
 
@@ -2801,7 +2875,21 @@ const Form = {
     if(rec.newStaff) rec.newStaff = rec.newStaff
       .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score||e.detail)}))
       .filter(st=>(st.name||'').trim() || (st.startDate||'').trim() || st.evals.length);
-    if(DB.save(rec)){
+    /* รอให้เขียนลงเครื่องเสร็จ "จริง" ก่อน ค่อยบอกว่าสำเร็จและล้างฟอร์ม
+       ของเดิมตอบว่าสำเร็จตั้งแต่ยังอยู่ในหน่วยความจำ แล้วค่อยเขียนจริงอีก 0.4 วินาทีให้หลัง
+       ปิดแอปหรือจอดับในช่วงนั้นเมื่อไร งานทั้งใบหายจากเครื่อง
+       ทั้งที่คนกรอกเพิ่งเห็นคำว่า "บันทึกเรียบร้อย" ไปหมาด ๆ */
+    App.toast('กำลังบันทึก…');
+    DB.saveNow(rec).then(ok=>{
+      if(!ok){
+        /* เขียนไม่ลง = ฟอร์มต้องอยู่ครบเหมือนเดิม และต้องหยุดคนให้ได้
+           ห้ามล้างฟอร์ม ห้ามเด้งออกจากหน้า เพราะงานยังไม่ได้ถูกเก็บที่ไหนเลย */
+        App.mustFix('บันทึกไม่สำเร็จ — งานยังอยู่ในฟอร์ม',
+          'เครื่องนี้เขียนข้อมูลลงไม่ได้ (พื้นที่เต็ม) <b>ข้อมูลที่กรอกไว้ยังอยู่ครบ ยังไม่หาย</b><br><br>' +
+          'ให้เปิดระบบ <b>Operations Checklist</b> ค้างไว้สักครู่เพื่อคืนพื้นที่ แล้วกลับมากดปุ่มข้างล่างนี้',
+          'ลองบันทึกอีกครั้ง', ()=>this.submit());
+        return;
+      }
       Cloud.enqueue('save', rec.id);
       App.toast('บันทึกผลการตรวจเรียบร้อย');
       this.drafts[this.type]=this.blank(this.type);   // ล้างฟอร์มเสมอหลังบันทึก (ทั้ง 3 ฟอร์ม)
@@ -2809,7 +2897,7 @@ const Form = {
       this.editing=false;
       this.persist();
       App.go('list');
-    }
+    });
   }
 };
 </script>
