@@ -2158,6 +2158,9 @@ const App = {
       window.addEventListener('pagehide', ()=>{ try{ DB.flushPending(); }catch(e){} });
       document.addEventListener('visibilitychange', ()=>{
         if(document.hidden){ try{ DB.flushPending(); }catch(e){} }
+        /* หยิบเครื่องขึ้นมาทำต่อ — เวลาในฟอร์มที่ยังไม่มีใครแก้ ต้องเดินตามนาฬิกาต่อ
+           ไม่งั้นวางเครื่องไว้ครึ่งวันแล้วกลับมากดบันทึก จะได้เวลาของตอนเปิดฟอร์ม */
+        else { try{ Form.refreshClock(); }catch(e){} }
       });
     }
     /* เครื่องที่เปิด IndexedDB ไม่ได้จะตกไปใช้ที่เก็บแบบเก่าซึ่งมีเพดานและเต็มได้
@@ -2421,6 +2424,7 @@ const Form = {
     this.editing=!!rec;
     if(rec){ this.drafts[type]=JSON.parse(JSON.stringify(rec)); this.render(); return; }   // แก้ไขรายการเดิม
     if(!this.drafts[type]){ this.drafts[type]=this.blank(type); this.render(); return; }    // ไม่มีร่างค้าง → ฟอร์มเปล่า
+    this.refreshClock();                                                                    // ร่างค้าง → เวลาต้องเป็นของตอนนี้
     if(type==='FQA') this.syncChecks();
     this.render();                                                                          // มีร่างค้าง → โชว์ไว้ก่อน
     if(this.hasContent(this.drafts[type])){                                                 // แล้วถามว่าจะทำต่อหรือเริ่มใหม่
@@ -2459,10 +2463,29 @@ const Form = {
     const p=path.split('.'); let o=this.s;
     for(let i=0;i<p.length-1;i++) o=o[p[i]];
     o[p[p.length-1]]=val;
+    /* คนกรอกแก้วัน/เวลาเอง = ตั้งใจ ระบบจะไม่ไปเปลี่ยนให้อีก (ดู refreshClock)
+       จำไว้ที่ตัวร่าง ไม่ใช่ตัวแปรลอย เพราะร่างค้างข้ามการปิดแอปได้ */
+    if(path==='time') this.s.timeEdited = true;
+    if(path==='date') this.s.dateEdited = true;
     if(path==='branch'){ const b=M.branchOf(val); this.s.bzm=b?b.bzm:'';
       const el=document.getElementById('bzmShow'); if(el) el.textContent=this.s.bzm||'—'; }
     if(path==='category') this.render();
     this.persist();
+  },
+  /* เวลาในฟอร์มต้องเป็นเวลาที่ตรวจจริง ไม่ใช่เวลาที่กดเปิดฟอร์มไว้เมื่อไหร่ก็ไม่รู้
+     ร่างค้างได้ข้ามวัน (เปิดฟอร์มตอนบ่าย วางเครื่องไว้ กลับมากดบันทึกตอนค่ำ)
+     ถ้าปล่อยไว้ ใบจะบันทึกเวลาของตอนเปิดฟอร์ม ซึ่งไม่ตรงกับที่ไปยืนตรวจจริง
+     ให้เดินตามนาฬิกาไปเรื่อย ๆ จนกว่าจะมีคนแก้เอง แก้แล้วหยุดตามทันที
+     ใบที่บันทึกไปแล้ว (โหมดแก้ไข) ห้ามแตะ — นั่นเป็นเวลาที่เกิดขึ้นจริงไปแล้ว */
+  refreshClock(){
+    const d = this.drafts[this.type];
+    if(!d || this.editing) return;
+    let ch = false;
+    if(!d.timeEdited && d.time !== nowHM()){ d.time = nowHM(); ch = true; }
+    if(!d.dateEdited && d.date !== todayISO()){ d.date = todayISO(); ch = true; }
+    if(!ch) return;
+    this.persist();
+    if(['fqa','fsq','visit'].indexOf(App.view) >= 0) this.render();
   },
   setRow(arr,i,k,v){ this.s[arr][i][k]=v; this.persist(); },
   addRow(arr){ const mk={menus:'menuRow',issues:'issueRow',topics:'topicRow'}[arr]; this.s[arr].push(this[mk]()); this.render(); },
