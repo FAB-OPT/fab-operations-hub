@@ -48,6 +48,12 @@ function _fhMapCerts(records) {
       branch: r['สาขา'] || '—',
       position: r['ตำแหน่ง'] || '—',
       sheet: r['Sheet'] || '—',
+      /* ตัวชี้ไปยังคนในทะเบียน — ของเก่าที่บันทึกไว้ก่อนมีคอลัมน์นี้จะว่าง
+         แล้วระบบจะผูกให้เองรอบถัดไปจากชื่อบนใบ (ดู _fhRelinkCerts) */
+      empId: String(r['รหัสพนักงาน'] || '').trim(),
+      idCard: String(r['เลขบัตรประชาชน'] || '').trim(),
+      branchAtTrain: r['สาขาตอนอบรม'] || '',
+      matchBy: r['จับคู่โดย'] || '',
       matchType: r['สถานะจับคู่'] || 'notfound'
     };
   })
@@ -65,6 +71,21 @@ function _fhMapCerts(records) {
 function _fhRefreshBranchCertsAfterRegistry() {
   try {
     if (typeof _FH_EMP_BR_IDX !== 'undefined') _FH_EMP_BR_IDX = null;   // บังคับสร้างดัชนีใหม่
+    /* ทะเบียนเพิ่งเปลี่ยน — ใบรับรองที่ผูกไว้ต้องตามข้อมูลคนไปด้วยทันที
+       (ย้ายสาขา เปลี่ยนนามสกุล เลื่อนตำแหน่ง) และใบที่เคยจับคู่ไม่ได้เพราะคนยังไม่เข้า
+       ทะเบียน ก็ได้โอกาสผูกใหม่ตรงนี้ · ทำในเครื่องก่อน ยังไม่เขียนขึ้น Cloud
+       เพราะการโหลดทะเบียนเกิดทุกครั้งที่เปิดหน้า ไม่ควรกลายเป็นการเขียนทุกครั้ง */
+    if (typeof _fhRelinkCerts === 'function') {
+      var _rl = _fhRelinkCerts();
+      if (_rl.linked || _rl.updated) {
+        try { renderTable(); } catch (e2) {}
+        var _pi = document.getElementById('processInfo');
+        if (_pi) _pi.textContent = 'ทะเบียนอัปเดตแล้ว — ผูกใบรับรองเพิ่ม ' + _rl.linked +
+          ' ใบ · ข้อมูลคนเปลี่ยน ' + _rl.updated + ' ใบ' +
+          (_rl.lost ? ' · หาคนในทะเบียนไม่เจอ ' + _rl.lost + ' ใบ' : '') +
+          ' · กด "บันทึกขึ้น Cloud" เพื่อเก็บถาวร';
+      }
+    }
     if (document.getElementById('branchResults') && typeof branchSearch === 'function') branchSearch();
     if (typeof updateBranchStats === 'function') updateBranchStats();
   } catch (e) {}
@@ -352,6 +373,9 @@ function saveToCloud() {
       return;
     } else {
       document.getElementById('processInfo').textContent = '✗ บันทึกล้มเหลว: ' + (res.error || 'unknown');
+      /* หลังบ้านกันไว้เพราะของที่ส่งไปน้อยกว่าของเดิมมาก (มักเกิดตอนโหลดของเดิมมาไม่ครบ)
+         โหลดใหม่ให้เลย ผู้ใช้จะได้เห็นของครบแล้วค่อยตัดสินใจว่าจะบันทึกอีกทีไหม */
+      if (String(res.error || '').indexOf('ไม่บันทึกทับ') >= 0) setTimeout(loadFromCloud, 400);
     }
   })
   .catch(function(err){
@@ -639,28 +663,20 @@ function reMatchCerts() {
     if (!ok) return;
     showLoadingOverlay('กำลังจับคู่...', '');
     setTimeout(function(){
-      var matched = 0;
-      md.forEach(function(d){
-        var cp = getParts(d.certName || '');
-        var found = null;
-        for (var i=0;i<emps.length;i++){
-          if(_certEmpMatch(cp, emps[i].norm||emps[i].name||'')){
-            if(!found) found = emps[i];
-            if(emps[i].branch && String(emps[i].branch).trim()){ found = emps[i]; break; }  // เลือกตัวที่มีสาขาก่อน
-          }
-        }
-        if (found) {
-          matched++;
-          d.empName = found.norm || found.name || d.empName;
-          if (found.branch) d.branch = found.branch;
-          if (found.position) d.position = found.position;
-          if (found.sheet) d.sheet = found.sheet;
-          d.matchType = 'exact';
-        }
-      });
+      /* ใช้ตัวเดียวกับที่ทำงานอัตโนมัติตอนทะเบียนเปลี่ยน — กติกาจะได้ไม่แตกเป็นสองชุด
+         เดิมตรงนี้เขียนวนหาชื่อไว้เองอีกชุด แล้วมันไม่เก็บรหัสพนักงาน
+         พอทะเบียนเปลี่ยนรอบหน้าก็ต้องกลับมาเดาจากชื่อใหม่ทุกครั้ง */
+      var rl = _fhRelinkCerts();
+      var linkedTotal = md.filter(function(d){ return !!d.empId; }).length;
       try { renderTable(); } catch(e) {}
+      try { updateStats(); } catch(e) {}
       hideLoadingOverlay();
-      showInfo('จับคู่เสร็จ', 'จับคู่ได้ <b>'+matched+'</b>/'+md.length+' รายการ · กำลังบันทึก Cloud...');
+      showInfo('จับคู่เสร็จ',
+        'ผูกกับทะเบียนแล้ว <b>' + linkedTotal + '</b>/' + md.length + ' ใบ' +
+        (rl.linked ? ' (เพิ่งผูกได้ ' + rl.linked + ' ใบ)' : '') +
+        (rl.updated ? ' · ข้อมูลคนเปลี่ยน ' + rl.updated + ' ใบ' : '') +
+        (rl.lost ? ' · หาคนในทะเบียนไม่เจอ ' + rl.lost + ' ใบ' : '') +
+        ' · กำลังบันทึก Cloud...');
       try { window._fhImportBusy = true; saveToCloud(); } catch(e) {}
     }, 120);
   });
@@ -672,11 +688,12 @@ function exportCSV(all) {
   if (!matchData.length) { showInfo('\u0E44\u0E21\u0E48\u0E21\u0E35\u0E02\u0E49\u0E2D\u0E21\u0E39\u0E25', '\u0E22\u0E31\u0E07\u0E44\u0E21\u0E48\u0E21\u0E35\u0E43\u0E1A\u0E23\u0E31\u0E1A\u0E23\u0E2D\u0E07\u0E43\u0E2B\u0E49\u0E2A\u0E48\u0E07\u0E2D\u0E2D\u0E01'); return; }
   var filtered = all ? matchData.slice() : getFiltered();
   var csv = '\uFEFF';
-  csv += 'ลำดับ,ชื่อในใบรับรอง,หลักสูตร,วันที่อบรม,วันหมดอายุ,สถานะใบรับรอง,ชื่อในระบบ,สาขา,ตำแหน่ง,Sheet,สถานะจับคู่\n';
+  /* ไฟล์สำรองต้องมีตัวชี้ไปหาคนด้วย ไม่งั้นกู้กลับมาแล้วการจับคู่ที่ทำไว้หายหมด */
+  csv += 'ลำดับ,ชื่อในใบรับรอง,หลักสูตร,วันที่อบรม,วันหมดอายุ,สถานะใบรับรอง,ชื่อในระบบ,สาขา,ตำแหน่ง,Sheet,สถานะจับคู่,รหัสพนักงาน,สาขาตอนอบรม,จับคู่โดย\n';
   filtered.forEach(function(d){
     var es = d.expStatus==='expired'?'หมดอายุ':d.expStatus==='warning'?'ใกล้หมดอายุ':'ยังมีผล';
     var ms = d.matchType==='exact'?'ตรงสนิท':d.matchType==='lastname'?'นามสกุลตรง':'ไม่พบ';
-    csv += [d.no,'"'+d.certName+'"','"'+d.course+'"','"'+d.trainDate+'"','"'+d.expireDate+'"','"'+es+'"','"'+(d.empName||'—')+'"','"'+d.branch+'"','"'+d.position+'"','"'+d.sheet+'"','"'+ms+'"'].join(',')+'\n';
+    csv += [d.no,'"'+d.certName+'"','"'+d.course+'"','"'+d.trainDate+'"','"'+d.expireDate+'"','"'+es+'"','"'+(d.empName||'—')+'"','"'+d.branch+'"','"'+d.position+'"','"'+d.sheet+'"','"'+ms+'"','"'+(d.empId||'')+'"','"'+(d.branchAtTrain||'')+'"','"'+(d.matchBy||'')+'"'].join(',')+'\n';
   });
   var blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
   var url = URL.createObjectURL(blob);

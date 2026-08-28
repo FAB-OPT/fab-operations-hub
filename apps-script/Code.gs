@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-18';
+var BACKEND_VERSION = '2026-08-28';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -45,7 +45,7 @@ function doGet(e) {
 function doPost(e) {
   try {
     var data = JSON.parse(e.postData.contents);
-    if (data.type === 'save-certificates')  return jsonOut(saveCertificates(data.records));
+    if (data.type === 'save-certificates')  return jsonOut(saveCertificates(data.records, data.confirmShrink));
     if (data.type === 'save-employees')     return jsonOut(saveEmployees(data.records, data.replaceAll));
     if (data.type === 'save-requests')      return jsonOut(saveRequests(data.records));
     if (data.type === 'request')            return jsonOut(saveRequests(data.records));  // alias กัน client เก่า
@@ -107,23 +107,42 @@ function getCertificates() {
   return out;
 }
 
-function saveCertificates(records) {
+function saveCertificates(records, confirmShrink) {
   if (!Array.isArray(records) || records.length === 0) return { ok: false, error: 'no records' };
   var lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var sh = ss.getSheetByName('Certificates') || ss.insertSheet('Certificates');
-    var headers = ['ชื่อในใบรับรอง','หลักสูตร','วันอบรม','วันหมดอายุ','สถานะใบรับรอง','ชื่อในระบบ','สาขา','ตำแหน่ง','Sheet','สถานะจับคู่'];
-    sh.clear();                 // replace: ล้างก่อนเขียน (เว็บส่งชุดเต็มทุกครั้ง — กันซ้ำ/ของเดิมตกค้าง)
+
+    /* กันประวัติหายทั้งชีต — การบันทึกที่นี่เป็นแบบ "ล้างแล้วเขียนใหม่ทั้งหมด"
+       เว็บจะโหลดของเดิมมารวมกับของใหม่ก่อนส่งเสมอ แต่ถ้ารอบนั้นโหลดของเดิมไม่สำเร็จ
+       (เน็ตสะดุด / Google ส่งคำตอบไม่ถึง) แล้วผู้ใช้กดบันทึก ชีตจะเหลือเท่าที่เครื่องนั้นถืออยู่
+       ลบทีละใบ (ห่างจากของเดิมไม่กี่แถว) ยังทำได้ตามปกติ
+       แต่ถ้าจำนวนหายไปมากผิดปกติ ให้ปฏิเสธไว้ก่อน แล้วบอกให้โหลดใหม่
+       จะล้างจริง ๆ ใช้ "ลบใบรับรองทั้งหมด" ซึ่งเป็นคำสั่งแยกที่ตั้งใจกดเอง */
+    var had = Math.max(0, sh.getLastRow() - 1);
+    var drop = had - records.length;
+    var allow = Math.max(5, Math.floor(had * 0.1));
+    if (!confirmShrink && drop > allow) {
+      return { ok: false, error: 'ของเดิมมี ' + had + ' ใบ แต่ที่ส่งมามี ' + records.length +
+        ' ใบ (หายไป ' + drop + ') — ไม่บันทึกทับไว้ก่อน กัน "โหลดของเดิมไม่ครบแล้วเขียนทับ" ' +
+        '· กดรีเฟรชให้โหลดครบก่อนแล้วลองใหม่' };
+    }
+
+    /* คอลัมน์ตัวชี้ไปหาคนในทะเบียน — ชื่อ/สาขา/ตำแหน่ง เปลี่ยนได้ตลอด จึงเชื่อไม่ได้
+       รหัสพนักงานคือสิ่งเดียวที่อยู่ทน · สาขาตอนอบรมเก็บแยกเป็นประวัติ ไม่ตามคนไป */
+    var headers = ['ชื่อในใบรับรอง','หลักสูตร','วันอบรม','วันหมดอายุ','สถานะใบรับรอง','ชื่อในระบบ','สาขา','ตำแหน่ง','Sheet','สถานะจับคู่','รหัสพนักงาน','เลขบัตรประชาชน','สาขาตอนอบรม','จับคู่โดย'];
+    sh.clear();
     sh.appendRow(headers);
     var rows = records.map(function(r){
       return [r.certName||'', r.course||'', r.trainDate||'', r.expireDate||'', r.expStatus||'',
-              r.empName||'', r.branch||'', r.position||'', r.sheet||'', r.matchType||''];
+              r.empName||'', r.branch||'', r.position||'', r.sheet||'', r.matchType||'',
+              r.empId||'', r.idCard||'', r.branchAtTrain||'', r.matchBy||''];
     });
     if (rows.length) sh.getRange(2, 1, rows.length, headers.length).setValues(rows);
     CacheService.getScriptCache().remove('cert_v2');
-    return { ok: true, saved: rows.length };
+    return { ok: true, saved: rows.length, replaced: had };
   } finally { lock.releaseLock(); }
 }
 

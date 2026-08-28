@@ -325,6 +325,16 @@ function processMatch() {
         branch: (found && String(found.branch || '').trim()) ? found.branch : '—',
         position: (found && String(found.position || '').trim()) ? found.position : '—',
         sheet: (found && String(found.sheet || '').trim()) ? found.sheet : '—',
+        /* รหัสพนักงานคือตัวชี้ที่อยู่ทน — ชื่อ สาขา ตำแหน่ง เปลี่ยนได้ตลอด แต่รหัสไม่เปลี่ยน
+           เก็บไว้ตั้งแต่จับคู่ได้ครั้งแรก จะได้ไม่ต้องกลับมาเดาจากชื่ออีกทุกครั้ง
+           (เปลี่ยนนามสกุลเมื่อไร การผูกด้วยชื่อจะขาดถาวร หาใหม่ก็ไม่เจอ) */
+        empId: found ? String(found.empId || '') : '',
+        idCard: found ? String(found.idCard || '') : '',
+        /* สาขา ณ ตอนที่จับคู่ได้ — เก็บแยกไว้เป็นประวัติ ไม่ถูกอัปเดตทีหลัง
+           ตอบคำถาม "สาขาไหนส่งคนไปอบรม" · ส่วนช่อง branch จะตามสาขาปัจจุบันของคนเสมอ
+           สองคำถามนี้ให้ตัวเลขไม่เท่ากัน จึงต้องเก็บแยกกัน ไม่ใช่ใช้ช่องเดียว */
+        branchAtTrain: (found && String(found.branch || '').trim()) ? found.branch : '',
+        matchBy: found ? 'auto' : '',
         matchType: matchType
       });
     });
@@ -340,15 +350,29 @@ function processMatch() {
     // (กันซ้ำตอน re-upload เพื่อเติมวันหมดอายุ — เก่าวันว่าง+ใหม่มีวัน key ต่างกันเลยไม่ merge เอง)
     var _freshDated = {};
     raw.forEach(function(d){ if (_hasExp(d)) _freshDated[_ck(d)] = true; });
-    var _mseen = {}, _merged = [];
+    var _mseen = {}, _merged = [];   // เก็บตัวที่ชนะไว้ด้วย ไม่ใช่แค่ธงว่าเคยเห็นแล้ว
     // เอาใบใหม่ก่อน (ให้ค่าจับคู่ล่าสุดชนะ) แล้วตามด้วยของเดิม
     raw.concat(_prev).forEach(function(d){
       if (!(d.certName && String(d.certName).trim())) return;
       // ข้ามใบวันว่าง ถ้ามีใบใหม่ (ชื่อ+หลักสูตรเดียวกัน) ที่อ่านวันหมดอายุได้แล้ว
       if (!_hasExp(d) && _freshDated[_ck(d)]) return;
       var k = _mkey(d);
-      if (_mseen[k]) return;
-      _mseen[k] = true; _merged.push(d);
+      var keep = _mseen[k];
+      if (keep) {
+        /* ใบใหม่ที่เพิ่งอ่านจาก PDF ไม่มีทางรู้ว่าใบเดิมเคยถูกจับคู่ไว้กับใคร
+           โดยเฉพาะใบที่คนจับคู่เองด้วยมือ · ต้องยกการจับคู่จากใบเดิมมาให้
+           ไม่งั้นอัปไฟล์ซ้ำทีไร งานที่คนนั่งจับคู่ไว้ก็หายทุกที */
+        if (!keep.empId && d.empId) { keep.empId = d.empId; keep.idCard = keep.idCard || d.idCard || ''; }
+        if (!keep.branchAtTrain && d.branchAtTrain) keep.branchAtTrain = d.branchAtTrain;
+        if (d.matchBy === 'manual') {
+          keep.matchBy = 'manual';
+          if (d.empId) keep.empId = d.empId;
+          keep.empName = d.empName || keep.empName;
+          if (keep.matchType === 'notfound') keep.matchType = d.matchType || keep.matchType;
+        }
+        return;
+      }
+      _mseen[k] = d; _merged.push(d);
     });
     matchData = _merged;
     _canonicalizeBranches(matchData);   // รวมชื่อสาขาที่สะกดต่างเล็กน้อยให้เป็นอันเดียว
@@ -568,6 +592,173 @@ function _courseShort(c) {
   return s || String(c || '');
 }
 
+/* ═══════════════════════════════════════════════════════════════
+   ผูกใบรับรองกับทะเบียนใหม่ ทุกครั้งที่ทะเบียนเปลี่ยน
+   ทะเบียนพนักงานเปลี่ยนตลอด — คนเข้าใหม่ ย้ายสาขา เปลี่ยนนามสกุล เลื่อนตำแหน่ง
+   ถ้าใบรับรองเก็บ "สำเนา" ข้อมูลคนไว้เฉย ๆ ข้อมูลจะเก่าทันทีที่เขาเปลี่ยน
+   และถ้าผูกกันด้วยชื่ออย่างเดียว พอเปลี่ยนนามสกุลก็ขาดกันถาวร หาใหม่ก็ไม่เจอ
+   จึงเก็บรหัสพนักงานไว้เป็นตัวชี้ แล้วดึงชื่อ/สาขา/ตำแหน่งจากทะเบียนใหม่ทุกครั้ง
+   ใบที่คนจับคู่เองไว้ ระบบห้ามเปลี่ยนตัวคนให้ — อัปเดตได้แค่ข้อมูลของคนคนนั้น
+   ═══════════════════════════════════════════════════════════════ */
+/* คนเดียวกันมีได้หลายแถวในทะเบียน เพราะถูกนำเข้าซ้ำแล้วสาขาสะกดคนละแบบ
+   เลือกแถวที่ใช้ชื่อสาขาแบบที่ทะเบียนใช้บ่อยที่สุด = ได้ชื่อมาตรฐานเสมอ */
+function _fhPickEmp(list) {
+  var best = null, bestFreq = -1;
+  for (var i = 0; i < list.length; i++) {
+    if (!best) best = list[i];
+    var b = String(list[i].branch || '').trim();
+    if (!b) continue;
+    var f = (typeof _FH_BRANCH_FREQ !== 'undefined' && _FH_BRANCH_FREQ[b]) || 0;
+    if (f > bestFreq) { bestFreq = f; best = list[i]; }
+  }
+  return best;
+}
+function _fhEmpById(id) {
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  var key = String(id || '').trim();
+  if (!key) return null;
+  var hit = emps.filter(function(e){ return String(e.empId || '').trim() === key; });
+  return hit.length ? _fhPickEmp(hit) : null;
+}
+function _fhEmpByCertName(name) {
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  var cp = getParts(name || '');
+  var hit = emps.filter(function(e){ return _certEmpMatch(cp, e.norm || e.name || ''); });
+  return hit.length ? _fhPickEmp(hit) : null;
+}
+/* คืนจำนวน: linked = เพิ่งผูกได้ · updated = ข้อมูลคนเปลี่ยนไปจากที่เก็บไว้
+   lost = เคยผูกไว้แต่ตอนนี้หาไม่เจอในทะเบียนแล้ว (ลาออก/ถูกลบ) — ไม่ลบใบทิ้ง */
+function _fhRelinkCerts() {
+  var md = (typeof matchData !== 'undefined' && matchData) ? matchData : [];
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  var out = { linked: 0, updated: 0, lost: 0 };
+  if (!md.length || !emps.length) return out;
+  _fhBuildBranchFreq(emps);
+  md.forEach(function(d) {
+    var e = d.empId ? _fhEmpById(d.empId) : null;
+    /* ยังไม่เคยผูก หรือรหัสเดิมหาไม่เจอแล้ว → ลองหาจากชื่อบนใบอีกครั้ง
+       (ใบที่คนจับคู่เองไว้ ข้ามไป ไม่ให้ระบบมาเปลี่ยนตัวคนที่เขาเลือกแล้ว) */
+    if (!e && d.matchBy !== 'manual') {
+      e = _fhEmpByCertName(d.certName);
+      if (e) {
+        d.empId = String(e.empId || '');
+        d.idCard = String(e.idCard || '');
+        d.matchBy = 'auto';
+        d.matchType = 'exact';
+        out.linked++;
+      }
+    }
+    if (!e) { if (d.empId) out.lost++; return; }
+    var nm = e.norm || e.name || '';
+    var br = String(e.branch || '').trim();
+    var ps = String(e.position || '').trim();
+    if ((nm && nm !== d.empName) || (br && br !== d.branch) || (ps && ps !== d.position)) out.updated++;
+    if (nm) d.empName = nm;
+    if (br) d.branch = br;
+    if (ps) d.position = ps;
+    if (e.sheet) d.sheet = e.sheet;
+    if (!d.empId && e.empId) d.empId = String(e.empId);
+    if (!d.idCard && e.idCard) d.idCard = String(e.idCard);
+    if (!d.branchAtTrain && br) d.branchAtTrain = br;   // ครั้งแรกที่รู้สาขา = สาขาตอนอบรม
+    if (d.matchType === 'notfound') d.matchType = 'exact';
+  });
+  return out;
+}
+
+/* ── จับคู่เองด้วยมือ ──
+   ชื่อบนใบรับรองกับชื่อในทะเบียนไม่ตรงกันได้หลายทาง (สะกดผิด ตกคำนำหน้า ชื่อเล่น
+   หรือเปลี่ยนนามสกุลไปแล้ว) ระบบจับให้ไม่ได้ทุกใบ · ให้คนชี้เองได้ แล้วจำไว้ถาวร */
+var _fhHandRow = null;
+function fhMatchByHand(no) {
+  var d = (matchData || []).filter(function(x){ return x.no === no; })[0];
+  if (!d) return;
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  if (!emps.length) { showInfo('ยังไม่มีทะเบียน', 'ต้องมีทะเบียนพนักงานก่อน จึงจะเลือกคนได้'); return; }
+  _fhHandRow = d;
+  var box = document.getElementById('fhHandModal');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'fhHandModal';
+    box.style.cssText = 'position:fixed;inset:0;z-index:4000;background:rgba(15,23,42,.55);' +
+      'display:flex;align-items:center;justify-content:center;padding:16px';
+    box.innerHTML =
+      '<div style="background:#fff;border-radius:16px;max-width:520px;width:100%;max-height:82vh;' +
+        'display:flex;flex-direction:column;overflow:hidden;box-shadow:0 20px 60px rgba(15,23,42,.3)">' +
+      '<div style="padding:14px 16px;border-bottom:1px solid #eef2f7">' +
+          '<div style="font-weight:800;font-size:15px">จับคู่ใบรับรองกับทะเบียน</div>' +
+          '<div style="font-size:12.5px;color:#6b7280;margin-top:3px">ใบของ <b id="fhHandFor"></b></div>' +
+        '</div>' +
+        '<div style="padding:10px 16px 0">' +
+          '<input id="fhHandQ" type="search" placeholder="พิมพ์ชื่อ รหัสพนักงาน หรือสาขา…" ' +
+            'oninput="_fhHandPaint(this.value)" style="width:100%;padding:9px 12px;border:1px solid #e5e7eb;' +
+            'border-radius:10px;font:inherit;box-sizing:border-box">' +
+        '</div>' +
+        '<div id="fhHandList" style="padding:10px 16px;overflow:auto;flex:1"></div>' +
+        '<div style="padding:10px 16px;border-top:1px solid #eef2f7;text-align:right">' +
+          '<button type="button" onclick="fhHandClose()" style="border:1px solid #e5e7eb;background:#fff;' +
+            'border-radius:10px;padding:8px 16px;font:inherit;font-weight:700;cursor:pointer">ปิด</button>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(box);
+  }
+  _fhHandPaint('');
+  box.style.display = 'flex';
+}
+function _fhHandPaint(q) {
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  var d = _fhHandRow || {};
+  var key = String(q || '').trim().toLowerCase();
+  var list = emps;
+  if (key) list = emps.filter(function(e){
+    return ((e.name || '') + ' ' + (e.empId || '') + ' ' + (e.branch || '')).toLowerCase().indexOf(key) >= 0;
+  });
+  /* คนเดียวกันมีหลายแถว — ยุบให้เหลือแถวเดียวต่อคน จะได้ไม่ต้องเลือกจากชื่อซ้ำ ๆ */
+  var seen = {}, uniq = [];
+  list.forEach(function(e){
+    var k = String(e.empId || '') || ('n:' + (e.norm || e.name || ''));
+    if (seen[k]) return;
+    seen[k] = 1; uniq.push(e);
+  });
+  var body = document.getElementById('fhHandList');
+  if (!body) return;
+  body.innerHTML = uniq.slice(0, 60).map(function(e){
+    return '<button type="button" onclick="fhHandPick(\'' + escapeAttr(String(e.empId || '')) + '\',\'' +
+      escapeAttr(e.norm || e.name || '') + '\')" style="display:block;width:100%;text-align:left;' +
+      'border:1px solid #e5e7eb;background:#fff;border-radius:10px;padding:9px 12px;margin-bottom:6px;cursor:pointer">' +
+      '<b style="font-size:13.5px">' + escapeHtml(e.name || '') + '</b>' +
+      '<span style="font-size:12px;color:#6b7280"> · ' + escapeHtml(e.branch || '—') +
+      (e.empId ? ' · ' + escapeHtml(e.empId) : '') + '</span></button>';
+  }).join('') || '<div style="padding:14px;color:#6b7280;font-size:13px">ไม่พบชื่อนี้ในทะเบียน</div>';
+  var head = document.getElementById('fhHandFor');
+  if (head) head.textContent = d.certName || '';
+}
+function fhHandClose() {
+  var box = document.getElementById('fhHandModal');
+  if (box) box.style.display = 'none';
+  _fhHandRow = null;
+}
+function fhHandPick(empId, empName) {
+  var d = _fhHandRow;
+  if (!d) return;
+  var e = empId ? _fhEmpById(empId) : null;
+  d.empId = String(empId || '');
+  d.empName = (e && (e.norm || e.name)) || empName || d.empName;
+  if (e) {
+    if (e.idCard) d.idCard = String(e.idCard);
+    if (String(e.branch || '').trim()) d.branch = e.branch;
+    if (String(e.position || '').trim()) d.position = e.position;
+    if (e.sheet) d.sheet = e.sheet;
+    if (!d.branchAtTrain && String(e.branch || '').trim()) d.branchAtTrain = e.branch;
+  }
+  d.matchType = 'exact';
+  d.matchBy = 'manual';         // คนตัดสินแล้ว ระบบห้ามมาเปลี่ยนทีหลัง
+  fhHandClose();
+  try { renderTable(); } catch (err) {}
+  try { updateStats(); } catch (err) {}
+  var info = document.getElementById('processInfo');
+  if (info) info.textContent = 'จับคู่ "' + (d.certName || '') + '" กับ ' + d.empName + ' แล้ว · กด "บันทึกขึ้น Cloud" เพื่อเก็บถาวร';
+}
+
 var _tablePage = 1;
 function _TABLE_PER_PAGE() { return window.innerWidth <= 768 ? 10 : 20; }
 function renderTable() {
@@ -605,6 +796,11 @@ function renderTable() {
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
       +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบรับรอง (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')
+      +   (d.matchType === 'notfound'
+              /* ใบที่ระบบจับคู่ให้ไม่ได้ ต้องมีทางให้คนชี้เองตรงนั้นเลย
+                 ไม่งั้นก็ค้างอยู่แบบนั้นตลอด แล้วไม่ถูกนับในรายงานสาขาไหนเลย */
+              ? '<button class="btn-row-view" onclick="fhMatchByHand('+d.no+')" title="จับคู่กับทะเบียนเอง" style="color:#c2410c">🔗</button>'
+              : '')
       +   '<button class="btn-del-row" onclick="deleteMatchRow('+d.no+')" title="ลบรายการนี้">🗑</button>'
       +'</td>'
       +'</tr>';
