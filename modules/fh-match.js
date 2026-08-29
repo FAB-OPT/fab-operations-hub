@@ -598,8 +598,11 @@ function getExpBadge(s, renewed) {
 }
 function getMatchBadge(t) {
   if (t==='exact') return '<span class="mbadge mb-exact"><span class="dot"></span>ตรงสนิท</span>';
+  if (t==='near') return '<span class="mbadge mb-last"><span class="dot"></span>ใกล้เคียง — ตรวจซ้ำ</span>';
   if (t==='lastname') return '<span class="mbadge mb-last"><span class="dot"></span>&#9888; นามสกุลตรง</span>';
-  if (t==='notfound') return '<span class="mbadge mb-none"><span class="dot"></span>ไม่พบ</span>';
+  /* "ไม่พบ" เฉย ๆ ทำให้คนนั่งไล่จับคู่ใบที่ไม่มีวันจับได้
+     ส่วนใหญ่คือคนที่ลาออกไปแล้ว ทะเบียนปัจจุบันจึงไม่มีชื่อเขา — บอกไปตรง ๆ */
+  if (t==='notfound') return '<span class="mbadge mb-none"><span class="dot"></span>ไม่อยู่ในทะเบียนปัจจุบัน</span>';
   return '<span class="mbadge mb-notloaded">—</span>';
 }
 function getSheetTag(s) {
@@ -654,6 +657,58 @@ function _fhEmpById(id) {
   var hit = emps.filter(function(e){ return String(e.empId || '').trim() === key; });
   return hit.length ? _fhPickEmp(hit) : null;
 }
+/* ═══ ชื่อที่สะกดต่างกันนิดเดียว ═══
+   ชื่อบนใบรับรองมาจากการอ่านไฟล์ PDF ส่วนทะเบียนมาจากการพิมพ์ของ HR
+   สองทางนี้สะกดต่างกันได้ทีละตัวอักษรโดยที่เป็นคนเดียวกันแน่ ๆ
+     จิระโชติ ขันธุ์ศรีโพธิ์ / ขันธ์ศรีโพธิ์ · ชมภู นาคา / ชมพู นาคา
+     กิตติพันธ์ วลีสาทรัพย์ / วรีสาทรัพย์ · บุตาทิพย์ / บุตรทิพย์ นาเมืองรักษ์
+   วัดกับข้อมูลจริงแล้ว: ยอมให้ต่างได้ 2 ตัวอักษร ได้เพิ่ม 9 ใบ และ
+   ไม่มีเคยไหนที่เจอมากกว่าหนึ่งคน (ไม่กำกวมเลยสักใบ)
+   ยังกันพลาดอีกสองชั้น: ชื่อต้องยาวพอ (ชื่อสั้นชนกันง่าย) และต้องเจอคนเดียวเท่านั้น
+   เจอสองคนเมื่อไรถือว่าไม่รู้ ปล่อยให้คนตัดสินเองดีกว่าเดาผิดตัว */
+var FH_NEAR_MAX = 2, FH_NEAR_MINLEN = 8;
+function _fhFlatName(s) { return String(s || '').replace(/\s+/g, ''); }
+/* ระยะห่างระหว่างสองข้อความ = ต้องแก้กี่ตัวอักษรถึงจะเหมือนกัน
+   ตัดทิ้งเร็ว ๆ ถ้าความยาวต่างกันเกินเพดาน จะได้ไม่ต้องคำนวณทั้งตาราง */
+function _fhLev(a, b, max) {
+  if (a === b) return 0;
+  var m = a.length, n = b.length;
+  if (Math.abs(m - n) > max) return 99;
+  var prev = new Array(n + 1), cur = new Array(n + 1), i, j;
+  for (j = 0; j <= n; j++) prev[j] = j;
+  for (i = 1; i <= m; i++) {
+    cur[0] = i;
+    var best = cur[0];
+    for (j = 1; j <= n; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a.charAt(i-1) === b.charAt(j-1) ? 0 : 1));
+      if (cur[j] < best) best = cur[j];
+    }
+    if (best > max) return 99;            // ทั้งแถวเกินเพดานแล้ว ไม่มีทางลดลงได้อีก
+    var t = prev; prev = cur; cur = t;
+  }
+  return prev[n];
+}
+/* คืนคนที่ชื่อใกล้เคียงที่สุด เฉพาะตอนที่ชัดว่าเป็นคนเดียว · ไม่ชัด = คืน null */
+function _fhEmpByNearName(name) {
+  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  var cf = _fhFlatName(normalizeName(name || ''));
+  if (cf.length < FH_NEAR_MINLEN) return null;
+  var best = 99, hits = [];
+  for (var i = 0; i < emps.length; i++) {
+    var ef = _fhFlatName(emps[i].norm || emps[i].name || '');
+    if (!ef || Math.abs(ef.length - cf.length) > FH_NEAR_MAX) continue;
+    var d = _fhLev(cf, ef, FH_NEAR_MAX);
+    if (d > FH_NEAR_MAX) continue;
+    if (d < best) { best = d; hits = [emps[i]]; }
+    else if (d === best) hits.push(emps[i]);
+  }
+  if (best > FH_NEAR_MAX || !hits.length) return null;
+  /* หลายแถวของคนเดียวกัน (ทะเบียนนำเข้าซ้ำ) ไม่นับว่ากำกวม — ดูจากรหัสพนักงาน */
+  var ids = {};
+  hits.forEach(function(e){ ids[String(e.empId || e.norm || '')] = 1; });
+  if (Object.keys(ids).length > 1) return null;
+  return _fhPickEmp(hits);
+}
 function _fhEmpByCertName(name) {
   var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
   var cp = getParts(name || '');
@@ -665,7 +720,7 @@ function _fhEmpByCertName(name) {
 function _fhRelinkCerts() {
   var md = (typeof matchData !== 'undefined' && matchData) ? matchData : [];
   var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
-  var out = { linked: 0, updated: 0, lost: 0 };
+  var out = { linked: 0, updated: 0, lost: 0, near: 0 };
   if (!md.length || !emps.length) return out;
   _fhBuildBranchFreq(emps);
   md.forEach(function(d) {
@@ -674,12 +729,19 @@ function _fhRelinkCerts() {
        (ใบที่คนจับคู่เองไว้ ข้ามไป ไม่ให้ระบบมาเปลี่ยนตัวคนที่เขาเลือกแล้ว) */
     if (!e && d.matchBy !== 'manual') {
       e = _fhEmpByCertName(d.certName);
+      var near = false;
+      /* ชื่อตรงเป๊ะไม่เจอ → ลองแบบสะกดต่างนิดเดียว (ดู _fhEmpByNearName)
+         ติดป้าย "ใกล้เคียง" ไว้ให้คนตรวจซ้ำได้ ไม่กลืนไปกับใบที่ตรงเป๊ะ
+         ใช้เฉพาะใบที่ยังจับคู่ไม่ได้เท่านั้น · ใบที่เคยจับคู่สำเร็จไว้แล้วห้ามแตะ
+         ไม่งั้นของที่เคยยืนยันแล้วจะถูกลดชั้นลงมาเป็น "ต้องตรวจซ้ำ" เอาดื้อ ๆ */
+      if (!e && d.matchType !== 'exact') { e = _fhEmpByNearName(d.certName); near = !!e; }
       if (e) {
         d.empId = String(e.empId || '');
         d.idCard = String(e.idCard || '');
-        d.matchBy = 'auto';
-        d.matchType = 'exact';
+        d.matchBy = near ? 'near' : 'auto';
+        d.matchType = near ? 'near' : 'exact';
         out.linked++;
+        if (near) out.near = (out.near || 0) + 1;
       }
     }
     if (!e) { if (d.empId) out.lost++; return; }
