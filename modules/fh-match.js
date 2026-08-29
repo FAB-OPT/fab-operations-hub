@@ -451,13 +451,15 @@ function getFilteredForStats_() {
 
 function updateStats() {
   var dAll = matchData;
+  _fhMarkRenewedAdmin(dAll);   // ทำก่อนนับทุกครั้ง — matchData ถูกตั้งค่าจากหลายทาง
   // 4 กล่อง + chips: นับตามที่เลือก branch/course (ไม่นับ exp chip ตัวเอง)
   var d = getFilteredForStats_();
   document.getElementById('statsRow').style.display = dAll.length ? 'grid' : 'none';
   document.getElementById('sTotal').textContent = d.length;
   var nValid = d.filter(function(r){return r.expStatus==='valid';}).length;
   var nWarn  = d.filter(function(r){return r.expStatus==='warning';}).length;
-  var nExp   = d.filter(function(r){return r.expStatus==='expired';}).length;
+  /* ใบที่ต่ออายุแล้วไม่นับเป็นหมดอายุ — คนนั้นไม่ได้ต้องไปอบรมใหม่ */
+  var nExp   = d.filter(function(r){return r.expStatus==='expired' && !r.renewed;}).length;
   document.getElementById('sValid').textContent = nValid;
   document.getElementById('sWarn').textContent  = nWarn;
   document.getElementById('sExp').textContent   = nExp;
@@ -556,7 +558,39 @@ function getFiltered() {
   });
 }
 
-function getExpBadge(s) {
+/* ═══ ใบที่ถูกต่ออายุแล้ว ═══
+   คนเดิม หลักสูตรเดิม แต่มีใบที่หมดอายุทีหลัง = ใบเก่าถูกแทนที่ไปแล้ว
+   เก็บใบเก่าไว้ถูกแล้ว (เป็นประวัติว่าเคยอบรมเมื่อไร) แต่ต้องไม่ไปนับรวมเป็น "หมดอายุ"
+   ไม่งั้นพอถึงรอบต่ออายุพร้อมกันทั้งบริษัท ตัวเลขใบหมดอายุจะพุ่งทั้งที่ทุกคนต่อแล้ว
+   ตอนนี้มี 4 รายที่ต่ออายุแล้ว ยังไม่กระทบ แต่ปีหน้าจะเป็นทั้งกอง
+
+   ทำเป็นตัวเดียวใช้ได้ทั้งสองฝั่ง — ฝั่งผู้ดูแลข้อมูลเป็น matchData (คีย์อังกฤษ)
+   ฝั่งสาขาเป็นแถวดิบจาก Cloud (คีย์ไทย) · รับตัวอ่านค่าเข้ามาแทนที่จะเขียนสองชุด */
+function _fhMarkRenewed(list, getName, getCourse, getExp, setFlag) {
+  if (!list || !list.length) return list;
+  var best = {};
+  list.forEach(function(d){
+    var t = +parseAnyDate(getExp(d));
+    if (!isFinite(t)) return;
+    var k = normalizeName(getName(d) || '').replace(/\s+/g, '') + '|' + (getCourse(d) || '');
+    if (!(k in best) || t > best[k]) best[k] = t;
+  });
+  list.forEach(function(d){
+    var t = +parseAnyDate(getExp(d));
+    var k = normalizeName(getName(d) || '').replace(/\s+/g, '') + '|' + (getCourse(d) || '');
+    setFlag(d, isFinite(t) && (k in best) && t < best[k]);
+  });
+  return list;
+}
+/* ฝั่งผู้ดูแลข้อมูล — เรียกจาก updateStats ซึ่งทำงานก่อนวาดตารางทุกครั้ง
+   จึงไม่ต้องไปไล่เรียกตามจุดที่ matchData ถูกตั้งค่า (มีหลายจุด ลืมง่าย) */
+function _fhMarkRenewedAdmin(list) {
+  return _fhMarkRenewed(list || [],
+    function(d){ return d.certName; }, function(d){ return d.course; },
+    function(d){ return d.expireDate; }, function(d, v){ d.renewed = v; });
+}
+function getExpBadge(s, renewed) {
+  if (renewed) return '<span class="exp-badge" style="background:rgba(100,116,139,.12);color:#475569"><span class="dot" style="background:#64748b"></span>ต่ออายุแล้ว</span>';
   if (s==='expired') return '<span class="exp-badge exp-over"><span class="dot"></span>หมดอายุ</span>';
   if (s==='warning') return '<span class="exp-badge exp-warn"><span class="dot"></span>ใกล้หมดอายุ</span>';
   if (s==='valid') return '<span class="exp-badge exp-ok"><span class="dot"></span>ยังมีผล</span>';
@@ -792,7 +826,7 @@ function renderTable() {
       +'<td data-label="สาขา" data-icon="🏢" class="branch-txt">'+d.branch+'</td>'
       +'<td class="cert-name" data-label="ชื่อ" data-icon="📜">'+d.certName+'</td>'
       +'<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">'+formatThaiDate(d.expireDate)+'</td>'
-      +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus)+'</td>'
+      +'<td data-label="สถานะ" data-icon="🏷">'+getExpBadge(d.expStatus, d.renewed)+'</td>'
       +'<td data-label="จัดการ" data-icon="⚙️" class="td-row-actions">'
       +   '<button class="btn-row-view" onclick="openCertDetailModal('+d.no+')" title="ดูรายละเอียด">👁</button>'
       +   ((_fhCertUrl(d.certName, d.course)) ? '<a class="btn-row-view" href="'+_fhCertUrl(d.certName, d.course)+'" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, '+d.no+')" title="ดาวน์โหลดใบรับรอง (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️</a>' : '')

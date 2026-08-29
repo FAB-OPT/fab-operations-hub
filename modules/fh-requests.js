@@ -80,8 +80,16 @@ function updateBranchStats() {
   var alertEl = document.getElementById('branchAlert');
   // รายการแสดงทุกสาขา แต่กล่องเตือน "ต้องลงมือ" นับเฉพาะสาขาตัวเอง — ไม่งั้นตัวเลขของสาขาอื่นจะทำให้เข้าใจผิด
   var own = _fhOwnBranchRecords(allRecords || []);
+  /* ติดธง "ต่ออายุแล้ว" ให้ทั้งกองก่อนนับ — ใบเก่าของคนที่ต่ออายุไปแล้ว
+     ไม่ใช่งานที่สาขาต้องไปตามให้อบรมใหม่ ไม่ควรไปโผล่ในกล่องเตือน */
+  if (typeof _fhMarkRenewed === 'function') {
+    _fhMarkRenewed(allRecords || [],
+      function(r){ return r['ชื่อในใบรับรอง']; }, function(r){ return r['หลักสูตร']; },
+      function(r){ return r['วันหมดอายุ']; }, function(r, v){ r._renewed = v; });
+  }
   var warn = 0, exp = 0;
   own.forEach(function(r){
+    if (r._renewed) return;
     var st = r['สถานะใบรับรอง'];
     if (st === 'warning' || st === 'ใกล้หมดอายุ') warn++;
     else if (st === 'expired' || st === 'หมดอายุ') exp++;
@@ -241,6 +249,12 @@ function brSearchMyBranchOnly() {
 }
 
 function branchSearch() {
+  /* ติดธง "ต่ออายุแล้ว" ก่อนวาด — ใบเก่าของคนที่ต่ออายุไปแล้วต้องไม่ขึ้นแดงว่าหมดอายุ */
+  if (typeof _fhMarkRenewed === 'function') {
+    _fhMarkRenewed(allRecords || [],
+      function(r){ return r['ชื่อในใบรับรอง']; }, function(r){ return r['หลักสูตร']; },
+      function(r){ return r['วันหมดอายุ']; }, function(r, v){ r._renewed = v; });
+  }
   var q = (document.getElementById('branchSearchQ') || { value: '' }).value.trim().toLowerCase();
   var grid = document.getElementById('branchResults');
   if (!grid) return;
@@ -307,7 +321,7 @@ function branchSearch() {
       + '<td data-label="สาขา" data-icon="🏢" class="branch-txt">' + escapeHtml(r['สาขา'] || '—') + '</td>'
       + '<td data-label="หลักสูตร" data-icon="📚" style="color:var(--text3);font-size:11px;max-width:180px;">' + escapeHtml(_courseShort(r['หลักสูตร'] || '')) + '</td>'
       + '<td data-label="วันหมดอายุ" data-icon="⏰" style="white-space:nowrap;font-size:12px;color:var(--text2);">' + escapeHtml(formatThaiDate(r['วันหมดอายุ'])) + '</td>'
-      + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status) + '</td>'
+      + '<td data-label="สถานะ" data-icon="🏷">' + getExpBadge(status, r._renewed) + '</td>'
       + '<td data-label="ใบรับรอง" data-icon="⚙️" class="td-row-actions">'
       +   (url ? '<a class="btn-row-view" href="' + url + '" data-cert-name="' + escapeAttr(r['ชื่อในใบรับรอง'] || '') + '" onpointerdown="fhPrefetchCert(this.href)" onclick="return fhDownloadOneCert(event, this.href, this.dataset.certName)" title="ดาวน์โหลดใบรับรอง (ตั้งชื่อไฟล์ตามชื่อบนใบ)" style="text-decoration:none;">⬇️<span class="btn-dl-tx">ดาวน์โหลดใบรับรอง</span></a>' : '<span style="color:var(--text3)">—</span>')
       + '</td>'

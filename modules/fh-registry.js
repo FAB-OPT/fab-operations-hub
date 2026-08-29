@@ -24,6 +24,129 @@ function saveEmployeeRegistryToCloud(employees, replaceAll) {
   });
 }
 
+
+/* ═══════════════════════════════════════════════════════════════
+   อัปทะเบียนพนักงาน — รวมกับของเดิม ไม่ใช่ล้างทิ้งแล้วเขียนใหม่
+   ของเดิมล้างทั้งชีตทุกครั้งที่อัป · อัปไฟล์ผิดช่องครั้งเดียว ทะเบียนทั้งหมดหายทันที
+   (เกิดขึ้นจริง: มีคนอัปไฟล์ใบรับรองเข้าช่องทะเบียน เหลือ 142 แถวที่อ่านคอลัมน์ผิด
+    ชื่อคนกลายเป็นชื่อหลักสูตร รหัสพนักงานกลายเป็นคำว่า "ผ่าน")
+   และการอัปแยกไฟล์คนละครั้งก็ทับกันเองด้วย ต้องอัปพร้อมกันทีเดียวเท่านั้น
+   ═══════════════════════════════════════════════════════════════ */
+/* กุญแจระบุตัวคน — ไล่จากตัวที่อยู่ทนที่สุดลงมา
+   รหัสพนักงานเปลี่ยนยากสุด · เลขบัตรไม่เปลี่ยนเลยแต่บางไฟล์ไม่มี · ชื่อเป็นทางสุดท้าย */
+function _fhEmpKey(e) {
+  var id = String((e && e.empId) || '').trim();
+  if (id) return 'id:' + id;
+  var ic = String((e && e.idCard) || '').replace(/\D/g, '');
+  if (ic) return 'ic:' + ic;
+  return 'nm:' + String((e && (e.norm || e.name)) || '').replace(/\s+/g, '');
+}
+var _FH_EMP_FIELDS = ['name','norm','empId','idCard','branch','position','sheet'];
+
+/* ด่านที่ 1 — ไฟล์นี้หน้าตาเป็นทะเบียนพนักงานจริงไหม
+   คืนข้อความบอกเหตุถ้าดูแล้วไม่ใช่ · null = ผ่าน
+   ตรวจจากรูปแบบข้อมูล ไม่ใช่ชื่อไฟล์ เพราะคนตั้งชื่อไฟล์ยังไงก็ได้ */
+function fhRegistryFileLooksWrong(rows) {
+  if (!rows || !rows.length) return 'ไม่พบข้อมูลในไฟล์';
+  var n = rows.length;
+  var course = rows.filter(function(e){ return /หลักสูตร|สุขาภิบาล/.test(String(e.name || '')); }).length;
+  if (course > n * 0.3)
+    return 'ช่อง "ชื่อ-นามสกุล" เป็นชื่อหลักสูตร ไม่ใช่ชื่อคน (' + course + ' จาก ' + n + ' แถว)<br>' +
+           'ไฟล์นี้น่าจะเป็น<b>รายชื่อใบรับรอง</b> ไม่ใช่ทะเบียนพนักงาน';
+  var ids = {}, nId = 0;
+  rows.forEach(function(e){ var v = String(e.empId || '').trim(); if (v) { ids[v] = 1; nId++; } });
+  var uniq = Object.keys(ids).length;
+  if (n >= 20 && nId > n * 0.5 && uniq <= 2)
+    return 'ช่อง "รหัสพนักงาน" มีค่าซ้ำกันเกือบทั้งไฟล์ (เหลือ ' + uniq + ' ค่า จาก ' + n + ' แถว)<br>' +
+           'น่าจะอ่านคอลัมน์ผิดตำแหน่ง';
+  if (n >= 20 && !rows.some(function(e){ return String(e.branch || '').trim(); }))
+    return 'ทุกแถวไม่มีสาขาเลย (' + n + ' แถว)<br>น่าจะอ่านคอลัมน์ผิดตำแหน่ง หรือเป็นไฟล์คนละแบบ';
+  return null;
+}
+
+/* รวมของใหม่เข้ากับของเดิม — คืนรายชื่อชุดใหม่พร้อมตัวเลขสรุป
+   คนที่ไม่อยู่ในไฟล์ใหม่ "ไม่ลบ" แต่ทำเครื่องหมายไว้
+   เพราะใบรับรองของเขายังอยู่ ลบคนออกเมื่อไร ใบนั้นกลายเป็นใบลอยทันที
+   ถ้าเขากลับเข้ามาทำงานใหม่ อัปทะเบียนรอบหน้าจะปลดเครื่องหมายให้เอง */
+function fhMergeRegistry(incoming) {
+  var base = (typeof empData !== 'undefined' && empData) ? empData.slice() : [];
+  var today = new Date().toISOString().slice(0, 10);
+  var byKey = {}, out = [];
+  base.forEach(function(e){ var k = _fhEmpKey(e); if (!byKey[k]) { byKey[k] = e; out.push(e); } });
+  var added = 0, updated = 0, inNew = {};
+  (incoming || []).forEach(function(e){
+    var k = _fhEmpKey(e);
+    inNew[k] = 1;
+    var cur = byKey[k];
+    if (cur) {
+      /* ทับเฉพาะช่องที่ไฟล์ใหม่มีค่า — บางไฟล์ไม่มีบางคอลัมน์
+         ทับทั้งดุ้นจะทำให้ข้อมูลที่เคยมีหายไปเพราะไฟล์รอบนี้ไม่มีคอลัมน์นั้น */
+      _FH_EMP_FIELDS.forEach(function(f){
+        if (e[f] != null && String(e[f]).trim() !== '') cur[f] = e[f];
+      });
+      cur.active = true; cur.seenAt = today; delete cur.goneAt;
+      updated++;
+    } else {
+      e.active = true; e.seenAt = today;
+      byKey[k] = e; out.push(e); added++;
+    }
+  });
+  var gone = 0;
+  out.forEach(function(e){
+    if (inNew[_fhEmpKey(e)]) return;
+    if (e.active === false) { gone++; return; }        // เคยหายไปตั้งแต่รอบก่อน
+    e.active = false; e.goneAt = today; gone++;
+  });
+  return { list: out, added: added, updated: updated, gone: gone, kept: out.length };
+}
+
+/* ทางเข้าเดียวของการอัปทะเบียน — ทั้งอัปไฟล์เดียวและอัปหลายไฟล์เรียกตัวนี้
+   เดิมสองทางเขียนแยกกัน แล้วแก้ทางเดียวลืมอีกทางได้ง่าย */
+function fhApplyRegistryUpload(incoming, srcLabel, setStatusFn) {
+  var say = setStatusFn || function(){};
+  var bad = fhRegistryFileLooksWrong(incoming);
+  if (bad) {
+    say('error', 'ไฟล์ไม่ใช่ทะเบียนพนักงาน — ไม่ได้บันทึก');
+    showInfo('ไม่ได้บันทึกทะเบียน',
+      bad + '<br><br>ทะเบียนเดิม <b>' +
+      ((typeof empData !== 'undefined' && empData) ? empData.length : 0) +
+      ' คน ยังอยู่ครบ ไม่ได้ถูกแตะ<br><br>' +
+      'ถ้าจะอัป<b>ใบรับรอง</b> ให้ใช้เมนู <b>"ขั้น 2 · อัปใบรับรอง (PDF)"</b> แทน');
+    return Promise.resolve(null);
+  }
+  var m = fhMergeRegistry(incoming);
+  var shrink = m.gone > Math.max(5, Math.floor((m.kept - m.added) * 0.2));
+  var desc =
+    '<div style="text-align:left;line-height:2">' +
+    'ไฟล์ที่อัป: <b>' + incoming.length + '</b> คน' + (srcLabel ? (' (' + srcLabel + ')') : '') + '<br>' +
+    '• เพิ่มใหม่ <b>' + m.added + '</b> คน<br>' +
+    '• อัปเดตของเดิม <b>' + m.updated + '</b> คน<br>' +
+    '• ไม่อยู่ในไฟล์ใหม่ <b>' + m.gone + '</b> คน — <span style="color:#b45309">เก็บไว้ในทะเบียน ' +
+    'แต่ทำเครื่องหมายว่าไม่อยู่ในทะเบียนล่าสุด (ใบรับรองของเขาจะไม่กลายเป็นใบลอย)</span><br>' +
+    '<br>รวมทะเบียนหลังบันทึก <b>' + m.kept + '</b> คน' +
+    (shrink ? '<br><br><span style="color:#b91c1c;font-weight:800">⚠ มีคนหลุดจากไฟล์ใหม่เยอะผิดปกติ ' +
+              'ตรวจก่อนว่าอัปไฟล์ครบทุกแบรนด์แล้วหรือยัง</span>' : '') +
+    '</div>';
+  return customConfirm({ icon:'📊', title:'บันทึกทะเบียนตามนี้?', desc:desc,
+                         okText:'บันทึก', okIsPrimary:!shrink, danger:shrink })
+    .then(function(ok){
+      if (!ok) { say('done', 'ยกเลิก — ทะเบียนเดิมยังอยู่ครบ'); return null; }
+      empData = m.list;
+      _fhCacheSet('fh_emp_v1', empData);
+      say('done', 'กำลังบันทึกทะเบียน ' + m.kept + ' คนลง Cloud...');
+      return saveEmployeeRegistryToCloud(m.list, true).then(function(){
+        say('done', '✓ บันทึกแล้ว ' + m.kept + ' คน (เพิ่ม ' + m.added + ' · อัปเดต ' + m.updated +
+                    (m.gone ? (' · ไม่อยู่ในไฟล์ใหม่ ' + m.gone) : '') + ')');
+        try { renderRegistryTable(); } catch (e) {}
+        _fhRefreshBranchCertsAfterRegistry();      // ทะเบียนเปลี่ยน → ผูกใบรับรองใหม่ทันที
+        return m;
+      }).catch(function(err){
+        say('done', 'รวมข้อมูลแล้ว ' + m.kept + ' คน · ⚠ บันทึก Cloud ไม่สำเร็จ: ' + (err.message || err));
+        return m;
+      });
+    });
+}
+
 /* แปลงข้อมูลใบรับรองจาก Cloud → รูปแบบที่หน้าเว็บใช้ (matchData)
    แยกออกมาเป็นฟังก์ชันเพราะหน้าคำขออบรมก็ต้องใช้ ตอนตรวจว่าใครมีใบรับรองแล้ว */
 function _fhMapCerts(records) {
@@ -584,14 +707,26 @@ function renderRegistryTable() {
   var body = document.getElementById('registryBody'); if (!body) return;
   var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
   var q = ((document.getElementById('registrySearch')||{}).value || '').trim().toLowerCase();
-  var rows = q ? emps.filter(function(e){ return ((e.name||'')+(e.empId||'')+(e.idCard||'')+(e.branch||'')+(e.position||'')).toLowerCase().indexOf(q) >= 0; }) : emps;
+  /* คนที่ไม่อยู่ในทะเบียนล่าสุด (ลาออก/ไม่ได้อยู่ในไฟล์รอบนี้) ซ่อนเป็นค่าตั้งต้น
+     เอามาปนกันเมื่อไร ตัวเลขจำนวนคนต่อสาขาจะเกินจริงโดยไม่มีใครรู้ว่าเกินเพราะอะไร
+     แต่ยังต้องดูได้ จึงมีสวิตช์ให้เปิด */
+  var showGone = !!(document.getElementById('registryShowGone') || {}).checked;
+  var live = showGone ? emps : emps.filter(function(e){ return e.active !== false; });
+  var nGone = emps.length - emps.filter(function(e){ return e.active !== false; }).length;
+  var rows = q ? live.filter(function(e){ return ((e.name||'')+(e.empId||'')+(e.idCard||'')+(e.branch||'')+(e.position||'')).toLowerCase().indexOf(q) >= 0; }) : live;
   var cnt = document.getElementById('registryCount');
-  if (cnt) cnt.textContent = 'ทั้งหมด ' + emps.length + ' คน' + (q ? (' · พบ ' + rows.length) : '');
+  if (cnt) cnt.textContent = 'ทั้งหมด ' + (emps.length - nGone) + ' คน'
+    + (nGone ? (' · ไม่อยู่ในทะเบียนล่าสุดอีก ' + nGone) : '')
+    + (q ? (' · พบ ' + rows.length) : '');
   if (!emps.length) { body.innerHTML = '<tr><td colspan="6" class="empty">ยังไม่มีทะเบียน — อัปไฟล์ Excel ที่เมนู "นำเข้าข้อมูล → นำเข้ารายชื่อพนักงาน"</td></tr>'; return; }
   if (!rows.length) { body.innerHTML = '<tr><td colspan="6" class="empty">ไม่พบข้อมูลที่ค้นหา</td></tr>'; return; }
   var show = rows.slice(0, 500);
   var html = show.map(function(e, i){
-    return '<tr><td>'+(i+1)+'</td><td>'+escapeHtml(e.name||'')+'</td><td>'+escapeHtml(e.empId||'')+'</td><td>'+escapeHtml(e.branch||'')+'</td><td>'+escapeHtml(e.position||'')+'</td><td>'+escapeHtml(e.sheet||'')+'</td></tr>';
+    var off = (e.active === false);
+    return '<tr' + (off ? ' style="opacity:.55"' : '') + '><td>'+(i+1)+'</td><td>'+escapeHtml(e.name||'')
+      + (off ? ' <span style="font-size:11px;font-weight:800;color:#b45309;white-space:nowrap">· ไม่อยู่ในทะเบียนล่าสุด'
+               + (e.goneAt ? (' ' + escapeHtml(e.goneAt)) : '') + '</span>' : '')
+      +'</td><td>'+escapeHtml(e.empId||'')+'</td><td>'+escapeHtml(e.branch||'')+'</td><td>'+escapeHtml(e.position||'')+'</td><td>'+escapeHtml(e.sheet||'')+'</td></tr>';
   }).join('');
   if (rows.length > 500) html += '<tr><td colspan="6" style="text-align:center;color:var(--text3);padding:12px;">แสดง 500 แรกจาก '+rows.length+' · พิมพ์ค้นหาเพื่อกรอง</td></tr>';
   body.innerHTML = html;

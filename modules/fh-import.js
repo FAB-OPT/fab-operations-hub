@@ -457,14 +457,12 @@ function processXLSXFiles(files) {
       seen[key] = true; merged.push(emp);
     });
     if (!merged.length) { setStatus('xlsx','error','ไม่พบข้อมูลในไฟล์'); return; }
-    empData = merged;
     setProg('xlsx',100);
     var dupCut = all.length - merged.length;
-    setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + merged.length + ' คน จาก ' + files.length + ' ไฟล์' + (dupCut>0 ? (' (ตัดซ้ำ '+dupCut+')') : '') + ' · กำลังบันทึกลง Cloud...');
     var card = document.getElementById('xlsxCard'); if (card) card.classList.add('loaded');
-    saveEmployeeRegistryToCloud(merged, true)
-      .then(function(){ setStatus('xlsx','done','✓ บันทึกทะเบียน ' + merged.length + ' คนลง Cloud แล้ว (ครั้งต่อไปไม่ต้อง upload ซ้ำ)'); })
-      .catch(function(err){ setStatus('xlsx','done','พบ ' + merged.length + ' คน · ⚠ บันทึก Cloud ไม่สำเร็จ: ' + (err.message||err)); });
+    /* ไม่ทับทะเบียนเดิมทันทีอีกแล้ว — ผ่านด่านตรวจไฟล์ + รวมกับของเดิม + ให้ยืนยันก่อน */
+    fhApplyRegistryUpload(merged, files.length + ' ไฟล์' + (dupCut>0 ? (' · ตัดซ้ำ '+dupCut) : ''),
+      function(kind, msg){ setStatus('xlsx', kind, msg); });
   });
 }
 
@@ -484,19 +482,11 @@ function processXLSXFile(file) {
       var employees = _parseEmpWorkbook(wb);
 
       if (employees.length > 0) {
-        empData = employees;
         setProg('xlsx',100);
-        setStatus('xlsx','done','โหลดสำเร็จ — พบ ' + employees.length + ' คน จาก ' + wb.SheetNames.length + ' Sheet · กำลังบันทึกลง Cloud...');
         document.getElementById('xlsxCard').classList.add('loaded');
-        // Persist to cloud (replace all)
-        saveEmployeeRegistryToCloud(employees, true)
-          .then(function(res){
-            setStatus('xlsx','done','✓ บันทึกทะเบียน ' + employees.length + ' คนลง Cloud แล้ว (ครั้งต่อไปไม่ต้อง upload ซ้ำ)');
-          })
-          .catch(function(err){
-            console.warn('Save employees to cloud failed:', err);
-            setStatus('xlsx','done','พบ ' + employees.length + ' คน · ⚠ บันทึก Cloud ไม่สำเร็จ: ' + (err.message||err));
-          });
+        /* ไม่ทับทะเบียนเดิมทันทีอีกแล้ว — ผ่านด่านตรวจไฟล์ + รวมกับของเดิม + ให้ยืนยันก่อน */
+        fhApplyRegistryUpload(employees, wb.SheetNames.length + ' Sheet',
+          function(kind, msg){ setStatus('xlsx', kind, msg); });
       } else {
         setStatus('xlsx','error','ไม่พบข้อมูลในไฟล์');
       }
