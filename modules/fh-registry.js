@@ -71,13 +71,25 @@ function fhRegistryFileLooksWrong(rows) {
 function fhMergeRegistry(incoming) {
   var base = (typeof empData !== 'undefined' && empData) ? empData.slice() : [];
   var today = new Date().toISOString().slice(0, 10);
-  var byKey = {}, out = [];
-  base.forEach(function(e){ var k = _fhEmpKey(e); if (!byKey[k]) { byKey[k] = e; out.push(e); } });
+  var byKey = {}, byName = {}, out = [];
+  base.forEach(function(e){
+    var k = _fhEmpKey(e);
+    if (byKey[k]) return;
+    byKey[k] = e; out.push(e);
+    /* ดัชนีสำรองด้วยชื่อ — ใช้เฉพาะแถวที่ยังไม่มีรหัสหรือเลขบัตร
+       ทะเบียนที่กู้มาจากใบรับรองจะไม่มีรหัส พอไฟล์จริงที่มีรหัสเข้ามาทีหลัง
+       กุญแจจะคนละตัวกัน คนเดียวกันเลยกลายเป็นสองแถว · ให้จับด้วยชื่อเป็นทางสำรอง */
+    if (k.indexOf('nm:') === 0 && !byName[k]) byName[k] = e;
+  });
   var added = 0, updated = 0, inNew = {};
   (incoming || []).forEach(function(e){
     var k = _fhEmpKey(e);
     inNew[k] = 1;
     var cur = byKey[k];
+    if (!cur) {
+      var nk = 'nm:' + String((e && (e.norm || e.name)) || '').replace(/\s+/g, '');
+      if (byName[nk]) { cur = byName[nk]; inNew[_fhEmpKey(cur)] = 1; delete byName[nk]; }
+    }
     if (cur) {
       /* ทับเฉพาะช่องที่ไฟล์ใหม่มีค่า — บางไฟล์ไม่มีบางคอลัมน์
          ทับทั้งดุ้นจะทำให้ข้อมูลที่เคยมีหายไปเพราะไฟล์รอบนี้ไม่มีคอลัมน์นั้น */
