@@ -383,8 +383,10 @@ function handleXLSX(input) {
 }
 
 /* แยก parser ทะเบียนพนักงานออกมา — ใช้ทั้งไฟล์เดียว/หลายไฟล์ */
+var _fhSkipSheets = [];     // Sheet ที่อ่านหัวตารางไม่ออก — เอาไว้บอกผู้ใช้ว่าข้ามอะไรไป
 function _parseEmpWorkbook(wb) {
   var employees = [];
+  _fhSkipSheets = [];
   wb.SheetNames.forEach(function(sheetName) {
     var ws = wb.Sheets[sheetName];
     var rows = XLSX.utils.sheet_to_json(ws, {header:1, defval:''});
@@ -400,7 +402,11 @@ function _parseEmpWorkbook(wb) {
       if (s.indexOf('identity') >= 0 || s.indexOf('idcard') >= 0 || s.indexOf('เลขบัตร') >= 0 || s.indexOf('บัตรประชาชน') >= 0) idCardCol = i;
       if (s.indexOf('แบรนด์') >= 0 || s.indexOf('แบนด์') >= 0 || s.indexOf('brand') >= 0 || s === 'sheet') brandCol = i;
     });
-    if (nameCol<0) nameCol = 2;
+    /* ต้นเหตุของทะเบียนที่พังทั้งชุด: เดิมถ้าหาหัวคอลัมน์ไม่เจอ จะเดาว่าอยู่ตำแหน่งที่ 2/9/7/1
+       ไฟล์ที่ไม่ใช่ทะเบียน (เช่นไฟล์ใบรับรอง) จึงถูกอ่านเป็นทะเบียนได้เสมอ
+       ได้ชื่อคนเป็นชื่อหลักสูตร รหัสพนักงานเป็นคำว่า "ผ่าน" แล้วเขียนทับของจริงทิ้ง
+       ชื่อคือคอลัมน์ที่ทั้งระบบพึ่งพา หาไม่เจอ = ไม่ใช่ทะเบียน ข้ามทั้ง Sheet ดีกว่าเดา */
+    if (nameCol < 0) { _fhSkipSheets.push(sheetName); return; }
     if (branchCol<0) branchCol = 9;
     if (posCol<0) posCol = 7;
     if (empIdCol<0) empIdCol = 1;

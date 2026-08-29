@@ -104,6 +104,16 @@ function fhMergeRegistry(incoming) {
    เดิมสองทางเขียนแยกกัน แล้วแก้ทางเดียวลืมอีกทางได้ง่าย */
 function fhApplyRegistryUpload(incoming, srcLabel, setStatusFn) {
   var say = setStatusFn || function(){};
+  /* อ่านหัวตารางไม่ออกทั้งไฟล์ = ไม่ใช่ทะเบียนแน่ ๆ บอกให้ตรงจุดว่าต้องมีหัวอะไรบ้าง */
+  if ((!incoming || !incoming.length) && typeof _fhSkipSheets !== 'undefined' && _fhSkipSheets.length) {
+    say('error', 'อ่านหัวตารางไม่ออก — ไม่ได้บันทึก');
+    showInfo('ไม่ได้บันทึกทะเบียน',
+      'หาคอลัมน์ "ชื่อ-นามสกุล" ไม่เจอใน Sheet: <b>' + escapeHtml(_fhSkipSheets.join(' · ')) + '</b>' +
+      '<br><br>ไฟล์ทะเบียนต้องมีหัวคอลัมน์อย่างน้อย <b>ชื่อ-นามสกุล</b> ' +
+      '(หรือ FullnameThai) · แนะนำให้กด <b>"ดาวน์โหลดฟอร์มตั้งต้น"</b> ไปกรอกแทน' +
+      '<br><br>ทะเบียนเดิมยังอยู่ครบ ไม่ได้ถูกแตะ');
+    return Promise.resolve(null);
+  }
   var bad = fhRegistryFileLooksWrong(incoming);
   if (bad) {
     say('error', 'ไฟล์ไม่ใช่ทะเบียนพนักงาน — ไม่ได้บันทึก');
