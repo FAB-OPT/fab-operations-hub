@@ -499,13 +499,9 @@ function saveToCloud() {
   btn.innerHTML = '<span class="spin"></span> กำลังบันทึก...';
   document.getElementById('processInfo').textContent = 'กำลังบันทึก ' + matchData.length + ' รายการขึ้น Google Sheet...';
 
-  fetch(SCRIPT_URL, {
-    method: 'POST',
-    mode: 'cors',
-    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-    body: JSON.stringify({ type: 'save-certificates', records: matchData })
-  })
-  .then(function(r){ return r.json(); })
+  /* เขียนที่เดียวกับที่อ่าน — ของเดิมยิงเข้า Google Sheets ตรง ๆ แต่หน้าเว็บอ่านจาก Supabase
+     ใบที่บันทึกจึงไม่เคยขึ้นให้ใครเห็น · fhSaveCertificates เขียน Supabase แล้วสำเนาลง Sheets ให้ด้วย */
+  fhSaveCertificates(matchData)
   .then(function(res){
     btn.disabled = false;
     btn.innerHTML = '&#128190; บันทึกขึ้น Cloud';

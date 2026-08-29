@@ -95,10 +95,15 @@ function _sbCertOut(r) {
     _sbId: r.id,
     'ชื่อในใบรับรอง': r.cert_name || '', 'หลักสูตร': r.course || '', 'วันอบรม': r.train_date || '',
     'วันหมดอายุ': r.expire_date || '', 'สถานะใบรับรอง': r.exp_status || '', 'ชื่อในระบบ': r.emp_name || '',
-    'สาขา': r.branch || '', 'ตำแหน่ง': r.position || '', 'Sheet': r.sheet || '', 'สถานะจับคู่': r.match_type || ''
+    'สาขา': r.branch || '', 'ตำแหน่ง': r.position || '', 'Sheet': r.sheet || '', 'สถานะจับคู่': r.match_type || '',
+    /* ตัวชี้ไปหาคนในทะเบียน — ถ้าตารางยังไม่มีคอลัมน์พวกนี้จะได้ค่าว่าง
+       แล้วระบบจะผูกให้ใหม่เองจากชื่อ (ดู _fhRelinkCerts) ไม่พัง */
+    'รหัสพนักงาน': r.emp_id || '', 'เลขบัตรประชาชน': r.id_card || '',
+    'สาขาตอนอบรม': r.branch_at_train || '', 'จับคู่โดย': r.match_by || ''
   };
 }
-function _sbCertIn(c) {
+/* คอลัมน์ชุดเดิม — ใช้ตอนตารางยังไม่ได้เพิ่มคอลัมน์ใหม่ */
+function _sbCertInBase(c) {
   return {
     cert_name: c.certName || c['ชื่อในใบรับรอง'] || '', course: c.course || c['หลักสูตร'] || '',
     train_date: String(c.trainDate || c['วันอบรม'] || ''), expire_date: String(c.expireDate || c['วันหมดอายุ'] || ''),
@@ -106,6 +111,14 @@ function _sbCertIn(c) {
     branch: c.branch || c['สาขา'] || '', position: c.position || c['ตำแหน่ง'] || '',
     sheet: c.sheet || c['Sheet'] || '', match_type: c.matchType || c['สถานะจับคู่'] || ''
   };
+}
+function _sbCertIn(c) {
+  var o = _sbCertInBase(c);
+  o.emp_id = String(c.empId || c['รหัสพนักงาน'] || '');
+  o.id_card = String(c.idCard || c['เลขบัตรประชาชน'] || '');
+  o.branch_at_train = c.branchAtTrain || c['สาขาตอนอบรม'] || '';
+  o.match_by = c.matchBy || c['จับคู่โดย'] || '';
+  return o;
 }
 function _sbEmpOut(r) {
   return { _sbId: r.id, name: r.name || '', empId: r.emp_id || '', idCard: r.id_card || '',
@@ -254,6 +267,51 @@ function fhSaveEmployees(records, replaceAll) {
     .catch(function(e){
       console.warn('[FH] เขียนทะเบียนที่ Supabase ไม่ผ่าน → ใช้ Sheets แทน', e);
       return _sheetsPost({ type: 'save-employees', records: recs, replaceAll: !!replaceAll });
+    });
+}
+
+/* ═══ บันทึกใบรับรอง ═══
+   ของเดิมมีแต่ "อ่าน" จาก Supabase ส่วน "เขียน" ยิงไป Google Sheets อย่างเดียว
+   ใบที่บันทึกหลังย้ายข้อมูลจึงไม่เคยขึ้นให้ใครเห็น — หน้าจอค้างอยู่ที่จำนวนตอนย้าย
+   (ตรวจกับของจริง: Sheets 757 ใบ · Supabase 652 ใบ ซึ่งเป็นจำนวน ณ วันย้าย)
+   ทะเบียนพนักงานมีตัวเขียนอยู่แล้ว (fhSaveEmployees) ใบรับรองตกหล่นไปตัวเดียว */
+function fhSaveCertificates(records, opts) {
+  var recs = records || [];
+  var body = { type: 'save-certificates', records: recs };
+  if (opts && opts.confirmShrink) body.confirmShrink = true;
+  if (!FH_SB.ready) return _sheetsPost(body);
+
+  function push(rows) {
+    return FH_SB.client.from('fh_certificates').delete().gte('id', 0)
+      .then(function(res){ if (res.error) throw res.error; })
+      .then(function(){
+        if (!rows.length) return { count: 0 };
+        var CH = 500;                       // ยัดทีละ 500 แถว กัน payload ใหญ่เกินจนถูกตัด
+        function chunk(i) {
+          if (i >= rows.length) return { count: rows.length };
+          return FH_SB.client.from('fh_certificates').insert(rows.slice(i, i + CH))
+            .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
+        }
+        return chunk(0);
+      });
+  }
+
+  return push(recs.map(_sbCertIn))
+    .catch(function(e){
+      /* ตารางยังไม่มีคอลัมน์ใหม่ (ยังไม่ได้รัน supabase-fh-cert-link.sql)
+         ส่งเฉพาะคอลัมน์เดิมไปก่อน ดีกว่าล้มทั้งการบันทึกแล้วของใหม่ไม่ขึ้นให้ใครเห็น */
+      var msg = String((e && (e.message || e.hint || e.details)) || e);
+      if (!/column|schema|does not exist|PGRST204/i.test(msg)) throw e;
+      console.warn('[FH] ตาราง fh_certificates ยังไม่มีคอลัมน์ตัวชี้ — บันทึกเฉพาะคอลัมน์เดิมไปก่อน', e);
+      return push(recs.map(_sbCertInBase));
+    })
+    .then(function(r){
+      _alsoSheets(body);                    // เขียน Google Sheets ต่อไปด้วยเป็นสำเนาสำรอง
+      return { ok: true, saved: r.count };
+    })
+    .catch(function(e){
+      console.warn('[FH] เขียนใบรับรองที่ Supabase ไม่ผ่าน → ใช้ Sheets แทน', e);
+      return _sheetsPost(body);
     });
 }
 
