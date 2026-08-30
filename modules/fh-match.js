@@ -266,6 +266,19 @@ function formatThaiDateTime(s) {
   return d.getDate() + ' ' + thShort[d.getMonth()] + ' ' + y + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
 }
 
+/* วันเดียวกันแต่เขียนคนละแบบ ต้องได้กุญแจเดียวกัน
+   ใบที่อ่านจาก PDF ได้วันไทย ("18 สิงหาคม 2572") ส่วนใบที่โหลดจาก Cloud ได้ ISO
+   ("2572-08-17T17:00:00.000Z" — คนละค่าเพราะเก็บเป็นเวลาสากล) เทียบข้อความตรง ๆ
+   จึงเป็นคนละใบ · อัป PDF ใบเดิมซ้ำเมื่อไรก็ได้แถวเพิ่มทุกที
+   อ่านเป็นวันจริงแล้วเขียนกลับเป็น ปี-เดือน-วัน แบบเดียวกันก่อนค่อยเทียบ */
+function fhDayKey(v) {
+  var s = String(v == null ? '' : v).trim();
+  if (!s) return '';
+  var d = parseAnyDate(s);
+  if (!d) return s;                      // อ่านไม่ออกก็ใช้ข้อความเดิม ดีกว่ายุบมั่ว
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') +
+         '-' + String(d.getDate()).padStart(2, '0');
+}
 function getExpStatus(expDateStr) {
   var d = parseAnyDate(expDateStr);
   if (!d) return 'unknown';
@@ -389,7 +402,7 @@ function processMatch() {
     var totalPdf = raw.length;
     var _prev = Array.isArray(matchData) ? matchData : [];
     var _ck = function(d){ return normalizeName(d.certName||'').replace(/\s+/g,'') + '|' + (d.course||''); };
-    var _mkey = function(d){ return _ck(d) + '|' + (d.expireDate||''); };
+    var _mkey = function(d){ return _ck(d) + '|' + fhDayKey(d.expireDate); };
     var _hasExp = function(d){ return !!(d.expireDate && String(d.expireDate).trim()); };
     // ชื่อ+หลักสูตร ที่ "ใบใหม่" อ่านวันหมดอายุได้แล้ว → ใช้ทับใบเก่าที่วันว่าง
     // (กันซ้ำตอน re-upload เพื่อเติมวันหมดอายุ — เก่าวันว่าง+ใหม่มีวัน key ต่างกันเลยไม่ merge เอง)

@@ -1722,12 +1722,9 @@ function clearAllCerts() {
   }).then(function(ok){
     if (!ok) return;
     showLoadingOverlay('กำลังลบใบรับรองทั้งหมด...', '');
-    fetch(SCRIPT_URL, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'clear-certificates' })
-    })
-    .then(function(r){ return r.json(); })
+    /* ต้องลบที่ Supabase ด้วย ไม่ใช่แค่ Google Sheets — ของเดิมลบแค่ Sheets
+       แล้วล้างของบนจอ ดูเหมือนสำเร็จ พอรีเฟรชข้อมูลกลับมาครบทุกใบ */
+    fhClearCertificates()
     .then(function(res){
       hideLoadingOverlay();
       if (res && res.ok) {

@@ -299,21 +299,31 @@ function dedupEmployeeRegistry() {
     okIsPrimary: true
   }).then(function(ok){
     if (!ok) return;
-    fetch(SCRIPT_URL, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'dedup-employees' })
+    /* ตัดซ้ำในเครื่องด้วยกุญแจเดียวกับตอนรวมทะเบียน (รหัส → เลขบัตร → ชื่อ)
+       ของเดิมให้ Google Sheets ตัดโดยเทียบ ชื่อ+สาขา ซึ่งคนเดียวกันที่ย้ายสาขา
+       จะไม่ถูกมองว่าซ้ำ และหน้าเว็บก็ไม่ได้อ่านจากที่นั่นอยู่ดี */
+    var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+    var seen2 = {}, keep2 = [], removed2 = 0;
+    emps.forEach(function(e){
+      var k = _fhEmpKey(e);
+      if (seen2[k]) { removed2++; return; }
+      seen2[k] = 1; keep2.push(e);
+    });
+    if (!removed2) { showInfo('ไม่มีรายชื่อซ้ำ', 'ตรวจ ' + emps.length + ' รายชื่อแล้ว ไม่พบที่ซ้ำกัน'); return; }
+    showLoadingOverlay('กำลังลบรายชื่อซ้ำ...', '');
+    empData = keep2;
+    _fhCacheSet('fh_emp_v1', empData);
+    try { renderRegistryTable(); } catch (e) {}
+    saveEmployeeRegistryToCloud(keep2, true)
+    .then(function(){
+      hideLoadingOverlay();
+      showInfo('✓ ลบสำเร็จ', 'เหลือ <b>' + keep2.length + '</b> รายชื่อ (ลบ ' + removed2 + ' รายการซ้ำ)');
+      _fhRefreshBranchCertsAfterRegistry();
     })
-    .then(function(r){ return r.json(); })
-    .then(function(res){
-      if (res && res.ok) {
-        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>'+(res.kept||0)+'</b> รายชื่อ (ลบ '+(res.removed||0)+' รายการซ้ำ)');
-        loadEmployeeRegistryFromCloud();
-      } else {
-        showInfo('✗ ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
-      }
-    })
-    .catch(function(err){ showInfo('🌐 เชื่อมต่อ Cloud ไม่ได้', escapeHtml(err.message||String(err))); });
+    .catch(function(err){
+      hideLoadingOverlay();
+      showInfo('✗ ลบไม่สำเร็จ', escapeHtml((err && err.message) || String(err)));
+    });
   });
 }
 
@@ -475,16 +485,28 @@ function dedupCertificateRegistry() {
     okIsPrimary: true
   }).then(function(ok){
     if (!ok) return;
-    fetch(SCRIPT_URL, {
-      method: 'POST', mode: 'cors',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ type: 'dedup-certificates' })
-    })
-    .then(function(r){ return r.json(); })
+    /* ตัดซ้ำในเครื่องด้วยกติกาเดียวกับตอนนำเข้า แล้วบันทึกชุดที่เหลือทับ
+       ของเดิมสั่งให้ Google Sheets ตัดให้ ซึ่งหน้าเว็บไม่ได้อ่านจากที่นั่น กดแล้วจึงไม่มีอะไรเปลี่ยน
+       และกติกาฝั่งนั้นเทียบแค่ ชื่อ+วันหมดอายุ ทำให้คนที่มีสองใบคนละหลักสูตรเหลือใบเดียว */
+    var md = (typeof matchData !== 'undefined' && matchData) ? matchData : [];
+    var seen = {}, keep = [], removed = 0;
+    md.forEach(function(d){
+      var k = normalizeName(d.certName || '').replace(/\s+/g, '') + '|' +
+              (d.course || '') + '|' + fhDayKey(d.expireDate);
+      if (seen[k]) { removed++; return; }
+      seen[k] = 1; keep.push(d);
+    });
+    if (!removed) { showInfo('ไม่มีใบซ้ำ', 'ตรวจ ' + md.length + ' ใบแล้ว ไม่พบใบที่ซ้ำกัน'); return; }
+    showLoadingOverlay('กำลังลบใบซ้ำ...', '');
+    matchData = keep;
+    matchData.forEach(function(d, i){ d.no = i + 1; });
+    try { updateStats(); renderTable(); } catch (e) {}
+    _fhCacheSet('fh_cert_v1', matchData);
+    fhSaveCertificates(matchData, { confirmShrink: true })
     .then(function(res){
+      hideLoadingOverlay();
       if (res && res.ok) {
-        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>'+(res.kept||0)+'</b> ใบ (ลบ '+(res.removed||0)+' ใบซ้ำ)');
-        loadFromCloud();
+        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>' + keep.length + '</b> ใบ (ลบ ' + removed + ' ใบซ้ำ)');
       } else {
         showInfo('✗ ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
       }
@@ -621,7 +643,7 @@ function loadFromCloud() {
       var seen = {}, out = [];
       matchData.forEach(function(d){
         if (!_hasExp(d) && datedGroups[_ckey(d)]) return;      // ใบวันว่าง แต่มีใบมีวันแล้ว → ทิ้ง
-        var k = _ckey(d) + '|' + (d.expireDate||'');            // ตัดซ้ำ (รองรับ renewal คนละวัน)
+        var k = _ckey(d) + '|' + fhDayKey(d.expireDate);        // ตัดซ้ำ (รองรับ renewal คนละวัน)
         if (seen[k]) return; seen[k] = true; out.push(d);
       });
       matchData = out;
@@ -701,7 +723,7 @@ function fhSyncFromSheets() {
     .then(function(j){
       var incoming = _fhMapCerts(j.records || []);
       var key = function(d){
-        return normalizeName(d.certName || '').replace(/\s+/g, '') + '|' + (d.course || '') + '|' + (d.expireDate || '');
+        return normalizeName(d.certName || '').replace(/\s+/g, '') + '|' + (d.course || '') + '|' + fhDayKey(d.expireDate);
       };
       var byKey = {}, out = [];
       /* ของที่แสดงอยู่มาก่อน — เป็นตัวที่ผ่านการจับคู่ล่าสุดแล้ว */

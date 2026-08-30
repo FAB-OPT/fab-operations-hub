@@ -332,6 +332,19 @@ function fhSaveCertificates(records, opts) {
     });
 }
 
+/* ลบใบรับรองทั้งหมด — ต้องลบที่ Supabase ด้วย ไม่ใช่แค่ Google Sheets
+   ของเดิมสั่งล้างเฉพาะ Sheets แล้วล้างของบนจอ ดูเหมือนสำเร็จ
+   พอรีเฟรชข้อมูลกลับมาครบ เพราะหน้าเว็บอ่านจาก Supabase ซึ่งไม่เคยถูกแตะ */
+function fhClearCertificates() {
+  var sheets = _sheetsPost({ type: 'clear-certificates' });
+  if (!FH_SB.ready) return sheets;
+  return FH_SB.client.from('fh_certificates').delete().gte('id', 0)
+    .then(function(res){ if (res.error) throw res.error; })
+    .then(function(){ return sheets.catch(function(){ return null; }); })
+    .then(function(){ return { ok: true }; })
+    .catch(function(e){ return { ok: false, error: (e && e.message) || String(e) }; });
+}
+
 /* แก้ไขคำขอทีละรายการ — อาการเดียวกับปุ่มลบ
    เดิมยิง update-request ไป Apps Script โดยส่ง rowIndex ที่จริงคือ id ของ Supabase
    Sheets หาแถวไม่เจอ → "not found" และต่อให้เจอ ข้อมูลจริงบน Supabase ก็ไม่ถูกแก้ */
