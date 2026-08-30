@@ -414,6 +414,9 @@ function _parseEmpWorkbook(wb) {
       var row = rows[i];
       var name = String(row[nameCol]||'').trim();
       if (!name || name==='-' || name.length < 2) continue;
+      /* ทะเบียนบางไฟล์ใส่คำนำหน้ามาด้วย บางไฟล์ไม่ใส่ · ตัดให้เหมือนกันหมดตั้งแต่ต้นทาง
+         ไม่งั้นคนเดียวกันจากสองไฟล์จะกลายเป็นสองแถว และเทียบกับใบรับรองก็ไม่ตรง */
+      name = fhStripTitle(name) || name;
       employees.push({
         name: name,
         norm: normalizeName(name),

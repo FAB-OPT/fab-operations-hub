@@ -184,7 +184,9 @@ function _fhMapCerts(records) {
       else if (s === 'expired' || s === 'หมดอายุ') expStatus = 'expired';
     }
     return {
-      certName: _cleanCertName(r['ชื่อในใบรับรอง'] || ''),   // ล้างชื่อเพี้ยนเก่า (นามสกุลติดคำหลักสูตร)
+      /* ตัดคำนำหน้าตั้งแต่ตอนอ่านเข้ามา — ของเก่าที่บันทึกไว้ก่อนหน้ายังมีคำนำหน้าติดอยู่
+         ตัดตรงนี้ทีเดียว ทั้งการแสดงผล การค้นหา และการจับคู่จึงตรงกันหมด */
+      certName: fhStripTitle(_cleanCertName(r['ชื่อในใบรับรอง'] || '')),
       course: r['หลักสูตร'] || '',
       trainDate: r['วันอบรม'] || r['วันที่อบรม'] || '',
       expireDate: expireDate,
