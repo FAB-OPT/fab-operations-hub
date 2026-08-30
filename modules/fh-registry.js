@@ -743,6 +743,24 @@ function fhSyncFromSheets() {
     });
 }
 
+/* ใบไหนมีไฟล์ PDF ในระบบบ้าง — เรียก fhDiagFiles() ในคอนโซล
+   ใช้ตอบคำถาม "ทำไมใบนี้ไม่มีปุ่มดาวน์โหลด" ให้ได้ว่าเป็นเพราะหาไฟล์ไม่เจอ
+   หรือเพราะไม่เคยมีไฟล์ของใบนั้นเลย (บางใบนำเข้าจาก Excel ไม่ได้มาจาก PDF) */
+window.fhDiagFiles = function(q) {
+  var NL2 = '\n  ';
+  var md = (typeof matchData !== 'undefined' && matchData) ? matchData : [];
+  var rows = q ? md.filter(function(d){ return String(d.certName || '').indexOf(q) >= 0; }) : md;
+  var has = 0, no = [];
+  rows.forEach(function(d){
+    if (_fhCertUrl(d.certName, d.course)) has++;
+    else no.push(d.certName + ' · ' + String(d.course || '').slice(0, 30));
+  });
+  console.log('ตรวจ ' + rows.length + ' ใบ · มีไฟล์ ' + has + ' · ไม่มีไฟล์ ' + no.length);
+  console.log('ไฟล์ทั้งหมดในระบบ ' + Object.keys(FH_CERT_FILES).length + ' ไฟล์');
+  if (no.length) console.log('ใบที่ไม่มีไฟล์:' + NL2 + no.slice(0, 40).join(NL2));
+  return { checked: rows.length, hasFile: has, noFile: no.length };
+};
+
 /* วินิจฉัยการจับคู่ชื่อ — เรียก fhDiagNames() ในคอนโซลได้เลย (ใช้ข้อมูลที่โหลดอยู่ ไม่ต้องอัปใหม่) */
 window.fhDiagNames = function() {
   var emp = empData || [];

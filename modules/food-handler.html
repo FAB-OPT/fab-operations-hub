@@ -110,7 +110,8 @@ function onFhSubmitToggle(checked) {
 }
 // ── ใบรับรอง: เก็บไฟล์ PDF บน R2 + แผนที่ URL บน Firebase (fhCertFiles) ──
 var FH_R2_URL = 'https://qa-upload.project03.workers.dev';
-var FH_CERT_FILES = {};   // key(ชื่อ|วันหมดอายุ) → url
+var FH_CERT_FILES = {};    // คีย์ตามชื่อที่บันทึกไว้ตอนอัปไฟล์ (ชื่อดิบจาก PDF)
+var FH_CERT_FILES_N = {};  // คีย์เดียวกันแต่ล้างชื่อแล้ว — ใช้เทียบกับชื่อที่แสดงในตาราง
 function _fhUploadToR2(file) {
   return fetch(FH_R2_URL, { method: 'POST', body: file, headers: { 'Content-Type': (file && file.type) || 'application/pdf' } })
     .then(function(r){ if (!r.ok) throw new Error('R2 ' + r.status); return r.json(); })
@@ -128,9 +129,22 @@ function _fhCertKey(name, course) {
    ทั้งที่ไฟล์ยังอยู่ครบ · ลองกุญแจแบบเก่าที่มีคำนำหน้าให้ด้วย
    ไม่ต้องไปไล่เปลี่ยนชื่อไฟล์เก่าที่เก็บไว้แล้ว */
 var FH_TITLE_KEYS = ['นาย', 'นาง', 'นางสาว', 'น.ส.'];
+/* คีย์ที่ทนต่อความต่างของชื่อ — ผ่านตัวล้างชุดเดียวกับที่ตารางใช้
+   (ตัดข้อความหลักสูตรที่ OCR กวาดมาติดท้ายนามสกุล แล้วตัดคำนำหน้า)
+   ไฟล์ถูกบันทึกตอนอัป PDF ด้วยชื่อดิบที่อ่านได้ ซึ่งอาจมีคำนำหน้าหรือมีเศษข้อความติดมา
+   ส่วนตารางแสดงชื่อที่ล้างแล้ว · เทียบกันตรง ๆ จึงไม่ตรงกัน */
+function _fhCertKeyN(name, course) {
+  var n = String(name || '');
+  try { if (typeof _cleanCertName === 'function') n = _cleanCertName(n); } catch (e) {}
+  try { if (typeof fhStripTitle === 'function') n = fhStripTitle(n) || n; } catch (e) {}
+  return _fhCertKey(n, course);
+}
 function _fhCertUrl(name, course) {
   var direct = FH_CERT_FILES[_fhCertKey(name, course)];
   if (direct) return direct;
+  var norm = FH_CERT_FILES_N[_fhCertKeyN(name, course)];
+  if (norm) return norm;
+  /* เผื่อไฟล์เก่าที่บันทึกไว้ก่อนมีตัวล้าง — ลองเติมคำนำหน้ากลับเข้าไป */
   for (var i = 0; i < FH_TITLE_KEYS.length; i++) {
     var hit = FH_CERT_FILES[_fhCertKey(FH_TITLE_KEYS[i] + ' ' + name, course)];
     if (hit) return hit;
@@ -143,6 +157,7 @@ function saveFhCertFile(name, course, url) {
   try {
     fhDb.collection('fhCertFiles').doc(key).set({ name: name, course: course || '', url: url, at: new Date().toISOString() }, { merge: true }).catch(function(){});
     FH_CERT_FILES[key] = url;
+    FH_CERT_FILES_N[_fhCertKeyN(name, course)] = url;
   } catch (e) {}
 }
 function _fhStoreCertFile(file, certs) {   // อัปไฟล์ 1 ครั้ง → ผูก URL กับทุกใบในไฟล์นั้น (fallback)
@@ -192,9 +207,17 @@ function startFhCertFilesSync() {
   if (!fhDb) return;
   try {
     fhDb.collection('fhCertFiles').onSnapshot(function(snap){
-      var m = {};
-      snap.forEach(function(doc){ var d = doc.data() || {}; if (d.url) m[doc.id] = d.url; });
+      var m = {}, mn = {};
+      snap.forEach(function(doc){
+        var d = doc.data() || {};
+        if (!d.url) return;
+        m[doc.id] = d.url;
+        /* ทำดัชนีอีกชุดด้วยชื่อที่ล้างแล้ว — ไม่ต้องไปแก้ของที่บันทึกไว้แล้ว
+           เอกสารเก็บชื่อกับหลักสูตรไว้ในตัวมันเอง จึงสร้างคีย์ใหม่ได้จากตรงนี้เลย */
+        if (d.name) mn[_fhCertKeyN(d.name, d.course || '')] = d.url;
+      });
       FH_CERT_FILES = m;
+      FH_CERT_FILES_N = mn;
       try { if (typeof renderTable === 'function' && typeof matchData !== 'undefined' && matchData && matchData.length) renderTable(); } catch (e) {}
       /* วาดหน้าสาขาใหม่เสมอเมื่อแผนที่ไฟล์มาถึง ไม่ใช่เฉพาะตอนมีคำค้นหา
          หน้าสาขาแสดงใบของตัวเองตั้งแต่เปิดมาแล้ว (ช่องค้นหาว่าง)
