@@ -234,6 +234,11 @@ function fhSavePerms(fhPerms) {
 }
 
 function fhSaveRequests(records) {
+  /* ตัดคำนำหน้าที่ปลายทางเดียว — คำขอเข้ามาได้หลายทาง (กรอกในฟอร์ม · นำเข้าจากไฟล์)
+     ดักที่นี่ทางเดียวจึงครอบคลุมทุกทาง และทางที่เพิ่มมาทีหลังก็ได้ไปด้วยเอง */
+  if (typeof fhStripTitle === 'function') {
+    (records || []).forEach(function(r){ if (r && r.name) r.name = fhStripTitle(r.name) || r.name; });
+  }
   if (!FH_SB.ready) return _sheetsPost({ type: 'save-requests', records: records });
   return FH_SB.client.from('fh_requests').insert(records.map(_sbReqIn)).select('id')
     .then(function(res){

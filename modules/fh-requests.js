@@ -437,7 +437,11 @@ function certSummaryHtml(rows, certIdx, withWords) {
 /* Normalize raw request record → derived fields (apply COURSE_SCHEDULES override + regex fallback) */
 function _prepReqFields(r) {
   var ts = r['timestamp'] || r['วันที่ส่ง'] || '';
+  /* ตัดคำนำหน้าออกให้เหมือนกับใบรับรองและทะเบียน — ของเก่าที่บันทึกไว้ก่อนหน้า
+     ยังมีคำนำหน้าติดอยู่ ตัดตรงนี้ทีเดียวทุกหน้าที่แสดงคำขอจึงตรงกันหมด
+     (จุดนี้เป็นทางผ่านเดียวของคำขอทุกใบก่อนถูกวาด) */
   var name = r['name'] || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '—';
+  if (name !== '—' && typeof fhStripTitle === 'function') name = fhStripTitle(name) || name;
   var idCard = r['idCard'] || r['เลขบัตรประชาชน'] || r['เลขบัตร'] || '';
   var branch = r['branch'] || r['สาขา'] || '—';
   var pos = r['position'] || r['ตำแหน่ง'] || '—';
@@ -1383,6 +1387,10 @@ function saveEditRequest() {
   /* ผ่านชั้นข้อมูล (Supabase ตัวจริง + สำเนา Sheets) เหมือนปุ่มลบ
      เดิมยิง Apps Script ตรง ๆ ทำให้แก้ไขไม่ติดและเพิ่มรายชื่อแล้วไม่โผล่ในตาราง
      เพราะตารางอ่านจาก Supabase แต่เขียนลง Sheets */
+  /* เก็บชื่อที่ตัดคำนำหน้าแล้ว ไม่ใช่แค่แสดงให้ดูสวย — ข้อมูลที่เก็บต้องเทียบกับ
+     ใบรับรองและทะเบียนได้ตรง ๆ ไม่งั้นการจับคู่ทุกอย่างต้องมาเดาใหม่ทุกครั้ง */
+  if (record && record.name && typeof fhStripTitle === 'function')
+    record.name = fhStripTitle(record.name) || record.name;
   var _p = _addMode ? fhSaveRequests([record]) : fhUpdateRequest(_editingKey, record);
   _p
     .then(function(res){
