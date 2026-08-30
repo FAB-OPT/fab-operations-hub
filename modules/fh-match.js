@@ -100,7 +100,20 @@ function _stripTitleTokens(n) {
   }
   return parts;
 }
+/* แยกส่วนของชื่อเดิมถูกคำนวณใหม่ทุกครั้งที่เทียบชื่อหนึ่งคู่
+   ไล่ใบรับรอง 245 ใบ กับทะเบียน 1,987 คน = แยกชื่อเกือบห้าแสนครั้ง ทั้งที่ชื่อซ้ำกันหมด
+   จำผลไว้ตามชื่อ · วัดจริงแล้วเหลือ 1,987 ครั้ง (เท่าจำนวนคนในทะเบียน) */
+var _GP_CACHE = {}, _GP_N = 0;
 function getParts(name) {
+  var _gpKey = String(name == null ? '' : name);
+  var _gpHit = _GP_CACHE[_gpKey];
+  if (_gpHit) return _gpHit;
+  var _gpOut = _getPartsRaw(_gpKey);
+  if (_GP_N > 20000) { _GP_CACHE = {}; _GP_N = 0; }   // กันโตไม่หยุดตอนใช้งานยาว ๆ
+  _GP_CACHE[_gpKey] = _gpOut; _GP_N++;
+  return _gpOut;
+}
+function _getPartsRaw(name) {
   var n = normalizeName(name);
   // Normalize: ensure space after title (handle "นายอธิศ" → "นาย อธิศ")
   n = n.replace(/^(นางสาว|นาย|นาง)/, '$1 ').replace(/\s+/g, ' ').trim();
@@ -650,12 +663,32 @@ function _fhPickEmp(list) {
   }
   return best;
 }
-function _fhEmpById(id) {
+/* ดัชนีทะเบียน — สร้างครั้งเดียวต่อการผูกหนึ่งรอบ
+   ไม่มีดัชนี = ไล่ทั้งทะเบียน 1,987 คน ต่อใบรับรองหนึ่งใบ · 757 ใบก็เกือบสองล้านรอบ
+   วัดจริงแล้วต่างกัน 9.5 วินาที กับไม่ถึงวินาที */
+var _FH_IDX = null, _FH_IDX_N = -1;
+function _fhIdx() {
   var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
+  if (_FH_IDX && _FH_IDX_N === emps.length) return _FH_IDX;
+  var byId = {}, byName = {}, flat = [];
+  emps.forEach(function(e){
+    var id = String(e.empId || '').trim();
+    if (id) (byId[id] = byId[id] || []).push(e);
+    var nm = _fhFlatName(e.norm || e.name || '');
+    if (!nm) return;
+    (byName[nm] = byName[nm] || []).push(e);
+    flat.push({ e: e, f: nm });          // เก็บชื่อที่ล้างแล้วไว้เลย
+  });
+  _FH_IDX = { byId: byId, byName: byName, flat: flat };
+  _FH_IDX_N = emps.length;
+  return _FH_IDX;
+}
+function _fhIdxClear() { _FH_IDX = null; _FH_IDX_N = -1; }
+function _fhEmpById(id) {
   var key = String(id || '').trim();
   if (!key) return null;
-  var hit = emps.filter(function(e){ return String(e.empId || '').trim() === key; });
-  return hit.length ? _fhPickEmp(hit) : null;
+  var hit = _fhIdx().byId[key];
+  return (hit && hit.length) ? _fhPickEmp(hit) : null;
 }
 /* ═══ ชื่อที่สะกดต่างกันนิดเดียว ═══
    ชื่อบนใบรับรองมาจากการอ่านไฟล์ PDF ส่วนทะเบียนมาจากการพิมพ์ของ HR
@@ -690,17 +723,18 @@ function _fhLev(a, b, max) {
 }
 /* คืนคนที่ชื่อใกล้เคียงที่สุด เฉพาะตอนที่ชัดว่าเป็นคนเดียว · ไม่ชัด = คืน null */
 function _fhEmpByNearName(name) {
-  var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
   var cf = _fhFlatName(normalizeName(name || ''));
   if (cf.length < FH_NEAR_MINLEN) return null;
-  var best = 99, hits = [];
-  for (var i = 0; i < emps.length; i++) {
-    var ef = _fhFlatName(emps[i].norm || emps[i].name || '');
-    if (!ef || Math.abs(ef.length - cf.length) > FH_NEAR_MAX) continue;
+  /* ใช้ชื่อที่ล้างไว้แล้วในดัชนี — ของเดิมล้างชื่อใหม่ทุกคนทุกใบ
+     (245 ใบ x 1,987 คน = ล้างชื่อเกือบห้าแสนครั้ง) ซึ่งกินเวลากว่าการเทียบตัวอักษรเสียอีก */
+  var list = _fhIdx().flat, best = 99, hits = [];
+  for (var i = 0; i < list.length; i++) {
+    var ef = list[i].f;
+    if (Math.abs(ef.length - cf.length) > FH_NEAR_MAX) continue;
     var d = _fhLev(cf, ef, FH_NEAR_MAX);
     if (d > FH_NEAR_MAX) continue;
-    if (d < best) { best = d; hits = [emps[i]]; }
-    else if (d === best) hits.push(emps[i]);
+    if (d < best) { best = d; hits = [list[i].e]; }
+    else if (d === best) hits.push(list[i].e);
   }
   if (best > FH_NEAR_MAX || !hits.length) return null;
   /* หลายแถวของคนเดียวกัน (ทะเบียนนำเข้าซ้ำ) ไม่นับว่ากำกวม — ดูจากรหัสพนักงาน */
@@ -715,6 +749,17 @@ function _fhEmpByCertName(name) {
   var hit = emps.filter(function(e){ return _certEmpMatch(cp, e.norm || e.name || ''); });
   return hit.length ? _fhPickEmp(hit) : null;
 }
+/* หาคนจาก "ชื่อในระบบ" — ชื่อช่องนี้มาจากทะเบียนตอนจับคู่ ไม่ใช่ชื่อบนใบ
+   จึงตรงกับทะเบียนเป๊ะเสมอ · ใช้กู้การจับคู่คืนเมื่อรหัสพนักงานหายไป
+   (ที่เก็บบางที่ยังไม่มีช่องเก็บรหัส เช่นตารางที่ยังไม่ได้เพิ่มคอลัมน์)
+   สำคัญกับใบที่คนจับคู่เองด้วยมือเป็นพิเศษ — ใบพวกนั้นชื่อบนใบไม่ตรงกับทะเบียน
+   หากู้จากชื่อบนใบไม่ได้ ต้องกู้จากชื่อในระบบเท่านั้น */
+function _fhEmpBySysName(name) {
+  var key = _fhFlatName(normalizeName(name || ''));
+  if (!key) return null;
+  var hit = _fhIdx().byName[key];
+  return (hit && hit.length) ? _fhPickEmp(hit) : null;
+}
 /* คืนจำนวน: linked = เพิ่งผูกได้ · updated = ข้อมูลคนเปลี่ยนไปจากที่เก็บไว้
    lost = เคยผูกไว้แต่ตอนนี้หาไม่เจอในทะเบียนแล้ว (ลาออก/ถูกลบ) — ไม่ลบใบทิ้ง */
 function _fhRelinkCerts() {
@@ -723,8 +768,15 @@ function _fhRelinkCerts() {
   var out = { linked: 0, updated: 0, lost: 0, near: 0 };
   if (!md.length || !emps.length) return out;
   _fhBuildBranchFreq(emps);
+  _fhIdxClear();               // ทะเบียนอาจเพิ่งเปลี่ยน สร้างดัชนีใหม่รอบนี้
   md.forEach(function(d) {
     var e = d.empId ? _fhEmpById(d.empId) : null;
+    /* ไม่มีรหัสติดมา แต่เคยจับคู่ไว้แล้ว → กู้จากชื่อในระบบก่อน
+       ถ้าไปเดาจากชื่อบนใบ ใบที่คนจับคู่เองจะถูกจับไปผูกกับคนอื่นทันที */
+    if (!e && !d.empId && d.empName && d.matchType !== 'notfound') {
+      e = _fhEmpBySysName(d.empName);
+      if (e) { d.empId = String(e.empId || ''); d.idCard = d.idCard || String(e.idCard || ''); }
+    }
     /* ยังไม่เคยผูก หรือรหัสเดิมหาไม่เจอแล้ว → ลองหาจากชื่อบนใบอีกครั้ง
        (ใบที่คนจับคู่เองไว้ ข้ามไป ไม่ให้ระบบมาเปลี่ยนตัวคนที่เขาเลือกแล้ว) */
     if (!e && d.matchBy !== 'manual') {

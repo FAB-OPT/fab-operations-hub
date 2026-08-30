@@ -95,21 +95,33 @@ function _sbCertOut(r) {
     _sbId: r.id,
     'ชื่อในใบรับรอง': r.cert_name || '', 'หลักสูตร': r.course || '', 'วันอบรม': r.train_date || '',
     'วันหมดอายุ': r.expire_date || '', 'สถานะใบรับรอง': r.exp_status || '', 'ชื่อในระบบ': r.emp_name || '',
-    'สาขา': r.branch || '', 'ตำแหน่ง': r.position || '', 'Sheet': r.sheet || '', 'สถานะจับคู่': r.match_type || '',
+    'สาขา': r.branch || '', 'ตำแหน่ง': r.position || '', 'Sheet': r.sheet || '',
+    /* 'manual' ที่ฝากไว้ในช่องสถานะ แปลงกลับเป็น "จับคู่แล้ว + คนเป็นคนตัดสิน" */
+    'สถานะจับคู่': (r.match_type === 'manual' ? 'exact' : (r.match_type || '')),
     /* ตัวชี้ไปหาคนในทะเบียน — ถ้าตารางยังไม่มีคอลัมน์พวกนี้จะได้ค่าว่าง
        แล้วระบบจะผูกให้ใหม่เองจากชื่อ (ดู _fhRelinkCerts) ไม่พัง */
     'รหัสพนักงาน': r.emp_id || '', 'เลขบัตรประชาชน': r.id_card || '',
-    'สาขาตอนอบรม': r.branch_at_train || '', 'จับคู่โดย': r.match_by || ''
+    'สาขาตอนอบรม': r.branch_at_train || '',
+    'จับคู่โดย': r.match_by || (r.match_type === 'manual' ? 'manual' : '')
   };
 }
 /* คอลัมน์ชุดเดิม — ใช้ตอนตารางยังไม่ได้เพิ่มคอลัมน์ใหม่ */
+/* ที่เก็บบางที่ยังไม่มีช่อง "จับคู่โดย" · ใบที่คนจับคู่เองจึงกลายเป็นใบธรรมดา
+   แล้วรอบหน้าระบบจะจับไปผูกกับคนอื่นทับงานที่คนทำไว้
+   ฝากไว้ในช่องสถานะจับคู่แทน — ช่องนั้นมีอยู่แล้วทุกที่ และค่า 'manual'
+   ก็บอกความจริงของใบนั้นตรง ๆ อยู่แล้วว่า "คนเป็นคนตัดสิน" */
+function _sbMatchType(c) {
+  var by = c.matchBy || c['จับคู่โดย'] || '';
+  if (by === 'manual') return 'manual';
+  return c.matchType || c['สถานะจับคู่'] || '';
+}
 function _sbCertInBase(c) {
   return {
     cert_name: c.certName || c['ชื่อในใบรับรอง'] || '', course: c.course || c['หลักสูตร'] || '',
     train_date: String(c.trainDate || c['วันอบรม'] || ''), expire_date: String(c.expireDate || c['วันหมดอายุ'] || ''),
     exp_status: c.expStatus || c['สถานะใบรับรอง'] || '', emp_name: c.empName || c['ชื่อในระบบ'] || '',
     branch: c.branch || c['สาขา'] || '', position: c.position || c['ตำแหน่ง'] || '',
-    sheet: c.sheet || c['Sheet'] || '', match_type: c.matchType || c['สถานะจับคู่'] || ''
+    sheet: c.sheet || c['Sheet'] || '', match_type: _sbMatchType(c)
   };
 }
 function _sbCertIn(c) {
