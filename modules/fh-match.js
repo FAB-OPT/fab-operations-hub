@@ -122,7 +122,11 @@ function _getPartsRaw(name) {
   var parts = stripped.length ? stripped : n.split(/\s+/);
   // ชื่อเต็ม: รวมทุกคำ (ตัดช่องว่าง+วรรณยุกต์) — กันนามสกุลที่ OCR แยกคำ/เว้นวรรคต่าง
   var full = _thStrip(parts.join('')).replace(/\s/g,'');
-  return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'', full:full };
+  /* ชื่อที่ตัดคำนำหน้าออกแล้ว แต่ยังคงวรรณยุกต์ไว้ — ใช้เทียบแบบ "สะกดต่างนิดเดียว"
+     จะตัดวรรณยุกต์ทิ้งไปด้วยไม่ได้ เพราะนามสกุลไทยหลายสกุลต่างกันแค่วรรณยุกต์จริง ๆ
+     (แซ่วื้อ กับ แซ่วื่อ เป็นคนละสกุล) ตัดทิ้งเมื่อไรจะกลายเป็นคนเดียวกันทันที */
+  var plain = parts.join('').replace(/\s/g,'');
+  return { prefix:prefix, first:parts[0]||'', last:parts[parts.length-1]||'', full:full, plain:plain };
 }
 /* ตัดวรรณยุกต์/การันต์ (่ ้ ๊ ๋ ์ ็) ที่ OCR มักอ่านเพี้ยน/หาย — ใช้เทียบชื่อแบบยืดหยุ่น */
 function _thStrip(s){ return String(s||'').replace(/[็-๎]/g, ''); }
@@ -674,10 +678,12 @@ function _fhIdx() {
   emps.forEach(function(e){
     var id = String(e.empId || '').trim();
     if (id) (byId[id] = byId[id] || []).push(e);
-    var nm = _fhFlatName(e.norm || e.name || '');
+    /* เก็บชื่อที่ "ตัดคำนำหน้าแล้ว" ไว้เลย — ทะเบียนบางแถวมีคำนำหน้า บางแถวไม่มี
+       ถ้าไม่ตัดก่อน การเทียบจะมองว่าคนละคนทั้งที่เป็นคนเดียวกัน */
+    var nm = getParts(e.norm || e.name || '').plain;
     if (!nm) return;
     (byName[nm] = byName[nm] || []).push(e);
-    flat.push({ e: e, f: nm });          // เก็บชื่อที่ล้างแล้วไว้เลย
+    flat.push({ e: e, f: nm });
   });
   _FH_IDX = { byId: byId, byName: byName, flat: flat };
   _FH_IDX_N = emps.length;
@@ -723,7 +729,11 @@ function _fhLev(a, b, max) {
 }
 /* คืนคนที่ชื่อใกล้เคียงที่สุด เฉพาะตอนที่ชัดว่าเป็นคนเดียว · ไม่ชัด = คืน null */
 function _fhEmpByNearName(name) {
-  var cf = _fhFlatName(normalizeName(name || ''));
+  /* ต้องตัดคำนำหน้าก่อนเทียบ — ชื่อบนใบรับรองมี "นาย/นาง/นางสาว" นำหน้าถึง 415 ใบ
+     ส่วนทะเบียนส่วนใหญ่ไม่มี · ถ้าเทียบทั้งคำนำหน้า ระยะห่างจะบวกไปอีก 3-6 ตัวอักษร
+     ทุกใบเลยหลุดเพดานหมด ทั้งที่เป็นคนเดียวกัน (ตัวเทียบแบบตรงเป๊ะตัดให้อยู่แล้ว
+     ตัวเทียบแบบใกล้เคียงตกหล่นไปตัวเดียว) */
+  var cf = getParts(name || '').plain;
   if (cf.length < FH_NEAR_MINLEN) return null;
   /* ใช้ชื่อที่ล้างไว้แล้วในดัชนี — ของเดิมล้างชื่อใหม่ทุกคนทุกใบ
      (245 ใบ x 1,987 คน = ล้างชื่อเกือบห้าแสนครั้ง) ซึ่งกินเวลากว่าการเทียบตัวอักษรเสียอีก */
@@ -755,14 +765,19 @@ function _fhEmpByCertName(name) {
    สำคัญกับใบที่คนจับคู่เองด้วยมือเป็นพิเศษ — ใบพวกนั้นชื่อบนใบไม่ตรงกับทะเบียน
    หากู้จากชื่อบนใบไม่ได้ ต้องกู้จากชื่อในระบบเท่านั้น */
 function _fhEmpBySysName(name) {
-  var key = _fhFlatName(normalizeName(name || ''));
+  var key = getParts(name || '').plain;
   if (!key) return null;
   var hit = _fhIdx().byName[key];
   return (hit && hit.length) ? _fhPickEmp(hit) : null;
 }
 /* คืนจำนวน: linked = เพิ่งผูกได้ · updated = ข้อมูลคนเปลี่ยนไปจากที่เก็บไว้
    lost = เคยผูกไว้แต่ตอนนี้หาไม่เจอในทะเบียนแล้ว (ลาออก/ถูกลบ) — ไม่ลบใบทิ้ง */
-function _fhRelinkCerts() {
+/* opts.near = ยอมจับชื่อที่สะกดต่างนิดเดียวด้วย
+   ปิดไว้เป็นค่าตั้งต้น เพราะการเทียบทีละตัวอักษรกับทะเบียนทั้งกองใช้เวลาราว 5 วินาที
+   ตัวนี้ถูกเรียกทุกครั้งที่โหลดทะเบียน ถ้าเปิดไว้ตลอดหน้าจะค้างทุกครั้งที่เปิดแอป
+   เปิดเฉพาะตอนคนกดปุ่ม "จับคู่ข้อมูล" ซึ่งเป็นจังหวะที่ตั้งใจรอผลอยู่แล้ว */
+function _fhRelinkCerts(opts) {
+  var wantNear = !!(opts && opts.near);
   var md = (typeof matchData !== 'undefined' && matchData) ? matchData : [];
   var emps = (typeof empData !== 'undefined' && empData) ? empData : [];
   var out = { linked: 0, updated: 0, lost: 0, near: 0 };
@@ -786,7 +801,7 @@ function _fhRelinkCerts() {
          ติดป้าย "ใกล้เคียง" ไว้ให้คนตรวจซ้ำได้ ไม่กลืนไปกับใบที่ตรงเป๊ะ
          ใช้เฉพาะใบที่ยังจับคู่ไม่ได้เท่านั้น · ใบที่เคยจับคู่สำเร็จไว้แล้วห้ามแตะ
          ไม่งั้นของที่เคยยืนยันแล้วจะถูกลดชั้นลงมาเป็น "ต้องตรวจซ้ำ" เอาดื้อ ๆ */
-      if (!e && d.matchType !== 'exact') { e = _fhEmpByNearName(d.certName); near = !!e; }
+      if (!e && wantNear && d.matchType !== 'exact') { e = _fhEmpByNearName(d.certName); near = !!e; }
       if (e) {
         d.empId = String(e.empId || '');
         d.idCard = String(e.idCard || '');

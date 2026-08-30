@@ -904,7 +904,7 @@ function reMatchCerts() {
       /* ใช้ตัวเดียวกับที่ทำงานอัตโนมัติตอนทะเบียนเปลี่ยน — กติกาจะได้ไม่แตกเป็นสองชุด
          เดิมตรงนี้เขียนวนหาชื่อไว้เองอีกชุด แล้วมันไม่เก็บรหัสพนักงาน
          พอทะเบียนเปลี่ยนรอบหน้าก็ต้องกลับมาเดาจากชื่อใหม่ทุกครั้ง */
-      var rl = _fhRelinkCerts();
+      var rl = _fhRelinkCerts({ near: true });   // กดปุ่มเอง = ยอมรอ ให้จับชื่อที่สะกดต่างนิดเดียวด้วย
       var linkedTotal = md.filter(function(d){ return !!d.empId; }).length;
       try { renderTable(); } catch(e) {}
       try { updateStats(); } catch(e) {}
