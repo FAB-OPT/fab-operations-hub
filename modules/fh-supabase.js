@@ -287,51 +287,89 @@ function fhSaveEmployees(records, replaceAll) {
     });
 }
 
-/* ═══ บันทึกใบรับรอง ═══
-   ของเดิมมีแต่ "อ่าน" จาก Supabase ส่วน "เขียน" ยิงไป Google Sheets อย่างเดียว
-   ใบที่บันทึกหลังย้ายข้อมูลจึงไม่เคยขึ้นให้ใครเห็น — หน้าจอค้างอยู่ที่จำนวนตอนย้าย
-   (ตรวจกับของจริง: Sheets 757 ใบ · Supabase 652 ใบ ซึ่งเป็นจำนวน ณ วันย้าย)
-   ทะเบียนพนักงานมีตัวเขียนอยู่แล้ว (fhSaveEmployees) ใบรับรองตกหล่นไปตัวเดียว */
+/* บันทึกใบรับรองทั้งชุด — ห้ามลบของเก่าก่อนที่ของใหม่จะเข้าครบ
+
+   ของเดิมสั่ง delete ทั้งตารางก่อน แล้วค่อย insert
+   insert พังเมื่อไร ข้อมูลหายทั้งกอง และตัวจับ error ก็ถอยไปเขียน Sheets แล้วรายงานว่าสำเร็จ
+   คนใช้จึงเห็นแค่ "ไม่ขึ้นใบรับรอง" โดยไม่รู้ว่าที่เก็บหลักว่างเปล่า
+   (เกิดขึ้นจริง 30 ส.ค. 2569 — ใบรับรอง 787 ใบหายเกลี้ยงเหลือศูนย์)
+
+   ลำดับใหม่: จำ id เดิมไว้ → ใส่ของใหม่ให้ครบก่อน → ค่อยลบเฉพาะ id เดิม
+   พังกลางทางแย่ที่สุดคือมีของซ้ำ ซึ่งรอบบันทึกถัดไปเก็บกวาดให้เอง — ดีกว่าหายเกลี้ยง */
 function fhSaveCertificates(records, opts) {
   var recs = records || [];
   var body = { type: 'save-certificates', records: recs };
   if (opts && opts.confirmShrink) body.confirmShrink = true;
   if (!FH_SB.ready) return _sheetsPost(body);
 
-  function push(rows) {
-    return FH_SB.client.from('fh_certificates').delete().gte('id', 0)
-      .then(function(res){ if (res.error) throw res.error; })
-      .then(function(){
-        if (!rows.length) return { count: 0 };
-        var CH = 500;                       // ยัดทีละ 500 แถว กัน payload ใหญ่เกินจนถูกตัด
-        function chunk(i) {
-          if (i >= rows.length) return { count: rows.length };
-          return FH_SB.client.from('fh_certificates').insert(rows.slice(i, i + CH))
-            .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
-        }
-        return chunk(0);
-      });
+  function oldIds() {                    // ต้องวนดึง — Supabase คืนทีละ 1,000 แถว
+    var PAGE = 1000, ids = [];
+    function page(from) {
+      return FH_SB.client.from('fh_certificates').select('id').range(from, from + PAGE - 1)
+        .then(function(res){
+          if (res.error) throw res.error;
+          var rows = res.data || [];
+          rows.forEach(function(r){ ids.push(r.id); });
+          return rows.length < PAGE ? ids : page(from + PAGE);
+        });
+    }
+    return page(0);
+  }
+  function insertAll(rows) {
+    if (!rows.length) return Promise.resolve(0);
+    var CH = 500;                        // ยัดทีละ 500 แถว กัน payload ใหญ่เกินจนถูกตัด
+    function chunk(i) {
+      if (i >= rows.length) return rows.length;
+      return FH_SB.client.from('fh_certificates').insert(rows.slice(i, i + CH))
+        .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
+    }
+    return Promise.resolve(chunk(0));
+  }
+  function deleteIds(ids) {
+    if (!ids.length) return Promise.resolve(null);
+    var CH = 200;
+    function chunk(i) {
+      if (i >= ids.length) return null;
+      return FH_SB.client.from('fh_certificates').delete().in('id', ids.slice(i, i + CH))
+        .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
+    }
+    return Promise.resolve(chunk(0));
   }
 
-  return push(recs.map(_sbCertIn))
-    .catch(function(e){
-      /* ตารางยังไม่มีคอลัมน์ใหม่ (ยังไม่ได้รัน supabase-fh-cert-link.sql)
-         ส่งเฉพาะคอลัมน์เดิมไปก่อน ดีกว่าล้มทั้งการบันทึกแล้วของใหม่ไม่ขึ้นให้ใครเห็น */
-      var msg = String((e && (e.message || e.hint || e.details)) || e);
-      if (!/column|schema|does not exist|PGRST204/i.test(msg)) throw e;
-      console.warn('[FH] ตาราง fh_certificates ยังไม่มีคอลัมน์ตัวชี้ — บันทึกเฉพาะคอลัมน์เดิมไปก่อน', e);
-      return push(recs.map(_sbCertInBase));
+  var keep = [];
+  return oldIds()
+    .then(function(ids){
+      keep = ids;
+      /* ของที่จะบันทึกน้อยกว่าของเดิมมาก มักแปลว่าโหลดของเดิมมาไม่ครบ ไม่ใช่ตั้งใจลบ
+         หยุดไว้ก่อน ให้คนยืนยัน — ปุ่มล้างข้อมูลซ้ำส่ง confirmShrink มาเองอยู่แล้ว */
+      if (keep.length >= 20 && recs.length < keep.length * 0.6 && !(opts && opts.confirmShrink)) {
+        var e = new Error('ไม่บันทึกทับ: ที่เก็บหลักมี ' + keep.length + ' ใบ แต่ที่จะบันทึกมีแค่ ' + recs.length + ' ใบ');
+        e._shrink = true;
+        throw e;
+      }
+      return insertAll(recs.map(_sbCertIn))
+        .catch(function(e){
+          /* ตารางยังไม่มีคอลัมน์ใหม่ (ยังไม่ได้รัน supabase-fh-cert-link.sql)
+             ก้อนแรกจะพังทันทีก่อนที่จะมีแถวไหนเข้า จึงยิงใหม่ด้วยคอลัมน์เดิมได้ ไม่เกิดของซ้ำ */
+          var msg = String((e && (e.message || e.hint || e.details)) || e);
+          if (!/column|schema|does not exist|PGRST204/i.test(msg)) throw e;
+          console.warn('[FH] ตาราง fh_certificates ยังไม่มีคอลัมน์ตัวชี้ — บันทึกเฉพาะคอลัมน์เดิมไปก่อน', e);
+          return insertAll(recs.map(_sbCertInBase));
+        });
     })
-    .then(function(r){
-      _alsoSheets(body);                    // เขียน Google Sheets ต่อไปด้วยเป็นสำเนาสำรอง
-      return { ok: true, saved: r.count };
+    .then(function(n){
+      return deleteIds(keep).then(function(){
+        _alsoSheets(body);               // สำเนาสำรองลง Sheets หลังของจริงเข้าครบแล้ว
+        return { ok: true, saved: n };
+      });
     })
     .catch(function(e){
-      console.warn('[FH] เขียนใบรับรองที่ Supabase ไม่ผ่าน → ใช้ Sheets แทน', e);
-      return _sheetsPost(body);
+      /* ล้มตรงไหนก็ตาม ของเดิมยังอยู่ครบเพราะยังไม่ได้ลบ — ห้ามรายงานว่าสำเร็จ */
+      if (e && e._shrink) return { ok: false, error: e.message };
+      console.warn('[FH] บันทึกใบรับรองที่เก็บหลักไม่ผ่าน — ของเดิมยังอยู่ครบ ไม่ถูกลบ', e);
+      return { ok: false, error: 'บันทึกที่เก็บหลักไม่สำเร็จ: ' + ((e && e.message) || e) };
     });
 }
-
 /* ลบใบรับรองทั้งหมด — ต้องลบที่ Supabase ด้วย ไม่ใช่แค่ Google Sheets
    ของเดิมสั่งล้างเฉพาะ Sheets แล้วล้างของบนจอ ดูเหมือนสำเร็จ
    พอรีเฟรชข้อมูลกลับมาครบ เพราะหน้าเว็บอ่านจาก Supabase ซึ่งไม่เคยถูกแตะ */

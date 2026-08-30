@@ -694,7 +694,8 @@ function loadFromCloud() {
 function fhCheckCertGap() {
   if (!SCRIPT_URL || typeof FH_SB === 'undefined' || !FH_SB.ready) return Promise.resolve(null);
   var here = (matchData || []).length;
-  if (!here) return Promise.resolve(null);
+  /* ไม่มีสักใบอยู่เลย = จังหวะที่ต้องถาม ไม่ใช่เหตุที่จะเงียบ
+     ของเดิมเงียบตอน here = 0 ทำให้ตัวกู้ปิดตัวเองตอนที่ต้องการมันที่สุด */
   return fetch(SCRIPT_URL + '?action=counts&_=' + Date.now())
     .then(function(r){ return r.json(); })
     .then(function(j){
