@@ -101,6 +101,9 @@ function _dropPlaceholders(parts) {
 }
 function _stripTitleTokens(n) {
   var parts = n.split(/\s+/).filter(Boolean);
+  /* บาง PDF แยก "นางสาว" เป็นสองคำ — รวมกลับก่อน
+     ไม่งั้นวนข้างล่างจะตัดได้แค่ "นาง" แล้วเหลือ "สาว" ค้างเป็นชื่อ */
+  if (parts.length > 2 && parts[0] === 'นาง' && parts[1] === 'สาว') parts.splice(0, 2, 'นางสาว');
   while (parts.length > 1) {
     var key = parts[0].replace(/[.\s]/g, '');   // ตัดจุด/ช่องว่างในโทเคนก่อนเทียบ (ร.ต. → รต)
     if (TH_TITLES[key] || TH_TITLES[parts[0]]) parts.shift();

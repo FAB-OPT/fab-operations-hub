@@ -51,6 +51,7 @@ function processPDFFiles(fileList) {
   showProg('pdf'); setProg('pdf', 5);
   var allExtracted = [];
   var done = 0, failed = 0;
+  var failedFiles = [];   // ชื่อไฟล์ที่อ่านชื่อไม่ออก — ต้องบอกผู้ใช้ว่าใบไหน
 
   function finish() {
     var seen = {};
@@ -62,8 +63,21 @@ function processPDFFiles(fileList) {
     console.log('[DIAG FINISH] allExtracted(ก่อน dedup)=' + allExtracted.length + ' → pdfData(หลัง dedup)=' + uniq.length);
     pdfData = uniq;
     setProg('pdf', 100);
+    /* อ่านชื่อไม่ได้สักใบ = ไม่มีอะไรเข้าระบบ ต้องบอกให้ชัดว่าไม่สำเร็จ
+       ของเดิมขึ้นว่า "โหลดสำเร็จ — 1 ไฟล์, พบ 0 ใบรับรอง" อ่านผ่านตาแล้วนึกว่าเรียบร้อย
+       ผู้ใช้จึงอัปซ้ำหลายรอบโดยไม่รู้ว่าไฟล์ถูกทิ้งตั้งแต่ตอนอ่าน */
+    if (uniq.length === 0) {
+      window._fhImportBusy = false;      // ไม่มีอะไรจะบันทึก — ปลดล็อกการปิดแท็บ
+      var _bad = failedFiles.slice(0, 3).join(', ');
+      if (failedFiles.length > 3) _bad += ' และอีก ' + (failedFiles.length - 3) + ' ไฟล์';
+      setStatus('pdf','error','✗ อ่านชื่อจากไฟล์ไม่ได้ — ยังไม่มีใบรับรองเข้าระบบ' +
+        (_bad ? ' (' + _bad + ')' : '') + ' · อัปซ้ำก็ได้ผลเหมือนเดิม ส่งไฟล์ให้ผู้ดูแลตรวจ');
+      document.getElementById('pdfCard').classList.remove('dragging');
+      checkReady();
+      return;
+    }
     var msg = 'โหลดสำเร็จ — ' + files.length + ' ไฟล์, พบ ' + uniq.length + ' ใบรับรอง';
-    if (failed > 0) msg += ' (อ่านไม่ได้ ' + failed + ')';
+    if (failed > 0) msg += ' · อ่านไม่ได้ ' + failed + ' ไฟล์ (' + failedFiles.slice(0, 3).join(', ') + ')';
     setStatus('pdf','done', msg);
     document.getElementById('pdfCard').classList.add('loaded');
     document.getElementById('pdfCard').classList.remove('dragging');
@@ -115,13 +129,13 @@ function processPDFFiles(fileList) {
                   allExtracted = allExtracted.concat(ocrCerts);
                   console.log('[OCR] ✓', file.name, '→', ocrCerts.length, 'certs');
                 } else {
-                  failed++;
+                  failed++, failedFiles.push(file.name);
                   console.warn('[OCR] ✗', file.name, '— 0 names found even after OCR');
                 }
               })
               .catch(function(err){
                 console.warn('OCR fallback failed', file.name, err.message || err);
-                failed++;
+                failed++, failedFiles.push(file.name);
               })
               .then(function(){
                 done++;
@@ -133,13 +147,13 @@ function processPDFFiles(fileList) {
         })
         .catch(function(err){
           console.warn('PDF parse error', file.name, err);
-          failed++; done++;
+          failed++, failedFiles.push(file.name); done++;
           setStatus('pdf','loading','กำลังอ่าน '+done+'/'+files.length+' ไฟล์...');
           setProg('pdf', 5 + Math.floor((done / files.length) * 90));
           processOne(idx + 1);
         });
     };
-    reader.onerror = function(){ failed++; done++; processOne(idx + 1); };
+    reader.onerror = function(){ failed++, failedFiles.push(file.name); done++; processOne(idx + 1); };
     reader.readAsArrayBuffer(file);
   }
   processOne(0);
@@ -319,37 +333,49 @@ function extractFromPDFText(text) {
 
   // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
-  var nameRegexes = [
-    // title + first + คำไทยที่เหลือในบรรทัดเดียวกัน — จับหลายคำแล้วค่อยตัดคำเอกสารทีหลัง
-    // (กันนามสกุลที่ OCR เว้นวรรคผิด เช่น "เขี ยว" · และกันคำหลักสูตรที่ติดนามสกุล)
-    /* บาง PDF แยก "นางสาว" ออกเป็นสองคำ ต้องยอมให้มีช่องว่างคั่น และต้องเทียบก่อน "นาง"
-       ไม่งั้นจะตัดได้แค่ "นาง" แล้วเหลือ "สาว" มาเป็นชื่อคน */
-    /(นาย|นาง\s*สาว|นาง)\s*([฀-๿]{2,})((?:[ \t]+[฀-๿]+)+)/g
-  ];
-  for (var ri = 0; ri < nameRegexes.length && certNames.length === 0; ri++) {
-    var re = nameRegexes[ri];
-    re.lastIndex = 0;
-    var m;
-    while ((m = re.exec(text)) !== null) {
-      var fullname = (m[1] + ' ' + m[2].trim() + ' ' + m[3].trim()).replace(/\s+/g, ' ').trim();
-      fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตร/เอกสารที่ OCR กวาดมาต่อท้ายนามสกุล
-      fullname = fullname.replace(/\s+([ัิ-ฺ็-๎])/g, '$1');   // รวมช่องว่างหน้าอักขระประสม เช่น "ทองสพรั ่ง"→"ทองสพรั่ง"
-      if (fullname.length > 5 && fullname.length < 80 && fullname.split(' ').length >= 3) certNames.push(fullname);
-      if (certNames.length > 200) break;
-    }
-  }
   var _badName = /บริษัท|จำกัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited|company|restaurant/i;
+  /* คำเอกสารที่มักติดมา "ข้างหน้า" ชื่อ — ต้องตัดก่อนตรวจ ไม่งั้นทั้งก้อนถูกมองว่าไม่ใช่ชื่อคน
+     (ตัวตัดท้าย _cleanCertName ตัดจากคำที่เจอไปจนจบ ถ้าคำอยู่หน้าชื่อจะเหลือค่าว่าง) */
+  var _leadJunk = /^(?:ขอรับรองว่า|รับรองว่า|ขอมอบให้|มอบให้|ให้ไว้แก่|ชื่อ)\s*/;
   function _pushCertName(nm){
-    nm = String(nm||'').replace(/\s+/g, ' ').trim();
+    nm = String(nm||'').replace(/\s+/g, ' ').trim().replace(_leadJunk, '');
+    nm = _cleanCertName(nm).replace(/\s+/g, ' ').trim();
     if (_badName.test(nm)) return;
     if (nm.length >= 60) return;
     /* เดิมบังคับว่าต้องมีอย่างน้อยสองคำ = ต้องมีนามสกุล
        พนักงานที่ไม่มีนามสกุล (ชาวเขา/แรงงานต่างด้าว) ชื่อบนใบเป็นคำเดียว
-       ใบพวกนั้นถูกทิ้งตั้งแต่ตอนอ่านไฟล์ อัปกี่รอบก็ไม่เข้าระบบ
-       ยอมรับคำเดียวได้ แต่ต้องยาวพอ และผ่านตัวกรองคำที่ไม่ใช่ชื่อคนมาแล้ว */
+       ใบพวกนั้นถูกทิ้งตั้งแต่ตอนอ่านไฟล์ อัปกี่รอบก็ไม่เข้าระบบ */
     var words = nm.split(' ').length;
     if (words >= 2) { if (nm.length >= 4) certNames.push(nm); return; }
     if (nm.length >= 3) certNames.push(nm);
+  }
+
+  /* คำนำหน้า + ชื่อ + คำไทยที่เหลือในบรรทัดเดียวกัน — จับหลายคำแล้วค่อยตัดคำเอกสารทีหลัง
+     (กันนามสกุลที่ OCR เว้นวรรคผิด เช่น "เขี ยว" · และกันคำหลักสูตรที่ติดนามสกุล)
+     บาง PDF แยก "นางสาว" ออกเป็นสองคำ ต้องยอมให้มีช่องว่างคั่น และต้องเทียบก่อน "นาง"
+     ท้ายเป็น * ไม่ใช่ + เพราะคนที่ไม่มีนามสกุลจะมีแค่ "คำนำหน้า + ชื่อ" เท่านั้น */
+  var nameRe = /(นาย|นาง\s*สาว|นาง)\s*([฀-๿]{2,})((?:[ \t]+[฀-๿]+)*)/g;
+  /* แยกสองกอง: ชื่อที่มีนามสกุลครบ กับชื่อคำเดียว
+     ในใบที่มีชื่อเต็มอยู่แล้ว ของที่เหลือคำเดียวมักเป็นคำเอกสารที่บังเอิญขึ้นต้นด้วย "นาย/นาง"
+     แต่ถ้าทั้งใบไม่มีชื่อเต็มเลย กองคำเดียวคือชื่อคนจริงที่ไม่มีนามสกุล — ต้องเก็บ */
+  var certNamesShort = [];
+  var m;
+  while ((m = nameRe.exec(text)) !== null) {
+    var fullname = (m[1].replace(/\s+/g, '') + ' ' + m[2].trim() + ' ' + (m[3] || '').trim()).replace(/\s+/g, ' ').trim();
+    fullname = _cleanCertName(fullname);   // ตัดคำหลักสูตร/เอกสารที่ OCR กวาดมาต่อท้ายนามสกุล
+    fullname = fullname.replace(/\s+([ัิ-ฺ็-๎])/g, '$1');   // รวมช่องว่างหน้าอักขระประสม เช่น "ทองสพรั ่ง"→"ทองสพรั่ง"
+    if (fullname.length <= 5 || fullname.length >= 80) continue;
+    var _w = fullname.split(' ');
+    if (_w.length >= 3) certNames.push(fullname);
+    else if (_w.length === 2 && _w[1].length >= 3 && !_badName.test(fullname)) certNamesShort.push(fullname);
+    if (certNames.length > 200) break;
+  }
+  if (certNames.length === 0) certNames = certNamesShort;
+
+  // Fallback A2: ชื่ออยู่ถัดจากคำว่า "ขอรับรองว่า" (ใบที่ไม่พิมพ์คำนำหน้า)
+  if (certNames.length === 0) {
+    var afterCertifyRe = /(?:ขอรับรองว่า|รับรองว่า)[ \t\r\n]*([฀-๿]+(?:[ \t]+[฀-๿]+){0,2})/g;
+    var am; while ((am = afterCertifyRe.exec(text)) !== null) { _pushCertName(am[1]); if (certNames.length > 300) break; }
   }
   // Fallback A (ผสอ CRG): ชื่ออยู่บรรทัดก่อน "ผ่านการอบรม" (ไม่มีคำนำหน้า)
   if (certNames.length === 0) {
