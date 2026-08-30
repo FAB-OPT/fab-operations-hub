@@ -91,6 +91,14 @@ var TH_TITLES = {
   'ร้อยตำรวจเอก':1,'ร้อยตำรวจโท':1,'ร้อยตำรวจตรี':1,'พันตำรวจเอก':1,'พันตำรวจโท':1,'พันตำรวจตรี':1
 };
 /* ตัดคำนำหน้า/ยศ นำหน้าออก (รองรับ "ว่าที่ ร.ต." หลายชั้น) → คืน tokens ของชื่อจริง */
+/* คนที่ไม่มีนามสกุลจริง ๆ (ชาวเขา/แรงงานต่างด้าว) ทะเบียนมักใส่ขีดหรือจุดไว้แทน
+   ส่วนใบรับรองพิมพ์แต่ชื่อเปล่า ๆ · ถ้าไม่ตัดตัวแทนพวกนี้ทิ้ง ระบบจะมองเป็นคนละคน
+   "มูโม่ -" กับ "มูโม่" จับคู่กันไม่ได้ทั้งที่เป็นคนเดียวกัน */
+var FH_NO_SURNAME = { '-':1, '–':1, '—':1, '.':1, '_':1, 'ไม่มี':1, 'ไม่มีนามสกุล':1, 'n/a':1, 'na':1 };
+function _dropPlaceholders(parts) {
+  var keep = parts.filter(function(p){ return !FH_NO_SURNAME[String(p).toLowerCase()]; });
+  return keep.length ? keep : parts;      // เหลือแต่ตัวแทนล้วน ๆ ก็คงไว้ ดีกว่าได้ชื่อว่าง
+}
 function _stripTitleTokens(n) {
   var parts = n.split(/\s+/).filter(Boolean);
   while (parts.length > 1) {
@@ -117,7 +125,7 @@ function fhStripTitle(name) {
        .replace(/^นาง(?=[^ส\s])/, 'นาง ')
        .replace(/^นาย(?=\S)/, 'นาย ')
        .replace(/\s+/g, ' ').trim();
-  var parts = _stripTitleTokens(n);
+  var parts = _dropPlaceholders(_stripTitleTokens(n));
   return parts.length ? parts.join(' ') : n;
 }
 /* แยกส่วนของชื่อเดิมถูกคำนวณใหม่ทุกครั้งที่เทียบชื่อหนึ่งคู่
@@ -139,7 +147,7 @@ function _getPartsRaw(name) {
   n = n.replace(/^(นางสาว|นาย|นาง)/, '$1 ').replace(/\s+/g, ' ').trim();
   var stripped = _stripTitleTokens(n);
   var prefix = n.slice(0, n.length - stripped.join(' ').length).trim();
-  var parts = stripped.length ? stripped : n.split(/\s+/);
+  var parts = _dropPlaceholders(stripped.length ? stripped : n.split(/\s+/));
   // ชื่อเต็ม: รวมทุกคำ (ตัดช่องว่าง+วรรณยุกต์) — กันนามสกุลที่ OCR แยกคำ/เว้นวรรคต่าง
   var full = _thStrip(parts.join('')).replace(/\s/g,'');
   /* ชื่อที่ตัดคำนำหน้าออกแล้ว แต่ยังคงวรรณยุกต์ไว้ — ใช้เทียบแบบ "สะกดต่างนิดเดียว"

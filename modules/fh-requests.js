@@ -190,13 +190,10 @@ function _brSameBranch(a, b) {
    ตัวนี้เอากติกานั้นมาใช้ตอนกรองด้วย ไม่ใช่แค่ตอนนำเข้า */
 var _FH_EMP_BR_IDX = null;
 function _fhEmpKeyName(x) {
-  return String(x || '')
-    .replace(/(นางสาว|น\.ส\.?|นาง|นาย|ด\.ช\.|ด\.ญ\.)/g, '')
-    /* เขียนอักขระที่มองไม่เห็นเป็นรหัส \u.. ไม่ใช่ตัวอักษรจริง
-       ถ้าเขียนเป็นตัวจริง คนที่มาแก้ทีหลังจะมองไม่เห็นแล้วเผลอลบทิ้ง
-       (เว้นวรรค, zero-width space, NBSP, BOM) */
-    .replace(/[\s\u200b\u00a0\ufeff]/g, '')
-    .toLowerCase();
+  /* อักขระที่มองไม่เห็น (zero-width space, NBSP, BOM) ต้องล้างก่อนเสมอ
+     เขียนเป็นรหัส \u.. ไม่ใช่ตัวอักษรจริง ไม่งั้นคนที่มาแก้ทีหลังจะมองไม่เห็นแล้วเผลอลบ */
+  var s = String(x || '').replace(/[\u200b\u00a0\ufeff]/g, '');
+  return _fhNameKey(s);      // ใช้กุญแจชุดเดียวกับที่อื่น จะได้ตัดสินเหมือนกันทั้งระบบ
 }
 function _fhBuildEmpBranchIdx() {
   var idx = {};
@@ -350,12 +347,23 @@ function addRequestRow() {
 /* ─── Load submitted requests (history) ─── */
 /* Build index: normalized name → best cert status (valid > warning > expired)
    Used to render the "ใบรับรอง" column in admin requests tables. */
+/* กุญแจเทียบชื่อ — ต้องเป็นชุดเดียวกับที่ใบรับรองและทะเบียนใช้
+   ของเดิมตรงนี้แค่ตัดช่องว่างกับพิมพ์เล็ก ไม่ตัดคำนำหน้าและไม่รู้จักขีดแทนนามสกุล
+   หน้าคำขออบรมจึงตัดสินว่า "ยังไม่มีใบ" ทั้งที่ใบมีอยู่ในระบบ */
+function _fhNameKey(name) {
+  var s = String(name || '');
+  if (typeof getParts === 'function') {
+    var p = getParts(s).plain;
+    if (p) return p.toLowerCase();
+  }
+  return s.replace(/\s+/g, '').toLowerCase();
+}
 function buildCertIndex() {
   var idx = {};
   if (typeof matchData === 'undefined' || !matchData || !matchData.length) return idx;
   var rank = { valid: 3, warning: 2, expired: 1 };
   matchData.forEach(function(d){
-    var key = String(d.certName||'').replace(/\s+/g,'').toLowerCase();
+    var key = _fhNameKey(d.certName);
     if (!key) return;
     var st = d.expStatus || 'unknown';
     var r = rank[st] || 0;
@@ -366,7 +374,7 @@ function buildCertIndex() {
   return idx;
 }
 function certBadgeHtml(name, certIdx) {
-  var key = String(name||'').replace(/\s+/g,'').toLowerCase();
+  var key = _fhNameKey(name);
   var hit = certIdx[key];
   if (!hit) {
     // ใบรับรองยังโหลดไม่เสร็จ ≠ ไม่มีใบ — บอกให้ตรงความจริง
@@ -420,7 +428,7 @@ function certSummaryHtml(rows, certIdx, withWords) {
   var c = { valid:0, warning:0, expired:0, none:0 };
   rows.forEach(function(r){
     var nm = r['name'] || r['ชื่อ-นามสกุล'] || r['ชื่อ'] || '';
-    var key = String(nm).replace(/\s+/g,'').toLowerCase();
+    var key = _fhNameKey(nm);
     var hit = certIdx[key];
     if (!hit) c.none++;
     else if (hit.status === 'valid') c.valid++;
