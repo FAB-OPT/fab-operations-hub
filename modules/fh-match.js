@@ -543,13 +543,7 @@ function updateStats() {
   var chipsEl = document.getElementById('matchChips');
   if (chipsEl) {
     chipsEl.style.display = dAll.length ? 'flex' : 'none';
-    var efSel = document.getElementById('expFilter');
-    if (efSel && efSel.options.length >= 4) {
-      efSel.options[0].text = '📋 ทั้งหมด (' + d.length + ')';
-      efSel.options[1].text = '✓ ยังมีผล (' + nValid + ')';
-      efSel.options[2].text = '⚠ ใกล้หมดอายุ (' + nWarn + ')';
-      efSel.options[3].text = '✗ หมดอายุ (' + nExp + ')';
-    }
+    _fhBuildExpFilter(d, nValid, nWarn, nExp);
   }
   // Populate branch + course filter dropdowns (ครั้งแรกหลังโหลดข้อมูล)
   populateFilterDropdowns_();
@@ -591,9 +585,125 @@ function populateFilterDropdowns_() {
   }
 }
 
+/* ═══ ตัวกรองวันหมดอายุ ═══
+   ของเดิมมีแค่ 4 ระดับ (ทั้งหมด/ยังมีผล/ใกล้หมด/หมดอายุ) ซึ่งตอบไม่ได้ว่า
+   "เดือนหน้าต้องส่งใครไปอบรมบ้าง" — เพิ่มช่วงนับจากวันนี้ · รายเดือน · ระบุช่วงเอง
+   ใบที่ต่ออายุแล้วไม่ถูกนับในทุกตัวเลือกที่อิงวัน เพราะคนนั้นไม่ต้องไปอบรมใหม่
+   (ยังดูได้ที่ตัวเลือก "ต่ออายุแล้ว" ซึ่งโผล่เฉพาะตอนที่มีใบแบบนั้นจริง) */
+/* ชื่อเดือนไทยมีอยู่แล้วที่ fh-export.js (FH_TH_MON ชื่อเต็ม / FH_TH_MON_SHORT ชื่อย่อ)
+   ห้ามประกาศซ้ำ — ไฟล์นั้นโหลดทีหลัง ตัวที่ประกาศซ้ำจะทับกันไปมา แล้ววันที่ในรายงานเพี้ยน
+   เขียนตัวหยิบไว้แทน เผื่อกรณีโหลดไฟล์นั้นไม่สำเร็จ */
+function _fhMonTh(i, short) {
+  var a = short ? (typeof FH_TH_MON_SHORT !== 'undefined' ? FH_TH_MON_SHORT : null)
+                : (typeof FH_TH_MON !== 'undefined' ? FH_TH_MON : null);
+  return (a && a[i]) ? a[i] : String(i + 1);
+}
+function _fhToday0() { var t = new Date(); t.setHours(0, 0, 0, 0); return t; }
+/* คืนช่วงเวลา [เริ่ม, จบ] ของตัวเลือก — คืน null แปลว่าตัวเลือกนี้ไม่ได้อิงวัน */
+function _fhExpWindow(ef) {
+  var m = /^d(\d+)$/.exec(ef);
+  if (m) {
+    var a = _fhToday0(), b = new Date(a);
+    b.setDate(b.getDate() + parseInt(m[1], 10));
+    b.setHours(23, 59, 59, 999);
+    return [+a, +b];
+  }
+  m = /^m:(\d{4})-(\d{2})$/.exec(ef);
+  if (m) return [+new Date(+m[1], +m[2] - 1, 1), +new Date(+m[1], +m[2], 0, 23, 59, 59, 999)];
+  if (ef === 'custom') {
+    var f = (document.getElementById('expFrom') || { value:'' }).value;
+    var t = (document.getElementById('expTo')   || { value:'' }).value;
+    if (!f && !t) return null;
+    return [ f ? +new Date(f + 'T00:00:00') : -8640000000000000,
+             t ? +new Date(t + 'T23:59:59') :  8640000000000000 ];
+  }
+  return null;
+}
+function _fhExpMatch(d, ef) {
+  var w = _fhExpWindow(ef);
+  if (!w) return true;
+  if (d.renewed) return false;
+  var t = +parseAnyDate(d.expireDate);
+  return isFinite(t) && t >= w[0] && t <= w[1];
+}
+/* สร้างรายการตัวเลือกใหม่ทุกครั้งที่ตัวเลขเปลี่ยน — จำนวนในวงเล็บจะได้ตรงกับที่กรองอยู่จริง
+   rows = ชุดที่ผ่านตัวกรองสาขา/หลักสูตรแล้ว (ชุดเดียวกับที่การ์ด 4 ใบด้านบนนับ) */
+function _fhBuildExpFilter(rows, nValid, nWarn, nExp) {
+  var sel = document.getElementById('expFilter');
+  if (!sel) return;
+  var cur = sel.value || 'all';
+  var nRenew = rows.filter(function(r){ return r.renewed; }).length;
+  var cnt = function(ef){ return rows.filter(function(r){ return _fhExpMatch(r, ef); }).length; };
+  var opt = function(v, tx){ return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + escapeHtml(tx) + '</option>'; };
+  var h = opt('all', '📋 ทั้งหมด (' + rows.length + ')')
+    + '<optgroup label="สถานะ">'
+    +   opt('valid',   '✓ ยังมีผล (' + nValid + ')')
+    +   opt('warning', '⚠ ใกล้หมดอายุ (' + nWarn + ')')
+    +   opt('expired', '✗ หมดอายุ (' + nExp + ')')
+    +   (nRenew ? opt('renewed', '🔁 ต่ออายุแล้ว (' + nRenew + ')') : '')
+    + '</optgroup>'
+    + '<optgroup label="หมดอายุภายใน">'
+    /* ใบรับรองมีอายุ 3 ปี และนับว่า"ใกล้หมด"ตั้งแต่เหลือ 1 ปีครึ่ง
+       มีแค่ช่วงสั้น ๆ จึงขึ้นศูนย์ทั้งหมด ต้องมีช่วงยาวให้วางแผนล่วงหน้าได้จริง */
+    +   [30, 60, 90, 180, 365].map(function(n){
+          var lb = n === 180 ? '6 เดือน' : n === 365 ? '1 ปี' : n + ' วัน';
+          return opt('d' + n, '⏳ ภายใน ' + lb + ' (' + cnt('d' + n) + ')');
+        }).join('')
+    + '</optgroup>';
+  var by = {};
+  rows.forEach(function(r){
+    if (r.renewed) return;
+    var dt = parseAnyDate(r.expireDate);
+    if (!dt) return;
+    var k = dt.getFullYear() + '-' + ('0' + (dt.getMonth() + 1)).slice(-2);
+    by[k] = (by[k] || 0) + 1;
+  });
+  var keys = Object.keys(by).sort();
+  if (keys.length) {
+    h += '<optgroup label="หมดอายุรายเดือน">' + keys.map(function(k){
+      return opt('m:' + k, '📅 ' + _fhMonTh(+k.slice(5, 7) - 1, true) + ' ' + (+k.slice(0, 4) + 543) + ' (' + by[k] + ')');
+    }).join('') + '</optgroup>';
+  }
+  h += '<optgroup label="กำหนดเอง">' + opt('custom', '🗓 ระบุช่วงวันเอง...') + '</optgroup>';
+  sel.innerHTML = h;
+  sel.value = cur;
+  if (sel.selectedIndex < 0) sel.value = 'all';
+  _fhToggleExpCustomRow(sel.value);
+}
+function _fhToggleExpCustomRow(val) {
+  var row = document.getElementById('expCustomRow');
+  if (row) row.style.display = (val === 'custom') ? 'flex' : 'none';
+}
+/* กรอกช่วงวันเองแล้วให้ตารางขยับทันที ไม่ต้องกดปุ่มยืนยันอีกที */
+/* ช่อง input type=date แสดงปีเป็น ค.ศ. ตามภาษาเครื่อง ห้ามไม่ได้
+   แต่ทั้งระบบแสดง พ.ศ. — ทวนซ้ำเป็น พ.ศ. ไว้ข้าง ๆ กันอ่านผิดปี 543 ปี */
+function _fhExpHint() {
+  var el = document.getElementById('expCustomHint');
+  if (!el) return;
+  var f = (document.getElementById('expFrom') || { value:'' }).value;
+  var t = (document.getElementById('expTo')   || { value:'' }).value;
+  var fmt = function(v){ var d = v ? new Date(v + 'T00:00:00') : null;
+    return d && !isNaN(d) ? d.getDate() + ' ' + _fhMonTh(d.getMonth(), false) + ' ' + (d.getFullYear() + 543) : ''; };
+  var a = fmt(f), b = fmt(t);
+  el.textContent = (!a && !b) ? '' : ('= ' + (a || 'ไม่จำกัด') + ' ถึง ' + (b || 'ไม่จำกัด'));
+}
+function fhSetExpCustom() {
+  var sel = document.getElementById('expFilter');
+  if (sel && sel.value !== 'custom') { sel.value = 'custom'; _fhToggleExpCustomRow('custom'); }
+  _fhExpHint();
+  _tablePage = 1;
+  renderTable();
+}
+function fhClearExpCustom() {
+  ['expFrom', 'expTo'].forEach(function(id){ var el = document.getElementById(id); if (el) el.value = ''; });
+  _fhExpHint();
+  setExpFilter('all');
+}
+
 function setExpFilter(val) {
   var sel = document.getElementById('expFilter');
   if (sel) sel.value = val;
+  _fhToggleExpCustomRow(val);
   // Sync chip active state
   document.querySelectorAll('.exp-status-chip').forEach(function(el){
     if (el.getAttribute('data-ef') === val) el.classList.add('active');
@@ -615,7 +725,13 @@ function getFiltered() {
     var ok = true;
     if (q) ok = ok && (d.certName+d.empName+d.branch+d.position).toLowerCase().indexOf(q)>=0;
     if (mf!=='all') ok = ok && d.matchType===mf;
-    if (ef!=='all') ok = ok && d.expStatus===ef;
+    if (ef !== 'all') {
+      /* สถานะกับช่วงวันหมดอายุ ใช้ช่องเดียวกัน — ค่าที่ไม่ใช่สถานะ คือตัวที่อิงวัน */
+      if (ef === 'valid' || ef === 'warning') ok = ok && d.expStatus === ef;
+      else if (ef === 'expired') ok = ok && d.expStatus === 'expired' && !d.renewed;
+      else if (ef === 'renewed') ok = ok && !!d.renewed;
+      else ok = ok && _fhExpMatch(d, ef);
+    }
     if (sf!=='all') ok = ok && d.sheet===sf;
     if (brf!=='all') ok = ok && d.branch===brf;
     if (cof!=='all') ok = ok && d.course===cof;
@@ -1060,15 +1176,25 @@ function gotoTablePage(p) {
 /* ═══════════ ติ๊กเลือกหลายใบ → ดาวน์โหลดรวมเป็น PDF ไฟล์เดียว ═══════════
    scope 'ad' = ตารางฝั่งแอดมิน (#mainTable) · 'br' = ตารางฝั่งสาขา (#branchCertTable)
    เก็บที่เลือกด้วย key(ชื่อ|หลักสูตร) → ติ๊กค้างข้ามหน้า/ข้ามการกรองได้ */
-var _certSel = { ad: {}, br: {} };
-var _selSig  = { ad: null, br: null };   // ลายเซ็นตัวกรองล่าสุด — เปลี่ยนกรอง = ล้างที่เลือก
+var _certSel = { ad: {}, br: {}, rq: {} };
+var _selSig  = { ad: null, br: null, rq: null };   // ลายเซ็นตัวกรองล่าสุด — เปลี่ยนกรอง = ล้างที่เลือก
 var _brLastResults = [];   // ผลค้นหาล่าสุดฝั่งสาขา (ใช้ตอนกด "เลือกทั้งหมด")
+var _rqLastRows = [];      // แถวคำขออบรมที่แสดงอยู่ล่าสุด — ที่มาของ "เลือกทั้งหมด" หน้าคำขอ
 
-function _fhSelStore(scope) { return _certSel[scope === 'br' ? 'br' : 'ad']; }
+function _fhSelStore(scope) { return _certSel[scope] || _certSel.ad; }
+var _FH_SEL_TABLE = { ad:'mainTable', br:'branchCertTable', rq:'adminReqTable' };
 function _fhSelIds(scope) {
-  return scope === 'br'
-    ? { bar:'brSelBar', count:'brSelCount', btn:'brSelDlBtn', btnEach:'brSelDlEachBtn', all:'brChkAll' }
-    : { bar:'certSelBar', count:'certSelCount', btn:'certSelDlBtn', btnEach:'certSelDlEachBtn', all:'certChkAll' };
+  if (scope === 'br') return { bar:'brSelBar', count:'brSelCount', btn:'brSelDlBtn', btnEach:'brSelDlEachBtn', all:'brChkAll' };
+  if (scope === 'rq') return { bar:'rqSelBar', count:'rqSelCount', btn:'rqSelDlBtn', btnEach:'rqSelDlEachBtn', all:'rqChkAll' };
+  return { bar:'certSelBar', count:'certSelCount', btn:'certSelDlBtn', btnEach:'certSelDlEachBtn', all:'certChkAll' };
+}
+/* รายการที่ปุ่ม "เลือกทั้งหมด" ครอบถึง — ทุกแถวที่ตัวกรองปัจจุบันเหลือไว้ ไม่ใช่แค่หน้าที่เห็น
+   คืนรูปเดียวกันทุกหน้า ({name, course}) จุดที่เรียกจะได้ไม่ต้องรู้ว่ามาจากหน้าไหน */
+function _fhSelPool(scope) {
+  if (scope === 'br') return (_brLastResults || []).map(function(r){ return { name: r['ชื่อในใบรับรอง'], course: r['หลักสูตร'] }; });
+  if (scope === 'rq') return (_rqLastRows || []).slice();
+  return (typeof matchData !== 'undefined' && matchData.length ? getFiltered() : [])
+    .map(function(d){ return { name: d.certName, course: d.course }; });
 }
 /* checkbox 1 ช่อง — ไม่มีไฟล์ใบรับรอง = ติ๊กไม่ได้ */
 function _fhChkHtml(scope, name, course) {
@@ -1094,9 +1220,7 @@ function fhToggleSel(el, scope) {
 /* เลือกทุกรายการที่กรองอยู่ (ทุกหน้า ไม่ใช่เฉพาะหน้าปัจจุบัน) */
 function fhSelectAllCerts(scope, on) {
   var store = _fhSelStore(scope);
-  var rows = scope === 'br'
-    ? (_brLastResults || []).map(function(r){ return { name: r['ชื่อในใบรับรอง'], course: r['หลักสูตร'] }; })
-    : getFiltered().map(function(d){ return { name: d.certName, course: d.course }; });
+  var rows = _fhSelPool(scope);
   rows.forEach(function(x){
     var url = _fhCertUrl(x.name, x.course);
     if (!url) return;
@@ -1108,14 +1232,14 @@ function fhSelectAllCerts(scope, on) {
   fhUpdateSelBar(scope);
 }
 function fhClearSel(scope) {
-  _certSel[scope === 'br' ? 'br' : 'ad'] = {};
+  _certSel[_certSel[scope] ? scope : 'ad'] = {};
   _fhSyncChkBoxes(scope);
   fhUpdateSelBar(scope);
 }
 /* อัปเดตสถานะ checkbox ที่แสดงอยู่บนจอ (ไม่ต้อง re-render ตารางทั้งหมด) */
 function _fhSyncChkBoxes(scope) {
   var store = _fhSelStore(scope);
-  var tbl = document.getElementById(scope === 'br' ? 'branchCertTable' : 'mainTable');
+  var tbl = document.getElementById(_FH_SEL_TABLE[scope] || _FH_SEL_TABLE.ad);
   if (!tbl) return;
   var boxes = tbl.querySelectorAll('tbody input.chk-cert[data-k]');
   for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!store[boxes[i].getAttribute('data-k')];
@@ -1124,13 +1248,19 @@ function _fhSyncChkBoxes(scope) {
 function _fhCurSig(scope) {
   var g = function(id){ return (document.getElementById(id) || { value:'' }).value; };
   if (scope === 'br') return 'br|' + g('branchSearchQ').trim().toLowerCase();
+  /* หน้าคำขออบรม — รวมรุ่นที่เปิดอยู่ด้วย เปลี่ยนรุ่นคือคนละชุด ต้องเริ่มเลือกใหม่ */
+  if (scope === 'rq') return ['rq', g('adminReqSearch').trim().toLowerCase(), g('adminReqCourseFilter'),
+          g('adminReqBranchFilter'), g('adminReqDateFilter'), g('adminReqSlotFilter'),
+          String(typeof _reqBatchKey !== 'undefined' ? _reqBatchKey : '')].join('|');
+  /* ช่วงวันที่ระบุเองก็คือตัวกรอง — เปลี่ยนช่วงแล้วที่ติ๊กไว้ต้องไม่ค้างมา */
   return ['ad', g('searchQ').trim().toLowerCase(), g('matchFilter'), g('expFilter'),
+          g('expFrom'), g('expTo'),
           g('sheetFilter'), g('branchFilter'), g('courseFilter'), g('brandFilter')].join('|');
 }
 /* เปลี่ยนตัวกรอง/คำค้น = เริ่มเลือกใหม่ (กันของที่ติ๊กค้างจากชุดก่อนหน้ามานับรวม)
    เปลี่ยนหน้า (pagination) ลายเซ็นไม่เปลี่ยน → ที่ติ๊กไว้ยังอยู่ */
 function _fhResetSelIfFilterChanged(scope) {
-  var key = scope === 'br' ? 'br' : 'ad';
+  var key = _certSel[scope] ? scope : 'ad';
   var sig = _fhCurSig(scope);
   if (_selSig[key] !== null && _selSig[key] !== sig) _certSel[key] = {};
   _selSig[key] = sig;
@@ -1147,9 +1277,7 @@ function fhUpdateSelBar(scope) {
   // หัวตาราง: ติ๊กครบทุกรายการที่มีไฟล์ = ติ๊กหัวด้วย
   var all = document.getElementById(ids.all);
   if (all) {
-    var pool = scope === 'br'
-      ? (_brLastResults || []).map(function(r){ return _fhCertUrl(r['ชื่อในใบรับรอง'], r['หลักสูตร']) ? _fhCertKey(r['ชื่อในใบรับรอง'], r['หลักสูตร']) : null; })
-      : (typeof matchData !== 'undefined' && matchData.length ? getFiltered() : []).map(function(d){ return _fhCertUrl(d.certName, d.course) ? _fhCertKey(d.certName, d.course) : null; });
+    var pool = _fhSelPool(scope).map(function(x){ return _fhCertUrl(x.name, x.course) ? _fhCertKey(x.name, x.course) : null; });
     pool = pool.filter(Boolean);
     var picked = pool.filter(function(k){ return !!store[k]; }).length;
     all.checked = pool.length > 0 && picked === pool.length;

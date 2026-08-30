@@ -524,7 +524,12 @@ function _fhToggleReqCols(showCourse, showDate, showRoundOnly) {
 function _renderAdminReqRow(r, certIdx, showCourseCol, showDateCol, showRoundOnly) {
   var p = _prepReqFields(r);
   var keyData = encodeURIComponent(JSON.stringify({ sbId: p.sbId, rowIndex: p.rowIdx, timestamp: String(p.tsRaw), name: p.name, idCard: p.idCard }));
+  /* ใบรับรองที่คนนี้มี อาจเป็นคนละหลักสูตรกับที่ขออบรมรอบนี้
+     ไฟล์ที่โหลดได้ต้องอ้างหลักสูตรที่อยู่บนใบจริง ไม่ใช่หลักสูตรของคำขอ */
+  var hit = certIdx ? certIdx[_fhNameKey(p.name)] : null;
+  var chkCourse = (hit && hit.course) ? hit.course : p.course;
   var html = '<tr>'
+    +'<td class="td-chk" data-label="เลือก" data-icon="☑️">'+_fhChkHtml('rq', p.name, chkCourse)+'</td>'
     +'<td data-label="สาขา" data-icon="🏬">'+escapeHtml(_brDispG(p.branch))+'</td>'
     +'<td data-label="ชื่อ" data-icon="👤" class="cert-name">'+escapeHtml(p.name)+'</td>'
     +'<td data-label="รหัสพนง" data-icon="🆔">'+escapeHtml(p.empId)+'</td>'
@@ -940,7 +945,8 @@ function _applyAdminReqFilters() {
 
   // Render
   if (rows.length === 0) {
-    body.innerHTML = '<tr><td colspan="'+_fhColCount(body,9)+'" class="empty">ไม่พบรายการตามตัวกรอง</td></tr>';
+    _rqLastRows = [];
+    body.innerHTML = '<tr><td colspan="'+_fhColCount(body,10)+'" class="empty">ไม่พบรายการตามตัวกรอง</td></tr>';
   } else {
     /* อยู่ในรุ่น = หลักสูตร/วันอบรม/รอบเวลา เหมือนกันหมดทุกแถว → ซ่อนคอลัมน์ที่ซ้ำ
        ส่วนเลขรุ่น เก็บช่องไว้เฉพาะตอนที่ในรุ่นนี้มีเลขไม่ตรงกันจริง ๆ */
@@ -953,6 +959,13 @@ function _applyAdminReqFilters() {
     body.innerHTML = rows.map(function(r){
       return _renderAdminReqRow(r, _adminCertIdx, _showCourse, _showDate, _showRoundOnly);
     }).join('');
+
+    /* จำชุดที่กรองอยู่ไว้ให้ปุ่ม "เลือกทั้งหมด" — ครอบทุกแถวที่กรองเหลือ ไม่ใช่แค่ที่เห็นบนจอ */
+    _rqLastRows = rows.map(function(x){
+      var q = _prepReqFields(x);
+      var h = _adminCertIdx ? _adminCertIdx[_fhNameKey(q.name)] : null;
+      return { name: q.name, course: (h && h.course) ? h.course : q.course };
+    });
   }
   if (info) {
     var totalAll = (_adminRowCache || []).length;
@@ -968,6 +981,7 @@ function _applyAdminReqFilters() {
       info.innerHTML = 'แสดง <strong>'+rows.length+'</strong> จาก '+totalAll+' รายการ';
     }
   }
+  try { fhUpdateSelBar('rq'); } catch (e) {}   // แถบเลือกหลายใบ — โผล่เฉพาะตอนมีที่ติ๊ก
   // Update active state on count cards + sort indicators
   _renderAdminReqCountBar(_adminRowCache || []);
   _updateSortIndicators();
