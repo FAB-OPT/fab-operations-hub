@@ -340,16 +340,25 @@ function extractFromPDFText(text) {
   function _pushCertName(nm){
     nm = String(nm||'').replace(/\s+/g, ' ').trim();
     if (_badName.test(nm)) return;
-    if (nm.length >= 4 && nm.length < 60 && nm.split(' ').length >= 2) certNames.push(nm);
+    if (nm.length >= 60) return;
+    /* เดิมบังคับว่าต้องมีอย่างน้อยสองคำ = ต้องมีนามสกุล
+       พนักงานที่ไม่มีนามสกุล (ชาวเขา/แรงงานต่างด้าว) ชื่อบนใบเป็นคำเดียว
+       ใบพวกนั้นถูกทิ้งตั้งแต่ตอนอ่านไฟล์ อัปกี่รอบก็ไม่เข้าระบบ
+       ยอมรับคำเดียวได้ แต่ต้องยาวพอ และผ่านตัวกรองคำที่ไม่ใช่ชื่อคนมาแล้ว */
+    var words = nm.split(' ').length;
+    if (words >= 2) { if (nm.length >= 4) certNames.push(nm); return; }
+    if (nm.length >= 3) certNames.push(nm);
   }
   // Fallback A (ผสอ CRG): ชื่ออยู่บรรทัดก่อน "ผ่านการอบรม" (ไม่มีคำนำหน้า)
   if (certNames.length === 0) {
-    var beforeTrainRe = /([฀-๿]+(?:[ \t]+[฀-๿]+){1,2})[ \t]*[\r\n]+[ \t]*ผ่านการอบรม/g;
+    /* {0,2} = ยอมให้ชื่อเป็นคำเดียวได้ (พนักงานที่ไม่มีนามสกุล)
+       เดิมเป็น {1,2} คือบังคับว่าต้องมีอย่างน้อยสองคำ ใบของคนไม่มีนามสกุลจึงหลุดหมด */
+    var beforeTrainRe = /([฀-๿]+(?:[ \t]+[฀-๿]+){0,2})[ \t]*[\r\n]+[ \t]*ผ่านการอบรม/g;
     var bm; while ((bm = beforeTrainRe.exec(text)) !== null) { _pushCertName(bm[1]); if (certNames.length > 300) break; }
   }
   // Fallback B (ผปก CRG): ชื่ออยู่ต้น ก่อน "บริษัท เซ็นทรัล / CENTRAL RESTAURANTS" (ไม่มีคำนำหน้า)
   if (certNames.length === 0) {
-    var beforeCoRe = /([฀-๿]{2,}(?:[ \t]+[฀-๿]{2,}){1,2})[ \t\r\n]*(?:บริษัท[ \t]*เซ็นทรัล|central\s*restaurant)/gi;
+    var beforeCoRe = /([฀-๿]{2,}(?:[ \t]+[฀-๿]{2,}){0,2})[ \t\r\n]*(?:บริษัท[ \t]*เซ็นทรัล|central\s*restaurant)/gi;
     var cm; while ((cm = beforeCoRe.exec(text)) !== null) { _pushCertName(cm[1]); if (certNames.length > 300) break; }
   }
   var seen = {};
