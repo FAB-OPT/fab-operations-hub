@@ -333,12 +333,17 @@ function extractFromPDFText(text) {
 
   // Name patterns — try multiple in order, stop when one finds something
   var certNames = [];
-  var _badName = /บริษัท|จำกัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited|company|restaurant/i;
+  var _badName = /บริษัท|จำกัด|จํากัด|กรุ๊ป|กรุป|หลักสูตร|สุขาภิบาล|กระทรวง|ขอรับรอง|รับรอง|อบรม|central|group|limited|company|restaurant/i;
+  /* คำที่บอกว่าก้อนนี้เป็น "ชื่อองค์กร" ไม่ใช่ชื่อคน — เจอที่ไหนก็ทิ้งทั้งก้อน
+     ต่างจากคำหลักสูตรที่ต่อท้ายชื่อคนจริง ๆ ได้ (ตัดท้ายทิ้งแล้วที่เหลือยังเป็นชื่อ)
+     ถ้าตัดท้ายก่อนแล้วค่อยตรวจ "เรสตอรองส์ กรุ๊ป จํากัด" จะเหลือ "เรสตอรองส์" แล้วผ่านเป็นชื่อคน */
+  var _badCo = /บริษัท|จำกัด|จํากัด|กรุ๊ป|กรุป|central|group|limited|company|restaurant/i;
   /* คำเอกสารที่มักติดมา "ข้างหน้า" ชื่อ — ต้องตัดก่อนตรวจ ไม่งั้นทั้งก้อนถูกมองว่าไม่ใช่ชื่อคน
      (ตัวตัดท้าย _cleanCertName ตัดจากคำที่เจอไปจนจบ ถ้าคำอยู่หน้าชื่อจะเหลือค่าว่าง) */
   var _leadJunk = /^(?:ขอรับรองว่า|รับรองว่า|ขอมอบให้|มอบให้|ให้ไว้แก่|ชื่อ)\s*/;
   function _pushCertName(nm){
     nm = String(nm||'').replace(/\s+/g, ' ').trim().replace(_leadJunk, '');
+    if (_badCo.test(nm)) return;                  // ชื่อองค์กร — ทิ้งก่อนตัดท้าย
     nm = _cleanCertName(nm).replace(/\s+/g, ' ').trim();
     if (_badName.test(nm)) return;
     if (nm.length >= 60) return;
