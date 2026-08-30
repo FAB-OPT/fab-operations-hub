@@ -407,6 +407,10 @@ function _fhEnsureCertsForRequests() {
     .then(function(records){
       if (!records || !records.length) return;
       matchData = _fhMapCerts(records);
+      /* ต้องใส่เลขลำดับด้วย — ตารางใบรับรองใช้เลขนี้เป็นตัวอ้างถึงแถว
+         ทางนี้ไม่เคยใส่ให้ พอเปิดหน้าคำขออบรมก่อนแล้วค่อยไปหน้าใบรับรอง
+         คอลัมน์ลำดับจะขึ้น undefined และปุ่มจัดการรายแถวก็อ้างแถวผิด */
+      matchData.forEach(function(d, i){ d.no = i + 1; });
       _fhCacheSet('fh_cert_v1', matchData);
       try { _refreshAdminReqCerts(); } catch (e) {}
     })

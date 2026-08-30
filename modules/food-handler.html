@@ -122,7 +122,21 @@ function _fhCertKey(name, course) {
   return String(name || '').replace(/\s+/g, '').toLowerCase().replace(/\//g, '_')
     + '|' + String(course || '').replace(/\s+/g, '').replace(/\//g, '_');
 }
-function _fhCertUrl(name, course) { return FH_CERT_FILES[_fhCertKey(name, course)] || ''; }
+/* ไฟล์ใบรับรองถูกเก็บโดยใช้ "ชื่อ+หลักสูตร" เป็นกุญแจ
+   ไฟล์ที่อัปไว้ก่อนหน้าใช้ชื่อที่ยังมีคำนำหน้า ("นายสมชาย ใจดี")
+   พอระบบตัดคำนำหน้าออก กุญแจก็เปลี่ยน หาไฟล์เดิมไม่เจอ ปุ่มดาวน์โหลดเลยหาย
+   ทั้งที่ไฟล์ยังอยู่ครบ · ลองกุญแจแบบเก่าที่มีคำนำหน้าให้ด้วย
+   ไม่ต้องไปไล่เปลี่ยนชื่อไฟล์เก่าที่เก็บไว้แล้ว */
+var FH_TITLE_KEYS = ['นาย', 'นาง', 'นางสาว', 'น.ส.'];
+function _fhCertUrl(name, course) {
+  var direct = FH_CERT_FILES[_fhCertKey(name, course)];
+  if (direct) return direct;
+  for (var i = 0; i < FH_TITLE_KEYS.length; i++) {
+    var hit = FH_CERT_FILES[_fhCertKey(FH_TITLE_KEYS[i] + ' ' + name, course)];
+    if (hit) return hit;
+  }
+  return '';
+}
 function saveFhCertFile(name, course, url) {
   if (!fhDb || !name || !url) return;
   var key = _fhCertKey(name, course);
