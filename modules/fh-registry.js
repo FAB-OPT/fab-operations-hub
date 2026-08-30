@@ -645,6 +645,8 @@ function loadFromCloud() {
     if (_pi) _pi.textContent = '✓ โหลด ' + matchData.length + ' รายการ' + (_dupN > 0 ? ' (ซ่อนใบซ้ำ/ไม่สมบูรณ์ ' + _dupN + ' ใบ)' : '') + ' · ' + new Date().toLocaleTimeString('th-TH');
     var _ts = document.getElementById('topStatus');
     if (_ts) _ts.textContent = 'Loaded · ' + new Date().toLocaleTimeString('th-TH');
+    /* เทียบกับที่เก็บสำรองว่ามีของตกค้างไหม — ถามทีหลัง ไม่หน่วงการแสดงผล */
+    setTimeout(function(){ try { fhCheckCertGap(); } catch (e) {} }, 1200);
   })
   .catch(function(err){
     if (btn) { btn.disabled = false; btn.innerHTML = '&#9729; โหลดจาก Cloud'; }
@@ -654,6 +656,89 @@ function loadFromCloud() {
        ต้องขึ้นกล่องบอกเหตุผลบนหน้าจริง ๆ ไม่งั้นผู้ใช้เห็นแค่หน้าว่างแล้วไม่รู้ว่าเกิดอะไร */
     fhCertLoading(false, _hadData ? '' : ('โหลดใบรับรองไม่สำเร็จ: ' + (err && err.message ? err.message : String(err))));
   });
+}
+
+
+/* ═══════════════════════════════════════════════════════════════
+   ของตกค้างฝั่ง Google Sheets
+   ช่วงเปลี่ยนผ่านมาใช้ Supabase มีจังหวะที่เขียนลง Sheets อย่างเดียว
+   ใบพวกนั้นจะไม่มีวันขึ้นให้ใครเห็น เพราะหน้าเว็บอ่านจาก Supabase อย่างเดียว
+   (เกิดขึ้นจริง: Sheets 757 ใบ · Supabase 652 ใบ · ต่างกัน 105 ใบ)
+   ตรวจด้วย action=counts ซึ่งนับอย่างเดียว ไม่ต้องโหลดข้อมูลทั้งก้อน จึงเร็วพอ
+   จะเรียกทุกครั้งที่โหลดหน้า
+   ═══════════════════════════════════════════════════════════════ */
+function fhCheckCertGap() {
+  if (!SCRIPT_URL || typeof FH_SB === 'undefined' || !FH_SB.ready) return Promise.resolve(null);
+  var here = (matchData || []).length;
+  if (!here) return Promise.resolve(null);
+  return fetch(SCRIPT_URL + '?action=counts&_=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var sheets = (j && j.counts && j.counts.certificates) || 0;
+      if (sheets <= here) return null;
+      var gap = sheets - here;
+      console.warn('[FH] Google Sheets มี ' + sheets + ' ใบ แต่ที่แสดงอยู่ ' + here + ' ใบ');
+      return customConfirm({
+        icon: '🔄', danger: false, okText: 'ดึงมารวมเลย', cancelText: 'ไว้ก่อน',
+        title: 'มีใบรับรองตกค้างอยู่อีก ' + gap + ' ใบ',
+        desc: 'ที่เก็บสำรอง (Google Sheets) มี <b>' + sheets + '</b> ใบ แต่ที่แสดงอยู่ตอนนี้มี <b>' +
+              here + '</b> ใบ<br><br>เป็นของที่บันทึกไว้ช่วงที่ระบบเขียนลงคนละที่กับที่อ่าน<br>' +
+              'ดึงมารวมกับของที่มีอยู่ แล้วบันทึกขึ้นที่เก็บหลักให้ครบทั้งหมด'
+      }).then(function(ok){ return ok ? fhSyncFromSheets() : null; });
+    })
+    .catch(function(e){ console.warn('[FH] เทียบจำนวนใบรับรองไม่สำเร็จ', e); return null; });
+}
+
+/* ดึงใบรับรองจาก Google Sheets มารวมกับของที่มีอยู่ แล้วบันทึกขึ้นที่เก็บหลัก
+   รวมแบบเดียวกับตอนอัปไฟล์ซ้ำ — ใบเดียวกันไม่กลายเป็นสองแถว
+   และการจับคู่ที่คนทำไว้เองต้องไม่หาย */
+function fhSyncFromSheets() {
+  showLoadingOverlay('กำลังดึงของตกค้างมารวม...', 'อาจใช้เวลาสักครู่');
+  return fetch(SCRIPT_URL + '?action=certificates&_=' + Date.now())
+    .then(function(r){ return r.json(); })
+    .then(function(j){
+      var incoming = _fhMapCerts(j.records || []);
+      var key = function(d){
+        return normalizeName(d.certName || '').replace(/\s+/g, '') + '|' + (d.course || '') + '|' + (d.expireDate || '');
+      };
+      var byKey = {}, out = [];
+      /* ของที่แสดงอยู่มาก่อน — เป็นตัวที่ผ่านการจับคู่ล่าสุดแล้ว */
+      (matchData || []).forEach(function(d){ var k = key(d); if (!byKey[k]) { byKey[k] = d; out.push(d); } });
+      var added = 0;
+      incoming.forEach(function(d){
+        var k = key(d), cur = byKey[k];
+        if (cur) {
+          /* ใบเดียวกัน — เก็บตัวชี้ที่ฝั่งไหนมีก่อน อย่าให้หายเพราะอีกฝั่งไม่มี */
+          if (!cur.empId && d.empId) { cur.empId = d.empId; cur.idCard = cur.idCard || d.idCard || ''; }
+          if (!cur.branchAtTrain && d.branchAtTrain) cur.branchAtTrain = d.branchAtTrain;
+          if (d.matchBy === 'manual' && cur.matchBy !== 'manual') {
+            cur.matchBy = 'manual'; cur.empName = d.empName || cur.empName;
+            if (d.empId) cur.empId = d.empId;
+          }
+          return;
+        }
+        byKey[k] = d; out.push(d); added++;
+      });
+      matchData = out;
+      matchData.forEach(function(d, i){ d.no = i + 1; });
+      var rl = (typeof _fhRelinkCerts === 'function') ? _fhRelinkCerts() : { linked: 0 };
+      try { updateStats(); renderTable(); } catch (e) {}
+      _fhCacheSet('fh_cert_v1', matchData);
+      hideLoadingOverlay();
+      showInfo('รวมข้อมูลแล้ว',
+        'ดึงของตกค้างมาเพิ่ม <b>' + added + '</b> ใบ · รวมทั้งหมด <b>' + matchData.length + '</b> ใบ' +
+        (rl.linked ? '<br>ผูกกับทะเบียนเพิ่มได้ ' + rl.linked + ' ใบ' : '') +
+        '<br><br>กำลังบันทึกขึ้นที่เก็บหลัก...');
+      return fhSaveCertificates(matchData).then(function(res){
+        if (res && res.ok) showInfo('บันทึกแล้ว', 'บันทึก <b>' + matchData.length + '</b> ใบขึ้นที่เก็บหลักเรียบร้อย');
+        else showInfo('บันทึกไม่สำเร็จ', (res && res.error) || 'ไม่ทราบสาเหตุ — ข้อมูลที่รวมแล้วยังอยู่บนหน้าจอ');
+        return res;
+      });
+    })
+    .catch(function(e){
+      hideLoadingOverlay();
+      showInfo('ดึงข้อมูลไม่สำเร็จ', escapeHtml((e && e.message) || String(e)));
+    });
 }
 
 /* วินิจฉัยการจับคู่ชื่อ — เรียก fhDiagNames() ในคอนโซลได้เลย (ใช้ข้อมูลที่โหลดอยู่ ไม่ต้องอัปใหม่) */
