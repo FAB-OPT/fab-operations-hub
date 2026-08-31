@@ -635,7 +635,9 @@ function _fhBuildExpFilter(rows, nValid, nWarn, nExp) {
   var nRenew = rows.filter(function(r){ return r.renewed; }).length;
   var cnt = function(ef){ return rows.filter(function(r){ return _fhExpMatch(r, ef); }).length; };
   var opt = function(v, tx){ return '<option value="' + v + '"' + (v === cur ? ' selected' : '') + '>' + escapeHtml(tx) + '</option>'; };
-  var h = opt('all', '📋 ทั้งหมด (' + rows.length + ')')
+  /* ตอนปิดอยู่ ดรอปดาวน์นี้เห็นแค่คำว่า "ทั้งหมด" ซึ่งไม่บอกว่ากรองอะไร
+     คนจึงไม่รู้ว่ากรองช่วงวันหมดอายุได้ ต้องติดชื่อหัวข้อไว้ที่ตัวเลือกแรก */
+  var h = opt('all', '⏰ ทุกวันหมดอายุ (' + rows.length + ')')
     + '<optgroup label="สถานะ">'
     +   opt('valid',   '✓ ยังมีผล (' + nValid + ')')
     +   opt('warning', '⚠ ใกล้หมดอายุ (' + nWarn + ')')
