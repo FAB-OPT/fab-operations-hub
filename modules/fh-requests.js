@@ -735,7 +735,10 @@ function _renderAdminReqCountBar(rows) {
   var segs = keys.map(function(c, i){
     return '<i class="' + palette[i % palette.length] + '" style="width:' + (total > 0 ? (groups[c] / total * 100) : 0) + '%"></i>';
   }).join('');
-  var html = card('rcc-gold' + (active === 'all' ? ' active' : ''), 'รวมทั้งหมด', '', total, null, segs);
+  /* การ์ดรวมไม่ใช่ตัวกรอง จึงไม่ต้องมีสถานะ active
+     เดิมติด active ไว้ตอนที่ยังไม่ได้กรองหลักสูตร ซึ่งเกือบตลอดเวลา
+     ขีดส้มด้านบนจึงขึ้นค้างโดยไม่ได้สื่ออะไร */
+  var html = card('rcc-gold rcc-total', 'รวมทั้งหมด', '', total, null, segs);
   keys.forEach(function(c, i){
     html += card(palette[i % palette.length] + (c === active ? ' active' : ''),
                  _courseShort(c), c, groups[c], true);
