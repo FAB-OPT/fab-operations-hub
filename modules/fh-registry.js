@@ -476,11 +476,44 @@ function adminReqDupDeleteSelected() {
   });
 }
 
+/* ═══ ใบที่ชื่อขาดคำหน้า ═══
+   ตัวอ่านชื่อจาก PDF ถูกแก้ให้ดีขึ้นเรื่อย ๆ · ใบเดิมที่เคยอ่านได้ไม่ครบยังค้างอยู่ในระบบ
+   พออัปไฟล์เดิมซ้ำ ใบที่อ่านถูกจะเข้ามาเป็นแถวใหม่ ส่วนแถวเก่าที่ชื่อขาดไม่ถูกตัดทิ้ง
+   เพราะตัวตัดซ้ำเทียบที่ "ชื่อ" ซึ่งไม่ตรงกัน ("วงษ์สี่มณีกาญจน์" กับ "ชัยวัน วงษ์สี่มณีกาญจน์")
+
+   กติกา: ในรุ่นเดียวกัน (หลักสูตร + วันหมดอายุตรงกัน) ถ้าชื่อของแถวหนึ่ง
+   เป็น "ท้ายพอดี" ของอีกแถวที่ยาวกว่า = แถวสั้นคือเศษของแถวยาว ตัดทิ้งได้
+   ที่ต้องบังคับว่าอยู่รุ่นเดียวกัน เพราะคนละรุ่นอาจเป็นคนละคนที่บังเอิญนามสกุลซ้ำชื่อคนอื่น */
+function _fhDropNameFragments(list) {
+  var g = {};
+  list.forEach(function(d){
+    var k = (d.course || '') + '|' + fhDayKey(d.expireDate);
+    (g[k] = g[k] || []).push(d);
+  });
+  Object.keys(g).forEach(function(k){
+    var rows = g[k].map(function(d){
+      return { d: d, w: String(fhStripTitle(d.certName || '')).split(' ').filter(Boolean) };
+    });
+    rows.forEach(function(a){
+      if (!a.w.length) return;
+      for (var i = 0; i < rows.length; i++) {
+        var b = rows[i];
+        /* ยาวกว่าจริงเท่านั้น — ชื่อยาวเท่ากันคือใบซ้ำธรรมดา ให้ตัวตัดด้วยกุญแจจัดการไป */
+        if (b === a || b.w.length <= a.w.length) continue;
+        if (b.w.slice(b.w.length - a.w.length).join(' ') === a.w.join(' ')) { a.d._frag = true; break; }
+      }
+    });
+  });
+  var out = list.filter(function(d){ return !d._frag; });
+  list.forEach(function(d){ delete d._frag; });
+  return out;
+}
+
 function dedupCertificateRegistry() {
   customConfirm({
     icon: ICON_TRASH,
     title: 'ลบใบรับรองที่ซ้ำกัน?',
-    desc: 'เทียบจาก <b>ชื่อ + วันหมดอายุ</b> · ระบบจะเก็บไว้ 1 แถวต่อใบที่ซ้ำ',
+    desc: 'เทียบจาก <b>ชื่อ + หลักสูตร + วันหมดอายุ</b> · เก็บไว้ 1 แถวต่อใบ<br>และตัดใบเก่าที่<b>ชื่อขาดคำหน้า</b>ออก ถ้ามีใบของคนเดียวกันรุ่นเดียวกันที่ชื่อครบอยู่แล้ว',
     okText: 'ลบเลย',
     okIsPrimary: true
   }).then(function(ok){
@@ -496,7 +529,11 @@ function dedupCertificateRegistry() {
       if (seen[k]) { removed++; return; }
       seen[k] = 1; keep.push(d);
     });
-    if (!removed) { showInfo('ไม่มีใบซ้ำ', 'ตรวจ ' + md.length + ' ใบแล้ว ไม่พบใบที่ซ้ำกัน'); return; }
+    /* ตัดใบที่ชื่อขาดคำหน้าต่อ — ตัวตัดด้วยกุญแจข้างบนจับไม่ได้ เพราะชื่อไม่ตรงกัน */
+    var beforeFrag = keep.length;
+    keep = _fhDropNameFragments(keep);
+    var frag = beforeFrag - keep.length;
+    if (!removed && !frag) { showInfo('ไม่มีใบซ้ำ', 'ตรวจ ' + md.length + ' ใบแล้ว ไม่พบใบที่ซ้ำกัน'); return; }
     showLoadingOverlay('กำลังลบใบซ้ำ...', '');
     matchData = keep;
     matchData.forEach(function(d, i){ d.no = i + 1; });
@@ -506,7 +543,9 @@ function dedupCertificateRegistry() {
     .then(function(res){
       hideLoadingOverlay();
       if (res && res.ok) {
-        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>' + keep.length + '</b> ใบ (ลบ ' + removed + ' ใบซ้ำ)');
+        showInfo('✓ ลบสำเร็จ', 'เหลือ <b>' + keep.length + '</b> ใบ'
+          + (removed ? '<br>ลบใบซ้ำ ' + removed + ' ใบ' : '')
+          + (frag ? '<br>ลบใบที่ชื่อขาดคำหน้า ' + frag + ' ใบ' : ''));
       } else {
         showInfo('✗ ลบไม่สำเร็จ', escapeHtml((res && res.error) || 'unknown'));
       }
