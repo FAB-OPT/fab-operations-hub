@@ -712,25 +712,33 @@ function _renderAdminReqCountBar(rows) {
   var pct = function(n) { return total > 0 ? (Math.round(n / total * 1000) / 10) + '%' : ''; };
   /* การ์ดสรุปยอด = แสดงผลอย่างเดียว ไม่ให้กดแล้ว
      เดิมกดเพื่อกรองหลักสูตรได้ ซึ่งซ้ำกับดรอปดาวน์หลักสูตร และกดโดนโดยไม่ตั้งใจบ่อย
-     ยังคงไฮไลต์ .active ไว้ เพื่อบอกว่าตอนนี้กำลังกรองหลักสูตรไหนอยู่ */
-  var html = '<div class="req-count-card rcc-gold'+(active==='all'?' active':'')+'">'
-    + '<div class="req-count-card-label">📋 รวมทั้งหมด</div>'
-    + '<div class="req-count-card-num-row">'
-    +   '<div class="req-count-card-num">'+total+'</div>'
-    +   '<div class="req-count-card-pct">100%</div>'
-    + '</div>'
-    + '</div>';
-  keys.forEach(function(c, i){
-    var color = palette[i % palette.length];
-    var isActive = (c === active);
-    var enc = encodeURIComponent(c);
-    html += '<div class="req-count-card '+color+(isActive?' active':'')+'" title="'+escapeAttr(c)+'">'
-      + '<div class="req-count-card-label">📚 '+escapeHtml(c)+'</div>'
+     ยังคงไฮไลต์ .active ไว้ เพื่อบอกว่าตอนนี้กำลังกรองหลักสูตรไหนอยู่
+
+     ชื่อหลักสูตรใช้ตัวย่อ ("ผู้สัมผัสอาหาร") ชื่อเต็มอยู่ใน tooltip
+     ของเดิมใส่ชื่อเต็มซึ่งยาวเกินการ์ดแล้วถูกตัดด้วย ... ทุกใบ อ่านไม่รู้เรื่องทั้งแถว */
+  var card = function(cls, label, full, n, share, segs) {
+    return '<div class="req-count-card ' + cls + '"' + (full ? ' title="' + escapeAttr(full) + '"' : '') + '>'
+      + '<div class="req-count-card-label"><span class="req-count-dot"></span>' + escapeHtml(label) + '</div>'
       + '<div class="req-count-card-num-row">'
-      +   '<div class="req-count-card-num">'+groups[c]+'</div>'
-      +   '<div class="req-count-card-pct">'+pct(groups[c])+'</div>'
+      +   '<div class="req-count-card-num">' + n + '</div>'
+      +   '<div class="req-count-card-' + (share === null ? 'unit' : 'pct') + '">'
+      +     (share === null ? 'รายชื่อ' : pct(n))
+      +   '</div>'
       + '</div>'
+      /* แถบสัดส่วนมีทุกใบ รวมทั้งหมดเต็มแถบ
+         ไม่งั้นการ์ดแรกจะเตี้ยกว่าเพื่อนอยู่แถวเดียวกัน */
+      + '<div class="req-count-share">' + (segs || '<i style="width:' + (total > 0 ? (n / total * 100) : 0) + '%"></i>') + '</div>'
       + '</div>';
+  };
+  /* แถบของการ์ดรวม = สัดส่วนของทุกหลักสูตรต่อกัน
+     เดิมทำเป็นแถบสีเดียวเต็มความยาว ซึ่งซ้ำกับเส้นด้านบนตอนถูกเลือก และไม่ได้บอกอะไรเพิ่ม */
+  var segs = keys.map(function(c, i){
+    return '<i class="' + palette[i % palette.length] + '" style="width:' + (total > 0 ? (groups[c] / total * 100) : 0) + '%"></i>';
+  }).join('');
+  var html = card('rcc-gold' + (active === 'all' ? ' active' : ''), 'รวมทั้งหมด', '', total, null, segs);
+  keys.forEach(function(c, i){
+    html += card(palette[i % palette.length] + (c === active ? ' active' : ''),
+                 _courseShort(c), c, groups[c], true);
   });
   bar.innerHTML = html;
 }
