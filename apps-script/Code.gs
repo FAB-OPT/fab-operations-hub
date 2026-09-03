@@ -1105,7 +1105,14 @@ function getFqaRecords(brand, since) {
     if (since && rec.updatedAt && String(rec.updatedAt) <= String(since)) return;
     records.push(rec);
   });
-  return { ok: true, records: records, deleted: all.deleted, now: all.now };
+  /* now = หมุดเวลาของข้อมูล (เวลาที่อ่านชีต) — มาจากแคชได้ จึงเก่าได้ถึง 1 ชม.
+     serverNow = เวลาจริงของเซิร์ฟเวอร์ตอนนี้ คิดใหม่ทุกครั้งไม่ผ่านแคช
+     สองค่านี้ใช้คนละงาน หน้าเว็บเอา now ไปเป็นหมุดซิงค์
+     และเอา serverNow ไปเทียบว่านาฬิกาเครื่องตรงไหม
+     ก่อนหน้านี้มีแต่ now แล้วเอาไปทำทั้งสองอย่าง เครื่องที่เจอแคชอายุ 55 นาที
+     จึงถูกเตือนว่า "นาฬิกาคลาด 55 นาที" ทั้งที่เวลาเครื่องตรงเป๊ะ */
+  return { ok: true, records: records, deleted: all.deleted, now: all.now,
+           serverNow: new Date().toISOString() };
 }
 
 function _fqaToRow(rec, headers) {
