@@ -3245,7 +3245,13 @@ const Rec = {
     document.getElementById('recCount').innerHTML =
       `รายการตรวจ (${list.length} รายการ)` + _scopeNote;
     const host=document.getElementById('recTable');
-    if(!list.length){ host.innerHTML=`<div class="empty"><div class="big">▤</div><h4>ยังไม่มีรายการตรวจ</h4><p>เริ่มบันทึกได้จากเมนู “ฟอร์ม FQA” ทางซ้าย</p></div>`; return; }
+    if(!list.length){
+      /* ชี้ไปที่เมนูที่แบรนด์นี้มีจริง — ของเดิมเขียน "ฟอร์ม FQA" ตายตัว
+         ซานตาเฟ่ที่ใช้แค่ Visit จึงถูกบอกให้ไปกดเมนูที่ไม่มีอยู่ในหน้าจอ */
+      const _only = Brand.only();
+      const _menu = _only ? TYPE_LABEL[_only] : 'ฟอร์ม FQA';
+      host.innerHTML=`<div class="empty"><div class="big">▤</div><h4>ยังไม่มีรายการตรวจ</h4><p>เริ่มบันทึกได้จากเมนู “${esc(_menu)}” ทางซ้าย</p></div>`; return;
+    }
     if(Mobile.on()){ host.innerHTML=this.cardList(list); return; }
     host.innerHTML=`<table class="tb"><thead><tr>
       <th>วันที่</th><th>ประเภท</th><th>สาขา</th><th>สรุปสิ่งที่พบ</th><th>ไม่ผ่าน</th><th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
@@ -4244,7 +4250,11 @@ const Coverage = {
 
 const Plan = {
   view:'cal', calMonth: todayISO().slice(0,7),
-  selBzm:'', draft:[], pDate: todayISO(), pTrainer:'', pType:'FQA',
+  /* ชนิดแผนตั้งต้น — เดิมฝัง 'FQA' ไว้ตายตัว แบรนด์ที่ไม่ได้ใช้ FQA (ซานตาเฟ่)
+     จะสร้างแผนเป็นชนิด FQA โดยไม่รู้ตัว แล้วแผนนั้นจะไม่มีวันถูกนับว่าตรวจแล้ว
+     เพราะใบที่บันทึกจริงเป็นชนิด Visit ทั้งหมด — ตั้งจากฟอร์มที่แบรนด์ใช้จริงแทน */
+  selBzm:'', draft:[], pDate: todayISO(), pTrainer:'',
+  pType: (Brand.info().forms[0] || 'FQA'),
   fMonth:'', fType:'',
 
   /* เปิดหน้าแผน — ถ้าเดือนที่ปฏิทินเปิดอยู่ไม่มีแผน แต่มีแผนเดือนอื่น → เด้งไปเดือนที่มีแผนใกล้ปัจจุบันสุด */
@@ -4269,9 +4279,14 @@ const Plan = {
     document.getElementById('v-plan').innerHTML=`
       <div class="kpis">
         <div class="kpi nu"><div class="k">แผนทั้งหมด</div><div class="v">${all.length}<small>แผน</small></div></div>
-        <div class="kpi"><div class="k">FQA</div><div class="v" style="color:${PLAN_TYPE_COLOR.FQA}">${bt.FQA}</div></div>
-        <div class="kpi"><div class="k">Complaint</div><div class="v" style="color:${PLAN_TYPE_COLOR.FSQ}">${bt.FSQ}</div></div>
-        <div class="kpi"><div class="k">Visit</div><div class="v" style="color:${PLAN_TYPE_COLOR.VISIT}">${bt.VISIT}</div></div>
+        ${/* แยกยอดตามชนิดฟอร์มเฉพาะฟอร์มที่แบรนด์นี้ใช้จริง
+             แบรนด์ที่ใช้ฟอร์มเดียวก็ไม่ต้องแยก เพราะยอดจะเท่ากับ "แผนทั้งหมด" ทุกใบ */
+          Brand.info().forms.length > 1
+          ? [['FQA','FQA','FQA'],['FSQ','Complaint','FSQ'],['VISIT','Visit','VISIT']]
+              .filter(t=>Brand.has(t[0]))
+              .map(t=>`<div class="kpi"><div class="k">${t[1]}</div><div class="v" style="color:${PLAN_TYPE_COLOR[t[2]]}">${bt[t[2]]}</div></div>`)
+              .join('')
+          : ''}
       </div>
 
       <div class="card">
@@ -4283,7 +4298,7 @@ const Plan = {
             <div class="fld"><label class="lbl">สาขา</label>
               <select class="inp" id="plBranch"><option value="">— เลือกสาขา —</option>${branchList.map(b=>`<option>${esc(b.name)}</option>`).join('')}</select></div>
             <div class="fld"><label class="lbl">ประเภทการตรวจ</label>
-              <select class="inp" onchange="Plan.pType=this.value">${Object.keys(PLAN_TYPE).map(t=>`<option value="${t}" ${t===this.pType?'selected':''}>${PLAN_TYPE[t]}</option>`).join('')}</select></div>
+              <select class="inp" onchange="Plan.pType=this.value">${Object.keys(PLAN_TYPE).filter(t=>Brand.has(t)).map(t=>`<option value="${t}" ${t===this.pType?'selected':''}>${PLAN_TYPE[t]}</option>`).join('')}</select></div>
             <div class="fld"><label class="lbl">วันที่นัดตรวจ</label><input type="date" class="inp" id="plDate" value="${attr(this.pDate)}" onchange="Plan.pDate=this.value"></div>
           </div>
           <div style="margin-top:12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
