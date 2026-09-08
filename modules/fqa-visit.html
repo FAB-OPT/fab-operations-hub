@@ -264,12 +264,20 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
   .sta-rows{margin-left:0}.sta-sub{margin-left:0}
   /* มือถือ: ปุ่มให้คะแนนกินเต็มแถวและสูงพอให้นิ้วโป้งกดไม่พลาด
      ของเดิมปุ่มสูงราว 30px วางเรียงกันสามปุ่ม กดผิดง่ายตอนถือมือถือยืนตรวจ */
-  .sta-row{grid-template-columns:1fr auto;gap:8px;padding:11px 12px}
+  .sta-item{padding:12px 0 10px}
+  .sta-rows{margin-top:8px;border-radius:10px}
+  .sta-row{grid-template-columns:1fr auto;gap:6px;padding:9px 10px}
+  .sta-row .who{font-size:13px}
   .sta-row .max{text-align:right}
   .sta-mk{grid-column:1 / -1;display:grid;grid-template-columns:repeat(3,1fr)}
-  .sta-mk button{min-height:46px;padding:0 8px;font-size:13.5px}
+  .sta-mk button{min-height:44px;padding:0 8px;font-size:13.5px}
   .sta-row .note{grid-column:1 / -1}
-  .sta-row .note input{font-size:16px;padding:10px 12px}
+  .sta-row .note input{font-size:16px;padding:8px 11px}
+  /* จอมือถือแคบ ทุกแถวจึงกินสามชั้น (ชื่อส่วนงาน · ปุ่ม · ช่องบันทึก)
+     ช่องบันทึกส่วนใหญ่ปล่อยว่าง แต่กินที่เท่ากับปุ่มทั้งแถว
+     เก็บไว้ก่อน แล้วโผล่ตอนตอบข้อนั้น ซึ่งเป็นจังหวะที่ได้ใช้จริง
+     แถวที่พิมพ์บันทึกไว้แล้วไม่ซ่อน (ติดคลาส hasnote) ของที่พิมพ์ไปจะได้ไม่หาย */
+  .sta-row:not(.ok):not(.bad):not(.hasnote) .note{display:none}
   .sta-naz{grid-column:1 / -1}
   .sta-chip{padding:8px 14px;font-size:12.5px}
   .sta-rail .sta-chip:not(.next):not(.rest){display:none}
@@ -3475,7 +3483,7 @@ const Form = {
             if(p.na) return `<div class="sta-row${pi%2?" z":""}"><span class="who">${esc(p.who||"")}</span>
               <span class="sta-naz">ไม่คิดคะแนน (N/A ตามเกณฑ์)</span></div>`;
             const cur=s.marks[key]||"";
-            const cls=(cur==="fail"?" bad":cur?" ok":"")+(pi%2?" z":"");
+            const cls=(cur==="fail"?" bad":cur?" ok":"")+((s.notes[key]||"").trim()?" hasnote":"")+(pi%2?" z":"");
             /* ช่องแรกที่ยังไม่ตอบได้ป้ายไว้ ปุ่มบนแถบคุมงานจะได้พามาที่นี่ */
             const isNext=nextUn && nextUn.key===key;
             const ph=cur==="fail"? "สิ่งที่พบ / ต้องแก้อะไร" : (p.hint||"บันทึกเพิ่มเติม");
