@@ -1313,6 +1313,7 @@ function renderPeople(){
         <div class="pickfile">
           <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readPeopleFile(this)">
           <button class="btn btn-secondary" onclick="document.getElementById('impFile').click()">เลือกไฟล์ Excel หรือ CSV</button>
+          <button class="btn btn-secondary" onclick="downloadPeopleTemplate()">โหลดไฟล์ตัวอย่าง</button>
           <span class="fname" id="impFileName">ไฟล์ที่มีหัวตาราง ชื่อ / สาขา / ระดับ / หน้างาน ก็อ่านได้ ไม่ต้องเรียงให้ตรง</span>
         </div>
         <div class="orline">หรือคัดลอกมาวางตรงนี้</div>
@@ -1482,6 +1483,28 @@ function ofMapCols(row){
   });
   return (idx.name >= 0 && idx.branch >= 0) ? idx : null;
 }
+
+/* ไฟล์ตัวอย่างที่โหลดไป กรอกทับแล้วส่งกลับเข้ามาได้เลย
+   หัวตารางตรงกับที่ตัวอ่านรู้จัก คนกรอกจึงไม่ต้องเดาว่าคอลัมน์ไหนคืออะไร
+   แถวตัวอย่างสองแถวใส่ไว้ให้เห็นว่าระดับกับหน้างานเขียนแบบไหนก็ได้ */
+window.downloadPeopleTemplate = async function(){
+  try {
+    await loadXLSX();
+    const rows = [
+      ['ชื่อ-นามสกุล', 'สาขา', 'ระดับ', 'หน้างาน'],
+      ['สมหญิง ตั้งใจ', 'สามย่าน', 'ซิลเวอร์', 'บริการ'],
+      ['อนันต์ พากเพียร', 'สามย่าน', 'gold', 'kitchen']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch:26 }, { wch:22 }, { wch:12 }, { wch:12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'รายชื่อ');
+    XLSX.writeFile(wb, 'ฟอร์มรายชื่อผู้ถูกประเมิน.xlsx');
+    msg('โหลดไฟล์ตัวอย่างแล้ว กรอกทับสองแถวตัวอย่างได้เลย แล้วแนบกลับเข้ามา');
+  } catch (e) {
+    msg('สร้างไฟล์ตัวอย่างไม่สำเร็จ — ' + esc(e.message||String(e)), 'err');
+  }
+};
 
 window.readPeopleFile = async function(el){
   const file = el.files && el.files[0];
