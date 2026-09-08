@@ -195,6 +195,14 @@ summary{font-weight:700;cursor:pointer}
 .bulk[open] summary{border-bottom:1px solid var(--line);color:var(--ink)}
 .bulk-body{padding:16px 18px 18px}
 .bulk-body .sub{margin-bottom:12px}
+/* เลือกไฟล์ได้ หรือจะคัดลอกมาวางแบบเดิมก็ได้ ทางไหนก็ลงช่องเดียวกัน
+   ไฟล์ที่อ่านแล้วจะถูกกางออกมาให้ตรวจก่อน ไม่ยิงเข้าฐานข้อมูลทันที
+   เพราะรายชื่อผิดหนึ่งบรรทัดแปลว่ามีคนถูกประเมินผิดคน */
+.pickfile{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.pickfile .fname{font-size:13px;color:var(--muted);min-width:0;flex:1 1 220px}
+.pickfile .fname b{color:var(--ink)}
+.orline{display:flex;align-items:center;gap:10px;margin:0 0 10px;color:var(--muted);font-size:12.5px}
+.orline::before,.orline::after{content:"";flex:1;height:1px;background:var(--line)}
 
 /* ── ตัวเลือกในตัวแก้ไขฟอร์ม — แทนที่ช่อง JSON เดิม ── */
 .when-row{display:grid;grid-template-columns:1fr 1fr;gap:11px;margin-bottom:11px}
@@ -1298,9 +1306,16 @@ function renderPeople(){
     <details class="bulk">
       <summary>นำเข้าหลายคนพร้อมกันจาก Excel</summary>
       <div class="bulk-body">
-        <p class="sub">คัดลอกจาก Excel มาวางได้เลย บรรทัดละ 1 คน คั่นด้วยจุลภาค ( , ) หรือ Tab<br>
-          รูปแบบ <b>ชื่อ–นามสกุล, สาขา, ระดับ, หน้างาน</b> — ระดับใส่ silver หรือ gold · หน้างานใส่ service หรือ kitchen<br>
+        <p class="sub">แนบไฟล์ Excel/CSV หรือคัดลอกมาวางก็ได้ บรรทัดละ 1 คน คั่นด้วยจุลภาค ( , ) หรือ Tab<br>
+          รูปแบบ <b>ชื่อ–นามสกุล, สาขา, ระดับ, หน้างาน</b> — ระดับใส่ silver/gold หรือ ซิลเวอร์/โกลด์ ·
+          หน้างานใส่ service/kitchen หรือ บริการ/ครัว<br>
           สองช่องท้ายเว้นว่างได้ · ชื่อซ้ำในสาขาเดิมจะถูกอัปเดตทับ ไม่สร้างซ้ำ</p>
+        <div class="pickfile">
+          <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readPeopleFile(this)">
+          <button class="btn btn-secondary" onclick="document.getElementById('impFile').click()">เลือกไฟล์ Excel หรือ CSV</button>
+          <span class="fname" id="impFileName">ไฟล์ที่มีหัวตาราง ชื่อ / สาขา / ระดับ / หน้างาน ก็อ่านได้ ไม่ต้องเรียงให้ตรง</span>
+        </div>
+        <div class="orline">หรือคัดลอกมาวางตรงนี้</div>
         <textarea id="impText" class="code" placeholder="สมหญิง ตั้งใจ, สามย่าน, silver, service&#10;อนันต์ พากเพียร, สามย่าน, gold, kitchen"></textarea>
         <div class="row-btns" style="margin-top:12px">
           <button class="btn btn-secondary" onclick="importPeople()">นำเข้ารายชื่อ</button>
@@ -1424,6 +1439,88 @@ window.savePerson = async function(id){
   await loadPeople(); renderPeople();
 };
 
+/* ไฟล์ที่ส่งกันจริงเขียนเป็นไทยบ้างอังกฤษบ้าง แปลงให้เป็นค่าเดียวที่ฐานข้อมูลใช้
+   ถ้าแปลงไม่ออกคืนค่าเดิมกลับไป ตัวตรวจข้างล่างจะได้ฟ้องว่าบรรทัดไหนผิด
+   ไม่ใช่เงียบ ๆ แล้วบันทึกค่าว่างทับของที่ผู้ใช้ตั้งใจกรอก */
+const OF_LEVEL   = { silver:'silver', 'ซิลเวอร์':'silver', 'เงิน':'silver',
+                     gold:'gold', 'โกลด์':'gold', 'โกล์ด':'gold', 'ทอง':'gold' };
+const OF_STATION = { service:'service', 'บริการ':'service', 'เสิร์ฟ':'service', 'หน้าร้าน':'service',
+                     kitchen:'kitchen', 'ครัว':'kitchen', 'หลังร้าน':'kitchen' };
+function ofPick(map, v){
+  const t = String(v==null?'':v).trim();
+  if (!t || t === '-' || t === 'ไม่ระบุ') return '';
+  return map[t.toLowerCase()] || map[t] || t;
+}
+const ofLevel   = v => ofPick(OF_LEVEL, v);
+const ofStation = v => ofPick(OF_STATION, v);
+
+/* โหลดตัวอ่าน Excel ตอนที่มีคนเลือกไฟล์จริง ไม่ถ่วงเวลาเปิดหน้าของทุกคน */
+let xlsxLoading = null;
+function loadXLSX(){
+  if (window.XLSX) return Promise.resolve();
+  if (!xlsxLoading) xlsxLoading = new Promise((ok, fail) => {
+    const el = document.createElement('script');
+    el.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    el.onload = () => ok();
+    el.onerror = () => { xlsxLoading = null; fail(new Error('โหลดตัวอ่านไฟล์ไม่สำเร็จ')); };
+    document.head.appendChild(el);
+  });
+  return xlsxLoading;
+}
+
+/* หัวตารางในไฟล์จริงไม่เคยเรียงเหมือนกัน อ่านจากชื่อหัวคอลัมน์ก่อน
+   ไม่มีหัวตารางค่อยถือตามลำดับ ชื่อ สาขา ระดับ หน้างาน */
+function ofMapCols(row){
+  const key = t => String(t==null?'':t).trim().toLowerCase().replace(/[\s_–-]/g,'');
+  const idx = { name:-1, branch:-1, level:-1, station:-1 };
+  row.forEach((cell, i) => {
+    const k = key(cell);
+    if (idx.name    < 0 && /^(ชื่อ|ชื่อนามสกุล|ชื่อสกุล|name|fullname)$/.test(k))    idx.name = i;
+    if (idx.branch  < 0 && /^(สาขา|branch|store)$/.test(k))                          idx.branch = i;
+    if (idx.level   < 0 && /^(ระดับ|level|grade)$/.test(k))                          idx.level = i;
+    if (idx.station < 0 && /^(หน้างาน|ตำแหน่ง|station|position)$/.test(k))            idx.station = i;
+  });
+  return (idx.name >= 0 && idx.branch >= 0) ? idx : null;
+}
+
+window.readPeopleFile = async function(el){
+  const file = el.files && el.files[0];
+  el.value = '';   /* เลือกไฟล์เดิมซ้ำได้ */
+  if (!file) return;
+  const nameEl = $('#impFileName');
+  nameEl.innerHTML = 'กำลังอ่าน <b>' + esc(file.name) + '</b> …';
+  try {
+    await loadXLSX();
+    const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    if (!ws) throw new Error('ไฟล์นี้ไม่มีชีตข้อมูล');
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', blankrows:false });
+    if (!rows.length) throw new Error('ไฟล์นี้ว่าง ไม่มีข้อมูลให้อ่าน');
+
+    const map = ofMapCols(rows[0]);
+    const body = map ? rows.slice(1) : rows;
+    const col = map || { name:0, branch:1, level:2, station:3 };
+    const lines = [], skipped = [];
+    body.forEach((r, i) => {
+      const cell = j => (j >= 0 && r[j] != null) ? String(r[j]).trim() : '';
+      const name = cell(col.name), branch = cell(col.branch);
+      if (!name && !branch) return;                    /* บรรทัดว่างคั่นกลาง ข้ามเงียบ ๆ */
+      if (!name || !branch){ skipped.push('แถว ' + (i + (map?2:1)) + ': ' + (name ? 'ไม่มีสาขา' : 'ไม่มีชื่อ')); return; }
+      lines.push([name, branch, ofLevel(cell(col.level)), ofStation(cell(col.station))].join(', ').replace(/(,\s*)+$/, ''));
+    });
+    if (!lines.length) throw new Error('อ่านไฟล์ได้ แต่ไม่เจอรายชื่อสักคน');
+
+    $('#impText').value = lines.join('\n');
+    nameEl.innerHTML = 'อ่าน <b>' + esc(file.name) + '</b> ได้ <b>' + lines.length + '</b> คน' +
+      (map ? ' (อ่านจากหัวตาราง)' : ' (ไม่มีหัวตาราง ถือตามลำดับคอลัมน์)') +
+      ' — ตรวจข้างล่างแล้วกด “นำเข้ารายชื่อ”';
+    if (skipped.length) msg('ข้ามไป ' + skipped.length + ' แถวที่ข้อมูลไม่ครบ<br>' + skipped.slice(0,8).map(esc).join('<br>'), 'err');
+  } catch (e) {
+    nameEl.textContent = 'อ่านไฟล์ไม่สำเร็จ';
+    msg('อ่านไฟล์ไม่สำเร็จ — ' + esc(e.message||String(e)), 'err');
+  }
+};
+
 window.importPeople = async function(){
   const lines = $('#impText').value.split('\n').map(l => l.trim()).filter(Boolean);
   if (!lines.length) return msg('ยังไม่ได้วางรายชื่อ', 'err');
@@ -1432,7 +1529,7 @@ window.importPeople = async function(){
     const c = line.split(/\t|,/).map(x => x.trim());
     if (!c[0]) return bad.push(`บรรทัด ${i+1}: ไม่มีชื่อ`);
     if (!c[1]) return bad.push(`บรรทัด ${i+1}: ไม่มีสาขา`);
-    const level = (c[2]||'').toLowerCase(), station = (c[3]||'').toLowerCase();
+    const level = ofLevel(c[2]), station = ofStation(c[3]);
     if (level && !['silver','gold'].includes(level))         return bad.push(`บรรทัด ${i+1}: ระดับต้องเป็น silver หรือ gold (ได้ "${c[2]}")`);
     if (station && !['service','kitchen'].includes(station)) return bad.push(`บรรทัด ${i+1}: หน้างานต้องเป็น service หรือ kitchen (ได้ "${c[3]}")`);
     out.push({ name:c[0], branch:c[1], level, station, active:true });
