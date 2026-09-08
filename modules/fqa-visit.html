@@ -158,8 +158,8 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 /* แถบคุมงานติดหัวจอ
    เดิมยึด top:8px ซึ่งเป็นตำแหน่งใต้ขอบจอ แต่หัวเพจก็ค้างอยู่เหมือนกันและทับสูงกว่า
    พอเลื่อนลงแถบคะแนนจึงมุดหายไปใต้หัวเพจ ตอนนี้ยึดกับความสูงจริงของหัวเพจแทน */
-.sta-bar{position:sticky;top:calc(var(--top-h,76px) + 8px);z-index:6;margin:0 0 16px;
-  padding:13px 16px 12px;border-radius:14px;
+.sta-bar{position:sticky;top:var(--top-h,76px);z-index:6;margin:0 0 16px;
+  padding:13px 16px 12px;border-radius:0 0 14px 14px;
   border:1px solid var(--border);background:var(--surface);box-shadow:0 8px 22px rgba(15,23,42,.09)}
 /* ช่องว่าง 8px เหนือแถบ ทำให้มองเห็นเนื้อหาไหลผ่านตอนเลื่อน เหมือนจอมีรอยแยก
    ปิดด้วยแผ่นสีพื้นหลัง วางไว้ใต้ตัวแถบแต่ยังอยู่เหนือเนื้อหาที่เลื่อนอยู่
@@ -3022,13 +3022,22 @@ function staSectionScore(rec, sec){
 }
 /* เลขสวย ๆ — 2.5 ให้เห็น 2.5 แต่ 5.0 ให้เห็น 5 */
 const staNum = n => (Math.round(n*10)/10).toString();
-/* วัดความสูงจริงของหัวเพจ ส่งให้ CSS ใช้วางแถบคะแนนให้พอดีใต้หัว
-   ความสูงไม่คงที่ เพราะบนมือถือปุ่มจะตกลงมาอีกบรรทัด */
+/* วัดความสูงจริงของหัวเพจ ส่งให้ CSS ใช้วางแถบคะแนนให้ชิดใต้หัวพอดี
+
+   ความสูงไม่คงที่ ปุ่มฟอร์มถูกใส่เข้าไปหลังวาดฟอร์มเสร็จ ฟอนต์โหลดตามมาทีหลัง
+   และบนจอแคบปุ่มจะตกลงไปอีกบรรทัด วัดครั้งเดียวจึงได้ค่าเก่า
+   แล้วแถบคะแนนจะไปมุดใต้หัวเพจ จึงเฝ้าดูขนาดจริงตลอด */
 function syncTopH(){
   const t=document.querySelector(".top");
   if(t) document.documentElement.style.setProperty("--top-h", t.offsetHeight+"px");
 }
+function watchTopH(){
+  syncTopH();
+  const t=document.querySelector(".top");
+  if(t && window.ResizeObserver) new ResizeObserver(syncTopH).observe(t);
+}
 addEventListener("resize", syncTopH);
+if(document.readyState==="loading") addEventListener("DOMContentLoaded", watchTopH); else watchTopH();
 
 const Form = {
   drafts:{}, type:null, pendingEdit:null, editing:false,
