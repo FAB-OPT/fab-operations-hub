@@ -3,7 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Visit สาขา — ร้านส้มตำเจ๊แดง</title>
+<title>รายงานการตรวจสาขา — FAB Operations</title>
+<meta name="description" content="ระบบตรวจสาขา FAB Group — เปิดลิงก์เพื่อดูใบตรวจฉบับเต็ม">
+<meta property="og:title" content="รายงานการตรวจสาขา — FAB Operations">
+<meta property="og:description" content="เปิดลิงก์เพื่อดูใบตรวจฉบับเต็ม">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -575,9 +578,10 @@ body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยก
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
 }
 .pdfdoc h1{font-size:21px;font-weight:800;color:#111;letter-spacing:normal;margin:2px 0 0}
-.pdfdoc h2{font-size:13.5px;font-weight:800;color:#111;letter-spacing:normal;margin:0 0 7px;padding-bottom:5px;border-bottom:1.5px solid #D6142B}
+.pdfdoc h2{font-size:13.5px;font-weight:800;color:#111;letter-spacing:normal;margin:0 0 7px;padding-bottom:5px;border-bottom:1.5px solid var(--accent)}
 .pdfhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111;padding-bottom:11px;margin-bottom:15px}
-.pdfbrand{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:#D6142B}
+/* สีตามแบรนด์ ไม่ใช่แดงตายตัว ใบของซานตาเฟ่เคยขึ้นหัวสีแดงของเจ๊แดง */
+.pdfbrand{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent)}
 .pdfsub{font-size:12.5px;color:#555;margin-top:3px}
 .pdfstamp{font-size:10.5px;color:#777;text-align:right;line-height:1.6;white-space:nowrap}
 .pdfsec{margin-bottom:15px}
@@ -595,7 +599,7 @@ table.pdftb tr{page-break-inside:avoid}
 .pd-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
 .pd-pill.ok{background:#ECFDF3;color:#16A34A} .pd-pill.no{background:#FEF2F2;color:#DC2626} .pd-pill.na{background:#EEE;color:#666}
 .pdfstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.pdfstats div{border:1px solid #E5E5E5;border-left:3px solid #D6142B;border-radius:7px;padding:9px 12px;font-size:10.5px;color:#777}
+.pdfstats div{border:1px solid #E5E5E5;border-left:3px solid var(--accent);border-radius:7px;padding:9px 12px;font-size:10.5px;color:#777}
 .pdfstats b{display:block;font-size:19px;font-weight:800;color:#111;line-height:1.1}
 .pdfphotos{display:grid;grid-template-columns:repeat(2,1fr);gap:13px}
 .pdfphotos figure{margin:0;border:1px solid #E5E5E5;border-radius:8px;overflow:hidden;page-break-inside:avoid}
@@ -612,6 +616,9 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfinfo .pi-badge{font-size:11px;font-weight:800;padding:5px 13px;border-radius:999px;white-space:nowrap}
 .pdfinfo .pi-badge.ok{background:#ECFDF3;color:#16A34A;border:1px solid #B7EBC6}
 .pdfinfo .pi-badge.no{background:#FEF2F2;color:#DC2626;border:1px solid #F6C9C9}
+/* ตรวจยังไม่ครบ = ยังตัดสินไม่ได้ ต้องไม่ใช่สีเขียวและไม่ใช่สีแดง */
+.pdfinfo .pi-badge.wait{background:#F4F4F5;color:#6B7280;border:1px solid #E0E2E5}
+.pdfinfo .pi-badge small{display:block;font-weight:600;opacity:.85;font-size:10px;letter-spacing:0}
 .pi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
 .pdfinfo .pi-grid{padding:13px 15px}
 .pi-grid .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
@@ -2944,6 +2951,23 @@ const NS_SCORES = [['1','1 = ยังทำไม่ได้ตามมาต
    max = คะแนนเต็มของส่วนนั้น · na:true = ไม่คิดคะแนน (ในไฟล์ต้นฉบับกำหนดไว้แบบนั้น)
    hint = ข้อความที่ผู้ตรวจต้องจดเพิ่ม เช่น ชื่อคน เดือน จำนวนเล่ม ══════════ */
 const STA_CODE = 'FM-OPT(TR)-014';
+
+/* เกณฑ์ผ่านมาตรฐานของ Store Training Audit
+   ในตัวแบบฟอร์ม FM-OPT(TR)-014 ไม่ได้เขียนเกณฑ์ไว้ ตั้งไว้ที่ 80% ก่อน
+   ถ้าเกณฑ์จริงเป็นเลขอื่นให้แก้ที่บรรทัดนี้บรรทัดเดียว ทุกที่ที่แสดงผลจะตามมาเอง
+   และเลขเกณฑ์จะถูกพิมพ์ไว้ในรายงานเสมอ คนอ่านจะได้รู้ว่าตัดสินจากอะไร */
+const STA_PASS_PCT = 80;
+
+/* ตัดสินผลของใบตรวจหนึ่งใบ
+   ตอบไม่ครบทุกช่อง = ยังตัดสินไม่ได้ ไม่ใช่ผ่านหรือไม่ผ่าน
+   เพราะเปอร์เซ็นต์ตอนนั้นคิดจากเฉพาะช่องที่ตอบแล้ว ประกาศว่าผ่านไปก่อนจึงหลอกตัวเอง */
+function staVerdict(rec){
+  const sc = staScore(rec);
+  if(sc.done < sc.all) return { state:'wait', text:'ตรวจยังไม่ครบ', note:'ตอบแล้ว '+sc.done+'/'+sc.all+' ช่อง', sc:sc };
+  return sc.pct >= STA_PASS_PCT
+    ? { state:'ok', text:'ผ่านมาตรฐาน',    note:'เกณฑ์ '+STA_PASS_PCT+'% ขึ้นไป', sc:sc }
+    : { state:'no', text:'ไม่ผ่านมาตรฐาน', note:'เกณฑ์ '+STA_PASS_PCT+'% ขึ้นไป', sc:sc };
+}
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
 const STA_FORM = [
   { key:'A', name:'CAREER PATH & COACHING', group:'การสอนงาน', items:[
@@ -5418,7 +5442,7 @@ const PDF = {
     return `<div class="pdfpage">
       <div class="pdfhead">
         <div>
-          <div class="pdfbrand">FAB Operations · Visit สาขา</div>
+          <div class="pdfbrand">FAB Operations · Visit สาขา · ${esc(Brand.info().name)}</div>
           <h1>${esc(title)}</h1>
           ${sub? `<div class="pdfsub">${esc(sub)}</div>`:''}
         </div>
@@ -5500,7 +5524,16 @@ const PDF = {
 
     /* ---- กล่องข้อมูลการตรวจ ---- */
     const fails=failCount(r);
-    const badge = r.type==='FQA' ? (fails? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>` : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`) : '';
+    /* หัวใบต้องตอบคำถามแรกที่ทุกคนถามให้ได้ทันที: สาขานี้ผ่านหรือไม่ผ่าน
+       ไม่ใช่ให้ไปไล่บวกคะแนนเอง หรือเดาเอาจากเลขเปอร์เซ็นต์ลอย ๆ */
+    let badge = '';
+    if(r.type==='FQA')
+      badge = fails ? `<span class="pi-badge no">พบ ${fails} ประเด็น</span>`
+                    : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`;
+    else if(r.type==='STA'){
+      const vd = staVerdict(r);
+      badge = `<span class="pi-badge ${vd.state}">${esc(vd.text)}<small>${esc(vd.note)}</small></span>`;
+    }
     let b=`<div class="pdfinfo">
       <div class="pi-top">
         <div class="pi-branch">${esc(r.branch||'—')}<small>${esc(r.bzm||'')}</small></div>
@@ -5535,7 +5568,7 @@ const PDF = {
     if(r.type==='STA'){
       const sc=staScore(r);
       b+=`<div class="pi-grid" style="padding:0;grid-template-columns:repeat(3,1fr);gap:11px 16px;margin-bottom:14px">
-        ${kv('คะแนนที่ได้', staNum(sc.got)+' / '+staNum(sc.total||sc.full))}${kv('คิดเป็น', staNum(sc.pct)+'%')}${kv('แบบฟอร์ม', STA_CODE)}</div>`;
+        ${kv('คะแนนที่ได้', staNum(sc.got)+' / '+staNum(sc.total||sc.full))}${kv('คิดเป็น', staNum(sc.pct)+'% (เกณฑ์ '+STA_PASS_PCT+'%)')}${kv('แบบฟอร์ม', STA_CODE)}</div>`;
       STA_FORM.forEach(function(S){
         const ss=staSectionScore(r,S);
         const rows=[];
@@ -6254,6 +6287,9 @@ const ReportView = {
   },
   open(brand, id){
     Brand.cur=brand||'jaedaeng';
+    /* ทาสีตามแบรนด์ของใบที่แชร์มา ของเดิมตั้งแค่ค่าตัวแปรแล้วไม่ได้ทาสี
+       ใบของซานตาเฟ่จึงเปิดมาเป็นสีแดงและขึ้นชื่อร้านส้มตำเจ๊แดง */
+    Brand.paint();
     document.body.classList.add('repmode');
     /* ตรึงความกว้างหน้าให้เท่ากับเอกสาร → ทุกอุปกรณ์ย่อทั้งหน้าเท่ากัน เห็นเหมือนกัน 100% */
     const vp=document.querySelector('meta[name=viewport]');
