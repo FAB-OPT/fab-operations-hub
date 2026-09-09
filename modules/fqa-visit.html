@@ -580,6 +580,9 @@ body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยก
 .pdfdoc h1{font-size:21px;font-weight:800;color:#111;letter-spacing:normal;margin:2px 0 0}
 .pdfdoc h2{font-size:13.5px;font-weight:800;color:#111;letter-spacing:normal;margin:0 0 7px;padding-bottom:5px;border-bottom:1.5px solid var(--accent)}
 .pdfhead{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;border-bottom:2px solid #111;padding-bottom:11px;margin-bottom:15px}
+/* โลโก้แบรนด์บนหัวเอกสาร รายงานถูกส่งต่อออกไปนอกทีม ต้องดูออกว่าของใครโดยไม่ต้องอ่าน */
+.pdfhl{display:flex;align-items:center;gap:13px;min-width:0}
+.pdflogo{width:46px;height:46px;object-fit:contain;flex:none;border-radius:10px;background:#fff}
 /* สีตามแบรนด์ ไม่ใช่แดงตายตัว ใบของซานตาเฟ่เคยขึ้นหัวสีแดงของเจ๊แดง */
 .pdfbrand{font-size:10px;font-weight:800;letter-spacing:1.1px;text-transform:uppercase;color:var(--accent)}
 .pdfsub{font-size:12.5px;color:#555;margin-top:3px}
@@ -616,9 +619,12 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfinfo .pi-badge{font-size:11px;font-weight:800;padding:5px 13px;border-radius:999px;white-space:nowrap}
 .pdfinfo .pi-badge.ok{background:#ECFDF3;color:#16A34A;border:1px solid #B7EBC6}
 .pdfinfo .pi-badge.no{background:#FEF2F2;color:#DC2626;border:1px solid #F6C9C9}
-/* ตรวจยังไม่ครบ = ยังตัดสินไม่ได้ ต้องไม่ใช่สีเขียวและไม่ใช่สีแดง */
-.pdfinfo .pi-badge.wait{background:#F4F4F5;color:#6B7280;border:1px solid #E0E2E5}
-.pdfinfo .pi-badge small{display:block;font-weight:600;opacity:.85;font-size:10px;letter-spacing:0}
+/* ผลการประเมินของใบ Visit ใช้สีทึบตามแบบฟอร์มต้นฉบับ เขียว=มาตรฐาน แดง=ปรับปรุง
+   เป็นบรรทัดเดียวที่คนเปิดรายงานมองหาก่อนอย่างอื่น จึงต้องอ่านออกตั้งแต่ยังไม่ทันเพ่ง */
+.pdfinfo .pi-badge.sta{padding:7px 16px;border:0;color:#fff;text-align:center;line-height:1.35}
+.pdfinfo .pi-badge.sta.ok{background:#16A34A}
+.pdfinfo .pi-badge.sta.no{background:#DC2626}
+.pdfinfo .pi-badge small{display:block;font-weight:600;opacity:.9;font-size:10px;letter-spacing:0}
 .pi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
 .pdfinfo .pi-grid{padding:13px 15px}
 .pi-grid .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
@@ -2952,21 +2958,20 @@ const NS_SCORES = [['1','1 = ยังทำไม่ได้ตามมาต
    hint = ข้อความที่ผู้ตรวจต้องจดเพิ่ม เช่น ชื่อคน เดือน จำนวนเล่ม ══════════ */
 const STA_CODE = 'FM-OPT(TR)-014';
 
-/* เกณฑ์ผ่านมาตรฐานของ Store Training Audit
-   ในตัวแบบฟอร์ม FM-OPT(TR)-014 ไม่ได้เขียนเกณฑ์ไว้ ตั้งไว้ที่ 80% ก่อน
-   ถ้าเกณฑ์จริงเป็นเลขอื่นให้แก้ที่บรรทัดนี้บรรทัดเดียว ทุกที่ที่แสดงผลจะตามมาเอง
-   และเลขเกณฑ์จะถูกพิมพ์ไว้ในรายงานเสมอ คนอ่านจะได้รู้ว่าตัดสินจากอะไร */
+/* เกณฑ์ตัดสินของ Store Training Audit ตามที่ระบุในแบบฟอร์ม FM-OPT(TR)-014
+     Score >80%  = มาตรฐาน (Standard)
+     Score 0-79% = ปรับปรุง (Improve)
+   สองช่วงนี้ทิ้งรอยต่อไว้ตรง 80 พอดี ที่นี่ถือว่า 80% ขึ้นไปคือมาตรฐาน
+   ถ้าของจริงต้องเกิน 80 จริง ๆ ให้เปลี่ยน >= เป็น > ที่บรรทัดเดียวข้างล่าง */
 const STA_PASS_PCT = 80;
 
-/* ตัดสินผลของใบตรวจหนึ่งใบ
-   ตอบไม่ครบทุกช่อง = ยังตัดสินไม่ได้ ไม่ใช่ผ่านหรือไม่ผ่าน
-   เพราะเปอร์เซ็นต์ตอนนั้นคิดจากเฉพาะช่องที่ตอบแล้ว ประกาศว่าผ่านไปก่อนจึงหลอกตัวเอง */
+/* ตัดสินผลของใบตรวจหนึ่งใบ — มีสองผลเท่านั้นตามแบบฟอร์ม
+   ข้อความเกณฑ์ถูกพิมพ์ไว้ในรายงานด้วยเสมอ คนอ่านจะได้รู้ว่าตัดสินจากอะไร */
 function staVerdict(rec){
   const sc = staScore(rec);
-  if(sc.done < sc.all) return { state:'wait', text:'ตรวจยังไม่ครบ', note:'ตอบแล้ว '+sc.done+'/'+sc.all+' ช่อง', sc:sc };
   return sc.pct >= STA_PASS_PCT
-    ? { state:'ok', text:'ผ่านมาตรฐาน',    note:'เกณฑ์ '+STA_PASS_PCT+'% ขึ้นไป', sc:sc }
-    : { state:'no', text:'ไม่ผ่านมาตรฐาน', note:'เกณฑ์ '+STA_PASS_PCT+'% ขึ้นไป', sc:sc };
+    ? { state:'ok', text:'มาตรฐาน (Standard)', note:'Score '+STA_PASS_PCT+'% ขึ้นไป', sc:sc }
+    : { state:'no', text:'ปรับปรุง (Improve)',  note:'Score 0-'+(STA_PASS_PCT-1)+'%',  sc:sc };
 }
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
 const STA_FORM = [
@@ -5441,10 +5446,13 @@ const PDF = {
   wrap(title, sub, body, issuedBy){
     return `<div class="pdfpage">
       <div class="pdfhead">
-        <div>
-          <div class="pdfbrand">FAB Operations · Visit สาขา · ${esc(Brand.info().name)}</div>
-          <h1>${esc(title)}</h1>
-          ${sub? `<div class="pdfsub">${esc(sub)}</div>`:''}
+        <div class="pdfhl">
+          <img class="pdflogo" src="${attr(Brand.info().logo)}" alt="${attr(Brand.info().name)}">
+          <div>
+            <div class="pdfbrand">FAB Operations · Visit สาขา · ${esc(Brand.info().name)}</div>
+            <h1>${esc(title)}</h1>
+            ${sub? `<div class="pdfsub">${esc(sub)}</div>`:''}
+          </div>
         </div>
         <div class="pdfstamp">ออกรายงาน ${esc(new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}))}<br>
           ผู้ออกรายงาน ${esc(issuedBy || Hub.who())}</div>
@@ -5532,7 +5540,7 @@ const PDF = {
                     : `<span class="pi-badge ok">ผ่าน / ไม่พบประเด็น</span>`;
     else if(r.type==='STA'){
       const vd = staVerdict(r);
-      badge = `<span class="pi-badge ${vd.state}">${esc(vd.text)}<small>${esc(vd.note)}</small></span>`;
+      badge = `<span class="pi-badge sta ${vd.state}">${esc(vd.text)}<small>${esc(vd.note)}</small></span>`;
     }
     let b=`<div class="pdfinfo">
       <div class="pi-top">
@@ -5567,21 +5575,25 @@ const PDF = {
     }
     if(r.type==='STA'){
       const sc=staScore(r);
-      b+=`<div class="pi-grid" style="padding:0;grid-template-columns:repeat(3,1fr);gap:11px 16px;margin-bottom:14px">
-        ${kv('คะแนนที่ได้', staNum(sc.got)+' / '+staNum(sc.total||sc.full))}${kv('คิดเป็น', staNum(sc.pct)+'% (เกณฑ์ '+STA_PASS_PCT+'%)')}${kv('แบบฟอร์ม', STA_CODE)}</div>`;
+      b+=`<div class="pi-grid" style="padding:0;grid-template-columns:repeat(4,1fr);gap:11px 16px;margin-bottom:14px">
+        ${kv('คะแนนที่ได้', staNum(sc.got)+' / '+staNum(sc.total||sc.full))}${kv('คิดเป็น', staNum(sc.pct)+'%')}${kv('ผลการประเมิน', staVerdict(r).text)}${kv('แบบฟอร์ม', STA_CODE)}</div>`;
       STA_FORM.forEach(function(S){
         const ss=staSectionScore(r,S);
         const rows=[];
         S.items.forEach(it=>it.parts.forEach(function(p,pi){
           const key=it.no+'.'+p.k, v=(r.marks||{})[key];
           const res = p.na? 'N/A' : v==='pass'?'ผ่าน' : v==='fail'?'ไม่ผ่าน' : v==='na'?'N/A' : '—';
+          /* คะแนนที่ได้จริงของข้อนั้น ผ่านได้เต็ม ไม่ผ่านได้ศูนย์
+             N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
+          const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
             <td>${esc(p.who||'')}</td><td class="c">${p.na?'—':staNum(p.max)}</td>
-            <td class="c" style="color:${res==='ไม่ผ่าน'?'#D6142B':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
+            <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
+            <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
             <td>${esc(((r.notes||{})[key])||'')}</td></tr>`);
         }));
         b+=sec(`${S.name} — ได้ ${staNum(ss.got)}/${staNum(ss.full)}`, tbl(
-          [{h:'ข้อ',w:'7%'},{h:'หัวข้อการตรวจ',w:'36%'},{h:'ส่วนงาน',w:'15%'},{h:'เต็ม',w:'8%',c:1},{h:'ผล',w:'10%',c:1},{h:'บันทึกเพิ่มเติม',w:'24%'}], rows));
+          [{h:'ข้อ',w:'6%'},{h:'หัวข้อการตรวจ',w:'34%'},{h:'ส่วนงาน',w:'14%'},{h:'เต็ม',w:'7%',c:1},{h:'ได้',w:'7%',c:1},{h:'ผล',w:'10%',c:1},{h:'บันทึกเพิ่มเติม',w:'22%'}], rows));
       });
       const vr=(r.verify||[]).filter(v=>(v.name||'').trim());
       if(vr.length) b+=sec('ทวนสอบมาตรฐานการทำงาน (พนักงาน)', tbl(
