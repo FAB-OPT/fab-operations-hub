@@ -3027,6 +3027,78 @@ const staNum = n => (Math.round(n*10)/10).toString();
    ความสูงไม่คงที่ ปุ่มฟอร์มถูกใส่เข้าไปหลังวาดฟอร์มเสร็จ ฟอนต์โหลดตามมาทีหลัง
    และบนจอแคบปุ่มจะตกลงไปอีกบรรทัด วัดครั้งเดียวจึงได้ค่าเก่า
    แล้วแถบคะแนนจะไปมุดใต้หัวเพจ จึงเฝ้าดูขนาดจริงตลอด */
+/* ย่อรูปหนึ่งใบ คืนออกมาเป็น data URL
+
+   อ่านผ่าน object URL แทน FileReader ที่ต้องแปลงทั้งไฟล์เป็นข้อความ base64 ก่อน
+   base64 ใหญ่กว่าไฟล์จริงราวหนึ่งในสาม และต้องถือไว้ในหน่วยความจำทั้งก้อน
+   รูปจากมือถือใบละ 3-8MB คูณหลายใบก็พอทำให้แท็บถูกปิดไปเฉย ๆ
+
+   ล้างผืนวาดกับ object URL ทิ้งทันทีที่ได้ผล ไม่รอให้ระบบมาเก็บกวาดเอง
+   เพราะใบถัดไปกำลังจะขอพื้นที่ก้อนใหม่ต่อทันที */
+function isPhotoFile(file){
+  var name = file.name || '';
+  return /^image\//.test(file.type||'') || /\.(jpe?g|png|gif|webp|heic|heif|bmp)$/i.test(name);
+}
+
+/* วาดภาพที่ย่อแล้วลงผืนวาดเล็ก ๆ แล้วคืนเป็น data URL
+   ถึงตรงนี้ภาพถูกย่อมาแล้ว งานบนเธรดหลักจึงเหลือแค่หลักสิบมิลลิวินาที */
+function photoToData(src, w, h, max, q){
+  var sc = Math.min(1, max/Math.max(w,h));
+  var c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w*sc)); c.height = Math.max(1, Math.round(h*sc));
+  c.getContext('2d').drawImage(src, 0, 0, c.width, c.height);
+  var data = c.toDataURL('image/jpeg', q);
+  c.width = c.height = 0;   /* ปล่อยพื้นที่ทันที ใบถัดไปกำลังจะขอก้อนใหม่ */
+  return data;
+}
+
+/* ย่อรูปหนึ่งใบ คืนออกมาเป็น data URL
+
+   ทางหลักใช้ createImageBitmap ซึ่งถอดรหัสและย่อให้นอกเธรดหลัก
+   เธรดหลักจึงว่างพอให้จอยังขยับ ปุ่มยังกดติด ระหว่างที่ย่อรูปอยู่
+   ของเดิมถอดรหัสรูป 12 ล้านพิกเซลบนเธรดหลัก จอนิ่งยาวราวสองวินาทีต่อใบ
+
+   ขอ from-image ไว้ให้รูปที่ถ่ายแนวตั้งไม่ตะแคง ถ้าเบราว์เซอร์ไม่รับ
+   ค่อยถอยไปทาง <img> ซึ่งช้ากว่าแต่หมุนรูปให้ถูกทางเสมอ */
+function shrinkPhoto(file, max, q){
+  max = max || 1000; q = q || 0.68;
+  if(!isPhotoFile(file)) return Promise.reject(new Error('ไม่ใช่ไฟล์รูป'));
+
+  var viaImg = function(){
+    return new Promise(function(ok, fail){
+      var url = URL.createObjectURL(file), img = new Image();
+      var clean = function(){ URL.revokeObjectURL(url); };
+      img.onload = function(){
+        try{
+          var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+          if(!w || !h) throw new Error('รูปเสีย');
+          var data = photoToData(img, w, h, max, q);
+          clean(); ok(data);
+        }catch(e){ clean(); fail(e); }
+      };
+      img.onerror = function(){ clean(); fail(new Error('เปิดรูปไม่ได้')); };
+      img.src = url;
+    });
+  };
+
+  if(!window.createImageBitmap) return viaImg();
+  return createImageBitmap(file, { imageOrientation:'from-image' }).then(function(full){
+    var w = full.width, h = full.height;
+    var sc = Math.min(1, max/Math.max(w,h));
+    if(sc >= 1){ var d0 = photoToData(full, w, h, max, q); full.close(); return d0; }
+    return createImageBitmap(full, {
+      resizeWidth: Math.max(1, Math.round(w*sc)),
+      resizeHeight: Math.max(1, Math.round(h*sc)),
+      resizeQuality: 'high'
+    }).then(function(small){
+      full.close();
+      var d = photoToData(small, small.width, small.height, max, q);
+      small.close();
+      return d;
+    });
+  }).catch(viaImg);
+}
+
 function syncTopH(){
   const t=document.querySelector(".top");
   if(t) document.documentElement.style.setProperty("--top-h", t.offsetHeight+"px");
@@ -3098,7 +3170,18 @@ const Form = {
 
   /* ---------- เก็บร่างฟอร์มไว้ในเครื่อง เผื่อออกจากหน้าไปก่อนกดบันทึก ---------- */
   dkey(){ return 'fqa_drafts_'+(Brand.cur||'jaedaeng'); },
-  persist(){ clearTimeout(this._pt); this._pt=setTimeout(()=>{ try{ localStorage.setItem(this.dkey(), JSON.stringify(this.drafts)); }catch(e){} },400); },
+  /* ร่างเก็บไว้ในเครื่องซึ่งมีพื้นที่จำกัด และรูปที่แนบกินพื้นที่เกือบทั้งหมด
+     ของเดิมเขียนไม่ลงก็เงียบ คนตรวจจึงไม่รู้ว่างานที่กรอกมาเป็นชั่วโมงไม่ได้ถูกเก็บ
+     ปิดแท็บหรือแบตหมดเมื่อไหร่ก็หายทั้งหมด */
+  persist(){ clearTimeout(this._pt); this._pt=setTimeout(()=>{
+    try{ localStorage.setItem(this.dkey(), JSON.stringify(this.drafts)); }
+    catch(e){
+      if(!this._quotaWarned){
+        this._quotaWarned=true;
+        App.toast('พื้นที่เก็บร่างในเครื่องเต็ม (รูปที่แนบเยอะ) — กดบันทึกผลการตรวจก่อนปิดหน้านี้');
+      }
+    }
+  },400); },
   load(){ try{ const d=JSON.parse(localStorage.getItem(this.dkey())||'null'); if(d&&typeof d==='object') this.drafts=d; }catch(e){} },
 
   set(path,val){
@@ -3188,21 +3271,36 @@ const Form = {
           </div>`).join('')}</div>`:''}
       </div></div>`;
   },
-  addPhotos(el){
+  /* แนบรูปทีละใบ ไม่ใช่ยิงพร้อมกันทุกใบ
+
+     ของเดิมวนลูปสั่งอ่านไฟล์พร้อมกันหมดทุกใบ แล้วถอดรหัสรูปพร้อมกันด้วย
+     รูป 12 ล้านพิกเซลหนึ่งใบกางออกมาเป็นภาพในหน่วยความจำราว 48MB
+     ห้าใบพร้อมกันก็เกินที่มือถือไหว จอค้างยาวหรือแท็บถูกปิดไปเลย
+
+     แล้วยังวาดฟอร์มใหม่ทั้งหน้าทุกครั้งที่ได้รูปมาหนึ่งใบ ซึ่งแปลว่าต้องพ่น
+     รูปที่แนบไว้ก่อนหน้าออกมาเป็นข้อความ base64 ใหม่ทั้งหมดทุกรอบ
+     และการวาดจะสั่งเขียนร่างลงเครื่องต่อทันที ยิ่งรูปเยอะยิ่งช้าแบบทวีคูณ
+
+     ตอนนี้ทำทีละใบ คืนคิวให้เบราว์เซอร์ระหว่างใบ จอจึงยังขยับได้และบอกได้
+     ว่าทำถึงใบไหนแล้ว จบครบค่อยวาดใหม่ทีเดียว */
+  async addPhotos(el){
     const files=[...el.files]; el.value='';
-    files.forEach(f=>{
-      const rd=new FileReader();
-      rd.onload=e=>{
-        const img=new Image();
-        img.onload=()=>{
-          const max=1000, sc=Math.min(1,max/Math.max(img.width,img.height));
-          const c=document.createElement('canvas'); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
-          c.getContext('2d').drawImage(img,0,0,c.width,c.height);
-          this.s.photos.push({group:(M.list('photoGroups')[0]||'ทั่วไป'),caption:'',data:c.toDataURL('image/jpeg',0.68)});
-          this.render();
-        }; img.src=e.target.result;
-      }; rd.readAsDataURL(f);
-    });
+    if(!files.length) return;
+    if(this._photoBusy) return App.toast('กำลังย่อรูปชุดก่อนอยู่ รอสักครู่');
+    this._photoBusy=true;
+    const group=(M.list('photoGroups')[0]||'ทั่วไป');
+    let ok=0; const bad=[];
+    for(let i=0;i<files.length;i++){
+      if(files.length>1) App.toast('กำลังย่อรูป '+(i+1)+'/'+files.length+' …');
+      try{
+        this.s.photos.push({group:group, caption:'', data:await shrinkPhoto(files[i])});
+        ok++;
+      }catch(e){ bad.push(files[i].name||('ใบที่ '+(i+1))); }
+      await new Promise(r=>setTimeout(r,0));   /* คืนคิวให้เบราว์เซอร์ ไม่งั้นจอนิ่งจนกว่าจะครบทุกใบ */
+    }
+    this._photoBusy=false;
+    this.render();
+    App.toast(bad.length ? ('เพิ่มรูปได้ '+ok+' ใบ · เปิดไม่ได้ '+bad.length+' ใบ') : ('เพิ่มรูปแล้ว '+ok+' ใบ'));
   },
   setPhoto(i,k,v){ this.s.photos[i][k]=v; this.persist(); },
   delPhoto(i){ this.s.photos.splice(i,1); this.render(); },
