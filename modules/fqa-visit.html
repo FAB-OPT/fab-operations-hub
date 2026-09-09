@@ -2166,6 +2166,14 @@ const Cloud = {
            แก้ไขจะไม่ถูกส่งมาด้วยอยู่แล้ว ถ้าเอามาเทียบจะกลายเป็น "หายจาก cloud"
            แล้วลบข้อมูลทิ้งทั้งเครื่อง หรือไม่ก็ส่งขึ้นใหม่ทั้งหมด
            ส่วนการลบยังทำงานปกติ เพราะหลังบ้านส่งรายการ id ที่ถูกลบมาครบทุกครั้ง */
+        /* ⚠️ การลบยึด tombstone อย่างเดียวเท่านั้น
+           "ไม่เจอบนคลาวด์" ไม่ได้แปลว่า "ถูกลบ" — แปลได้อีกหลายอย่าง
+           หลังบ้านตอบจากแคชที่เก่าได้ถึง 1 ชั่วโมง ใบที่เพิ่งบันทึกจึงยังไม่อยู่ในนั้น
+           หรือรอบนั้นตอบมาไม่ครบ ซึ่งเกิดจริงเพราะต้องเปิดสเปรดชีตทั้งไฟล์
+           ของเดิมเจอกรณีพวกนี้แล้วลบทิ้งจากเครื่องเลย และเพราะทุกเครื่องทำเหมือนกัน
+           งานที่บันทึกไว้จึงหายพร้อมกันทั้งคอมและมือถือ โดยไม่มีใครกดลบสักคน
+           ตอนนี้ไม่เจอบนคลาวด์ = ยังไปไม่ถึง ส่งขึ้นใหม่ ไม่ใช่ลบทิ้ง */
+        let requeued=0;
         DB.all().forEach(r=>{
           if(!r || !r.id) return;
           if(deletedIds.has(r.id)){                                 // มี tombstone = ถูกลบแน่นอน → ลบตาม ไม่มีวันเด้งกลับ
@@ -2174,8 +2182,9 @@ const Cloud = {
           }
           if(incremental) return;                                   // ขอเฉพาะที่เปลี่ยน → ไม่มีข้อมูลพอจะตัดสิน
           if(cloudIds.has(r.id) || pend.has(r.id)) return;
-          if(seen.has(r.id)){ delete byId[r.id]; changed=true; }    // สำรอง (เผื่อเซิร์ฟเวอร์ยังไม่อัปเดต tombstone)
-          else this.enqueue('save', r.id);                          // ยังไม่เคยส่งขึ้น (เก่า/ออฟไลน์) → ส่งขึ้น
+          /* จำกัดจำนวนต่อรอบ กันกรณีหลังบ้านตอบมาไม่ครบทั้งก้อน
+             แล้วกลายเป็นสั่งอัปโหลดใหม่ทั้งฐานข้อมูลรวดเดียว */
+          if(requeued < 30){ requeued++; this.enqueue('save', r.id); }
         });
         this.saveSynced(seen);
         /* จำหมุดไว้ใช้รอบหน้า — ใช้ค่าที่หลังบ้านคืนมาเท่านั้น ห้ามใช้เวลาของเครื่องตัวเอง
@@ -5253,17 +5262,25 @@ const Plan = {
   },
   rmDraft(i){ this.draft.splice(i,1); this.render(); },
   clearDraft(){ this.draft=[]; this.render(); },
+  /* บันทึกรายการที่เตรียมไว้ทั้งหมด
+     รายการไหนเขียนลงเครื่องไม่สำเร็จให้คาไว้ในตารางเหมือนเดิม อย่าล้างทิ้ง
+     ของเดิมล้างทั้งตารางทุกครั้งไม่ว่าจะสำเร็จกี่รายการ แล้วขึ้นว่า "บันทึกแผน 0 รายการแล้ว"
+     ซึ่งอ่านผ่าน ๆ เหมือนบันทึกเสร็จแล้ว ทั้งที่ของหายไปหมดตั้งแต่ตอนนั้น */
   saveDraft(){
     if(!this.draft.length) return;
+    const firstDate=this.draft[0].date||todayISO();
+    const failed=[];
     let n=0;
     this.draft.forEach(d=>{
       const rec={ id:uid(), brand:Brand.cur, type:'PLAN', ptype:d.ptype||'FQA', date:d.date, branch:d.branch, bzm:d.bzm, trainer:d.trainer, createdAt:new Date().toISOString() };
-      if(DB.save(rec)){ Cloud.enqueue('save', rec.id); n++; }
+      if(DB.save(rec)){ Cloud.enqueue('save', rec.id); n++; } else failed.push(d);
     });
-    this.calMonth=(this.draft[0].date||todayISO()).slice(0,7);
-    this.draft=[];
+    this.calMonth=firstDate.slice(0,7);
+    this.draft=failed;
     this.render(); if(App.view==='dash') Dash.render();
-    App.toast(`บันทึกแผน ${n} รายการแล้ว`);
+    App.toast(failed.length
+      ? `บันทึกได้ ${n} รายการ · อีก ${failed.length} รายการยังไม่ได้บันทึก ยังค้างอยู่ในตาราง`
+      : `บันทึกแผน ${n} รายการแล้ว`);
   },
   setView(v){ this.view=v; this.render(); },
 
