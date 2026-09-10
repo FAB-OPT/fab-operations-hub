@@ -2307,6 +2307,7 @@ label.fld>span>b{font-weight:800}
             </ol>
             <div class="imp-btns">
               <button class="btn btn-soft btn-sm" onclick="downloadExamTemplate()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลดแบบฟอร์ม .xlsx</button>
+              <button class="btn btn-soft btn-sm" id="btnExportThisExam" onclick="exportCurrentExam()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> ส่งออกข้อสอบชุดนี้</button>
               <button class="btn btn-soft btn-sm" onclick="openImport()"><svg viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg> วางเป็นข้อความแทน</button>
             </div>
             <label class="fld imp-file"><span>เลือกไฟล์ที่กรอกแล้ว (.xlsx / .csv)</span>
@@ -3990,7 +3991,7 @@ function _oeExamRow(ex){
     '<div class="xr-act">' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
-      '<button class="btn btn-soft btn-sm btn-icon" data-oe-action="exam-create" onclick="exportExamXlsx(\'' + ex.id + '\')" title="ส่งออกข้อสอบเป็น Excel (นำเข้ากลับได้)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg></button>' +
+      '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="exportExamXlsx(\'' + ex.id + '\')" title="ส่งออกข้อสอบเป็น Excel (นำเข้ากลับได้)"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><path d="M7 10l5 5 5-5"/><path d="M12 15V3"/></svg> ส่งออก</button>' +
       '<button class="btn btn-soft btn-sm btn-icon" onclick="oePick(\'exam\',\'' + ex.id + '\')" title="เปิด/ส่งลิงก์เข้าทำข้อสอบ"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button>' +
       '<button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-delete" onclick="deleteExam(\'' + ex.id + '\')" title="ลบชุดข้อสอบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</div></article>';
@@ -4565,6 +4566,22 @@ function exportExamXlsx(id){
   if(!ex){ toast('ไม่พบชุดข้อสอบนี้','err'); return; }
   var qs=(ex.questions||[]).filter(function(q){ return q && q.q; });
   if(!qs.length){ toast('ชุดนี้ยังไม่มีข้อสอบให้ส่งออก','err'); return; }
+  _exportQuestionsXlsx(qs, ex.title);
+}
+
+/* ส่งออกชุดที่กำลังเปิดแก้ไขอยู่
+   ใช้ข้อที่อยู่ในตัวแก้ไขตอนนั้น รวมข้อที่เพิ่งพิมพ์และยังไม่ได้บันทึก
+   เพราะคนกดปุ่มนี้กำลังทำงานกับของตรงหน้า ไม่ใช่ของที่บันทึกไว้เมื่อวาน */
+function exportCurrentExam(){
+  if(typeof syncDraftFromDOM==='function'){ try{ syncDraftFromDOM(); }catch(e){} }
+  var qs=(draftQuestions||[]).filter(function(q){ return q && q.q; });
+  if(!qs.length){ toast('ยังไม่มีข้อสอบให้ส่งออก','err'); return; }
+  var t=$('edTitle'); _exportQuestionsXlsx(qs, (t && t.value || '').trim());
+}
+
+/* สร้างไฟล์จริง ใช้ร่วมกันทั้งปุ่มในแถวและปุ่มในหน้าแก้ไข */
+function _exportQuestionsXlsx(qs, title){
+  if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
   var rows=[['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)']];
   qs.forEach(function(q){
     var c=(q.choices||[]).slice(0,4);
@@ -4577,7 +4594,7 @@ function exportExamXlsx(id){
   ws['!cols']=[{wch:56},{wch:22},{wch:22},{wch:22},{wch:22},{wch:20}];
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
   /* ชื่อไฟล์ห้ามมีอักขระที่ Windows ใช้ไม่ได้ ไม่งั้นเบราว์เซอร์บันทึกไม่ลง */
-  var name=String(ex.title||'ข้อสอบ').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
+  var name=String(title||'ข้อสอบ').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
   XLSX.writeFile(wb, 'ข้อสอบ-'+name+'.xlsx');
   toast('ส่งออก '+qs.length+' ข้อเรียบร้อย · ไฟล์นี้นำเข้ากลับได้เลย','ok');
 }
