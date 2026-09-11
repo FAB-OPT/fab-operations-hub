@@ -182,6 +182,16 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 .sta-left{font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.5}
 .sta-left b{color:var(--text2);font-weight:700}
 .sta-done{color:#0E9F6E;font-weight:700}
+/* เพิ่ม/ลดจากครั้งก่อน — เขียวขึ้น แดงลง เทาเท่าเดิม */
+.sta-dl.up{color:#0E9F6E}.sta-dl.down{color:var(--red)}.sta-dl.same{color:var(--text3)}
+.sta-prev .sta-pv{display:flex;align-items:flex-end;gap:10px 22px;flex-wrap:wrap}
+.sta-prev .pv{display:block;font-size:26px;font-weight:800;letter-spacing:-1px;line-height:1;font-variant-numeric:tabular-nums}
+.sta-prev .sta-pv small{display:block;font-size:12px;font-weight:700;color:var(--text3);margin-top:5px}
+.sta-prev .sta-pv small.sta-dl.up{color:#0E9F6E}.sta-prev .sta-pv small.sta-dl.down{color:var(--red)}
+.sta-prev .ar{font-size:20px;color:var(--text3);padding-bottom:18px}
+.sta-pvline{font-size:13.5px;color:var(--text2);padding:9px 0}
+.sta-pvline b{color:var(--text);font-variant-numeric:tabular-nums}
+.sta-pvline b.sta-dl.up{color:#0E9F6E}.sta-pvline b.sta-dl.down{color:var(--red)}
 
 /* แถวลัดไปหมวด — บอกด้วยว่าหมวดไหนตอบครบแล้ว และมีปุ่มพาไปช่องถัดไปที่ยังว่าง
    ฟอร์มยาวขนาดนี้ การเลื่อนหาเองว่าตกช่องไหนคือส่วนที่เสียเวลาที่สุด */
@@ -627,6 +637,19 @@ table.pdftb tr{page-break-inside:avoid}
 .pdfinfo .pi-badge small{display:block;font-weight:600;opacity:.9;font-size:10px;letter-spacing:0}
 .pi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 16px}
 .pdfinfo .pi-grid{padding:13px 15px}
+/* แถบเทียบกับการเข้าครั้งก่อนในรายงาน STA */
+.pdfcmp{display:flex;align-items:center;flex-wrap:wrap;gap:8px 18px;border:1px solid #E3E3E3;border-left:4px solid #999;
+  border-radius:10px;padding:10px 15px;margin:0 0 16px;background:#FAFAFA}
+.pdfcmp.up{border-left-color:#16A34A}.pdfcmp.down{border-left-color:#DC2626}
+.pdfcmp .l{font-size:11px;font-weight:800;color:#777;letter-spacing:.3px;flex-basis:100%}
+.pdfcmp .v small{display:block;font-size:10px;color:#999;font-weight:600}
+.pdfcmp .v b{font-size:19px;font-weight:800;color:#111;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
+.pdfcmp .v em{font-style:normal;font-size:11px;font-weight:700;color:#777;margin-left:6px}
+.pdfcmp .a{font-size:16px;color:#AAA}
+.pdfcmp .d{font-size:17px;font-weight:800;margin-left:auto;font-variant-numeric:tabular-nums}
+.pdfcmp.up .d{color:#16A34A}.pdfcmp.down .d{color:#DC2626}.pdfcmp.same .d{color:#777}
+.pdfcmp .s{font-size:11px;color:#999}
+.pdfcmp.none .l{flex-basis:auto}
 .pi-grid .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
 .pi-grid .kv b{font-size:12.5px;font-weight:700;color:#111}
 .pdfchips{display:flex;flex-wrap:wrap;gap:6px}
@@ -2985,6 +3008,49 @@ function staVerdict(rec){
     ? { state:'ok', text:'มาตรฐาน (Standard)', note:'Score '+STA_PASS_PCT+'% ขึ้นไป', sc:sc }
     : { state:'no', text:'ปรับปรุง (Improve)',  note:'Score 0-'+(STA_PASS_PCT-1)+'%',  sc:sc };
 }
+
+/* ══ เทียบกับการเข้าครั้งก่อน ══
+   สิ่งที่ BZM กับสาขาอยากรู้ต่อจาก "ผ่านไหม" คือ "ดีขึ้นหรือแย่ลง"
+   หาใบ STA ใบล่าสุดของสาขาเดียวกันที่ตรวจก่อนใบนี้ให้เอง
+   ถ้าในระบบยังไม่มี (ครั้งก่อนตรวจบนกระดาษ) ผู้ตรวจกรอกคะแนนเองได้
+
+   ตอนบันทึกจะเก็บผลครั้งก่อนติดไปกับใบด้วย (rec.prev)
+   เพราะคนที่เปิดรายงานผ่านลิงก์แชร์ไม่มีใบอื่นของสาขาอยู่ในเครื่องให้ค้น */
+function staPrevAuto(rec){
+  if(!rec || !rec.branch) return null;
+  const k=branchKey(rec.branch), me=(rec.date||'')+' '+(rec.time||'');
+  let best=null, bestAt='';
+  DB.all().forEach(r=>{
+    if(!r || r.type!=='STA' || r.id===rec.id || branchKey(r.branch)!==k) return;
+    const at=(r.date||'')+' '+(r.time||'');
+    if(at>=me || at<=bestAt) return;
+    best=r; bestAt=at;
+  });
+  if(!best) return null;
+  const sc=staScore(best);
+  return { src:'auto', id:best.id, date:best.date, pct:sc.pct, got:sc.got, total:sc.total||sc.full };
+}
+function staPrevManual(rec){
+  const raw=String(rec.prevPct==null?'':rec.prevPct).trim();
+  const p=parseFloat(raw);
+  if(raw==='' || !isFinite(p)) return null;
+  return { src:'manual', date:rec.prevDate||'', pct:Math.round(Math.min(100,Math.max(0,p))*10)/10 };
+}
+/* live=true ใช้ตอนกรอกฟอร์ม (คิดใหม่ทุกครั้ง) · false ใช้ตอนดูรายงาน (ยึดค่าที่เก็บไว้ตอนบันทึกก่อน) */
+function staPrev(rec, live){
+  if(!rec) return null;
+  if(!live && Object.prototype.hasOwnProperty.call(rec,'prev')) return rec.prev || null;
+  const auto = rec.prevMode==='manual' ? null : staPrevAuto(rec);
+  return auto || staPrevManual(rec);
+}
+/* เปลี่ยนแปลงเป็นจุดเปอร์เซ็นต์ เช่น 72.5% → 84% = +11.5 */
+function staDelta(pct, prev){
+  if(!prev) return null;
+  const d=Math.round((pct-prev.pct)*10)/10;
+  return { d:d, dir: d>0?'up':(d<0?'down':'same'),
+           text: d>0? '▲ +'+staNum(d)+'%' : (d<0? '▼ −'+staNum(-d)+'%' : 'เท่าเดิม') };
+}
+const staPassText = pct => pct>=STA_PASS_PCT ? 'มาตรฐาน' : 'ปรับปรุง';
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
 const STA_FORM = [
   { key:'A', name:'CAREER PATH & COACHING', group:'การสอนงาน', items:[
@@ -3234,7 +3300,11 @@ const Form = {
     if(path==='time') this.s.timeEdited = true;
     if(path==='date') this.s.dateEdited = true;
     if(path==='branch'){ const b=M.branchOf(val); this.s.bzm=b?b.bzm:'';
-      const el=document.getElementById('bzmShow'); if(el) el.textContent=this.s.bzm||'—'; }
+      const el=document.getElementById('bzmShow'); if(el) el.textContent=this.s.bzm||'—';
+      /* STA — เปลี่ยนสาขาแล้วผลครั้งก่อนต้องเปลี่ยนตาม
+         คะแนนที่กรอกเองไว้เป็นของสาขาเดิม ติดไปสาขาใหม่จะเทียบผิดสาขา จึงล้างทิ้ง */
+      if(this.type==='STA'){ this.s.prevPct=''; this.s.prevDate=''; this.s.prevMode='';
+        this.persist(); this.render(); return; } }
     if(path==='category') this.render();
     this.persist();
   },
@@ -3571,6 +3641,35 @@ const Form = {
     if(!s.notes) s.notes={};
     if(!Array.isArray(s.verify)) s.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g));
     const sc=staScore(s);
+    const auto=staPrevAuto(s), prev=staPrev(s,true), dl=staDelta(sc.pct, prev);
+
+    /* ผลการเข้าครั้งก่อน — วางไว้ใต้ข้อมูลการตรวจ เพราะผูกกับสาขาที่เพิ่งเลือก */
+    const manual = !auto || s.prevMode==='manual';
+    const prevCard=`<div class="card sta-prev">
+      <div class="hd"><span class="sec-no">↺</span><h3>คะแนนการเข้าครั้งก่อน</h3><div class="sp"></div>
+        ${auto && s.prevMode==='manual' ? `<button class="btn sm" onclick="Form.staPrevMode('')">ใช้ผลที่มีในระบบ</button>`
+          : auto ? `<button class="btn sm" onclick="Form.staPrevMode('manual')">กรอกเองแทน</button>` : ''}</div>
+      <div class="bd">${
+        !s.branch ? `<p class="hint" style="margin:0">เลือกสาขาก่อน ระบบจะหาผลการเข้าครั้งก่อนของสาขานั้นให้</p>`
+        : !manual ? `<div class="sta-pv">
+            <div><span class="sta-lbl">ครั้งก่อน · ${esc(fmtDMY(auto.date))}</span><span class="pv">${staNum(auto.pct)}%</span>
+              <small>${staNum(auto.got)} / ${staNum(auto.total)} คะแนน · ${staPassText(auto.pct)}</small></div>
+            <div class="ar">→</div>
+            <div><span class="sta-lbl">ครั้งนี้${sc.done<sc.all?' (ยังตอบไม่ครบ)':''}</span><span class="pv">${staNum(sc.pct)}%</span>
+              <small class="sta-dl ${dl.dir}">${dl.text}</small></div>
+          </div>
+          <p class="hint" style="margin:10px 0 0">ดึงจากใบตรวจเลขที่ <span class="mono">${esc(auto.id)}</span> ใบล่าสุดของสาขานี้ที่ตรวจก่อนวันนี้</p>`
+        : `<div class="grid g4">
+            <div class="fld"><label class="lbl">คะแนนครั้งก่อน (%)</label>
+              <input type="number" class="inp" min="0" max="100" step="0.1" inputmode="decimal" placeholder="เช่น 72.5"
+                value="${attr(s.prevPct==null?'':s.prevPct)}" oninput="Form.staPrevSet('prevPct',this.value)" onchange="Form.render()"></div>
+            <div class="fld"><label class="lbl">วันที่ตรวจครั้งก่อน</label>
+              <input type="date" class="inp" value="${attr(s.prevDate||'')}" onchange="Form.staPrevSet('prevDate',this.value);Form.render()"></div>
+            <div class="fld" style="grid-column:span 2;align-self:end">${prev
+              ? `<div class="sta-pvline">ครั้งก่อน <b>${staNum(prev.pct)}%</b> → ครั้งนี้ <b>${staNum(sc.pct)}%</b> <b class="sta-dl ${dl.dir}">${dl.text}</b></div>`
+              : `<p class="hint" style="margin:0">${auto?'':'ในระบบยังไม่มีผลของสาขานี้ · '}กรอกจากใบตรวจครั้งก่อนได้ ถ้าไม่มีให้เว้นว่าง</p>`}</div>
+          </div>`
+      }</div></div>`;
 
     /* กวาดสถานะทุกช่องเก็บไว้ก่อนวาด แถบบนสุด ปุ่มลัดไปหมวด และการ์ดสรุปข้อไม่ผ่าน
        ใช้ชุดข้อมูลเดียวกันหมด ตัวเลขจะได้ตรงกันเสมอโดยไม่ต้องนับซ้ำสามที่ */
@@ -3601,6 +3700,7 @@ const Form = {
         <div><span class="sta-lbl">คิดเป็น</span><span class="pc">${staNum(sc.pct)}%</span></div>
         <div><span class="sta-lbl">คะแนน</span><span class="sc">${staNum(sc.got)}<small> / ${staNum(sc.total||sc.full)}</small></span></div>
         <div><span class="sta-lbl">ไม่ผ่าน</span><span class="sc${fails.length?" bad":""}">${fails.length}<small> ข้อ</small></span></div>
+        ${prev?`<div><span class="sta-lbl">เทียบครั้งก่อน (${staNum(prev.pct)}%)</span><span class="sc sta-dl ${dl.dir}">${dl.text}</span></div>`:""}
         <div class="rt"><span class="sta-lbl">ตอบแล้ว</span><span class="sc">${sc.done}<small> / ${sc.all}</small></span></div>
       </div>
       <div class="sta-track"><i style="width:${sc.all? Math.round(sc.done/sc.all*100):0}%"></i></div>
@@ -3670,7 +3770,7 @@ const Form = {
       </div>`).join("")}</div>
     </div>` : "";
 
-    return bar + secs + failCard + this.verifyCard(STA_FORM.length+2) + `
+    return prevCard + bar + secs + failCard + this.verifyCard(STA_FORM.length+2) + `
     <div class="card">
       <div class="hd"><span class="sec-no">${STA_FORM.length+3}</span><h3>สรุปของผู้ตรวจ</h3></div>
       <div class="bd"><div class="fld"><label class="lbl">ความเห็นและข้อแนะนำโดยรวม</label>
@@ -3706,6 +3806,9 @@ const Form = {
     this.persist(); this.render();
   },
   staNote(key, val){ this.s.notes[key]=val; this.persist(); },
+  /* กรอกคะแนนครั้งก่อนเอง — ไม่วาดใหม่ระหว่างพิมพ์ ช่องจะได้ไม่หลุดโฟกัส (วาดตอนออกจากช่อง) */
+  staPrevSet(k, v){ this.s[k]=v; this.persist(); },
+  staPrevMode(m){ this.s.prevMode=m; this.persist(); this.render(); },
 
   /* ===== การ์ดทวนสอบมาตรฐานการทำงาน (พนักงาน) ===== */
   verifyCard(no){
@@ -3827,6 +3930,9 @@ const Form = {
         if(p.na) continue;
         if(!s.marks[it.no+'.'+p.k]) return `ข้อ ${it.no}${p.who?' ('+p.who+')':''} — ยังไม่ได้ให้ผลการตรวจ`;
       }
+      const pp=String(s.prevPct==null?'':s.prevPct).trim();
+      if(pp!=='' && (!isFinite(parseFloat(pp)) || parseFloat(pp)<0 || parseFloat(pp)>100))
+        return 'คะแนนครั้งก่อนต้องเป็นเปอร์เซ็นต์ 0-100';
       for(let i=0;i<s.verify.length;i++){ const v=s.verify[i];
         if(![v.name,v.position,v.tenure,v.topic,v.result,v.comment].some(x=>String(x||'').trim())) continue;  // แถวว่าง = ข้าม
         if(need(v.name))   return `ทวนสอบพนักงานคนที่ ${i+1} — กรุณากรอกชื่อ`;
@@ -3872,6 +3978,8 @@ const Form = {
     if(err) return App.toast(err);
     const rec=JSON.parse(JSON.stringify(this.s));
     if(!rec.createdBy) rec.createdBy = Hub.who();   // จำผู้บันทึกครั้งแรก → ใช้เป็น "ผู้ออกรายงาน" ในใบตรวจ (คงที่ทุกคนที่เปิดดู)
+    /* STA — เก็บผลครั้งก่อนติดไปกับใบ รายงานที่เปิดผ่านลิงก์แชร์จะได้เทียบได้เหมือนกัน */
+    if(rec.type==='STA') rec.prev = staPrev(rec, true);
     /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
     if(rec.newStaff) rec.newStaff = rec.newStaff
       .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score||e.detail)}))
@@ -3932,8 +4040,9 @@ function summaryLine(r){
     return f.length? f.slice(0,2).join(' · ')+(f.length>2?` +${f.length-2}`:'') : 'ผ่านทุกหัวข้อที่ตรวจ';
   }
   if(r.type==='FSQ') return r.complaint.slice(0,80)+(r.complaint.length>80?'…':'');
-  if(r.type==='STA'){ const sc=staScore(r);
-    return 'ได้ '+staNum(sc.got)+'/'+staNum(sc.total||sc.full)+' คะแนน ('+staNum(sc.pct)+'%)'; }
+  if(r.type==='STA'){ const sc=staScore(r), dl=staDelta(sc.pct, staPrev(r,false));
+    return 'ได้ '+staNum(sc.got)+'/'+staNum(sc.total||sc.full)+' คะแนน ('+staNum(sc.pct)+'%)'
+      + (dl ? ' · '+dl.text+(dl.dir==='same'?'':' จากครั้งก่อน') : ''); }
   return r.topics.map(t=>t.topic).filter(Boolean).slice(0,2).join(' · ');
 }
 /* ประเภทการเข้า Visit — รองรับทั้งแบบหลายค่า (array) และข้อมูลเก่า (string) · แทน "อื่นๆ" ด้วยข้อความที่ระบุ */
@@ -5597,6 +5706,16 @@ const PDF = {
       const sc=staScore(r);
       b+=`<div class="pi-grid" style="padding:0;grid-template-columns:repeat(4,1fr);gap:11px 16px;margin-bottom:14px">
         ${kv('คะแนนที่ได้', staNum(sc.got)+' / '+staNum(sc.total||sc.full))}${kv('คิดเป็น', staNum(sc.pct)+'%')}${kv('ผลการประเมิน', staVerdict(r).text)}${kv('แบบฟอร์ม', STA_CODE)}</div>`;
+      /* เทียบกับการเข้าครั้งก่อน — ตอบว่าดีขึ้นหรือแย่ลง ต่อจากคำถามว่าผ่านไหม */
+      const pv=staPrev(r,false), dl=staDelta(sc.pct,pv);
+      b+= pv
+        ? `<div class="pdfcmp ${dl.dir}"><span class="l">เทียบกับการเข้าครั้งก่อน</span>
+            <span class="v"><small>ครั้งก่อน${pv.date?' · '+esc(fmtDMY(pv.date)):''}</small><b>${staNum(pv.pct)}%</b><em>${staPassText(pv.pct)}</em></span>
+            <span class="a">→</span>
+            <span class="v"><small>ครั้งนี้ · ${esc(fmtDMY(r.date))}</small><b>${staNum(sc.pct)}%</b><em>${staPassText(sc.pct)}</em></span>
+            <span class="d">${esc(dl.text)}</span>
+            ${pv.src==='manual'?'<span class="s">กรอกจากใบตรวจครั้งก่อน</span>':''}</div>`
+        : `<div class="pdfcmp none"><span class="l">เทียบกับการเข้าครั้งก่อน</span><span class="s">ไม่มีผลการเข้าครั้งก่อนให้เทียบ</span></div>`;
       STA_FORM.forEach(function(S){
         const ss=staSectionScore(r,S);
         const rows=[];
@@ -5894,6 +6013,8 @@ const IO = {
       'จำนวนประเด็นที่พบ':failCount(r),'สรุปสิ่งที่พบ':summaryLine(r),
       'คะแนนที่ได้':r.type==='STA'?staScore(r).got:'','คะแนนเต็ม':r.type==='STA'?(staScore(r).total||staScore(r).full):'',
       'คิดเป็น (%)':r.type==='STA'?staScore(r).pct:'',
+      'ครั้งก่อน (%)':r.type==='STA'?((staPrev(r,false)||{}).pct ?? ''):'',
+      'เพิ่ม/ลดจากครั้งก่อน (%)':r.type==='STA'?((staDelta(staScore(r).pct, staPrev(r,false))||{}).d ?? ''):'',
       'จำนวนรูป':r.photos.length,'บันทึกเมื่อ':(r.createdAt||'').slice(0,19).replace('T',' ')}));
     const fqaItem=[],fqaMenu=[],comp=[],visit=[],sta=[],staVerify=[];
     rows.forEach(r=>{
