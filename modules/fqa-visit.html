@@ -1935,6 +1935,12 @@ const Hub = {
     window.location.href='../index.html';
     return false;
   },
+  /* ชื่อ-นามสกุลตามโปรไฟล์ในฮับ — ใช้กับเอกสารที่ส่งออกไปข้างนอก (ผู้ออกรายงาน)
+     ชื่อเล่นกับบทบาท "พี่กาย (ADMIN)" เหมาะกับบนหน้าจอ แต่ไม่เหมาะกับรายงานที่ส่งให้สาขา */
+  fullName(){
+    const s=this.session();
+    return (s && String(s.name||'').trim()) || (s && s.nick) || this.branchName() || 'FAB Group · Operations';
+  },
   who(){
     const s=this.session();
     const name=(s && (s.nick||s.name)) || this.branchName() || '';
@@ -2044,6 +2050,20 @@ const HUB_USERS_KEY = 'fqa_hub_users_v1';
 function hubUsers(){
   try{ const a = JSON.parse(localStorage.getItem(HUB_USERS_KEY) || 'null'); return Array.isArray(a) ? a : []; }
   catch(e){ return []; }
+}
+/* ผู้ออกรายงานของใบ — ใบใหม่เก็บชื่อเต็มไว้แล้ว (createdByName)
+   ใบเก่าเก็บเป็น "ชื่อเล่น (บทบาท)" ตัดบทบาทออกแล้วหาชื่อจริงจากทะเบียนผู้ใช้ของฮับ
+   หาไม่เจอก็แสดงชื่อเล่น ดีกว่าแสดงบทบาทติดท้าย */
+function issuerName(r){
+  if(r && String(r.createdByName||'').trim()) return String(r.createdByName).trim();
+  const raw = String((r && r.createdBy) || '').trim();
+  if(!raw) return (r && r.trainer) || Hub.fullName();
+  const nick = raw.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const hit = hubUsers().find(u => u && String(u.nick||'').trim() === nick && String(u.name||'').trim());
+  if(hit) return String(hit.name).trim();
+  const me = Hub.session();
+  if(me && String(me.nick||'').trim() === nick && String(me.name||'').trim()) return String(me.name).trim();
+  return nick || raw;
 }
 function bzmFullName(nick){
   const n = String(nick || '').trim();
@@ -3220,39 +3240,52 @@ const staPassText = pct => pct>=STA_PASS_PCT ? 'มาตรฐาน' : 'ปร
    ครั้งก่อนอยู่คนละปีใช้คำว่า "ปี 2568" (ตรวจกันปีละครั้ง) ปีเดียวกันใช้วันที่แทน
    เพิ่ม/ลดบอกทั้งจุดเปอร์เซ็นต์ และคิดเป็นกี่ % ของคะแนนครั้งก่อน
    หัวข้อที่ถูกหัก = ส่วนงาน + สิ่งที่ผู้ตรวจจดไว้ในช่องนั้น */
-function staShareText(r, url){
-  const sc=staScore(r), pv=staPrev(r,false), dl=staDelta(sc.pct,pv), vd=staVerdict(r);
+/* ทำข้อความสองแบบจากชุดบรรทัดเดียวกัน
+   - ข้อความล้วนมีไอคอนนำหน้า: LINE/แชทใส่สีตัวอักษรไม่ได้ ไอคอนสี 🟢🔴📉 จึงทำหน้าที่แทนสี
+   - HTML มีสีจริง: คัดลอกไปวางในอีเมล (Gmail/Outlook) ตัวเลขกับผลประเมินขึ้นสีเขียว/แดง */
+function staShareMsg(r, url){
+  const sc=staScore(r), pv=staPrev(r,false), dl=staDelta(sc.pct,pv), vd=staVerdict(r), ok=sc.pct>=STA_PASS_PCT;
   const be = d => d ? String(Number(String(d).slice(0,4))+543) : '';
   const yr = !!(pv && pv.date && be(pv.date)!==be(r.date));
-  const L=[];
-  L.push('เรียน ทีมผู้จัดการสาขาและผู้ที่เกี่ยวข้อง', '');
-  L.push('ขอนำส่ง รายงานผลการ Visit สาขา '+(r.branch||''), '');
-  L.push((yr?'ปี '+be(r.date):'ครั้งนี้')+' ได้คะแนน '+staNum(sc.pct)+'% ('+staNum(sc.got)+'/'+staNum(sc.total||sc.full)+' คะแนน)');
+  const G='#16A34A', R='#DC2626';
+  const rows=[], add=(t,o)=>rows.push(Object.assign({t:t},o||{}));
+  add('เรียน ทีมผู้จัดการสาขาและผู้ที่เกี่ยวข้อง'); add('');
+  add('ขอนำส่ง รายงานผลการ Visit สาขา '+(r.branch||''), {ic:'📋', b:1}); add('');
+  add((yr?'ปี '+be(r.date):'ครั้งนี้')+' ได้คะแนน '+staNum(sc.pct)+'% ('+staNum(sc.got)+'/'+staNum(sc.total||sc.full)+' คะแนน)', {ic:'📊', c:ok?G:R, b:1});
   if(pv){
-    L.push((yr?'ปี '+be(pv.date):'ครั้งก่อน'+(pv.date?' ('+fmtDMY(pv.date)+')':''))+' ได้คะแนน '+staNum(pv.pct)+'%');
+    add((yr?'ปี '+be(pv.date):'ครั้งก่อน'+(pv.date?' ('+fmtDMY(pv.date)+')':''))+' ได้คะแนน '+staNum(pv.pct)+'%', {ic:'🗓️'});
     const vs = yr ? 'เมื่อเทียบกับปีที่ผ่านมา' : 'เมื่อเทียบกับครั้งก่อน';
-    if(dl.dir==='same') L.push('คะแนนเท่าเดิม '+vs);
+    if(dl.dir==='same') add('คะแนนเท่าเดิม '+vs, {ic:'➖'});
     else{
       const rel = pv.pct ? ' หรือคิดเป็น '+staNum(Math.abs(dl.d)/pv.pct*100)+'%' : '';
-      L.push('คะแนน'+(dl.dir==='up'?'เพิ่มขึ้น':'ลดลง')+' '+staNum(Math.abs(dl.d))+' จุดเปอร์เซ็นต์'+rel+' '+vs);
+      add('คะแนน'+(dl.dir==='up'?'เพิ่มขึ้น':'ลดลง')+' '+staNum(Math.abs(dl.d))+' จุดเปอร์เซ็นต์'+rel+' '+vs,
+          {ic:dl.dir==='up'?'📈':'📉', c:dl.dir==='up'?G:R, b:1});
     }
   }
-  L.push('ผลการประเมิน: '+vd.text+' · เกณฑ์มาตรฐาน '+STA_PASS_PCT+'% ขึ้นไป', '');
+  add('ผลการประเมิน: '+vd.text+' · เกณฑ์มาตรฐาน '+STA_PASS_PCT+'% ขึ้นไป', {ic:ok?'🟢':'🔴', c:ok?G:R, b:1}); add('');
   const fl=[];
   STA_FORM.forEach(sec=>sec.items.forEach(it=>it.parts.forEach(p=>{
     const k=it.no+'.'+p.k;
     if((r.marks||{})[k]!=='fail') return;
     const note=String((r.notes||{})[k]||'').trim(), who=p.who||'';
-    /* ข้อที่ไม่แยกส่วนงาน (หมวดเอกสาร) โน้ตอย่างเดียวไม่รู้ว่าพูดถึงอะไร จึงนำด้วยชื่อหัวข้อ */
-    /* โน้ตที่เอ่ยถึงส่วนงานอยู่แล้ว ("ขาดการติดตาม...พนักงานบริการชื่อ...") ใช้ตามที่เขียน ไม่เติมซ้ำ */
+    /* ข้อที่ไม่แยกส่วนงาน (หมวดเอกสาร) โน้ตอย่างเดียวไม่รู้ว่าพูดถึงอะไร จึงนำด้วยชื่อหัวข้อ
+       โน้ตที่เอ่ยถึงส่วนงานอยู่แล้ว ("ขาดการติดตาม...พนักงานบริการชื่อ...") ใช้ตามที่เขียน ไม่เติมซ้ำ */
     fl.push(note ? (who ? (note.indexOf(who)>=0 ? note : who+note) : it.text+' — '+note)
                  : ((who?who+' — ':'')+it.text));
   })));
-  if(fl.length){ L.push('หัวข้อที่ถูกหักคะแนน จำนวน '+fl.length+' ข้อ', ''); fl.forEach((t,i)=>L.push((i+1)+'. '+t)); L.push(''); }
-  else L.push('ไม่มีหัวข้อที่ถูกหักคะแนน', '');
-  L.push('สามารถดูรายละเอียดและใบตรวจฉบับเต็มได้ที่ลิงก์ด้านล่างครับ', url);
-  return L.join('\n');
+  if(fl.length){ add('หัวข้อที่ถูกหักคะแนน จำนวน '+fl.length+' ข้อ', {ic:'⚠️', b:1}); add(''); fl.forEach((t,i)=>add((i+1)+'. '+t)); add(''); }
+  else { add('ไม่มีหัวข้อที่ถูกหักคะแนน', {ic:'✅', c:G, b:1}); add(''); }
+  add('สามารถดูรายละเอียดและใบตรวจฉบับเต็มได้ที่ลิงก์ด้านล่างครับ', {ic:'🔗'});
+  add(url, {link:1});
+  const text = rows.map(x => x.t==='' ? '' : (x.ic ? x.ic+' ' : '')+x.t).join('\n');
+  const html = '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;font-size:14px;line-height:1.75;color:#1F2328">'
+    + rows.map(x => x.t==='' ? '<div>&nbsp;</div>'
+        : x.link ? '<div><a href="'+attr(x.t)+'" style="color:#1D4ED8">'+esc(x.t)+'</a></div>'
+        : '<div>'+(x.ic ? x.ic+' ' : '')+'<span style="'+(x.c?'color:'+x.c+';':'')+(x.b?'font-weight:700;':'')+'">'+esc(x.t)+'</span></div>').join('')
+    + '</div>';
+  return { text:text, html:html };
 }
+function staShareText(r, url){ return staShareMsg(r, url).text; }
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
 const STA_FORM = [
   { key:'A', name:'CAREER PATH & COACHING', group:'การสอนงาน', items:[
@@ -4190,7 +4223,10 @@ const Form = {
     const err=this.validate();
     if(err) return App.toast(err);
     const rec=JSON.parse(JSON.stringify(this.s));
-    if(!rec.createdBy) rec.createdBy = Hub.who();   // จำผู้บันทึกครั้งแรก → ใช้เป็น "ผู้ออกรายงาน" ในใบตรวจ (คงที่ทุกคนที่เปิดดู)
+    /* ชื่อ-นามสกุลตามโปรไฟล์ฮับ สำหรับ "ผู้ออกรายงาน" — คิดก่อนตั้ง createdBy
+       ใบเก่าที่มีคนมาแก้ทีหลัง ต้องได้ชื่อของคนบันทึกครั้งแรก ไม่ใช่คนที่กดแก้ */
+    if(!rec.createdByName) rec.createdByName = rec.createdBy ? issuerName(rec) : Hub.fullName();
+    if(!rec.createdBy) rec.createdBy = Hub.who();   // จำผู้บันทึกครั้งแรก (ชื่อเล่น+บทบาท) ไว้ตามเดิม
     /* STA — เก็บผลครั้งก่อนติดไปกับใบ รายงานที่เปิดผ่านลิงก์แชร์จะได้เทียบได้เหมือนกัน */
     if(rec.type==='STA') rec.prev = staPrev(rec, true);
     /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
@@ -5883,7 +5919,7 @@ const PDF = {
           </div>
         </div>
         <div class="pdfstamp">ออกรายงาน ${esc(new Date().toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}))}<br>
-          ผู้ออกรายงาน ${esc(issuedBy || Hub.who())}</div>
+          ผู้ออกรายงาน ${esc(issuedBy || Hub.fullName())}</div>
       </div>
       ${body}
     </div>`;
@@ -6101,7 +6137,7 @@ const PDF = {
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
         `<figure><img src="${p.data}" alt=""><figcaption>${esc(p.caption||'')}</figcaption></figure>`).join('')}</div>`);
 
-    return this.wrap(TYPE_LABEL[r.type], '', b, r.createdBy || r.trainer || Hub.who());
+    return this.wrap(TYPE_LABEL[r.type], '', b, issuerName(r));
   },
 
   /* ---------- 1) ใบตรวจรายฉบับ → บันทึกเป็นไฟล์ PDF ---------- */
@@ -6142,7 +6178,7 @@ const PDF = {
       const url=base+'?brand='+encodeURIComponent(bcur)+'#report='+encodeURIComponent(bcur)+'~'+encodeURIComponent(r.id);
       const title=`${TYPE_LABEL[r.type]||'รายงานการตรวจ'} · ${r.branch||''}`.trim();
       /* STA — ส่งพร้อมข้อความนำส่ง ให้ดูและแก้ก่อนส่ง */
-      if(r.type==='STA') return this.shareSheet(staShareText(r,url));
+      if(r.type==='STA'){ const m=staShareMsg(r,url); return this.shareSheet(m.text, m.html); }
       if(navigator.share){
         navigator.share({title, text:title, url}).catch(()=>{});
       }else if(navigator.clipboard && navigator.clipboard.writeText){
@@ -6162,12 +6198,12 @@ const PDF = {
   /* กล่องข้อความนำส่ง — แก้ได้ก่อนส่ง แล้วคัดลอกไปวางใน LINE/อีเมล หรือกดแชร์ตรง
      แชร์เป็นข้อความก้อนเดียวที่มีลิงก์อยู่ท้าย ไม่ส่ง url แยก
      เพราะบางแอปเอา url ไปต่อท้ายซ้ำ หรือทิ้งข้อความไปเหลือแต่ลิงก์ */
-  shareSheet(text){
+  shareSheet(text, html){
     let el=document.getElementById('shs');
     if(!el){
       el=document.createElement('div'); el.id='shs'; el.className='shs';
       el.innerHTML=`<div class="shs-scrim"></div><div class="shs-box" role="dialog" aria-label="แชร์รายงาน">
-        <div class="shs-hd"><h3>แชร์รายงาน</h3><span>ข้อความนี้แก้ไขได้ก่อนส่ง</span></div>
+        <div class="shs-hd"><h3>แชร์รายงาน</h3><span>แก้ไขได้ก่อนส่ง · วางในอีเมลตัวอักษรจะมีสี · LINE แสดงเป็นไอคอน</span></div>
         <textarea class="inp" id="shsText" spellcheck="false"></textarea>
         <div class="shs-act"><button class="btn" id="shsClose">ปิด</button>
           <button class="btn" id="shsCopy">คัดลอกข้อความ</button>
@@ -6181,6 +6217,13 @@ const PDF = {
     el.querySelector('#shsCopy').onclick=()=>{
       const v=ta.value;
       const fb=()=>{ ta.focus(); ta.select(); try{ document.execCommand('copy'); App.toast('คัดลอกข้อความแล้ว — วางส่งใน LINE / อีเมลได้เลย'); }catch(e){ App.toast('กดค้างที่ข้อความแล้วเลือกคัดลอก'); } };
+      /* ข้อความยังไม่ถูกแก้ = คัดลอกแบบมีสีไปด้วย (อีเมลใช้แบบมีสี แชทใช้ข้อความล้วน)
+         ถ้าแก้แล้ว ใช้ข้อความล้วนอย่างเดียว ไม่งั้นที่วางในอีเมลจะเป็นฉบับก่อนแก้ */
+      if(html && v===text && window.ClipboardItem && navigator.clipboard && navigator.clipboard.write){
+        navigator.clipboard.write([new ClipboardItem({'text/plain':new Blob([v],{type:'text/plain'}),'text/html':new Blob([html],{type:'text/html'})})])
+          .then(()=>App.toast('คัดลอกแล้ว — วางในอีเมลจะมีสี · วางใน LINE จะเป็นไอคอน')).catch(fb);
+        return;
+      }
       if(navigator.clipboard && navigator.clipboard.writeText)
         navigator.clipboard.writeText(v).then(()=>App.toast('คัดลอกข้อความแล้ว — วางส่งใน LINE / อีเมลได้เลย')).catch(fb);
       else fb();
