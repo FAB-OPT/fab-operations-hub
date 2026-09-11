@@ -182,6 +182,10 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 .sta-left{font-size:11.5px;color:var(--text3);margin-top:7px;line-height:1.5}
 .sta-left b{color:var(--text2);font-weight:700}
 .sta-done{color:#0E9F6E;font-weight:700}
+/* ช่องเวลาเริ่ม–เสร็จ อยู่ในช่องเดียวกัน สองช่องย่อยกว้างเท่ากัน */
+.trange{display:flex;align-items:center;gap:6px}
+.trange>input.inp{flex:1 1 0;width:0;min-width:0;padding-left:10px;padding-right:8px}
+.trange span{color:var(--text3);font-weight:700;flex:none}
 /* เพิ่ม/ลดจากครั้งก่อน — เขียวขึ้น แดงลง เทาเท่าเดิม */
 .sta-dl.up{color:#0E9F6E}.sta-dl.down{color:var(--red)}.sta-dl.same{color:var(--text3)}
 .sta-prev .sta-pv{display:flex;align-items:flex-end;gap:10px 22px;flex-wrap:wrap}
@@ -593,14 +597,6 @@ body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยก
 /* โลโก้แบรนด์บนหัวเอกสาร รายงานถูกส่งต่อออกไปนอกทีม ต้องดูออกว่าของใครโดยไม่ต้องอ่าน */
 .pdfhl{display:flex;align-items:center;gap:13px;min-width:0}
 .pdflogo{width:46px;height:46px;object-fit:contain;flex:none;border-radius:10px;background:#fff}
-/* สีตามแบรนด์ ไม่ใช่แดงตายตัว ใบของซานตาเฟ่เคยขึ้นหัวสีแดงของเจ๊แดง */
-/* ระยะห่างตัวอักษรใช้ได้กับตัวพิมพ์ใหญ่ภาษาอังกฤษเท่านั้น — ใส่ให้ภาษาไทยแล้ว
-   สระกับวรรณยุกต์ถูกถ่างออกจากกัน อ่าน "สาขา · ซานตาเฟ่" ยาก จึงถ่างเฉพาะส่วนอังกฤษ
-   สีใส่ตรงที่ตัวใบด้วย (inline) เพราะตัวแปรสีตั้งต้นเป็นแดงของเจ๊แดง
-   ถ้าหน้าไหนยังไม่ทันลงสีแบรนด์ ซานตาเฟ่จะได้หัวแดง */
-.pdfbrand{font-size:12.5px;font-weight:700;letter-spacing:0;color:var(--accent);line-height:1.4}
-.pdfbrand .en{font-size:11px;font-weight:800;letter-spacing:1.2px}
-.pdfbrand i{font-style:normal;opacity:.45;margin:0 7px;font-weight:400}
 .pdfsub{font-size:12.5px;color:#555;margin-top:3px}
 .pdfstamp{font-size:10.5px;color:#777;text-align:right;line-height:1.6;white-space:nowrap}
 .pdfsec{margin-bottom:15px}
@@ -3216,6 +3212,8 @@ function staDelta(pct, prev){
   return { d:d, dir: d>0?'up':(d<0?'down':'same'),
            text: d>0? '▲ +'+staNum(d)+'%' : (d<0? '▼ −'+staNum(-d)+'%' : 'เท่าเดิม') };
 }
+/* ช่วงเวลาที่เข้าตรวจ "14:00–16:30" · ใบเก่าที่มีแค่เวลาเริ่มแสดงเวลาเดียว */
+const staTimeText = r => (r.time||'') + (r.timeEnd ? '–'+r.timeEnd : '');
 const staPassText = pct => pct>=STA_PASS_PCT ? 'มาตรฐาน' : 'ปรับปรุง';
 
 /* ข้อความนำส่งรายงาน — แบบเดียวกับที่ทีมเขียนส่งสาขาเองอยู่แล้ว
@@ -3433,7 +3431,7 @@ const Form = {
     if(type==='VISIT'){ r.visitType=[]; r.visitTypeOther=''; r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     /* STA — marks เก็บผลรายข้อ ('A1.mgr' → pass/fail/na) · notes เก็บสิ่งที่จดเพิ่มของข้อนั้น
        แยกสองก้อนเพราะคนละเรื่องกัน และทำให้เพิ่ม/ลดข้อในเกณฑ์ทีหลังได้โดยใบเก่าไม่พัง */
-    if(type==='STA'){ r.marks={}; r.notes={}; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
+    if(type==='STA'){ r.timeEnd=''; r.dutyManager=''; r.marks={}; r.notes={}; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
     return r;
   },
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
@@ -3543,26 +3541,36 @@ const Form = {
 
   header(){
     const s=this.s;
+    /* STA (ซานตาเฟ่) — เข้า Visit ทีละหลายชั่วโมง รายงานจึงบอกเป็นช่วงเวลา เริ่ม–เสร็จ
+       และมีผู้จัดการกะที่อยู่ในร้านตอนตรวจ (Duty Manager) เป็นคนรับทราบผลหน้างาน */
+    const sta = this.type==='STA';
     return `<div class="card">
       <div class="hd"><span class="sec-no">1</span><h3>ข้อมูลการตรวจ</h3><div class="sp"></div>
         <span class="note">เลขที่ <span class="mono">${esc(s.id)}</span></span></div>
       <div class="bd">
         <div class="grid g4">
           <div class="fld"><label class="lbl">วันที่</label><input type="date" class="inp" value="${attr(s.date)}" oninput="Form.set('date',this.value)"></div>
-          <div class="fld"><label class="lbl">เวลา</label><input type="time" class="inp" value="${attr(s.time)}" oninput="Form.set('time',this.value)"></div>
+          ${sta
+            ? `<div class="fld"><label class="lbl">เวลา (เริ่ม – เสร็จ)</label><div class="trange">
+                <input type="time" class="inp" value="${attr(s.time)}" oninput="Form.set('time',this.value)" aria-label="เวลาเริ่ม">
+                <span>–</span>
+                <input type="time" class="inp" value="${attr(s.timeEnd||'')}" oninput="Form.set('timeEnd',this.value)" aria-label="เวลาเสร็จ"></div></div>`
+            : `<div class="fld"><label class="lbl">เวลา</label><input type="time" class="inp" value="${attr(s.time)}" oninput="Form.set('time',this.value)"></div>`}
           <div class="fld" style="grid-column:span 2"><label class="lbl">สาขา</label>
             <select class="inp" onchange="Form.set('branch',this.value)">
               <option value="">— เลือกสาขา —</option>
               ${M.branches().map(b=>`<option ${b.name===s.branch?'selected':''}>${esc(b.name)}</option>`).join('')}
             </select></div>
         </div>
-        <div class="grid g2" style="margin-top:14px">
+        <div class="grid ${sta?'g3':'g2'}" style="margin-top:14px">
           <div class="fld"><label class="lbl">ผู้จัดการเขต (BZM)</label>
             <div class="inp" style="background:var(--surface2);color:var(--text2);display:flex;align-items:center" id="bzmShow">${esc(s.bzm||'—')}</div></div>
           <div class="fld"><label class="lbl">ผู้ตรวจ (Trainer)</label>
             <select class="inp" onchange="Form.set('trainer',this.value)">
               ${M.trainers().map(t=>`<option ${t===s.trainer?'selected':''}>${esc(t)}</option>`).join('')}
             </select></div>
+          ${sta?`<div class="fld"><label class="lbl">Duty Manager</label>
+            <input class="inp" placeholder="ชื่อผู้จัดการกะที่อยู่ในร้าน" value="${attr(s.dutyManager||'')}" oninput="Form.set('dutyManager',this.value)"></div>`:''}
         </div>
       </div></div>`;
   },
@@ -4128,6 +4136,7 @@ const Form = {
     }
 
     if(s.type==='STA'){
+      if(s.timeEnd && s.time && s.timeEnd < s.time) return 'เวลาเสร็จต้องไม่ก่อนเวลาเริ่ม';
       /* ต้องตอบครบทุกช่อง — ใบที่ตอบไม่ครบทำให้เปอร์เซ็นต์ดูสูงกว่าความจริง
          เพราะข้อที่ไม่ได้ตอบไม่ถูกนับเข้าตัวหาร */
       for(const sec of STA_FORM) for(const it of sec.items) for(const p of it.parts){
@@ -5869,7 +5878,6 @@ const PDF = {
         <div class="pdfhl">
           <img class="pdflogo" src="${attr(Brand.info().logo)}" alt="${attr(Brand.info().name)}">
           <div>
-            <div class="pdfbrand" style="color:${attr((Brand.info().theme||{}).accent||'')}"><span class="en">FAB OPERATIONS</span><i>·</i>Visit สาขา<i>·</i>${esc(Brand.info().name)}</div>
             <h1>${esc(title)}</h1>
             ${sub? `<div class="pdfsub">${esc(sub)}</div>`:''}
           </div>
@@ -5955,7 +5963,7 @@ const PDF = {
     if(pv){
       const rel = (pv.pct && dl.dir!=='same') ? staNum(Math.abs(dl.d)/pv.pct*100)+'%' : '';
       cmp=`<div class="sh-cmp">
-        <div class="sh-bars">${bar(yl(pv.date), pv.pct)}${bar(yl(r.date), sc.pct)}${line}</div>
+        <div class="sh-bars">${bar(yl(r.date), sc.pct)}${bar(yl(pv.date), pv.pct)}${line}</div>
         <div class="sh-delta ${dl.dir}">
           <span class="k">เทียบกับครั้งก่อน</span>
           <b>${dl.dir==='same' ? 'เท่าเดิม' : (dl.dir==='up'?'▲ +':'▼ −')+staNum(Math.abs(dl.d))}</b>
@@ -5970,7 +5978,7 @@ const PDF = {
     }
     return `<div class="sh">
       <div class="sh-top">
-        <div class="sh-br">${esc(r.branch||'—')}${r.bzm?` <small>(BZM ${esc(r.bzm)})</small>`:''}</div>
+        <div class="sh-br">${esc(r.branch||'—')}</div>
         <span class="pi-badge sta ${vd.state}">${esc(vd.text)} <small>${esc(vd.note)}</small></span>
       </div>
       <div class="sh-main">
@@ -5982,7 +5990,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',r.time)}${kv('ผู้ตรวจ',r.trainer)}${kv('เลขที่',r.id)}${kv('แบบฟอร์ม',STA_CODE)}</div>
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',r.dutyManager)}</div>
     </div>`;
   },
 
@@ -6370,8 +6378,8 @@ const IO = {
   sheets(rows){
     rows=rows||inspections();
     const summary=rows.map(r=>({
-      'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
-      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
+      'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'เวลาเสร็จ':r.timeEnd||'','ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
+      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,'Duty Manager':r.dutyManager||'',
       'ประเภทการเข้า Visit':r.type==='VISIT'?visitTypeList(r).join(', '):'',
       'จำนวนประเด็นที่พบ':failCount(r),'สรุปสิ่งที่พบ':summaryLine(r),
       'คะแนนที่ได้':r.type==='STA'?staScore(r).got:'','คะแนนเต็ม':r.type==='STA'?(staScore(r).total||staScore(r).full):'',
