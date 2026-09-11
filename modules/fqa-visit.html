@@ -855,6 +855,18 @@ html[data-brand="santafe"] #fcList .btn{min-height:36px;border-radius:999px;font
 .rl-l em{font-style:normal;font-size:11.5px;font-weight:600;color:var(--text3);
   font-variant-numeric:tabular-nums}
 .rl-a{display:flex;gap:6px;flex:none}
+/* สรุปใบ STA ในแถว: ป้ายผล (ทึบ) · เปอร์เซ็นต์ · เพิ่ม/ลดจากครั้งก่อน (สีตามทิศ) */
+.stasum{display:inline-flex !important;flex-wrap:wrap;align-items:center;gap:5px 9px;white-space:normal !important;overflow:visible !important}
+.stasum .vd{display:inline-block;padding:3px 10px;border-radius:999px;font-size:11.5px;font-weight:800;color:#fff;white-space:nowrap}
+.stasum .vd.ok{background:#16A34A}.stasum .vd.no{background:#DC2626}
+.stasum .sc{color:var(--text2);white-space:nowrap}
+.stasum .sc b{color:var(--text);font-weight:800;font-variant-numeric:tabular-nums}
+.stasum .dlt{display:inline-block;padding:3px 9px;border-radius:7px;font-size:12px;font-weight:800;white-space:nowrap;font-variant-numeric:tabular-nums}
+.stasum .dlt small{font-size:11px;font-weight:600;opacity:.85}
+.stasum .dlt.up{background:#ECFDF3;color:#16A34A}
+.stasum .dlt.down{background:#FEF2F2;color:#DC2626}
+.stasum .dlt.same{background:var(--surface2);color:var(--text3)}
+.stasum .dlt.none{font-weight:600;color:var(--text3);padding-left:0}
 .rl-a .btn{width:32px;height:32px;padding:0;min-width:0;border-radius:9px;
   display:grid;place-items:center;font-size:14px}
 
@@ -4045,6 +4057,18 @@ function summaryLine(r){
       + (dl ? ' · '+dl.text+(dl.dir==='same'?'':' จากครั้งก่อน') : ''); }
   return r.topics.map(t=>t.topic).filter(Boolean).slice(0,2).join(' · ');
 }
+/* สรุปแบบมีสีสำหรับแถวในตาราง/การ์ด — ใบ STA ต้องอ่านได้ในแวบเดียวว่า
+   ผลเป็นมาตรฐานหรือปรับปรุง และดีขึ้นหรือแย่ลงจากครั้งก่อน
+   ใบชนิดอื่นใช้ข้อความเดิม (summaryLine ยังใช้กับการค้นหาและ Excel ตามเดิม) */
+function summaryHTML(r){
+  if(r.type!=='STA') return esc(summaryLine(r));
+  const sc=staScore(r), pv=staPrev(r,false), dl=staDelta(sc.pct,pv), ok=sc.pct>=STA_PASS_PCT;
+  return `<span class="stasum"><span class="vd ${ok?'ok':'no'}">${ok?'มาตรฐาน':'ปรับปรุง'}</span>`
+    + `<span class="sc"><b>${staNum(sc.pct)}%</b> · ${staNum(sc.got)}/${staNum(sc.total||sc.full)} คะแนน</span>`
+    + (dl ? `<span class="dlt ${dl.dir}" title="ครั้งก่อน ${staNum(pv.pct)}%${pv.date?' ('+fmtDMY(pv.date)+')':''}">${dl.text}<small> จากครั้งก่อน ${staNum(pv.pct)}%</small></span>`
+          : `<span class="dlt none">ไม่มีครั้งก่อนให้เทียบ</span>`)
+    + `</span>`;
+}
 /* ประเภทการเข้า Visit — รองรับทั้งแบบหลายค่า (array) และข้อมูลเก่า (string) · แทน "อื่นๆ" ด้วยข้อความที่ระบุ */
 function visitTypeArr(r){ const v=r&&r.visitType; return Array.isArray(v)? v.filter(Boolean) : (v? [v] : []); }
 function visitTypeList(r){ return visitTypeArr(r).map(v=> v==='อื่นๆ' ? ('อื่นๆ'+(r.visitTypeOther?': '+r.visitTypeOther:'')) : v); }
@@ -4205,7 +4229,7 @@ const Rec = {
         <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
         ${colType?`<td>${planTypeTag(r.type)}</td>`:''}
         <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
-        <td style="max-width:300px;color:var(--text2)">${esc(summaryLine(r))}</td>
+        <td style="max-width:300px;color:var(--text2)">${summaryHTML(r)}</td>
         ${colFail?`<td>${r.type==='FQA'?(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`):'<span style="color:var(--text3)">—</span>'}</td>`:''}
         <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
         <td class="rowact noprint">
@@ -4224,7 +4248,7 @@ const Rec = {
       <div class="rl" onclick="Rec.view('${r.id}')">
         <div class="rl-l">
           <b>${esc(r.branch)}</b>
-          <span>${esc(summaryLine(r))}</span>
+          <span>${summaryHTML(r)}</span>
           <em>${esc(fmtDMY(r.date))} ${esc(r.time||'')} · ${esc(r.trainer||'—')}</em>
         </div>
         ${canEdit()?`<span class="rl-a" onclick="event.stopPropagation()">
@@ -4240,7 +4264,7 @@ const Rec = {
         <div class="rc-top">${planTypeTag(r.type)}<div class="sp" style="flex:1"></div>
           ${r.type==='FQA'?`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`:''}</div>
         <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
-        <div class="rc-sum">${esc(summaryLine(r))}</div>
+        <div class="rc-sum">${summaryHTML(r)}</div>
         <div class="rc-meta"><span>📅 ${esc(fmtDMY(r.date))} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
@@ -5827,7 +5851,7 @@ const PDF = {
       <td>${esc(fmtDMY(r.date))}<div class="sm">${esc(r.time)}</div></td>
       <td>${esc(r.type)}${r.type==='VISIT'?`<div class="sm">${esc(visitTypeLabel(r))}</div>`:''}</td>
       <td>${esc(r.branch)}<div class="sm">${esc(r.bzm)}</div></td>
-      <td>${esc(summaryLine(r))}</td>
+      <td>${summaryHTML(r)}</td>
       <td class="c">${failCount(r)}</td>
       <td>${esc(r.trainer)}</td></tr>`);
     const body=`<div class="pdfstats">
@@ -5924,7 +5948,7 @@ const Report = {
         <td>${colType?`<span class="tag">${esc(TL[r.type]||r.type)}</span>`:''}${r.type==='VISIT'?`<div style="font-size:11px;color:var(--text3)${colType?';margin-top:3px':''}">${esc(visitTypeLabel(r))}</div>`:''}</td>
         <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
         <td style="font-size:12.5px">${esc(r.trainer||'—')}</td>
-        <td style="max-width:280px;color:var(--text2)">${esc(summaryLine(r))}</td>
+        <td style="max-width:280px;color:var(--text2)">${summaryHTML(r)}</td>
         <td class="rowact noprint"><button class="btn sm pri" onclick="PDF.record('${r.id}')">PDF ใบนี้</button></td></tr>`).join('')}
     </tbody></table>${moreN>0?`<div class="recmore"><button class="btn" onclick="Report.showMore()">แสดงเพิ่ม · เหลืออีก ${moreN.toLocaleString('th-TH')} ใบ</button></div>`:''}`;
     this.syncBar();
