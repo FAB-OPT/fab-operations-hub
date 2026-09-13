@@ -14,7 +14,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-28';
+var BACKEND_VERSION = '2026-09-13';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -773,7 +773,8 @@ function ocrImage(imageBase64, filename, mimeType) {
    - Exam ทั้งชุด (config + คำถาม) เก็บเป็น JSON ในคอลัมน์ 'json'
    ═══════════════════════════════════════════════════════════════ */
 var EXAM_HEADERS = ['id','title','brand','active','startDate','endDate','questions','updatedAt','json'];
-var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson','position'];
+/* track / partsJson = ชุดที่แบ่งส่วน บริการ/ครัว: สอบส่วนไหน และผลรายส่วน (ต่อท้าย ไม่ย้ายคอลัมน์เดิม) */
+var EXAMRESULT_HEADERS = ['submittedAt','examId','examTitle','name','empId','branch','brand','pct','correct','total','result','violations','finishReason','startedAt','answersJson','position','track','partsJson'];
 
 /* ═══ แคชของระบบสอบ ═══
    วัดจริง: ยิง action=exams ใช้เวลา 3 - 36 วินาที และบางครั้งตอบกลับมาไม่ครบ
@@ -934,7 +935,9 @@ function saveExamResult(r) {
       r.result || '', r.violations != null ? r.violations : 0,
       r.finishReason || '', r.startedAt || '',
       r.answers ? JSON.stringify(r.answers) : '',
-      r.position || ''
+      r.position || '',
+      r.track || '',
+      r.parts ? JSON.stringify(r.parts) : ''
     ];
     sh.appendRow(row);
     _examCacheKill();
@@ -991,6 +994,7 @@ function getExamResults() {
     var rec = {};
     headers.forEach(function(h, j){ rec[h] = row[j]; });
     if (rec.answersJson) { try { rec.answers = JSON.parse(rec.answersJson); } catch (e) {} }
+    if (rec.partsJson) { try { rec.parts = JSON.parse(rec.partsJson); } catch (e) {} }
     results.push(rec);
   }
   var out = { ok: true, results: results };
@@ -1313,7 +1317,7 @@ function setupDailyBackup() {
    ═════════════════════════════════════════════════ */
 var EXAMREQ_HEADERS = ['id','createdAt','examId','examTitle','brand','branchCode','branchName',
                        'name','empId','status','code','approvedAt','approvedBy','usedAt','note',
-                       'position','requestedBy','requestedByName'];
+                       'position','requestedBy','requestedByName','track'];   /* track = ส่วนที่ขอสอบ (ชุดที่แบ่งส่วน) */
 
 function _reqSheet() { return _getOrCreateSheet('ExamRequests', EXAMREQ_HEADERS); }
 
@@ -1365,7 +1369,8 @@ function getExamRequests(branch, scope) {
       position: r.position || '',
       status: r.status || 'pending', code: r.code || '',
       approvedAt: r.approvedAt, approvedBy: r.approvedBy, usedAt: r.usedAt, note: r.note || '',
-      requestedBy: r.requestedBy || '', requestedByName: r.requestedByName || ''
+      requestedBy: r.requestedBy || '', requestedByName: r.requestedByName || '',
+      track: r.track || ''
     });
   });
   return { ok: true, requests: out };
@@ -1380,7 +1385,8 @@ function saveExamRequest(req) {
     /* กันกดขอซ้ำ: คนเดิม ชุดเดิม ที่ยังรออนุมัติหรืออนุมัติแล้วแต่ยังไม่ได้ใช้
        ให้คืนคำขอเดิมกลับไป ไม่สร้างใหม่ ไม่งั้นแอดมินจะเห็นรายการซ้ำเต็มไปหมด */
     var key = function (r) {
-      return String(r.examId) + '|' + String(r.name).trim() + '|' + String(r.empId || '').trim();
+      /* ส่วนที่ขอสอบต่างกัน = คนละคำขอ (ขอสอบบริการไว้แล้ว มาขอสอบครัวเพิ่มได้) */
+      return String(r.examId) + '|' + String(r.name).trim() + '|' + String(r.empId || '').trim() + '|' + String(r.track || '').trim();
     };
     var mine = key(req);
     for (var i = 0; i < d.rows.length; i++) {
@@ -1400,6 +1406,7 @@ function saveExamRequest(req) {
       /* คนกดขอ ไม่ใช่คนที่ถูกขอให้ไปสอบ — หัวหน้าขอแทนลูกน้องได้ ชื่อในคำขอจึงไม่ใช่ตัวเขา */
       requestedBy: String(req.requestedBy || '').trim(),
       requestedByName: String(req.requestedByName || '').trim(),
+      track: String(req.track || '').trim(),
       status: 'pending', code: '', approvedAt: '', approvedBy: '', usedAt: '', note: ''
     };
     d.sh.appendRow(d.headers.map(function (h) { return map.hasOwnProperty(h) ? map[h] : ''; }));
@@ -1454,7 +1461,8 @@ function verifyExamCode(code, examId) {
     if (examId && String(r.examId) !== String(examId)) return { ok: false, error: 'รหัสนี้ไม่ใช่ของชุดข้อสอบนี้' };
     return { ok: true, request: { id: r.id, examId: r.examId, name: r.name, empId: r.empId,
                                   position: r.position || '',
-                                  branchName: r.branchName, branchCode: r.branchCode } };
+                                  branchName: r.branchName, branchCode: r.branchCode,
+                                  track: r.track || '' } };
   }
   return { ok: false, error: 'ไม่พบรหัสนี้' };
 }
