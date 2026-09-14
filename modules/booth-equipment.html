@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบจัดการอุปกรณ์ออกบูธ · FAB Operations Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Thai:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --band:#16302F; --on-band:#EDF3F1; --on-band-dim:#8CA9A6;
+  --paper:#EAECE7; --surface:#FFFFFF; --surface2:#F4F5F2;
+  --ink:#182524; --ink2:#4E6260; --ink3:#87958F;
+  --line:#DBDFD9; --line2:#EAEDE8;
+  --signal:#C9821A; --signal-soft:#FAEFDC;
+  --ok:#2A7154; --ok-soft:#E0EFE7;
+  --bad:#9E3B31;
+  --shadow:0 1px 2px rgba(20,35,33,.05);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --band:#0D1B1B; --on-band:#E4EDEA; --on-band-dim:#7F9895;
+    --paper:#101A1A; --surface:#182524; --surface2:#1F2E2C;
+    --ink:#E6EDEA; --ink2:#A6B8B4; --ink3:#7A8B87;
+    --line:#2B3A38; --line2:#233130;
+    --signal:#E0A445; --signal-soft:#33260F;
+    --ok:#6BC49B; --ok-soft:#122E24;
+    --bad:#E08A82; --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --band:#0D1B1B; --on-band:#E4EDEA; --on-band-dim:#7F9895;
+  --paper:#101A1A; --surface:#182524; --surface2:#1F2E2C;
+  --ink:#E6EDEA; --ink2:#A6B8B4; --ink3:#7A8B87;
+  --line:#2B3A38; --line2:#233130;
+  --signal:#E0A445; --signal-soft:#33260F;
+  --ok:#6BC49B; --ok-soft:#122E24;
+  --bad:#E08A82; --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans Thai","Segoe UI",system-ui,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+.in{max-width:760px;margin:0 auto;padding:0 16px}
+
+.band{background:var(--band);color:var(--on-band);padding:14px 0 20px}
+.band .top{display:flex;gap:14px;align-items:flex-start}
+h1{margin:0;font-size:21px;font-weight:700;letter-spacing:-.015em;line-height:1.2}
+.band .note{margin:3px 0 0;font-size:12.5px;color:var(--on-band-dim)}
+.who{font-size:12.5px;color:var(--on-band);background:rgba(255,255,255,.09);
+  border:1px solid rgba(255,255,255,.16);border-radius:99px;padding:6px 13px;cursor:pointer;
+  white-space:nowrap;font-family:inherit}
+.who:hover{background:rgba(255,255,255,.15)}
+.crumb{display:flex;align-items:center;gap:8px;margin-bottom:12px;font-size:12px;color:var(--on-band-dim)}
+.crumb .me{margin-left:auto;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:45vw}
+.stats{display:flex;margin-top:18px;border-top:1px solid rgba(255,255,255,.13);padding-top:14px}
+.stats > div{flex:1;padding-right:12px}
+.stats > div + div{border-left:1px solid rgba(255,255,255,.13);padding-left:16px}
+.stats b{display:block;font-size:26px;font-weight:600;line-height:1.1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.stats span{font-size:12px;color:var(--on-band-dim)}
+.stats .hot b{color:var(--signal)}
+
+.tabbar{position:sticky;top:0;z-index:20;background:var(--paper);border-bottom:1px solid var(--line)}
+.tabs{display:flex;gap:26px}
+.tab{background:none;border:0;font:inherit;font-size:14.5px;font-weight:500;color:var(--ink3);
+  padding:13px 0 11px;cursor:pointer;border-bottom:2.5px solid transparent;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--ink);font-weight:600;border-bottom-color:var(--signal)}
+.wrap{max-width:760px;margin:0 auto;padding:4px 16px 96px}
+
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:4px 15px;margin:12px 0;box-shadow:var(--shadow)}
+.sec{display:flex;align-items:baseline;gap:9px;margin:26px 2px 8px}
+.sec b{font-size:13.5px;font-weight:600}
+.sec span{font-size:12.5px;color:var(--ink3)}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.grow{flex:1;min-width:0}
+.row{display:flex;gap:10px;align-items:center}
+.muted{color:var(--ink3);font-size:13px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:14px;
+  text-align:center;color:var(--ink3);padding:32px 18px;font-size:14px;line-height:1.7;margin:12px 0}
+
+.eq{display:flex;gap:13px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line2)}
+.panel .eq:last-child{border-bottom:0}
+.thumb{width:54px;height:54px;border-radius:10px;object-fit:cover;background:var(--surface2);
+  border:1px solid var(--line);flex:none;display:flex;align-items:center;justify-content:center;
+  color:var(--ink3);font-size:10.5px;cursor:pointer}
+.eq-name{font-weight:500;font-size:15px;line-height:1.35}
+.eq-sub{font-size:12.5px;color:var(--ink3);margin-top:1px}
+.dot{display:inline-block;width:5px;height:5px;border-radius:99px;background:var(--signal);
+  vertical-align:2px;margin-right:5px}
+.qty{display:flex;align-items:center;gap:3px;flex:none}
+.qbtn{width:32px;height:32px;border-radius:9px;border:1px solid var(--line);background:var(--surface2);
+  color:var(--ink);font-size:18px;line-height:1;cursor:pointer}
+.qbtn:hover{background:var(--paper)}
+.qbtn:disabled{opacity:.4;cursor:not-allowed}
+.qnum{min-width:32px;text-align:center;font-weight:600;font-variant-numeric:tabular-nums;font-size:15px}
+
+.loan{position:relative;background:var(--surface);border:1px solid var(--line);border-radius:14px;
+  padding:15px 16px 15px 21px;margin:11px 0;overflow:hidden;box-shadow:var(--shadow)}
+.loan::before{content:"";position:absolute;left:0;top:0;bottom:0;width:6px;background:var(--signal)}
+.loan.late::before{background:var(--bad)}
+.loan.done::before{background:var(--ok)}
+.loan h3{margin:0;font-size:16px;font-weight:600;letter-spacing:-.01em}
+.pill{display:inline-block;font-size:11.5px;font-weight:600;padding:3px 10px;border-radius:99px;
+  background:var(--signal-soft);color:var(--signal);white-space:nowrap}
+.pill.ok{background:var(--ok-soft);color:var(--ok)}
+.pill.late{background:var(--signal-soft);color:var(--bad)}
+.items{margin:11px 0 0;display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12.5px;background:var(--surface2);border:1px solid var(--line2);
+  border-radius:7px;padding:3px 9px;color:var(--ink2)}
+.chip b{font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+.photos{display:flex;gap:7px;flex-wrap:wrap;margin-top:11px}
+.photos img{width:62px;height:62px;object-fit:cover;border-radius:8px;
+  border:1px solid var(--line);background:var(--surface2);cursor:pointer}
+.photos .up{position:relative}
+.photos .up::after{content:"กำลังอัป…";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  background:rgba(10,22,21,.55);color:#fff;font-size:10.5px;border-radius:8px}
+.phlabel{font-size:11.5px;color:var(--ink3);margin:10px 0 -4px}
+.actions{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+
+label{display:block;font-size:12.5px;color:var(--ink2);margin:0 0 6px;font-weight:500}
+input,select,textarea{width:100%;font:inherit;font-size:15px;color:var(--ink);background:var(--surface2);
+  border:1px solid var(--line);border-radius:9px;padding:10px 12px}
+textarea{min-height:60px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--signal);outline-offset:1px}
+.field{margin:0 0 13px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+button{font-family:inherit}
+.btn{background:var(--ink);color:var(--surface);border:0;border-radius:9px;padding:10px 17px;
+  font-size:14.5px;font-weight:600;cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.sm{padding:7px 13px;font-size:13.5px}
+.btn.danger{background:transparent;color:var(--bad);border:1px solid var(--line)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.pick{display:flex;gap:11px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line2)}
+.pick.off{opacity:.38}
+
+.mask{position:fixed;inset:0;background:rgba(10,22,21,.6);z-index:60;display:flex;
+  align-items:flex-end;justify-content:center}
+.modal{background:var(--surface);width:100%;max-width:640px;max-height:92vh;overflow:auto;
+  border-radius:18px 18px 0 0;padding:20px 17px 28px}
+@media(min-width:700px){.mask{align-items:center;padding:20px}.modal{border-radius:16px}}
+@media (prefers-reduced-motion:no-preference){.modal{animation:rise .2s cubic-bezier(.2,.8,.3,1)}}
+@keyframes rise{from{transform:translateY(14px);opacity:0}}
+.modal h2{margin:0 0 16px;font-size:18px;font-weight:700;letter-spacing:-.015em}
+.fab{position:fixed;right:16px;bottom:18px;z-index:30;background:var(--band);color:var(--on-band);
+  border:0;border-radius:99px;padding:14px 22px;font-size:15px;font-weight:600;cursor:pointer;
+  box-shadow:0 8px 22px rgba(14,35,34,.3)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:82px;z-index:90;background:var(--band);
+  color:var(--on-band);padding:11px 20px;border-radius:99px;font-size:14px;
+  box-shadow:0 6px 18px rgba(14,35,34,.28);max-width:calc(100vw - 32px);text-align:center}
+.gate{position:fixed;inset:0;z-index:80;background:var(--band);color:var(--on-band);display:flex;
+  align-items:center;justify-content:center;padding:24px}
+.gate .box{width:100%;max-width:360px;text-align:center}
+.gate h2{font-size:22px;margin:0 0 8px}
+.gate p{color:var(--on-band-dim);font-size:14px;margin:0 0 20px}
+.gate .btn{background:var(--on-band);color:var(--band);width:100%;padding:14px}
+.hide{display:none!important}
+@media(max-width:420px){.f2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="band">
+  <div class="in">
+    <div class="crumb"><button class="who" id="backBtn">← ฮับ</button><span>ระบบจัดการอุปกรณ์ออกบูธ</span><span class="me" id="me"></span></div>
+    <div class="top">
+      <div class="grow">
+        <h1>อุปกรณ์ออกบูธ</h1>
+        <p class="note" id="note">กำลังเชื่อมต่อ…</p>
+      </div>
+    </div>
+    <div class="stats">
+      <div><b id="s1">–</b><span>รายการในคลัง</span></div>
+      <div><b id="s2">–</b><span>งานที่ยืมอยู่</span></div>
+      <div class="hot"><b id="s3">–</b><span>เลยกำหนดคืน</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="tabbar"><div class="in"><div class="tabs">
+  <button class="tab" id="tabLoan" aria-selected="true">ยืม–คืน</button>
+  <button class="tab" id="tabEq" aria-selected="false">คลังอุปกรณ์</button>
+</div></div></div>
+
+<div class="wrap">
+  <div id="viewLoan"></div>
+  <div id="viewEq" class="hide"></div>
+</div>
+
+<button class="fab hide" id="fab">+ ยืมของ</button>
+<div id="modalHost"></div>
+
+<script src="hub-docstore.js"></script>
+<script>
+"use strict";
+const {Hub, Cfg} = HubMod;
+const S = new HubMod.Store("bt");
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const today=()=>HubMod.localDate();
+const dmy=HubMod.fmtDMY;
+function toast(t){const e=document.createElement("div");e.className="toast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600);}
+
+/* สิทธิ์ — ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.boothequip ในฮับ */
+const PERM_KEY="boothequip";
+const TEAM=["admin","coo","vp","bzm","support"];
+const PERM_DEFAULTS={ "view":TEAM, "borrow":TEAM, "return":TEAM, "manage-equipment":["admin","support"], "delete-loan":["admin"] };
+const can=a=>HubMod.can(PERM_KEY,a,PERM_DEFAULTS);
+
+let TAB="loan";
+const ME=()=>Hub.fullName();
+const EQ=()=>S.all("equipment");
+const LOANS=()=>S.all("loans");
+const CATS=()=>((S.get("meta","categories")||{}).items)||[];
+
+/* ───── รูป: อัปขึ้น Drive ทันทีที่แนบ เก็บเป็นลิงก์ ───── */
+function zoom(src){
+  const m=document.createElement("div");m.className="mask";
+  m.innerHTML=`<img src="${esc(src)}" alt="รูปขยาย" style="max-width:96%;max-height:92vh;border-radius:12px;margin:auto">`;
+  m.onclick=()=>m.remove();document.body.appendChild(m);}
+function img(src,cls){ const i=new Image(); i.src=src; i.alt="รูปอุปกรณ์"; i.loading="lazy"; if(cls) i.className=cls;
+  i.onclick=e=>{e.stopPropagation();zoom(src);}; return i; }
+function photoField(t,single){
+  const box=document.createElement("div");box.className="field";box.urls=[];box.busy=0;
+  box.innerHTML=`<label>${t}</label><input type="file" accept="image/*" ${single?"":"multiple"}>
+    <div class="photos" style="margin-top:9px"></div>`;
+  const inp=$("input",box),strip=$(".photos",box);
+  inp.onchange=async()=>{ const files=Array.from(inp.files||[]); inp.value="";
+    for(const f of files){
+      if(single){ strip.innerHTML=""; box.urls=[]; }
+      const wrap=document.createElement("span"); wrap.className="up";
+      const i=new Image(); i.alt="รูปที่แนบ"; wrap.appendChild(i); strip.appendChild(wrap);
+      box.busy++;
+      try{ const u=await HubMod.compressImage(f,1000,170000); i.src=u;
+        box.urls.push(await S.uploadPhoto(u)); wrap.classList.remove("up"); }
+      catch(e){ wrap.remove(); toast(e.message||"แนบรูปไม่สำเร็จ"); }
+      finally{ box.busy--; }
+    } };
+  return box;
+}
+
+function outQty(eqId){ let n=0;
+  LOANS().forEach(l=>{ if(l.status==="out")(l.items||[]).forEach(it=>{ if(it.eqId===eqId)n+=Number(it.qty)||0; }); });
+  return n; }
+const avail=e=>Math.max(0,(Number(e.total)||0)-outQty(e.id));
+const isLate=l=>l.status==="out"&&l.dueDate&&l.dueDate<today();
+
+function renderEq(){
+  const v=$("#viewEq"); v.innerHTML="";
+  const eqs=EQ(), cats=CATS(), mg=can("manage-equipment");
+  const bar=document.createElement("div"); bar.className="row"; bar.style.margin="18px 2px 2px";
+  bar.innerHTML=`<div class="grow muted">${eqs.length} รายการ · ${cats.length} หมวด</div>`;
+  if(mg){
+    const b1=Object.assign(document.createElement("button"),{className:"btn sm",textContent:"+ เพิ่มอุปกรณ์"});
+    const b2=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"จัดการหมวด"});
+    b1.onclick=()=>eqForm(null); b2.onclick=catForm; bar.append(b1,b2);
+  }
+  v.appendChild(bar);
+  if(!eqs.length){ v.insertAdjacentHTML("beforeend",
+    `<div class="empty">ยังไม่มีอุปกรณ์ในคลัง${mg?"<br>กด “เพิ่มอุปกรณ์” เพื่อเริ่มบันทึกของที่ใช้ออกบูธ":""}</div>`); return; }
+  const known=new Set(cats);
+  [...cats,"ไม่ระบุหมวด"].forEach(cat=>{
+    const list=eqs.filter(e=>{ const c=e.category&&known.has(e.category)?e.category:"ไม่ระบุหมวด"; return c===cat; })
+      .sort((a,b)=>a.name.localeCompare(b.name,"th"));
+    if(!list.length) return;
+    const tot=list.reduce((s,e)=>s+(Number(e.total)||0),0);
+    v.insertAdjacentHTML("beforeend",`<div class="sec"><b>${esc(cat)}</b><span>${list.length} รายการ · ${tot} ชิ้น</span></div>`);
+    const p=document.createElement("div"); p.className="panel";
+    list.forEach(e=>{
+      const a=avail(e), o=outQty(e.id);
+      const row=document.createElement("div"); row.className="eq";
+      let th;
+      if(e.photo){ th=img(e.photo,"thumb"); }
+      else { th=document.createElement("div"); th.className="thumb"; th.textContent="ไม่มีรูป"; }
+      const mid=document.createElement("div"); mid.className="grow"; if(mg) mid.style.cursor="pointer";
+      mid.innerHTML=`<div class="eq-name">${esc(e.name)}</div>
+        <div class="eq-sub">ว่าง ${a} จาก ${e.total||0} ชิ้น${o?` · <span class="dot"></span>ถูกยืม ${o}`:""}${e.note?` · ${esc(e.note)}`:""}</div>`;
+      if(mg) mid.onclick=()=>eqForm(e);
+      row.append(th,mid);
+      if(mg){
+        const q=document.createElement("div"); q.className="qty";
+        const mi=Object.assign(document.createElement("button"),{className:"qbtn",textContent:"−",title:"ลดจำนวน"});
+        const nu=Object.assign(document.createElement("div"),{className:"qnum",textContent:e.total||0});
+        const pl=Object.assign(document.createElement("button"),{className:"qbtn",textContent:"+",title:"เพิ่มจำนวน"});
+        mi.onclick=()=>adjust(e,-1,[mi,pl]); pl.onclick=()=>adjust(e,1,[mi,pl]);
+        q.append(mi,nu,pl); row.append(q);
+      }
+      p.appendChild(row);
+    });
+    v.appendChild(p);
+  });
+}
+async function adjust(e,d,btns){
+  const cur=S.get("equipment",e.id)||e;
+  const n=(Number(cur.total)||0)+d; if(n<0)return;
+  if(n<outQty(e.id)){ toast("ลดไม่ได้ ของถูกยืมอยู่ "+outQty(e.id)+" ชิ้น"); return; }
+  btns.forEach(b=>b.disabled=true);
+  /* expect = จำนวนที่เห็นอยู่ · อีกเครื่องปรับไปก่อนแล้วจะไม่บวกซ้อนผิด */
+  try{ await S.update("equipment",e.id,{total:n},{total:Number(cur.total)||0}); }
+  catch(err){ toast(err.message||"บันทึกไม่สำเร็จ"); btns.forEach(b=>b.disabled=false); }
+}
+
+function renderLoan(){
+  const v=$("#viewLoan"); v.innerHTML="";
+  const loans=LOANS();
+  const open=loans.filter(l=>l.status==="out")
+    .sort((a,b)=>(isLate(b)?1:0)-(isLate(a)?1:0)||(a.dueDate||"9999").localeCompare(b.dueDate||"9999"));
+  const done=loans.filter(l=>l.status!=="out").sort((a,b)=>(b.returnedAt||"").localeCompare(a.returnedAt||""));
+  v.insertAdjacentHTML("beforeend",`<div class="sec"><b>กำลังยืมอยู่</b><span>${open.length} งาน</span></div>`);
+  if(!open.length) v.insertAdjacentHTML("beforeend",
+    `<div class="empty">ไม่มีของที่ยืมออกไปตอนนี้${can("borrow")?"<br>กด “+ ยืมของ” เมื่อจะเบิกอุปกรณ์ไปออกบูธ":""}</div>`);
+  open.forEach(l=>v.appendChild(loanCard(l)));
+  if(done.length){
+    v.insertAdjacentHTML("beforeend",`<div class="sec"><b>คืนแล้ว</b><span>${done.length} งาน${done.length>40?" · แสดง 40 ล่าสุด":""}</span></div>`);
+    done.slice(0,40).forEach(l=>v.appendChild(loanCard(l)));
+  }
+}
+function loanCard(l){
+  const late=isLate(l);
+  const c=document.createElement("div");
+  c.className="loan"+(l.status==="out"?(late?" late":""):" done");
+  const n=(l.items||[]).reduce((s,i)=>s+(Number(i.qty)||0),0);
+  c.innerHTML=`<div class="row" style="align-items:flex-start">
+      <div class="grow"><h3>${esc(l.eventName)}</h3>
+        <div class="muted">${esc(l.borrower||"-")} · ออก ${esc(dmy(l.borrowDate)||"-")}${l.dueDate?` · คืน ${esc(dmy(l.dueDate))}`:""} · ${n} ชิ้น</div></div>
+      <span class="pill ${l.status==="out"?(late?"late":""):"ok"}">${l.status==="out"?(late?"เลยกำหนด":"ยืมอยู่"):"คืนแล้ว"}</span></div>
+    <div class="items">${(l.items||[]).map(i=>`<span class="chip">${esc(i.name)} <b>×${i.qty}</b></span>`).join("")}</div>
+    ${l.note?`<div class="muted" style="margin-top:9px">${esc(l.note)}</div>`:""}
+    ${l.returnedAt?`<div class="muted" style="margin-top:7px">คืน ${esc(dmy(l.returnedAt))} · รับโดย ${esc(l.returnedBy||"-")}${l.returnNote?` · ${esc(l.returnNote)}`:""}</div>`:""}`;
+  [["ตอนเอาออก",l.outPhotos],["ตอนรับคืน",l.returnPhotos]].forEach(([t,urls])=>{
+    if(!(urls||[]).length) return;
+    if((l.returnPhotos||[]).length) c.insertAdjacentHTML("beforeend",`<div class="phlabel">${t}</div>`);
+    const ph=document.createElement("div"); ph.className="photos";
+    urls.forEach(u=>ph.appendChild(img(u))); c.appendChild(ph);
+  });
+  const act=document.createElement("div"); act.className="actions";
+  if(l.status==="out"&&can("return")){
+    const r=Object.assign(document.createElement("button"),{className:"btn sm",textContent:"รับคืน"});
+    r.onclick=()=>returnForm(l); act.appendChild(r);
+  }
+  if(can("delete-loan")){
+    const del=Object.assign(document.createElement("button"),{className:"btn sm danger",textContent:"ลบ"});
+    del.onclick=async()=>{ if(!confirm("ลบรายการ “"+l.eventName+"” ถาวร? กู้คืนไม่ได้"))return;
+      del.disabled=true; try{await S.remove("loans",l.id); toast("ลบแล้ว");}catch(e){toast(e.message||"ลบไม่สำเร็จ");del.disabled=false;} };
+    act.appendChild(del);
+  }
+  if(act.children.length) c.appendChild(act);
+  return c;
+}
+
+function modal(title,body,onSave,saveTxt="บันทึก"){
+  const m=document.createElement("div");m.className="mask";
+  const box=document.createElement("div");box.className="modal";
+  box.innerHTML=`<h2>${esc(title)}</h2>`;box.appendChild(body);
+  const act=document.createElement("div");act.className="actions";act.style.marginTop="18px";
+  const s=Object.assign(document.createElement("button"),{className:"btn",textContent:saveTxt});
+  const c=Object.assign(document.createElement("button"),{className:"btn ghost",textContent:"ยกเลิก"});
+  c.onclick=()=>m.remove();
+  s.onclick=async()=>{s.disabled=true;const o=s.textContent;s.textContent="กำลังบันทึก…";
+    try{await onSave();m.remove();}catch(e){toast(e.message||"บันทึกไม่สำเร็จ");s.disabled=false;s.textContent=o;}};
+  act.append(s,c);box.appendChild(act);m.appendChild(box);
+  m.onclick=e=>{if(e.target===m)m.remove();};
+  $("#modalHost").appendChild(m);return m;
+}
+
+function eqForm(e){
+  const cats=CATS();
+  const b=document.createElement("div");
+  b.innerHTML=`<div class="field"><label>ชื่ออุปกรณ์</label><input id="fN" value="${esc(e?e.name:"")}" placeholder="เช่น เต็นท์พับ 3×3 ม."></div>
+    <div class="f2">
+      <div class="field"><label>หมวด</label><select id="fC"><option value="">ไม่ระบุหมวด</option>
+        ${cats.map(c=>`<option ${e&&e.category===c?"selected":""}>${esc(c)}</option>`).join("")}</select></div>
+      <div class="field"><label>จำนวนทั้งหมด</label><input id="fT" type="number" min="0" value="${e?e.total||0:1}"></div>
+    </div>
+    <div class="field"><label>หมายเหตุ</label><input id="fR" value="${esc(e?e.note||"":"")}" placeholder="สภาพของ / ที่เก็บ"></div>`;
+  const pf=photoField(e&&e.photo?"เปลี่ยนรูป":"รูปอุปกรณ์",true); b.appendChild(pf);
+  if(e){ const d=Object.assign(document.createElement("button"),{className:"btn sm danger",textContent:"ลบอุปกรณ์นี้"});
+    d.onclick=async()=>{
+      if(outQty(e.id)) return toast("ลบไม่ได้ ของชิ้นนี้ถูกยืมอยู่ "+outQty(e.id)+" ชิ้น");
+      if(!confirm("ลบ “"+e.name+"” ออกจากคลัง?"))return;
+      d.disabled=true;
+      try{ await S.remove("equipment",e.id); d.closest(".mask").remove(); toast("ลบแล้ว"); }
+      catch(err){ toast(err.message); d.disabled=false; } };
+    b.appendChild(d); }
+  modal(e?"แก้ไขอุปกรณ์":"เพิ่มอุปกรณ์",b,async()=>{
+    const name=$("#fN",b).value.trim(); if(!name) throw new Error("ใส่ชื่ออุปกรณ์ก่อน");
+    if(pf.busy) throw new Error("รอรูปอัปโหลดให้เสร็จก่อน");
+    const total=Math.max(0,Math.floor(Number($("#fT",b).value)||0));
+    const data={name,category:$("#fC",b).value,total,note:$("#fR",b).value.trim()};
+    if(pf.urls.length) data.photo=pf.urls[pf.urls.length-1];
+    if(e){
+      await S.refresh().catch(()=>{});
+      if(total<outQty(e.id)) throw new Error("น้อยกว่าที่ถูกยืมอยู่ ("+outQty(e.id)+")");
+      await S.update("equipment",e.id,Object.assign(data,{updatedBy:ME()}));
+    } else {
+      await S.set("equipment",uid(),Object.assign(data,{createdAt:new Date().toISOString(),createdBy:ME()}));
+    }
+    toast("บันทึกแล้ว");
+  });
+}
+function catForm(){
+  const cats=CATS().slice();
+  const b=document.createElement("div"); const list=document.createElement("div");
+  const draw=()=>{ list.innerHTML=cats.length?"":`<div class="muted">ยังไม่มีหมวด</div>`;
+    cats.forEach((c,i)=>{ const r=document.createElement("div"); r.className="pick";
+      const n=EQ().filter(e=>e.category===c).length;
+      r.innerHTML=`<div class="grow">${esc(c)}<div class="eq-sub">${n} รายการ${n?" · ลบหมวดแล้วของจะไปอยู่ “ไม่ระบุหมวด”":""}</div></div>`;
+      const x=Object.assign(document.createElement("button"),{className:"btn sm danger",textContent:"ลบ"});
+      x.onclick=()=>{cats.splice(i,1);draw();}; r.appendChild(x); list.appendChild(r); }); };
+  b.innerHTML=`<div class="field"><label>เพิ่มหมวดใหม่</label>
+    <div class="row"><input id="nc" class="grow" placeholder="เช่น เต็นท์และโครงสร้าง"><button class="btn sm" id="addc">เพิ่ม</button></div></div>`;
+  b.appendChild(list); draw();
+  const add=()=>{ const v=$("#nc",b).value.trim(); if(v&&!cats.includes(v)){cats.push(v);$("#nc",b).value="";draw();} };
+  $("#addc",b).onclick=add; $("#nc",b).onkeydown=ev=>{ if(ev.key==="Enter"){ev.preventDefault();add();} };
+  modal("จัดการหมวดอุปกรณ์",b,async()=>{ await S.set("meta","categories",{items:cats}); toast("บันทึกหมวดแล้ว"); });
+}
+function loanForm(){
+  if(!EQ().length){ toast("ยังไม่มีอุปกรณ์ในคลัง"); return; }
+  const b=document.createElement("div");
+  b.innerHTML=`<div class="field"><label>ชื่องาน / บูธ</label><input id="lE" placeholder="เช่น งานเซ็นทรัลพระราม 2"></div>
+    <div class="f2"><div class="field"><label>ผู้ยืม</label><input id="lB" value="${esc(ME())}"></div>
+      <div class="field"><label>วันที่เอาออก</label><input id="lD" type="date" value="${today()}"></div></div>
+    <div class="field"><label>กำหนดคืน</label><input id="lU" type="date"></div>
+    <label>เลือกอุปกรณ์</label>`;
+  const picker=document.createElement("div"); picker.style.margin="0 0 14px"; const chosen={};
+  EQ().sort((a,b2)=>a.name.localeCompare(b2.name,"th")).forEach(e=>{
+    const a=avail(e); const r=document.createElement("div"); r.className="pick"+(a?"":" off");
+    r.innerHTML=`<div class="grow"><div style="font-size:14.5px">${esc(e.name)}</div>
+      <div class="eq-sub">${esc(e.category||"ไม่ระบุหมวด")} · ว่าง ${a}</div></div>`;
+    const q=document.createElement("div"); q.className="qty";
+    const mi=Object.assign(document.createElement("button"),{className:"qbtn",textContent:"−",type:"button"});
+    const nu=Object.assign(document.createElement("div"),{className:"qnum",textContent:"0"});
+    const pl=Object.assign(document.createElement("button"),{className:"qbtn",textContent:"+",type:"button"});
+    mi.onclick=()=>{chosen[e.id]=Math.max(0,(chosen[e.id]||0)-1);nu.textContent=chosen[e.id];};
+    pl.onclick=()=>{const n=(chosen[e.id]||0)+1; if(n>a){toast("เกินจำนวนที่ว่าง");return;} chosen[e.id]=n; nu.textContent=n;};
+    q.append(mi,nu,pl); r.append(q); picker.appendChild(r); });
+  b.appendChild(picker);
+  const pf=photoField("รูปตอนเอาของออก"); b.appendChild(pf);
+  const nt=document.createElement("div"); nt.className="field";
+  nt.innerHTML=`<label>หมายเหตุ</label><textarea id="lN" placeholder="สภาพของ / ของที่ต้องระวัง"></textarea>`;
+  b.appendChild(nt);
+  modal("ยืมอุปกรณ์ออกบูธ",b,async()=>{
+    const eventName=$("#lE",b).value.trim(); if(!eventName) throw new Error("ใส่ชื่องานก่อน");
+    const borrower=$("#lB",b).value.trim(); if(!borrower) throw new Error("ใส่ชื่อผู้ยืมก่อน");
+    const borrowDate=$("#lD",b).value||today(), dueDate=$("#lU",b).value||"";
+    if(dueDate&&dueDate<borrowDate) throw new Error("กำหนดคืนต้องไม่ก่อนวันที่เอาออก");
+    if(pf.busy) throw new Error("รอรูปอัปโหลดให้เสร็จก่อน");
+    /* ดึงล่าสุดก่อนเช็คจำนวนว่าง — อีกคนอาจเพิ่งยืมชิ้นเดียวกันออกไประหว่างที่ฟอร์มนี้เปิดอยู่ */
+    await S.refresh().catch(()=>{});
+    const items=Object.entries(chosen).filter(([,q])=>q>0).map(([id,q])=>{
+      const e=S.get("equipment",id);
+      if(!e) throw new Error("มีอุปกรณ์ที่ถูกลบออกจากคลังไปแล้ว ปิดฟอร์มแล้วเลือกใหม่");
+      if(q>avail(e)) throw new Error("“"+e.name+"” เหลือว่างแค่ "+avail(e)+" ชิ้น");
+      return {eqId:id,name:e.name,qty:q};
+    });
+    if(!items.length) throw new Error("เลือกอุปกรณ์อย่างน้อย 1 รายการ");
+    await S.set("loans",uid(),{eventName,borrower,borrowDate,dueDate,items,outPhotos:pf.urls,returnPhotos:[],
+      note:$("#lN",b).value.trim(),status:"out",createdAt:new Date().toISOString(),createdBy:ME()});
+    toast("บันทึกการยืมแล้ว");
+  },"บันทึกการยืม");
+}
+function returnForm(l){
+  const b=document.createElement("div");
+  b.innerHTML=`<div class="muted" style="margin-bottom:13px">${esc(l.eventName)} · ${(l.items||[]).map(i=>esc(i.name)+" ×"+i.qty).join(", ")}</div>
+    <div class="field"><label>ผู้รับคืน</label><input id="rB" value="${esc(ME())}"></div>`;
+  const pf=photoField("รูปตอนรับของคืน"); b.appendChild(pf);
+  const nt=document.createElement("div"); nt.className="field";
+  nt.innerHTML=`<label>สภาพของที่คืน</label><textarea id="rN" placeholder="ครบ / ชำรุด / ขาดอะไร"></textarea>`;
+  b.appendChild(nt);
+  modal("รับคืนอุปกรณ์",b,async()=>{
+    if(pf.busy) throw new Error("รอรูปอัปโหลดให้เสร็จก่อน");
+    await S.update("loans",l.id,{status:"returned",returnedAt:new Date().toISOString(),
+      returnedBy:$("#rB",b).value.trim()||ME()||"-",returnPhotos:pf.urls,
+      returnNote:$("#rN",b).value.trim()},{status:"out"});
+    toast("รับคืนเรียบร้อย");
+  },"ยืนยันรับคืน");
+}
+
+function gate(title,msg){
+  const g=document.createElement("div"); g.className="gate";
+  g.innerHTML=`<div class="box"><h2>${esc(title)}</h2><p>${msg}</p><button class="btn">กลับหน้าฮับ</button></div>`;
+  $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g);
+}
+function stat(){
+  const loans=LOANS();
+  $("#s1").textContent=EQ().length;
+  $("#s2").textContent=loans.filter(l=>l.status==="out").length;
+  $("#s3").textContent=loans.filter(isLate).length;
+  const at=S.loadedAt?new Date(S.loadedAt):null;
+  $("#note").textContent="ข้อมูลใช้ร่วมกันทุกเครื่อง"+(at?" · อัปเดต "+String(at.getHours()).padStart(2,"0")+":"+String(at.getMinutes()).padStart(2,"0"):"");
+}
+function paintFab(){
+  const ok=TAB==="loan"?can("borrow"):can("manage-equipment");
+  $("#fab").classList.toggle("hide",!ok);
+  $("#fab").textContent=TAB==="loan"?"+ ยืมของ":"+ เพิ่มอุปกรณ์";
+}
+function renderAll(){ stat(); renderLoan(); renderEq(); paintFab(); }
+function setTab(t){ TAB=t;
+  $("#tabLoan").setAttribute("aria-selected",t==="loan");
+  $("#tabEq").setAttribute("aria-selected",t==="eq");
+  $("#viewLoan").classList.toggle("hide",t!=="loan");
+  $("#viewEq").classList.toggle("hide",t==="loan");
+  paintFab(); }
+$("#tabLoan").onclick=()=>setTab("loan");
+$("#tabEq").onclick=()=>setTab("eq");
+$("#fab").onclick=()=>TAB==="loan"?loanForm():eqForm(null);
+$("#backBtn").onclick=()=>Hub.back();
+
+(async()=>{
+  if(!Hub.guard()) return;
+  $("#me").textContent=ME();
+  if(S.hasCache()) renderAll();
+  const [okBackend]=await Promise.all([S.checkBackend().catch(()=>null), Cfg.load()]);
+  if(!can("view")) return gate("ไม่มีสิทธิ์เข้าระบบนี้","บัญชีนี้ยังไม่ได้รับสิทธิ์ในระบบอุปกรณ์ออกบูธ<br>ขอสิทธิ์ได้จากผู้ดูแลฮับ (⚙️ → สิทธิ์ปุ่มแต่ละระบบ)");
+  if(okBackend===false) return gate("ระบบกำลังเปิดใช้งาน","หลังบ้านของฮับยังไม่ได้อัปเดตสำหรับระบบนี้<br>แจ้งผู้ดูแลให้ Deploy Apps Script รุ่นใหม่");
+  try{ await S.refresh(); }
+  catch(e){ if(!S.hasCache()){ $("#note").textContent="เชื่อมต่อไม่สำเร็จ";
+      $("#viewLoan").innerHTML=`<div class="empty">โหลดข้อมูลไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง</div>`; return; }
+    toast("ใช้ข้อมูลที่โหลดไว้ล่าสุด"); }
+  renderAll();
+  S.onChange(renderAll);
+  S.startPolling(45000);
+})();
+</script>
+</body>
+</html>

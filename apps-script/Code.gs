@@ -6,7 +6,8 @@
    อัปเดต: getConfig() คืน users + branches เพิ่ม → ซิงค์ข้ามอุปกรณ์
    อัปเดต: เพิ่มระบบสอบออนไลน์ (Exams / ExamResults)
    อัปเดต: เพิ่ม clear-certificates → ลบใบรับรองทั้งหมด (เก็บหัวตาราง)
-   อัปเดต (ล่าสุด): tombstone การลบข้ามอุปกรณ์ (ชีต FqaDeleted) → ลบแล้วไม่เด้งกลับ
+   อัปเดต: tombstone การลบข้ามอุปกรณ์ (ชีต FqaDeleted) → ลบแล้วไม่เด้งกลับ
+   อัปเดต (ล่าสุด): โมดูลเบิกเงินประชุมร้าน (ชีต MeetExpense) · อุปกรณ์ออกบูธ (ชีต BoothEquipment)
    วิธีใช้: ก๊อปทั้งไฟล์นี้ทับใน Apps Script editor → Save → Deploy (New version)
    ═══════════════════════════════════════════════════════════════ */
 
@@ -14,7 +15,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-08-28';
+var BACKEND_VERSION = '2026-09-14';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -34,6 +35,7 @@ function doGet(e) {
     if (action === 'exam-results') return jsonOut(getExamResults());
     if (action === 'exam-requests') return jsonOut(getExamRequests(e.parameter.branch, e.parameter.scope));
     if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || '', (e && e.parameter && e.parameter.since) || ''));
+    if (action === 'mod-docs')     return jsonOut(getModDocs((e && e.parameter && e.parameter.app) || ''));
     if (action === 'counts')       return jsonOut(getCounts());   // นับแถวอย่างเดียว ไม่ต้องโหลดข้อมูลทั้งก้อน
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
@@ -71,6 +73,10 @@ function doPost(e) {
     if (data.type === 'save-fqa-record')    return jsonOut(saveFqaRecord(data.record));
     if (data.type === 'delete-fqa-record')  return jsonOut(deleteFqaRecord(data.id));
     if (data.type === 'upload-fqa-photo')   return jsonOut(uploadFqaPhoto(data.base64, data.filename));
+    if (data.type === 'mod-save')           return jsonOut(saveModDoc(data.app, data.col, data.id, data.data, false, data.by, data.expect));
+    if (data.type === 'mod-update')         return jsonOut(saveModDoc(data.app, data.col, data.id, data.data, true, data.by, data.expect));
+    if (data.type === 'mod-delete')         return jsonOut(deleteModDoc(data.app, data.col, data.id, data.expect));
+    if (data.type === 'upload-mod-photo')   return jsonOut(uploadModPhoto(data.app, data.base64, data.filename));
     if (data.type === 'clear-cache')        return jsonOut(clearAllCacheReturn());
     if (data.type === 'ocr-image')          return ocrImage(data.imageBase64, data.filename, data.mimeType);
     return jsonOut({ ok: false, error: 'unknown type: ' + data.type });
@@ -621,7 +627,9 @@ function getCounts() {
       fqaRecords: n('FqaRecords'),
       exams: n('Exams'),
       examResults: n('ExamResults'),
-      examRequests: n('ExamRequests')
+      examRequests: n('ExamRequests'),
+      meetExpense: n('MeetExpense'),
+      boothEquipment: n('BoothEquipment')
     }
   };
 }
@@ -1215,6 +1223,154 @@ function uploadFqaPhoto(base64, filename) {
     var ext = mime.indexOf('png') >= 0 ? '.png' : '.jpg';
     var blob = Utilities.newBlob(bytes, mime, filename || ('fqa-' + Date.now() + ext));
     var file = folder.createFile(blob);
+    file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    return { ok: true, url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1200', id: file.getId() };
+  } catch (err) {
+    return { ok: false, error: String(err) };
+  }
+}
+
+/* ──────────────── โมดูลเล็กของฮับ: เบิกเงินประชุมร้าน · อุปกรณ์ออกบูธ ────────────────
+   เก็บแบบเอกสาร ชีตละระบบ · 1 แถว = 1 เอกสาร (col + id + json)
+   หน้าเว็บสั่งได้สองแบบ: save = ทับทั้งก้อน · update = รวมเฉพาะฟิลด์ที่ส่งมาเข้ากับของเดิม
+   การรวมทำฝั่งนี้ใต้ล็อก สองคนแก้เอกสารเดียวกันพร้อมกันจึงไม่ลบฟิลด์ของกันและกัน
+
+   expect = เงื่อนไขก่อนเขียน เช่น { status:'pending' }
+   ใช้กับงานที่ห้ามทำซ้ำ (อนุมัติบิล · รับคืนของ) ถ้าอีกเครื่องทำไปก่อนแล้ว
+   จะได้ error 'conflict' กลับไป แทนที่จะเขียนทับผลของคนแรกแบบเงียบ ๆ
+
+   col / id / updatedAt ต้องจัดรูปแบบเป็นข้อความก่อนเขียน
+   ไม่งั้น Sheets แปลง id รอบเบิก "2026-09" เป็นวันที่ แล้วอ่านกลับมาหาเอกสารไม่เจอ
+   รูปไม่เก็บในชีต อัปขึ้น Drive แล้วเก็บเป็นลิงก์ (แบบเดียวกับระบบตรวจสาขา) */
+var MOD_APPS = {
+  mx: { sheet: 'MeetExpense',    folder: 'Meeting Expense Photos', cols: ['config', 'rounds', 'claims', 'payees', 'payeeReq'] },
+  bt: { sheet: 'BoothEquipment', folder: 'Booth Equipment Photos', cols: ['equipment', 'loans', 'meta'] }
+};
+var MOD_HEADERS = ['col', 'id', 'updatedAt', 'updatedBy', 'json'];
+var MOD_CACHE_SEC = 600;
+
+function _modApp(app) {
+  return Object.prototype.hasOwnProperty.call(MOD_APPS, String(app || '')) ? MOD_APPS[app] : null;
+}
+function _modCheck(app, col, id) {
+  var a = _modApp(app);
+  if (!a) return 'unknown app';
+  if (a.cols.indexOf(String(col || '')) < 0) return 'unknown collection';
+  if (!/^[A-Za-z0-9_.:\-]{1,80}$/.test(String(id || ''))) return 'invalid id';
+  return '';
+}
+function _modCacheKey(app) { return 'mod_docs_v1_' + app; }
+function _modCacheKill(app) { try { CacheService.getScriptCache().remove(_modCacheKey(app)); } catch (e) {} }
+
+function _modRead(sh) {
+  var values = sh.getDataRange().getValues();
+  var h = values[0].map(function (x) { return String(x).trim(); });
+  return { values: values, h: h, ci: h.indexOf('col'), ii: h.indexOf('id'), ui: h.indexOf('updatedAt'), ji: h.indexOf('json') };
+}
+function _modExpectOk(cur, expect) {
+  if (!expect || typeof expect !== 'object') return true;
+  if (!cur) return false;
+  for (var k in expect) if (expect.hasOwnProperty(k) && cur[k] !== expect[k]) return false;
+  return true;
+}
+
+function getModDocs(app) {
+  var a = _modApp(app);
+  if (!a) return { ok: false, error: 'unknown app' };
+  var hit = null;
+  try { var c = CacheService.getScriptCache().get(_modCacheKey(app)); if (c) hit = JSON.parse(c); } catch (e) { hit = null; }
+  if (!hit) {
+    var t = _modRead(_getOrCreateSheet(a.sheet, MOD_HEADERS));
+    var docs = [];
+    for (var i = 1; i < t.values.length; i++) {
+      var raw = t.values[i][t.ji];
+      if (!raw) continue;
+      try { docs.push({ col: String(t.values[i][t.ci]), id: String(t.values[i][t.ii]), updatedAt: String(t.values[i][t.ui] || ''), data: JSON.parse(raw) }); } catch (e) {}
+    }
+    hit = { ok: true, app: app, docs: docs, now: new Date().toISOString() };
+    /* ช่องแคชรับได้ไม่เกิน 100KB — ก้อนใหญ่กว่านั้น put โยน error ปล่อยผ่าน อ่านชีตตามเดิม */
+    try { CacheService.getScriptCache().put(_modCacheKey(app), JSON.stringify(hit), MOD_CACHE_SEC); } catch (e) {}
+  }
+  hit.serverNow = new Date().toISOString();
+  return hit;
+}
+
+function saveModDoc(app, col, id, data, merge, by, expect) {
+  var bad = _modCheck(app, col, id);
+  if (bad) return { ok: false, error: bad };
+  if (!data || typeof data !== 'object' || Array.isArray(data)) return { ok: false, error: 'invalid data' };
+  var a = _modApp(app);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet(a.sheet, MOD_HEADERS);
+    var t = _modRead(sh);
+    var row = -1, cur = null;
+    for (var i = 1; i < t.values.length; i++) {
+      if (String(t.values[i][t.ci]) === String(col) && String(t.values[i][t.ii]) === String(id)) {
+        row = i + 1;
+        try { cur = JSON.parse(t.values[i][t.ji]); } catch (e) { cur = null; }
+        break;
+      }
+    }
+    if (!_modExpectOk(cur, expect)) return { ok: false, error: 'conflict', current: cur };
+    var next = data;
+    if (merge) {
+      if (!cur) return { ok: false, error: 'not found' };
+      next = cur;
+      for (var k in data) if (data.hasOwnProperty(k)) next[k] = data[k];
+    }
+    var json = JSON.stringify(next);
+    if (json.length > 48000) return { ok: false, error: 'document too large' };
+    var now = new Date().toISOString();
+    var map = { col: String(col), id: String(id), updatedAt: now, updatedBy: String(by || '').slice(0, 80), json: json };
+    var arr = t.h.map(function (x) { return map.hasOwnProperty(x) ? map[x] : ''; });
+    var rng = row > 0 ? sh.getRange(row, 1, 1, t.h.length) : sh.getRange(sh.getLastRow() + 1, 1, 1, t.h.length);
+    rng.setNumberFormat('@').setValues([arr]);
+    _modCacheKill(app);
+    return { ok: true, doc: { col: String(col), id: String(id), updatedAt: now, data: next } };
+  } finally { lock.releaseLock(); }
+}
+
+function deleteModDoc(app, col, id, expect) {
+  var bad = _modCheck(app, col, id);
+  if (bad) return { ok: false, error: bad };
+  var a = _modApp(app);
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var sh = _getOrCreateSheet(a.sheet, MOD_HEADERS);
+    var t = _modRead(sh);
+    for (var i = t.values.length - 1; i >= 1; i--) {
+      if (String(t.values[i][t.ci]) === String(col) && String(t.values[i][t.ii]) === String(id)) {
+        var cur = null;
+        try { cur = JSON.parse(t.values[i][t.ji]); } catch (e) {}
+        if (!_modExpectOk(cur, expect)) return { ok: false, error: 'conflict', current: cur };
+        sh.deleteRow(i + 1);
+      }
+    }
+    _modCacheKill(app);
+    return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+function uploadModPhoto(app, base64, filename) {
+  try {
+    var a = _modApp(app);
+    if (!a) return { ok: false, error: 'unknown app' };
+    if (!base64) return { ok: false, error: 'no image data' };
+    var raw = String(base64);
+    if (raw.length > 3000000) return { ok: false, error: 'image too large' };
+    var it = DriveApp.getFoldersByName(a.folder);
+    var folder = it.hasNext() ? it.next() : DriveApp.createFolder(a.folder);
+    var mime = 'image/jpeg';
+    var mm = raw.match(/^data:([^;]+);base64,/);
+    if (mm) mime = mm[1];
+    if (mime.indexOf('image/') !== 0) return { ok: false, error: 'not an image' };
+    var b64 = raw.indexOf(',') >= 0 ? raw.split(',')[1] : raw;
+    var ext = mime.indexOf('png') >= 0 ? '.png' : '.jpg';
+    var name = String(filename || (app + '-' + Date.now() + ext)).replace(/[^A-Za-z0-9_.\-]/g, '').slice(0, 80) || (app + '-' + Date.now() + ext);
+    var file = folder.createFile(Utilities.newBlob(Utilities.base64Decode(b64), mime, name));
     file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
     return { ok: true, url: 'https://drive.google.com/thumbnail?id=' + file.getId() + '&sz=w1200', id: file.getId() };
   } catch (err) {

@@ -4616,6 +4616,18 @@ function goToFqaApp(brand) {
     + '&v=' + Date.now();
 }
 
+/* โมดูลที่อ่านตัวตนจาก fab_session อย่างเดียว (เบิกเงินประชุมร้าน · อุปกรณ์ออกบูธ)
+   ต้อง re-save session ให้สดก่อนออก ไม่งั้นบิล/รายการยืมจะติดชื่อคนที่ล็อกอินรอบก่อน */
+function goToHubModule(file) {
+  sessionStorage.setItem('fab_role', isAdminMode ? 'admin' : 'branch');
+  sessionStorage.setItem('fab_branch_pin', branchPin || '');
+  sessionStorage.setItem('fab_branch_name', currentBranchName || '');
+  try {
+    if (branchPin) saveFabSession(isAdminMode ? 'tm' : 'branch', branchPin, branchPin, currentBranchName);
+  } catch (e) {}
+  window.location.href = 'modules/' + file + '?v=' + Date.now();
+}
+
 function goToMenu() {
   document.getElementById('branchView').style.display = 'none';
   document.getElementById('adminView').style.display = 'none';
@@ -4741,6 +4753,29 @@ var DEFAULT_SYSTEMS = [{
   desc: 'บันทึกผลตรวจวัตถุดิบ · เคส Complaint · การเข้าพบสาขา + แดชบอร์ดสรุป',
   url: '',                       // internal route → modules/fqa-visit.html
   visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  id: 'meeting-expense',
+  emoji: '💵',
+  icon: 'icons/billing.png',
+  name: 'ระบบเบิกเงินประชุมร้าน',
+  desc: 'สาขาส่งบิลค่าประชุมรายเดือน · ฝ่ายบัญชีคุมวงเงิน ตรวจอนุมัติ และดูแลผู้รับเงิน',
+  url: '',                       // internal route → modules/meeting-expense.html
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  id: 'booth-equipment',
+  emoji: '🎪',
+  icon: 'icons/storage.png',
+  name: 'ระบบจัดการอุปกรณ์ออกบูธ',
+  desc: 'ยืม–คืนอุปกรณ์ออกบูธ พร้อมรูปสภาพของ · คุมจำนวนในคลัง · เตือนเลยกำหนดคืน',
+  url: '',                       // internal route → modules/booth-equipment.html
+  visibleBranches: [],
+  hideFromAllBranches: true,     // ของส่วนกลาง สาขาไม่ได้ใช้
   startDate: '',
   endDate: '',
   builtIn: true
@@ -5410,6 +5445,8 @@ function openSystem(systemId) {
   if (systemId === 'online-form') { goToFormApp(); return; }
   if (systemId === 'fqa-visit')         { goToFqaApp('jaedaeng'); return; }
   if (systemId === 'fqa-visit-santafe') { goToFqaApp('santafe');  return; }
+  if (systemId === 'meeting-expense')   { goToHubModule('meeting-expense.html'); return; }
+  if (systemId === 'booth-equipment')   { goToHubModule('booth-equipment.html'); return; }
   if (systemId === 'santafe-sales-report') {
     // SSO: re-save session → navigate same-tab → Santa Fe Sales Report อ่าน fab_session
     try {
@@ -6140,6 +6177,41 @@ var PERM_SYSTEMS = {
       { id: 'exam-approve', group: 'manage', label: '✅ อนุมัติคำขอสอบ (ออกรหัสให้)', roles: ['admin','support'] },
       { id: 'request-exam', group: 'branch', label: '🙋 ขอสิทธิ์สอบ',            roles: ['branch'] },
       { id: 'take-exam',    group: 'branch', label: '✍ ทำข้อสอบ',               roles: ['branch'] }
+    ]
+  },
+  /* ค่าตั้งต้นต้องตรงกับ PERM_DEFAULTS ใน modules/meeting-expense.html
+     ปุ่มเงินเปิดให้ admin อย่างเดียวก่อน — ฝ่ายบัญชีให้ติ๊ก "อนุญาตรายคน" เพิ่มที่หน้านี้ */
+  meetexpense: {
+    label: '💵 เบิกเงินประชุมร้าน',
+    groups: [
+      { id: 'menu',   label: 'ดูข้อมูล' },
+      { id: 'manage', label: 'ฝ่ายบัญชี — ตรวจอนุมัติและตั้งค่า' },
+      { id: 'branch', label: 'ฝั่งสาขา' }
+    ],
+    actions: [
+      { id: 'view-claims',   group: 'menu',   label: '📄 ดูบิลเบิกทุกสาขา (ดูอย่างเดียว)', roles: ['admin','coo','vp','bzm'] },
+      { id: 'review-claims', group: 'manage', label: '✅ อนุมัติ / ไม่อนุมัติบิล',          roles: ['admin'] },
+      { id: 'manage-rounds', group: 'manage', label: '🗓 เปิด–ปิดรอบเบิก',                roles: ['admin'] },
+      { id: 'manage-limits', group: 'manage', label: '💰 ตั้งวงเงินสาขา',                 roles: ['admin'] },
+      { id: 'manage-payees', group: 'manage', label: '👤 อนุมัติ / ตั้งผู้รับเงิน',          roles: ['admin'] },
+      { id: 'submit-claim',  group: 'branch', label: '🧾 ส่งบิลเบิกเงิน',                 roles: ['branch'] },
+      { id: 'request-payee', group: 'branch', label: '✏️ แจ้งเปลี่ยนผู้รับเงิน',            roles: ['branch'] }
+    ]
+  },
+  /* ค่าตั้งต้นต้องตรงกับ PERM_DEFAULTS ใน modules/booth-equipment.html */
+  boothequip: {
+    label: '🎪 อุปกรณ์ออกบูธ',
+    groups: [
+      { id: 'menu',   label: 'ยืม–คืน' },
+      { id: 'manage', label: 'คลังอุปกรณ์' },
+      { id: 'danger', label: 'ลบข้อมูล — กู้คืนไม่ได้' }
+    ],
+    actions: [
+      { id: 'view',             group: 'menu',   label: '👀 เข้าระบบ / ดูรายการ',     roles: ['admin','coo','vp','bzm','support'] },
+      { id: 'borrow',           group: 'menu',   label: '📤 ยืมของออกบูธ',           roles: ['admin','coo','vp','bzm','support'] },
+      { id: 'return',           group: 'menu',   label: '📥 รับคืนของ',               roles: ['admin','coo','vp','bzm','support'] },
+      { id: 'manage-equipment', group: 'manage', label: '🧰 เพิ่ม / แก้ / ปรับจำนวนอุปกรณ์', roles: ['admin','support'] },
+      { id: 'delete-loan',      group: 'danger', label: '🗑 ลบรายการยืม',            roles: ['admin'], danger: true }
     ]
   }
 };
