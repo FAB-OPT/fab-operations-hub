@@ -6284,7 +6284,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-08-07 · 10:45';
+var HUB_BUILD = '2026-09-17 · 16:30';
 
 /* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
    GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
@@ -6382,6 +6382,7 @@ function openStorageModal() {
     +   '<div class="stg-foot">'
     +     'รุ่นของหน้านี้ <b>' + HUB_BUILD + '</b> · ฐานข้อมูล <b>'
     +       String(HUB_SB.url || '—').replace(/^https:\/\//, '').replace(/\.supabase\.co$/, '') + '</b>'
+    +     ' · การตั้งค่าอยู่ที่ <b>' + String(HUB_CFG.url || '—').replace(/^https:\/\//, '').replace(/\.supabase\.co$/, '') + '</b>'
     +     '<br>เลขรุ่นไม่ตรงกับที่แจ้งไว้ = เบราว์เซอร์ยังใช้ไฟล์เก่า กด Ctrl+Shift+R'
     +   '</div>'
     + '</div></div>';
@@ -6395,7 +6396,8 @@ async function hubLoadSbCounts() {
   await hubSbReady();           // รอล็อกอิน Supabase ก่อนแตะตาราง
   if (!HUB_SB.ready) return;
   HUB_TABLES.forEach(function(t){
-    HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true }).then(function(r){
+    var c = sbOf(t); if (!c) return;
+    c.from(t.table).select('*', { count: 'exact', head: true }).then(function(r){
       var tr = document.querySelector('#stgRows tr[data-stg="' + t.table + '"]');
       if (!tr) return;
       var cell = tr.querySelector('[data-col="sb"]');
@@ -6535,7 +6537,33 @@ var HUB_SB = {
 })();
 
 /* รอให้ล็อกอิน Supabase เสร็จก่อนแตะตาราง — ไม่มี client ก็ไปต่อได้ (ระบบถอยไปใช้ Sheets) */
-function hubSbReady() { return HUB_SB.auth || Promise.resolve(false); }
+/* ═══════════════ การตั้งค่าฮับ → โปรเจกต์ FAB HUB (ตาราง hub_config) ═══════════════
+   ย้ายมาจาก fh_config ในโปรเจกต์ Training Record (17 ก.ย. 2569)
+   · ฮับมีคนเปิดทุกวัน → โปรเจกต์ FAB HUB ไม่ถูก Supabase หยุดเพราะไม่มีการใช้งาน
+   · เปิดครั้งแรกแล้ว hub_config ว่าง → คัดลอกจาก fh_config เดิมให้เอง 1 ครั้ง
+   · ช่วงเปลี่ยนผ่านยังเขียนสำเนาลง fh_config เดิม (ย้อนกลับได้ · ระบบผู้สัมผัสอาหารรุ่นเก่ายังอ่านได้) */
+var HUB_CFG = {
+  url: 'https://pzspcjqlxoqnbtvlfjsy.supabase.co',
+  key: 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP',
+  table: 'hub_config',
+  legacyCopy: true,   // เขียนสำเนาลง fh_config เดิมด้วย
+  client: null,
+  ready: false,
+  auth: null
+};
+(function initHubCfg(){
+  if (!HUB_SB.on || !window.supabase || !window.supabase.createClient) return;
+  try {
+    HUB_CFG.client = window.supabase.createClient(HUB_CFG.url, HUB_CFG.key, { auth: { storageKey: 'sb-hubcfg-auth' } });
+    HUB_CFG.ready = true;
+    HUB_CFG.auth = HUB_CFG.client.auth.signInAnonymously()
+      .then(function (r) { return !(r && r.error); })
+      .catch(function () { return false; });
+  } catch (e) { console.warn('[HUB] ต่อ Supabase (FAB HUB) ไม่ได้ — ใช้ Google Sheets ต่อ', e); }
+})();
+/* ตารางไหนอยู่โปรเจกต์ไหน */
+function sbOf(t) { return t && t.kind === 'config' ? HUB_CFG.client : HUB_SB.client; }
+function hubSbReady() { return Promise.all([HUB_SB.auth || false, HUB_CFG.auth || false]); }
 
 /* คีย์ที่เก็บใน fh_config — ต้องตรงกับที่ getConfig ของ Apps Script คืนมา */
 var HUB_CFG_KEYS = ['systems','announcements','users','branches','jaedaengBranches','perms'];
@@ -6543,23 +6571,44 @@ var HUB_CFG_KEYS = ['systems','announcements','users','branches','jaedaengBranch
 /* อ่าน config จาก Supabase → จัดรูปให้เหมือน getConfig เป๊ะ เพื่อไม่ต้องแก้โค้ดที่เรียกใช้ */
 async function _sbLoadConfig() {
   await hubSbReady();           // รอล็อกอิน Supabase ก่อนแตะตาราง
-  return HUB_SB.client.from('fh_config').select('key,value')
-    .then(function(res){
-      if (res.error) throw res.error;
-      var out = { ok: true, source: 'supabase' };
-      HUB_CFG_KEYS.forEach(function(k){ out[k] = null; });
-      (res.data || []).forEach(function(r){ out[r.key] = r.value; });
-      // ยังไม่เคยย้ายข้อมูลมา → อย่าเพิ่งใช้ ให้ถอยไป Sheets กัน HUB ว่างเปล่า
-      if (!(res.data || []).length) throw new Error('fh_config ยังว่าง — ยังไม่ได้ย้ายข้อมูล');
-      return out;
-    });
+  if (!HUB_CFG.ready) throw new Error('ยังต่อ Supabase (FAB HUB) ไม่ได้');
+  var toOut = function(rows){
+    var out = { ok: true, source: 'supabase' };
+    HUB_CFG_KEYS.forEach(function(k){ out[k] = null; });
+    (rows || []).forEach(function(r){ out[r.key] = r.value; });
+    return out;
+  };
+  var res = await HUB_CFG.client.from(HUB_CFG.table).select('key,value');
+  if (res.error) throw res.error;
+  if ((res.data || []).length) return toOut(res.data);
+  /* ยังว่าง = เพิ่งย้ายโปรเจกต์ → คัดลอกจาก fh_config เดิม (ไม่ลบต้นทาง) */
+  if (!HUB_SB.ready) throw new Error('hub_config ยังว่าง และต่อโปรเจกต์เดิมไม่ได้');
+  var old = await HUB_SB.client.from('fh_config').select('key,value,updated_at');
+  if (old.error) throw old.error;
+  if (!(old.data || []).length) throw new Error('ยังไม่มีการตั้งค่าใน Supabase — ใช้ Google Sheets');
+  var rows = old.data.map(function(r){ return { key: r.key, value: r.value, updated_at: r.updated_at || new Date().toISOString() }; });
+  /* ignoreDuplicates: อีกเครื่องคัดลอกไปก่อนพร้อมกัน ห้ามเขียนทับค่าที่ใหม่กว่า */
+  var ins = await HUB_CFG.client.from(HUB_CFG.table).upsert(rows, { onConflict: 'key', ignoreDuplicates: true });
+  if (ins.error) throw ins.error;
+  console.log('[HUB] ย้ายการตั้งค่าไปโปรเจกต์ FAB HUB แล้ว ' + rows.length + ' คีย์');
+  var again = await HUB_CFG.client.from(HUB_CFG.table).select('key,value');
+  if (again.error) throw again.error;
+  return toOut(again.data);
 }
 /* เขียน config 1 คีย์ลง Supabase */
 async function _sbSaveConfig(key, value) {
   await hubSbReady();           // รอล็อกอิน Supabase ก่อนแตะตาราง
-  return HUB_SB.client.from('fh_config')
-    .upsert({ key: key, value: value, updated_at: new Date().toISOString() }, { onConflict: 'key' })
-    .then(function(res){ if (res.error) throw res.error; return { ok: true }; });
+  if (!HUB_CFG.ready) throw new Error('ยังต่อ Supabase (FAB HUB) ไม่ได้');
+  var row = { key: key, value: value, updated_at: new Date().toISOString() };
+  /* สำเนาลงที่เดิมช่วงเปลี่ยนผ่าน — เขียนก่อนและเขียนเสมอ แม้ตารางใหม่ยังไม่ถูกสร้าง
+     (ไม่งั้นพอสร้างตารางทีหลัง การคัดลอกครั้งแรกจะได้ค่าเก่า) · พลาดก็ไม่หยุดการบันทึก */
+  if (HUB_CFG.legacyCopy && HUB_SB.ready) {
+    HUB_SB.client.from('fh_config').upsert(row, { onConflict: 'key' })
+      .then(function(r){ if (r.error) console.warn('[HUB] สำเนา fh_config เดิมไม่สำเร็จ', r.error.message); });
+  }
+  var res = await HUB_CFG.client.from(HUB_CFG.table).upsert(row, { onConflict: 'key' });
+  if (res.error) throw res.error;
+  return { ok: true };
 }
 
 /* ═══════════ อ่าน config ครั้งเดียว แล้วแจกให้ทุกคนใช้ ═══════════
@@ -6594,7 +6643,7 @@ function hubGetConfig(opts) {
       });
   };
   // Supabase ก่อน · ไม่พร้อม/พัง → Google Sheets เหมือนเดิม
-  var attempt = HUB_SB.ready
+  var attempt = HUB_CFG.ready
     ? function(tries){ return _sbLoadConfig().catch(function(e){
         console.warn('[HUB] Supabase อ่าน config ไม่ได้ → ใช้ Google Sheets แทน', e && e.message);
         return fromSheets(tries);
@@ -6617,7 +6666,7 @@ function hubGetConfig(opts) {
    หลักการเดียวกับสิทธิ์ปุ่ม: ตั้งที่ HUB ที่เดียว ไม่ต้องไล่เปิดทีละระบบ
    map = แปลงจากรูปแบบที่ Apps Script คืนมา → คอลัมน์ใน Supabase */
 var HUB_TABLES = [
-  { label: 'การตั้งค่า',      action: 'config',       table: 'fh_config',       kind: 'config' },
+  { label: 'การตั้งค่า',      action: 'config',       table: 'hub_config',      kind: 'config' },
   { label: 'คำขออบรม',       action: 'requests',     table: 'fh_requests',     kind: 'rows',
     map: function(r){
       var o = { name: r.name || '', emp_id: String(r.empId || ''), id_card: String(r.idCard || ''),
@@ -6674,7 +6723,8 @@ function _hubGetSheets(action, timeoutMs, tries, onRetry) {
 async function hubMigrateTable(t, onStep) {
   await hubSbReady();           // รอล็อกอิน Supabase ก่อนแตะตาราง
   if (!HUB_SB.ready) return Promise.reject(new Error('ยังไม่ได้เปิดใช้ Supabase'));
-  return HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
+  if (!sbOf(t)) return Promise.reject(new Error('ยังต่อ Supabase ไม่ได้'));
+  return sbOf(t).from(t.table).select('*', { count: 'exact', head: true })
     .then(function(res){
       if (res.error) throw res.error;
       if ((res.count || 0) > 0) return { label: t.label, skipped: true, have: res.count };
@@ -6695,7 +6745,7 @@ async function hubMigrateTable(t, onStep) {
         var CH = 500, done = 0;
         function chunk(i) {
           if (i >= rows.length) return { label: t.label, inserted: done };
-          return HUB_SB.client.from(t.table).insert(rows.slice(i, i + CH))
+          return sbOf(t).from(t.table).insert(rows.slice(i, i + CH))
             .then(function(r2){
               if (r2.error) throw r2.error;
               done += Math.min(CH, rows.length - i);
@@ -6746,7 +6796,7 @@ async function hubCompareAll(onRow) {
                   ? HUB_CFG_KEYS.filter(function(k){ return g[k] != null; }).length
                   : (g.records || []).length;
               }).catch(function(e){ return { err: e.message || String(e) }; }),
-          HUB_SB.client.from(t.table).select('*', { count: 'exact', head: true })
+          sbOf(t).from(t.table).select('*', { count: 'exact', head: true })
             .then(function(r){ return r.error ? { err: r.error.message } : (r.count || 0); })
         ]).then(function(n){
           var sheets = (n[0] && n[0].err) ? null : n[0];
@@ -6779,7 +6829,7 @@ async function hubSbMigrateConfig() {
         .filter(function(k){ return cfg[k] != null; })       // ไม่มีค่าก็ไม่ต้องยัดแถวเปล่า
         .map(function(k){ return { key: k, value: cfg[k], updated_at: new Date().toISOString() }; });
       if (!rows.length) throw new Error('ไม่มีข้อมูลใน Sheets ให้ย้าย');
-      return HUB_SB.client.from('fh_config').upsert(rows, { onConflict: 'key' })
+      return HUB_CFG.client.from(HUB_CFG.table).upsert(rows, { onConflict: 'key' })
         .then(function(res){
           if (res.error) throw res.error;
           hubBustConfig();
@@ -6817,7 +6867,7 @@ async function hubSbCompareConfig() {
   return Promise.all([
     fetch(SCRIPT_URL + '?action=config&_=' + Date.now()).then(function(r){ return r.text(); })
       .then(function(t){ var s = String(t||'').trim(); return s.charAt(0) === '{' ? JSON.parse(s) : null; }),
-    HUB_SB.client.from('fh_config').select('key,value').then(function(r){
+    HUB_CFG.client.from(HUB_CFG.table).select('key,value').then(function(r){
       if (r.error) throw r.error;
       var m = {}; (r.data || []).forEach(function(x){ m[x.key] = x.value; }); return m;
     })

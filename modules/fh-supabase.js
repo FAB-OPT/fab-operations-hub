@@ -37,6 +37,29 @@ var FH_SB = {
   }
 })();
 
+/* การตั้งค่ากลางของฮับ (สิทธิ์ปุ่ม) ย้ายไปโปรเจกต์ FAB HUB ตาราง hub_config แล้ว (17 ก.ย. 2569)
+   ตารางอื่นของระบบนี้ (fh_*) ยังอยู่โปรเจกต์เดิม · อ่านใหม่ไม่ได้ → ถอยไป fh_config เดิม → Sheets */
+var FH_CFG = { url: 'https://pzspcjqlxoqnbtvlfjsy.supabase.co', key: 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP',
+  table: 'hub_config', client: null, auth: null };
+(function initFhCfg() {
+  if (!FH_SB.on || !window.supabase || !window.supabase.createClient) return;
+  try {
+    FH_CFG.client = window.supabase.createClient(FH_CFG.url, FH_CFG.key, { auth: { storageKey: 'sb-hubcfg-auth' } });
+    FH_CFG.auth = FH_CFG.client.auth.signInAnonymously().then(function (r) { return !(r && r.error); }).catch(function () { return false; });
+  } catch (e) { console.warn('[FH] ต่อ Supabase (FAB HUB) ไม่ได้', e); }
+})();
+function _fhCfgPermsRow() {
+  if (!FH_CFG.client) return Promise.reject(new Error('no FAB HUB client'));
+  return Promise.resolve(FH_CFG.auth).then(function () {
+    return FH_CFG.client.from(FH_CFG.table).select('value').eq('key', 'perms').limit(1);
+  }).then(function (res) {
+    if (res.error) throw res.error;
+    var row = (res.data || [])[0];
+    if (!row) throw new Error('hub_config ยังไม่มี perms');
+    return row;
+  });
+}
+
 /* เผื่อต้องชี้ไปฐานอื่นในอนาคต — เรียกจาก console ได้: fhSbSaveConfig(url, key) แล้วรีเฟรช */
 function fhSbSaveConfig(url, key, dualWrite) {
   localStorage.setItem('fh_sb_cfg', JSON.stringify({ url: url, key: key, on: true, dualWrite: dualWrite !== false }));
@@ -202,7 +225,7 @@ function _fhPermsFromSheets() {
     })
     .catch(function(e){ console.warn('[FH] อ่านสิทธิ์จาก Sheets ไม่ได้ → ใช้ค่าเดิมในเครื่อง', e); return null; });
 }
-function fhLoadPerms() {
+function _fhPermsFromOldConfig() {
   if (!FH_SB.ready) return _fhPermsFromSheets();
   return FH_SB.client.from('fh_config').select('value').eq('key', 'perms').limit(1)
     .then(function(res){
@@ -215,7 +238,29 @@ function fhLoadPerms() {
 }
 /* เขียนกลับ: อ่านก้อนรวมของทุกระบบมาก่อน แล้วแก้เฉพาะ foodhandler
    ห้ามเขียนทับทั้งก้อน ไม่งั้นสิทธิ์ของ Checklist/FQA/ข้อสอบ จะหายไปด้วย */
+function fhLoadPerms() {
+  return _fhCfgPermsRow()
+    .then(function (row) { var all = row && row.value; return (all && all.foodhandler) ? all.foodhandler : null; })
+    .catch(function (e) { console.warn('[FH] อ่านสิทธิ์จาก FAB HUB ไม่ได้ → ลองที่เดิม', e && e.message); return _fhPermsFromOldConfig(); });
+}
 function fhSavePerms(fhPerms) {
+  if (FH_CFG.client) {
+    return _fhCfgPermsRow().catch(function () { return null; }).then(function (row) {
+      var all = (row && row.value && typeof row.value === 'object') ? row.value : null;
+      if (!all) return _fhSavePermsOld(fhPerms);   // ยังไม่ย้าย → บันทึกที่เดิมไปก่อน
+      all.foodhandler = fhPerms;
+      var up = { key: 'perms', value: all, updated_at: new Date().toISOString() };
+      return FH_CFG.client.from(FH_CFG.table).upsert(up, { onConflict: 'key' }).then(function (r2) {
+        if (r2.error) throw r2.error;
+        if (FH_SB.ready) FH_SB.client.from('fh_config').upsert(up, { onConflict: 'key' }).then(function () {});   // สำเนาที่เดิม
+        _alsoSheets({ type: 'set-config', key: 'perms', value: all });
+        return true;
+      });
+    });
+  }
+  return _fhSavePermsOld(fhPerms);
+}
+function _fhSavePermsOld(fhPerms) {
   if (!FH_SB.ready) return _sheetsPost({ type: 'set-config', key: 'perms', value: { foodhandler: fhPerms } });
   return FH_SB.client.from('fh_config').select('value').eq('key', 'perms').limit(1)
     .then(function(res){
