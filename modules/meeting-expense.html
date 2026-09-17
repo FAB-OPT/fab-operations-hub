@@ -50,6 +50,7 @@
 .py-n{font-size:16px;font-weight:700;margin-top:3px;overflow-wrap:anywhere}
 .py-b{font-size:13.5px;color:var(--text2);margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .form-card{margin-top:18px}
+.done-card{border-color:var(--green-line);background:var(--green-soft)}
 .form-card .hint{font-size:13px;color:var(--text3);margin-top:-6px;margin-bottom:14px}
 .submit-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}
 .submit-row .msg{font-size:13.5px;color:var(--text2)}
@@ -122,6 +123,8 @@ const currentRound=()=>{const r=ROUNDS(); return r.find(x=>x.open)||r[0]||null;}
 const roundIdOf=c=>c.roundId||String(c.submittedAt||"").slice(0,7);
 const isRejected=c=>statusOf(c)==="ไม่อนุมัติ";
 /* ยอดที่ใช้วงเงิน = ทุกใบในรอบ ยกเว้นใบที่ไม่อนุมัติ */
+/* เบิกได้ 1 ครั้งต่อรอบ · ใบที่ไม่อนุมัติไม่นับ (สาขาส่งใหม่แทนได้) */
+const activeClaim=(rid,code,exceptId)=>CLAIMS().find(c=>roundIdOf(c)===rid&&c.branchCode===code&&!isRejected(c)&&c.id!==exceptId)||null;
 const used=(rid,code)=>sumOf(CLAIMS().filter(c=>roundIdOf(c)===rid&&c.branchCode===code&&!isRejected(c)));
 /* ลำดับวงเงิน: เฉพาะสาขา → ค่าเริ่มต้นของรอบ → ค่าเริ่มต้นกลาง · ใส่ 0 = ตกไปใช้ค่าถัดไป · ทุกค่าเป็น 0 = ยังไม่ได้ตั้ง */
 function limitOf(rid,code){
@@ -259,6 +262,14 @@ function branchSend(body,r){
   if(!r||!r.open){
     body.innerHTML=`<div class="empty">${r?"รอบ "+esc(roundLabel(r.id))+" ปิดรับเอกสารแล้ว":"ยังไม่มีรอบเบิกที่เปิดอยู่"}<br>รอผู้ดูแลเปิดรอบใหม่</div>`; return;
   }
+  const done=activeClaim(r.id,ME.code);
+  if(done){
+    body.insertAdjacentHTML("beforeend",`<div class="card form-card done-card"><span class="pill p-ok">รอบนี้ส่งเอกสารแล้ว</span>
+      <div style="margin-top:8px;font-size:14.5px">เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div>
+      <div class="muted" style="margin-top:4px">ถ้าผู้ดูแลไม่อนุมัติ หรือสาขาลบเอกสารใบนี้ (ก่อนอนุมัติ) จะส่งใหม่ได้</div></div>`);
+    body.appendChild(slip(done,false));
+    return;
+  }
   const pay=payeeOf(ME.code);
   const f=document.createElement("div"); f.className="card form-card";
   f.innerHTML=`${payeeCard(pay,"เงินเข้าบัญชี",true)}
@@ -322,7 +333,8 @@ function branchSend(body,r){
       if(!p2.name||!p2.account) throw new Error("ยังไม่มีบัญชีรับเงิน แจ้งเพิ่มที่แท็บ “บัญชีรับเงิน” ก่อน");
       const lim=limitOf(r.id,ME.code), left=lim-used(r.id,ME.code);
       if(!lim) throw new Error("รอบนี้ยังไม่ได้ตั้งวงเงิน ติดต่อผู้ดูแล");
-      if(amount>left+1e-9) throw new Error("เกินวงเงินคงเหลือ ("+money(Math.max(0,left))+" บาท)");
+      if(activeClaim(r.id,ME.code)) throw new Error("รอบนี้สาขาส่งเอกสารไปแล้ว (เบิกได้รอบละ 1 ครั้ง)");
+      if(amount>left+1e-9) throw new Error("เกินวงเงิน ("+money(Math.max(0,left))+" บาท)");
       const docNo=newDocNo();
       await S.set("claims",docNo,{docNo,roundId:r.id,branchCode:ME.code,branchName:ME.name,claimantName:claimant,
         amount,note,photos:DRAFT.photos.slice(0,MAX_PHOTOS),
@@ -428,6 +440,8 @@ async function setStatus(x,from,sel){
     /* ดึงใบที่ไม่อนุมัติกลับมา = ใช้วงเงินอีกครั้ง → ต้องไม่ทำให้สาขาเกินวงเงิน */
     if(from==="ไม่อนุมัติ"&&to!=="ไม่อนุมัติ"){
       const rid=roundIdOf(x), lim=limitOf(rid,x.branchCode);
+      const other=activeClaim(rid,x.branchCode,x.id);
+      if(other) throw new Error("เปลี่ยนไม่ได้ สาขานี้มีเอกสารรอบนี้อยู่แล้ว ("+(other.docNo||other.id)+")");
       if(lim&&used(rid,x.branchCode)+(Number(x.amount)||0)>lim+1e-9) throw new Error("เปลี่ยนไม่ได้ สาขาจะเกินวงเงินรอบนี้ ("+money(lim)+" บาท)");
     }
     /* expect = สถานะที่เห็นอยู่บนจอ · อีกเครื่องเพิ่งเปลี่ยนไป จะไม่เขียนทับ */
