@@ -1300,7 +1300,7 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
               <div class="bd"><div id="chGauge"></div></div>
             </div>
             <div class="card">
-              <div class="hd"><h3>เรดาร์ผลตรวจวัตถุดิบ 9 หัวข้อ</h3><div class="sp"></div><span class="note">% ที่ผ่าน</span></div>
+              <div class="hd"><h3>เรดาร์ผลตรวจวัตถุดิบ 7 หัวข้อ</h3><div class="sp"></div><span class="note">% ที่ผ่าน</span></div>
               <div class="bd"><div id="chRadar"></div></div>
             </div>
           </div>
@@ -1499,9 +1499,7 @@ const DEFAULT_MASTER = {
       'สี กลิ่น ลักษณะ และสภาพโดยรวมของวัตถุดิบ',
       'วันรับเข้า / วันเปิดใช้ / วันหมดอายุ',
       'การหมุนเวียนวัตถุดิบตามหลัก FIFO / FEFO',
-      'อุณหภูมิในการจัดเก็บเหมาะสมตามประเภทวัตถุดิบ',
       'การจัดเก็บแยกประเภทอย่างถูกต้อง',
-      'ปริมาณวัตถุดิบเพียงพอต่อการขายประจำวัน',
       'ไม่พบวัตถุดิบ เสื่อมคุณภาพ หรือมีสิ่งปนเปื้อน',
       'ขั้นตอนการเตรียมวัตถุดิบ'
     ],
@@ -1879,6 +1877,12 @@ const DB = (()=>{
   };
 })();
 
+/* หัวข้อ FQA ที่ยกเลิก (17 ก.ย. 2569) — ใบที่บันทึกไว้แล้วก็ไม่แสดงและไม่นับคะแนน (ข้อมูลเดิมในชีตไม่ถูกลบ)
+   ข้อมูลหลักที่เคยบันทึกไว้ในเครื่อง/คลาวด์ยังมีสองหัวข้อนี้ → กรองออกตอนอ่านเสมอ */
+const FQA_REMOVED = ['อุณหภูมิในการจัดเก็บเหมาะสมตามประเภทวัตถุดิบ','ปริมาณวัตถุดิบเพียงพอต่อการขายประจำวัน'];
+const fqaActive = c => !(c && FQA_REMOVED.includes(String(c.item||'').trim()));
+const fqaChecks = r => ((r && r.checks) || []).filter(fqaActive);
+
 /* ---------- ตัวช่วยเข้าถึงข้อมูลหลัก ---------- */
 const M = {
   get m(){ return DB.master(); },
@@ -1887,7 +1891,7 @@ const M = {
   trainers(){ return this.m.trainers; },
   materials(){ return this.m.materials; },
   menus(){ return this.m.menus; },
-  list(k){ return this.m.lists[k]||[]; },
+  list(k){ const a=this.m.lists[k]||[]; return k==='fqaItems' ? a.filter(i=>!FQA_REMOVED.includes(String(i).trim())) : a; },
   branchOf(name){ return this.branches().find(b=>b.name===name); },
   commit(m){ DB.setMaster(m); Filters.fill(); }
 };
@@ -3691,7 +3695,8 @@ const Form = {
 
   /* ===== FQA ===== */
   fqaBody(){
-    const s=this.s, n=Math.max(1,s.checks.length);
+    const s=this.s; s.checks=fqaChecks(s);
+    const n=Math.max(1,s.checks.length);
     const done=s.checks.filter(c=>c.result).length, pass=s.checks.filter(c=>c.result==='ผ่าน').length,
           fail=s.checks.filter(c=>c.result==='ไม่ผ่าน').length;
     return `
@@ -4173,6 +4178,7 @@ const Form = {
 
     if(s.type==='FQA'){
       if(!(s.materials||[]).length) return 'กรุณาสุ่มวัตถุดิบอย่างน้อย 1 รายการ';
+      s.checks=fqaChecks(s);
       for(let i=0;i<s.checks.length;i++){ const c=s.checks[i];
         if(need(c.result)) return `กรุณาให้ผลตรวจหัวข้อ "${c.item}" ให้ครบทุกหัวข้อ`;
         if(c.result==='ไม่ผ่าน'){
@@ -4322,7 +4328,7 @@ function issueFix(x){
     .map(v=>String(v==null?'':v).trim()).filter(Boolean).join(' · ');
 }
 function failCount(r){
-  if(r.type==='FQA') return (r.checks||[]).filter(c=>c.result==='ไม่ผ่าน').length
+  if(r.type==='FQA') return fqaChecks(r).filter(c=>c.result==='ไม่ผ่าน').length
     + (r.menus||[]).filter(m=>m.cook==='ไม่ผ่าน'||m.taste==='ไม่ผ่าน').length;
   if(r.type==='FSQ') return (r.issues||[]).filter(i=>(i.problem||'').trim()).length;
   /* STA — ประเด็นที่พบ = ช่องที่ให้ผลว่าไม่ผ่าน */
@@ -4331,7 +4337,7 @@ function failCount(r){
 }
 function summaryLine(r){
   if(r.type==='FQA'){
-    const f=r.checks.filter(c=>c.result==='ไม่ผ่าน').map(c=>c.item);
+    const f=fqaChecks(r).filter(c=>c.result==='ไม่ผ่าน').map(c=>c.item);
     return f.length? f.slice(0,2).join(' · ')+(f.length>2?` +${f.length-2}`:'') : 'ผ่านทุกหัวข้อที่ตรวจ';
   }
   if(r.type==='FSQ') return r.complaint.slice(0,80)+(r.complaint.length>80?'…':'');
@@ -4570,7 +4576,7 @@ const Rec = {
     if(r.type==='FQA'){
       if((r.materials||[]).length) h+=box('วัตถุดิบที่สุ่มตรวจ',`<div class="chipbar">${r.materials.map(m=>`<span class="tag">${esc(m)}</span>`).join('')}</div>`);
       h+=box('ผลตรวจวัตถุดิบ',`<table class="tb"><thead><tr><th>รายการตรวจ</th><th>ผล</th><th>สิ่งที่พบ</th><th>การแก้ไข</th></tr></thead><tbody>
-        ${(r.checks||[]).filter(c=>c.result||c.detail).map(c=>`<tr><td>${esc(c.item)}</td>
+        ${fqaChecks(r).filter(c=>c.result||c.detail).map(c=>`<tr><td>${esc(c.item)}</td>
         <td><span class="pill ${c.result==='ผ่าน'?'p-pass':c.result==='ไม่ผ่าน'?'p-fail':'p-na'}">${esc(c.result||'—')}</span></td>
         <td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`).join('')}</tbody></table>`);
       const mm=(r.menus||[]).filter(m=>m.menu);
@@ -4686,7 +4692,8 @@ const Master = {
       </div>
       <p class="hint" style="margin-top:12px">แนะนำให้ดาวน์โหลดไฟล์สำรอง (.json) เก็บไว้เป็นระยะ กันข้อมูลหาย</p></div>`;
   },
-  save(fn){ const m=M.m; fn(m); M.commit(m); this.render(); },
+  /* ตัดหัวข้อ FQA ที่ยกเลิกออกจากข้อมูลหลักก่อนแก้ — ลำดับที่แก้ต้องตรงกับรายการที่เห็นบนจอ */
+  save(fn){ const m=M.m; if(m.lists&&m.lists.fqaItems) m.lists.fqaItems=M.list('fqaItems').slice(); fn(m); M.commit(m); this.render(); },
   used(field,val){ return DB.all().filter(r=>r[field]===val).length; },
 
   /* ---------- สาขา (ซิงค์จากฮับ · ฮับเป็นเจ้าของข้อมูล) ---------- */
@@ -4931,6 +4938,7 @@ const Master = {
     const el=document.getElementById('nl_'+k), v=el.value.trim();
     if(!v) return App.toast('กรุณากรอกข้อความ');
     if(M.list(k).includes(v)) return App.toast('มีตัวเลือกนี้อยู่แล้ว');
+    if(k==='fqaItems'&&FQA_REMOVED.includes(v)) return App.toast('หัวข้อนี้ยกเลิกจากแบบฟอร์ม FQA แล้ว');
     this.save(m=>m.lists[k].push(v)); Form.syncChecks(); App.toast('เพิ่มตัวเลือกแล้ว');
   },
   setListItem(k,i,v){ v=v.trim(); if(!v) return this.render();
@@ -5132,7 +5140,7 @@ const Dash = {
 
     /* ---- KPI ---- */
     let pass=0,tot=0;
-    fqa.forEach(r=>r.checks.forEach(c=>{ if(c.result==='ผ่าน'){pass++;tot++;} else if(c.result==='ไม่ผ่าน') tot++; }));
+    fqa.forEach(r=>fqaChecks(r).forEach(c=>{ if(c.result==='ผ่าน'){pass++;tot++;} else if(c.result==='ไม่ผ่าน') tot++; }));
     const rate=tot?Math.round(pass/tot*100):0;
     const bset=new Set(rows.map(r=>r.branch));
     const nb=M.branches().length||1;
@@ -5215,7 +5223,7 @@ const Dash = {
 
     /* ---- 3 เรดาร์ ---- */
     const items=M.list('fqaItems').map(name=>{ let p=0,f=0;
-      fqa.forEach(r=>r.checks.forEach(c=>{ if(c.item===name){ if(c.result==='ผ่าน')p++; if(c.result==='ไม่ผ่าน')f++; } }));
+      fqa.forEach(r=>fqaChecks(r).forEach(c=>{ if(c.item===name){ if(c.result==='ผ่าน')p++; if(c.result==='ไม่ผ่าน')f++; } }));
       return {name,p,f,t:p+f}; });
     const scored=items.filter(x=>x.t>0);
     document.getElementById('chRadar').innerHTML = scored.length
@@ -6123,7 +6131,7 @@ const PDF = {
     if(r.type==='FQA'){
       if((r.materials||[]).length)
         b+=sec('วัตถุดิบที่สุ่มตรวจ',`<div class="pdfchips">${r.materials.map(m=>`<span>${esc(m)}</span>`).join('')}</div>`);
-      const cs=(r.checks||[]).filter(c=>c.result||c.detail);
+      const cs=fqaChecks(r).filter(c=>c.result||c.detail);
       if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(
         [{h:'รายการตรวจ',w:'26%'},{h:'ผล',w:'12%',c:1},{h:'สิ่งที่พบ',w:'31%'},{h:'การแก้ไข',w:'31%'}],
         cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
@@ -6493,7 +6501,7 @@ const IO = {
     const fqaItem=[],fqaMenu=[],comp=[],visit=[],sta=[],staVerify=[];
     rows.forEach(r=>{
       if(r.type==='FQA'){
-        r.checks.forEach(c=>{ if(c.result||c.detail||c.fix) fqaItem.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
+        fqaChecks(r).forEach(c=>{ if(c.result||c.detail||c.fix) fqaItem.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
           'วัตถุดิบที่สุ่มตรวจ':(r.materials||[]).join(', '),'รายการตรวจ':c.item,'ผลตรวจ':c.result,'รายละเอียด / สิ่งที่พบ':c.detail,'วิธีการแก้ไขเบื้องต้น':c.fix}); });
         r.menus.forEach(m=>{ if(m.menu) fqaMenu.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้ตรวจ':r.trainer,
           'เมนู':m.menu,'ขั้นตอนการปรุง':m.cook,'หน้าตาอาหารและรสชาติ':m.taste,'รายละเอียด / สิ่งที่พบ':m.detail,'วิธีการแก้ไขเบื้องต้น':m.fix}); });
