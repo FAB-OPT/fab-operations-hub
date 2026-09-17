@@ -35,8 +35,20 @@
 .slip .actions select{width:auto;min-width:150px;padding:8px 12px;font-size:13px}
 .slip .actions .push{margin-left:auto}
 .filters{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin:18px 0 4px}
+.filters.four{grid-template-columns:1fr 1fr 1fr 1.4fr}
+.filters.two{grid-template-columns:1fr 1.6fr}
 .filters .field{margin:0}
+@media(max-width:760px){.filters.four{grid-template-columns:1fr 1fr}}
 @media(max-width:640px){.filters{grid-template-columns:1fr 1fr}.filters .field.q{grid-column:1/-1}}
+@media(max-width:420px){.filters.two{grid-template-columns:1fr}}
+.line-item{display:flex;gap:11px;align-items:center;padding:12px 0;border-bottom:1px solid var(--border)}
+.card .line-item:last-child{border-bottom:0;padding-bottom:4px}
+/* บัญชีรับเงิน */
+.payee{background:var(--bg3);border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:16px;min-width:0}
+.f2 .payee{margin-bottom:0}
+.py-l{font-size:11.5px;font-weight:700;color:var(--text3);letter-spacing:.02em}
+.py-n{font-size:16px;font-weight:700;margin-top:3px;overflow-wrap:anywhere}
+.py-b{font-size:13.5px;color:var(--text2);margin-top:2px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
 .form-card{margin-top:18px}
 .form-card .hint{font-size:13px;color:var(--text3);margin-top:-6px;margin-bottom:14px}
 .submit-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-top:4px}
@@ -81,23 +93,51 @@ const PERM_KEY="meetexpense";
 const PERM_DEFAULTS={
   "view-claims":["admin","coo","vp","bzm"],
   "update-status":["admin"], "delete-claims":["admin"],
-  "submit-claim":["branch"], "delete-own":["branch"]
+  "manage-rounds":["admin"], "manage-limits":["admin"], "manage-payees":["admin"],
+  "submit-claim":["branch"], "delete-own":["branch"], "request-payee":["branch"]
 };
 const can=a=>HubMod.can(PERM_KEY,a,PERM_DEFAULTS);
 
-let ME=null, TAB="send";
-let F={status:"", brand:"", q:""};   /* ตัวกรองหน้ารายการ — จำไว้ข้ามการเรนเดอร์ใหม่ */
+let ME=null, TAB="send", ATAB="list";
+let F={round:"", status:"", brand:"", q:""};   /* ตัวกรองหน้าผู้ดูแล — จำไว้ข้ามการเรนเดอร์ใหม่ */
 let DRAFT={claimant:"", amount:"", note:"", photos:[]};   /* ฟอร์มที่กรอกค้างไว้ ข้อมูลใหม่เข้ามาแล้วไม่หาย */
 
+/* ───── ข้อมูล ─────
+   config/main   = defaultLimit · limits{รหัสสาขา: วงเงินเฉพาะสาขา}
+   rounds/ปปปป-ดด = open · limitDefault · dueDate
+   claims/เลขเอกสาร · payees/รหัสสาขา (บัญชีรับเงิน) · payeeReq/id (คำขอเปลี่ยน รอ admin อนุมัติ) */
 const CLAIMS=()=>S.all("claims");
+const ROUNDS=()=>S.all("rounds").sort((a,b)=>b.id.localeCompare(a.id));
+const PREQ=()=>S.all("payeeReq");
+const CFG=()=>S.get("config","main")||{};
+const roundOf=id=>S.get("rounds",id);
+const payeeOf=c=>S.get("payees",c)||{};
 const byTime=(a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||"");
 const sumOf=list=>list.reduce((s,c)=>s+(Number(c.amount)||0),0);
+const thisRoundId=()=>HubMod.localDate().slice(0,7);
+const roundLabel=id=>{const[y,m]=String(id||"").split("-");
+  return (["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+m]||"")+" "+((+y||0)+543);};
+/* รอบที่สาขาส่งได้ = รอบที่เปิดล่าสุด · ไม่มีรอบเปิด = รอบล่าสุด (แสดงว่าปิดแล้ว) */
+const currentRound=()=>{const r=ROUNDS(); return r.find(x=>x.open)||r[0]||null;};
+const roundIdOf=c=>c.roundId||String(c.submittedAt||"").slice(0,7);
+const isRejected=c=>statusOf(c)==="ไม่อนุมัติ";
+/* ยอดที่ใช้วงเงิน = ทุกใบในรอบ ยกเว้นใบที่ไม่อนุมัติ */
+const used=(rid,code)=>sumOf(CLAIMS().filter(c=>roundIdOf(c)===rid&&c.branchCode===code&&!isRejected(c)));
+/* ลำดับวงเงิน: เฉพาะสาขา → ค่าเริ่มต้นของรอบ → ค่าเริ่มต้นกลาง · ใส่ 0 = ตกไปใช้ค่าถัดไป · ทุกค่าเป็น 0 = ยังไม่ได้ตั้ง */
+function limitOf(rid,code){
+  const r=roundOf(rid)||{}, cfg=CFG();
+  if(cfg.limits&&Number(cfg.limits[code])>0) return Number(cfg.limits[code]);
+  return Number(r.limitDefault)||Number(cfg.defaultLimit)||0;
+}
+async function saveCfg(patch){ await S.set("config","main",Object.assign({},CFG(),patch)); }
+const payeeText=p=>p&&p.name?[p.name,p.empCode?"รหัส "+p.empCode:"",p.bank,p.account].filter(Boolean).join(" · "):"";
 /* เลขเอกสาร ME-ปปดดวว-XXXX · ใช้เป็น id ในชีตด้วย */
 function newDocNo(){
   const d=HubMod.localDate().replace(/-/g,"").slice(2);
   const r=Math.random().toString(36).slice(2,6).toUpperCase().padEnd(4,"0");
   return "ME-"+d+"-"+r;
 }
+
 
 /* ───── รูป: อัปขึ้น Drive ทันทีที่แนบ เก็บเป็นลิงก์ ───── */
 function zoom(src){
@@ -162,32 +202,66 @@ function shell(title,note,stats,tabs,active,onTab,eyebrow){
   $("#app").querySelectorAll(".tab").forEach(b=>b.onclick=()=>onTab(b.dataset.k));
   return $("#body");
 }
-function statsOf(list,firstLabel){
-  const wait=list.filter(c=>{const s=statusOf(c);return s==="ส่งแล้ว"||s==="รอดำเนินการ";});
-  const ok=list.filter(c=>statusOf(c)==="อนุมัติ");
-  return `<div class="kpis">
-      <div class="kpi"><div class="k-l">${firstLabel}</div><div class="k-n">${list.length}</div><div class="k-d">ใบ · ${short(sumOf(list))} บาท</div></div>
-      <div class="kpi ${wait.length?"a":"calm"}"><div class="k-l">รอดำเนินการ</div><div class="k-n">${wait.length}</div><div class="k-d">ใบ · ${short(sumOf(wait))} บาท</div></div>
-      <div class="kpi b"><div class="k-l">อนุมัติแล้ว</div><div class="k-n">${short(sumOf(ok))}</div><div class="k-d">บาท · ${ok.length} ใบ</div></div>
+
+function payeeCard(p,title,editable){
+  return `<div class="payee"><div class="py-l">${esc(title)}</div>
+    ${p&&p.name?`<div class="py-n">${esc(p.name)}${p.empCode?` <span class="muted">· รหัส ${esc(p.empCode)}</span>`:""}</div>
+      <div class="py-b">${esc([p.bank,p.account].filter(Boolean).join(" · ")||"ยังไม่ได้ระบุบัญชี")}</div>`
+    :`<div class="py-n muted">ยังไม่มีข้อมูลบัญชีรับเงิน</div>${editable?`<div class="py-b">แจ้งเพิ่มได้ที่แท็บ “บัญชีรับเงิน”</div>`:""}`}</div>`;
+}
+function payeeFields(p){
+  p=p||{};
+  return `<div class="f2">
+      <div class="field"><label>ชื่อ–นามสกุลพนักงาน</label><input id="pn" value="${esc(p.name||"")}" placeholder="ชื่อ–นามสกุล"></div>
+      <div class="field"><label>รหัสพนักงาน</label><input id="pc" inputmode="numeric" value="${esc(p.empCode||"")}" placeholder="ถ้ามี"></div>
+    </div>
+    <div class="f2">
+      <div class="field"><label>ธนาคาร</label><input id="pb" value="${esc(p.bank||"")}" placeholder="เช่น กสิกรไทย"></div>
+      <div class="field"><label>เลขบัญชี</label><input id="pa" inputmode="numeric" value="${esc(p.account||"")}" placeholder="เช่น 123-4-56789-0"></div>
     </div>`;
+}
+function readPayee(f){
+  const v={name:$("#pn",f).value.trim(),empCode:$("#pc",f).value.trim(),bank:$("#pb",f).value.trim(),account:$("#pa",f).value.trim()};
+  if(!v.name) throw new Error("ใส่ชื่อพนักงานที่รับเงินก่อน");
+  if(!v.bank||!v.account) throw new Error("ใส่ธนาคารและเลขบัญชีให้ครบ");
+  if(!/^[0-9\- ]{6,20}$/.test(v.account)) throw new Error("เลขบัญชีไม่ถูกต้อง");
+  return v;
 }
 
 /* ---------- สาขา ---------- */
 function renderBranch(){
+  const r=currentRound();
   const mine=CLAIMS().filter(x=>x.branchCode===ME.code).sort(byTime);
-  const brand=Branches.brandName(Branches.brandOf(ME.code));
-  const body=shell(ME.name,"ส่งเอกสารเบิกเงินประชุมสาขา พร้อมรูปใบเสร็จ",statsOf(mine,"ส่งเอกสารแล้ว"),
-    [{k:"send",t:"ส่งเอกสาร"},{k:"hist",t:"ประวัติ",n:mine.length}],TAB,k=>{TAB=k;renderBranch();},
-    "สาขา · "+brand+" · รหัส "+ME.code);
+  let stats="";
+  if(r){
+    const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code), left=lim-use;
+    const pct=lim?Math.min(100,use/lim*100):0;
+    stats=`<div class="kpis">
+        <div class="kpi"><div class="k-l">วงเงินรอบนี้</div><div class="k-n">${lim?short(lim):"—"}</div><div class="k-d">${lim?"บาท":"ยังไม่ได้ตั้งวงเงิน"}</div></div>
+        <div class="kpi"><div class="k-l">ส่งเบิกแล้ว</div><div class="k-n">${short(use)}</div>
+          <div class="bar"><i class="${lim&&use>lim?"over":""}" style="width:${pct}%"></i></div></div>
+        <div class="kpi ${lim&&left<=0?"warn":"a"}"><div class="k-l">คงเหลือ</div><div class="k-n">${lim?short(left):"—"}</div><div class="k-d">บาท</div></div>
+      </div>`;
+  }
+  const pend=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="pending").length;
+  const note=r?"รอบ "+roundLabel(r.id)+(r.open?" · เปิดรับเอกสาร"+(r.dueDate?" ถึง "+dmy(r.dueDate):""):" · ปิดรับเอกสารแล้ว"):"ยังไม่มีรอบเบิก";
+  const body=shell(ME.name,note,stats,
+    [{k:"send",t:"ส่งเอกสาร"},{k:"hist",t:"ประวัติ",n:mine.length},{k:"payee",t:"บัญชีรับเงิน",n:pend}],TAB,k=>{TAB=k;renderBranch();},
+    "สาขา · "+Branches.brandName(Branches.brandOf(ME.code))+" · รหัส "+ME.code);
   if(TAB==="hist") return branchHistory(body,mine);
-  branchSend(body);
+  if(TAB==="payee") return branchPayee(body);
+  branchSend(body,r);
 }
-function branchSend(body){
+function branchSend(body,r){
   if(!can("submit-claim")){
     body.innerHTML=`<div class="empty">สาขานี้ยังไม่ได้รับสิทธิ์ส่งเอกสาร<br>ติดต่อผู้ดูแลฮับ</div>`; return;
   }
+  if(!r||!r.open){
+    body.innerHTML=`<div class="empty">${r?"รอบ "+esc(roundLabel(r.id))+" ปิดรับเอกสารแล้ว":"ยังไม่มีรอบเบิกที่เปิดอยู่"}<br>รอผู้ดูแลเปิดรอบใหม่</div>`; return;
+  }
+  const pay=payeeOf(ME.code);
   const f=document.createElement("div"); f.className="card form-card";
-  f.innerHTML=`
+  f.innerHTML=`${payeeCard(pay,"เงินเข้าบัญชี",true)}
     <div class="f2">
       <div class="field"><label>ชื่อผู้ทำการเบิก</label><input id="cn" autocomplete="name" placeholder="เช่น นาย/นาง/คุณ ..." value="${esc(DRAFT.claimant)}"></div>
       <div class="field"><label>จำนวนเงิน (บาท)</label><input id="am" inputmode="decimal" placeholder="เช่น 1200" value="${esc(DRAFT.amount)}"></div>
@@ -237,11 +311,22 @@ function branchSend(body){
     if(!/^[0-9]{1,7}(\.[0-9]{1,2})?$/.test(amountStr)||!(Number(amountStr)>0)) return msg("ยอดเงินไม่ถูกต้อง","bad");
     if(busy) return msg("รอรูปอัปโหลดให้เสร็จก่อน","bad");
     if(!DRAFT.photos.length) return msg("กรุณาแนบรูปอย่างน้อย 1 รูป","bad");
+    const amount=Math.round(Number(amountStr)*100)/100;
     const b=e.currentTarget; b.disabled=true; b.textContent="กำลังส่ง…";
     try{
+      /* ดึงข้อมูลล่าสุดก่อนเช็ค — อีกเครื่องของสาขาอาจเพิ่งส่ง หรือผู้ดูแลเพิ่งปิดรอบ/แก้วงเงิน/เปลี่ยนบัญชี */
+      await S.refresh().catch(()=>{});
+      const r2=roundOf(r.id);
+      if(!r2||!r2.open) throw new Error("รอบนี้ปิดรับเอกสารแล้ว");
+      const p2=payeeOf(ME.code);
+      if(!p2.name||!p2.account) throw new Error("ยังไม่มีบัญชีรับเงิน แจ้งเพิ่มที่แท็บ “บัญชีรับเงิน” ก่อน");
+      const lim=limitOf(r.id,ME.code), left=lim-used(r.id,ME.code);
+      if(!lim) throw new Error("รอบนี้ยังไม่ได้ตั้งวงเงิน ติดต่อผู้ดูแล");
+      if(amount>left+1e-9) throw new Error("เกินวงเงินคงเหลือ ("+money(Math.max(0,left))+" บาท)");
       const docNo=newDocNo();
-      await S.set("claims",docNo,{docNo,branchCode:ME.code,branchName:ME.name,claimantName:claimant,
-        amount:Math.round(Number(amountStr)*100)/100,note,photos:DRAFT.photos.slice(0,MAX_PHOTOS),
+      await S.set("claims",docNo,{docNo,roundId:r.id,branchCode:ME.code,branchName:ME.name,claimantName:claimant,
+        amount,note,photos:DRAFT.photos.slice(0,MAX_PHOTOS),
+        payeeName:p2.name,payeeEmpCode:p2.empCode||"",payeeBank:p2.bank||"",payeeAccount:p2.account||"",
         status:"ส่งแล้ว",submittedAt:nowISO(),submittedBy:Hub.fullName()});
       DRAFT={claimant:"",amount:"",note:"",photos:[]};
       toast("ส่งสำเร็จ · เลขเอกสาร "+docNo);
@@ -251,9 +336,51 @@ function branchSend(body){
   };
 }
 function branchHistory(body,mine){
-  body.insertAdjacentHTML("beforeend",`<div class="sec"><b>ประวัติสาขา</b><span>${mine.length} รายการ</span></div>`);
-  if(!mine.length){ body.insertAdjacentHTML("beforeend",`<div class="empty">ยังไม่มีประวัติ</div>`); return; }
-  mine.forEach(x=>body.appendChild(slip(x,false)));
+  if(!mine.length){ body.insertAdjacentHTML("beforeend",`<div class="sec"><b>ประวัติสาขา</b><span>0 รายการ</span></div><div class="empty">ยังไม่มีประวัติ</div>`); return; }
+  const g={}; mine.forEach(x=>(g[roundIdOf(x)]=g[roundIdOf(x)]||[]).push(x));
+  Object.keys(g).sort().reverse().forEach(rid=>{
+    const list=g[rid];
+    const ok=sumOf(list.filter(x=>statusOf(x)==="อนุมัติ"));
+    body.insertAdjacentHTML("beforeend",`<div class="sec"><b>รอบ ${esc(roundLabel(rid))}</b><span>${list.length} รายการ · อนุมัติ ${money(ok)} บาท</span></div>`);
+    list.forEach(x=>body.appendChild(slip(x,false)));
+  });
+}
+function branchPayee(body){
+  const cur=payeeOf(ME.code);
+  const pend=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="pending");
+  const last=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="rejected").sort((a,b)=>(b.reviewedAt||"").localeCompare(a.reviewedAt||""))[0];
+  const c=document.createElement("div"); c.className="card"; c.style.marginTop="18px";
+  c.innerHTML=payeeCard(cur,"บัญชีรับเงินปัจจุบัน",false)+(cur.updatedAt?`<div class="muted" style="margin-top:8px">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" · "+esc(cur.updatedBy):""}</div>`:"");
+  body.appendChild(c);
+  if(pend.length){
+    const p=pend[0];
+    body.insertAdjacentHTML("beforeend",`<div class="card" style="border-color:var(--gold-line);background:var(--gold-soft)">
+      <span class="pill p-wait">รอผู้ดูแลอนุมัติ</span>
+      <div style="margin-top:10px">${payeeCard(p.next,"ขอเปลี่ยนเป็น",false)}</div>
+      ${p.reason?`<div class="muted" style="margin-top:6px">เหตุผล: ${esc(p.reason)}</div>`:""}</div>`);
+  }else if(last&&(!cur.updatedAt||last.reviewedAt>cur.updatedAt)){
+    body.insertAdjacentHTML("beforeend",`<div class="card" style="border-color:var(--red-line);background:var(--red-soft)">
+      <span class="pill p-no">คำขอล่าสุดไม่ได้รับอนุมัติ</span>
+      ${last.reviewNote?`<div style="margin-top:8px;font-size:14px">${esc(last.reviewNote)}</div>`:""}</div>`);
+  }
+  if(!can("request-payee")) return;
+  const b=Object.assign(document.createElement("button"),{className:"btn full",textContent:cur.name?"แจ้งเปลี่ยนบัญชีรับเงิน":"แจ้งบัญชีรับเงิน"});
+  b.style.marginTop="14px"; b.disabled=!!pend.length;
+  b.onclick=()=>{
+    const f=document.createElement("div");
+    f.innerHTML=`<div class="muted" style="margin-bottom:12px">ข้อมูลใหม่จะใช้ได้หลังผู้ดูแลอนุมัติ</div>${payeeFields(cur)}
+      <div class="field"><label>เหตุผลที่เปลี่ยน</label><textarea id="pr" placeholder="เช่น ผู้จัดการสาขาคนเดิมย้ายสาขา"></textarea></div>`;
+    modal(b.textContent,f,async()=>{
+      const next=readPayee(f);
+      await S.refresh().catch(()=>{});
+      if(PREQ().some(p=>p.branchCode===ME.code&&p.status==="pending")) throw new Error("มีคำขอค้างอยู่แล้ว รอผู้ดูแลอนุมัติก่อน");
+      await S.set("payeeReq","PR-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),{branchCode:ME.code,branchName:ME.name,
+        prev:{name:cur.name||"",empCode:cur.empCode||"",bank:cur.bank||"",account:cur.account||""},next,
+        reason:$("#pr",f).value.trim(),status:"pending",createdAt:nowISO(),createdBy:Hub.fullName()});
+      toast("ส่งคำขอให้ผู้ดูแลแล้ว");
+    },"ส่งคำขอ");
+  };
+  body.appendChild(b);
 }
 
 /* ---------- เอกสารหนึ่งใบ ---------- */
@@ -261,13 +388,15 @@ function slip(x,admin){
   const st=statusOf(x), p=pillOf(st);
   const s=document.createElement("div"); s.className="slip "+p[1];
   const brand=Branches.brandOf(x.branchCode);
+  const acct=[x.payeeName||x.payee,x.payeeBank,x.payeeAccount].filter(Boolean).join(" · ");
   s.innerHTML=`<div class="head">
       <div class="grow">
         <div class="amt">${money(x.amount)}<em>บาท</em></div>
-        <div class="muted">${admin?`<span class="tag">${esc(Branches.brandName(brand))}</span>${esc(Branches.label(x.branchCode,x.branchName))} · `:""}<span class="docno">${esc(x.docNo||x.id)}</span></div>
+        <div class="muted">${admin?`<span class="tag">${esc(Branches.brandName(brand))}</span>${esc(Branches.label(x.branchCode,x.branchName))} · `:""}<span class="docno">${esc(x.docNo||x.id)}</span> · รอบ ${esc(roundLabel(roundIdOf(x)))}</div>
       </div><span class="pill ${p[0]}">${esc(st)}</span></div>
     <div style="margin-top:11px">
-      <div class="lead"><span>ผู้ทำการเบิก</span><span class="fill"></span><span class="v">${esc(x.claimantName||x.payee||"-")}</span></div>
+      <div class="lead"><span>ผู้ทำการเบิก</span><span class="fill"></span><span class="v">${esc(x.claimantName||"-")}</span></div>
+      <div class="lead"><span>เงินเข้าบัญชี</span><span class="fill"></span><span class="v">${esc(acct||"-")}</span></div>
       <div class="lead"><span>ส่งเมื่อ</span><span class="fill"></span><span class="v">${esc(stamp(x.submittedAt))}</span></div>
       ${x.statusAt?`<div class="lead"><span>อัปเดตสถานะ</span><span class="fill"></span><span class="v">${esc(x.statusBy||"-")} · ${esc(stamp(x.statusAt))}</span></div>`:""}
     </div>
@@ -296,6 +425,11 @@ async function setStatus(x,from,sel){
   const to=sel.value;
   sel.blur(); sel.disabled=true;
   try{
+    /* ดึงใบที่ไม่อนุมัติกลับมา = ใช้วงเงินอีกครั้ง → ต้องไม่ทำให้สาขาเกินวงเงิน */
+    if(from==="ไม่อนุมัติ"&&to!=="ไม่อนุมัติ"){
+      const rid=roundIdOf(x), lim=limitOf(rid,x.branchCode);
+      if(lim&&used(rid,x.branchCode)+(Number(x.amount)||0)>lim+1e-9) throw new Error("เปลี่ยนไม่ได้ สาขาจะเกินวงเงินรอบนี้ ("+money(lim)+" บาท)");
+    }
     /* expect = สถานะที่เห็นอยู่บนจอ · อีกเครื่องเพิ่งเปลี่ยนไป จะไม่เขียนทับ */
     const expectStatus=x.status==null?null:{status:x.status};
     await S.update("claims",x.id,{status:to,statusAt:nowISO(),statusBy:Hub.fullName()},expectStatus);
@@ -317,22 +451,47 @@ function removeClaim(x){
 }
 
 /* ---------- ผู้ดูแล / ทีมบริหาร ---------- */
+function adminTabs(){
+  const t=[];
+  if(can("view-claims")||can("update-status")) t.push({k:"list",t:"รายการ"});
+  if(can("manage-rounds")) t.push({k:"rounds",t:"รอบเบิก"});
+  if(can("manage-limits")) t.push({k:"limits",t:"วงเงินสาขา"});
+  if(can("manage-payees")) t.push({k:"payees",t:"บัญชีรับเงิน",n:PREQ().filter(p=>p.status==="pending").length});
+  return t;
+}
 function renderAdmin(){
-  if(!can("view-claims")&&!can("update-status"))
+  const tabs=adminTabs();
+  if(!tabs.length)
     return gate("ไม่มีสิทธิ์เข้าระบบนี้","บัญชีของคุณยังไม่ได้รับสิทธิ์ในระบบเบิกเงินประชุมสาขา<br>ขอสิทธิ์ได้จากผู้ดูแลฮับ (⚙️ → สิทธิ์ปุ่มแต่ละระบบ)");
-  const all=CLAIMS();
+  if(!tabs.some(t=>t.k===ATAB)) ATAB=tabs[0].k;
+  const r=currentRound();
+  const inRound=r?CLAIMS().filter(c=>roundIdOf(c)===r.id):[];
+  const wait=CLAIMS().filter(c=>{const s=statusOf(c);return s==="ส่งแล้ว"||s==="รอดำเนินการ";});
+  const ok=inRound.filter(c=>statusOf(c)==="อนุมัติ");
+  const stats=`<div class="kpis">
+      <div class="kpi ${wait.length?"a":"calm"}"><div class="k-l">รอดำเนินการ</div><div class="k-n">${wait.length}</div><div class="k-d">ใบ · ${short(sumOf(wait))} บาท · ทุกรอบ</div></div>
+      <div class="kpi"><div class="k-l">${r?"รอบ "+esc(roundLabel(r.id)):"รอบล่าสุด"}</div><div class="k-n">${inRound.length}</div><div class="k-d">ใบ · ${short(sumOf(inRound.filter(c=>!isRejected(c))))} บาท</div></div>
+      <div class="kpi b"><div class="k-l">อนุมัติรอบนี้</div><div class="k-n">${short(sumOf(ok))}</div><div class="k-d">บาท · ${ok.length} ใบ</div></div>
+    </div>`;
   const manage=can("update-status");
-  const body=shell(manage?"รายการทั้งหมด":"ภาพรวมการเบิก","เอกสารเบิกเงินประชุมจากทุกสาขา",statsOf(all,"เอกสารทั้งหมด"),
-    [{k:"list",t:"รายการ",n:all.length}],"list",()=>{},
-    manage?"ผู้ดูแลระบบ · ตรวจและอัปเดตสถานะ":"ดูอย่างเดียว");
-  adminList(body);
+  const body=shell(manage?"ผู้ดูแลระบบเบิกเงิน":"ภาพรวมการเบิก",
+    r?"รอบ "+roundLabel(r.id)+(r.open?" · เปิดรับเอกสาร":" · ปิดแล้ว"):"ยังไม่มีรอบเบิก",
+    stats,tabs,ATAB,k=>{ATAB=k;renderAdmin();},
+    manage?"รายการ · รอบเบิก · วงเงิน · บัญชีรับเงิน":"ดูอย่างเดียว");
+  ({list:adminList,rounds:adminRounds,limits:adminLimits,payees:adminPayees})[ATAB](body);
 }
 function brandOptions(sel){
   return `<option value="">ทุกแบรนด์</option>`+Branches.brands().map(k=>`<option value="${esc(k)}" ${sel===k?"selected":""}>${esc(Branches.brandName(k))}</option>`).join("");
 }
 function adminList(body){
-  const fl=document.createElement("div"); fl.className="filters";
-  fl.innerHTML=`<div class="field"><label>สถานะ</label><select id="fs"><option value="">ทั้งหมด</option>
+  const rounds=ROUNDS();
+  const rids=[...new Set(rounds.map(r=>r.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort().reverse();
+  if(F.round===""&&rids.length) F.round=(currentRound()||{}).id||rids[0];
+  const fl=document.createElement("div"); fl.className="filters four";
+  fl.innerHTML=`<div class="field"><label>รอบ</label><select id="fr">
+      ${rids.map(id=>`<option value="${esc(id)}" ${F.round===id?"selected":""}>${esc(roundLabel(id))}</option>`).join("")}
+      <option value="_all" ${F.round==="_all"?"selected":""}>ทุกรอบ</option></select></div>
+    <div class="field"><label>สถานะ</label><select id="fs"><option value="">ทั้งหมด</option>
       ${STATUSES.map(v=>`<option ${F.status===v?"selected":""}>${esc(v)}</option>`).join("")}</select></div>
     <div class="field"><label>แบรนด์</label><select id="fb">${brandOptions(F.brand)}</select></div>
     <div class="field q"><label>ค้นหา</label><input id="fq" value="${esc(F.q)}" placeholder="สาขา · ผู้เบิก · เลขเอกสาร"></div>`;
@@ -340,18 +499,187 @@ function adminList(body){
   const out=document.createElement("div"); body.appendChild(out);
   const draw=()=>{
     const q=F.q.trim().toLowerCase();
-    const list=CLAIMS().filter(c=>(!F.status||statusOf(c)===F.status)
+    const list=CLAIMS().filter(c=>(F.round==="_all"||!F.round||roundIdOf(c)===F.round)
+        &&(!F.status||statusOf(c)===F.status)
         &&(!F.brand||Branches.brandOf(c.branchCode)===F.brand)
-        &&(!q||[c.branchCode,Branches.label(c.branchCode,c.branchName),c.claimantName,c.docNo||c.id].join(" ").toLowerCase().indexOf(q)>=0))
+        &&(!q||[c.branchCode,Branches.label(c.branchCode,c.branchName),c.claimantName,c.payeeName,c.docNo||c.id].join(" ").toLowerCase().indexOf(q)>=0))
       .sort(byTime);
     const nb=new Set(list.map(c=>c.branchCode)).size;
     out.innerHTML=`<div class="sec"><b>รายการ</b><span>${list.length} รายการ · ${nb} สาขา · ${money(sumOf(list))} บาท</span></div>`;
     if(!list.length){ out.insertAdjacentHTML("beforeend",`<div class="empty">ไม่มีรายการ</div>`); return; }
     list.forEach(x=>out.appendChild(slip(x,true)));
   };
+  $("#fr",fl).onchange=e=>{F.round=e.target.value;draw();};
   $("#fs",fl).onchange=e=>{F.status=e.target.value;draw();};
   $("#fb",fl).onchange=e=>{F.brand=e.target.value;draw();};
   $("#fq",fl).oninput=e=>{F.q=e.target.value;draw();};
+  draw();
+}
+function roundForm(r){
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="field"><label>เดือนของรอบ</label><input id="rm" type="month" value="${esc(r?r.id:thisRoundId())}" ${r?"disabled":""}></div>
+    <div class="f2"><div class="field"><label>วงเงินต่อสาขา (บาท)</label><input id="rl" type="number" min="0" step="0.01" value="${r?Number(r.limitDefault)||0:Number(CFG().defaultLimit)||0}"></div>
+    <div class="field"><label>ส่งเอกสารได้ถึงวันที่</label><input id="rd" type="date" value="${esc(r?r.dueDate||"":"")}"></div></div>
+    <div class="muted">วงเงินนี้ใช้กับสาขาที่ไม่ได้ตั้งวงเงินเฉพาะไว้ (แท็บ “วงเงินสาขา”) · ใส่ 0 = ใช้วงเงินเริ่มต้นกลาง</div>`;
+  modal(r?"แก้รอบ "+roundLabel(r.id):"เปิดรอบเบิกใหม่",f,async()=>{
+    const id=r?r.id:$("#rm",f).value;
+    if(!/^\d{4}-\d{2}$/.test(id)) throw new Error("เลือกเดือนก่อน");
+    const patch={limitDefault:Math.max(0,Number($("#rl",f).value)||0),dueDate:$("#rd",f).value||""};
+    await S.refresh().catch(()=>{});
+    if(r){ await S.update("rounds",id,patch); toast("บันทึกแล้ว"); return; }
+    if(roundOf(id)) throw new Error("มีรอบเดือนนี้อยู่แล้ว");
+    await S.set("rounds",id,Object.assign({open:true,createdAt:nowISO(),createdBy:Hub.fullName()},patch));
+    toast("เปิดรอบ "+roundLabel(id)+" แล้ว");
+  },r?"บันทึก":"เปิดรอบ");
+}
+function adminRounds(body){
+  const add=Object.assign(document.createElement("button"),{className:"btn full",textContent:"+ เปิดรอบเบิกใหม่"});
+  add.style.margin="18px 0 4px"; add.onclick=()=>roundForm(null);
+  body.appendChild(add);
+  const rounds=ROUNDS();
+  if(!rounds.length){ body.insertAdjacentHTML("beforeend",`<div class="empty">ยังไม่มีรอบเบิก<br>เปิดรอบแรกเพื่อให้สาขาเริ่มส่งเอกสารได้</div>`); return; }
+  body.insertAdjacentHTML("beforeend",`<div class="muted" style="margin:10px 2px 0">สาขาส่งเอกสารเข้ารอบที่เปิดล่าสุด · เปิดไว้ทีละรอบจะดูง่ายที่สุด</div>`);
+  rounds.forEach(r=>{
+    const list=CLAIMS().filter(c=>roundIdOf(c)===r.id);
+    const ok=sumOf(list.filter(c=>statusOf(c)==="อนุมัติ"));
+    const c=document.createElement("div"); c.className="card";
+    c.innerHTML=`<div class="row" style="align-items:flex-start">
+        <div class="grow"><b style="font-size:16.5px">รอบ ${esc(roundLabel(r.id))}</b>
+          <div class="muted">${list.length} รายการ · อนุมัติ ${money(ok)} บาท · วงเงินต่อสาขา ${money(r.limitDefault||CFG().defaultLimit||0)}${r.dueDate?" · ส่งได้ถึง "+esc(dmy(r.dueDate)):""}</div></div>
+        <span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"เปิดรับ":"ปิดแล้ว"}</span></div>`;
+    const a=document.createElement("div"); a.className="actions";
+    const ed=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"แก้วงเงิน / วันที่"});
+    ed.onclick=()=>roundForm(r);
+    const t=Object.assign(document.createElement("button"),{className:"btn sm "+(r.open?"no":"ok"),textContent:r.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
+    t.onclick=async()=>{ t.disabled=true; try{ await S.update("rounds",r.id,{open:!r.open},{open:r.open});
+      toast(r.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว"); }catch(e){ toast(e.message||"ทำรายการไม่สำเร็จ"); t.disabled=false; } };
+    a.append(ed,t); c.appendChild(a); body.appendChild(c);
+  });
+}
+/* สาขามาจากทะเบียนของฮับเท่านั้น — เพิ่ม/ปิดสาขาที่ฮับ (⚙️ → 🏪 จัดการสาขา) ที่นี่ตั้งแค่วงเงิน */
+function branchFilter(body,idB,idQ){
+  const fl=document.createElement("div"); fl.className="filters two";
+  fl.innerHTML=`<div class="field"><label>แบรนด์</label><select id="${idB}">${brandOptions(F.brand)}</select></div>
+    <div class="field"><label>ค้นหาสาขา</label><input id="${idQ}" value="${esc(F.q)}" placeholder="รหัส หรือชื่อสาขา"></div>`;
+  body.appendChild(fl);
+  return fl;
+}
+const matchBranch=b=>{const q=F.q.trim().toLowerCase();
+  return (!F.brand||b.brand===F.brand)&&(!q||(b.code+" "+b.name).toLowerCase().indexOf(q)>=0);};
+function adminLimits(body){
+  const cfg=CFG(), r=currentRound();
+  const w=document.createElement("div"); w.className="card"; w.style.marginTop="18px";
+  w.innerHTML=`<div class="field" style="margin:0"><label>วงเงินเริ่มต้นกลาง (บาท ต่อสาขา ต่อรอบ)</label>
+    <div class="row"><input id="dl" class="grow" type="number" min="0" step="0.01" value="${Number(cfg.defaultLimit)||0}">
+    <button class="btn sm" id="sdl">บันทึก</button></div></div>
+    <div class="muted" style="margin-top:8px">ลำดับที่ใช้: วงเงินเฉพาะสาขา → วงเงินของรอบ → วงเงินเริ่มต้นกลาง</div>`;
+  body.appendChild(w);
+  $("#sdl",w).onclick=async e=>{ const b=e.currentTarget; b.disabled=true;
+    try{ await S.refresh().catch(()=>{}); await saveCfg({defaultLimit:Math.max(0,Number($("#dl",w).value)||0)}); toast("บันทึกแล้ว"); }
+    catch(err){ toast(err.message); b.disabled=false; } };
+  const all=Branches.list();
+  if(!all.length){ body.insertAdjacentHTML("beforeend",`<div class="empty">ยังโหลดทะเบียนสาขาจากฮับไม่ได้<br>ลองรีเฟรชหน้านี้อีกครั้ง</div>`); return; }
+  const fl=branchFilter(body,"lb","lq");
+  const out=document.createElement("div"); body.appendChild(out);
+  const draw=()=>{
+    const list=all.filter(matchBranch), limits=CFG().limits||{};
+    out.innerHTML=`<div class="sec"><b>สาขาในฮับ</b><span>${list.length} สาขา · ตั้งวงเงินเฉพาะ ${list.filter(b=>Number(limits[b.code])>0).length}</span></div>`;
+    if(!list.length){ out.insertAdjacentHTML("beforeend",`<div class="empty">ไม่พบสาขาที่ค้นหา</div>`); return; }
+    const p=document.createElement("div"); p.className="card"; p.style.padding="4px 16px";
+    list.forEach(b=>{
+      const own=Number(limits[b.code])>0;
+      const lim=r?limitOf(r.id,b.code):(own?Number(limits[b.code]):Number(CFG().defaultLimit)||0);
+      const use=r?used(r.id,b.code):0;
+      const row=document.createElement("div"); row.className="line-item";
+      row.innerHTML=`<div class="grow"><div style="font-weight:500"><span class="tag">${esc(b.brandName)}</span>${esc(b.code)} ${esc(b.name)}</div>
+        <div class="muted">วงเงิน ${lim?money(lim)+" บาท":"ยังไม่ได้ตั้ง"}${own?" (เฉพาะสาขา)":""}${r?" · ใช้ไป "+money(use)+" ในรอบ "+esc(roundLabel(r.id)):""}</div></div>`;
+      const e=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"ตั้งวงเงิน"});
+      e.onclick=()=>limitForm(b); row.appendChild(e); p.appendChild(row);
+    });
+    out.appendChild(p);
+  };
+  $("#lb",fl).onchange=e=>{F.brand=e.target.value;draw();};
+  $("#lq",fl).oninput=e=>{F.q=e.target.value;draw();};
+  draw();
+}
+function limitForm(b){
+  const cur=Number((CFG().limits||{})[b.code])||0;
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="muted" style="margin-bottom:12px">${esc(b.brandName)} · ${esc(b.code)} ${esc(b.name)}</div>
+    <div class="field"><label>วงเงินเฉพาะสาขา (บาท ต่อรอบ)</label><input id="bl" type="number" min="0" step="0.01" value="${cur}"></div>
+    <div class="muted">ใส่ 0 = ใช้วงเงินของรอบ</div>`;
+  modal("ตั้งวงเงินสาขา",f,async()=>{
+    const v=Math.max(0,Number($("#bl",f).value)||0);
+    await S.refresh().catch(()=>{});
+    const limits=Object.assign({},CFG().limits||{});
+    if(v>0) limits[b.code]=v; else delete limits[b.code];
+    await saveCfg({limits}); toast("บันทึกแล้ว");
+  });
+}
+function adminPayees(body){
+  const pend=PREQ().filter(p=>p.status==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
+  body.insertAdjacentHTML("beforeend",`<div class="sec"><b>คำขอเปลี่ยนบัญชีรับเงิน</b><span>${pend.length} รายการ</span></div>`);
+  if(!pend.length) body.insertAdjacentHTML("beforeend",`<div class="empty">ไม่มีคำขอค้างอยู่</div>`);
+  pend.forEach(p=>{
+    const c=document.createElement("div"); c.className="card";
+    c.innerHTML=`<div style="font-weight:700;font-size:16px">${esc(Branches.label(p.branchCode,p.branchName))}</div>
+      <div class="muted" style="margin-top:2px">ขอเมื่อ ${esc(stamp(p.createdAt))} · ${esc(p.createdBy||"")}</div>
+      <div class="f2" style="margin-top:12px">${payeeCard(p.prev,"เดิม",false)}${payeeCard(p.next,"ขอเปลี่ยนเป็น",false)}</div>
+      ${p.reason?`<div style="margin-top:8px;font-size:14px">เหตุผล: ${esc(p.reason)}</div>`:""}`;
+    const a=document.createElement("div"); a.className="actions";
+    const y=Object.assign(document.createElement("button"),{className:"btn sm ok",textContent:"อนุมัติเปลี่ยน"});
+    const n=Object.assign(document.createElement("button"),{className:"btn sm no",textContent:"ไม่อนุมัติ"});
+    y.onclick=()=>{
+      const f=document.createElement("div");
+      f.innerHTML=`<div class="muted" style="margin-bottom:12px">${esc(Branches.label(p.branchCode,p.branchName))}</div>${payeeCard(p.next,"บัญชีใหม่",false)}`;
+      modal("อนุมัติเปลี่ยนบัญชีรับเงิน",f,async()=>{
+        /* expect = ยังรออยู่ · กันสองคนกดพร้อมกัน */
+        await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
+        await S.set("payees",p.branchCode,Object.assign({},p.next,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
+        toast("เปลี่ยนบัญชีรับเงินแล้ว");
+      },"อนุมัติ");
+    };
+    n.onclick=()=>{
+      const f=document.createElement("div");
+      f.innerHTML=`<div class="field"><label>เหตุผลที่ไม่อนุมัติ</label><textarea id="rn" placeholder="แจ้งสาขาว่าต้องแก้อะไร"></textarea></div>`;
+      modal("ไม่อนุมัติคำขอ",f,async()=>{
+        const note=$("#rn",f).value.trim(); if(!note) throw new Error("ใส่เหตุผลให้สาขารู้ว่าต้องแก้อะไร");
+        await S.update("payeeReq",p.id,{status:"rejected",reviewNote:note,reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
+        toast("บันทึกแล้ว");
+      },"ยืนยัน",true);
+    };
+    a.append(y,n); c.appendChild(a); body.appendChild(c);
+  });
+  const all=Branches.list();
+  const fl=branchFilter(body,"pb2","pq");
+  const out=document.createElement("div"); body.appendChild(out);
+  const draw=()=>{
+    const list=all.filter(matchBranch);
+    const set=list.filter(b=>payeeOf(b.code).name).length;
+    out.innerHTML=`<div class="sec"><b>บัญชีรับเงินปัจจุบัน</b><span>${list.length} สาขา · มีข้อมูล ${set}</span></div>`;
+    if(!list.length){ out.insertAdjacentHTML("beforeend",`<div class="empty">ไม่พบสาขา</div>`); return; }
+    const p=document.createElement("div"); p.className="card"; p.style.padding="4px 16px";
+    list.forEach(b=>{
+      const cur=payeeOf(b.code);
+      const row=document.createElement("div"); row.className="line-item";
+      row.innerHTML=`<div class="grow"><div style="font-weight:500"><span class="tag">${esc(b.brandName)}</span>${esc(b.code)} ${esc(b.name)}</div>
+        <div class="muted">${esc(payeeText(cur)||"ยังไม่มีข้อมูล")}</div></div>`;
+      const e=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"แก้ไข"});
+      e.onclick=()=>{
+        const f=document.createElement("div");
+        f.innerHTML=payeeFields(cur)+`<div class="muted">ผู้ดูแลแก้ได้ทันที ไม่ต้องรออนุมัติ</div>`;
+        modal("บัญชีรับเงิน · "+b.code+" "+b.name,f,async()=>{
+          const v=readPayee(f);
+          await S.set("payees",b.code,Object.assign(v,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
+          toast("บันทึกแล้ว");
+        });
+      };
+      row.appendChild(e); p.appendChild(row);
+    });
+    out.appendChild(p);
+  };
+  $("#pb2",fl).onchange=e=>{F.brand=e.target.value;draw();};
+  $("#pq",fl).oninput=e=>{F.q=e.target.value;draw();};
   draw();
 }
 
