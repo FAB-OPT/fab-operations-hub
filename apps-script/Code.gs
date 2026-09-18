@@ -35,7 +35,8 @@ function doGet(e) {
     if (action === 'exam-results') return jsonOut(getExamResults());
     if (action === 'exam-requests') return jsonOut(getExamRequests(e.parameter.branch, e.parameter.scope));
     if (action === 'fqa-records')  return jsonOut(getFqaRecords((e && e.parameter && e.parameter.brand) || '', (e && e.parameter && e.parameter.since) || ''));
-    if (action === 'mod-docs')     return jsonOut(getModDocs((e && e.parameter && e.parameter.app) || ''));
+    if (action === 'fqa-record')   return jsonOut(getFqaRecord((e && e.parameter && e.parameter.id) || ''));
+    if (action === 'mod-docs')    return jsonOut(getModDocs((e && e.parameter && e.parameter.app) || ''));
     if (action === 'counts')       return jsonOut(getCounts());   // นับแถวอย่างเดียว ไม่ต้องโหลดข้อมูลทั้งก้อน
     if (action === 'clear-cache')  return jsonOut(clearAllCacheReturn());
     return jsonOut(getCertificates());
@@ -1121,6 +1122,36 @@ function getFqaRecords(brand, since) {
      จึงถูกเตือนว่า "นาฬิกาคลาด 55 นาที" ทั้งที่เวลาเครื่องตรงเป๊ะ */
   return { ok: true, records: records, deleted: all.deleted, now: all.now,
            serverNow: new Date().toISOString() };
+}
+
+/* ใบเดียวสำหรับหน้าลิงก์แชร์ — เดิมหน้าลิงก์ขอทั้งแบรนด์ (100k+ ตัวอักษร) เพื่อหยิบใบเดียว
+   มีแคช → หยิบจากแคช · ไม่มี → ค้นแถวด้วย TextFinder แล้วอ่านแถวเดียว ไม่อ่านทั้งชีต */
+function getFqaRecord(id) {
+  id = String(id || '').trim();
+  if (!id) return { ok: false, error: 'no id' };
+  var all = _fqaCacheGet();
+  if (all) {
+    var del = (all.deleted || []).indexOf(id) >= 0;
+    var hit = null;
+    for (var i = 0; i < all.records.length; i++) { if (String(all.records[i].id) === id) { hit = all.records[i]; break; } }
+    return { ok: true, record: del ? null : hit, deleted: del, from: 'cache' };
+  }
+  var dsh = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
+  if (dsh.getLastRow() >= 2 && dsh.getRange(2, 1, dsh.getLastRow() - 1, 1).createTextFinder(id).matchEntireCell(true).findNext())
+    return { ok: true, record: null, deleted: true, from: 'sheet' };
+  var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
+  var last = sh.getLastRow();
+  if (last < 2) return { ok: true, record: null, deleted: false, from: 'sheet' };
+  var headers = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0].map(function (h) { return String(h).trim(); });
+  var idCol = headers.indexOf('id') + 1, jsonCol = headers.indexOf('json') + 1;
+  if (!idCol || !jsonCol) return { ok: false, error: 'bad headers' };
+  var cells = sh.getRange(2, idCol, last - 1, 1).createTextFinder(id).matchEntireCell(true).findAll();
+  var rec = null;
+  /* ถ้ามีซ้ำ (บันทึกซ้ำ) เอาแถวล่างสุด = ล่าสุด */
+  for (var k = cells.length - 1; k >= 0 && !rec; k--) {
+    try { rec = JSON.parse(sh.getRange(cells[k].getRow(), jsonCol).getValue()); } catch (e) {}
+  }
+  return { ok: true, record: rec, deleted: false, from: 'sheet' };
 }
 
 function _fqaToRow(rec, headers) {

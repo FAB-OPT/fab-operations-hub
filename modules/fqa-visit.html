@@ -6983,27 +6983,49 @@ const ReportView = {
     const host=document.createElement('div'); host.id='repview'; host.className='repview';
     host.innerHTML=`<div class="rep-load">กำลังโหลดรายงาน…</div>`;
     document.body.appendChild(host);
-    if(!Cloud.enabled()){ host.innerHTML=`<div class="rep-load">ไม่สามารถโหลดรายงานได้</div>`; return; }
-    /* หน้านี้เปิดจากลิงก์เพื่อดูรายงานใบเดียว แต่เดิมลากข้อมูลทั้งแบรนด์กลับมา
-       (212 KB) เพื่อหยิบใบเดียว — เป็นจุดที่พังบ่อยที่สุดเพราะก้อนใหญ่เกินไป
-       ตอนนี้ยังต้องขอทั้งก้อนอยู่ (หลังบ้านยังไม่มีทางขอทีละใบ) แต่ถ้าพัง
-       จะบอกให้ลองใหม่แทนที่จะขึ้นว่าไม่พบรายงาน ซึ่งทำให้เข้าใจผิดว่าถูกลบไปแล้ว */
-    fetch(HUB_SCRIPT_URL+'?action=fqa-records&brand='+encodeURIComponent(Brand.cur)+'&_='+Date.now())
-      .then(r=>r.json())
-      .then(res=>{
-        const rec=((res&&res.records)||[]).find(x=>x&&String(x.id)===String(id));
-        const del=new Set(((res&&res.deleted)||[]).map(String));
-        if(!rec || del.has(String(id))){ host.innerHTML=`<div class="rep-load">ไม่พบรายงานนี้ (อาจถูกลบไปแล้ว)</div>`; return; }
-        this._rec=rec;
-        let doc; try{ doc=PDF.recordDoc(rec); }
-        catch(e){ console.error('[ReportView] recordDoc error', e, rec); host.innerHTML=`<div class="rep-load">แสดงรายงานไม่ได้ — ข้อมูลบางส่วนไม่สมบูรณ์</div>`; return; }
-        host.innerHTML=`<div class="rep-bar">
-            <div class="rep-ttl">รายงานการตรวจสาขา · ${esc(Brand.info().name)}</div>
-            <button class="btn pri" onclick="ReportView.print()">⬇️ บันทึกเป็น PDF</button>
-          </div>
-          <div class="rep-paper"><div class="pdfdoc">${doc}</div></div>`;
-      })
-      .catch(e=>{ console.error('[ReportView] load error', e); host.innerHTML=`<div class="rep-load">โหลดรายงานไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่</div>`; });
+    const say=t=>{ const el=host.querySelector('.rep-load'); if(el) el.textContent=t; };
+    const show=rec=>{
+      this._rec=rec;
+      let doc; try{ doc=PDF.recordDoc(rec); }
+      catch(e){ console.error('[ReportView] recordDoc error', e, rec); host.innerHTML=`<div class="rep-load">แสดงรายงานไม่ได้ — ข้อมูลบางส่วนไม่สมบูรณ์</div>`; return; }
+      host.innerHTML=`<div class="rep-bar">
+          <div class="rep-ttl">รายงานการตรวจสาขา · ${esc(Brand.info().name)}</div>
+          <button class="btn pri" onclick="ReportView.print()">⬇️ บันทึกเป็น PDF</button>
+        </div>
+        <div class="rep-paper"><div class="pdfdoc">${doc}</div></div>`;
+    };
+    const gone=()=>{ host.innerHTML=`<div class="rep-load">ไม่พบรายงานนี้ (อาจถูกลบไปแล้ว)</div>`; };
+    const failed=e=>{ console.error('[ReportView] load error', e); host.innerHTML=`<div class="rep-load">โหลดรายงานไม่สำเร็จ — ตรวจอินเทอร์เน็ตแล้วลองใหม่</div>`; };
+    /* เปิดช้า: เดิมขอทั้งแบรนด์ (100k+ ตัวอักษร) เพื่อหยิบใบเดียว และถ้าแคชหลังบ้านหมดอายุ
+       ต้องรอเปิดชีตทั้งไฟล์ 20–45 วินาที ตอนนี้ไล่ตามลำดับ
+       1) เครื่องนี้มีใบนี้อยู่แล้ว (คนที่ใช้แอป FQA) → แสดงทันที
+       2) ขอใบเดียว action=fqa-record → หลังบ้านอ่านแถวเดียว
+       3) หลังบ้านยังไม่ได้ deploy ตัวใหม่ (ไม่มีช่อง record) → ขอทั้งก้อนแบบเดิม
+       ถ้าพังจะบอกให้ลองใหม่ ไม่ขึ้นว่าไม่พบรายงาน ซึ่งทำให้เข้าใจผิดว่าถูกลบไปแล้ว */
+    const local=()=>Promise.race([
+      Promise.resolve().then(()=>DB.hydrate()).then(()=>DB.all().find(x=>x&&String(x.id)===String(id))).catch(()=>null),
+      new Promise(r=>setTimeout(()=>r(null),1500))
+    ]);
+    const slow=setTimeout(()=>say('กำลังโหลดรายงาน… ระบบกำลังเปิดข้อมูล อาจใช้เวลาสักครู่'), 6000);
+    const getJson=u=>fetch(u).then(r=>r.json());
+    local().then(rec=>{
+      if(rec){ clearTimeout(slow); return show(rec); }
+      if(!Cloud.enabled()){ clearTimeout(slow); host.innerHTML=`<div class="rep-load">ไม่สามารถโหลดรายงานได้</div>`; return; }
+      return getJson(HUB_SCRIPT_URL+'?action=fqa-record&id='+encodeURIComponent(id)+'&_='+Date.now())
+        .then(res=>{
+          if(res && res.ok && 'record' in res){
+            clearTimeout(slow);
+            return (res.record && !res.deleted) ? show(res.record) : gone();
+          }
+          return getJson(HUB_SCRIPT_URL+'?action=fqa-records&brand='+encodeURIComponent(Brand.cur)+'&_='+Date.now())
+            .then(all=>{
+              clearTimeout(slow);
+              const rec=((all&&all.records)||[]).find(x=>x&&String(x.id)===String(id));
+              const del=new Set(((all&&all.deleted)||[]).map(String));
+              return (!rec || del.has(String(id))) ? gone() : show(rec);
+            });
+        });
+    }).catch(e=>{ clearTimeout(slow); failed(e); });
   },
   print(){
     if(!this._rec) return;
