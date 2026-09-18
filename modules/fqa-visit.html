@@ -573,6 +573,11 @@ body.repmode>*:not(#repview):not(.printhost){display:none!important}   /* ยก
 .rep-paper .pdfdoc{width:760px;background:#fff;border-radius:10px;
   box-shadow:0 6px 26px rgba(0,0,0,.13);padding:26px 24px}
 .rep-paper .pdfdoc .pdfpage{padding:0}
+/* รายงานฉบับเต็มในแอป — ซ้อนทับหน้าจอ หน้าตาเหมือนหน้าลิงก์แชร์ (จอแคบย่อทั้งใบให้พอดี) */
+.fullrep{position:fixed;inset:0;z-index:170;background:#EDEDEE;overflow:auto;display:none}
+.fullrep.on{display:block}
+.fullrep .rep-bar .acts{display:flex;gap:8px}
+.fullrep .rep-bar .btn.gho{color:#fff;border-color:rgba(255,255,255,.35);background:transparent}
 
 /* ---------- เอกสาร PDF (วาดนอกจอ · โทนสว่างเสมอ ไม่อิงธีมหน้าจอ) ---------- */
 .printhost{display:none}
@@ -1466,6 +1471,7 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
 </div>
 
 <div class="modal" id="modal"><div class="mc"><div class="mh"><h3 id="mTitle">รายละเอียด</h3><div style="flex:1"></div>
+  <button class="btn sm noprint" id="mFull" style="display:none">📄 ดูรายงานฉบับเต็ม</button>
   <button class="btn sm pri noprint" id="mPdf" style="display:none">บันทึก PDF</button>
   <button class="btn sm gho" onclick="App.closeModal()">ปิด</button></div>
   <div class="mb" id="mBody"></div></div></div>
@@ -2987,6 +2993,9 @@ const App = {
     p.style.display = recId? '' : 'none';
     p.textContent = '🔗 แชร์ลิงก์รายงาน';
     p.onclick = recId? (()=>PDF.share(recId)) : null;   /* ทั้งคอมและมือถือ = แชร์เป็นลิงก์ */
+    const f=document.getElementById('mFull');
+    f.style.display = recId? '' : 'none';
+    f.onclick = recId? (()=>FullReport.open(recId)) : null;
     document.getElementById('modal').classList.add('on');
   },
   closeModal(){ document.getElementById('modal').classList.remove('on'); },
@@ -6913,7 +6922,41 @@ const IO = {
   }
 };
 
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ App.closeModal(); document.getElementById('zoom').classList.remove('on'); const c=document.getElementById('cfm'); if(c.classList.contains('on')){ c.classList.remove('on'); document.body.style.overflow=''; } } });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ if(FullReport.isOpen()){ FullReport.close(); return; } App.closeModal(); document.getElementById('zoom').classList.remove('on'); const c=document.getElementById('cfm'); if(c.classList.contains('on')){ c.classList.remove('on'); document.body.style.overflow=''; } } });
+
+/* รายงานฉบับเต็มจากหน้าต่างรายละเอียด — ใช้ข้อมูลในเครื่อง ไม่ต้องโหลดใหม่
+   เอกสารกว้างคงที่ 760px เหมือนหน้าลิงก์แชร์ จอแคบกว่านั้นย่อทั้งใบด้วย zoom */
+const FullReport = {
+  _id:null,
+  open(id){
+    const r=DB.all().find(x=>x.id===id);
+    if(!r) return App.toast('ไม่พบรายการตรวจนี้');
+    let doc; try{ doc=PDF.recordDoc(r); }
+    catch(e){ console.error('[FullReport] recordDoc error', e, r); return App.toast('แสดงรายงานไม่ได้ — ข้อมูลบางส่วนไม่สมบูรณ์'); }
+    this._id=id;
+    let el=document.getElementById('fullrep');
+    if(!el){ el=document.createElement('div'); el.id='fullrep'; el.className='fullrep noprint'; document.body.appendChild(el); }
+    el.innerHTML=`<div class="rep-bar">
+        <div class="rep-ttl">${esc(TYPE_LABEL[r.type]||'รายงานการตรวจ')} · ${esc(r.branch||'')}</div>
+        <div class="acts">
+          <button class="btn pri" onclick="PDF.record(FullReport._id)">⬇️ บันทึก PDF</button>
+          <button class="btn gho" onclick="FullReport.close()">ปิด</button>
+        </div>
+      </div>
+      <div class="rep-paper"><div class="pdfdoc">${doc}</div></div>`;
+    const fit=()=>{ const d=el.querySelector('.rep-paper .pdfdoc'); if(!d) return;
+      const s=Math.min(1,(window.innerWidth-28)/808); d.style.zoom = s<1 ? s : ''; };
+    fit(); this._fit=fit; window.addEventListener('resize',fit);
+    el.scrollTop=0; el.classList.add('on');
+  },
+  close(){
+    const el=document.getElementById('fullrep');
+    if(el){ el.classList.remove('on'); el.innerHTML=''; }
+    if(this._fit) window.removeEventListener('resize',this._fit);
+    this._fit=null;
+  },
+  isOpen(){ const el=document.getElementById('fullrep'); return !!(el && el.classList.contains('on')); }
+};
 
 /* =======================================================================
    REPORT VIEW — หน้าดูรายงานแบบสาธารณะผ่านลิงก์แชร์
