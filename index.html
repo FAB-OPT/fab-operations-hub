@@ -4593,7 +4593,7 @@ function goToExamApp() {
 /* brand = แบรนด์ที่จะเปิด · โมดูลเดียวใช้ได้ทุกแบรนด์ ข้อมูลแยกกันสนิท
    ต้องส่งไปกับลิงก์เสมอ ไม่งั้นจะไปหยิบแบรนด์ที่เปิดค้างไว้ครั้งก่อน
    แล้วผู้ใช้จะงงว่ากดปุ่มซานตาเฟ่แต่ได้ข้อมูลเจ๊แดง */
-function goToFormApp() {
+function goToFormApp(file) {
   // Hand off session to online-form module (เหมือน online-exam)
   sessionStorage.setItem('fab_role', isAdminMode ? 'admin' : 'branch');
   sessionStorage.setItem('fab_branch_pin', branchPin || '');
@@ -4601,7 +4601,7 @@ function goToFormApp() {
   /* โมดูลอ่านตัวตนผู้กรอกจาก fab_session — ต้อง re-save ให้สดก่อนออกจากหน้านี้
      ไม่งั้นชื่อผู้กรอกที่ติดไปกับคำตอบจะเป็นของคนที่ล็อกอินรอบก่อน */
   try { if (branchPin) saveFabSession(isAdminMode ? 'tm' : 'branch', branchPin, branchPin, currentBranchName); } catch (e) {}
-  window.location.href = 'modules/online-form.html?v=' + Date.now();
+  window.location.href = 'modules/' + (file || 'online-form.html') + '?v=' + Date.now();
 }
 
 function goToFqaApp(brand) {
@@ -4725,11 +4725,24 @@ var DEFAULT_SYSTEMS = [{
   builtIn: true
 }, {
   id: 'online-form',
-  emoji: '📝',
+  emoji: '📋',
   icon: 'icons/training.png',
   name: 'ระบบแบบฟอร์มออนไลน์',
-  desc: 'แบบประเมิน Silver/Gold · แบบสำรวจ · แบบเก็บข้อมูล — สร้างชุดคำถามใหม่ได้เอง',
+  desc: 'แบบสำรวจ · แบบเก็บข้อมูล · แบบคำขอ — สร้างฟอร์มเองได้ คำถาม 8 ชนิด',
   url: '',                       // internal route → modules/online-form.html
+  visibleBranches: [],
+  startDate: '',
+  endDate: '',
+  builtIn: true
+}, {
+  /* แยกออกจากระบบแบบฟอร์มเมื่อ 20 ก.ย. 2569 — กติกาคนละชุดกัน
+     (เกณฑ์ผ่าน · ระดับ Silver/Gold · ครัว/บริการ · ถ่วงน้ำหนักรายหมวด) */
+  id: 'silver-gold',
+  emoji: '🥇',
+  icon: 'icons/training.png',
+  name: 'ประเมินพนักงาน Silver / Gold',
+  desc: 'แบบประเมินพนักงานรายบุคคล · เกณฑ์ผ่าน · รอบประเมิน · ติดตามคนที่ยังไม่ประเมิน',
+  url: '',                       // internal route → modules/silver-gold.html
   visibleBranches: [],
   startDate: '',
   endDate: '',
@@ -5443,6 +5456,7 @@ function openSystem(systemId) {
   if (systemId === 'food-handler') { goToBranchApp(); return; }
   if (systemId === 'online-exam') { goToExamApp(); return; }
   if (systemId === 'online-form') { goToFormApp(); return; }
+  if (systemId === 'silver-gold') { goToFormApp('silver-gold.html'); return; }
   if (systemId === 'fqa-visit')         { goToFqaApp('jaedaeng'); return; }
   if (systemId === 'fqa-visit-santafe') { goToFqaApp('santafe');  return; }
   if (systemId === 'meeting-expense')   { goToHubModule('meeting-expense.html'); return; }
@@ -6210,13 +6224,30 @@ var PERM_SYSTEMS = {
       { id: 'danger', label: 'ลบข้อมูล — กู้คืนไม่ได้' }
     ],
     actions: [
-      { id: 'view-results',    group: 'menu',   label: '📊 ดูผลตอบกลับทุกสาขา',            roles: ['admin','support','coo','vp','bzm'] },
-      { id: 'view-followup',   group: 'menu',   label: '🔔 ติดตามคนที่ยังไม่กรอก',          roles: ['admin','support','coo','vp','bzm'] },
-      { id: 'export-results',  group: 'menu',   label: '⬇ ดาวน์โหลดผล (CSV)',             roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'view-results',    group: 'menu',   label: '📊 ดูคำตอบทั้งหมด',                roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'view-followup',   group: 'menu',   label: '🔔 ติดตามสาขาที่ยังไม่ตอบ',          roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'export-results',  group: 'menu',   label: '⬇ ดาวน์โหลดคำตอบ (CSV)',          roles: ['admin','support','coo','vp','bzm'] },
       { id: 'manage-forms',    group: 'manage', label: '📝 สร้าง / แก้ไขแบบฟอร์ม',          roles: ['admin','support'] },
-      { id: 'manage-people',   group: 'manage', label: '👥 จัดการรายชื่อผู้ถูกประเมิน',       roles: ['admin','support'] },
-      { id: 'delete-response', group: 'danger', label: '🗑 ลบผลตอบกลับ',                  roles: ['admin'], danger: true },
+      { id: 'delete-response', group: 'danger', label: '🗑 ลบคำตอบ',                      roles: ['admin'], danger: true },
       { id: 'delete-form',     group: 'danger', label: '🗑 ลบแบบฟอร์ม',                   roles: ['admin'], danger: true }
+    ]
+  },
+  /* ค่าตั้งต้นต้องตรงกับ OF_PERM_DEFAULTS ใน modules/silver-gold.html */
+  silvergold: {
+    label: '🥇 ประเมินพนักงาน Silver / Gold',
+    groups: [
+      { id: 'menu',   label: 'ดูข้อมูล' },
+      { id: 'manage', label: 'จัดการเกณฑ์และรายชื่อ' },
+      { id: 'danger', label: 'ลบข้อมูล — กู้คืนไม่ได้' }
+    ],
+    actions: [
+      { id: 'view-results',    group: 'menu',   label: '📊 ดูผลประเมินทุกสาขา',             roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'view-followup',   group: 'menu',   label: '🔔 ติดตามคนที่ยังไม่ประเมิน',         roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'export-results',  group: 'menu',   label: '⬇ ดาวน์โหลดผล (CSV)',             roles: ['admin','support','coo','vp','bzm'] },
+      { id: 'manage-forms',    group: 'manage', label: '📝 สร้าง / แก้ไขเกณฑ์การประเมิน',     roles: ['admin','support'] },
+      { id: 'manage-people',   group: 'manage', label: '👥 จัดการรายชื่อพนักงาน',            roles: ['admin','support'] },
+      { id: 'delete-response', group: 'danger', label: '🗑 ลบผลประเมิน',                    roles: ['admin'], danger: true },
+      { id: 'delete-form',     group: 'danger', label: '🗑 ลบชุดประเมิน',                   roles: ['admin'], danger: true }
     ]
   },
   /* ค่าตั้งต้นต้องตรงกับ PERM_DEFAULTS ใน modules/booth-equipment.html */

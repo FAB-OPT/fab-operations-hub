@@ -309,7 +309,7 @@ summary{font-weight:700;cursor:pointer}
   <button class="btn-back" onclick="backToHub()" title="กลับหน้าหลัก">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span>กลับหน้าหลัก</span>
   </button>
-  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบประเมิน · แบบสำรวจ · แบบเก็บข้อมูล</small></p></div>
+  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบสำรวจ · แบบเก็บข้อมูล · สร้างฟอร์มเองได้</small></p></div>
   <div class="tb-right">
     <nav class="navtabs" id="navtabs"></nav>
     <div id="whoTag"></div>
@@ -331,112 +331,87 @@ summary{font-weight:700;cursor:pointer}
 /* ══════════════════════════════════════════════════════════════════
    ระบบแบบฟอร์มออนไลน์ — โมดูลของ FAB Operations Hub
 
-   ตัวคำถามไม่ได้ฝังในไฟล์นี้ แต่เก็บเป็นข้อมูลในตาราง of_forms
-   เพิ่มฟอร์มชุดใหม่ทำผ่านแท็บ "จัดการฟอร์ม" ได้เลย ไม่ต้องแก้โค้ด
-   (ชุด Silver/Gold ใน SEED ด้านล่างเป็นแค่ค่าตั้งต้นครั้งแรกเท่านั้น)
+   ตัวสร้างฟอร์มทั่วไป: 1 ฟอร์ม = ชุดคำถามหลายชนิด ไม่มีเรื่องคะแนน
+   (แบบประเมินพนักงาน Silver / Gold แยกไปอยู่ modules/silver-gold.html
+    เพราะกติกาคนละชุดกัน — มีเกณฑ์ผ่าน ระดับ ครัว/บริการ และถ่วงน้ำหนักรายหมวด)
 
-   ตัวตนผู้กรอกมาจาก fab_session ของฮับ ไม่ให้พิมพ์ชื่อเอง
-   ผลจะได้ไม่หลงคน และล็อกการตอบซ้ำได้จริง
+   ตาราง: fm_forms · fm_responses  (supabase/online-form-v2.sql)
+   ตัวตนผู้ตอบมาจาก fab_session ของฮับ ไม่ให้พิมพ์ชื่อเอง
    ══════════════════════════════════════════════════════════════════ */
 const SB_URL = 'https://pzspcjqlxoqnbtvlfjsy.supabase.co';
 const SB_KEY = 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP';
+const SB = window.supabase.createClient(SB_URL, SB_KEY);
 
-const SB  = window.supabase.createClient(SB_URL, SB_KEY);
-
-/* ล็อกอินแบบไม่ระบุตัวตน — ต้องมีก่อนล็อก policy
-   ตารางนี้เก็บรายชื่อผู้ถูกประเมินและคำตอบรายบุคคล ไม่ควรเปิดให้ใครก็อ่านได้
-   ล้มเหลวไม่ปิดระบบ — ตอน policy ยังเปิดอยู่ก็ทำงานได้ปกติ */
+/* ล็อกอินแบบไม่ระบุตัวตน — ต้องมีก่อน policy จะปล่อยให้แตะข้อมูล */
 var SB_AUTH = null;
-function sbReady() {
-  if (!SB_AUTH) {
-    try {
-      SB_AUTH = SB.auth.signInAnonymously()
-        .then(function (r) { return !(r && r.error); })
-        .catch(function () { return false; });
-    } catch (e) { SB_AUTH = Promise.resolve(false); }
+function sbReady(){
+  if (!SB_AUTH){
+    try{ SB_AUTH = SB.auth.signInAnonymously().then(r => !(r && r.error)).catch(() => false); }
+    catch(e){ SB_AUTH = Promise.resolve(false); }
   }
   return SB_AUTH;
 }
-sbReady();   /* เริ่มล็อกอินทันทีที่โหลดหน้า ไม่ต้องรอให้มีคนเรียกใช้ */
-const $   = s => document.querySelector(s);
+sbReady();
+
+const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
-
 function backToHub(){ window.location.href = '../index.html'; }
 
-/* ── แบรนด์จากรหัสสาขา ───────────────────────────────────────────────
-   กติกาเดียวกับ getBranchPrefix() ใน fh-auth.js แต่หน้านี้ไม่ได้โหลดไฟล์นั้น
-   (fh-auth.js ลากเมนูข้างกับโมดัลมาด้วย ซึ่งหน้านี้ไม่ใช้)
-   ⚠️ ถ้าเพิ่มแบรนด์ใหม่ที่ fh-auth.js ต้องมาเพิ่มตรงนี้ด้วย */
-const BRANDS = [
-  ['55', 'Santa Fe Easy'],
-  ['50', 'Santa Fe'],
-  ['40', 'เจ๊แดง จุ่มนัวร์']
-];
+/* ── แบรนด์จากรหัสสาขา (กติกาเดียวกับ fh-auth.js) ────────────────── */
+const BRANDS = [['55','Santa Fe Easy'], ['50','Santa Fe'], ['40','เจ๊แดง จุ่มนัวร์']];
 function brandOfCode(code){
-  const c = String(code || '');
-  const hit = BRANDS.find(([p]) => c.startsWith(p));
+  const hit = BRANDS.find(([p]) => String(code||'').startsWith(p));
   return hit ? hit[1] : '';
 }
 
-/* ── ตัวตนผู้ใช้ จากเซสชันของฮับ ────────────────────────────────── */
+/* ── ตัวตนผู้ใช้ จากเซสชันของฮับ ─────────────────────────────────── */
 const ME = (function(){
   let s = null;
   try{ s = JSON.parse(localStorage.getItem('fab_session') || 'null'); }catch(e){}
   const role   = (s && s.role) || sessionStorage.getItem('fab_role') || '';
   const branch = (s && (s.branchName || s.name)) || sessionStorage.getItem('fab_branch_name') || '';
   const code   = (s && (s.code || s.branchCode)) || sessionStorage.getItem('fab_branch_pin') || '';
-  const name   = (s && s.name) || branch || '';
   const isBranch = role === 'branch';
   return {
-    ok: !!code, code, name, nick: (s && s.nick) || '', role,
+    ok: !!code, code, role, isBranch,
+    name: (s && s.name) || branch || '',
     title: (s && s.title) || (isBranch ? 'สาขา' : role.toUpperCase()),
     branch: isBranch ? branch : ((s && s.branchName) || ''),
-    brand: brandOfCode(code),
-    isBranch,
-    isAdmin: !!code && !isBranch      // ทุก role ที่ไม่ใช่สาขา = ทีมสำนักงาน เห็นผลได้
+    brand: brandOfCode(code)
   };
 })();
 
-/* ── สิทธิ์จากฮับ ─────────────────────────────────────────────────
-   ของเดิม: ไม่ใช่สาขา = ทีมสำนักงาน เห็นผลและแก้ฟอร์มได้ทุกอย่าง
-   ตอนนี้ตั้งได้รายบทบาท/รายคนจากหน้า "ตั้งค่าสิทธิ์" ของฮับ เหมือนระบบอื่น
-   สิทธิ์เก็บในตาราง hub_config คีย์ perms — โปรเจกต์ FAB HUB ตัวเดียวกับฟอร์ม
-   จึงอ่านตรงจาก Supabase ไม่ต้องผ่าน Apps Script
+/* ── สิทธิ์จากฮับ (ตาราง hub_config คีย์ perms) ────────────────────
    ⚠️ ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.onlineform ในไฟล์ index.html ของฮับ */
-const OF_PERM_KEY = 'fab_perms_onlineform_v1';
+const OF_PERM_KEY = 'fab_perms_onlineform_v2';
 const OF_PERM_DEFAULTS = {
   'view-results':   ['admin','support','coo','vp','bzm'],
   'export-results': ['admin','support','coo','vp','bzm'],
   'view-followup':  ['admin','support','coo','vp','bzm'],
-  'delete-response':['admin'],
   'manage-forms':   ['admin','support'],
   'delete-form':    ['admin'],
-  'manage-people':  ['admin','support']
+  'delete-response':['admin']
 };
 let OF_PERMS = null;
-try{ OF_PERMS = JSON.parse(localStorage.getItem(OF_PERM_KEY) || 'null'); }catch(e){ OF_PERMS = null; }
+try{ OF_PERMS = JSON.parse(localStorage.getItem(OF_PERM_KEY) || 'null'); }catch(e){}
 
 function ofCan(action){
   if (!action) return true;
   if (!ME.ok) return false;
   const p = OF_PERMS && OF_PERMS[action];
-  /* ยังไม่เคยตั้งค่าไว้ → ใช้ค่าตั้งต้น ไม่ใช่ปล่อยผ่าน */
   if (!p) return (OF_PERM_DEFAULTS[action] || []).includes(ME.role);
   const code = String(ME.code || '');
   if (code && (p.deny  || []).includes(code)) return false;
   if (code && (p.allow || []).includes(code)) return true;
   return (p.roles || []).includes(ME.role);
 }
-
-/* คืนค่าว่าสิทธิ์เปลี่ยนจากที่แคชไว้ไหม — เปลี่ยนแล้วต้องวาดแท็บใหม่
-   ไม่งั้นคนที่เพิ่งถูกเปิด/ปิดสิทธิ์จะเห็นของเดิมจนกว่าจะรีเฟรชเอง */
 async function ofLoadPerms(){
   try{
     await sbReady();
-    const { data, error } = await SB.from('hub_config').select('value').eq('key','perms').maybeSingle();
-    if (error || !data) return false;
-    const next = (data.value || {}).onlineform || null;
+    const { data, error } = await SB.from('hub_config').select('value').eq('key','perms').limit(1);
+    if (error || !data || !data.length) return false;
+    const next = ((data[0] || {}).value || {}).onlineform || null;
     const before = JSON.stringify(OF_PERMS || null);
     OF_PERMS = next;
     try{ localStorage.setItem(OF_PERM_KEY, JSON.stringify(next)); }catch(e){}
@@ -444,373 +419,130 @@ async function ofLoadPerms(){
   }catch(e){ return false; }
 }
 
-/* ── ใครเห็นฟอร์มไหน ─────────────────────────────────────────────────
-   ว่างทั้งสองช่อง = ทุกคนเห็น (ฟอร์มเก่าที่ยังไม่เคยตั้งค่าจึงไม่กระทบ)
-   ใส่ทั้งสองช่อง = ต้องเข้าเงื่อนไขทั้งคู่
-   ทีมสำนักงานเห็นทุกฟอร์มเสมอ เพราะกรอกแทนได้ทุกสาขาอยู่แล้ว */
-function visibleTo(f, who){
-  if (who.isAdmin) return true;
-
-  const brands   = f.visible_brands   || [];
-  const branches = f.visible_branches || [];
-
-  if (brands.length   && !brands.includes(who.brand))    return false;
-  if (branches.length && !branches.includes(who.branch)) return false;
-  return true;
+/* ทะเบียนสาขาเอามาจากฮับเสมอ (ห้ามฝังรายชื่อไว้เอง) — ใช้ทั้งช่องเลือกกลุ่มเป้าหมาย
+   และหน้าติดตามว่าสาขาไหนยังไม่ตอบ · สาขาที่ปิดไปแล้วไม่นับ */
+let HUB_BRANCHES = [];
+async function loadHubBranches(){
+  try{
+    await sbReady();
+    const { data } = await SB.from('hub_config').select('key,value').in('key', ['branches','jaedaengBranches']);
+    const out = [];
+    (data || []).forEach(row => {
+      const v = row.value || {};
+      const map = v.branches || v || {};
+      const st = v.statusMap || {};
+      Object.keys(map).forEach(code => {
+        if (String(st[code] || '') === 'closed') return;
+        out.push({ code, name: String(map[code] || ''), label: code + ' ' + String(map[code] || '') });
+      });
+    });
+    HUB_BRANCHES = out.sort((a, b) => a.code.localeCompare(b.code));
+  }catch(e){ HUB_BRANCHES = []; }
 }
 
-/* สรุปกลุ่มเป้าหมายเป็นข้อความสั้น ๆ ให้ผู้ดูแลเห็นได้ในตารางเดียว */
-function audienceLabel(f){
-  const bd = f.visible_brands || [], br = f.visible_branches || [];
-  if (!bd.length && !br.length) return '<span class="muted">ทุกสาขา</span>';
+/* ── ชนิดคำถาม ──────────────────────────────────────────────────── */
+const Q_TYPES = [
+  { id:'short',  label:'ข้อความสั้น',      icon:'✏️' },
+  { id:'long',   label:'ข้อความยาว',       icon:'📝' },
+  { id:'single', label:'เลือกได้ 1 ข้อ',    icon:'🔘' },
+  { id:'multi',  label:'เลือกได้หลายข้อ',   icon:'☑️' },
+  { id:'scale',  label:'สเกลให้คะแนน',     icon:'⭐' },
+  { id:'number', label:'ตัวเลข',           icon:'🔢' },
+  { id:'date',   label:'วันที่',            icon:'📅' },
+  { id:'yesno',  label:'ใช่ / ไม่ใช่',       icon:'✅' }
+];
+const qTypeLabel = t => (Q_TYPES.find(x => x.id === t) || {}).label || t;
+const hasOptions = t => t === 'single' || t === 'multi';
 
-  const parts = [];
-  if (bd.length) parts.push(bd.map(x => `<span class="pill brand">${esc(x)}</span>`).join(' '));
-  if (br.length) parts.push(br.length <= 2
-    ? br.map(x => `<span class="pill branch">${esc(x)}</span>`).join(' ')
-    : `<span class="pill branch" title="${esc(br.join(' · '))}">${br.length} สาขา</span>`);
-
-  return parts.join('<br>');
-}
-
-function scoreLabel(f){
-  const who = [];
-  if (f.show_score_to_rater)  who.push('คนกรอก');
-  if (f.show_score_to_branch) who.push('สาขา');
-  return who.length ? who.join(' · ') : 'สำนักงานเท่านั้น';
-}
-
-/* ฟอร์มที่กรอกได้จริงตอนนี้ — ใช้ทั้งหน้ารายการและตอนกันเปิดตรง ๆ */
-function canFill(f){
-  return !!f && f.status === 'open' && visibleTo(f, ME);
-}
-
-/* ── สถานะหน้าจอ ─────────────────────────────────────────────────── */
-let forms = [], people = [], responses = [];
-/* ฐานข้อมูลรันไฟล์ online-form-visibility.sql แล้วหรือยัง
-   ยังไม่รัน = ซ่อนการ์ดตั้งค่าใหม่ และไม่ส่งคอลัมน์ที่ยังไม่มีไปตอนบันทึก
-   (ไม่งั้นกดบันทึกฟอร์มจะพังทั้งใบ ทั้งที่แค่ยังไม่ได้อัปเดตฐานข้อมูล) */
-let VIS_READY = true;
-/* ที่เรากรอกไปแล้ว — คีย์คือ "form_key|round" ค่าคือชุด subject_id
-   ใช้คิดความคืบหน้าบนหน้ารายการ โดยไม่ต้องโหลดคำตอบทั้งก้อน */
-let myDone = {};
-let tab = 'list';
-let fill = null;    // {form, subject, answers, texts, panel, panels, sections}
-let editing = null; // ฟอร์มที่กำลังแก้ในแท็บจัดการ
+/* ── สถานะรวมของหน้า ───────────────────────────────────────────── */
+let forms = [], responses = [], myAnswered = new Set();
+let tab = 'list', fill = null, editing = null;
 
 function msg(html, kind){
   const el = $('#msg');
   el.className = 'notice ' + (kind || 'ok') + ' show';
   el.innerHTML = html;
-  window.scrollTo({top:0, behavior:'smooth'});
   clearTimeout(msg._t);
-  if (kind !== 'err') msg._t = setTimeout(()=>{ el.className = 'notice'; }, 7000);
+  if (kind !== 'err') msg._t = setTimeout(() => { el.className = 'notice'; }, 7000);
 }
 function clearMsg(){ $('#msg').className = 'notice'; }
 function closeModal(){ $('#modal').classList.remove('show'); }
-$('#modal').onclick = e => { if (e.target.id === 'modal') closeModal(); };
 
-/* ══════════════════════════════════════════════════════════════════
-   ค่าตั้งต้นครั้งแรก — แบบประเมิน Silver / Gold
-   ใส่ลงตารางครั้งเดียวตอนยังไม่มีฟอร์มอะไรเลย จากนั้นแก้ผ่านหน้าจอ
-   ══════════════════════════════════════════════════════════════════ */
-const SCALE_1_5 = [
-  { v:1, label:'1', hint:'ยังทำไม่ได้' },
-  { v:2, label:'2', hint:'ทำได้บางส่วน' },
-  { v:3, label:'3', hint:'ตามมาตรฐาน' },
-  { v:4, label:'4', hint:'ดีสม่ำเสมอ' },
-  { v:5, label:'5', hint:'เป็นแบบอย่าง' },
-  { v:'na', label:'N/A', hint:'ยังไม่ได้ดู' }
-];
-
-const Q = {
- ss:[ /* Silver – บริการ */
-  ['A',15,'บุคลิกภาพ ความสะอาด และการเป็นแบบอย่าง',[
-   'แต่งกายถูกระเบียบ สะอาด เรียบร้อย ครบทุกชิ้น (ยูนิฟอร์ม ป้ายชื่อ ทรงผม เล็บ รองเท้า) ทุกวันโดยไม่ต้องมีคนเตือน',
-   'รักษาสุขอนามัยส่วนบุคคลและปฏิบัติตามมาตรฐาน Food Safety (การล้างมือ การจับภาชนะ การจับอาหาร)',
-   'มีบุคลิกภาพและกิริยาที่ดี ยิ้ม ทักทาย น้ำเสียงและคำพูดสุภาพ ทั้งกับลูกค้าและเพื่อนร่วมงาน',
-   'ตรงต่อเวลา มีวินัย ปฏิบัติตามกฎระเบียบร้านอย่างสม่ำเสมอ จนพนักงานคนอื่นถือเป็นแบบอย่าง']],
-  ['B',20,'ความรู้ในมาตรฐานและขั้นตอนการทำงาน',[
-   'อธิบายมาตรฐานและขั้นตอนงานบริการ (Service Steps) ได้ครบตั้งแต่ต้อนรับจนส่งลูกค้ากลับ',
-   'อธิบายขั้นตอนงานเปิดร้าน–ปิดร้าน และ Checklist ประจำวันของฝ่ายบริการได้',
-   'รู้รายละเอียดเมนู วัตถุดิบ สิ่งที่ลูกค้าอาจแพ้ ระยะเวลาทำอาหาร และโปรโมชั่นปัจจุบัน',
-   'รู้มาตรฐานความสะอาดของพื้นที่บริการ และตารางทำความสะอาดประจำวัน/ประจำสัปดาห์',
-   'รู้มาตรฐานการเสิร์ฟที่ถูกต้อง (การเซตโต๊ะ ลำดับการเสิร์ฟ ภาชนะ อุณหภูมิ ความพร้อมของอาหาร)']],
-  ['C',30,'ปฏิบัติงานได้จริง — ครบทุกตำแหน่งของฝ่ายบริการ',[
-   'ตำแหน่ง Host: ต้อนรับ จัดคิว จัดโต๊ะ และพาลูกค้าเข้าที่นั่งได้เหมาะสม',
-   'รับรายการอาหารและใช้ระบบ POS: ทวนรายการถูกต้อง คีย์ไม่ผิด และแนะนำ/เชียร์ขายเมนูได้',
-   'เสิร์ฟและดูแลระหว่างมื้อ: เสิร์ฟถูกโต๊ะถูกคน เก็บ–เติม และดูแลความต้องการลูกค้าได้ต่อเนื่อง',
-   'บาร์เครื่องดื่ม: เตรียมเครื่องดื่มตามสูตร คุมคุณภาพ และรักษาความสะอาดพื้นที่บาร์',
-   'แคชเชียร์: รับชำระเงิน ตรวจสอบบิล ปิดการขาย และจัดการเงินได้ถูกต้องครบถ้วน',
-   'เคลียร์โต๊ะและเซตโต๊ะได้รวดเร็วถูกต้อง โดยเฉพาะช่วงลูกค้าแน่น (Peak)',
-   'สลับหมุนเวียนทำงานได้ครบทุกตำแหน่งของฝ่ายบริการ โดยไม่ต้องมีคนคอยควบคุม']],
-  ['D',20,'การแก้ไขปัญหาเบื้องต้น',[
-   'สังเกตเห็นงานหรือพื้นที่ที่ไม่เป็นไปตามมาตรฐาน และลงมือแก้ไขทันทีโดยไม่ต้องรอสั่ง',
-   'รับมือข้อร้องเรียนของลูกค้าเบื้องต้นได้ (รับฟัง ขอโทษ แก้ไข และส่งต่อเมื่อเกินขอบเขต)',
-   'แก้ปัญหาหน้างานพื้นฐานได้ เช่น ออร์เดอร์ผิด อาหารออกช้า โต๊ะไม่พอ อุปกรณ์มีปัญหา',
-   'รู้ขอบเขตของตนเอง ว่าเรื่องใดแก้ไขเองได้ และเรื่องใดต้องรายงานหัวหน้า/ผู้จัดการทันที']],
-  ['E',15,'การถ่ายทอดและสอนงาน',[
-   'อธิบายและสาธิตขั้นตอนการทำงานให้พนักงานใหม่เข้าใจและทำตามได้',
-   'ให้คำแนะนำหรือเตือนเพื่อนร่วมงานได้อย่างสุภาพและสร้างสรรค์ ไม่ทำให้เสียบรรยากาศทีม',
-   'ติดตามผลหลังสอนงาน ตรวจสอบว่าผู้เรียนทำได้จริงตามมาตรฐาน',
-   'ได้รับความเชื่อถือจากทีม เพื่อนร่วมงานเลือกเข้ามาถามงานหรือขอความช่วยเหลือ']]
- ],
- sk:[ /* Silver – ครัว */
-  ['A',15,'บุคลิกภาพ ความสะอาด และการเป็นแบบอย่าง',[
-   'แต่งกายถูกระเบียบ สะอาด ครบทุกชิ้น (ยูนิฟอร์ม หมวก/ตาข่ายคลุมผม ผ้ากันเปื้อน เล็บ รองเท้า) ทุกวันโดยไม่ต้องมีคนเตือน',
-   'ปฏิบัติตามมาตรฐานสุขอนามัยส่วนบุคคลและ Food Safety อย่างเคร่งครัด (ล้างมือ ถุงมือ การชิมอาหาร การป้องกันการปนเปื้อน)',
-   'มีกิริยา คำพูด และการทำงานร่วมกับผู้อื่นที่เหมาะสม ทั้งในครัวและกับฝ่ายบริการ',
-   'ตรงต่อเวลา มีวินัย ปฏิบัติตามกฎระเบียบร้านอย่างสม่ำเสมอ จนพนักงานคนอื่นถือเป็นแบบอย่าง']],
-  ['B',20,'ความรู้ในมาตรฐานและขั้นตอนการทำงาน',[
-   'อธิบายมาตรฐานและขั้นตอนการทำงานของครัวได้ครบทุกตำแหน่ง',
-   'อธิบายขั้นตอนเปิดครัว–ปิดครัว Checklist ประจำวัน การวัดและบันทึกอุณหภูมิได้',
-   'รู้สูตรและมาตรฐานอาหาร: ปริมาณ/น้ำหนักต่อจาน หน้าตาการจัดจาน และเวลามาตรฐานในการปรุง',
-   'รู้มาตรฐานการจัดเก็บวัตถุดิบ FIFO/FEFO การติดป้ายวันที่ อุณหภูมิจัดเก็บ และการแยกวัตถุดิบเพื่อป้องกันการปนเปื้อนข้าม',
-   'รู้มาตรฐานความสะอาด การใช้สารเคมีอย่างถูกต้อง และความปลอดภัยในการใช้เครื่องมือ/อุปกรณ์ครัว']],
-  ['C',30,'ปฏิบัติงานได้จริง — ครบทุกตำแหน่งในครัว',[
-   'เตรียมวัตถุดิบ (Prep) ได้ถูกต้องตามมาตรฐาน และประเมินปริมาณที่ต้องเตรียมได้เหมาะสม',
-   'ตำแหน่งย่าง/สเต๊ก: ควบคุมระดับความสุก เวลา และอุณหภูมิได้ถูกต้อง',
-   'ตำแหน่งพาสต้า สลัด ของทอด และของว่าง: ทำได้ถูกต้องตามสูตรและมาตรฐาน',
-   'ตำแหน่งเช็กเกอร์: ตรวจความถูกต้อง ครบถ้วน หน้าตา และอุณหภูมิของอาหารก่อนส่งออก',
-   'งานล้างจานและพื้นที่ทำความสะอาด: ใช้เครื่องล้างจานและสารเคมีได้ถูกต้องปลอดภัย',
-   'จัดลำดับออร์เดอร์และควบคุมเวลาออกอาหารได้ โดยเฉพาะช่วงลูกค้าแน่น (Peak)',
-   'สลับหมุนเวียนทำงานได้ครบทุกตำแหน่งในครัว โดยไม่ต้องมีคนคอยควบคุม']],
-  ['D',20,'การแก้ไขปัญหาเบื้องต้น',[
-   'สังเกตเห็นอาหารหรือการทำงานที่ไม่ได้มาตรฐาน และแก้ไขก่อนอาหารถึงมือลูกค้า',
-   'แก้ปัญหาหน้างานพื้นฐานได้ เช่น วัตถุดิบขาด ออร์เดอร์เร่ง ออร์เดอร์ตกหล่น อุปกรณ์ขัดข้อง',
-   'จัดการกรณีอาหารถูกตีกลับหรือลูกค้าไม่พอใจ ร่วมกับฝ่ายบริการได้อย่างเหมาะสม',
-   'รู้ขอบเขตของตนเอง ว่าเรื่องใดแก้ไขเองได้ และเรื่องใดต้องรายงานหัวหน้า/ผู้จัดการทันที']],
-  ['E',15,'การถ่ายทอดและสอนงาน',[
-   'อธิบายและสาธิตขั้นตอนการทำงานให้พนักงานใหม่เข้าใจและทำตามได้',
-   'ให้คำแนะนำหรือเตือนเพื่อนร่วมงานได้อย่างสุภาพและสร้างสรรค์ ไม่ทำให้เสียบรรยากาศทีม',
-   'ติดตามผลหลังสอนงาน ตรวจสอบว่าผู้เรียนทำได้จริงตามมาตรฐาน',
-   'ได้รับความเชื่อถือจากทีม เพื่อนร่วมงานเลือกเข้ามาถามงานหรือขอความช่วยเหลือ']]
- ],
- gs:[ /* Gold – บริการ */
-  ['A',15,'การเป็นแบบอย่างและวินัย',[
-   'แต่งกาย สุขอนามัย และบุคลิกภาพถูกต้องครบถ้วนทุกวัน ในระดับที่ใช้เป็นตัวอย่างอ้างอิงให้ทั้งร้านได้',
-   'ควบคุมอารมณ์และวางตัวเหมาะสมได้ทุกสถานการณ์ ทั้งกับลูกค้า เพื่อนร่วมงาน และผู้จัดการ',
-   'รักษามาตรฐานและกฎระเบียบอย่างเคร่งครัด และกล้าตักเตือนผู้อื่นเมื่อพบการไม่ปฏิบัติตาม',
-   'รับผิดชอบงานที่ได้รับมอบหมายจนจบ และรายงานผลกลับได้อย่างครบถ้วน']],
-  ['B',25,'งานบริการ — หน้างานหลัก',[
-   'อธิบายมาตรฐานงานบริการได้ครบทุกตำแหน่ง ในระดับความลึกที่นำไปสอนคนอื่นได้',
-   'ปฏิบัติงานได้ครบทุกตำแหน่งอย่างถูกต้องและสม่ำเสมอ แม้ในช่วง Peak หรือคนไม่ครบ',
-   'ตรวจสอบงานบริการของทีมเทียบกับมาตรฐาน และแก้ไขให้กลับมาถูกต้องได้',
-   'ควบคุมความสะอาดและความพร้อมของพื้นที่บริการให้ได้มาตรฐานตลอดทั้งกะ',
-   'ดูแลภาพรวมคิว ที่นั่ง และการไหลของลูกค้า ให้บริการต่อเนื่องไม่ติดขัด',
-   'จัดการลูกค้าที่ไม่พอใจหรือข้อร้องเรียนได้จนจบเรื่อง โดยรักษาภาพลักษณ์ของร้าน']],
-  ['C',15,'ความรู้และการช่วยงานครัว',[
-   'อธิบายมาตรฐาน Food Safety การเตรียม และการจัดเก็บวัตถุดิบของครัวได้',
-   'รู้ตำแหน่งงานและขั้นตอนหลักในครัว รวมถึงเวลามาตรฐานในการออกอาหารแต่ละเมนู',
-   'ตรวจพบอาหารหรือการทำงานในครัวที่ไม่เป็นไปตามมาตรฐาน และแจ้งได้ถูกจุดถูกเวลา',
-   'ช่วยงานครัวขั้นพื้นฐานได้จริงเมื่อจำเป็น โดยไม่ทำให้มาตรฐานเสีย',
-   'ประสานงานระหว่างครัวกับบริการในช่วงเร่งด่วนหรือเมื่อเกิดปัญหา ให้จบได้เร็ว']],
-  ['D',25,'การแก้ไขปัญหาเฉพาะหน้า',[
-   'ประเมินสถานการณ์ จัดลำดับความสำคัญ และตัดสินใจได้ทันเวลา',
-   'จัดการปัญหาลูกค้าระดับยากได้ตามขั้นตอนของร้าน (ร้องเรียนรุนแรง ของหาย อุบัติเหตุในร้าน)',
-   'รับมือเหตุไม่ปกติหรือเหตุฉุกเฉินได้ เช่น ไฟดับ ระบบ POS/เครื่องรับชำระล่ม ของขาด พนักงานไม่พอ',
-   'แยกได้ชัดเจนว่าเรื่องใดตัดสินใจเอง และเรื่องใดต้องรายงานผู้จัดการหรือสำนักงานทันที',
-   'สรุปเหตุการณ์ สาเหตุ และแนวทางป้องกันไม่ให้เกิดซ้ำ ส่งต่อให้ผู้จัดการได้']],
-  ['E',20,'ภาวะผู้นำ การสอนงาน และการช่วยงานผู้จัดการ',[
-   'แบ่งงานและมอบหมายงานให้ทีมในกะได้เหมาะสมกับความสามารถของคนและปริมาณงาน',
-   'นำหรือช่วยนำ Briefing ก่อนเปิดร้าน สื่อสารข้อมูลสำคัญให้ทีมเข้าใจตรงกัน',
-   'วางแผนการสอนงาน และปรับวิธีสอนให้เหมาะกับพนักงานแต่ละคนได้',
-   'ติดตามผลการสอน ประเมินผู้เรียน และให้ Feedback อย่างสร้างสรรค์',
-   'ช่วยงานหรือดูแลงานแทนผู้จัดการได้ตามที่มอบหมาย เช่น คุมกะช่วงสั้น ตรวจ Checklist เปิด–ปิดร้าน',
-   'สร้างบรรยากาศทีมที่ดี ลดความขัดแย้ง และจูงใจเพื่อนร่วมงานให้ทำงานตามมาตรฐาน']]
- ],
- gk:[ /* Gold – ครัว */
-  ['A',15,'การเป็นแบบอย่างและวินัย',[
-   'แต่งกาย สุขอนามัย และบุคลิกภาพถูกต้องครบถ้วนทุกวัน ในระดับที่ใช้เป็นตัวอย่างอ้างอิงให้ทั้งร้านได้',
-   'ควบคุมอารมณ์และวางตัวเหมาะสมได้ทุกสถานการณ์ ทั้งกับเพื่อนร่วมงาน ฝ่ายบริการ และผู้จัดการ',
-   'รักษามาตรฐานและกฎระเบียบอย่างเคร่งครัด และกล้าตักเตือนผู้อื่นเมื่อพบการไม่ปฏิบัติตาม',
-   'รับผิดชอบงานที่ได้รับมอบหมายจนจบ และรายงานผลกลับได้อย่างครบถ้วน']],
-  ['B',25,'งานครัว — หน้างานหลัก',[
-   'อธิบายมาตรฐานงานครัวได้ครบทุกตำแหน่ง ในระดับความลึกที่นำไปสอนคนอื่นได้',
-   'ปฏิบัติงานได้ครบทุกตำแหน่งอย่างถูกต้องและสม่ำเสมอ แม้ในช่วง Peak หรือคนไม่ครบ',
-   'ตรวจสอบงานครัวของทีมเทียบกับมาตรฐาน และแก้ไขให้กลับมาถูกต้องได้',
-   'ควบคุมคุณภาพอาหาร ความถูกต้องของออร์เดอร์ และเวลาออกอาหารได้ตลอดทั้งกะ',
-   'ควบคุม Food Safety ของครัวได้ทั้งระบบ (อุณหภูมิ การจัดเก็บ วันหมดอายุ ความสะอาด) และตรวจพบจุดเสี่ยงได้',
-   'ดูแลการเตรียมวัตถุดิบและปริมาณของใช้ให้เพียงพอต่อยอดขาย และลดของเสีย']],
-  ['C',15,'ความรู้และการช่วยงานบริการ',[
-   'อธิบายมาตรฐานและขั้นตอนการให้บริการลูกค้าได้',
-   'รู้หน้าที่และขั้นตอนของ Host การรับรายการอาหาร บาร์เครื่องดื่ม และแคชเชียร์',
-   'ตรวจพบการบริการที่ไม่เป็นไปตามมาตรฐาน และแจ้งได้ถูกจุดถูกเวลา',
-   'ช่วยงานบริการขั้นพื้นฐานได้จริงเมื่อจำเป็น โดยไม่ทำให้มาตรฐานเสีย',
-   'ประสานงานระหว่างครัวกับบริการในช่วงเร่งด่วนหรือเมื่อเกิดปัญหา ให้จบได้เร็ว']],
-  ['D',25,'การแก้ไขปัญหาเฉพาะหน้า',[
-   'ประเมินสถานการณ์ จัดลำดับความสำคัญ และตัดสินใจได้ทันเวลา',
-   'จัดการกรณีอาหารตีกลับ ข้อร้องเรียนด้านคุณภาพอาหาร หรือสิ่งแปลกปลอม ได้ตามขั้นตอนของร้าน',
-   'รับมือเหตุไม่ปกติหรือเหตุฉุกเฉินได้ เช่น อุปกรณ์ครัวเสีย ไฟ/แก๊สขัดข้อง วัตถุดิบขาด พนักงานไม่พอ',
-   'แยกได้ชัดเจนว่าเรื่องใดตัดสินใจเอง และเรื่องใดต้องรายงานผู้จัดการหรือสำนักงานทันที',
-   'สรุปเหตุการณ์ สาเหตุ และแนวทางป้องกันไม่ให้เกิดซ้ำ ส่งต่อให้ผู้จัดการได้']],
-  ['E',20,'ภาวะผู้นำ การสอนงาน และการช่วยงานผู้จัดการ',[
-   'แบ่งงานและมอบหมายงานให้ทีมในกะได้เหมาะสมกับความสามารถของคนและปริมาณงาน',
-   'นำหรือช่วยนำ Briefing ก่อนเปิดร้าน สื่อสารข้อมูลสำคัญให้ทีมเข้าใจตรงกัน',
-   'วางแผนการสอนงาน และปรับวิธีสอนให้เหมาะกับพนักงานแต่ละคนได้',
-   'ติดตามผลการสอน ประเมินผู้เรียน และให้ Feedback อย่างสร้างสรรค์',
-   'ช่วยงานหรือดูแลงานแทนผู้จัดการได้ตามที่มอบหมาย เช่น คุมกะช่วงสั้น ตรวจ Checklist เปิด–ปิดครัว',
-   'สร้างบรรยากาศทีมที่ดี ลดความขัดแย้ง และจูงใจเพื่อนร่วมงานให้ทำงานตามมาตรฐาน']]
- ]
-};
-
-function seedSections(){
-  const map = { ss:{level:'silver',station:'service'}, sk:{level:'silver',station:'kitchen'},
-                gs:{level:'gold',  station:'service'}, gk:{level:'gold',  station:'kitchen'} };
-  const out = [];
-  Object.keys(Q).forEach(k => Q[k].forEach(([label, w, name, q]) =>
-    out.push({ sid:k+'_'+label, label, name, w, when:map[k], q })));
-  return out;
+/* ── ใครเห็นฟอร์มไหน ───────────────────────────────────────────────
+   ว่างทั้งสองช่อง = ทุกคนเห็น · ใส่ทั้งคู่ = ต้องเข้าเงื่อนไขทั้งคู่
+   ทีมสำนักงานที่มีสิทธิ์จัดการฟอร์มเห็นทุกฟอร์มเสมอ (ต้องตรวจงานตัวเอง) */
+function visibleTo(f){
+  if (ofCan('manage-forms') || ofCan('view-results')) return true;
+  const bd = f.visible_brands || [], br = f.visible_branches || [];
+  if (bd.length && !bd.includes(ME.brand)) return false;
+  if (br.length && !br.some(x => ME.branch === x || String(ME.code) === String(x).split(' ')[0])) return false;
+  return true;
 }
-
-const SEED_FORM = {
-  key:'silver-gold', emoji:'🏅',
-  title:'แบบประเมินพนักงาน Silver / Gold',
-  description:'ประเมินมาตรฐานการทำงาน การเป็นแบบอย่าง การแก้ปัญหา และการสอนงาน · ผู้กรอกไม่เห็นคะแนน',
-  round:'รอบที่ 1 / 2569',
-  status:'open',
-  subject_required:true,
-  subject_filter:{ level:['silver','gold'] },
-  scale:SCALE_1_5,
-  sections:seedSections(),
-  closing:[
-    { key:'strengths', type:'text',   label:'จุดแข็งที่โดดเด่นของพนักงานคนนี้คืออะไร', placeholder:'เช่น ใจเย็นกับลูกค้า สอนน้องได้ดี คุมงานช่วง Peak ได้', required:false },
-    { key:'improve',   type:'text',   label:'เรื่องใดที่ควรพัฒนาเป็นลำดับแรก', placeholder:'เช่น ยังไม่กล้าตัดสินใจเวลามีปัญหาเฉพาะหน้า', required:false },
-    { key:'readiness', type:'choice', label:'ความพร้อมในการเติบโตสู่ระดับถัดไป', required:true,
-      options:['พร้อม','พร้อม แต่ต้องพัฒนาเพิ่มเติมบางเรื่อง','ยังไม่พร้อม','ยังไม่สามารถประเมินได้'] },
-    { key:'notes',     type:'text',   label:'เหตุผลหรือข้อเสนอแนะเพิ่มเติม', required:false }
-  ],
-  rules:{
-    pass:{ by:'level', map:{ silver:70, gold:80 }, default:70 },
-    knockouts:[
-      { type:'minScore', section:'A', min:2, note:'มีข้อในหมวด A (แบบอย่าง/สุขอนามัย) ได้ 1 คะแนน' },
-      { type:'minPct', section:'D', pct:70, when:{ level:'gold' }, note:'หมวด D (แก้ปัญหาเฉพาะหน้า) ต่ำกว่า 70%' }
-    ]
-  },
-  sort_order:1
-};
-
-/* ══════════════════════════════════════════════════════════════════
-   เครื่องคิดคะแนน — ใช้ร่วมกันทุกฟอร์ม
-   ══════════════════════════════════════════════════════════════════ */
-function matchWhen(when, meta){
-  if (!when) return true;
-  return Object.keys(when).every(k => {
-    const want = when[k], got = (meta || {})[k];
-    return Array.isArray(want) ? want.includes(got) : String(want) === String(got);
-  });
+/* เปิดให้ตอบอยู่ไหม — สถานะ + ช่วงเวลา */
+function isOpen(f){
+  if (f.status !== 'open') return false;
+  const now = Date.now();
+  if (f.open_at  && now < Date.parse(f.open_at))  return false;
+  if (f.close_at && now > Date.parse(f.close_at)) return false;
+  return true;
 }
-function sectionsFor(form, meta){
-  return (form.sections || []).filter(s => matchWhen(s.when, meta));
-}
-
-function scoreOf(form, secs, answers, meta){
-  const out = { sections:{}, total:null, avg:null, verdict:'', note:'' };
-  let wSum = 0, wScore = 0, all = [];
-  secs.forEach(sec => {
-    const vals = sec.q.map((_, j) => answers[sec.sid + (j+1)]).filter(v => typeof v === 'number');
-    if (!vals.length){
-      out.sections[sec.sid] = { label:sec.label, name:sec.name, weight:sec.w, avg:null, pct:null, answered:0 };
-      return;
-    }
-    const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
-    const pct = avg / 5 * 100;
-    out.sections[sec.sid] = { label:sec.label, name:sec.name, weight:sec.w,
-      avg:+avg.toFixed(2), pct:+pct.toFixed(1), answered:vals.length, min:Math.min(...vals) };
-    wSum += (sec.w || 0); wScore += pct * (sec.w || 0); all = all.concat(vals);
-  });
-  if (!wSum || !all.length) return out;
-
-  out.total = +(wScore / wSum).toFixed(1);
-  out.avg   = +(all.reduce((a,b)=>a+b,0) / all.length).toFixed(2);
-
-  /* เกณฑ์ผ่าน — ปรับตามคุณสมบัติของคนที่ถูกประเมินได้ (เช่น Gold สูงกว่า Silver) */
-  const rules = form.rules || {};
-  const p = rules.pass || {};
-  let need = (typeof p === 'number') ? p
-           : (p.by ? ((p.map || {})[(meta || {})[p.by]] ?? p.default ?? 70) : (p.default ?? 70));
-
-  const fails = [];
-  if (out.total < need) fails.push(`คะแนนรวม ${out.total}% ต่ำกว่าเกณฑ์ ${need}%`);
-
-  (rules.knockouts || []).forEach(k => {
-    if (!matchWhen(k.when, meta)) return;
-    const hit = Object.values(out.sections).find(s => s.label === k.section);
-    if (!hit) return;
-    if (k.type === 'minScore' && hit.min != null && hit.min < k.min)
-      fails.push(k.note || `หมวด ${k.section} มีข้อที่ต่ำกว่า ${k.min} คะแนน`);
-    if (k.type === 'minPct' && hit.pct != null && hit.pct < k.pct)
-      fails.push(k.note || `หมวด ${k.section} ต่ำกว่า ${k.pct}%`);
-  });
-
-  out.verdict = fails.length ? 'fail' : 'pass';
-  out.note    = fails.join(' · ');
-  out.pass_mark = need;
-  return out;
+function canFill(f){ return isOpen(f) && visibleTo(f); }
+function audienceLabel(f){
+  const bd = f.visible_brands || [], br = f.visible_branches || [];
+  if (!bd.length && !br.length) return '<span class="muted">ทุกคน</span>';
+  const parts = [];
+  if (bd.length) parts.push(bd.map(x => `<span class="pill brand">${esc(x)}</span>`).join(' '));
+  if (br.length) parts.push(br.length <= 2
+    ? br.map(x => `<span class="pill branch">${esc(x)}</span>`).join(' ')
+    : `<span class="pill branch" title="${esc(br.join(' · '))}">${br.length} สาขา</span>`);
+  return parts.join(' ');
 }
 
 /* ══════════════════════════════════════════════════════════════════
    โหลดข้อมูล
    ══════════════════════════════════════════════════════════════════ */
+async function loadForms(){
+  await sbReady();
+  const { data, error } = await SB.from('fm_forms').select('*').order('sort_order').order('id');
+  if (error){
+    $('#view').innerHTML = '';
+    msg('โหลดแบบฟอร์มไม่สำเร็จ — ' + esc(error.message) +
+        '<br>ตรวจว่ารันไฟล์ <b>supabase/online-form-v2.sql</b> ในโปรเจกต์ FAB HUB แล้ว', 'err');
+    return false;
+  }
+  forms = data || [];
+  return true;
+}
+async function loadResponses(){
+  await sbReady();
+  const { data, error } = await SB.from('fm_responses').select('*').order('created_at', { ascending:false });
+  if (error){ msg('โหลดคำตอบไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
+  responses = data || [];
+}
+/* ฟอร์มไหนที่ "ฉัน" ตอบไปแล้ว — ใช้ปิดไม่ให้ตอบซ้ำ และขึ้นป้ายในรายการ */
+async function loadMine(){
+  await sbReady();
+  const { data } = await SB.from('fm_responses').select('form_key').eq('respondent_code', ME.code);
+  myAnswered = new Set((data || []).map(r => r.form_key));
+}
+
 async function boot(){
-  await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
+  await sbReady();
   renderWho();
   if (!ME.ok){
     $('#view').innerHTML = `<div class="card"><div class="empty">
       <h2>ยังไม่ได้เข้าสู่ระบบ</h2>
-      <p class="sub">หน้านี้ต้องเข้าผ่านหน้าหลักของฮับ เพื่อให้ระบบรู้ว่าใครเป็นผู้กรอก</p>
+      <p class="sub">หน้านี้ต้องเข้าผ่านหน้าหลักของฮับ เพื่อให้ระบบรู้ว่าใครเป็นผู้ตอบ</p>
       <button class="btn btn-primary" onclick="backToHub()">ไปหน้าเข้าสู่ระบบ</button>
     </div></div>`;
     return;
   }
-  try{
-    const [f, p] = await Promise.all([
-      SB.from('of_forms').select('*').order('sort_order').order('id'),
-      SB.from('of_people').select('*').eq('active', true).order('branch').order('name')
-    ]);
-    if (f.error) throw f.error;
-    if (p.error) throw p.error;
-    forms  = f.data || [];
-    people = p.data || [];
-
-    /* ถามฐานข้อมูลตรง ๆ ว่ามีคอลัมน์ใหม่ไหม — เช็กจากแถวที่โหลดมาไม่ได้
-       เพราะถ้ายังไม่มีฟอร์มสักใบก็ตอบไม่ได้ */
-    const probe = await SB.from('of_forms').select('id,visible_brands').limit(1);
-    VIS_READY = !probe.error;
-  }catch(e){
-    $('#view').innerHTML = '';
-    msg('โหลดข้อมูลไม่สำเร็จ — ' + esc(e.message || e) +
-        '<br>ตรวจว่ารันไฟล์ <b>supabase/online-form.sql</b> ในโปรเจกต์ FAB HUB แล้ว', 'err');
-    return;
-  }
-
-  /* ดึงเฉพาะสามคอลัมน์ที่ใช้นับความคืบหน้า ไม่ต้องลากคำตอบทั้งก้อนมา
-     ถ้าดึงไม่ได้ก็แค่ไม่มีแถบความคืบหน้า หน้าที่เหลือยังใช้ได้ปกติ */
-  try{
-    const { data } = await SB.from('of_responses')
-      .select('form_key,round,subject_id').eq('rater_key', ME.code);
-    myDone = {};
-    (data || []).forEach(r => {
-      const k = r.form_key + '|' + (r.round || '');
-      (myDone[k] = myDone[k] || new Set()).add(r.subject_id);
-    });
-  }catch(e){ myDone = {}; }
-
-  /* ยังไม่มีฟอร์มสักชุด → ใส่ชุดตั้งต้น Silver/Gold ให้ (เฉพาะทีมสำนักงาน) */
-  if (!forms.length && ofCan('manage-forms')){
-    const { error } = await SB.from('of_forms').insert(SEED_FORM);
-    if (!error){
-      const { data } = await SB.from('of_forms').select('*').order('sort_order');
-      forms = data || [];
-      msg('ติดตั้งแบบประเมิน Silver / Gold เป็นฟอร์มตั้งต้นให้แล้ว — แก้คำถามได้ที่แท็บ <b>จัดการฟอร์ม</b>');
-    }
-  }
+  const okLoad = await loadForms();
+  await loadMine();
+  loadHubBranches();
   renderNav();
-  go('list');
+  if (okLoad) go('list');
 
-  /* สิทธิ์มาถึงทีหลัง (เปิดหน้าใช้ของที่แคชไว้ก่อน จะได้ไม่ค้างรอเน็ต)
-     ถ้าของจริงต่างจากที่แคช ต้องวาดแท็บใหม่ และถ้ากำลังอยู่ในแท็บที่
-     ไม่มีสิทธิ์แล้ว ให้พากลับหน้ารายการแบบฟอร์ม */
   ofLoadPerms().then(changed => {
     if (!changed) return;
     renderNav();
@@ -818,32 +550,11 @@ async function boot(){
   });
 }
 
-/* แท็บนี้เปิดดูได้ไหม — ใช้ทั้งตอนวาดแท็บและตอนสิทธิ์เปลี่ยนกลางคัน */
 function tabAllowed(t){
-  if (t === 'results') return ofCan('view-results') || (ME.isBranch && branchCanSeeScores());
+  if (t === 'results')  return ofCan('view-results');
   if (t === 'followup') return ofCan('view-followup');
-  if (t === 'people')  return ofCan('manage-people');
-  if (t === 'forms')   return ofCan('manage-forms');
+  if (t === 'forms')    return ofCan('manage-forms');
   return true;
-}
-
-async function loadResponses(){
-  await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const { data, error } = await SB.from('of_responses').select('*').order('created_at', { ascending:false });
-  if (error){ msg('โหลดผลไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
-  responses = data || [];
-}
-async function loadPeople(){
-  await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const { data, error } = await SB.from('of_people').select('*').order('branch').order('name');
-  if (error){ msg('โหลดรายชื่อไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
-  people = data || [];
-}
-async function loadForms(){
-  await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const { data, error } = await SB.from('of_forms').select('*').order('sort_order').order('id');
-  if (error){ msg('โหลดฟอร์มไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
-  forms = data || [];
 }
 
 /* ══════════════════════════════════════════════════════════════════
@@ -851,732 +562,376 @@ async function loadForms(){
    ══════════════════════════════════════════════════════════════════ */
 function renderWho(){
   if (!ME.ok){ $('#whoTag').innerHTML = ''; return; }
-  const nm = ME.name || 'ผู้ใช้';
   $('#whoTag').innerHTML = `<div class="who-tag">
-    <span class="who-nm">${esc(nm)}</span><span class="who-role">${esc(ME.title)}</span>
-  </div>`;
+    <span class="who-nm">${esc(ME.name || 'ผู้ใช้')}</span><span class="who-role">${esc(ME.title)}</span></div>`;
 }
-
 function renderNav(){
   const tabs = [['list','แบบฟอร์ม']];
-  if (ofCan('view-results'))  tabs.push(['results','ผลตอบกลับ']);
-  if (ofCan('view-followup')) tabs.push(['followup','ติดตามคนที่ยังไม่กรอก']);
-  if (ofCan('manage-people')) tabs.push(['people','รายชื่อ']);
+  if (ofCan('view-results'))  tabs.push(['results','คำตอบ']);
+  if (ofCan('view-followup')) tabs.push(['followup','ติดตามสาขาที่ยังไม่ตอบ']);
   if (ofCan('manage-forms'))  tabs.push(['forms','จัดการฟอร์ม']);
-  /* สาขาเห็นแท็บผลตอบกลับต่อเมื่อมีฟอร์มที่เปิดสิทธิ์ให้ —ไม่มีก็ไม่ต้องโชว์แท็บเปล่า */
-  if (!ofCan('view-results') && ME.isBranch && branchCanSeeScores()) tabs.push(['results','คะแนนของสาขา']);
   $('#navtabs').innerHTML = tabs.map(([k,n]) =>
-    `<button class="navtab ${tab===k?'on':''}" onclick="go('${k}')">${n}</button>`).join('');
+    `<button class="navtab ${tab===k?'on':''}" onclick="go('${k}')">${esc(n)}</button>`).join('');
 }
-
 window.go = async function(t){
-  /* กันเรียกตรงจากคอนโซล/ปุ่มค้างหน้าจอหลังสิทธิ์ถูกปิด */
   if (!tabAllowed(t)){ tab = 'list'; renderNav(); renderList(); return msg('ไม่มีสิทธิ์เข้าหน้านี้', 'warn'); }
   if (t !== 'fill') fill = null;
-  tab = t; clearMsg(); renderNav(); window.scrollTo({top:0});
-  if (t === 'list')    return renderList();
-  if (t === 'results') { $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderResults(); }
-  if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); await loadPeople(); return renderFollowup(); }
-  if (t === 'people')  { await loadPeople();  return renderPeople(); }
-  if (t === 'forms')   { await loadForms();   return renderForms(); }
+  if (t !== 'forms') editing = null;
+  tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
+  if (t === 'list'){ await loadForms(); await loadMine(); return renderList(); }
+  if (t === 'results'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderResults(); }
+  if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderFollowup(); }
+  if (t === 'forms'){ await loadForms(); return renderForms(); }
 };
 
 /* ══════════════════════════════════════════════════════════════════
    หน้ารายการแบบฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
 function renderList(){
-  const list = ME.isAdmin ? forms : forms.filter(canFill);
+  const list = forms.filter(f => visibleTo(f) && (isOpen(f) || ofCan('manage-forms')));
   if (!list.length){
     $('#view').innerHTML = `<div class="card"><div class="empty">
-      ${ME.isAdmin ? 'ยังไม่มีแบบฟอร์ม — สร้างได้ที่แท็บ <b>จัดการฟอร์ม</b>'
-                   : 'ตอนนี้ยังไม่มีแบบฟอร์มที่เปิดให้กรอก'}
+      ${ofCan('manage-forms') ? 'ยังไม่มีแบบฟอร์ม — สร้างได้ที่แท็บ <b>จัดการฟอร์ม</b>'
+                              : 'ตอนนี้ยังไม่มีแบบฟอร์มที่เปิดให้ตอบ'}
     </div></div>`;
     return;
   }
-  /* แถวเต็มความกว้างแทนการ์ดแคบ ๆ — ฟอร์มมีไม่กี่ชุด การ์ดตารางจึงเหลือ
-     ที่ว่างข้าง ๆ เป็นบริเวณกว้าง และการ์ดเดิมไม่ได้บอกอะไรที่ช่วยตัดสินใจ
-     เพิ่มตัวเลขที่คนอยากรู้ก่อนกด: มีกี่ข้อ ต้องประเมินกี่คน */
   $('#view').innerHTML = `
     <div class="list-head">
       <h2>แบบฟอร์มที่เปิดอยู่</h2>
-      <p class="sub">${esc(ME.isBranch ? 'กรอกได้เฉพาะพนักงานในสาขาของคุณ' : 'ทีมสำนักงานกรอกได้ทุกสาขา')}</p>
+      <p class="sub">กดที่แถวเพื่อเริ่มตอบ · ระบบบันทึกชื่อผู้ตอบจากบัญชีที่เข้าระบบอยู่</p>
     </div>
     <div class="form-rows">
       ${list.map(f => {
-        const nq = (f.sections || []).reduce((a, sec) => a + (sec.q || []).length, 0);
-        const subs = f.subject_required ? subjectsFor(f) : [];
-        const ns = subs.length;
-        /* นับเฉพาะคนที่เราเห็นและกรอกไปแล้ว — สาขาจะไม่เห็นยอดของสาขาอื่น
-           ตัวเลขจึงเป็นของ 'งานที่ฉันต้องทำ' ไม่ใช่ยอดรวมทั้งบริษัท */
-        const set = myDone[f.key + '|' + (f.round || '')] || new Set();
-        const done = subs.filter(x => set.has(x.id)).length;
-        const open = f.status === 'open';
-        return `
-        <div class="form-item ${open ? 'clickable' : 'off'}" ${open ? `onclick="startFill(${f.id})"` : ''}>
-        <div class="form-row">
-          <span class="fr-emoji">${esc(f.emoji || '📋')}</span>
-          <span class="fr-body">
-            <span class="fr-top">
-              <span class="fr-title">${esc(f.title)}</span>
-              <span class="pill ${f.status}">${open ? 'เปิดกรอก' : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>
+        const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
+        const nq = (f.questions || []).length;
+        return `<div class="form-item ${open && !lock ? 'clickable' : 'off'}" ${open && !lock ? `onclick="startFill('${esc(f.key)}')"` : ''}>
+          <div class="form-row">
+            <span class="fr-emoji">${esc(f.emoji || '📋')}</span>
+            <span class="fr-body">
+              <span class="fr-top">
+                <span class="fr-title">${esc(f.title)}</span>
+                <span class="pill ${isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${
+                  isOpen(f) ? 'เปิดให้ตอบ' : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>
+                ${lock ? '<span class="pill pass">ตอบแล้ว</span>' : ''}
+              </span>
+              <span class="fr-desc">${esc(f.description || '')}</span>
+              <span class="fr-meta">
+                ${nq ? `<span>${nq} คำถาม</span>` : ''}
+                ${f.close_at ? `<span>ปิดรับ ${esc(fmtDT(f.close_at))}</span>` : ''}
+                ${f.once_per_user ? '<span>ตอบได้ครั้งเดียว</span>' : '<span>ตอบได้หลายครั้ง</span>'}
+              </span>
             </span>
-            <span class="fr-desc">${esc(f.description || '')}</span>
-            <span class="fr-meta">
-              ${f.round ? `<span><b>${esc(f.round)}</b></span>` : ''}
-              ${nq ? `<span>${nq} คำถาม</span>` : ''}
-            </span>
-          </span>
-          ${open ? '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>' : ''}
-        </div>
-        ${open && f.subject_required && ns ? `
-        <div class="fr-progress">
-          <div class="fr-bar"><span style="width:${Math.round(done / ns * 100)}%"></span></div>
-          <div class="fr-pg">
-            <span>กรอกแล้ว <b>${done}</b> จาก <b>${ns}</b> คน</span>
-            <span>${done >= ns ? 'ครบทุกคนแล้ว' : `เหลืออีก <b>${ns - done}</b> คน`}</span>
+            ${open && !lock ? '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>' : ''}
           </div>
-        </div>` : ''}
         </div>`;
       }).join('')}
     </div>`;
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   กรอกแบบฟอร์ม
-   ══════════════════════════════════════════════════════════════════ */
-function subjectsFor(form){
-  const fl = form.subject_filter || {};
-  return people.filter(p => {
-    if (!p.active) return false;
-    if (ME.isBranch && p.branch !== ME.branch) return false;
-    return Object.keys(fl).every(k => {
-      const want = fl[k];
-      return Array.isArray(want) ? want.includes(p[k]) : String(want) === String(p[k]);
-    });
-  });
-}
+const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+const fmtD  = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'2-digit' }) : '—';
 
-window.startFill = function(formId){
-  const form = forms.find(f => f.id === formId);
+/* ══════════════════════════════════════════════════════════════════
+   ตอบแบบฟอร์ม
+   ══════════════════════════════════════════════════════════════════ */
+window.startFill = function(key){
+  const form = forms.find(f => f.key === key);
   if (!form) return;
-  /* หน้ารายการกรองให้แล้ว แต่กันไว้อีกชั้น เผื่อเรียกตรงจากคอนโซลหรือลิงก์เก่า */
-  if (!ME.isAdmin && !canFill(form))
-    return msg('แบบฟอร์มนี้ไม่ได้เปิดให้สาขาของคุณกรอก', 'warn');
-  fill = { form, subject:null, answers:{}, texts:{}, panel:0, panels:[], sections:[] };
+  if (!canFill(form)) return msg('แบบฟอร์มนี้ไม่ได้เปิดให้คุณตอบ', 'warn');
+  if (form.once_per_user && myAnswered.has(key)) return msg('คุณตอบแบบฟอร์มนี้ไปแล้ว', 'warn');
+  fill = { form, answers:{} };
   tab = 'fill'; renderNav();
-  renderPick();
+  renderFill();
 };
 
-function renderPick(){
-  const form = fill.form;
-  if (!form.subject_required){
-    fill.subject = { id:0, name:'', branch:'' };
-    return beginQuestions();
+function qInput(q, val){
+  const id = 'q_' + q.id;
+  if (q.type === 'long')   return `<textarea id="${id}" data-q="${q.id}">${esc(val || '')}</textarea>`;
+  if (q.type === 'number') return `<input id="${id}" data-q="${q.id}" type="number" value="${esc(val ?? '')}">`;
+  if (q.type === 'date')   return `<input id="${id}" data-q="${q.id}" type="date" value="${esc(val || '')}">`;
+  if (q.type === 'yesno')  return `<div class="seg" data-q="${q.id}">
+      <button type="button" class="${val === 'ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ใช่')">ใช่</button>
+      <button type="button" class="${val === 'ไม่ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ไม่ใช่')">ไม่ใช่</button>
+    </div>`;
+  if (q.type === 'scale'){
+    const min = Number(q.min) || 1, max = Number(q.max) || 5, out = [];
+    for (let i = min; i <= max; i++) out.push(`<button type="button" class="${String(val) === String(i) ? 'on' : ''}" onclick="pickOne('${q.id}',${i})">${i}</button>`);
+    return `<div class="seg" data-q="${q.id}">${out.join('')}</div>`;
   }
-  const subs = subjectsFor(form);
-  const byBranch = {};
-  subs.forEach(p => (byBranch[p.branch || 'ไม่ระบุสาขา'] ||= []).push(p));
-
-  $('#view').innerHTML = `
-  <div class="card">
-    <p class="eyebrow">${esc(form.round || '')}</p>
-    <h2>${esc(form.title)}</h2>
-    <p class="sub">${esc(form.description || '')}</p>
-
-    <div class="field">
-      <label>ผู้กรอก</label>
-      <input value="${esc(ME.name)}${ME.branch ? ' — ' + esc(ME.branch) : ''}" disabled>
-      <p class="sub" style="margin:6px 0 0;font-size:13px">มาจากบัญชีที่เข้าสู่ระบบ เปลี่ยนเองไม่ได้</p>
-    </div>
-
-    <div class="field">
-      <label for="selSub">เลือกพนักงานที่ถูกประเมิน</label>
-      ${subs.length ? `<select id="selSub"><option value="">— เลือกชื่อ —</option>
-        ${Object.keys(byBranch).sort().map(b => `<optgroup label="${esc(b)}">
-          ${byBranch[b].map(p => `<option value="${p.id}">${esc(p.name)}${p.level?` — ${p.level==='gold'?'Gold':'Silver'}`:''}${p.station?` · ${p.station==='kitchen'?'ครัว':'บริการ'}`:''}</option>`).join('')}
-        </optgroup>`).join('')}
-      </select>` : `<div class="notice warn show">ยังไม่มีรายชื่อที่ตรงกับฟอร์มนี้${ME.isBranch?' ในสาขาของคุณ':''} — ${ME.isAdmin?'เพิ่มได้ที่แท็บ <b>รายชื่อ</b>':'แจ้งผู้ดูแลระบบให้เพิ่มรายชื่อก่อน'}</div>`}
-    </div>
-
-    <div class="who-row" id="subTags"></div>
-    ${scaleNote(form)}
-
-    <div class="actions">
-      <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
-      <button class="btn btn-primary" id="btnBegin" disabled>เริ่มกรอก</button>
-    </div>
-  </div>`;
-
-  const sel = $('#selSub');
-  if (sel) sel.onchange = () => {
-    fill.subject = subs.find(p => String(p.id) === sel.value) || null;
-    const t = $('#subTags'), b = $('#btnBegin');
-    if (!fill.subject){ t.innerHTML = ''; b.disabled = true; return; }
-    const s = fill.subject;
-    t.innerHTML = `<span class="pill branch">สาขา ${esc(s.branch)}</span>
-      ${s.level ? `<span class="pill ${s.level}">${s.level==='gold'?'Gold':'Silver'}</span>` : ''}
-      ${s.station ? `<span class="pill">${s.station==='kitchen'?'ครัว':'บริการ'}</span>` : ''}`;
-    b.disabled = false;
-  };
-  $('#btnBegin').onclick = beginQuestions;
+  if (q.type === 'single') return `<div class="seg" data-q="${q.id}">${(q.options || []).map(o =>
+      `<button type="button" class="${val === o ? 'on' : ''}" onclick="pickOne('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
+  if (q.type === 'multi'){
+    const cur = Array.isArray(val) ? val : [];
+    return `<div class="seg" data-q="${q.id}">${(q.options || []).map(o =>
+      `<button type="button" class="${cur.includes(o) ? 'on' : ''}" onclick="pickMany('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
+  }
+  return `<input id="${id}" data-q="${q.id}" value="${esc(val || '')}">`;
 }
-
-function scaleNote(form){
-  const sc = (form.scale || []).filter(o => o.hint);
-  if (!sc.length) return '';
-  return `<div class="scale-note"><b>เกณฑ์ให้คะแนน</b><ul>
-    ${sc.map(o => `<li><b>${esc(o.label)}</b> ${esc(o.hint)}</li>`).join('')}
-  </ul></div>`;
-}
-
-async function beginQuestions(){
-  const form = fill.form, sub = fill.subject;
-  const meta = { level:sub.level || '', station:sub.station || '' };
-  fill.meta = meta;
-
-  /* กันตอบซ้ำชั้นแรก — ถามฐานข้อมูลก่อนเสียเวลากรอก
-     (ชั้นจริงคือ unique index ตอนบันทึก อันนี้แค่บอกให้รู้ตัวเร็ว) */
-  const btn = $('#btnBegin');
-  if (btn){ btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ…'; }
-  try{
-    const { data, error } = await SB.from('of_responses').select('id')
-      .eq('form_key', form.key).eq('round', form.round || '')
-      .eq('rater_key', ME.code).eq('subject_id', sub.id || 0).limit(1);
-    if (error) throw error;
-    if (data && data.length){
-      msg(`คุณกรอกแบบฟอร์มนี้ให้ <b>${esc(sub.name || '—')}</b> ใน${esc(form.round || 'รอบนี้')}ไปแล้ว กรอกซ้ำไม่ได้` +
-          (ME.isAdmin ? '<br>ถ้าต้องการให้กรอกใหม่ ลบรายการเดิมที่แท็บ <b>ผลตอบกลับ</b>' : '<br>ถ้าต้องการแก้ไข แจ้งผู้ดูแลระบบให้ลบรายการเดิมก่อน'), 'warn');
-      if (btn){ btn.disabled = false; btn.textContent = 'เริ่มกรอก'; }
-      return;
-    }
-  }catch(e){
-    msg('ตรวจสอบการกรอกซ้ำไม่สำเร็จ — ' + esc(e.message || e) + '<br>กรุณาลองใหม่', 'err');
-    if (btn){ btn.disabled = false; btn.textContent = 'เริ่มกรอก'; }
-    return;
-  }
-
-  fill.sections = sectionsFor(form, meta);
-  if (!fill.sections.length){
-    msg('ไม่พบชุดคำถามที่ตรงกับคุณสมบัติของคนนี้ (ระดับ/หน้างาน) — ตรวจข้อมูลรายชื่อหรือเงื่อนไขหมวดคำถาม', 'err');
-    if (btn){ btn.disabled = false; btn.textContent = 'เริ่มกรอก'; }
-    return;
-  }
-  fill.panels = fill.sections.map(s => s.sid);
-  if ((form.closing || []).length) fill.panels.push('__closing');
-  fill.panel = 0;
-  fill.answers = {}; fill.texts = {};
-  renderPanel();
-}
-
-function renderPanel(){
-  const form = fill.form;
-  const key  = fill.panels[fill.panel];
-  const n = fill.panels.length;
-  const pct = Math.round(((fill.panel + 1) / n) * 100);
-
-  let body;
-  if (key === '__closing'){
-    body = `<h2>${esc(form.closing_title || 'สรุปท้ายแบบฟอร์ม')}</h2>
-      <p class="sub">ส่วนนี้ช่วยให้ผู้ดูแลเห็นภาพชัดขึ้น นอกเหนือจากคะแนน</p>
-      ${(form.closing || []).map((c, i) => closingHtml(c, i)).join('')}`;
-  } else {
-    const sec = fill.sections.find(s => s.sid === key);
-    const cols = (form.scale || []).length || 6;
-    body = `<p class="eyebrow">หมวด ${esc(sec.label)} · ${fill.panel+1} จาก ${fill.sections.length}</p>
-      <h2 class="section-head">${esc(sec.name)}</h2>
-      <div class="qlist">
-        ${sec.q.map((text, j) => qHtml(form, sec, j, text, cols)).join('')}
-      </div>`;
-  }
-
-  const s = fill.subject || {};
-  $('#view').innerHTML = `
-  <div class="card">
-    <div class="flow-head">
-      <div>
-        <p class="eyebrow">${esc(form.title)}${form.round ? ' · ' + esc(form.round) : ''}</p>
-        ${s.name ? `<div class="who-row" style="margin:6px 0 0">
-          <span class="pill branch">${esc(s.name)}</span>
-          ${s.level ? `<span class="pill ${s.level}">${s.level==='gold'?'Gold':'Silver'}</span>` : ''}
-          ${s.station ? `<span class="pill">${s.station==='kitchen'?'ครัว':'บริการ'}</span>` : ''}
-        </div>` : ''}
-      </div>
-      <div style="text-align:right;color:var(--muted);font-size:13.5px">
-        ขั้นตอน ${fill.panel+1} / ${n}
-        <div class="progress"><span style="width:${pct}%"></span></div>
-      </div>
-    </div>
-    ${body}
-    <div class="actions">
-      <button class="btn btn-secondary" id="btnPrev">${fill.panel === 0 ? 'ยกเลิก' : 'ย้อนกลับ'}</button>
-      <button class="btn btn-primary" id="btnNext">${fill.panel === n-1 ? 'ส่งแบบฟอร์ม' : 'ถัดไป'}</button>
-    </div>
-  </div>`;
-
-  /* คืนค่าที่เคยตอบไว้ เวลากดย้อนกลับมา */
-  Object.entries(fill.answers).forEach(([k,v])=>{
-    const el = document.querySelector(`input[name="${k}"][value="${v}"]`);
-    if (el) el.checked = true;
+window.pickOne = function(qid, v){ fill.answers[qid] = v; renderFill(); };
+window.pickMany = function(qid, v){
+  const cur = Array.isArray(fill.answers[qid]) ? fill.answers[qid] : [];
+  fill.answers[qid] = cur.includes(v) ? cur.filter(x => x !== v) : cur.concat([v]);
+  renderFill();
+};
+/* เก็บค่าจากช่องพิมพ์ก่อนวาดใหม่ ไม่งั้นกดปุ่มตัวเลือกแล้วข้อความที่พิมพ์ไว้หาย */
+function grabTyped(){
+  document.querySelectorAll('#view [data-q]').forEach(el => {
+    if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') fill.answers[el.dataset.q] = el.value;
   });
-  (form.closing || []).forEach(c => {
-    const v = fill.texts[c.key];
-    if (v == null) return;
-    if (c.type === 'choice'){
-      const el = document.querySelector(`input[name="cl_${c.key}"][value="${CSS.escape(v)}"]`);
-      if (el) el.checked = true;
-    } else {
-      const el = document.getElementById('cl_' + c.key);
-      if (el) el.value = v;
-    }
-  });
-
-  $('#view').addEventListener('change', onAnswer);
-  $('#btnPrev').onclick = () => { if (fill.panel === 0) go('list'); else { fill.panel--; renderPanel(); } };
-  $('#btnNext').onclick = onNext;
-  window.scrollTo({top:0, behavior:'smooth'});
 }
-
-function qHtml(form, sec, j, text, cols){
-  const name = sec.sid + (j+1);
-  const scale = form.scale || SCALE_1_5;
-  return `<div class="question" data-q="${name}">
-    <p><span class="qnum">${j+1}.</span>${esc(text)}</p>
-    <div class="rating-head" style="grid-template-columns:repeat(${cols},1fr)">
-      ${scale.map(o => `<span>${esc(o.hint || '')}</span>`).join('')}
+function renderFill(){
+  grabTyped();
+  const f = fill.form;
+  $('#view').innerHTML = `
+    <div class="card">
+      <h2>${esc(f.emoji || '📋')} ${esc(f.title)}</h2>
+      <p class="sub">${esc(f.description || '')}</p>
     </div>
-    <div class="rating" style="grid-template-columns:repeat(${cols},1fr)">
-      ${scale.map(o => `<label class="${o.v==='na'?'na':''}">
-        <input type="radio" name="${name}" value="${esc(o.v)}">${esc(o.label)}</label>`).join('')}
-    </div>
-  </div>`;
-}
-
-function closingHtml(c, i){
-  if (c.type === 'choice'){
-    return `<div class="field" data-cl="${esc(c.key)}">
-      <label>${i+1}. ${esc(c.label)}${c.required?' <span style="color:var(--red)">*</span>':''}</label>
-      <div class="choice-list">
-        ${(c.options||[]).map(o => `<label><input type="radio" name="cl_${esc(c.key)}" value="${esc(o)}">${esc(o)}</label>`).join('')}
-      </div></div>`;
-  }
-  return `<div class="field" data-cl="${esc(c.key)}">
-    <label for="cl_${esc(c.key)}">${i+1}. ${esc(c.label)}${c.required?' <span style="color:var(--red)">*</span>':''}</label>
-    <textarea id="cl_${esc(c.key)}" placeholder="${esc(c.placeholder||'')}"></textarea></div>`;
-}
-
-function onAnswer(e){
-  const t = e.target;
-  if (t.type === 'radio' && t.name.startsWith('cl_')){ fill.texts[t.name.slice(3)] = t.value; return; }
-  if (t.type === 'radio'){
-    fill.answers[t.name] = (t.value === 'na') ? 'na' : Number(t.value);
-    t.closest('.question')?.classList.remove('unanswered');
-    return;
-  }
-  if (t.tagName === 'TEXTAREA' && t.id.startsWith('cl_')) fill.texts[t.id.slice(3)] = t.value;
-}
-
-function onNext(){
-  const key = fill.panels[fill.panel];
-
-  if (key === '__closing'){
-    (fill.form.closing || []).forEach(c => {
-      if (c.type !== 'choice'){
-        const el = document.getElementById('cl_' + c.key);
-        if (el) fill.texts[c.key] = el.value.trim();
-      }
-    });
-    const missing = (fill.form.closing || []).filter(c => c.required && !fill.texts[c.key]);
-    if (missing.length){
-      msg('ยังตอบไม่ครบ — ' + esc(missing[0].label), 'warn');
-      return;
-    }
-    return submit();
-  }
-
-  const sec = fill.sections.find(s => s.sid === key);
-  const missing = [];
-  sec.q.forEach((_, j) => { if (fill.answers[sec.sid + (j+1)] === undefined) missing.push(sec.sid + (j+1)); });
-  if (missing.length){
-    missing.forEach(nm => document.querySelector(`[data-q="${nm}"]`)?.classList.add('unanswered'));
-    const hasNa = (fill.form.scale || []).some(o => o.v === 'na');
-    msg(`ยังตอบไม่ครบ เหลืออีก ${missing.length} ข้อในหมวดนี้` + (hasNa ? ' (ถ้ายังไม่มีโอกาสประเมิน ให้เลือก N/A)' : ''), 'warn');
-    document.querySelector(`[data-q="${missing[0]}"]`)?.scrollIntoView({behavior:'smooth', block:'center'});
-    return;
-  }
-  clearMsg();
-  if (fill.panel === fill.panels.length - 1) return submit();
-  fill.panel++; renderPanel();
-}
-
-async function submit(){
-  await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const form = fill.form, sub = fill.subject || {}, meta = fill.meta || {};
-  const btn = $('#btnNext'); btn.disabled = true; btn.textContent = 'กำลังบันทึก…';
-
-  const sc = scoreOf(form, fill.sections, fill.answers, meta);
-  const row = {
-    form_key:form.key, form_title:form.title, round:form.round || '',
-    rater_key:ME.code, rater_name:ME.name, rater_role:ME.role, rater_branch:ME.branch,
-    subject_id:sub.id || 0, subject_name:sub.name || '', subject_branch:sub.branch || '',
-    subject_meta:meta,
-    answers:fill.answers, sections:sc.sections,
-    total_pct:sc.total, avg_score:sc.avg, verdict:sc.verdict, verdict_note:sc.note,
-    texts:fill.texts
-  };
-
-  const { error } = await SB.from('of_responses').insert(row);
-  if (error){
-    btn.disabled = false; btn.textContent = 'ส่งแบบฟอร์ม';
-    if (error.code === '23505')
-      msg(`มีการกรอกแบบฟอร์มนี้ให้ <b>${esc(sub.name || '—')}</b> โดยคุณอยู่แล้ว ระบบไม่รับซ้ำ`, 'warn');
-    else
-      msg('บันทึกไม่สำเร็จ — ' + esc(error.message) + '<br><b>ข้อมูลยังไม่ถูกบันทึก</b> กรุณากดส่งอีกครั้ง', 'err');
-    return;
-  }
-
-  clearMsg();
-  $('#view').innerHTML = `<div class="card"><div class="success">
-    <div class="success-icon">&#10003;</div>
-    <h2>บันทึกเรียบร้อย</h2>
-    <p>ส่ง${esc(form.title)}${sub.name ? ' ของ ' + esc(sub.name) : ''} แล้ว ขอบคุณครับ/ค่ะ</p>
-    ${form.show_score_to_rater ? scoreCardHtml(sc) : ''}
-    <div class="row-btns" style="justify-content:center">
-      <button class="btn btn-primary" onclick="startFill(${form.id})">กรอกคนถัดไป</button>
-      <button class="btn btn-secondary" onclick="go('list')">กลับรายการแบบฟอร์ม</button>
-    </div>
-  </div></div>`;
-  window.scrollTo({top:0});
-}
-
-/* การ์ดสรุปคะแนน — ใช้ทั้งหน้าหลังกดส่ง และหน้าสรุปของสาขา
-   แสดงคะแนนรายหมวดด้วย เพราะรู้แค่คะแนนรวมแล้วเอาไปปรับปรุงอะไรไม่ได้ */
-function scoreCardHtml(sc){
-  if (sc.total == null)
-    return '<p class="muted" style="margin-top:14px">ข้อมูลไม่พอคิดคะแนน (ตอบไม่ครบหรือเลือก N/A ทั้งหมด)</p>';
-
-  const secs = Object.values(sc.sections).filter(x => x.pct != null);
-
-  return `
-    <div class="score-box">
-      <div class="score-top">
-        <div>
-          <div class="score-total">${sc.total}%</div>
-          <div class="muted" style="font-size:13px">เฉลี่ย ${sc.avg} จาก 5${sc.pass_mark != null ? ` · เกณฑ์ผ่าน ${sc.pass_mark}%` : ''}</div>
-        </div>
-        ${sc.verdict ? `<span class="pill ${sc.verdict}">${sc.verdict === 'pass' ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'}</span>` : ''}
+    ${(f.questions || []).map((q, i) => `
+      <div class="card">
+        <label>${i + 1}. ${esc(q.label)} ${q.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
+        ${q.help ? `<p class="sub" style="margin:-2px 0 8px">${esc(q.help)}</p>` : ''}
+        ${qInput(q, fill.answers[q.id])}
+      </div>`).join('')}
+    <div class="card">
+      <div class="row-btns">
+        <button class="btn btn-primary" onclick="submitFill()">ส่งคำตอบ</button>
+        <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
       </div>
-      ${sc.note ? `<p class="score-note">${esc(sc.note)}</p>` : ''}
-      ${secs.length ? `<div class="score-secs">${secs.map(x => `
-        <div class="score-sec">
-          <div class="score-sec-top"><span>${esc(x.label)}. ${esc(x.name)}</span><b>${x.pct}%</b></div>
-          <div class="fr-bar"><span style="width:${Math.max(0, Math.min(100, x.pct))}%"></span></div>
-        </div>`).join('')}</div>` : ''}
     </div>`;
 }
 
+window.submitFill = async function(){
+  grabTyped();
+  const f = fill.form;
+  const miss = (f.questions || []).filter(q => {
+    if (!q.required) return false;
+    const v = fill.answers[q.id];
+    return v == null || v === '' || (Array.isArray(v) && !v.length);
+  });
+  if (miss.length) return msg(`ยังตอบไม่ครบ — เหลือ ${miss.length} ข้อที่ต้องตอบ (ข้อที่มี <span style="color:var(--red)">*</span>)`, 'warn');
+
+  const { error } = await SB.from('fm_responses').insert({
+    form_key: f.key, form_title: f.title, answers: fill.answers,
+    respondent_code: ME.code, respondent_name: ME.name, respondent_role: ME.role,
+    respondent_branch: ME.branch || ME.name, respondent_brand: ME.brand
+  });
+  if (error) return msg('ส่งคำตอบไม่สำเร็จ — ' + esc(error.message), 'err');
+  myAnswered.add(f.key);
+  fill = null;
+  await go('list');
+  msg('ส่งคำตอบเรียบร้อย ขอบคุณครับ');
+};
+
 /* ══════════════════════════════════════════════════════════════════
-   ผลตอบกลับ (เฉพาะทีมสำนักงาน)
+   คำตอบ
    ══════════════════════════════════════════════════════════════════ */
-let rf = { form:'', round:'', branch:'', level:'', verdict:'', q:'' };
+let rf = { form:'', branch:'', q:'' };
 
-/* สาขาเปิดดูคะแนนได้ไหม — ดูจากฟอร์มที่เจาะมาถึงสาขานี้และเปิดสิทธิ์ไว้ */
-function branchCanSeeScores(){
-  return forms.some(f => f.show_score_to_branch && visibleTo(f, ME));
-}
+const ansText = v => Array.isArray(v) ? v.join(', ') : (v == null || v === '' ? '—' : String(v));
 
-/* ผลที่ผู้ใช้คนนี้มีสิทธิ์เห็น
-   สำนักงาน = ทุกแถว · สาขา = เฉพาะพนักงานของสาขาตัวเอง และเฉพาะฟอร์มที่เปิดสิทธิ์
-   ⚠️ เป็นการกรองฝั่งหน้าเว็บ ไม่ใช่ที่ฐานข้อมูล (ดู RLS ใน supabase/online-form.sql) */
-function myResponses(){
-  if (ofCan('view-results')) return responses;
-
-  const allowed = new Set(
-    forms.filter(f => f.show_score_to_branch && visibleTo(f, ME)).map(f => f.key)
-  );
-  return responses.filter(r => allowed.has(r.form_key) && r.subject_branch === ME.branch);
+function filteredResponses(){
+  const q = (rf.q || '').trim().toLowerCase();
+  return responses.filter(r =>
+    (!rf.form   || r.form_key === rf.form) &&
+    (!rf.branch || r.respondent_branch === rf.branch) &&
+    (!q || (`${r.respondent_name} ${r.respondent_branch} ${JSON.stringify(r.answers || {})}`).toLowerCase().includes(q)));
 }
 
 function renderResults(){
-  /* สาขาเห็นเฉพาะของตัวเอง ตัวกรองจึงต้องสร้างจากชุดที่กรองแล้ว
-     ไม่งั้นช่อง "สาขา" จะโชว์ชื่อสาขาอื่นให้เห็นทั้งที่กดแล้วไม่มีข้อมูล */
-  const rows = myResponses();
-  const formKeys = [...new Set(rows.map(r => r.form_key))];
-  const rounds   = [...new Set(rows.map(r => r.round).filter(Boolean))];
-  const branches = [...new Set(rows.map(r => r.subject_branch).filter(Boolean))].sort();
-  const levels   = [...new Set(rows.map(r => (r.subject_meta||{}).level).filter(Boolean))];
-
+  const formKeys = [...new Set(responses.map(r => r.form_key))];
+  const branches = [...new Set(responses.map(r => r.respondent_branch).filter(Boolean))].sort();
   $('#view').innerHTML = `
     <div class="card">
-      <h2>${ofCan('view-results') ? 'ผลตอบกลับ' : 'คะแนนของสาขา ' + esc(ME.branch)}</h2>
-      <p class="sub">คะแนนรวมคิดแบบถ่วงน้ำหนักรายหมวด · ข้อที่ตอบ N/A ไม่ถูกนำมาคิด${
-        ofCan('view-results') ? '' : '<br>เห็นเฉพาะพนักงานของสาขาคุณ และเฉพาะแบบฟอร์มที่สำนักงานเปิดสิทธิ์ไว้'}</p>
+      <h2>คำตอบที่ส่งเข้ามา</h2>
+      <p class="sub">เลือกฟอร์มก่อน เพื่อดูคำตอบแยกเป็นรายข้อในตาราง</p>
       <div class="grid3">
-        <div><label>แบบฟอร์ม</label><select id="rfForm">${opt('ทุกฟอร์ม', formKeys, rf.form)}</select></div>
-        <div><label>รอบ</label><select id="rfRound">${opt('ทุกรอบ', rounds, rf.round)}</select></div>
-        <div><label>สาขา</label><select id="rfBranch">${opt('ทุกสาขา', branches, rf.branch)}</select></div>
-        <div><label>ระดับ</label><select id="rfLevel">${opt('ทุกระดับ', levels, rf.level)}</select></div>
-        <div><label>ผล</label><select id="rfVerdict">
-          <option value="">ทั้งหมด</option>
-          <option value="pass" ${rf.verdict==='pass'?'selected':''}>ผ่านเกณฑ์</option>
-          <option value="fail" ${rf.verdict==='fail'?'selected':''}>ไม่ผ่านเกณฑ์</option>
-        </select></div>
-        <div><label>ค้นหาชื่อ</label><input id="rfQ" value="${esc(rf.q)}" placeholder="ชื่อผู้ถูกประเมิน / ผู้กรอก"></div>
+        <div><label>แบบฟอร์ม</label><select id="rfForm">${optHtml('ทุกฟอร์ม', formKeys, rf.form,
+          k => (forms.find(f => f.key === k) || {}).title || k)}</select></div>
+        <div><label>สาขา / ผู้ตอบ</label><select id="rfBranch">${optHtml('ทั้งหมด', branches, rf.branch)}</select></div>
+        <div><label>ค้นหา</label><input id="rfQ" value="${esc(rf.q)}" placeholder="ชื่อผู้ตอบ หรือข้อความในคำตอบ"></div>
       </div>
       <div class="row-btns" style="margin-top:14px">
         <button class="btn btn-secondary btn-sm" onclick="go('results')">โหลดใหม่</button>
-        ${ofCan('export-results') ? `
-        <button class="btn btn-secondary btn-sm" onclick="csvSummary()">ดาวน์โหลดสรุป (CSV)</button>
-        <button class="btn btn-secondary btn-sm" onclick="csvDetail()">ดาวน์โหลดรายข้อ (CSV)</button>` : ''}
+        ${ofCan('export-results') ? `<button class="btn btn-secondary btn-sm" onclick="csvResults()">⬇ ดาวน์โหลด CSV</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
       </div>
     </div>
     <div class="stats" id="rStats"></div>
     <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap"><table>
-        <thead><tr><th>วันที่</th><th>ผู้ถูกประเมิน</th><th>สาขา</th><th>คุณสมบัติ</th>
-          <th>แบบฟอร์ม</th><th>ผู้กรอก</th><th>คะแนน</th><th>เฉลี่ย</th><th>ผล</th><th></th></tr></thead>
-        <tbody id="rBody"></tbody>
-      </table></div>
-      <div class="empty" id="rEmpty" style="display:none">ยังไม่มีผลตามเงื่อนไขนี้</div>
+      <div class="table-wrap"><table id="rTable"></table></div>
+      <div class="empty" id="rEmpty" style="display:none">ยังไม่มีคำตอบตามเงื่อนไขนี้</div>
     </div>`;
-
-  ['rfForm','rfRound','rfBranch','rfLevel','rfVerdict'].forEach(id =>
-    $('#'+id).onchange = () => { rf[id.slice(2).toLowerCase()] = $('#'+id).value; paintResults(); });
+  ['rfForm','rfBranch'].forEach(id => $('#'+id).onchange = () => { rf[id.slice(2).toLowerCase()] = $('#'+id).value; paintResults(); });
   $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; paintResults(); };
   paintResults();
 }
-
-function opt(all, items, cur){
-  return `<option value="">${esc(all)}</option>` +
-    items.map(i => `<option value="${esc(i)}" ${cur===i?'selected':''}>${esc(i)}</option>`).join('');
-}
-
-function filteredResponses(){
-  const q = (rf.q || '').trim().toLowerCase();
-  return myResponses().filter(r =>
-    (!rf.form    || r.form_key === rf.form) &&
-    (!rf.round   || r.round === rf.round) &&
-    (!rf.branch  || r.subject_branch === rf.branch) &&
-    (!rf.level   || (r.subject_meta||{}).level === rf.level) &&
-    (!rf.verdict || r.verdict === rf.verdict) &&
-    (!q || (`${r.subject_name} ${r.rater_name}`).toLowerCase().includes(q))
-  );
+function optHtml(all, items, cur, label){
+  return `<option value="">${esc(all)}</option>` + items.map(i =>
+    `<option value="${esc(i)}" ${cur===i?'selected':''}>${esc(label ? label(i) : i)}</option>`).join('');
 }
 
 function paintResults(){
   const list = filteredResponses();
-  const pass = list.filter(r => r.verdict === 'pass').length;
-  const scored = list.filter(r => r.total_pct != null);
-  const avg = scored.length ? (scored.reduce((a,r)=>a+(+r.total_pct),0)/scored.length).toFixed(1) : '—';
-
+  const form = rf.form ? forms.find(f => f.key === rf.form) : null;
+  const qs = form ? (form.questions || []) : [];
   $('#rStats').innerHTML = `
-    <div class="stat"><b>${list.length}</b><span>รายการทั้งหมด</span></div>
-    <div class="stat"><b style="color:var(--green)">${pass}</b><span>ผ่านเกณฑ์</span></div>
-    <div class="stat"><b style="color:var(--red)">${scored.length - pass}</b><span>ไม่ผ่านเกณฑ์</span></div>
-    <div class="stat"><b>${avg}${avg==='—'?'':'%'}</b><span>คะแนนเฉลี่ยรวม</span></div>`;
-
+    <div class="stat"><b>${list.length}</b><span>คำตอบทั้งหมด</span></div>
+    <div class="stat"><b>${new Set(list.map(r => r.respondent_code)).size}</b><span>ผู้ตอบ (ไม่ซ้ำ)</span></div>
+    <div class="stat"><b>${new Set(list.map(r => r.form_key)).size}</b><span>แบบฟอร์ม</span></div>`;
   $('#rEmpty').style.display = list.length ? 'none' : '';
-  $('#rBody').innerHTML = list.map(r => {
-    const m = r.subject_meta || {};
-    return `<tr>
-      <td class="muted">${new Date(r.created_at).toLocaleDateString('th-TH',{day:'2-digit',month:'short',year:'2-digit'})}</td>
-      <td><b>${esc(r.subject_name || '—')}</b></td>
-      <td>${esc(r.subject_branch)}</td>
-      <td>${m.level?`<span class="pill ${m.level}">${m.level==='gold'?'Gold':'Silver'}</span> `:''}${m.station?(m.station==='kitchen'?'ครัว':'บริการ'):''}</td>
-      <td class="muted" style="font-size:13px">${esc(r.form_title || r.form_key)}</td>
-      <td class="muted">${esc(r.rater_name)}</td>
-      <td class="score">${r.total_pct==null?'—':r.total_pct+'%'}</td>
-      <td>${r.avg_score==null?'—':r.avg_score}</td>
-      <td>${r.verdict?`<span class="pill ${r.verdict==='pass'?'pass':'fail'}">${r.verdict==='pass'?'ผ่าน':'ไม่ผ่าน'}</span>`:'<span class="muted">—</span>'}</td>
-      <td class="row-btns">
-        <button class="btn btn-secondary btn-sm" onclick="detail(${r.id})">ดู</button>
-        ${ofCan('delete-response') ? `<button class="btn btn-danger btn-sm" onclick="delResp(${r.id})">ลบ</button>` : ''}
-      </td></tr>`;
-  }).join('');
+  /* เลือกฟอร์มแล้ว = กางคำตอบเป็นคอลัมน์รายข้อ · ยังไม่เลือก = ดูรวม */
+  const head = form
+    ? ['วันที่','ผู้ตอบ','สาขา', ...qs.map(q => q.label), '']
+    : ['วันที่','ผู้ตอบ','สาขา','แบบฟอร์ม','ตอบไปแล้ว',''];
+  $('#rTable').innerHTML = `
+    <thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
+    <tbody>${list.map(r => {
+      const cells = form
+        ? qs.map(q => `<td>${esc(ansText((r.answers || {})[q.id]))}</td>`).join('')
+        : `<td class="muted" style="font-size:13px">${esc(r.form_title || r.form_key)}</td>
+           <td>${Object.keys(r.answers || {}).length} ข้อ</td>`;
+      return `<tr>
+        <td class="muted">${fmtD(r.created_at)}</td>
+        <td><b>${esc(r.respondent_name || '—')}</b></td>
+        <td>${esc(r.respondent_branch || '')}</td>
+        ${cells}
+        <td class="row-btns">
+          <button class="btn btn-secondary btn-sm" onclick="detail(${r.id})">ดู</button>
+          ${ofCan('delete-response') ? `<button class="btn btn-danger btn-sm" onclick="delResp(${r.id})">ลบ</button>` : ''}
+        </td></tr>`;
+    }).join('')}</tbody>`;
 }
 
 window.detail = function(id){
-  /* ค้นจากชุดที่มีสิทธิ์เห็นเท่านั้น — กันเปิดดูผลของสาขาอื่นด้วยการยิง id ตรง ๆ */
-  const r = myResponses().find(x => x.id === id); if (!r) return;
+  const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const meta = r.subject_meta || {};
-  const secs = form ? sectionsFor(form, meta) : [];
-  const S = r.sections || {};
-
-  const secHtml = Object.keys(S).map(sid => {
-    const d = S[sid];
-    return `<div class="sec-row">
-      <div class="top"><span><b>${esc(d.label||'')}</b> ${esc(d.name||'')} <span class="muted">(น้ำหนัก ${d.weight}%)</span></span>
-      <b>${d.pct==null?'ไม่ได้ประเมิน':d.pct+'%'}</b></div>
-      <div class="sec-bar"><span style="width:${d.pct||0}%;${d.pct!=null&&d.pct<60?'background:#e5484d':''}"></span></div>
-    </div>`;
-  }).join('');
-
-  const qHtmlDetail = secs.length ? secs.map(sec => `<details><summary>${esc(sec.label)}. ${esc(sec.name)}</summary>
-    <table class="qtable">${sec.q.map((text, j) => {
-      const v = (r.answers||{})[sec.sid+(j+1)];
-      const cls = v === 'na' ? 'qvna' : 'qv' + v;
-      return `<tr><td>${j+1}. ${esc(text)}</td><td class="${cls}">${v==='na'?'N/A':(v ?? '—')}</td></tr>`;
-    }).join('')}</table></details>`).join('')
-    : `<p class="muted">แบบฟอร์มต้นฉบับถูกลบหรือแก้ไขไปแล้ว จึงแสดงคำถามรายข้อไม่ได้ — คะแนนรายหมวดด้านบนยังใช้อ้างอิงได้</p>`;
-
-  const textsHtml = form ? (form.closing || []).map(c =>
-    `<p style="margin:14px 0 4px"><b>${esc(c.label)}</b></p>
-     <div class="txtblock">${esc((r.texts||{})[c.key]) || '—'}</div>`).join('') : '';
-
+  const qs = form ? (form.questions || []) : [];
+  const rows = qs.length
+    ? qs.map((q, i) => `<tr><td>${i + 1}. ${esc(q.label)}</td><td><b>${esc(ansText((r.answers || {})[q.id]))}</b></td></tr>`).join('')
+    : Object.keys(r.answers || {}).map(k => `<tr><td>${esc(k)}</td><td><b>${esc(ansText(r.answers[k]))}</b></td></tr>`).join('');
   $('#modalBox').innerHTML = `
     <div class="modal-head">
       <div>
-        <h2>${esc(r.subject_name || r.form_title)}</h2>
-        <p class="sub" style="margin:0">${esc(r.subject_branch)} ·
-          ${meta.level?`<span class="pill ${meta.level}">${meta.level==='gold'?'Gold':'Silver'}</span> `:''}
-          ${meta.station?(meta.station==='kitchen'?'ครัว':'บริการ'):''} · ${esc(r.round||'')}</p>
+        <h2>${esc(r.form_title || r.form_key)}</h2>
+        <p class="sub" style="margin:0">${esc(r.respondent_name)} · ${esc(r.respondent_branch || '')} · ${fmtDT(r.created_at)}</p>
       </div>
       <div class="row-btns">
         <button class="btn btn-secondary btn-sm" onclick="printResp(${r.id})">🖨 พิมพ์ / PDF</button>
         <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
       </div>
     </div>
-    <div class="stats">
-      <div class="stat"><b>${r.total_pct ?? '—'}${r.total_pct==null?'':'%'}</b><span>คะแนนรวม</span></div>
-      <div class="stat"><b>${r.avg_score ?? '—'}</b><span>เฉลี่ย (เต็ม 5)</span></div>
-      <div class="stat"><b style="color:${r.verdict==='pass'?'var(--green)':'var(--red)'}">${r.verdict==='pass'?'ผ่าน':r.verdict==='fail'?'ไม่ผ่าน':'—'}</b>
-        <span>${esc(r.verdict_note) || (r.verdict==='pass'?'ผ่านทุกเงื่อนไข':'')}</span></div>
-    </div>
-    <h3 style="margin:18px 0 10px">คะแนนรายหมวด</h3>${secHtml || '<p class="muted">—</p>'}
-    <h3 style="margin:22px 0 10px">คำตอบรายข้อ</h3>${qHtmlDetail}
-    <h3 style="margin:22px 0 6px">ความเห็นผู้กรอก</h3>${textsHtml || '<p class="muted">—</p>'}
-    <p class="muted" style="margin-top:18px;font-size:13px">กรอกโดย ${esc(r.rater_name)} (${esc(r.rater_role)}) · ${new Date(r.created_at).toLocaleString('th-TH')}</p>`;
+    <table class="qtable">${rows || '<tr><td>—</td></tr>'}</table>`;
   $('#modal').classList.add('show');
 };
 
 window.delResp = async function(id){
-  /* ลบผลได้เฉพาะทีมสำนักงาน สาขาเปิดดูได้อย่างเดียว */
-  if (!ofCan('delete-response')) return msg('ไม่มีสิทธิ์ลบผลตอบกลับ', 'warn');
+  if (!ofCan('delete-response')) return msg('ไม่มีสิทธิ์ลบคำตอบ', 'warn');
   const r = responses.find(x => x.id === id); if (!r) return;
-  if (!confirm(`ลบผลของ ${r.subject_name || r.form_title} ที่กรอกโดย ${r.rater_name} ?\n\nลบแล้วผู้กรอกคนนี้จะกรอกใหม่ได้อีกครั้ง`)) return;
-  const { error } = await SB.from('of_responses').delete().eq('id', id);
+  if (!confirm(`ลบคำตอบของ ${r.respondent_name || '—'} ?\n\nลบแล้วเอาคืนไม่ได้`)) return;
+  const { error } = await SB.from('fm_responses').delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg('ลบเรียบร้อย'); go('results');
+  msg('ลบเรียบร้อย'); await loadResponses(); paintResults();
+};
+
+/* ── ส่งออก CSV ─────────────────────────────────────────────────── */
+const csvCell = v => '"' + String(v == null ? '' : v).replace(/"/g,'""') + '"';
+const stamp = () => new Date().toISOString().slice(0,10);
+function download(name, text){
+  const blob = new Blob(['\ufeff' + text], { type:'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+}
+window.csvResults = function(){
+  if (!ofCan('export-results')) return msg('ไม่มีสิทธิ์ดาวน์โหลด', 'warn');
+  const list = filteredResponses();
+  if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
+  const form = rf.form ? forms.find(f => f.key === rf.form) : null;
+  const qs = form ? (form.questions || []) : [];
+  const head = ['วันที่','ผู้ตอบ','ตำแหน่ง','สาขา','แบรนด์','แบบฟอร์ม']
+    .concat(qs.length ? qs.map(q => q.label) : ['คำตอบ']);
+  const body = list.map(r => [fmtD(r.created_at), r.respondent_name, r.respondent_role, r.respondent_branch, r.respondent_brand, r.form_title || r.form_key]
+    .concat(qs.length ? qs.map(q => ansText((r.answers || {})[q.id]))
+                      : [Object.keys(r.answers || {}).map(k => k + ': ' + ansText(r.answers[k])).join(' | ')])
+    .map(csvCell).join(','));
+  download(`คำตอบแบบฟอร์ม-${stamp()}.csv`, [head.map(csvCell).join(','), ...body].join('\r\n'));
 };
 
 /* ══════════════════════════════════════════════════════════════════
-   ติดตามคนที่ยังไม่กรอก
-   ระบบรู้อยู่แล้วว่าใครถูกประเมินและใครกรอกไปแล้ว แต่เดิมต้องไล่นับเอง
-   หน้านี้จึงสรุปเป็นรายสาขา และคัดลอกเป็นข้อความพร้อมส่งใน LINE ได้เลย
+   ติดตามสาขาที่ยังไม่ตอบ — ทะเบียนสาขามาจากฮับ
    ══════════════════════════════════════════════════════════════════ */
 let ff = { form:'' };
+function followupForms(){ return forms.filter(f => isOpen(f)); }
 
-/* ผู้ถูกประเมินทั้งหมดของฟอร์ม (ไม่กรองสาขา ต่างจาก subjectsFor ที่ใช้ตอนกรอก) */
-function subjectsAll(form){
-  const fl = form.subject_filter || {};
-  return people.filter(p => p.active !== false && Object.keys(fl).every(k => {
-    const want = fl[k];
-    return Array.isArray(want) ? want.includes(p[k]) : String(want) === String(p[k]);
-  }));
-}
-
-/* ฟอร์มที่ติดตามได้ = เปิดกรอกอยู่ และต้องเลือกผู้ถูกประเมิน
-   ฟอร์มสำรวจที่ไม่ระบุตัวบุคคลไม่มีรายชื่อให้ตาม จึงไม่นับ */
-function followupForms(){
-  return forms.filter(f => f.status === 'open' && f.subject_required);
-}
-
-/* สรุปรายสาขาของฟอร์มหนึ่ง — เรียงสาขาที่ค้างมากอยู่บน */
 function followupRows(form){
-  const done = new Set(responses
-    .filter(r => r.form_key === form.key && String(r.round || '') === String(form.round || ''))
-    .map(r => r.subject_id));
-  const byBranch = {};
-  subjectsAll(form).forEach(p => {
-    const b = p.branch || '(ไม่ระบุสาขา)';
-    (byBranch[b] = byBranch[b] || { branch:b, all:0, miss:[] }).all++;
-    if (!done.has(p.id)) byBranch[b].miss.push(p.name);
-  });
-  return Object.values(byBranch).sort((a, b) =>
-    (b.miss.length - a.miss.length) || a.branch.localeCompare(b.branch, 'th'));
+  /* สาขาที่อยู่ในกลุ่มเป้าหมายของฟอร์มนี้ — ไม่ระบุ = ทุกสาขาในทะเบียนฮับ */
+  const want = form.visible_branches || [];
+  const list = want.length
+    ? HUB_BRANCHES.filter(b => want.includes(b.name) || want.includes(b.label) || want.includes(b.code))
+    : HUB_BRANCHES.slice();
+  const done = new Set(responses.filter(r => r.form_key === form.key)
+    .map(r => String(r.respondent_branch || '') + '|' + String(r.respondent_code || '')));
+  const answered = b => [...done].some(k => k.includes(b.name) || k.endsWith('|' + b.code));
+  return list.map(b => ({ ...b, done: answered(b) }));
 }
 
 function renderFollowup(){
   const list = followupForms();
   if (!list.length){
-    $('#view').innerHTML = `<div class="card"><div class="empty">
-      ยังไม่มีแบบฟอร์มที่เปิดกรอกและต้องเลือกผู้ถูกประเมิน — หน้านี้จึงยังไม่มีอะไรให้ตาม
-    </div></div>`;
+    $('#view').innerHTML = `<div class="card"><div class="empty">ยังไม่มีแบบฟอร์มที่เปิดให้ตอบ จึงยังไม่มีอะไรให้ตาม</div></div>`;
     return;
   }
-  if (!ff.form || !list.some(f => String(f.id) === String(ff.form))) ff.form = String(list[0].id);
-  const form = list.find(f => String(f.id) === String(ff.form));
+  if (!ff.form || !list.some(f => f.key === ff.form)) ff.form = list[0].key;
+  const form = list.find(f => f.key === ff.form);
   const rows = followupRows(form);
-  const allSub = rows.reduce((a, r) => a + r.all, 0);
-  const allMiss = rows.reduce((a, r) => a + r.miss.length, 0);
-
+  const miss = rows.filter(r => !r.done);
   $('#view').innerHTML = `
     <div class="card">
-      <h2>ติดตามคนที่ยังไม่กรอก</h2>
-      <p class="sub">นับจากรายชื่อผู้ถูกประเมินของฟอร์มนี้ เทียบกับผลที่ส่งเข้ามาแล้วในรอบเดียวกัน</p>
+      <h2>ติดตามสาขาที่ยังไม่ตอบ</h2>
+      <p class="sub">เทียบทะเบียนสาขาจากฮับกับคำตอบที่ส่งเข้ามาแล้ว${HUB_BRANCHES.length ? '' : ' — ยังโหลดทะเบียนสาขาไม่ได้ ลองโหลดใหม่อีกครั้ง'}</p>
       <div class="grid3">
         <div><label>แบบฟอร์ม</label><select id="ffForm">${list.map(f =>
-          `<option value="${f.id}" ${String(f.id)===ff.form?'selected':''}>${esc(f.title)}${f.round?' · '+esc(f.round):''}</option>`).join('')}</select></div>
+          `<option value="${esc(f.key)}" ${f.key===ff.form?'selected':''}>${esc(f.title)}</option>`).join('')}</select></div>
       </div>
       <div class="row-btns" style="margin-top:14px">
         <button class="btn btn-secondary btn-sm" onclick="go('followup')">โหลดใหม่</button>
-        <button class="btn btn-primary btn-sm" onclick="copyFollowup()">📋 คัดลอกข้อความตามงาน (ทุกสาขา)</button>
+        <button class="btn btn-primary btn-sm" onclick="copyFollowup()">📋 คัดลอกข้อความตามงาน</button>
       </div>
     </div>
     <div class="stats">
-      <div class="stat"><b>${allSub - allMiss}</b><span>กรอกแล้ว</span></div>
-      <div class="stat"><b style="color:var(--red)">${allMiss}</b><span>ยังไม่กรอก</span></div>
-      <div class="stat"><b>${rows.filter(r => !r.miss.length).length}</b><span>สาขาที่ครบแล้ว</span></div>
-      <div class="stat"><b>${rows.filter(r => r.miss.length).length}</b><span>สาขาที่ยังค้าง</span></div>
+      <div class="stat"><b>${rows.length - miss.length}</b><span>ตอบแล้ว</span></div>
+      <div class="stat"><b style="color:var(--red)">${miss.length}</b><span>ยังไม่ตอบ</span></div>
+      <div class="stat"><b>${rows.length}</b><span>สาขาทั้งหมด</span></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table>
-        <thead><tr><th>สาขา</th><th>ความคืบหน้า</th><th>ยังไม่กรอก</th><th>ชื่อที่ยังไม่กรอก</th><th></th></tr></thead>
-        <tbody>${rows.map(r => {
-          const d = r.all - r.miss.length;
-          return `<tr>
-            <td><b>${esc(r.branch)}</b></td>
-            <td style="min-width:150px">
-              <div class="fr-bar"><span style="width:${r.all ? Math.round(d / r.all * 100) : 0}%"></span></div>
-              <span class="muted" style="font-size:12.5px">${d}/${r.all} คน</span>
-            </td>
-            <td>${r.miss.length
-              ? `<b style="color:var(--red)">${r.miss.length}</b>`
-              : '<span class="pill pass">ครบแล้ว</span>'}</td>
-            <td class="muted" style="font-size:13px">${r.miss.length ? esc(r.miss.join(' · ')) : '—'}</td>
-            <td class="row-btns">${r.miss.length
-              ? `<button class="btn btn-secondary btn-sm" onclick="copyFollowup('${esc(r.branch).replace(/'/g,"\\'")}')">คัดลอก</button>` : ''}</td>
-          </tr>`;
-        }).join('')}</tbody>
+        <thead><tr><th>สาขา</th><th>สถานะ</th></tr></thead>
+        <tbody>${rows.sort((a,b) => (a.done - b.done) || a.code.localeCompare(b.code)).map(r =>
+          `<tr><td><b>${esc(r.label)}</b></td>
+           <td>${r.done ? '<span class="pill pass">ตอบแล้ว</span>' : '<span class="pill fail">ยังไม่ตอบ</span>'}</td></tr>`).join('')}</tbody>
       </table></div>
     </div>`;
-
   $('#ffForm').onchange = () => { ff.form = $('#ffForm').value; renderFollowup(); };
 }
 
-/* ข้อความพร้อมส่ง — ส่งชื่อสาขามา = เฉพาะสาขานั้น ไม่ส่ง = ทุกสาขาที่ยังค้าง */
-window.copyFollowup = function(branch){
-  const form = followupForms().find(f => String(f.id) === String(ff.form));
-  if (!form) return;
-  const rows = followupRows(form).filter(r => r.miss.length && (!branch || r.branch === branch));
-  if (!rows.length) return msg('ทุกสาขากรอกครบแล้ว ไม่มีใครต้องตาม', 'ok');
-
-  const head = `📋 ${form.title}${form.round ? ' · ' + form.round : ''}\nยังไม่ได้กรอก — รบกวนกรอกให้ครบด้วยครับ`;
-  const body = rows.map(r => `\n\n• ${r.branch} (เหลือ ${r.miss.length} คน)\n  ${r.miss.join(', ')}`).join('');
-  const link = `\n\nลิงก์กรอก: ${location.origin + location.pathname}`;
-  const text = head + body + link;
-
-  const okMsg = () => msg('คัดลอกข้อความแล้ว — วางส่งใน LINE ได้เลย');
+window.copyFollowup = function(){
+  const form = followupForms().find(f => f.key === ff.form); if (!form) return;
+  const miss = followupRows(form).filter(r => !r.done);
+  if (!miss.length) return msg('ทุกสาขาตอบครบแล้ว ไม่มีใครต้องตาม', 'ok');
+  const text = `📋 ${form.title}\nยังไม่ได้ตอบแบบฟอร์มนี้ รบกวนตอบด้วยครับ (${miss.length} สาขา)\n\n` +
+    miss.map(r => '• ' + r.label).join('\n') +
+    `\n\nลิงก์: ${location.origin + location.pathname}`;
+  const done = () => msg('คัดลอกข้อความแล้ว — วางส่งใน LINE ได้เลย');
   if (navigator.clipboard && navigator.clipboard.writeText)
-    navigator.clipboard.writeText(text).then(okMsg).catch(() => window.prompt('คัดลอกข้อความนี้', text));
+    navigator.clipboard.writeText(text).then(done).catch(() => window.prompt('คัดลอกข้อความนี้', text));
   else window.prompt('คัดลอกข้อความนี้', text);
 };
 
 /* ══════════════════════════════════════════════════════════════════
-   พิมพ์รายงาน / บันทึกเป็น PDF
-   ใช้หน้าต่างพิมพ์ของเบราว์เซอร์ เลือกปลายทางเป็น "บันทึกเป็น PDF" ได้
-   วาดเอกสารไว้ใน #printhost ซึ่งซ่อนบนจอ และเป็นสิ่งเดียวที่โผล่ตอนพิมพ์
+   พิมพ์รายงาน / บันทึก PDF
    ══════════════════════════════════════════════════════════════════ */
 function printDoc(html, title){
   let host = document.getElementById('printhost');
@@ -1590,827 +945,215 @@ function printDoc(html, title){
   window.addEventListener('afterprint', cleanup);
   setTimeout(() => {
     try{ window.print(); }catch(e){ msg('เบราว์เซอร์ไม่รองรับการพิมพ์', 'err'); return cleanup(); }
-    setTimeout(cleanup, 60000);   /* เผื่อ afterprint ไม่ทำงานบางเบราว์เซอร์ */
+    setTimeout(cleanup, 60000);
   }, 150);
 }
-
-const prDate = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'numeric' }) : '—';
-
 function prHead(title, sub){
   return `<div class="pr-head">
     <div><h1>${esc(title)}</h1><p>${esc(sub || '')}</p></div>
-    <div class="pr-org">FAB Operations Hub<br><span>พิมพ์เมื่อ ${prDate(new Date())}</span></div>
+    <div class="pr-org">FAB Operations Hub<br><span>พิมพ์เมื่อ ${fmtD(new Date())}</span></div>
   </div>`;
 }
-
-/* รายงานสรุปตามเงื่อนไขที่กรองอยู่บนหน้าจอ — เห็นอะไรอยู่ ได้อันนั้น */
 window.printResults = function(){
   const list = filteredResponses();
-  if (!list.length) return msg('ยังไม่มีผลตามเงื่อนไขนี้', 'warn');
-  const scored = list.filter(r => r.total_pct != null);
-  const pass = list.filter(r => r.verdict === 'pass').length;
-  const avg = scored.length ? (scored.reduce((a, r) => a + (+r.total_pct), 0) / scored.length).toFixed(1) : '—';
-  const cond = [rf.form && 'ฟอร์ม: ' + rf.form, rf.round && 'รอบ: ' + rf.round, rf.branch && 'สาขา: ' + rf.branch,
-    rf.level && 'ระดับ: ' + rf.level, rf.verdict && 'ผล: ' + (rf.verdict === 'pass' ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์'),
-    rf.q && 'ค้นหา: ' + rf.q].filter(Boolean).join(' · ') || 'ทั้งหมด';
-
+  if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
+  const form = rf.form ? forms.find(f => f.key === rf.form) : null;
+  const qs = form ? (form.questions || []) : [];
   printDoc(`
-    ${prHead(ofCan('view-results') ? 'สรุปผลแบบฟอร์มออนไลน์' : 'คะแนนของสาขา ' + ME.branch, cond)}
+    ${prHead(form ? form.title : 'คำตอบแบบฟอร์มออนไลน์', [rf.branch && 'สาขา: ' + rf.branch, rf.q && 'ค้นหา: ' + rf.q].filter(Boolean).join(' · ') || 'ทั้งหมด')}
     <div class="pr-stats">
-      <div><b>${list.length}</b><span>รายการ</span></div>
-      <div><b>${pass}</b><span>ผ่านเกณฑ์</span></div>
-      <div><b>${scored.length - pass}</b><span>ไม่ผ่านเกณฑ์</span></div>
-      <div><b>${avg}${avg === '—' ? '' : '%'}</b><span>คะแนนเฉลี่ย</span></div>
+      <div><b>${list.length}</b><span>คำตอบ</span></div>
+      <div><b>${new Set(list.map(r => r.respondent_code)).size}</b><span>ผู้ตอบ</span></div>
+      <div><b>${qs.length || '—'}</b><span>คำถาม</span></div>
     </div>
     <table class="pr-table">
-      <thead><tr><th>วันที่</th><th>ผู้ถูกประเมิน</th><th>สาขา</th><th>คุณสมบัติ</th>
-        <th>แบบฟอร์ม</th><th>ผู้กรอก</th><th>คะแนน</th><th>ผล</th></tr></thead>
-      <tbody>${list.map(r => {
-        const m = r.subject_meta || {};
-        return `<tr>
-          <td>${prDate(r.created_at)}</td>
-          <td><b>${esc(r.subject_name || '—')}</b></td>
-          <td>${esc(r.subject_branch)}</td>
-          <td>${[m.level === 'gold' ? 'Gold' : m.level === 'silver' ? 'Silver' : '',
-                 m.station === 'kitchen' ? 'ครัว' : m.station === 'service' ? 'บริการ' : ''].filter(Boolean).join(' · ')}</td>
-          <td>${esc(r.form_title || r.form_key)}${r.round ? ' · ' + esc(r.round) : ''}</td>
-          <td>${esc(r.rater_name)}</td>
-          <td class="num">${r.total_pct == null ? '—' : r.total_pct + '%'}</td>
-          <td>${r.verdict === 'pass' ? 'ผ่าน' : r.verdict === 'fail' ? 'ไม่ผ่าน' : '—'}</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table>`, `ผลแบบฟอร์ม-${stamp()}`);
+      <thead><tr><th>วันที่</th><th>ผู้ตอบ</th><th>สาขา</th>${qs.length ? qs.map(q => `<th>${esc(q.label)}</th>`).join('') : '<th>แบบฟอร์ม</th>'}</tr></thead>
+      <tbody>${list.map(r => `<tr>
+        <td>${fmtD(r.created_at)}</td><td>${esc(r.respondent_name)}</td><td>${esc(r.respondent_branch || '')}</td>
+        ${qs.length ? qs.map(q => `<td>${esc(ansText((r.answers || {})[q.id]))}</td>`).join('') : `<td>${esc(r.form_title || r.form_key)}</td>`}
+      </tr>`).join('')}</tbody>
+    </table>`, `คำตอบแบบฟอร์ม-${stamp()}`);
 };
-
-/* ใบเดียวแบบเต็ม — คะแนนรายหมวด คำตอบรายข้อ และความเห็นผู้กรอก */
 window.printResp = function(id){
-  const r = myResponses().find(x => x.id === id); if (!r) return;
+  const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const meta = r.subject_meta || {};
-  const secs = form ? sectionsFor(form, meta) : [];
-  const S = r.sections || {};
-  const qual = [meta.level === 'gold' ? 'Gold' : meta.level === 'silver' ? 'Silver' : '',
-    meta.station === 'kitchen' ? 'ครัว' : meta.station === 'service' ? 'บริการ' : ''].filter(Boolean).join(' · ');
-
-  const secRows = Object.keys(S).map(sid => {
-    const d = S[sid];
-    return `<tr><td>${esc(d.label || '')} ${esc(d.name || '')}</td><td class="num">${d.weight}%</td>
-      <td class="num">${d.pct == null ? 'ไม่ได้ประเมิน' : d.pct + '%'}</td></tr>`;
-  }).join('');
-
-  const qTables = secs.map(sec => `
-    <h3>${esc(sec.label)}. ${esc(sec.name)}</h3>
-    <table class="pr-table"><tbody>${sec.q.map((text, j) => {
-      const v = (r.answers || {})[sec.sid + (j + 1)];
-      return `<tr><td>${j + 1}. ${esc(text)}</td><td class="num" style="width:70px">${v === 'na' ? 'N/A' : (v ?? '—')}</td></tr>`;
-    }).join('')}</tbody></table>`).join('');
-
-  const texts = form ? (form.closing || []).map(c =>
-    `<h3>${esc(c.label)}</h3><p class="pr-text">${esc((r.texts || {})[c.key]) || '—'}</p>`).join('') : '';
-
+  const qs = form ? (form.questions || []) : [];
+  const rows = (qs.length ? qs.map((q, i) => [`${i + 1}. ${q.label}`, ansText((r.answers || {})[q.id])])
+                          : Object.keys(r.answers || {}).map(k => [k, ansText(r.answers[k])]))
+    .map(([a, b]) => `<tr><td>${esc(a)}</td><td><b>${esc(b)}</b></td></tr>`).join('');
   printDoc(`
-    ${prHead(r.subject_name || r.form_title || 'ผลการประเมิน',
-      [r.subject_branch, qual, r.round, r.form_title].filter(Boolean).join(' · '))}
-    <div class="pr-stats">
-      <div><b>${r.total_pct ?? '—'}${r.total_pct == null ? '' : '%'}</b><span>คะแนนรวม</span></div>
-      <div><b>${r.avg_score ?? '—'}</b><span>เฉลี่ย (เต็ม 5)</span></div>
-      <div><b>${r.verdict === 'pass' ? 'ผ่าน' : r.verdict === 'fail' ? 'ไม่ผ่าน' : '—'}</b><span>${esc(r.verdict_note || 'ผลการประเมิน')}</span></div>
-    </div>
-    <h3>คะแนนรายหมวด</h3>
-    <table class="pr-table"><thead><tr><th>หมวด</th><th class="num">น้ำหนัก</th><th class="num">คะแนน</th></tr></thead>
-      <tbody>${secRows || '<tr><td colspan="3">—</td></tr>'}</tbody></table>
-    ${qTables}
-    ${texts}
-    <p class="pr-foot">กรอกโดย ${esc(r.rater_name)} (${esc(r.rater_role || '')}) · ${prDate(r.created_at)}</p>`,
-    `ผลประเมิน-${(r.subject_name || '').replace(/[\\/:*?"<>|\s]+/g, '')}-${stamp()}`);
-};
-
-/* ── ส่งออก CSV ─────────────────────────────────────────────────── */
-const csvCell = v => '"' + String(v==null?'':v).replace(/"/g,'""') + '"';
-function download(name, text){
-  const blob = new Blob(['﻿' + text], { type:'text/csv;charset=utf-8;' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob); a.download = name; a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
-}
-const stamp = () => new Date().toISOString().slice(0,10);
-
-window.csvSummary = function(){
-  if (!ofCan('export-results')) return msg('ไม่มีสิทธิ์ดาวน์โหลดผล', 'warn');
-  const list = filteredResponses();
-  if (!list.length) return msg('ไม่มีข้อมูลให้ส่งออก', 'err');
-  const secLabels = [...new Set(list.flatMap(r => Object.values(r.sections||{}).map(s => s.label)))].sort();
-  const head = ['วันที่','แบบฟอร์ม','รอบ','สาขา','ผู้ถูกประเมิน','ระดับ','หน้างาน','ผู้กรอก','บทบาท',
-    'คะแนนรวม %','เฉลี่ย/5', ...secLabels.map(l => `หมวด ${l} %`), 'ผล','เหตุผลที่ไม่ผ่าน'];
-  const closingKeys = [...new Set(list.flatMap(r => Object.keys(r.texts||{})))];
-  head.push(...closingKeys);
-
-  const body = list.map(r => {
-    const m = r.subject_meta || {}, S = r.sections || {};
-    const byLabel = {}; Object.values(S).forEach(s => byLabel[s.label] = s.pct);
-    return [new Date(r.created_at).toLocaleString('th-TH'), r.form_title || r.form_key, r.round,
-      r.subject_branch, r.subject_name, m.level, m.station, r.rater_name, r.rater_role,
-      r.total_pct, r.avg_score, ...secLabels.map(l => byLabel[l]),
-      r.verdict === 'pass' ? 'ผ่าน' : r.verdict === 'fail' ? 'ไม่ผ่าน' : '', r.verdict_note,
-      ...closingKeys.map(k => (r.texts||{})[k])].map(csvCell).join(',');
-  });
-  download(`ผลแบบฟอร์ม-${stamp()}.csv`, [head.map(csvCell).join(','), ...body].join('\r\n'));
-};
-
-window.csvDetail = function(){
-  if (!ofCan('export-results')) return msg('ไม่มีสิทธิ์ดาวน์โหลดผล', 'warn');
-  const list = filteredResponses();
-  if (!list.length) return msg('ไม่มีข้อมูลให้ส่งออก', 'err');
-  const head = ['วันที่','แบบฟอร์ม','รอบ','สาขา','ผู้ถูกประเมิน','ระดับ','หน้างาน','ผู้กรอก','หมวด','ชื่อหมวด','ข้อที่','คำถาม','คะแนน'];
-  const body = [];
-  list.forEach(r => {
-    const form = forms.find(f => f.key === r.form_key);
-    const m = r.subject_meta || {};
-    const secs = form ? sectionsFor(form, m) : [];
-    secs.forEach(sec => sec.q.forEach((text, j) => {
-      const v = (r.answers||{})[sec.sid+(j+1)];
-      body.push([new Date(r.created_at).toLocaleString('th-TH'), r.form_title || r.form_key, r.round,
-        r.subject_branch, r.subject_name, m.level, m.station, r.rater_name,
-        sec.label, sec.name, j+1, text, v === 'na' ? 'N/A' : (v ?? '')].map(csvCell).join(','));
-    }));
-  });
-  if (!body.length) return msg('ส่งออกรายข้อไม่ได้ เพราะแบบฟอร์มต้นฉบับถูกแก้/ลบไปแล้ว', 'err');
-  download(`ผลแบบฟอร์มรายข้อ-${stamp()}.csv`, [head.map(csvCell).join(','), ...body].join('\r\n'));
+    ${prHead(r.form_title || r.form_key, `${r.respondent_name} · ${r.respondent_branch || ''} · ${fmtDT(r.created_at)}`)}
+    <table class="pr-table"><tbody>${rows || '<tr><td>—</td></tr>'}</tbody></table>`,
+    `คำตอบ-${(r.respondent_name || '').replace(/[\\/:*?"<>|\s]+/g,'')}-${stamp()}`);
 };
 
 /* ══════════════════════════════════════════════════════════════════
-   รายชื่อผู้ถูกประเมิน
-   ══════════════════════════════════════════════════════════════════ */
-let pf = { branch:'', level:'', q:'' };
-
-function renderPeople(){
-  const branches = [...new Set(people.map(p => p.branch).filter(Boolean))].sort();
-  const levels   = [...new Set(people.map(p => p.level).filter(Boolean))];
-  $('#view').innerHTML = `
-    <div class="card">
-      <div class="ppl-head">
-        <div>
-          <h2>รายชื่อผู้ถูกประเมิน</h2>
-          <p class="sub" style="margin:0">คนที่ลาออกให้ใช้ “ปิดใช้งาน” แทนการลบ — ผลที่เคยกรอกไว้จะยังอยู่ครบ</p>
-        </div>
-        <button class="btn btn-primary" onclick="editPerson(null)">+ เพิ่มรายชื่อ</button>
-      </div>
-      <div class="grid3" style="margin:16px 0 14px">
-        <div><label>สาขา</label><select id="pfBranch">${opt('ทุกสาขา', branches, pf.branch)}</select></div>
-        <div><label>ระดับ</label><select id="pfLevel">${opt('ทุกระดับ', levels, pf.level)}</select></div>
-        <div><label>ค้นหา</label><input id="pfQ" value="${esc(pf.q)}" placeholder="พิมพ์ชื่อ"></div>
-      </div>
-      <div class="table-wrap"><table>
-        <thead><tr><th>ชื่อ–นามสกุล</th><th>สาขา</th><th>ระดับ</th><th>หน้างาน</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody id="pBody"></tbody></table></div>
-      <div class="empty" id="pEmpty" style="display:none">ยังไม่มีรายชื่อ — กดปุ่ม “เพิ่มรายชื่อ” เพื่อเริ่ม</div>
-      <p class="muted" id="pCount" style="margin:12px 0 0;font-size:13px"></p>
-    </div>
-
-    <details class="bulk">
-      <summary>นำเข้าหลายคนพร้อมกันจาก Excel</summary>
-      <div class="bulk-body">
-        <p class="sub">แนบไฟล์ Excel/CSV หรือคัดลอกมาวางก็ได้ บรรทัดละ 1 คน คั่นด้วยจุลภาค ( , ) หรือ Tab<br>
-          รูปแบบ <b>ชื่อ–นามสกุล, สาขา, ระดับ, หน้างาน</b> — ระดับใส่ silver/gold หรือ ซิลเวอร์/โกลด์ ·
-          หน้างานใส่ service/kitchen หรือ บริการ/ครัว<br>
-          สองช่องท้ายเว้นว่างได้ · ชื่อซ้ำในสาขาเดิมจะถูกอัปเดตทับ ไม่สร้างซ้ำ</p>
-        <div class="pickfile">
-          <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none" onchange="readPeopleFile(this)">
-          <button class="btn btn-secondary" onclick="document.getElementById('impFile').click()">เลือกไฟล์ Excel หรือ CSV</button>
-          <button class="btn btn-secondary" onclick="downloadPeopleTemplate()">โหลดไฟล์ตัวอย่าง</button>
-          <span class="fname" id="impFileName">ไฟล์ที่มีหัวตาราง ชื่อ / สาขา / ระดับ / หน้างาน ก็อ่านได้ ไม่ต้องเรียงให้ตรง</span>
-        </div>
-        <div class="orline">หรือคัดลอกมาวางตรงนี้</div>
-        <textarea id="impText" class="code" placeholder="สมหญิง ตั้งใจ, สามย่าน, silver, service&#10;อนันต์ พากเพียร, สามย่าน, gold, kitchen"></textarea>
-        <div class="row-btns" style="margin-top:12px">
-          <button class="btn btn-secondary" onclick="importPeople()">นำเข้ารายชื่อ</button>
-        </div>
-      </div>
-    </details>`;
-  ['pfBranch','pfLevel'].forEach(id => $('#'+id).onchange = () => { pf[id.slice(2).toLowerCase()] = $('#'+id).value; paintPeople(); });
-  $('#pfQ').oninput = () => { pf.q = $('#pfQ').value; paintPeople(); };
-  paintPeople();
-}
-
-function paintPeople(){
-  const q = (pf.q||'').trim().toLowerCase();
-  const list = people.filter(p =>
-    (!pf.branch || p.branch === pf.branch) &&
-    (!pf.level  || p.level === pf.level) &&
-    (!q || p.name.toLowerCase().includes(q)));
-  $('#pEmpty').style.display = list.length ? 'none' : '';
-  const cnt = $('#pCount');
-  if (cnt) cnt.textContent = list.length === people.length
-    ? `ทั้งหมด ${people.length} คน`
-    : `แสดง ${list.length} คน จากทั้งหมด ${people.length} คน`;
-  $('#pBody').innerHTML = list.map(p => `<tr>
-    <td><b>${esc(p.name)}</b></td>
-    <td>${esc(p.branch) || '<span class="muted">—</span>'}</td>
-    <td>${p.level ? `<span class="pill ${p.level}">${LV(p.level)}</span>` : '<span class="muted">—</span>'}</td>
-    <td>${p.station ? ST(p.station) : '<span class="muted">—</span>'}</td>
-    <td><span class="pill ${p.active?'pass':'off'}">${p.active?'ใช้งาน':'ปิดใช้งาน'}</span></td>
-    <td class="row-btns">
-      <button class="btn btn-secondary btn-sm" onclick="editPerson(${p.id})">แก้ไข</button>
-      <button class="btn btn-secondary btn-sm" onclick="togglePerson(${p.id})">${p.active?'ปิดใช้งาน':'เปิดใช้งาน'}</button>
-      <button class="btn btn-danger btn-sm" onclick="delPerson(${p.id})">ลบ</button>
-    </td></tr>`).join('');
-}
-
-/* ── เพิ่ม/แก้ไขทีละคน ──
-   ของเดิมเพิ่มได้ทางเดียวคือวางข้อความให้ถูกรูปแบบ พิมพ์ผิดตัวเดียวขึ้น error ทั้งบรรทัด
-   และแก้ชื่อที่สะกดผิดไม่ได้เลย ต้องลบแล้วเพิ่มใหม่
-   ซึ่งทำให้ผลประเมินที่เคยผูกกับคนเดิมกลายเป็นของกำพร้า */
-window.editPerson = function(id){
-  const p = id ? people.find(x => x.id === id) : null;
-  const branches = [...new Set(people.map(x => x.branch).filter(Boolean))].sort();
-  $('#modalBox').innerHTML = `
-    <div class="modal-head">
-      <h2>${p ? 'แก้ไขรายชื่อ' : 'เพิ่มรายชื่อ'}</h2>
-      <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
-    </div>
-    <div class="field">
-      <label for="peName">ชื่อ–นามสกุล</label>
-      <input id="peName" value="${esc(p ? p.name : '')}" placeholder="เช่น สมหญิง ตั้งใจ" autocomplete="off">
-    </div>
-    <div class="field">
-      <label for="peBranch">สาขา</label>
-      <input id="peBranch" list="peBranchList" value="${esc(p ? p.branch : (ME.isBranch ? ME.branch : ''))}" placeholder="พิมพ์ชื่อสาขา หรือเลือกจากที่มีอยู่" autocomplete="off">
-      <datalist id="peBranchList">${branches.map(b => `<option value="${esc(b)}">`).join('')}</datalist>
-    </div>
-    <div class="grid2">
-      <div class="field">
-        <span class="field-label">ระดับ</span>
-        <div class="seg" id="peLevel">
-          <button type="button" data-v="">ไม่ระบุ</button>
-          <button type="button" data-v="silver">Silver</button>
-          <button type="button" data-v="gold">Gold</button>
-        </div>
-      </div>
-      <div class="field">
-        <span class="field-label">หน้างานหลัก</span>
-        <div class="seg" id="peStation">
-          <button type="button" data-v="">ไม่ระบุ</button>
-          <button type="button" data-v="service">บริการ</button>
-          <button type="button" data-v="kitchen">ครัว</button>
-        </div>
-      </div>
-    </div>
-    <p class="sub">ระดับกับหน้างานใช้คัดว่าใครต้องตอบคำถามชุดไหน ถ้าฟอร์มไม่ได้ใช้ก็เว้น “ไม่ระบุ” ไว้ได้</p>
-    <div class="row-btns">
-      <button class="btn btn-primary" onclick="savePerson(${p ? p.id : 'null'})">${p ? 'บันทึกการแก้ไข' : 'เพิ่มรายชื่อ'}</button>
-      <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
-    </div>`;
-  segSet('peLevel',   p ? (p.level   || '') : '');
-  segSet('peStation', p ? (p.station || '') : '');
-  $('#modal').classList.add('show');
-  setTimeout(() => { const el = $('#peName'); if (el) el.focus(); }, 50);
-};
-
-/* ปุ่มเลือกแบบกดทีละอัน — ใช้แทน dropdown เพราะมีแค่สามตัวเลือก
-   เห็นครบพร้อมกันโดยไม่ต้องกดเปิด และแตะง่ายกว่าบนมือถือ */
-function segSet(id, val, cb){
-  const box = document.getElementById(id);
-  if (!box) return;
-  box.dataset.val = val;
-  box.querySelectorAll('button').forEach(b => {
-    b.classList.toggle('on', b.dataset.v === val);
-    b.onclick = () => segSet(id, b.dataset.v, cb);
-  });
-  if (cb) cb(val);
-}
-function segGet(id){
-  const box = document.getElementById(id);
-  return box ? (box.dataset.val || '') : '';
-}
-
-window.savePerson = async function(id){
-  if (!ofCan('manage-people')) return msg('ไม่มีสิทธิ์แก้รายชื่อ', 'warn');
-  const name    = $('#peName').value.trim();
-  const branch  = $('#peBranch').value.trim();
-  const level   = segGet('peLevel');
-  const station = segGet('peStation');
-  if (!name)   return msg('ยังไม่ได้กรอกชื่อ', 'err');
-  if (!branch) return msg('ยังไม่ได้กรอกสาขา', 'err');
-
-  const row = { name, branch, level, station };
-  const q = id ? SB.from('of_people').update(row).eq('id', id)
-               : SB.from('of_people').insert(Object.assign({ active: true }, row));
-  const { error } = await q;
-  if (error){
-    if (error.code === '23505') return msg(`มี <b>${esc(name)}</b> ในสาขา <b>${esc(branch)}</b> อยู่แล้ว`, 'err');
-    return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
-  }
-  closeModal();
-  msg(id ? 'บันทึกการแก้ไขเรียบร้อย' : `เพิ่ม <b>${esc(name)}</b> เรียบร้อย`);
-  await loadPeople(); renderPeople();
-};
-
-/* ไฟล์ที่ส่งกันจริงเขียนเป็นไทยบ้างอังกฤษบ้าง แปลงให้เป็นค่าเดียวที่ฐานข้อมูลใช้
-   ถ้าแปลงไม่ออกคืนค่าเดิมกลับไป ตัวตรวจข้างล่างจะได้ฟ้องว่าบรรทัดไหนผิด
-   ไม่ใช่เงียบ ๆ แล้วบันทึกค่าว่างทับของที่ผู้ใช้ตั้งใจกรอก */
-const OF_LEVEL   = { silver:'silver', 'ซิลเวอร์':'silver', 'เงิน':'silver',
-                     gold:'gold', 'โกลด์':'gold', 'โกล์ด':'gold', 'ทอง':'gold' };
-const OF_STATION = { service:'service', 'บริการ':'service', 'เสิร์ฟ':'service', 'หน้าร้าน':'service',
-                     kitchen:'kitchen', 'ครัว':'kitchen', 'หลังร้าน':'kitchen' };
-function ofPick(map, v){
-  const t = String(v==null?'':v).trim();
-  if (!t || t === '-' || t === 'ไม่ระบุ') return '';
-  return map[t.toLowerCase()] || map[t] || t;
-}
-const ofLevel   = v => ofPick(OF_LEVEL, v);
-const ofStation = v => ofPick(OF_STATION, v);
-
-/* โหลดตัวอ่าน Excel ตอนที่มีคนเลือกไฟล์จริง ไม่ถ่วงเวลาเปิดหน้าของทุกคน */
-let xlsxLoading = null;
-function loadXLSX(){
-  if (window.XLSX) return Promise.resolve();
-  if (!xlsxLoading) xlsxLoading = new Promise((ok, fail) => {
-    const el = document.createElement('script');
-    el.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
-    el.onload = () => ok();
-    el.onerror = () => { xlsxLoading = null; fail(new Error('โหลดตัวอ่านไฟล์ไม่สำเร็จ')); };
-    document.head.appendChild(el);
-  });
-  return xlsxLoading;
-}
-
-/* หัวตารางในไฟล์จริงไม่เคยเรียงเหมือนกัน อ่านจากชื่อหัวคอลัมน์ก่อน
-   ไม่มีหัวตารางค่อยถือตามลำดับ ชื่อ สาขา ระดับ หน้างาน */
-function ofMapCols(row){
-  const key = t => String(t==null?'':t).trim().toLowerCase().replace(/[\s_–-]/g,'');
-  const idx = { name:-1, branch:-1, level:-1, station:-1 };
-  row.forEach((cell, i) => {
-    const k = key(cell);
-    if (idx.name    < 0 && /^(ชื่อ|ชื่อนามสกุล|ชื่อสกุล|name|fullname)$/.test(k))    idx.name = i;
-    if (idx.branch  < 0 && /^(สาขา|branch|store)$/.test(k))                          idx.branch = i;
-    if (idx.level   < 0 && /^(ระดับ|level|grade)$/.test(k))                          idx.level = i;
-    if (idx.station < 0 && /^(หน้างาน|ตำแหน่ง|station|position)$/.test(k))            idx.station = i;
-  });
-  return (idx.name >= 0 && idx.branch >= 0) ? idx : null;
-}
-
-/* ไฟล์ตัวอย่างที่โหลดไป กรอกทับแล้วส่งกลับเข้ามาได้เลย
-   หัวตารางตรงกับที่ตัวอ่านรู้จัก คนกรอกจึงไม่ต้องเดาว่าคอลัมน์ไหนคืออะไร
-   แถวตัวอย่างสองแถวใส่ไว้ให้เห็นว่าระดับกับหน้างานเขียนแบบไหนก็ได้ */
-window.downloadPeopleTemplate = async function(){
-  try {
-    await loadXLSX();
-    const rows = [
-      ['ชื่อ-นามสกุล', 'สาขา', 'ระดับ', 'หน้างาน'],
-      ['สมหญิง ตั้งใจ', 'สามย่าน', 'ซิลเวอร์', 'บริการ'],
-      ['อนันต์ พากเพียร', 'สามย่าน', 'gold', 'kitchen']
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(rows);
-    ws['!cols'] = [{ wch:26 }, { wch:22 }, { wch:12 }, { wch:12 }];
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'รายชื่อ');
-    XLSX.writeFile(wb, 'ฟอร์มรายชื่อผู้ถูกประเมิน.xlsx');
-    msg('โหลดไฟล์ตัวอย่างแล้ว กรอกทับสองแถวตัวอย่างได้เลย แล้วแนบกลับเข้ามา');
-  } catch (e) {
-    msg('สร้างไฟล์ตัวอย่างไม่สำเร็จ — ' + esc(e.message||String(e)), 'err');
-  }
-};
-
-window.readPeopleFile = async function(el){
-  const file = el.files && el.files[0];
-  el.value = '';   /* เลือกไฟล์เดิมซ้ำได้ */
-  if (!file) return;
-  const nameEl = $('#impFileName');
-  nameEl.innerHTML = 'กำลังอ่าน <b>' + esc(file.name) + '</b> …';
-  try {
-    await loadXLSX();
-    const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
-    if (!ws) throw new Error('ไฟล์นี้ไม่มีชีตข้อมูล');
-    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', blankrows:false });
-    if (!rows.length) throw new Error('ไฟล์นี้ว่าง ไม่มีข้อมูลให้อ่าน');
-
-    const map = ofMapCols(rows[0]);
-    const body = map ? rows.slice(1) : rows;
-    const col = map || { name:0, branch:1, level:2, station:3 };
-    const lines = [], skipped = [];
-    body.forEach((r, i) => {
-      const cell = j => (j >= 0 && r[j] != null) ? String(r[j]).trim() : '';
-      const name = cell(col.name), branch = cell(col.branch);
-      if (!name && !branch) return;                    /* บรรทัดว่างคั่นกลาง ข้ามเงียบ ๆ */
-      if (!name || !branch){ skipped.push('แถว ' + (i + (map?2:1)) + ': ' + (name ? 'ไม่มีสาขา' : 'ไม่มีชื่อ')); return; }
-      lines.push([name, branch, ofLevel(cell(col.level)), ofStation(cell(col.station))].join(', ').replace(/(,\s*)+$/, ''));
-    });
-    if (!lines.length) throw new Error('อ่านไฟล์ได้ แต่ไม่เจอรายชื่อสักคน');
-
-    $('#impText').value = lines.join('\n');
-    nameEl.innerHTML = 'อ่าน <b>' + esc(file.name) + '</b> ได้ <b>' + lines.length + '</b> คน' +
-      (map ? ' (อ่านจากหัวตาราง)' : ' (ไม่มีหัวตาราง ถือตามลำดับคอลัมน์)') +
-      ' — ตรวจข้างล่างแล้วกด “นำเข้ารายชื่อ”';
-    if (skipped.length) msg('ข้ามไป ' + skipped.length + ' แถวที่ข้อมูลไม่ครบ<br>' + skipped.slice(0,8).map(esc).join('<br>'), 'err');
-  } catch (e) {
-    nameEl.textContent = 'อ่านไฟล์ไม่สำเร็จ';
-    msg('อ่านไฟล์ไม่สำเร็จ — ' + esc(e.message||String(e)), 'err');
-  }
-};
-
-window.importPeople = async function(){
-  if (!ofCan('manage-people')) return msg('ไม่มีสิทธิ์นำเข้ารายชื่อ', 'warn');
-  const lines = $('#impText').value.split('\n').map(l => l.trim()).filter(Boolean);
-  if (!lines.length) return msg('ยังไม่ได้วางรายชื่อ', 'err');
-  const out = [], bad = [];
-  lines.forEach((line, i) => {
-    const c = line.split(/\t|,/).map(x => x.trim());
-    if (!c[0]) return bad.push(`บรรทัด ${i+1}: ไม่มีชื่อ`);
-    if (!c[1]) return bad.push(`บรรทัด ${i+1}: ไม่มีสาขา`);
-    const level = ofLevel(c[2]), station = ofStation(c[3]);
-    if (level && !['silver','gold'].includes(level))         return bad.push(`บรรทัด ${i+1}: ระดับต้องเป็น silver หรือ gold (ได้ "${c[2]}")`);
-    if (station && !['service','kitchen'].includes(station)) return bad.push(`บรรทัด ${i+1}: หน้างานต้องเป็น service หรือ kitchen (ได้ "${c[3]}")`);
-    out.push({ name:c[0], branch:c[1], level, station, active:true });
-  });
-  if (bad.length) return msg('ข้อมูลไม่ถูกต้อง<br>' + bad.map(esc).join('<br>'), 'err');
-
-  const { error } = await SB.from('of_people').upsert(out, { onConflict:'branch,name' });
-  if (error) return msg('เพิ่มรายชื่อไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg(`นำเข้ารายชื่อ ${out.length} คนเรียบร้อย`);
-  await loadPeople(); renderPeople();
-};
-
-window.togglePerson = async function(id){
-  const p = people.find(x => x.id === id); if (!p) return;
-  const { error } = await SB.from('of_people').update({ active: !p.active }).eq('id', id);
-  if (error) return msg('แก้ไขไม่สำเร็จ — ' + esc(error.message), 'err');
-  await loadPeople(); paintPeople();
-};
-
-window.delPerson = async function(id){
-  if (!ofCan('manage-people')) return msg('ไม่มีสิทธิ์แก้รายชื่อ', 'warn');
-  const p = people.find(x => x.id === id); if (!p) return;
-  if (!confirm(`ลบ ${p.name} ออกจากรายชื่อ?\n\nถ้าคนนี้เคยถูกประเมินแล้ว แนะนำให้ใช้ "ปิดใช้งาน" แทน`)) return;
-  const { error } = await SB.from('of_people').delete().eq('id', id);
-  if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg('ลบเรียบร้อย'); await loadPeople(); paintPeople();
-};
-
-
-/* ══════════════════════════════════════════════════════════════════
-   จัดการฟอร์ม — สร้าง/แก้คำถาม/เปิด-ปิด
+   จัดการฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
 function renderForms(){
   if (editing) return renderEditor();
   $('#view').innerHTML = `
-    ${!VIS_READY ? `
-    <div class="notice warn show">
-      <b>ยังตั้งค่าไม่ได้ว่าใครเห็นฟอร์มไหน และใครเห็นคะแนน</b><br>
-      ต้องรันไฟล์ <b>supabase/online-form-visibility.sql</b> ในโปรเจกต์ FAB HUB ก่อน
-      (Supabase → SQL Editor → วางทั้งไฟล์ → Run) แล้วรีเฟรชหน้านี้<br>
-      <span style="font-weight:400">ระหว่างนี้ทุกสาขายังเห็นฟอร์มที่เปิดกรอกทั้งหมด และสาขาไม่เห็นคะแนน</span>
-    </div>` : ''}
     <div class="card">
       <h2>จัดการแบบฟอร์ม</h2>
-      <p class="sub">คำถามเก็บเป็นข้อมูลในฐานข้อมูล ไม่ได้ฝังในโค้ด — เพิ่มฟอร์มชุดใหม่ได้จากหน้านี้เลย</p>
-      <div class="row-btns">
-        <button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button>
-        ${!forms.some(f => f.key === 'silver-gold')
-          ? `<button class="btn btn-secondary" onclick="installSeed()">ติดตั้งชุด Silver / Gold</button>` : ''}
-      </div>
+      <p class="sub">สร้างฟอร์มได้เองทั้งหมด — คำถามมี 8 ชนิด ไม่มีเรื่องคะแนนหรือเกณฑ์ผ่าน
+        <br>แบบประเมินพนักงาน Silver / Gold ย้ายไปอยู่ระบบของตัวเองแล้ว</p>
+      <div class="row-btns"><button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table>
-        <thead><tr><th>แบบฟอร์ม</th><th>รหัส</th><th>รอบ</th><th>หมวด/ข้อ</th><th>ใครเห็น</th><th>คะแนน</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody>${forms.map(f => {
-          const nq = (f.sections||[]).reduce((a,s)=>a+(s.q||[]).length, 0);
-          return `<tr>
-            <td><b>${esc(f.emoji||'📋')} ${esc(f.title)}</b><br><span class="muted" style="font-size:13px">${esc(f.description||'')}</span></td>
-            <td class="muted">${esc(f.key)}</td>
-            <td>${esc(f.round||'—')}</td>
-            <td>${(f.sections||[]).length} หมวด · ${nq} ข้อ</td>
-            <td>${audienceLabel(f)}</td>
-            <td class="muted" style="font-size:13px">${scoreLabel(f)}</td>
-            <td><span class="pill ${f.status}">${f.status==='open'?'เปิดกรอก':f.status==='draft'?'ร่าง':'ปิดแล้ว'}</span></td>
-            <td class="row-btns">
-              <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">แก้ไข</button>
-              <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
-              ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
-            </td></tr>`;
-        }).join('')}</tbody>
+        <thead><tr><th>แบบฟอร์ม</th><th>รหัส</th><th>คำถาม</th><th>ใครเห็น</th><th>คำตอบ</th><th>สถานะ</th><th></th></tr></thead>
+        <tbody>${forms.map(f => `<tr>
+          <td><b>${esc(f.emoji || '📋')} ${esc(f.title)}</b>${f.description ? `<br><span class="muted" style="font-size:12.5px">${esc(f.description)}</span>` : ''}</td>
+          <td class="muted">${esc(f.key)}</td>
+          <td>${(f.questions || []).length} ข้อ</td>
+          <td>${audienceLabel(f)}</td>
+          <td>${responses.filter(r => r.form_key === f.key).length || '—'}</td>
+          <td><span class="pill ${isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${
+            isOpen(f) ? 'เปิด' : f.status === 'draft' ? 'ร่าง' : 'ปิด'}</span></td>
+          <td class="row-btns">
+            <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">แก้ไข</button>
+            <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
+            ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
+          </td></tr>`).join('') || '<tr><td colspan="7"><div class="empty">ยังไม่มีแบบฟอร์ม</div></td></tr>'}
+        </tbody>
       </table></div>
-      ${forms.length ? '' : '<div class="empty">ยังไม่มีแบบฟอร์ม</div>'}
     </div>`;
 }
 
-window.installSeed = async function(){
-  const { error } = await SB.from('of_forms').insert(SEED_FORM);
-  if (error) return msg('ติดตั้งไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg('ติดตั้งชุด Silver / Gold เรียบร้อย'); go('forms');
-};
-
+const newKey = () => 'form-' + Date.now().toString(36);
 window.newForm = function(){
-  editing = {
-    key:'', emoji:'📋', title:'', description:'', round:'', status:'draft',
-    subject_required:true, subject_filter:{},
-    visible_brands:[], visible_branches:[],
-    show_score_to_rater:false, show_score_to_branch:false,
-    scale:clone(SCALE_1_5), sections:[], closing:[],
-    rules:{ pass:{ default:70 }, knockouts:[] }, sort_order:(forms.length + 1)
-  };
+  editing = { key:newKey(), title:'', description:'', emoji:'📋', status:'draft', questions:[],
+    visible_brands:[], visible_branches:[], once_per_user:true, open_at:null, close_at:null, sort_order:(forms.length + 1) };
   renderEditor();
 };
-
 window.editForm = function(id){
   const f = forms.find(x => x.id === id); if (!f) return;
   editing = clone(f);
+  editing.questions = editing.questions || [];
   renderEditor();
 };
-
 window.dupForm = async function(id){
   const f = forms.find(x => x.id === id); if (!f) return;
-  const copy = clone(f);
-  delete copy.id; delete copy.created_at; delete copy.updated_at;
-  copy.key   = f.key + '-copy-' + Date.now().toString(36).slice(-4);
-  copy.title = f.title + ' (สำเนา)';
-  copy.status = 'draft';
-  const { error } = await SB.from('of_forms').insert(copy);
+  const c = clone(f); delete c.id; delete c.created_at; delete c.updated_at;
+  c.key = newKey(); c.title = f.title + ' (สำเนา)'; c.status = 'draft';
+  const { error } = await SB.from('fm_forms').insert(c);
   if (error) return msg('ทำสำเนาไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg('ทำสำเนาเรียบร้อย — อยู่ในสถานะ "ร่าง" แก้ให้เสร็จแล้วค่อยเปิด'); go('forms');
+  msg('ทำสำเนาแล้ว'); await loadForms(); renderForms();
 };
-
 window.delForm = async function(id){
   if (!ofCan('delete-form')) return msg('ไม่มีสิทธิ์ลบแบบฟอร์ม', 'warn');
   const f = forms.find(x => x.id === id); if (!f) return;
   const used = responses.filter(r => r.form_key === f.key).length;
   if (!confirm(`ลบแบบฟอร์ม "${f.title}" ?\n\n` +
-    (used ? `มีผลที่กรอกไว้แล้ว ${used} รายการ — ผลจะไม่ถูกลบ แต่จะดูคำถามรายข้อไม่ได้อีก\n\n` : '') +
+    (used ? `มีคำตอบที่ส่งมาแล้ว ${used} รายการ — คำตอบจะไม่ถูกลบ แต่จะไม่มีตัวฟอร์มให้เทียบคำถาม\n\n` : '') +
     'ยืนยันการลบ?')) return;
-  const { error } = await SB.from('of_forms').delete().eq('id', id);
+  const { error } = await SB.from('fm_forms').delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
-  msg('ลบเรียบร้อย'); go('forms');
+  msg('ลบเรียบร้อย'); await loadForms(); renderForms();
 };
 
-/* ── ตัวช่วยแปลงค่าที่เก็บใน rules/scale/subject_filter ให้เป็นค่าของช่องกรอก ──
-   ข้อมูลยังเก็บรูปแบบเดิมทุกอย่าง เปลี่ยนแค่วิธีกรอกจากพิมพ์ JSON เป็นกดเลือก */
-const SCALE_YESNO = [
-  { v:5, label:'ผ่าน',    hint:'ทำได้ตามมาตรฐาน' },
-  { v:1, label:'ไม่ผ่าน', hint:'ยังทำไม่ได้' },
-  { v:'na', label:'N/A',  hint:'ยังไม่ได้ดู' }
-];
-function scaleKind(f){
-  const sc = f.scale || [];
-  if (sc.filter(o => o.v !== 'na').length === 2) return 'yesno';
-  return sc.some(o => o.v === 'na') ? '1-5-na' : '1-5';
-}
-function passMode(f){ const p = (f.rules||{}).pass; return (p && p.by === 'level') ? 'level' : 'one'; }
-function passOne(f){
-  const p = (f.rules||{}).pass;
-  if (typeof p === 'number') return p;
-  return (p && p.default != null) ? p.default : 70;
-}
-function passOf(f, lv){
-  const p = (f.rules||{}).pass;
-  if (typeof p === 'number') return p;
-  const m = (p && p.map) || {};
-  if (m[lv] != null) return m[lv];
-  if (p && p.default != null) return p.default;
-  return lv === 'gold' ? 80 : 70;
-}
-function hasF(f, k, v){
-  const a = (f.subject_filter || {})[k];
-  return Array.isArray(a) ? a.includes(v) : a === v;
-}
-
-/* ── เงื่อนไขตกทันที (knockouts) ── */
-function koList(){
-  editing.rules = editing.rules || {};
-  if (!Array.isArray(editing.rules.knockouts)) editing.rules.knockouts = [];
-  return editing.rules.knockouts;
-}
-function secLabels(){
-  const seen = [];
-  (editing.sections||[]).forEach(s => { if (s.label && !seen.includes(s.label)) seen.push(s.label); });
-  return seen;
-}
-function renderKoList(){
-  const box = document.getElementById('eKoList');
-  if (!box) return;
-  const list = koList(), labels = secLabels();
-  if (!list.length){ box.innerHTML = '<p class="ko-empty">ยังไม่มีเงื่อนไข — ตัดสินจากคะแนนรวมอย่างเดียว</p>'; return; }
-  box.innerHTML = list.map((k,i) => {
-    const isPct = k.type === 'minPct';
-    const lvl = (k.when || {}).level || '';
-    return `<div class="ko-row">
-      <select onchange="setKo(${i},'type',this.value)">
-        <option value="minScore" ${!isPct?'selected':''}>มีข้อที่ได้คะแนนต่ำเกินไป</option>
-        <option value="minPct" ${isPct?'selected':''}>คะแนนทั้งหมวดต่ำเกินไป</option>
-      </select>
-      <select onchange="setKo(${i},'section',this.value)">
-        ${labels.map(L => `<option value="${esc(L)}" ${k.section===L?'selected':''}>หมวด ${esc(L)}</option>`).join('')}
-      </select>
-      <input type="number" min="0" max="100" value="${isPct ? (k.pct??70) : (k.min??2)}"
-             onchange="setKo(${i},'${isPct?'pct':'min'}',+this.value)">
-      <span class="muted" style="font-size:13.5px">${isPct?'% ขึ้นไป':'คะแนนขึ้นไป'}</span>
-      <select onchange="setKo(${i},'level',this.value)">
-        <option value="" ${!lvl?'selected':''}>ทุกระดับ</option>
-        <option value="silver" ${lvl==='silver'?'selected':''}>เฉพาะ Silver</option>
-        <option value="gold" ${lvl==='gold'?'selected':''}>เฉพาะ Gold</option>
-      </select>
-      <button class="btn btn-danger btn-sm ko-del" onclick="delKo(${i})">ลบ</button>
-    </div>`;
-  }).join('');
-}
-window.addKo = () => {
-  const labels = secLabels();
-  if (!labels.length) return msg('ยังไม่มีหมวดคำถาม — เพิ่มหมวดก่อน', 'err');
-  koList().push({ type:'minScore', section:labels[0], min:2, when:{} });
-  renderKoList();
+const dtLocal = v => v ? new Date(v).toISOString().slice(0,16) : '';
+window.setF = function(k, v){ editing[k] = v; };
+window.addQ = function(type){
+  editing.questions.push({ id:'q' + (Date.now().toString(36)) + editing.questions.length,
+    type, label:'', help:'', required:false, options: hasOptions(type) ? ['ตัวเลือก 1','ตัวเลือก 2'] : [], min:1, max:5 });
+  renderEditor();
 };
-window.delKo = i => { koList().splice(i,1); renderKoList(); };
-window.setKo = (i,k,v) => {
-  const ko = koList()[i];
-  if (!ko) return;
-  if (k === 'level'){ ko.when = v ? { level:v } : {}; }
-  else if (k === 'type'){
-    ko.type = v;
-    if (v === 'minPct'){ ko.pct = ko.pct ?? 70; delete ko.min; }
-    else { ko.min = ko.min ?? 2; delete ko.pct; }
-    delete ko.note;            /* คำอธิบายเดิมไม่ตรงกับเงื่อนไขใหม่แล้ว */
-    renderKoList(); return;
-  }
-  else ko[k] = v;
+window.setQ = function(i, k, v){ editing.questions[i][k] = v; };
+window.setQOpts = function(i, v){ editing.questions[i].options = v.split('\n').map(x => x.trim()).filter(Boolean); };
+window.delQ = function(i){ editing.questions.splice(i, 1); renderEditor(); };
+window.moveQ = function(i, d){
+  const j = i + d; if (j < 0 || j >= editing.questions.length) return;
+  const q = editing.questions.splice(i, 1)[0];
+  editing.questions.splice(j, 0, q); renderEditor();
 };
+window.cancelEdit = function(){ editing = null; go('forms'); };
 
-/* แสดง/ซ่อนช่องที่เกี่ยวข้องกับตัวเลือกที่กดอยู่ */
-function syncEditorParts(){
-  const lvl = segGet('ePassMode') === 'level';
-  const one = document.getElementById('ePassOne'), many = document.getElementById('ePassLevel');
-  if (one)  one.hidden  = lvl;
-  if (many) many.hidden = !lvl;
-  const box = document.getElementById('eFilterBox'), req = document.getElementById('eSubReq');
-  if (box && req) box.hidden = !req.checked;
+function grabEditor(){
+  document.querySelectorAll('#view [data-f]').forEach(el => {
+    const k = el.dataset.f;
+    editing[k] = el.type === 'checkbox' ? el.checked : el.value;
+  });
+  document.querySelectorAll('#view [data-qi]').forEach(el => {
+    const i = +el.dataset.qi, k = el.dataset.qk;
+    if (k === 'options') setQOpts(i, el.value);
+    else editing.questions[i][k] = el.type === 'checkbox' ? el.checked : el.value;
+  });
 }
 
 function renderEditor(){
-  /* รายชื่อสาขามาจากคนจริงในระบบ ไม่ได้ฮาร์ดโค้ด — รวมของที่ฟอร์มนี้เคยเลือกไว้ด้วย
-     เผื่อสาขานั้นยังไม่มีพนักงานในระบบ จะได้ไม่หายไปเงียบ ๆ ตอนกดบันทึกครั้งถัดไป */
-  const allBranches = [...new Set([
-    ...people.map(p => p.branch).filter(Boolean),
-    ...((editing && editing.visible_branches) || [])
-  ])].sort();
-  const f = editing;
-  const totalByVariant = {};
-  (f.sections||[]).forEach(s => {
-    const k = JSON.stringify(s.when || {});
-    totalByVariant[k] = (totalByVariant[k] || 0) + (+s.w || 0);
-  });
-  const warn = Object.entries(totalByVariant).filter(([,v]) => Math.round(v) !== 100);
-
+  const e = editing;
   $('#view').innerHTML = `
     <div class="card">
-      <div class="modal-head">
-        <div><h2>${f.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
-          <p class="sub" style="margin:0">แก้เสร็จแล้วต้องกดบันทึก ระบบไม่บันทึกให้อัตโนมัติ</p></div>
-        <button class="btn btn-secondary btn-sm" onclick="cancelEdit()">ยกเลิก</button>
-      </div>
-
+      <h2>${e.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
       <div class="grid2">
-        <div class="field"><label>ชื่อแบบฟอร์ม</label><input id="eTitle" value="${esc(f.title)}"></div>
-        <div class="field"><label>รหัสฟอร์ม (ภาษาอังกฤษ ห้ามซ้ำ)</label>
-          <input id="eKey" value="${esc(f.key)}" ${f.id?'disabled':''} placeholder="เช่น silver-gold">
-          ${f.id?'<p class="sub" style="margin:6px 0 0;font-size:13px">แก้ไม่ได้ เพราะผลที่กรอกไว้อ้างอิงรหัสนี้</p>':''}
+        <div><label>ชื่อแบบฟอร์ม</label><input data-f="title" value="${esc(e.title)}" placeholder="เช่น แบบสำรวจความพร้อมสาขา"></div>
+        <div><label>ไอคอน</label><input data-f="emoji" value="${esc(e.emoji)}" maxlength="4"></div>
+      </div>
+      <div style="margin-top:12px"><label>คำอธิบายสั้น</label><input data-f="description" value="${esc(e.description || '')}"></div>
+      <div class="grid3" style="margin-top:12px">
+        <div><label>สถานะ</label><select data-f="status">
+          ${['draft','open','closed'].map(s => `<option value="${s}" ${e.status===s?'selected':''}>${
+            s==='draft'?'ร่าง (ยังไม่ให้ใครเห็น)':s==='open'?'เปิดให้ตอบ':'ปิดรับคำตอบ'}</option>`).join('')}</select></div>
+        <div><label>เปิดรับตั้งแต่ (ไม่ใส่ = ทันที)</label><input type="datetime-local" data-f="open_at" value="${dtLocal(e.open_at)}"></div>
+        <div><label>ปิดรับเมื่อ (ไม่ใส่ = ไม่จำกัด)</label><input type="datetime-local" data-f="close_at" value="${dtLocal(e.close_at)}"></div>
+      </div>
+      <div style="margin-top:12px">
+        <label>ตอบซ้ำได้ไหม</label>
+        <div class="seg">
+          <button type="button" class="${e.once_per_user ? 'on' : ''}" onclick="setOnce(true)">ตอบได้ครั้งเดียว</button>
+          <button type="button" class="${e.once_per_user ? '' : 'on'}" onclick="setOnce(false)">ตอบได้หลายครั้ง</button>
         </div>
       </div>
-      <div class="field"><label>คำอธิบาย</label><input id="eDesc" value="${esc(f.description||'')}"></div>
-      <div class="grid3">
-        <div class="field"><label>ไอคอน</label><input id="eEmoji" value="${esc(f.emoji||'📋')}"></div>
-        <div class="field"><label>รอบเก็บข้อมูล</label><input id="eRound" value="${esc(f.round||'')}" placeholder="รอบที่ 1 / 2569"></div>
-        <div class="field"><label>สถานะ</label><select id="eStatus">
-          <option value="draft"  ${f.status==='draft'?'selected':''}>ร่าง — ยังไม่ให้ใครกรอก</option>
-          <option value="open"   ${f.status==='open'?'selected':''}>เปิดกรอก</option>
-          <option value="closed" ${f.status==='closed'?'selected':''}>ปิดแล้ว</option>
-        </select></div>
-      </div>
-      <p class="sub" style="margin:0">เปลี่ยน "รอบ" = เปิดให้คนที่เคยกรอกแล้วกรอกได้อีกครั้ง โดยผลรอบเก่ายังอยู่ครบ</p>
     </div>
 
-
-    ${!VIS_READY ? `
-    <div class="card">
-      <h2>ใครเห็นแบบฟอร์มนี้ · ใครเห็นคะแนน</h2>
-      <div class="notice warn show" style="margin:0">
-        ยังใช้ไม่ได้ — ต้องรันไฟล์ <b>supabase/online-form-visibility.sql</b>
-        ในโปรเจกต์ FAB HUB ก่อน (Supabase → SQL Editor → วางทั้งไฟล์ → Run)
-        แล้วรีเฟรชหน้านี้<br>
-        <span style="font-weight:400">ระหว่างนี้ทุกสาขายังเห็นฟอร์มที่เปิดกรอกทั้งหมดเหมือนเดิม</span>
-      </div>
-    </div>` : `
     <div class="card">
       <h2>ใครเห็นแบบฟอร์มนี้</h2>
-      <p class="sub">ไม่เลือกอะไรเลย = ทุกสาขาเห็น · เลือกทั้งสองช่อง = ต้องเข้าเงื่อนไขทั้งคู่
-        (เช่น แบรนด์ซานตาเฟ่ เฉพาะ 3 สาขาที่ติ๊กไว้)<br>
-        ทีมสำนักงานเห็นทุกฟอร์มเสมอ เพราะกรอกแทนได้ทุกสาขาอยู่แล้ว</p>
-
-      <div class="field">
-        <span class="field-label">แบรนด์</span>
-        <div class="choice-list">
-          ${BRANDS.map(([, label]) => `
-            <label><input type="checkbox" class="fBrand" value="${esc(label)}"
-              ${(f.visible_brands||[]).includes(label) ? 'checked' : ''}> ${esc(label)}</label>`).join('')}
+      <p class="sub">ไม่เลือกอะไรเลย = ทุกคนเห็น</p>
+      <div class="grid2">
+        <div><label>เฉพาะแบรนด์</label>
+          <div class="seg">${BRANDS.map(([,b]) =>
+            `<button type="button" class="${(e.visible_brands||[]).includes(b)?'on':''}" onclick="togBrand('${esc(b).replace(/'/g,"\\'")}')">${esc(b)}</button>`).join('')}</div>
+        </div>
+        <div><label>เฉพาะสาขา (${(e.visible_branches||[]).length} สาขา)</label>
+          <select id="edBranchPick" onchange="addBranch(this.value)">
+            <option value="">+ เพิ่มสาขา…</option>
+            ${HUB_BRANCHES.filter(b => !(e.visible_branches||[]).includes(b.name)).map(b =>
+              `<option value="${esc(b.name)}">${esc(b.label)}</option>`).join('')}
+          </select>
+          <div class="seg" style="margin-top:8px">${(e.visible_branches||[]).map(b =>
+            `<button type="button" class="on" onclick="rmBranch('${esc(b).replace(/'/g,"\\'")}')">${esc(b)} ✕</button>`).join('')}</div>
         </div>
       </div>
+    </div>
 
-      <div class="field">
-        <span class="field-label">สาขา <span class="muted" style="font-weight:400">— ติ๊กเฉพาะสาขาที่ต้องการ</span></span>
-        ${allBranches.length ? `
-          <div class="row-btns" style="margin-bottom:8px">
-            <button type="button" class="btn btn-secondary btn-sm" onclick="pickBranches(true)">เลือกทั้งหมด</button>
-            <button type="button" class="btn btn-secondary btn-sm" onclick="pickBranches(false)">ล้างทั้งหมด</button>
+    <div class="card">
+      <h2>คำถาม (${e.questions.length} ข้อ)</h2>
+      <div class="seg" style="margin-bottom:12px">
+        ${Q_TYPES.map(t => `<button type="button" onclick="addQTyped('${t.id}')">${t.icon} + ${esc(t.label)}</button>`).join('')}
+      </div>
+      ${e.questions.map((q, i) => `
+        <div class="card" style="margin:0 0 12px;background:#fafbfc">
+          <div class="row-btns" style="justify-content:space-between;margin-bottom:8px">
+            <b>ข้อ ${i + 1} · ${esc(qTypeLabel(q.type))}</b>
+            <span class="row-btns">
+              <button class="btn btn-secondary btn-sm" onclick="moveQ(${i},-1)">↑</button>
+              <button class="btn btn-secondary btn-sm" onclick="moveQ(${i},1)">↓</button>
+              <button class="btn btn-danger btn-sm" onclick="delQ(${i})">ลบ</button>
+            </span>
           </div>
-          <div class="branch-pick">
-            ${allBranches.map(b => `
-              <label><input type="checkbox" class="fBranch" value="${esc(b)}"
-                ${(f.visible_branches||[]).includes(b) ? 'checked' : ''}> ${esc(b)}</label>`).join('')}
-          </div>`
-        : '<p class="muted">ยังไม่มีรายชื่อสาขาในระบบ — เพิ่มรายชื่อพนักงานที่แท็บ <b>รายชื่อ</b> ก่อน แล้วชื่อสาขาจะขึ้นมาให้ติ๊กเอง</p>'}
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>ใครเห็นคะแนน</h2>
-      <p class="sub">คะแนนถูกคิดและเก็บไว้เสมอ สวิตช์นี้คุมแค่ว่าจะเปิดให้ใครเห็นบ้าง
-        — ทีมสำนักงานเห็นได้ทุกฟอร์มอยู่แล้วที่แท็บผลตอบกลับ</p>
-
-      <div class="choice-list">
-        <label><input type="checkbox" id="eScoreRater" ${f.show_score_to_rater ? 'checked' : ''}>
-          <span>คนกรอกเห็นคะแนนทันทีหลังกดส่ง
-            <br><span class="muted" style="font-size:13px">เหมาะกับแบบทดสอบตัวเอง · ไม่เหมาะกับฟอร์มประเมินเพื่อน</span></span></label>
-        <label><input type="checkbox" id="eScoreBranch" ${f.show_score_to_branch ? 'checked' : ''}>
-          <span>สาขาเปิดดูสรุปคะแนนของสาขาตัวเองได้
-            <br><span class="muted" style="font-size:13px">เห็นเฉพาะของสาขาตัวเอง ไม่เห็นสาขาอื่น</span></span></label>
-      </div>
-    </div>`}
-
-    <div class="card">
-      <h2>หมวดและคำถาม</h2>
-      <p class="sub">น้ำหนักรวมของแต่ละเส้นทางควรได้ 100%
-        ${warn.length ? `<span style="color:var(--red)">— ตอนนี้มีเส้นทางที่รวมได้ ${warn.map(([k,v])=>Math.round(v)+'%').join(', ')}</span>` : '<span style="color:var(--green)">— ครบ 100% ทุกเส้นทาง</span>'}</p>
-      <div id="secList">${(f.sections||[]).map((s,i)=>secEditHtml(s,i)).join('') || '<div class="empty">ยังไม่มีหมวดคำถาม</div>'}</div>
-      <button class="btn btn-secondary" onclick="addSection()">+ เพิ่มหมวด</button>
-    </div>
-
-    <div class="card">
-      <h2>คำถามท้ายฟอร์ม</h2>
-      <p class="sub">คำถามปลายเปิดหรือตัวเลือก ที่ไม่คิดคะแนน</p>
-      <div id="clList">${(f.closing||[]).map((c,i)=>closingEditHtml(c,i)).join('') || '<p class="muted">ยังไม่มี</p>'}</div>
-      <div class="row-btns" style="margin-top:10px">
-        <button class="btn btn-secondary btn-sm" onclick="addClosing('text')">+ คำถามปลายเปิด</button>
-        <button class="btn btn-secondary btn-sm" onclick="addClosing('choice')">+ คำถามตัวเลือก</button>
-      </div>
-    </div>
-
-    <div class="card">
-      <h2>เกณฑ์คะแนนและกติกา</h2>
-      <p class="sub">ตั้งค่าจากช่องด้านล่างได้เลย ไม่ต้องพิมพ์โค้ด</p>
-
-      <div class="field">
-        <span class="field-label">ตัวเลือกคะแนนของแต่ละข้อ</span>
-        <div class="seg" id="eScaleSeg">
-          <button type="button" data-v="1-5-na">1–5 และ N/A</button>
-          <button type="button" data-v="1-5">1–5 ไม่มี N/A</button>
-          <button type="button" data-v="yesno">ผ่าน / ไม่ผ่าน</button>
-        </div>
-        <p class="sub" style="margin:8px 0 0;font-size:13px">N/A คือ “ยังไม่มีโอกาสประเมิน” — ข้อที่ตอบ N/A จะไม่ถูกนำมาคิดคะแนน</p>
-      </div>
-
-      <div class="field">
-        <span class="field-label">เกณฑ์ผ่าน</span>
-        <div class="seg" id="ePassMode">
-          <button type="button" data-v="one">เกณฑ์เดียวทุกคน</button>
-          <button type="button" data-v="level">แยกตาม Silver / Gold</button>
-        </div>
-        <div class="pass-rows" id="ePassOne">
-          <label class="inline">ผ่านที่ <input type="number" id="ePassAll" min="0" max="100" value="${passOne(f)}"> %</label>
-        </div>
-        <div class="pass-rows" id="ePassLevel">
-          <label class="inline">Silver ผ่านที่ <input type="number" id="ePassSilver" min="0" max="100" value="${passOf(f,'silver')}"> %</label>
-          <label class="inline">Gold ผ่านที่ <input type="number" id="ePassGold" min="0" max="100" value="${passOf(f,'gold')}"> %</label>
-        </div>
-      </div>
-
-      <div class="field">
-        <span class="field-label">เงื่อนไขตกทันที</span>
-        <p class="sub" style="margin:0 0 10px;font-size:13px">ถึงคะแนนรวมจะผ่านเกณฑ์ ถ้าเข้าเงื่อนไขข้อใดข้อหนึ่งนี้ก็ถือว่าไม่ผ่าน</p>
-        <div id="eKoList"></div>
-        <button class="btn btn-secondary btn-sm" onclick="addKo()" style="margin-top:9px">+ เพิ่มเงื่อนไข</button>
-      </div>
-
-      <div class="field">
-        <span class="field-label">ฟอร์มนี้ประเมินใคร</span>
-        <label class="inline"><input type="checkbox" id="eSubReq" ${f.subject_required?'checked':''}> ต้องเลือกชื่อคนที่ถูกประเมิน</label>
-        <p class="sub" style="margin:6px 0 10px;font-size:13px">ไม่ติ๊ก = แบบสำรวจทั่วไป หนึ่งคนตอบได้หนึ่งครั้ง ไม่ต้องเลือกชื่อใคร</p>
-        <div id="eFilterBox">
-          <span class="field-label" style="font-size:13px;font-weight:600">คัดเฉพาะคนที่มีคุณสมบัตินี้ (ไม่ติ๊กเลย = ทุกคนในรายชื่อ)</span>
-          <div class="chk-row">
-            <label class="inline"><input type="checkbox" class="fLv" value="silver" ${hasF(f,'level','silver')?'checked':''}> Silver</label>
-            <label class="inline"><input type="checkbox" class="fLv" value="gold" ${hasF(f,'level','gold')?'checked':''}> Gold</label>
-            <label class="inline"><input type="checkbox" class="fSt" value="service" ${hasF(f,'station','service')?'checked':''}> บริการ</label>
-            <label class="inline"><input type="checkbox" class="fSt" value="kitchen" ${hasF(f,'station','kitchen')?'checked':''}> ครัว</label>
-          </div>
-        </div>
-      </div>
+          <input data-qi="${i}" data-qk="label" value="${esc(q.label)}" placeholder="คำถาม">
+          <input data-qi="${i}" data-qk="help" value="${esc(q.help || '')}" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px">
+          ${hasOptions(q.type) ? `<label style="margin-top:10px">ตัวเลือก (บรรทัดละ 1 ข้อ)</label>
+            <textarea data-qi="${i}" data-qk="options">${esc((q.options || []).join('\n'))}</textarea>` : ''}
+          ${q.type === 'scale' ? `<div class="grid2" style="margin-top:10px">
+            <div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div>
+            <div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div>
+          </div>` : ''}
+          <label style="margin-top:10px;font-weight:600">
+            <input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''} style="width:auto;margin-right:7px">ต้องตอบข้อนี้
+          </label>
+        </div>`).join('') || '<div class="empty">ยังไม่มีคำถาม — กดปุ่มด้านบนเพื่อเพิ่ม</div>'}
     </div>
 
     <div class="card">
@@ -2419,158 +1162,53 @@ function renderEditor(){
         <button class="btn btn-secondary" onclick="cancelEdit()">ยกเลิก</button>
       </div>
     </div>`;
-
-  segSet('eScaleSeg', scaleKind(f));
-  segSet('ePassMode', passMode(f), syncEditorParts);
-  const req = $('#eSubReq');
-  if (req) req.onchange = syncEditorParts;
-  renderKoList();
-  syncEditorParts();
 }
-
-function secEditHtml(s, i){
-  return `<div class="sec-edit" data-sec="${i}">
-    <div class="sec-top">
-      <div><label>ตัวอักษร</label><input value="${esc(s.label||'')}" oninput="setSec(${i},'label',this.value)"></div>
-      <div><label>ชื่อหมวด</label><input value="${esc(s.name||'')}" oninput="setSec(${i},'name',this.value)"></div>
-      <div><label>น้ำหนัก %</label><input type="number" min="0" max="100" value="${s.w||0}" oninput="setSec(${i},'w',+this.value)"></div>
-      <div><button class="btn btn-danger btn-sm" onclick="delSection(${i})">ลบหมวด</button></div>
-    </div>
-    <div class="when-row">
-      <div><label>หมวดนี้ใช้กับระดับ</label>
-        <select onchange="setWhenPart(${i},'level',this.value)">
-          <option value="" ${!(s.when||{}).level?'selected':''}>ทุกระดับ</option>
-          <option value="silver" ${(s.when||{}).level==='silver'?'selected':''}>Silver</option>
-          <option value="gold" ${(s.when||{}).level==='gold'?'selected':''}>Gold</option>
-        </select></div>
-      <div><label>และหน้างาน</label>
-        <select onchange="setWhenPart(${i},'station',this.value)">
-          <option value="" ${!(s.when||{}).station?'selected':''}>ทุกหน้างาน</option>
-          <option value="service" ${(s.when||{}).station==='service'?'selected':''}>บริการ</option>
-          <option value="kitchen" ${(s.when||{}).station==='kitchen'?'selected':''}>ครัว</option>
-        </select></div>
-    </div>
-    ${(s.q||[]).map((t,j)=>`<div class="q-edit">
-      <span class="qi">${j+1}.</span>
-      <textarea oninput="setQ(${i},${j},this.value)">${esc(t)}</textarea>
-      <button class="btn btn-danger btn-sm" onclick="delQ(${i},${j})">ลบ</button>
-    </div>`).join('')}
-    <button class="btn btn-secondary btn-sm" onclick="addQ(${i})">+ เพิ่มข้อ</button>
-  </div>`;
-}
-
-function closingEditHtml(c, i){
-  return `<div class="sec-edit">
-    <div class="sec-top">
-      <div><label>รหัส</label><input value="${esc(c.key||'')}" oninput="setCl(${i},'key',this.value)"></div>
-      <div><label>คำถาม</label><input value="${esc(c.label||'')}" oninput="setCl(${i},'label',this.value)"></div>
-      <div><label>บังคับตอบ</label><select onchange="setCl(${i},'required',this.value==='1')">
-        <option value="0" ${c.required?'':'selected'}>ไม่บังคับ</option>
-        <option value="1" ${c.required?'selected':''}>บังคับ</option></select></div>
-      <div><button class="btn btn-danger btn-sm" onclick="delClosing(${i})">ลบ</button></div>
-    </div>
-    ${c.type === 'choice'
-      ? `<div class="field" style="margin:0"><label>ตัวเลือก (บรรทัดละ 1 ข้อ)</label>
-         <textarea class="code" oninput="setClOpts(${i},this.value)">${esc((c.options||[]).join('\n'))}</textarea></div>`
-      : `<p class="muted" style="margin:0;font-size:13.5px">คำถามปลายเปิด — ผู้กรอกพิมพ์ตอบเอง</p>`}
-  </div>`;
-}
-
-/* ตัวช่วยแก้ไขในหน่วยความจำ — เรนเดอร์ใหม่เฉพาะตอนที่โครงเปลี่ยน
-   ไม่งั้นช่องที่กำลังพิมพ์จะเสียโฟกัสทุกตัวอักษร */
-window.setSec = (i,k,v) => { editing.sections[i][k] = v; };
-window.setSecWhen = (i,v) => { try{ editing.sections[i].when = v.trim() ? JSON.parse(v) : {}; }catch(e){} };
-window.setQ   = (i,j,v) => { editing.sections[i].q[j] = v; };
-window.setCl  = (i,k,v) => { editing.closing[i][k] = v; };
-window.setClOpts = (i,v) => { editing.closing[i].options = v.split('\n').map(x=>x.trim()).filter(Boolean); };
-window.addQ = i => { editing.sections[i].q.push(''); renderEditor(); };
-window.delQ = (i,j) => { editing.sections[i].q.splice(j,1); renderEditor(); };
-window.delSection = i => { if (confirm('ลบหมวดนี้พร้อมคำถามทั้งหมด?')) { editing.sections.splice(i,1); renderEditor(); } };
-window.addSection = () => {
-  const label = String.fromCharCode(65 + (editing.sections.length % 26));
-  editing.sections.push({ sid:'s'+Date.now().toString(36), label, name:'', w:0, when:{}, q:[''] });
+window.setOnce = function(v){ grabEditor(); editing.once_per_user = v; renderEditor(); };
+window.addQTyped = function(t){ grabEditor(); addQ(t); };
+window.togBrand = function(b){
+  grabEditor();
+  const cur = editing.visible_brands || [];
+  editing.visible_brands = cur.includes(b) ? cur.filter(x => x !== b) : cur.concat([b]);
   renderEditor();
 };
-window.addClosing = type => {
-  editing.closing.push({ key:'q'+(editing.closing.length+1), type, label:'', required:false, options:type==='choice'?['']:undefined });
+window.addBranch = function(v){
+  if (!v) return;
+  grabEditor();
+  const cur = editing.visible_branches || [];
+  if (!cur.includes(v)) editing.visible_branches = cur.concat([v]);
   renderEditor();
 };
-window.delClosing = i => { editing.closing.splice(i,1); renderEditor(); };
-window.cancelEdit = () => { editing = null; go('forms'); };
-
-/* ติ๊ก/ล้างสาขาทั้งหมดในครั้งเดียว — สาขามีหลายสิบแห่ง ติ๊กทีละอันช้าเกินไป */
-window.pickBranches = function(on){
-  document.querySelectorAll('.fBranch').forEach(x => { x.checked = on; });
+window.rmBranch = function(b){
+  grabEditor();
+  editing.visible_branches = (editing.visible_branches || []).filter(x => x !== b);
+  renderEditor();
 };
 
 window.saveForm = async function(){
-  const f = editing;
-  f.title = $('#eTitle').value.trim();
-  if (!f.id) f.key = $('#eKey').value.trim();
-  f.description = $('#eDesc').value.trim();
-  f.emoji  = $('#eEmoji').value.trim() || '📋';
-  f.round  = $('#eRound').value.trim();
-  f.status = $('#eStatus').value;
-  f.subject_required = $('#eSubReq').checked;
+  if (!ofCan('manage-forms')) return msg('ไม่มีสิทธิ์แก้แบบฟอร์ม', 'warn');
+  grabEditor();
+  const e = editing;
+  if (!String(e.title || '').trim()) return msg('ใส่ชื่อแบบฟอร์มก่อน', 'warn');
+  if (!e.questions.length) return msg('ต้องมีคำถามอย่างน้อย 1 ข้อ', 'warn');
+  const bad = e.questions.findIndex(q => !String(q.label || '').trim());
+  if (bad >= 0) return msg(`ข้อ ${bad + 1} ยังไม่มีคำถาม`, 'warn');
 
-  if (!f.title) return msg('ยังไม่ได้ตั้งชื่อแบบฟอร์ม', 'err');
-  if (!f.key || !/^[a-z0-9-]+$/.test(f.key))
-    return msg('รหัสฟอร์มต้องเป็นภาษาอังกฤษพิมพ์เล็ก ตัวเลข หรือขีดกลางเท่านั้น', 'err');
-
-  const kind = segGet('eScaleSeg');
-  f.scale = kind === 'yesno' ? clone(SCALE_YESNO)
-          : kind === '1-5'   ? clone(SCALE_1_5).filter(o => o.v !== 'na')
-                             : clone(SCALE_1_5);
-
-  const kos = koList();
-  if (segGet('ePassMode') === 'level'){
-    const sv = +$('#ePassSilver').value || 70, gd = +$('#ePassGold').value || 80;
-    f.rules = { pass:{ by:'level', map:{ silver:sv, gold:gd }, default:sv }, knockouts:kos };
-  } else {
-    f.rules = { pass:{ default:+$('#ePassAll').value || 70 }, knockouts:kos };
-  }
-
-  const pick = sel => [...document.querySelectorAll(sel + ':checked')].map(x => x.value);
-  const lv = pick('.fLv'), st = pick('.fSt');
-
-  /* ใครเห็นฟอร์ม / ใครเห็นคะแนน — ว่าง = ทุกคน จึงเก็บเป็น array ว่างได้เลย */
-  if (VIS_READY){
-    f.visible_brands   = pick('.fBrand');
-    f.visible_branches = pick('.fBranch');
-    f.show_score_to_rater  = $('#eScoreRater').checked;
-    f.show_score_to_branch = $('#eScoreBranch').checked;
-  }
-  f.subject_filter = {};
-  if (f.subject_required){
-    if (lv.length) f.subject_filter.level = lv;
-    if (st.length) f.subject_filter.station = st;
-  }
-
-  /* รหัสหมวดต้องไม่ซ้ำ ไม่งั้นคำตอบจะทับกันเงียบ ๆ */
-  const sids = f.sections.map(s => s.sid);
-  if (new Set(sids).size !== sids.length) return msg('รหัสหมวด (sid) ซ้ำกัน — ลบหมวดที่ซ้ำแล้วเพิ่มใหม่', 'err');
-  const emptyQ = f.sections.find(s => !(s.q||[]).filter(x => x.trim()).length);
-  if (emptyQ) return msg(`หมวด "${esc(emptyQ.label)}" ยังไม่มีคำถาม`, 'err');
-  f.sections.forEach(s => { s.q = s.q.map(x => x.trim()).filter(Boolean); });
-
-  const row = clone(f);
-  delete row.created_at; delete row.updated_at;
-  /* ฐานข้อมูลยังไม่มีคอลัมน์ใหม่ → ตัดทิ้งก่อนส่ง ไม่งั้น insert/update ล้มทั้งใบ */
-  if (!VIS_READY)
-    ['visible_brands','visible_branches','show_score_to_rater','show_score_to_branch']
-      .forEach(k => delete row[k]);
-  row.updated_at = new Date().toISOString();
-
-  const q = row.id ? SB.from('of_forms').update(row).eq('id', row.id)
-                   : SB.from('of_forms').insert(row);
-  const { error } = await q;
-  if (error){
-    if (error.code === '23505') return msg('รหัสฟอร์มนี้มีอยู่แล้ว ใช้รหัสอื่น', 'err');
-    return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
-  }
+  const row = {
+    key: e.key, title: e.title.trim(), description: e.description || '', emoji: e.emoji || '📋',
+    status: e.status || 'draft', questions: e.questions,
+    visible_brands: e.visible_brands || [], visible_branches: e.visible_branches || [],
+    once_per_user: !!e.once_per_user,
+    open_at:  e.open_at  ? new Date(e.open_at).toISOString()  : null,
+    close_at: e.close_at ? new Date(e.close_at).toISOString() : null,
+    sort_order: e.sort_order || 0, updated_at: new Date().toISOString()
+  };
+  const { error } = e.id
+    ? await SB.from('fm_forms').update(row).eq('id', e.id)
+    : await SB.from('fm_forms').insert(row);
+  if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
   editing = null;
-  msg('บันทึกแบบฟอร์มเรียบร้อย');
-  go('forms');
+  msg('บันทึกแบบฟอร์มแล้ว');
+  await loadForms(); renderForms();
 };
 
 boot();
