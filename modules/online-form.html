@@ -316,6 +316,196 @@ summary{font-weight:700;cursor:pointer}
   .sysbtn{flex:none;padding:8px 13px;font-size:13px}
 }
 @media print{ .sysbar{display:none} }
+
+/* ════════ ใช้บนมือถือ ════════
+   คนส่วนใหญ่เปิดจาก LINE บนมือถือ จึงยึดมือถือเป็นหลัก:
+   เมนูอยู่แถบล่าง (นิ้วโป้งถึง) · ปุ่มหลักของแต่ละหน้าติดขอบล่างเสมอ
+   · ตารางกว้าง ๆ กลายเป็นการ์ด · ข้อความแจ้งเตือนลอยให้เห็นแม้เลื่อนลงไปแล้ว */
+:root{--tabbar-h:62px}
+.btn,.navtab,.seg button,.tab-b,.sysbtn{touch-action:manipulation;-webkit-tap-highlight-color:transparent}
+
+/* ปุ่มหลักติดขอบล่าง: วางไว้ท้ายเนื้อหา แล้วเกาะขอบล่างจอระหว่างเลื่อน */
+.actbar{position:sticky;bottom:12px;z-index:25;margin-top:6px;display:flex;align-items:center;gap:10px;
+  background:rgba(255,255,255,.96);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border:1px solid var(--line);border-radius:16px;padding:10px 12px;box-shadow:0 10px 30px rgba(16,24,40,.12)}
+.actbar .grow{flex:1;min-width:0}
+.actbar .btn{padding:11px 18px}
+.ab-note{font-size:13px;color:var(--muted);line-height:1.35}
+.ab-note b{color:var(--ink);font-size:15px}
+
+/* ── แถบเมนูล่าง (มือถือ) ── */
+.tabbar{display:none}
+@media(max-width:820px){
+  body.has-tabbar .tabbar{position:fixed;inset:auto 0 0 0;z-index:40;display:grid;grid-auto-flow:column;grid-auto-columns:1fr;
+    height:calc(var(--tabbar-h) + env(safe-area-inset-bottom));padding-bottom:env(safe-area-inset-bottom);
+    background:#fff;border-top:1px solid var(--line);box-shadow:0 -6px 20px rgba(16,24,40,.05)}
+  .tab-b{border:0;background:none;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    font-size:11.5px;font-weight:700;color:#8a919c;min-height:48px;position:relative;padding:0}
+  .tab-b svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .tab-b[aria-current="page"]{color:var(--orange)}
+  .tab-b[aria-current="page"]::before{content:"";position:absolute;top:0;left:30%;right:30%;height:3px;border-radius:0 0 3px 3px;background:var(--orange)}
+  body.has-tabbar main{padding-bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 20px)}
+  body.has-tabbar .actbar{bottom:calc(var(--tabbar-h) + env(safe-area-inset-bottom) + 10px)}
+  .navtabs{display:none}   /* มือถือใช้แถบล่างแทน · ตอนตอบ/แก้ฟอร์มมีปุ่มยกเลิกให้กลับ */
+  .grid3{grid-template-columns:1fr}
+
+  /* แถบบนเหลือแถวเดียว: ปุ่มกลับเป็นไอคอน · ชื่อระบบ · ชื่อผู้ใช้ */
+  .topbar{flex-wrap:nowrap;padding:9px 12px;gap:10px}
+  .btn-back{padding:0;width:38px;height:38px;justify-content:center;border-radius:12px;flex:none}
+  .btn-back span{display:none}
+  .topbar>div:nth-child(2){min-width:0;flex:1}
+  .tb-title{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .tb-right{flex:0 1 auto;min-width:0}
+  body:not(.has-tabbar) .tb-right{flex:0 1 auto}
+
+  /* ข้อความแจ้งเตือนลอยใต้แถบบน เห็นได้แม้เลื่อนลงไปกลางฟอร์มแล้ว */
+  .notice.show{position:fixed;left:12px;right:12px;top:64px;z-index:70;margin:0;box-shadow:0 12px 30px rgba(16,24,40,.18)}
+
+  main{padding:12px 12px 28px}
+  .card{border-radius:16px;margin-bottom:12px;padding:15px}
+  h2{font-size:17.5px}
+  .sub{font-size:13.5px;margin-bottom:12px}
+  input,select,textarea{font-size:16px;padding:11px 12px}   /* 16px = iPhone ไม่ซูมเข้าเองตอนแตะช่อง */
+  .sysbar{display:grid;grid-template-columns:1fr 1fr;gap:4px;background:#e9ebef;border-radius:13px;padding:4px;margin-bottom:12px}
+  .sysbtn{justify-content:center;box-shadow:none;border:0;background:transparent;padding:8px 6px;font-size:13px;border-radius:10px;white-space:nowrap}
+  .sysbtn.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+  .actbar{border-radius:14px;padding:9px 10px}
+  .actbar .btn{padding:12px 16px;font-size:15px}
+}
+
+/* ── รายการฟอร์ม ── */
+.lh{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin:2px 2px 10px}
+.lh h2{margin:0}
+.lh .cnt{font-size:13px;color:var(--muted);font-weight:600}
+.lh .cnt b{color:var(--orange)}
+.fr-line{font-size:12.5px;color:var(--muted);display:flex;flex-wrap:wrap;gap:2px 0}
+.fr-line span+span::before{content:"·";margin:0 6px;color:#c3c8d0}
+.fr-line .due{color:#b33a05;font-weight:700}
+.list-sec{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.3px;margin:16px 4px 8px}
+@media(max-width:820px){
+  .form-rows{gap:8px}
+  .form-row{padding:13px 13px;gap:12px;align-items:center}
+  .fr-emoji{font-size:24px;width:40px;height:40px;border-radius:12px;background:var(--orange-soft);display:grid;place-items:center}
+  .form-item.off .fr-emoji{background:#f2f4f7}
+  .fr-title{font-size:15px;line-height:1.35}
+  .fr-desc{font-size:12.5px;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+  .form-item.clickable:hover{transform:none}
+  .form-item.clickable:active{transform:scale(.985)}
+}
+
+/* ── ตอบแบบฟอร์ม ── */
+.fill-head{display:flex;gap:12px;align-items:flex-start}
+.fill-head .fr-emoji{font-size:28px}
+.fill-head h2{margin:0 0 2px;line-height:1.3}
+.fill-head p{margin:0;color:var(--muted);font-size:13.5px}
+.fill-prog{height:6px;background:#eef0f3;border-radius:99px;overflow:hidden;margin-top:12px}
+.fill-prog span{display:block;height:100%;background:var(--orange);border-radius:99px;transition:width .25s ease}
+.qcard{background:#fff;border:1px solid var(--line);border-radius:16px;padding:15px;margin-bottom:10px;scroll-margin-top:80px}
+.qcard.miss{border-color:#f3b4ac;background:#fffafa}
+.qcard.miss .qhint{display:block}
+.qhint{display:none;color:var(--red);font-size:12.5px;font-weight:700;margin-top:8px}
+.qlab{display:flex;gap:9px;align-items:flex-start;font-weight:700;font-size:15px;line-height:1.45;margin-bottom:10px}
+.qno{flex:none;min-width:24px;height:24px;border-radius:8px;background:var(--orange-soft);color:#b33a05;font-size:12.5px;font-weight:800;display:grid;place-items:center;margin-top:1px}
+.qcard.done .qno{background:var(--orange);color:#fff}
+.qreq{color:var(--red);margin-left:2px}
+.qhelp{font-size:13px;color:var(--muted);margin:-4px 0 10px 33px}
+.seg.scale{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:6px}
+.seg.scale button{min-width:0;padding:11px 0;font-size:15px}
+.seg.choice button{min-height:46px}
+.seg.multi button.on::before{content:"✓ "}
+@media(max-width:820px){
+  .seg button{min-height:46px;font-size:14.5px}
+  .qcard{padding:14px 13px}
+}
+
+/* ── คำตอบ ── */
+.flt{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) minmax(0,1.5fr);gap:10px}
+.flt label{font-size:12.5px;color:var(--muted);margin-bottom:4px}
+.tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.strip{display:flex;gap:18px;flex-wrap:wrap;align-items:baseline;padding:2px 4px 12px;font-size:13px;color:var(--muted)}
+.strip b{font-size:20px;color:var(--ink);font-weight:800;margin-right:4px;font-variant-numeric:tabular-nums}
+.rcards{display:none}
+.rc{background:#fff;border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-bottom:8px;cursor:pointer}
+.rc:active{background:#fafbfc}
+.rc-top{display:flex;gap:10px;align-items:baseline}
+.rc-top b{font-size:14.5px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-top span{font-size:12px;color:var(--muted);flex:none}
+.rc-sub{font-size:12.5px;color:var(--muted);margin-top:1px}
+.rc-qa{margin-top:8px;display:grid;gap:4px;font-size:13px}
+.rc-qa div{display:flex;gap:8px}
+.rc-qa i{font-style:normal;color:var(--muted);flex:0 0 42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.rc-qa em{font-style:normal;font-weight:700;min-width:0;overflow-wrap:anywhere}
+.rc-more{font-size:12px;color:var(--orange);font-weight:700;margin-top:6px}
+@media(max-width:820px){
+  .flt{grid-template-columns:1fr 1fr}
+  .flt>div:first-child{grid-column:1/-1}
+  .tools .btn{flex:1;white-space:nowrap}
+  .rtable-card{display:none}
+  .rcards{display:block}
+}
+
+/* ── ติดตามสาขา ── */
+.fu-sum{display:flex;align-items:center;gap:14px}
+.fu-big{font-size:30px;font-weight:800;line-height:1;font-variant-numeric:tabular-nums}
+.fu-big small{font-size:15px;color:var(--muted);font-weight:700}
+.fu-bar{height:8px;background:#eef0f3;border-radius:99px;overflow:hidden;margin-top:10px}
+.fu-bar span{display:block;height:100%;background:var(--green);border-radius:99px}
+.fu-seg{display:grid;grid-auto-flow:column;grid-auto-columns:1fr;gap:4px;background:#e9ebef;border-radius:12px;padding:4px;margin:4px 0 10px}
+.fu-seg button{border:0;background:transparent;border-radius:9px;padding:8px 4px;font-weight:700;font-size:13.5px;color:#5b616b;min-height:40px}
+.fu-seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+.fu-seg b{font-variant-numeric:tabular-nums}
+.fu-list{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.fu-row{display:flex;align-items:center;gap:10px;padding:12px 14px;font-size:14.5px}
+.fu-row+.fu-row{border-top:1px solid var(--line)}
+.fu-row .dot{flex:none;width:9px;height:9px;border-radius:50%;background:var(--red)}
+.fu-row.ok .dot{background:var(--green)}
+.fu-row b{flex:1;min-width:0;font-weight:700}
+.fu-row .st{font-size:12.5px;font-weight:700;color:var(--red)}
+.fu-row.ok .st{color:var(--green)}
+
+/* ── จัดการฟอร์ม ── */
+.mh{display:flex;align-items:center;gap:12px;margin:2px 2px 10px}
+.mh h2{margin:0;flex:1}
+.mf{background:#fff;border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:8px}
+.mf-top{display:flex;gap:11px;align-items:flex-start}
+.mf-top .fr-emoji{font-size:22px}
+.mf-t{flex:1;min-width:0}
+.mf-t b{display:block;font-size:15px;line-height:1.35}
+.mf-acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.mf-acts .btn{flex:1 1 auto}
+.sg-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:4px}
+.sg-tiles button{border:1px solid var(--line);background:#fafbfc;border-radius:12px;padding:10px 8px;font-weight:700;font-size:13px;color:#333;min-height:46px}
+.sg-tiles button.pri{background:var(--orange);border-color:var(--orange);color:#fff}
+@media(max-width:820px){ .sg-tiles{grid-template-columns:1fr 1fr} }
+
+/* ── ตัวแก้ไขฟอร์ม ── */
+.qtypes{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}
+.qtypes button{border:1px dashed #cfd4dc;background:#fbfcfd;border-radius:12px;padding:10px 6px;font-weight:700;font-size:13px;color:#4b5563;min-height:48px;
+  display:flex;flex-direction:column;align-items:center;gap:2px;line-height:1.25}
+.qtypes button span{font-size:18px}
+.qtypes button:hover{border-color:var(--orange);color:var(--ink)}
+.qe{background:#fafbfc;border:1px solid var(--line);border-radius:14px;padding:12px;margin-bottom:10px}
+.qe-top{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.qe-top b{flex:1;font-size:13.5px}
+.ib{border:1px solid var(--line);background:#fff;border-radius:10px;width:36px;height:36px;font-size:15px;color:#555;display:grid;place-items:center;padding:0}
+.ib.del{color:var(--red);border-color:#f5c9c4;background:#fff8f7}
+.qe-req{display:flex;align-items:center;gap:8px;margin-top:10px;font-weight:600;font-size:14px}
+.qe-req input{width:20px;height:20px;accent-color:var(--orange)}
+@media(max-width:820px){ .qtypes{grid-template-columns:repeat(2,minmax(0,1fr))} }
+
+/* ── กล่องซ้อนกลายเป็นแผ่นเลื่อนขึ้นจากขอบล่างบนมือถือ ── */
+@media(max-width:640px){
+  .modal{padding:0;display:none;align-items:flex-end}
+  .modal.show{display:flex}
+  .modal-box{margin:0;width:100%;max-height:88vh;overflow:auto;border-radius:20px 20px 0 0;padding:18px 16px calc(18px + env(safe-area-inset-bottom))}
+  .modal-box::before{content:"";display:block;width:40px;height:4px;border-radius:9px;background:#d9dde4;margin:-6px auto 12px}
+  .modal-head{flex-direction:column;gap:10px}
+  .modal-head .row-btns{width:100%}
+  .modal-head .row-btns .btn{flex:1}
+  .qtable td{padding:9px 6px;vertical-align:top}
+  .qtable td:last-child{width:auto;max-width:48%}
+}
+@media print{ .tabbar,.actbar{display:none!important} }
 </style>
 </head>
 <body>
@@ -336,9 +526,10 @@ summary{font-weight:700;cursor:pointer}
   <a class="sysbtn on" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
   <a class="sysbtn" href="training-test.html">🎓 แบบทดสอบก่อน–หลังอบรม</a>
 </div>
-  <div class="notice" id="msg"></div>
+  <div class="notice" id="msg" onclick="clearMsg()"></div>
   <div id="view"><div class="loading">กำลังโหลด…</div></div>
 </main>
+<nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
 <div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
 
@@ -628,13 +819,25 @@ function renderWho(){
   $('#whoTag').innerHTML = `<div class="who-tag">
     <span class="who-nm">${esc(ME.name || 'ผู้ใช้')}</span><span class="who-role">${esc(ME.title)}</span></div>`;
 }
+/* ไอคอนแถบเมนูล่าง */
+const TAB_ICON = {
+  list:     '<svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg>',
+  results:  '<svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>',
+  followup: '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
+  forms:    '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>'
+};
 function renderNav(){
-  const tabs = [['list','แบบฟอร์ม']];
-  if (ofCan('view-results'))  tabs.push(['results','คำตอบ']);
-  if (ofCan('view-followup')) tabs.push(['followup','ติดตามสาขาที่ยังไม่ตอบ']);
-  if (ofCan('manage-forms') || sgCan('manage-forms')) tabs.push(['forms','จัดการฟอร์ม']);
+  const tabs = [['list','แบบฟอร์ม','แบบฟอร์ม']];
+  if (ofCan('view-results'))  tabs.push(['results','คำตอบ','คำตอบ']);
+  if (ofCan('view-followup')) tabs.push(['followup','ติดตามสาขาที่ยังไม่ตอบ','ติดตาม']);
+  if (ofCan('manage-forms') || sgCan('manage-forms')) tabs.push(['forms','จัดการฟอร์ม','จัดการ']);
   $('#navtabs').innerHTML = tabs.map(([k,n]) =>
     `<button class="navtab ${tab===k?'on':''}" onclick="go('${k}')">${esc(n)}</button>`).join('');
+  /* มือถือ: เมนูย้ายไปแถบล่าง · ซ่อนตอนกำลังตอบ/แก้ฟอร์ม เพื่อให้ปุ่มส่ง/บันทึกเป็นปุ่มเดียวที่ขอบล่าง */
+  const cur = tab === 'fill' ? 'list' : tab;
+  $('#tabbar').innerHTML = tabs.map(([k,,short]) =>
+    `<button class="tab-b" ${cur===k?'aria-current="page"':''} onclick="go('${k}')">${TAB_ICON[k]}<span>${esc(short)}</span></button>`).join('');
+  document.body.classList.toggle('has-tabbar', tabs.length > 1 && tab !== 'fill' && !editing);
 }
 window.go = async function(t){
   if (!tabAllowed(t)){ tab = 'list'; renderNav(); renderList(); return msg('ไม่มีสิทธิ์เข้าหน้านี้', 'warn'); }
@@ -650,6 +853,16 @@ window.go = async function(t){
 /* ══════════════════════════════════════════════════════════════════
    หน้ารายการแบบฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
+const GO_SVG = '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>';
+/* บรรทัดข้อมูลใต้ชื่อฟอร์ม · ข้อความล้วนคั่นด้วยจุด แทนป้ายหลายอันที่ตกบรรทัดบนมือถือ */
+const lineHtml = parts => `<span class="fr-line">${parts.filter(Boolean).map(x => `<span>${x}</span>`).join('')}</span>`;
+function dueText(v){
+  if (!v) return '';
+  const days = Math.ceil((Date.parse(v) - Date.now()) / 86400000);
+  if (days < 0) return '';
+  return `<b class="due">${days === 0 ? 'ปิดรับวันนี้' : days <= 3 ? 'เหลือ ' + days + ' วัน' : 'ปิดรับ ' + esc(fmtD(v))}</b>`;
+}
+
 function sgItemHtml(f){
   const open = f.status === 'open';
   const nq = (f.sections || []).reduce((a, s) => a + (s.q || []).length, 0);
@@ -659,17 +872,30 @@ function sgItemHtml(f){
       <span class="fr-body">
         <span class="fr-top">
           <span class="fr-title">${esc(f.title)}</span>
-          <span class="pill ${open ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${open ? 'เปิดกรอก' : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>
-          <span class="pill gold">ประเมินพนักงาน</span>
+          ${open ? '' : `<span class="pill ${f.status === 'draft' ? 'draft' : 'closed'}">${f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>`}
         </span>
-        <span class="fr-desc">${esc(f.description || '')}</span>
-        <span class="fr-meta">
-          ${f.round ? `<span><b>${esc(f.round)}</b></span>` : ''}
-          ${nq ? `<span>${nq} คำถาม</span>` : ''}
-          <span>เลือกพนักงานที่ถูกประเมิน · มีเกณฑ์ผ่าน</span>
-        </span>
+        ${lineHtml(['ประเมินพนักงาน', f.round ? esc(f.round) : '', nq ? nq + ' ข้อ' : ''])}
       </span>
-      ${open ? '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>' : ''}
+      ${open ? GO_SVG : ''}
+    </div>
+  </div>`;
+}
+
+function formItemHtml(f){
+  const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
+  const nq = (f.questions || []).length;
+  const pill = lock ? '<span class="pill pass">ตอบแล้ว ✓</span>'
+    : !isOpen(f) ? `<span class="pill ${f.status === 'draft' ? 'draft' : 'closed'}">${f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>`
+    : done ? '<span class="pill pass">เคยตอบแล้ว</span>' : '';
+  return `<div class="form-item ${open && !lock ? 'clickable' : 'off'}" ${open && !lock ? `onclick="startFill('${esc(f.key)}')"` : ''}>
+    <div class="form-row">
+      <span class="fr-emoji">${esc(f.emoji || '📋')}</span>
+      <span class="fr-body">
+        <span class="fr-top"><span class="fr-title">${esc(f.title)}</span>${pill}</span>
+        ${f.description ? `<span class="fr-desc">${esc(f.description)}</span>` : ''}
+        ${lineHtml([nq ? nq + ' ข้อ' : '', isOpen(f) ? dueText(f.close_at) : '', f.once_per_user ? 'ตอบได้ครั้งเดียว' : 'ตอบได้หลายครั้ง'])}
+      </span>
+      ${open && !lock ? GO_SVG : ''}
     </div>
   </div>`;
 }
@@ -681,44 +907,28 @@ function renderList(){
   const sgScores = ME.isBranch && SG_FORMS.some(f => f.show_score_to_branch && sgVisible(f));
   if (!list.length && !sg.length){
     $('#view').innerHTML = `<div class="card"><div class="empty">
-      ${ofCan('manage-forms') ? 'ยังไม่มีแบบฟอร์ม — สร้างได้ที่แท็บ <b>จัดการฟอร์ม</b>'
+      ${ofCan('manage-forms') ? `ยังไม่มีแบบฟอร์ม<br><button class="btn btn-primary" style="margin-top:12px" onclick="go('forms').then(newForm)">+ สร้างฟอร์มแรก</button>`
                               : 'ตอนนี้ยังไม่มีแบบฟอร์มที่เปิดให้ตอบ'}
     </div></div>`;
     return;
   }
+  /* ที่ยังต้องตอบขึ้นก่อน · ที่ตอบแล้ว/ปิดแล้วรวมไว้ท้าย */
+  const todo = list.filter(f => canFill(f) && !(myAnswered.has(f.key) && f.once_per_user));
+  const rest = list.filter(f => !todo.includes(f));
+  const sgOpen = sg.filter(f => f.status === 'open'), sgRest = sg.filter(f => f.status !== 'open');
+  const nTodo = todo.filter(f => !myAnswered.has(f.key)).length;
   $('#view').innerHTML = `
-    <div class="list-head">
-      <h2>แบบฟอร์มที่เปิดอยู่</h2>
-      <p class="sub">กดที่แถวเพื่อเริ่มตอบ · ระบบบันทึกชื่อผู้ตอบจากบัญชีที่เข้าระบบอยู่</p>
-      ${sgScores ? `<div class="row-btns" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ดูคะแนนประเมินพนักงานของสาขา</button></div>` : ''}
+    <div class="lh">
+      <h2>แบบฟอร์ม</h2>
+      <span class="cnt">${nTodo ? `ยังไม่ได้ตอบ <b>${nTodo}</b> ฟอร์ม` : 'ตอบครบทุกฟอร์มแล้ว'}</span>
     </div>
+    ${sgScores ? `<div class="row-btns" style="margin:0 2px 10px"><button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ดูคะแนนประเมินพนักงานของสาขา</button></div>` : ''}
     <div class="form-rows">
-      ${sg.map(sgItemHtml).join('')}
-      ${list.map(f => {
-        const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
-        const nq = (f.questions || []).length;
-        return `<div class="form-item ${open && !lock ? 'clickable' : 'off'}" ${open && !lock ? `onclick="startFill('${esc(f.key)}')"` : ''}>
-          <div class="form-row">
-            <span class="fr-emoji">${esc(f.emoji || '📋')}</span>
-            <span class="fr-body">
-              <span class="fr-top">
-                <span class="fr-title">${esc(f.title)}</span>
-                <span class="pill ${isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${
-                  isOpen(f) ? 'เปิดให้ตอบ' : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>
-                ${lock ? '<span class="pill pass">ตอบแล้ว</span>' : ''}
-              </span>
-              <span class="fr-desc">${esc(f.description || '')}</span>
-              <span class="fr-meta">
-                ${nq ? `<span>${nq} คำถาม</span>` : ''}
-                ${f.close_at ? `<span>ปิดรับ ${esc(fmtDT(f.close_at))}</span>` : ''}
-                ${f.once_per_user ? '<span>ตอบได้ครั้งเดียว</span>' : '<span>ตอบได้หลายครั้ง</span>'}
-              </span>
-            </span>
-            ${open && !lock ? '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>' : ''}
-          </div>
-        </div>`;
-      }).join('')}
-    </div>`;
+      ${sgOpen.map(sgItemHtml).join('')}
+      ${todo.map(formItemHtml).join('')}
+    </div>
+    ${rest.length + sgRest.length ? `<div class="list-sec">ตอบแล้ว / ปิดรับแล้ว</div>
+    <div class="form-rows">${sgRest.map(sgItemHtml).join('')}${rest.map(formItemHtml).join('')}</div>` : ''}`;
 }
 
 const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
@@ -742,20 +952,20 @@ function qInput(q, val){
   if (q.type === 'long')   return `<textarea id="${id}" data-q="${q.id}">${esc(val || '')}</textarea>`;
   if (q.type === 'number') return `<input id="${id}" data-q="${q.id}" type="number" value="${esc(val ?? '')}">`;
   if (q.type === 'date')   return `<input id="${id}" data-q="${q.id}" type="date" value="${esc(val || '')}">`;
-  if (q.type === 'yesno')  return `<div class="seg" data-q="${q.id}">
+  if (q.type === 'yesno')  return `<div class="seg choice" data-q="${q.id}">
       <button type="button" class="${val === 'ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ใช่')">ใช่</button>
       <button type="button" class="${val === 'ไม่ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ไม่ใช่')">ไม่ใช่</button>
     </div>`;
   if (q.type === 'scale'){
     const min = Number(q.min) || 1, max = Number(q.max) || 5, out = [];
     for (let i = min; i <= max; i++) out.push(`<button type="button" class="${String(val) === String(i) ? 'on' : ''}" onclick="pickOne('${q.id}',${i})">${i}</button>`);
-    return `<div class="seg" data-q="${q.id}">${out.join('')}</div>`;
+    return `<div class="seg scale" data-q="${q.id}">${out.join('')}</div>`;
   }
-  if (q.type === 'single') return `<div class="seg" data-q="${q.id}">${(q.options || []).map(o =>
+  if (q.type === 'single') return `<div class="seg choice" data-q="${q.id}">${(q.options || []).map(o =>
       `<button type="button" class="${val === o ? 'on' : ''}" onclick="pickOne('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
   if (q.type === 'multi'){
     const cur = Array.isArray(val) ? val : [];
-    return `<div class="seg" data-q="${q.id}">${(q.options || []).map(o =>
+    return `<div class="seg choice multi" data-q="${q.id}">${(q.options || []).map(o =>
       `<button type="button" class="${cur.includes(o) ? 'on' : ''}" onclick="pickMany('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
   }
   return `<input id="${id}" data-q="${q.id}" value="${esc(val || '')}">`;
@@ -772,26 +982,56 @@ function grabTyped(){
     if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') fill.answers[el.dataset.q] = el.value;
   });
 }
+const isAnswered = v => !(v == null || v === '' || (Array.isArray(v) && !v.length));
+/* นับข้อที่ตอบแล้ว · อัปเดตแถบล่างสด ๆ ระหว่างพิมพ์ โดยไม่วาดทั้งหน้าใหม่ */
+function fillProgress(){
+  const qs = fill.form.questions || [];
+  const done = qs.filter(q => isAnswered(fill.answers[q.id])).length;
+  const need = qs.filter(q => q.required && !isAnswered(fill.answers[q.id])).length;
+  return { done, total: qs.length, need };
+}
+function paintFillProgress(){
+  if (!fill) return;
+  grabTyped();
+  const p = fillProgress();
+  const bar = $('#fillBar'), note = $('#fillNote');
+  if (bar) bar.style.width = (p.total ? p.done / p.total * 100 : 0) + '%';
+  if (note) note.innerHTML = `<b>${p.done}/${p.total}</b> ข้อ<br>${p.need ? `เหลือข้อบังคับ ${p.need} ข้อ` : 'พร้อมส่งแล้ว'}`;
+  (fill.form.questions || []).forEach(q => {
+    const c = document.getElementById('qc_' + q.id); if (!c) return;
+    const ok = isAnswered(fill.answers[q.id]);
+    c.classList.toggle('done', ok);
+    if (ok) c.classList.remove('miss');
+  });
+}
 function renderFill(){
   grabTyped();
-  const f = fill.form;
+  const f = fill.form, p = fillProgress();
   $('#view').innerHTML = `
     <div class="card">
-      <h2>${esc(f.emoji || '📋')} ${esc(f.title)}</h2>
-      <p class="sub">${esc(f.description || '')}</p>
-    </div>
-    ${(f.questions || []).map((q, i) => `
-      <div class="card">
-        <label>${i + 1}. ${esc(q.label)} ${q.required ? '<span style="color:var(--red)">*</span>' : ''}</label>
-        ${q.help ? `<p class="sub" style="margin:-2px 0 8px">${esc(q.help)}</p>` : ''}
-        ${qInput(q, fill.answers[q.id])}
-      </div>`).join('')}
-    <div class="card">
-      <div class="row-btns">
-        <button class="btn btn-primary" onclick="submitFill()">ส่งคำตอบ</button>
-        <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
+      <div class="fill-head">
+        <span class="fr-emoji">${esc(f.emoji || '📋')}</span>
+        <div style="min-width:0;flex:1"><h2>${esc(f.title)}</h2>${f.description ? `<p>${esc(f.description)}</p>` : ''}</div>
       </div>
+      <div class="fill-prog"><span id="fillBar" style="width:${p.total ? p.done / p.total * 100 : 0}%"></span></div>
+    </div>
+    ${(f.questions || []).map((q, i) => {
+      const ok = isAnswered(fill.answers[q.id]);
+      const miss = fill.tried && q.required && !ok;
+      return `<div class="qcard ${ok ? 'done' : ''} ${miss ? 'miss' : ''}" id="qc_${q.id}">
+        <div class="qlab"><span class="qno">${i + 1}</span><span>${esc(q.label)}${q.required ? '<span class="qreq">*</span>' : ''}</span></div>
+        ${q.help ? `<p class="qhelp">${esc(q.help)}</p>` : ''}
+        ${qInput(q, fill.answers[q.id])}
+        <div class="qhint">ข้อนี้ต้องตอบ</div>
+      </div>`;
+    }).join('')}
+    <div class="actbar">
+      <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
+      <div class="grow ab-note" id="fillNote"></div>
+      <button class="btn btn-primary" onclick="submitFill()">ส่งคำตอบ</button>
     </div>`;
+  $('#view').querySelectorAll('input[data-q],textarea[data-q]').forEach(el => el.addEventListener('input', paintFillProgress));
+  paintFillProgress();
 }
 
 window.submitFill = async function(){
@@ -802,7 +1042,13 @@ window.submitFill = async function(){
     const v = fill.answers[q.id];
     return v == null || v === '' || (Array.isArray(v) && !v.length);
   });
-  if (miss.length) return msg(`ยังตอบไม่ครบ — เหลือ ${miss.length} ข้อที่ต้องตอบ (ข้อที่มี <span style="color:var(--red)">*</span>)`, 'warn');
+  if (miss.length){
+    /* ทำกรอบแดงข้อที่ขาด แล้วพาไปข้อแรกที่ยังไม่ตอบ */
+    fill.tried = true; renderFill();
+    const first = document.getElementById('qc_' + miss[0].id);
+    if (first && first.scrollIntoView) first.scrollIntoView({ behavior:'smooth', block:'start' });
+    return msg(`ยังตอบไม่ครบ — เหลือ ${miss.length} ข้อที่ต้องตอบ (ข้อที่มี <span style="color:var(--red)">*</span>)`, 'warn');
+  }
 
   const { error } = await SB.from('fm_responses').insert({
     form_key: f.key, form_title: f.title, answers: fill.answers,
@@ -836,25 +1082,24 @@ function renderResults(){
   const branches = [...new Set(responses.map(r => r.respondent_branch).filter(Boolean))].sort();
   $('#view').innerHTML = `
     <div class="card">
-      <h2>คำตอบที่ส่งเข้ามา</h2>
-      <p class="sub">เลือกฟอร์มก่อน เพื่อดูคำตอบแยกเป็นรายข้อในตาราง</p>
-      <div class="grid3">
+      <div class="flt">
         <div><label>แบบฟอร์ม</label><select id="rfForm">${optHtml('ทุกฟอร์ม', formKeys, rf.form,
           k => (forms.find(f => f.key === k) || {}).title || k)}</select></div>
         <div><label>สาขา / ผู้ตอบ</label><select id="rfBranch">${optHtml('ทั้งหมด', branches, rf.branch)}</select></div>
-        <div><label>ค้นหา</label><input id="rfQ" value="${esc(rf.q)}" placeholder="ชื่อผู้ตอบ หรือข้อความในคำตอบ"></div>
+        <div><label>ค้นหา</label><input id="rfQ" value="${esc(rf.q)}" placeholder="ชื่อ หรือข้อความ"></div>
       </div>
-      <div class="row-btns" style="margin-top:14px">
-        <button class="btn btn-secondary btn-sm" onclick="go('results')">โหลดใหม่</button>
-        ${ofCan('export-results') ? `<button class="btn btn-secondary btn-sm" onclick="csvResults()">⬇ ดาวน์โหลด CSV</button>` : ''}
-        <button class="btn btn-secondary btn-sm" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
+      <div class="tools">
+        <button class="btn btn-secondary btn-sm" onclick="go('results')">↻ โหลดใหม่</button>
+        ${ofCan('export-results') ? `<button class="btn btn-secondary btn-sm" onclick="csvResults()">⬇ CSV</button>` : ''}
+        <button class="btn btn-secondary btn-sm" onclick="printResults()">🖨 พิมพ์ / PDF</button>
       </div>
     </div>
-    <div class="stats" id="rStats"></div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap"><table id="rTable"></table></div>
-      <div class="empty" id="rEmpty" style="display:none">ยังไม่มีคำตอบตามเงื่อนไขนี้</div>
-    </div>`;
+    <div class="strip" id="rStats"></div>
+    <div class="rcards" id="rCards"></div>
+    <div class="card rtable-card" style="padding:0;overflow:hidden">
+      <div class="table-wrap" style="border:0;border-radius:0"><table id="rTable"></table></div>
+    </div>
+    <div class="card empty" id="rEmpty" style="display:none">ยังไม่มีคำตอบตามเงื่อนไขนี้</div>`;
   ['rfForm','rfBranch'].forEach(id => $('#'+id).onchange = () => { rf[id.slice(2).toLowerCase()] = $('#'+id).value; paintResults(); });
   $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; paintResults(); };
   paintResults();
@@ -869,10 +1114,25 @@ function paintResults(){
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
   const qs = form ? (form.questions || []) : [];
   $('#rStats').innerHTML = `
-    <div class="stat"><b>${list.length}</b><span>คำตอบทั้งหมด</span></div>
-    <div class="stat"><b>${new Set(list.map(r => r.respondent_code)).size}</b><span>ผู้ตอบ (ไม่ซ้ำ)</span></div>
-    <div class="stat"><b>${new Set(list.map(r => r.form_key)).size}</b><span>แบบฟอร์ม</span></div>`;
+    <span><b>${list.length}</b>คำตอบ</span>
+    <span><b>${new Set(list.map(r => r.respondent_code)).size}</b>ผู้ตอบ</span>
+    <span><b>${new Set(list.map(r => r.form_key)).size}</b>แบบฟอร์ม</span>`;
   $('#rEmpty').style.display = list.length ? 'none' : '';
+  $('.rtable-card').style.visibility = list.length ? '' : 'hidden';
+  /* มือถือ: คำตอบละการ์ด · โชว์ 3 ข้อแรก กดเพื่อดูครบ */
+  $('#rCards').innerHTML = list.map(r => {
+    const a = r.answers || {};
+    const qa = form
+      ? qs.slice(0, 3).map(q => `<div><i>${esc(q.label)}</i><em>${esc(ansText(a[q.id]))}</em></div>`).join('')
+      : `<div><i>แบบฟอร์ม</i><em>${esc(r.form_title || r.form_key)}</em></div>`;
+    const more = form ? qs.length - 3 : Object.keys(a).length;
+    return `<div class="rc" onclick="detail(${r.id})">
+      <div class="rc-top"><b>${esc(r.respondent_name || '—')}</b><span>${fmtD(r.created_at)}</span></div>
+      ${r.respondent_branch && r.respondent_branch !== r.respondent_name ? `<div class="rc-sub">${esc(r.respondent_branch)}</div>` : ''}
+      <div class="rc-qa">${qa}</div>
+      <div class="rc-more">${form ? (more > 0 ? `ดูอีก ${more} ข้อ ›` : 'ดูรายละเอียด ›') : `ตอบ ${more} ข้อ · ดูรายละเอียด ›`}</div>
+    </div>`;
+  }).join('');
   /* เลือกฟอร์มแล้ว = กางคำตอบเป็นคอลัมน์รายข้อ · ยังไม่เลือก = ดูรวม */
   const head = form
     ? ['วันที่','ผู้ตอบ','สาขา', ...qs.map(q => q.label), '']
@@ -911,6 +1171,7 @@ window.detail = function(id){
       </div>
       <div class="row-btns">
         <button class="btn btn-secondary btn-sm" onclick="printResp(${r.id})">🖨 พิมพ์ / PDF</button>
+        ${ofCan('delete-response') ? `<button class="btn btn-danger btn-sm" onclick="closeModal();delResp(${r.id})">ลบ</button>` : ''}
         <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
       </div>
     </div>
@@ -955,7 +1216,7 @@ window.csvResults = function(){
 /* ══════════════════════════════════════════════════════════════════
    ติดตามสาขาที่ยังไม่ตอบ — ทะเบียนสาขามาจากฮับ
    ══════════════════════════════════════════════════════════════════ */
-let ff = { form:'' };
+let ff = { form:'', show:'miss' };
 function followupForms(){ return forms.filter(f => isOpen(f)); }
 
 function followupRows(form){
@@ -978,36 +1239,36 @@ function renderFollowup(){
   }
   if (!ff.form || !list.some(f => f.key === ff.form)) ff.form = list[0].key;
   const form = list.find(f => f.key === ff.form);
-  const rows = followupRows(form);
-  const miss = rows.filter(r => !r.done);
+  const rows = followupRows(form).sort((a,b) => (a.done - b.done) || a.code.localeCompare(b.code));
+  const miss = rows.filter(r => !r.done), done = rows.length - miss.length;
+  const shown = ff.show === 'miss' ? miss : ff.show === 'done' ? rows.filter(r => r.done) : rows;
   $('#view').innerHTML = `
     <div class="card">
-      <h2>ติดตามสาขาที่ยังไม่ตอบ</h2>
-      <p class="sub">เทียบทะเบียนสาขาจากฮับกับคำตอบที่ส่งเข้ามาแล้ว${HUB_BRANCHES.length ? '' : ' — ยังโหลดทะเบียนสาขาไม่ได้ ลองโหลดใหม่อีกครั้ง'}</p>
-      <div class="grid3">
-        <div><label>แบบฟอร์ม</label><select id="ffForm">${list.map(f =>
-          `<option value="${esc(f.key)}" ${f.key===ff.form?'selected':''}>${esc(f.title)}</option>`).join('')}</select></div>
+      <label style="font-size:12.5px;color:var(--muted);margin-bottom:4px">แบบฟอร์ม</label>
+      <select id="ffForm">${list.map(f =>
+        `<option value="${esc(f.key)}" ${f.key===ff.form?'selected':''}>${esc(f.title)}</option>`).join('')}</select>
+      <div class="fu-sum" style="margin-top:14px">
+        <div class="fu-big">${done}<small> / ${rows.length} สาขาตอบแล้ว</small></div>
       </div>
-      <div class="row-btns" style="margin-top:14px">
-        <button class="btn btn-secondary btn-sm" onclick="go('followup')">โหลดใหม่</button>
-        <button class="btn btn-primary btn-sm" onclick="copyFollowup()">📋 คัดลอกข้อความตามงาน</button>
-      </div>
+      <div class="fu-bar"><span style="width:${rows.length ? done / rows.length * 100 : 0}%"></span></div>
+      ${HUB_BRANCHES.length ? '' : '<p class="sub" style="margin:10px 0 0">ยังโหลดทะเบียนสาขาไม่ได้ ลองกดโหลดใหม่อีกครั้ง</p>'}
     </div>
-    <div class="stats">
-      <div class="stat"><b>${rows.length - miss.length}</b><span>ตอบแล้ว</span></div>
-      <div class="stat"><b style="color:var(--red)">${miss.length}</b><span>ยังไม่ตอบ</span></div>
-      <div class="stat"><b>${rows.length}</b><span>สาขาทั้งหมด</span></div>
+    <div class="fu-seg">
+      <button class="${ff.show==='miss'?'on':''}" onclick="ffShow('miss')">ยังไม่ตอบ <b>${miss.length}</b></button>
+      <button class="${ff.show==='done'?'on':''}" onclick="ffShow('done')">ตอบแล้ว <b>${done}</b></button>
+      <button class="${ff.show==='all'?'on':''}" onclick="ffShow('all')">ทั้งหมด</button>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap"><table>
-        <thead><tr><th>สาขา</th><th>สถานะ</th></tr></thead>
-        <tbody>${rows.sort((a,b) => (a.done - b.done) || a.code.localeCompare(b.code)).map(r =>
-          `<tr><td><b>${esc(r.label)}</b></td>
-           <td>${r.done ? '<span class="pill pass">ตอบแล้ว</span>' : '<span class="pill fail">ยังไม่ตอบ</span>'}</td></tr>`).join('')}</tbody>
-      </table></div>
+    ${shown.length ? `<div class="fu-list">${shown.map(r =>
+      `<div class="fu-row ${r.done ? 'ok' : ''}"><span class="dot"></span><b>${esc(r.label)}</b><span class="st">${r.done ? 'ตอบแล้ว' : 'ยังไม่ตอบ'}</span></div>`).join('')}</div>`
+      : `<div class="card empty">${ff.show === 'miss' ? 'ทุกสาขาตอบครบแล้ว 🎉' : 'ยังไม่มีสาขาที่ตอบ'}</div>`}
+    <div class="actbar">
+      <button class="btn btn-secondary" onclick="go('followup')" title="โหลดใหม่">↻</button>
+      <div class="grow ab-note">${miss.length ? `<b>${miss.length}</b> สาขายังไม่ตอบ` : 'ครบทุกสาขาแล้ว'}</div>
+      <button class="btn btn-primary" onclick="copyFollowup()" ${miss.length ? '' : 'disabled'}>📋 คัดลอกข้อความตามงาน</button>
     </div>`;
   $('#ffForm').onchange = () => { ff.form = $('#ffForm').value; renderFollowup(); };
 }
+window.ffShow = function(v){ ff.show = v; renderFollowup(); };
 
 window.copyFollowup = function(){
   const form = followupForms().find(f => f.key === ff.form); if (!form) return;
@@ -1082,31 +1343,29 @@ window.printResp = function(id){
 /* ══════════════════════════════════════════════════════════════════
    จัดการฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
+const statusPill = st => `<span class="pill ${st === 'open' ? 'open' : st === 'draft' ? 'draft' : 'closed'}">${st === 'open' ? 'เปิด' : st === 'draft' ? 'ร่าง' : 'ปิด'}</span>`;
 function sgManageHtml(){
   if (!(sgCan('manage-forms') || sgCan('view-results') || sgCan('manage-people'))) return '';
   return `<div class="card">
-    <h2>🥇 แบบประเมินพนักงาน Silver / Gold</h2>
-    <p class="sub">ฟอร์มชนิดประเมินรายบุคคล — เลือกพนักงานที่ถูกประเมิน คะแนนถ่วงน้ำหนักรายหมวด และเกณฑ์ผ่านตามระดับ</p>
-    <div class="row-btns" style="margin-bottom:${SG_FORMS.length ? 12 : 0}px">
-      ${sgCan('manage-forms')  ? `<button class="btn btn-primary btn-sm" onclick="sgGo('tab=forms&new=1')">+ สร้างแบบประเมินพนักงาน</button>` : ''}
-      ${sgCan('view-results')  ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ผลประเมิน</button>` : ''}
-      ${sgCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=followup')">🔔 ติดตามคนที่ยังไม่ประเมิน</button>` : ''}
-      ${sgCan('manage-people') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
+    <h2 style="margin-bottom:10px">🥇 แบบประเมินพนักงาน Silver / Gold</h2>
+    <div class="sg-tiles">
+      ${sgCan('manage-forms')  ? `<button class="pri" onclick="sgGo('tab=forms&new=1')">+ สร้างชุดประเมิน</button>` : ''}
+      ${sgCan('view-results')  ? `<button onclick="sgGo('tab=results')">📊 ผลประเมิน</button>` : ''}
+      ${sgCan('view-followup') ? `<button onclick="sgGo('tab=followup')">🔔 ติดตาม</button>` : ''}
+      ${sgCan('manage-people') ? `<button onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
     </div>
-    ${SG_FORMS.length ? `<div class="table-wrap"><table>
-      <thead><tr><th>ชุดประเมิน</th><th>รอบ</th><th>หมวด / ข้อ</th><th>สถานะ</th><th></th></tr></thead>
-      <tbody>${SG_FORMS.map(f => {
-        const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
-        return `<tr>
-          <td><b>${esc(f.emoji || '🥇')} ${esc(f.title)}</b></td>
-          <td>${esc(f.round || '—')}</td>
-          <td>${(f.sections || []).length} หมวด · ${nq} ข้อ</td>
-          <td><span class="pill ${f.status === 'open' ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${f.status === 'open' ? 'เปิด' : f.status === 'draft' ? 'ร่าง' : 'ปิด'}</span></td>
-          <td class="row-btns">
-            ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
-            ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
-          </td></tr>`;
-      }).join('')}</tbody></table></div>` : ''}
+    ${SG_FORMS.length ? `<div style="margin-top:12px">${SG_FORMS.map(f => {
+      const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
+      return `<div class="mf">
+        <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '🥇')}</span>
+          <div class="mf-t"><b>${esc(f.title)}</b>${lineHtml([f.round ? esc(f.round) : '', (f.sections || []).length + ' หมวด', nq + ' ข้อ'])}</div>
+          ${statusPill(f.status)}</div>
+        <div class="mf-acts">
+          ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
+          ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
+        </div>
+      </div>`;
+    }).join('')}</div>` : ''}
   </div>`;
 }
 
@@ -1114,45 +1373,39 @@ function renderForms(){
   if (editing) return renderEditor();
   /* จัดการ Silver/Gold ได้ แต่ไม่มีสิทธิ์ฟอร์มทั่วไป → เห็นเฉพาะส่วนของ Silver/Gold */
   if (!ofCan('manage-forms')){ $('#view').innerHTML = sgManageHtml(); return; }
-  $('#view').innerHTML = sgManageHtml() + `
-    <div class="card">
-      <h2>จัดการแบบฟอร์ม</h2>
-      <p class="sub">สร้างฟอร์มได้เองทั้งหมด — คำถามมี 8 ชนิด ไม่มีเรื่องคะแนนหรือเกณฑ์ผ่าน
-</p>
-      <div class="row-btns"><button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button></div>
+  $('#view').innerHTML = `
+    <div class="mh">
+      <h2>แบบฟอร์มทั่วไป <span class="muted" style="font-size:13px;font-weight:600">${forms.length} ฟอร์ม</span></h2>
+      <button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button>
     </div>
-    <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap"><table>
-        <thead><tr><th>แบบฟอร์ม</th><th>รหัส</th><th>คำถาม</th><th>ใครเห็น</th><th>คำตอบ</th><th>สถานะ</th><th></th></tr></thead>
-        <tbody>${forms.map(f => `<tr>
-          <td><b>${esc(f.emoji || '📋')} ${esc(f.title)}</b>${f.description ? `<br><span class="muted" style="font-size:12.5px">${esc(f.description)}</span>` : ''}</td>
-          <td class="muted">${esc(f.key)}</td>
-          <td>${(f.questions || []).length} ข้อ</td>
-          <td>${audienceLabel(f)}</td>
-          <td>${responses.filter(r => r.form_key === f.key).length || '—'}</td>
-          <td><span class="pill ${isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${
-            isOpen(f) ? 'เปิด' : f.status === 'draft' ? 'ร่าง' : 'ปิด'}</span></td>
-          <td class="row-btns">
-            <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">แก้ไข</button>
-            <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
-            ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
-          </td></tr>`).join('') || '<tr><td colspan="7"><div class="empty">ยังไม่มีแบบฟอร์ม</div></td></tr>'}
-        </tbody>
-      </table></div>
-    </div>`;
+    ${forms.map(f => {
+      const n = responses.filter(r => r.form_key === f.key).length;
+      return `<div class="mf">
+        <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
+          <div class="mf-t"><b>${esc(f.title)}</b>
+            ${lineHtml([(f.questions || []).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
+          ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
+        <div class="mf-acts">
+          <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
+          <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
+          ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
+        </div>
+      </div>`;
+    }).join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กด "+ สร้างฟอร์มใหม่" เพื่อเริ่ม</div>'}
+    <div style="margin-top:18px">${sgManageHtml()}</div>`;
 }
 
 const newKey = () => 'form-' + Date.now().toString(36);
 window.newForm = function(){
   editing = { key:newKey(), title:'', description:'', emoji:'📋', status:'draft', questions:[],
     visible_brands:[], visible_branches:[], once_per_user:true, open_at:null, close_at:null, sort_order:(forms.length + 1) };
-  renderEditor();
+  renderNav(); renderEditor(); window.scrollTo({ top:0 });
 };
 window.editForm = function(id){
   const f = forms.find(x => x.id === id); if (!f) return;
   editing = clone(f);
   editing.questions = editing.questions || [];
-  renderEditor();
+  renderNav(); renderEditor(); window.scrollTo({ top:0 });
 };
 window.dupForm = async function(id){
   const f = forms.find(x => x.id === id); if (!f) return;
@@ -1189,7 +1442,7 @@ window.moveQ = function(i, d){
   const q = editing.questions.splice(i, 1)[0];
   editing.questions.splice(j, 0, q); renderEditor();
 };
-window.cancelEdit = function(){ editing = null; go('forms'); };
+window.cancelEdit = function(){ editing = null; renderNav(); go('forms'); };
 
 function grabEditor(){
   document.querySelectorAll('#view [data-f]').forEach(el => {
@@ -1208,9 +1461,9 @@ function renderEditor(){
   $('#view').innerHTML = `
     <div class="card">
       <h2>${e.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
-      <div class="grid2">
+      <div style="display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;margin-top:10px">
+        <div><label>ไอคอน</label><input data-f="emoji" value="${esc(e.emoji)}" maxlength="4" style="text-align:center;font-size:20px;padding:8px 4px"></div>
         <div><label>ชื่อแบบฟอร์ม</label><input data-f="title" value="${esc(e.title)}" placeholder="เช่น แบบสำรวจความพร้อมสาขา"></div>
-        <div><label>ไอคอน</label><input data-f="emoji" value="${esc(e.emoji)}" maxlength="4"></div>
       </div>
       <div style="margin-top:12px"><label>คำอธิบายสั้น</label><input data-f="description" value="${esc(e.description || '')}"></div>
       <div class="grid3" style="margin-top:12px">
@@ -1250,19 +1503,14 @@ function renderEditor(){
     </div>
 
     <div class="card">
-      <h2>คำถาม (${e.questions.length} ข้อ)</h2>
-      <div class="seg" style="margin-bottom:12px">
-        ${Q_TYPES.map(t => `<button type="button" onclick="addQTyped('${t.id}')">${t.icon} + ${esc(t.label)}</button>`).join('')}
-      </div>
+      <h2 style="margin-bottom:12px">คำถาม (${e.questions.length} ข้อ)</h2>
       ${e.questions.map((q, i) => `
-        <div class="card" style="margin:0 0 12px;background:#fafbfc">
-          <div class="row-btns" style="justify-content:space-between;margin-bottom:8px">
+        <div class="qe">
+          <div class="qe-top">
             <b>ข้อ ${i + 1} · ${esc(qTypeLabel(q.type))}</b>
-            <span class="row-btns">
-              <button class="btn btn-secondary btn-sm" onclick="moveQ(${i},-1)">↑</button>
-              <button class="btn btn-secondary btn-sm" onclick="moveQ(${i},1)">↓</button>
-              <button class="btn btn-danger btn-sm" onclick="delQ(${i})">ลบ</button>
-            </span>
+            <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
+            <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < e.questions.length - 1 ? '' : 'disabled'}>↓</button>
+            <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบข้อนี้">✕</button>
           </div>
           <input data-qi="${i}" data-qk="label" value="${esc(q.label)}" placeholder="คำถาม">
           <input data-qi="${i}" data-qk="help" value="${esc(q.help || '')}" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px">
@@ -1272,21 +1520,28 @@ function renderEditor(){
             <div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div>
             <div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div>
           </div>` : ''}
-          <label style="margin-top:10px;font-weight:600">
-            <input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''} style="width:auto;margin-right:7px">ต้องตอบข้อนี้
+          <label class="qe-req">
+            <input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''}>ต้องตอบข้อนี้
           </label>
-        </div>`).join('') || '<div class="empty">ยังไม่มีคำถาม — กดปุ่มด้านบนเพื่อเพิ่ม</div>'}
+        </div>`).join('')}
+      <label style="margin:${e.questions.length ? 14 : 0}px 0 8px">${e.questions.length ? 'เพิ่มคำถามอีกข้อ' : 'เริ่มจากเลือกชนิดคำถามข้อแรก'}</label>
+      <div class="qtypes">
+        ${Q_TYPES.map(t => `<button type="button" onclick="addQTyped('${t.id}')"><span>${t.icon}</span>${esc(t.label)}</button>`).join('')}
+      </div>
     </div>
 
-    <div class="card">
-      <div class="row-btns">
-        <button class="btn btn-primary" onclick="saveForm()">บันทึกแบบฟอร์ม</button>
-        <button class="btn btn-secondary" onclick="cancelEdit()">ยกเลิก</button>
-      </div>
+    <div class="actbar">
+      <button class="btn btn-secondary" onclick="cancelEdit()">ยกเลิก</button>
+      <div class="grow ab-note">${e.questions.length} ข้อ</div>
+      <button class="btn btn-primary" onclick="saveForm()">บันทึกแบบฟอร์ม</button>
     </div>`;
 }
 window.setOnce = function(v){ grabEditor(); editing.once_per_user = v; renderEditor(); };
-window.addQTyped = function(t){ grabEditor(); addQ(t); };
+window.addQTyped = function(t){
+  grabEditor(); addQ(t);
+  const el = document.querySelector(`[data-qi="${editing.questions.length - 1}"][data-qk="label"]`);
+  if (el){ el.scrollIntoView && el.scrollIntoView({ block:'center' }); try{ el.focus({ preventScroll:true }); }catch(e){} }
+};
 window.togBrand = function(b){
   grabEditor();
   const cur = editing.visible_brands || [];
@@ -1328,7 +1583,7 @@ window.saveForm = async function(){
     ? await SB.from('fm_forms').update(row).eq('id', e.id)
     : await SB.from('fm_forms').insert(row);
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
-  editing = null;
+  editing = null; renderNav();
   msg('บันทึกแบบฟอร์มแล้ว');
   await loadForms(); renderForms();
 };
