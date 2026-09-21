@@ -77,6 +77,10 @@ grant usage, select on sequence public.tr_attempts_id_seq  to authenticated;
 revoke all on public.tr_trainings from anon;
 revoke all on public.tr_attempts  from anon;
 
+-- ── เพิ่มเมื่อ 21 ก.ย. 2569: ลิงก์กับรอบอบรมในระบบ Training Record ──
+-- { system, id, course, batch, train_date, synced_at } — ว่าง = สร้างเอง ไม่ได้ดึงมา
+alter table public.tr_trainings add column if not exists source jsonb;
+
 -- ตรวจผล: ควรเห็น 2 แถว rowsecurity = true
 select tablename, rowsecurity from pg_tables
 where schemaname = 'public' and tablename in ('tr_trainings','tr_attempts');

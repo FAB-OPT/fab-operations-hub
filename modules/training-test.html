@@ -371,6 +371,49 @@ function sbReady(){
 }
 sbReady();
 
+/* ── Training Record (อีกโปรเจกต์) — อ่านรอบอบรมกับรายชื่อผู้เข้าอบรม ─────
+   รอบอบรมเก็บในตาราง training_drafts ของระบบ Training Record
+   (ออกใบแล้ว = มี issued_at · เช็คชื่อแล้ว = people[].attended)
+   หน้านี้อ่านอย่างเดียว ไม่เขียนกลับ · แยก storageKey กันล็อกอินสองโปรเจกต์ทับกัน */
+const TRR_URL = 'https://cyjfgperenakjeazsfgf.supabase.co';
+const TRR_KEY = 'sb_publishable_xAtQvH3Bdaqt7PVJGbkxWw_KVhfBszo';
+const TRR = window.supabase.createClient(TRR_URL, TRR_KEY, { auth: { storageKey: 'sb-trr-traintest-auth' } });
+var TRR_AUTH = null;
+function trrReady(){
+  if (!TRR_AUTH){
+    try{ TRR_AUTH = TRR.auth.signInAnonymously().then(r => !(r && r.error)).catch(() => false); }
+    catch(e){ TRR_AUTH = Promise.resolve(false); }
+  }
+  return TRR_AUTH;
+}
+let ROSTERS = null;   // null = ยังไม่โหลด
+async function loadRosters(){
+  await trrReady();
+  const { data, error } = await TRR.from('training_drafts')
+    .select('id,company,course,batch,train_date,train_time,place,trainer,people,issued_at,saved_at');
+  if (error) throw error;
+  /* ใบที่ออกแล้วขึ้นก่อน ตามวันอบรมล่าสุด — แบบร่างที่ยังไม่มีคนไม่เอา */
+  ROSTERS = (data || []).filter(r => (r.people || []).length)
+    .sort((a, b) => (!!b.issued_at - !!a.issued_at) || String(b.train_date || '').localeCompare(String(a.train_date || '')));
+  return ROSTERS;
+}
+
+/* ทะเบียนสาขาจากฮับ — ใบรายชื่อเก็บแค่รหัสสาขา ต้องแปลงเป็นชื่อให้คนอ่านออก */
+let HUB_BRANCHES = {};
+async function loadHubBranches(){
+  try{
+    await sbReady();
+    const { data } = await SB.from('hub_config').select('key,value').in('key', ['branches','jaedaengBranches']);
+    const out = {};
+    (data || []).forEach(row => {
+      const v = row.value || {}, map = v.branches || v || {};
+      Object.keys(map).forEach(code => { out[code] = String(map[code] || ''); });
+    });
+    HUB_BRANCHES = out;
+  }catch(e){}
+}
+const branchLabel = code => code ? (HUB_BRANCHES[code] ? code + ' ' + HUB_BRANCHES[code] : String(code)) : '';
+
 const $ = s => document.querySelector(s);
 const esc = s => String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const clone = o => JSON.parse(JSON.stringify(o));
@@ -463,7 +506,8 @@ function visibleTo(t){
 function participantsFor(t){
   const all = t.participants || [];
   if (!ME.isBranch) return all;
-  return all.filter(p => !p.branch || p.branch === ME.branch);
+  const code = String(ME.code || '');
+  return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
 }
 const attemptOf = (key, phase, pid) =>
   attempts.find(a => a.training_key === key && a.phase === phase && String(a.participant_id) === String(pid));
@@ -542,7 +586,7 @@ window.go = async function(t){
   if (t === 'list'){ await loadTrainings(); await loadAttempts(); return renderList(); }
   if (t === 'results'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadAttempts(); return renderResults(); }
   if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadAttempts(); return renderFollowup(); }
-  if (t === 'trainings'){ await loadTrainings(); return renderTrainings(); }
+  if (t === 'trainings'){ await loadTrainings(); loadHubBranches(); if (ROSTERS == null) loadRosters().catch(() => {}); return renderTrainings(); }
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1018,7 +1062,7 @@ function renderTrainings(){
 const newKey = () => 'tr-' + Date.now().toString(36);
 window.newTraining = function(){
   editing = { key:newKey(), title:'', description:'', emoji:'🎓', train_date:'', place:'', trainer:'',
-    status:'draft', questions:[], participants:[], pre_open:true, post_open:false,
+    status:'draft', questions:[], participants:[], pre_open:true, post_open:false, source:null,
     visible_brands:[], visible_branches:[], sort_order:(trainings.length + 1) };
   renderEditor();
 };
@@ -1085,6 +1129,44 @@ window.addPeople = function(){
 };
 window.delPerson = function(i){ grabEditor(); editing.participants.splice(i,1); renderEditor(); };
 
+window.openRosters = async function(){
+  grabEditor();
+  try{ await Promise.all([loadRosters(), loadHubBranches()]); }
+  catch(err){ return msg('โหลดรายการจาก Training Record ไม่สำเร็จ — ' + esc(err.message || err), 'err'); }
+  renderEditor();
+};
+
+/* ดึงรายชื่อเข้าการอบรมนี้ — รวมกับของเดิมด้วยรหัสคน ไม่ลบใครทิ้ง
+   ผลที่ทำไปแล้วผูกกับรหัสคน (participant_id) ถ้าลบแล้วสร้างใหม่ผลจะหลุด */
+window.pullRoster = function(){
+  grabEditor();
+  const r = (ROSTERS || []).find(x => x.id === $('#trrPick').value);
+  if (!r) return msg('เลือกรอบอบรมก่อน', 'warn');
+  const onlyCame = $('#trrOnlyCame').checked;
+  const src = (r.people || []).filter(p => !onlyCame || p.attended);
+  if (!src.length) return msg(onlyCame ? 'รอบนี้ยังไม่มีคนที่เช็คชื่อว่ามาอบรม' : 'รอบนี้ไม่มีรายชื่อ', 'warn');
+
+  const e = editing;
+  if (!String(e.title || '').trim()) e.title = (r.course || '') + (r.batch ? ' รุ่นที่ ' + r.batch : '');
+  if (!e.train_date && r.train_date) e.train_date = String(r.train_date).slice(0, 10);
+  if (!e.place && r.place) e.place = r.place;
+  if (!e.trainer && r.trainer) e.trainer = r.trainer;
+
+  const have = new Set((e.participants || []).map(p => String(p.id)));
+  let added = 0;
+  src.forEach(p => {
+    const id = 'trr-' + (p.id || p.empCode || p.name);
+    if (have.has(id)) return;
+    e.participants.push({ id, name: p.name || '', branch: branchLabel(p.branchId),
+      position: p.position || '', empCode: p.empCode || '' });
+    have.add(id); added++;
+  });
+  e.source = { system:'training-record', id:r.id, course:r.course || '', batch:r.batch || '',
+    train_date:r.train_date || '', synced_at:new Date().toISOString() };
+  renderEditor();
+  msg(added ? `ดึงรายชื่อเพิ่ม ${added} คน (รวม ${e.participants.length} คน)` : 'รายชื่อตรงกับ Training Record แล้ว ไม่มีคนใหม่');
+};
+
 function renderEditor(){
   const e = editing;
   $('#view').innerHTML = `
@@ -1109,6 +1191,33 @@ function renderEditor(){
         <div><label>แบบทดสอบหลังเรียน</label>
           <div class="seg"><button type="button" class="${e.post_open?'on':''}" onclick="togOpen('post_open')">${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</button></div></div>
       </div>
+    </div>
+
+    <div class="card">
+      <h2>🔗 ดึงจาก Training Record</h2>
+      ${e.source ? `<div class="notice ok show" style="margin:0 0 12px">
+          ลิงก์กับ <b>${esc(e.source.course || '')}${e.source.batch ? ' รุ่นที่ ' + esc(e.source.batch) : ''}</b>
+          ${e.source.train_date ? ' · อบรม ' + esc(fmtD(e.source.train_date)) : ''}
+          <span style="font-weight:400"> · ดึงล่าสุด ${esc(fmtDT(e.source.synced_at))}</span>
+        </div>` : ''}
+      <p class="sub">เลือกรอบอบรมที่จัดไว้ในระบบ Training Record — หลักสูตร วันที่ วิทยากร และรายชื่อจะเข้ามาเอง
+        <br>ถ้ารายชื่อฝั่งนั้นเปลี่ยนทีหลัง กดดึงซ้ำได้ คนเดิมและผลที่ทำไปแล้วไม่หาย</p>
+      ${ROSTERS == null
+        ? `<button class="btn btn-secondary btn-sm" onclick="openRosters()">โหลดรายการรอบอบรม</button>`
+        : ROSTERS.length ? `
+        <select id="trrPick">
+          ${ROSTERS.map(r => `<option value="${esc(r.id)}" ${e.source && e.source.id === r.id ? 'selected' : ''}>${
+            esc((r.course || 'ไม่มีชื่อหลักสูตร') + (r.batch ? ' รุ่นที่ ' + r.batch : '') + ' · ' +
+                (r.train_date ? fmtD(r.train_date) : 'ไม่ระบุวันที่') + ' · ' + (r.people || []).length + ' คน' +
+                (r.issued_at ? '' : ' · แบบร่าง'))}</option>`).join('')}
+        </select>
+        <label style="margin-top:10px;font-weight:600">
+          <input type="checkbox" id="trrOnlyCame" style="width:auto;margin-right:7px">เอาเฉพาะคนที่เช็คชื่อว่ามาอบรมแล้ว
+        </label>
+        <div class="row-btns" style="margin-top:10px">
+          <button class="btn btn-primary btn-sm" onclick="pullRoster()">${e.source ? 'ดึงรายชื่อล่าสุดอีกครั้ง' : 'ดึงรายชื่อ'}</button>
+        </div>`
+        : `<div class="empty" style="padding:16px">ยังไม่มีรอบอบรมที่มีรายชื่อในระบบ Training Record</div>`}
     </div>
 
     <div class="card">
@@ -1171,12 +1280,21 @@ window.saveTraining = async function(){
     status:e.status || 'draft', questions:e.questions, participants:e.participants || [],
     pre_open: !!e.pre_open, post_open: !!e.post_open,
     visible_brands:e.visible_brands || [], visible_branches:e.visible_branches || [],
-    sort_order:e.sort_order || 0, updated_at:new Date().toISOString()
+    sort_order:e.sort_order || 0, updated_at:new Date().toISOString(),
+    source: e.source || null
   };
-  const { error } = e.id
-    ? await SB.from('tr_trainings').update(row).eq('id', e.id)
-    : await SB.from('tr_trainings').insert(row);
+  const put = r => e.id ? SB.from('tr_trainings').update(r).eq('id', e.id) : SB.from('tr_trainings').insert(r);
+  let { error } = await put(row);
+  let noLink = false;
+  if (error && /source/.test(error.message || '')){
+    delete row.source; noLink = true;
+    ({ error } = await put(row));
+  }
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
+  if (noLink){
+    editing = null; await loadTrainings(); renderTrainings();
+    return msg('บันทึกแล้ว แต่ยังจำลิงก์กับ Training Record ไม่ได้ — ต้องรัน <b>supabase/training-test.sql</b> อีกครั้ง (มีคอลัมน์ใหม่)', 'warn');
+  }
   editing = null;
   msg('บันทึกการอบรมแล้ว');
   await loadTrainings(); renderTrainings();
