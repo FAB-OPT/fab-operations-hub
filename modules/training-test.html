@@ -316,6 +316,42 @@ summary{font-weight:700;cursor:pointer}
   .sysbtn{flex:none;padding:8px 13px;font-size:13px}
 }
 @media print{ .sysbar{display:none} }
+
+/* ── ตัวเลือกแบบช่องแยก ก. ข. ค. ง. ── */
+.chrow{display:flex;align-items:center;gap:8px;margin-top:8px}
+.chrow .chmark{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:#eef0f3;font-weight:800;color:#4b5563}
+.chrow.ok .chmark{background:var(--green);color:#fff}
+.chrow input{flex:1}
+.chok{flex:none;border:1px solid var(--line);background:#fff;border-radius:10px;padding:9px 12px;font-weight:700;font-size:13px;color:#667085;white-space:nowrap}
+.chrow.ok .chok{background:#eaf7ef;border-color:#bfe3ce;color:#146c43}
+.chdel{flex:none;border:0;background:transparent;color:#98a2b3;font-size:18px;padding:4px 8px}
+.chdel:hover{color:var(--red)}
+/* ตัวเลือกตอนทำแบบทดสอบ — เรียงลงเป็นแถว อ่านง่ายบนมือถือ */
+.runch{display:flex;flex-direction:column;gap:8px}
+.runch button{display:flex;align-items:center;gap:10px;text-align:left;border:1px solid var(--line);background:#fff;
+  border-radius:12px;padding:12px 14px;font-weight:600;font-size:15px;color:var(--ink)}
+.runch button b{flex:none;width:28px;height:28px;border-radius:50%;display:grid;place-items:center;background:#eef0f3;font-size:14px}
+.runch button.on{border-color:var(--orange);background:var(--orange-soft)}
+.runch button.on b{background:var(--orange);color:#fff}
+/* ── หน้าผลหลังทำเสร็จ ── */
+.rs-big{text-align:center;padding:10px 0 4px}
+.rs-big .n{font-size:54px;font-weight:800;line-height:1;letter-spacing:-.02em}
+.rs-big .n small{font-size:24px;color:var(--muted);font-weight:700}
+.rs-big .p{font-size:17px;color:var(--muted);margin-top:6px;font-weight:600}
+.cmp{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}
+.cmp>div{border:1px solid var(--line);border-radius:14px;padding:14px 16px;background:#fff}
+.cmp .l{font-size:13px;color:var(--muted);font-weight:700}
+.cmp .v{font-size:28px;font-weight:800;margin-top:2px}
+.cmp .v small{font-size:15px;color:var(--muted);font-weight:600}
+.cmp .bar{height:9px;background:#eef0f3;border-radius:99px;overflow:hidden;margin-top:8px}
+.cmp .bar span{display:block;height:100%;border-radius:99px;background:#98a2b3}
+.cmp .post .bar span{background:linear-gradient(90deg,#ff8a3c,var(--orange))}
+.delta{margin-top:12px;border-radius:14px;padding:14px 16px;font-weight:800;font-size:18px;text-align:center}
+.delta.up{background:#eaf7ef;color:#146c43}.delta.down{background:#fff1f0;color:var(--red)}.delta.same{background:#f2f4f7;color:#475467}
+.qcmp td.c{text-align:center;width:90px;font-weight:800}
+.qcmp .y{color:var(--green)}.qcmp .x{color:var(--red)}
+@media (max-width:560px){ .cmp{grid-template-columns:1fr} .rs-big .n{font-size:44px} }
 </style>
 </head>
 <body>
@@ -713,13 +749,14 @@ function renderRun(){
     <div class="card">
       <h2>${esc(t.title)} · ${esc(PHASE[run.phase])}</h2>
       <p class="sub">ผู้ทำ: <b>${esc(run.person.name)}</b>${run.person.branch ? ' · ' + esc(run.person.branch) : ''}
-        <br>ตอบให้ครบทุกข้อ · แบบทดสอบนี้ไม่มีเกณฑ์ผ่าน ใช้ดูว่าอบรมแล้วรู้เพิ่มขึ้นแค่ไหน</p>
+        <br>${(t.questions || []).length} ข้อ · คะแนนเต็ม ${(t.questions || []).length} คะแนน · ตอบแล้ว ${Object.keys(run.answers).length} ข้อ
+        <br>ไม่มีเกณฑ์ผ่าน ใช้ดูว่าอบรมแล้วรู้เพิ่มขึ้นแค่ไหน</p>
     </div>
     ${(t.questions || []).map((q, i) => `
       <div class="card">
         <label>${i + 1}. ${esc(q.label)}</label>
-        <div class="seg">${(q.choices || []).map((c, j) =>
-          `<button type="button" class="${run.answers[q.id] === j ? 'on' : ''}" onclick="answer('${q.id}',${j})">${esc(c)}</button>`).join('')}</div>
+        <div class="runch">${(q.choices || []).map((c, j) =>
+          `<button type="button" class="${run.answers[q.id] === j ? 'on' : ''}" onclick="answer('${q.id}',${j})"><b>${chMark(j)}</b>${esc(c)}</button>`).join('')}</div>
       </div>`).join('')}
     <div class="card">
       <div class="row-btns">
@@ -746,14 +783,63 @@ window.submitRun = async function(){
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
   await loadAttempts();
 
-  /* ทำหลังเรียนแล้ว → บอกทันทีว่าดีขึ้นกี่คะแนน คนทำจะได้เห็นผลของการอบรม */
-  const pre = attemptOf(t.key, 'pre', run.person.id);
-  const diff = (run.phase === 'post' && pre) ? Math.round((pct - Number(pre.pct)) * 10) / 10 : null;
+  const done = { t, phase: run.phase, person: run.person, answers: run.answers, score, total: qs.length, pct };
   run = null;
-  await go('list');
-  msg(`บันทึกคะแนนแล้ว: <b>${score}/${qs.length}</b> (${pct}%)` +
-      (diff == null ? '' : ` · เทียบก่อนเรียน <b>${diff > 0 ? '+' : ''}${diff}%</b> ${diff > 0 ? 'ดีขึ้น' : diff < 0 ? 'ลดลง' : 'เท่าเดิม'}`));
+  renderResult(done);
 };
+
+/* หน้าผลหลังทำเสร็จ
+   ก่อนเรียน = บอกแค่คะแนน ไม่เฉลยรายข้อ (ชุดเดียวกับหลังเรียน เฉลยตอนนี้ = บอกข้อสอบล่วงหน้า)
+   หลังเรียน = เทียบกับก่อนเรียน + ดูรายข้อว่าข้อไหนก่อนผิดแล้วหลังถูก */
+function renderResult(d){
+  const t = d.t, qs = t.questions || [];
+  const pre = d.phase === 'post' ? attemptOf(t.key, 'pre', d.person.id) : null;
+  const diffPt = pre ? d.score - Number(pre.score) : null;
+  const diffPct = pre ? Math.round((d.pct - Number(pre.pct)) * 10) / 10 : null;
+  const left = participantsFor(t).filter(p => !attemptOf(t.key, d.phase, p.id)).length;
+  const sign = v => (v > 0 ? '+' : '') + v;
+  const box = (cls, label, a) => `<div class="${cls}"><div class="l">${label}</div>
+    <div class="v">${a ? a.score : '—'}<small>${a ? ' / ' + a.total + ' คะแนน · ' + a.pct + '%' : ''}</small></div>
+    <div class="bar"><span style="width:${a ? Math.max(2, a.pct) : 0}%"></span></div></div>`;
+
+  $('#view').innerHTML = `
+    <div class="card">
+      <h2>${esc(t.title)} · ${esc(PHASE[d.phase])}</h2>
+      <p class="sub">${esc(d.person.name)}${d.person.branch ? ' · ' + esc(d.person.branch) : ''} · บันทึกคะแนนแล้ว</p>
+      <div class="rs-big">
+        <div class="n">${d.score}<small> / ${d.total}</small></div>
+        <div class="p">คะแนน${esc(PHASE[d.phase])} · ${d.pct}%</div>
+      </div>
+      ${d.phase === 'post' ? (pre ? `
+        <div class="cmp">
+          ${box('pre', 'ก่อนเรียน', pre)}
+          ${box('post', 'หลังเรียน', { score: d.score, total: d.total, pct: d.pct })}
+        </div>
+        <div class="delta ${diffPt > 0 ? 'up' : diffPt < 0 ? 'down' : 'same'}">
+          ${diffPt > 0 ? '▲ ดีขึ้น' : diffPt < 0 ? '▼ ลดลง' : 'เท่าเดิม'} ${diffPt === 0 ? '' : sign(diffPt) + ' คะแนน (' + sign(diffPct) + '%)'}
+        </div>` : `<p class="sub" style="text-align:center">ไม่พบคะแนนก่อนเรียนของคนนี้ จึงยังเทียบไม่ได้</p>`)
+      : `<p class="sub" style="text-align:center;margin-top:8px">หลังอบรมจะทำชุดเดิมอีกครั้ง แล้วระบบจะเทียบคะแนนให้</p>`}
+    </div>
+    ${d.phase === 'post' ? `
+    <div class="card">
+      <h2>รายข้อ</h2>
+      <div class="table-wrap"><table class="qcmp">
+        <thead><tr><th>คำถาม</th><th style="text-align:center">ก่อนเรียน</th><th style="text-align:center">หลังเรียน</th></tr></thead>
+        <tbody>${qs.map((q, i) => {
+          const mk = v => v == null ? '<span class="muted">—</span>' : v === q.answer ? '<span class="y">✓</span>' : '<span class="x">✗</span>';
+          return `<tr><td>${i + 1}. ${esc(q.label)}<br><span class="muted" style="font-size:12.5px">ข้อถูก: ${chMark(q.answer)}. ${esc((q.choices || [])[q.answer] || '')}</span></td>
+            <td class="c">${mk(pre ? (pre.answers || {})[q.id] : null)}</td><td class="c">${mk(d.answers[q.id])}</td></tr>`;
+        }).join('')}</tbody>
+      </table></div>
+    </div>` : ''}
+    <div class="card">
+      <div class="row-btns">
+        ${left ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','${d.phase}')">ทำคนถัดไป (เหลือ ${left} คน)</button>` : ''}
+        <button class="btn btn-secondary" onclick="go('list')">กลับหน้าการอบรม</button>
+      </div>
+    </div>`;
+  window.scrollTo({ top:0 });
+}
 
 /* ══════════════════════════════════════════════════════════════════
    ผลก่อน–หลัง
@@ -1090,14 +1176,31 @@ function grabEditor(){
   });
   document.querySelectorAll('#view [data-qi]').forEach(el => {
     const i = +el.dataset.qi, k = el.dataset.qk;
-    if (k === 'choices') editing.questions[i].choices = el.value.split('\n').map(x => x.trim()).filter(Boolean);
+    if (el.dataset.qc != null) editing.questions[i].choices[+el.dataset.qc] = el.value;
+    else if (k === 'choices') editing.questions[i].choices = el.value.split('\n').map(x => x.trim()).filter(Boolean);
     else editing.questions[i][k] = el.value;
   });
 }
+const CH_MARK = 'กขคงจฉชซฌญ';
+const chMark = j => CH_MARK[j] || String(j + 1);
+window.addChoice = function(i){
+  grabEditor();
+  const q = editing.questions[i];
+  if (q.choices.length >= CH_MARK.length) return msg('ตัวเลือกมากสุด ' + CH_MARK.length + ' ข้อ', 'warn');
+  q.choices.push(''); renderEditor();
+};
+window.delChoice = function(i, j){
+  grabEditor();
+  const q = editing.questions[i];
+  if (q.choices.length <= 2) return msg('ต้องมีอย่างน้อย 2 ตัวเลือก', 'warn');
+  q.choices.splice(j, 1);
+  if (q.answer === j) q.answer = 0; else if (q.answer > j) q.answer--;
+  renderEditor();
+};
 window.addQuestion = function(){
   grabEditor();
   editing.questions.push({ id:'q' + Date.now().toString(36) + editing.questions.length,
-    label:'', choices:['ตัวเลือก 1','ตัวเลือก 2'], answer:0 });
+    label:'', choices:['','','',''], answer:0 });
   renderEditor();
 };
 window.delQuestion = function(i){ grabEditor(); editing.questions.splice(i,1); renderEditor(); };
@@ -1235,6 +1338,7 @@ function renderEditor(){
 
     <div class="card">
       <h2>คำถาม (${e.questions.length} ข้อ) — ใช้ชุดเดียวกันทั้งก่อนและหลังเรียน</h2>
+      <p class="sub">ข้อละ 1 คะแนน · <b>คะแนนเต็ม ${e.questions.length} คะแนน</b> · กด "ตั้งเป็นข้อถูก" ข้างตัวเลือกที่ถูก</p>
       <div class="row-btns" style="margin-bottom:12px">
         <button class="btn btn-secondary btn-sm" onclick="addQuestion()">+ เพิ่มคำถาม</button>
         <button class="btn btn-primary btn-sm" onclick="openImport()">⬆ นำเข้าข้อสอบ</button>
@@ -1250,11 +1354,15 @@ function renderEditor(){
             </span>
           </div>
           <input data-qi="${i}" data-qk="label" value="${esc(q.label)}" placeholder="คำถาม">
-          <label style="margin-top:10px">ตัวเลือก (บรรทัดละ 1 ข้อ)</label>
-          <textarea data-qi="${i}" data-qk="choices">${esc((q.choices || []).join('\n'))}</textarea>
-          <label style="margin-top:10px">ข้อที่ถูก</label>
-          <div class="seg">${(q.choices || []).map((c, j) =>
-            `<button type="button" class="${q.answer === j ? 'on' : ''}" onclick="setAnswer(${i},${j})">${esc(c)}</button>`).join('') || '<span class="muted">ใส่ตัวเลือกก่อน</span>'}</div>
+          <label style="margin-top:12px">ตัวเลือก</label>
+          ${(q.choices || []).map((c, j) => `
+            <div class="chrow ${q.answer === j ? 'ok' : ''}">
+              <span class="chmark">${chMark(j)}</span>
+              <input data-qi="${i}" data-qc="${j}" value="${esc(c)}" placeholder="ตัวเลือก ${chMark(j)}">
+              <button type="button" class="chok" onclick="setAnswer(${i},${j})">${q.answer === j ? '✓ ข้อถูก' : 'ตั้งเป็นข้อถูก'}</button>
+              <button type="button" class="chdel" onclick="delChoice(${i},${j})" title="ลบตัวเลือกนี้">✕</button>
+            </div>`).join('')}
+          <div class="row-btns" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="addChoice(${i})">+ เพิ่มตัวเลือก</button></div>
         </div>`).join('') || '<div class="empty">ยังไม่มีคำถาม</div>'}
     </div>
 
@@ -1420,6 +1528,9 @@ window.saveTraining = async function(){
   const e = editing;
   if (!String(e.title || '').trim()) return msg('ใส่ชื่อหลักสูตรก่อน', 'warn');
   if (!e.questions.length) return msg('ต้องมีคำถามอย่างน้อย 1 ข้อ', 'warn');
+  const blank = e.questions.findIndex(q => (q.choices || []).some(c => !String(c || '').trim()));
+  if (blank >= 0) return msg(`ข้อ ${blank + 1} มีตัวเลือกที่ยังว่าง — ใส่ข้อความหรือกด ✕ ลบตัวเลือกนั้น`, 'warn');
+  e.questions.forEach(q => { q.choices = q.choices.map(c => String(c).trim()); });
   const bad = e.questions.findIndex(q => !String(q.label || '').trim() || (q.choices || []).length < 2);
   if (bad >= 0) return msg(`ข้อ ${bad + 1} ยังไม่สมบูรณ์ — ต้องมีคำถามและตัวเลือกอย่างน้อย 2 ข้อ`, 'warn');
   const badA = e.questions.findIndex(q => q.answer == null || q.answer >= (q.choices || []).length);
