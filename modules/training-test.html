@@ -352,6 +352,12 @@ summary{font-weight:700;cursor:pointer}
 .qcmp td.c{text-align:center;width:90px;font-weight:800}
 .qcmp .y{color:var(--green)}.qcmp .x{color:var(--red)}
 @media (max-width:560px){ .cmp{grid-template-columns:1fr} .rs-big .n{font-size:44px} }
+
+/* ── ตารางกรอกข้อสอบในหน้าต่างนำเข้า ── */
+.impgrid{min-width:0}
+.impgrid th,.impgrid td{padding:6px 6px}
+.impgrid input,.impgrid select{padding:7px 9px;font-size:13.5px;border-radius:8px}
+.modal-box:has(.impgrid){max-width:min(1100px,96vw)}
 </style>
 </head>
 <body>
@@ -1376,150 +1382,222 @@ function renderEditor(){
 
 /* ══════════════════════════════════════════════════════════════════
    นำเข้าข้อสอบ — สองทาง
-   1) วางข้อความ รูปแบบเดียวกับระบบสอบวัดผล: หนึ่งข้อหนึ่งบล็อก เว้นบรรทัดว่างคั่น
-      บรรทัดแรก = คำถาม · ที่เหลือ = ตัวเลือก · * นำหน้าข้อที่ถูก
-      ก. ข. ค. / a) b) / 1. 2. นำหน้าตัวเลือกได้ (คำถามยาวหลายบรรทัดจะต่อกันให้)
-      หรือวาง JSON ที่มี questions:[{q,choices,answer}]
-   2) คัดลอกจากชุดข้อสอบที่มีอยู่แล้วในระบบสอบ (อ่านอย่างเดียว ไม่แตะชุดเดิม)
+   1) ไฟล์ Excel / CSV: 1 แถว = 1 ข้อ · คอลัมน์ โจทย์ | ก | ข | ค | ง | ข้อถูก
+      (มีไฟล์ตัวอย่างให้โหลด · ตัวเลือกไม่ครบ 4 ก็ได้ อย่างน้อย 2)
+   2) กรอกเป็นช่อง: ตารางเดียวกับในไฟล์ พิมพ์ทีละช่อง
+      หรือคัดลอกหลายแถวจาก Excel มาวางที่ช่องแรก ระบบกระจายลงช่องให้
+   ข้อถูกใส่ได้ทั้ง ก/ข/ค/ง · A/B/C/D · 1/2/3/4 หรือพิมพ์ข้อความตัวเลือกที่ถูก
    ══════════════════════════════════════════════════════════════════ */
-const HUB_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
-const IMP_MARK = /^(\*\s*)?([ก-ฮ]|[a-zA-Z]|\d{1,2})[.)]\s+/;
-
-function parseImportText(t){
-  const out = [];
-  String(t || '').replace(/\r/g,'').split(/\n\s*\n/).forEach(blk => {
-    const lines = blk.split('\n').map(s => s.trim()).filter(Boolean);
-    if (lines.length < 2) return;
-    let first = 1;
-    for (let k = 1; k < lines.length; k++){ if (IMP_MARK.test(lines[k])){ first = k; break; } }
-    const q = lines.slice(0, first).join(' ').replace(/^\s*\d+[.)]\s*/, '');
-    const choices = []; let answer = 0;
-    for (let i = first; i < lines.length; i++){
-      let ln = lines[i], correct = false;
-      if (/^\*/.test(ln)){ correct = true; ln = ln.replace(/^\*\s*/, ''); }
-      ln = ln.replace(/^([ก-ฮ]|[a-zA-Z]|\d{1,2})[.)]\s+/, '');
-      if (correct) answer = choices.length;
-      choices.push(ln);
-    }
-    if (q && choices.length >= 2) out.push({ q, choices, answer });
+const IMP_COLS = 4;                                   // ตัวเลือก ก ข ค ง
+let xlsxLoading = null;
+function loadXLSX(){
+  if (window.XLSX) return Promise.resolve();
+  if (!xlsxLoading) xlsxLoading = new Promise((ok, fail) => {
+    const el = document.createElement('script');
+    el.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    el.onload = () => ok();
+    el.onerror = () => { xlsxLoading = null; fail(new Error('โหลดตัวอ่านไฟล์ไม่สำเร็จ')); };
+    document.head.appendChild(el);
   });
-  return out;
-}
-function parseImport(raw){
-  raw = String(raw || '').trim();
-  if (!raw) return [];
-  if (raw[0] === '{' || raw[0] === '['){
-    const j = JSON.parse(raw);
-    const arr = Array.isArray(j) ? j : (j.questions || []);
-    return arr.map(it => ({ q: String(it.q || it.question || it.label || '').trim(),
-      choices: (it.choices || []).map(c => String(c).trim()), answer: it.answer != null ? +it.answer : 0 }))
-      .filter(x => x.q && x.choices.length >= 2);
-  }
-  return parseImportText(raw);
+  return xlsxLoading;
 }
 
-let IMP = { tab:'text', exams:null, pick:'', replace:false };
+/* ข้อถูก → ลำดับตัวเลือก (0 = ก) · อ่านไม่ออก = -1 */
+function impAnswerIdx(v, choices){
+  const t = String(v == null ? '' : v).trim().replace(/[.)]$/, '');
+  if (!t) return -1;
+  let i = CH_MARK.indexOf(t);
+  if (i >= 0 && t.length === 1) return i;
+  if (/^[a-jA-J]$/.test(t)) return t.toUpperCase().charCodeAt(0) - 65;
+  if (/^\d{1,2}$/.test(t)) return +t - 1;
+  i = choices.findIndex(c => c === t);
+  return i;
+}
+/* แถว [โจทย์, ก, ข, ค, ง, ข้อถูก] → { q, choices, answer } หรือเหตุผลที่ใช้ไม่ได้ */
+function impRow(cells){
+  const c = (cells || []).map(x => String(x == null ? '' : x).trim());
+  const q = c[0] || '';
+  const choices = c.slice(1, 1 + IMP_COLS).filter(Boolean);
+  if (!q && !choices.length && !c[1 + IMP_COLS]) return null;            // แถวว่าง ข้ามเงียบ ๆ
+  if (!q) return { err:'ไม่มีโจทย์' };
+  if (choices.length < 2) return { err:'ตัวเลือกไม่ถึง 2 ข้อ' };
+  const ans = impAnswerIdx(c[1 + IMP_COLS], choices);
+  if (ans < 0 || ans >= choices.length) return { err:'ยังไม่ได้ระบุข้อถูก (ใส่ ก ข ค ง)' };
+  return { q, choices, answer: ans };
+}
+/* หัวตารางในไฟล์ — ข้ามแถวแรกถ้าเป็นหัวคอลัมน์ */
+const impIsHeader = r => /โจทย์|คำถาม|question/i.test(String((r || [])[0] || ''));
+
+let IMP = { tab:'grid', grid:[], file:null };
+const blankRows = n => Array.from({ length:n }, () => Array(2 + IMP_COLS).fill(''));
 
 window.openImport = function(){
   grabEditor();
-  IMP = { tab:'text', exams:IMP.exams, pick:'', replace:false };
+  IMP = { tab:'grid', grid: blankRows(5), file:null };
   renderImport();
   $('#modal').classList.add('show');
 };
 
-function impPreviewList(list){
-  if (!list.length) return '<p class="muted" style="margin:8px 0 0">ยังไม่พบข้อที่นำเข้าได้</p>';
-  return `<div class="table-wrap" style="margin-top:10px;max-height:260px;overflow:auto"><table>
-    <thead><tr><th>#</th><th>คำถาม</th><th>ตัวเลือก</th><th>ข้อที่ถูก</th></tr></thead>
-    <tbody>${list.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.q)}</td><td>${x.choices.length} ตัวเลือก</td>
-      <td>${esc(x.choices[x.answer] ?? '—')}</td></tr>`).join('')}</tbody></table></div>`;
+function impParsed(){
+  const rows = IMP.tab === 'file' ? (IMP.file ? IMP.file.rows : []) : IMP.grid;
+  const ok = [], bad = [];
+  rows.forEach((r, i) => {
+    if (IMP.tab === 'file' && i === 0 && impIsHeader(r)) return;
+    const x = impRow(r);
+    if (!x) return;
+    if (x.err) bad.push({ n: i + 1, err: x.err }); else ok.push(x);
+  });
+  return { ok, bad };
 }
 
-function impCurrent(){
-  if (IMP.tab === 'text'){
-    try{ return { list: parseImport(($('#impText') || {}).value || IMP.text || '') }; }
-    catch(e){ return { list: [], err: 'รูปแบบ JSON ยังไม่ถูกต้อง' }; }
-  }
-  const ex = (IMP.exams || []).find(x => String(x.id) === String(IMP.pick));
-  return { list: ex ? parseImport(JSON.stringify(ex.questions || [])) : [] };
+function impSummary(){
+  const { ok, bad } = impParsed();
+  return `<div style="margin-top:10px">
+    ${ok.length ? `<span class="pill pass">พร้อมนำเข้า ${ok.length} ข้อ</span>` : '<span class="muted">ยังไม่มีข้อที่นำเข้าได้</span>'}
+    ${bad.length ? `<div class="notice warn show" style="margin:8px 0 0">แถวที่ใช้ไม่ได้ (จะถูกข้าม):<br>${
+      bad.slice(0, 8).map(b => `แถว ${b.n}: ${esc(b.err)}`).join('<br>')}${bad.length > 8 ? '<br>…และอีก ' + (bad.length - 8) + ' แถว' : ''}</div>` : ''}
+  </div>`;
 }
 
-function renderImport(){
-  const cur = impCurrent();
-  $('#modalBox').innerHTML = `
-    <div class="modal-head">
-      <div><h2>นำเข้าข้อสอบ</h2>
-        <p class="sub" style="margin:0">เพิ่มทีเดียวหลายข้อ · ข้อที่นำเข้าใช้ทั้งก่อนเรียนและหลังเรียน</p></div>
-      <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
-    </div>
-    <div class="seg" style="margin-bottom:12px">
-      <button type="button" class="${IMP.tab === 'text' ? 'on' : ''}" onclick="impTab('text')">📋 วางข้อความ</button>
-      <button type="button" class="${IMP.tab === 'exam' ? 'on' : ''}" onclick="impTab('exam')">📝 คัดลอกจากระบบสอบ</button>
-    </div>
-    ${IMP.tab === 'text' ? `
-      <p class="sub" style="margin:0 0 8px">หนึ่งข้อหนึ่งบล็อก เว้นบรรทัดว่างคั่นระหว่างข้อ · บรรทัดแรกคือคำถาม · ใส่ <b>*</b> หน้าข้อที่ถูก
-        <br>รูปแบบเดียวกับการนำเข้าในระบบสอบ · วาง JSON <code>questions:[{q,choices,answer}]</code> ก็ได้</p>
-      <textarea id="impText" class="code" style="min-height:180px" oninput="impRefresh()" placeholder="อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?
-*0–4 °C
-5–10 °C
-10–15 °C
-
-เมื่อพบอาหารมีกลิ่นผิดปกติ ต้องทำอย่างไรก่อน?
-*ก. แจ้งหัวหน้างานทันที
-ข. ทิ้งเอง
-ค. ชิมดูก่อน">${esc(IMP.text || '')}</textarea>`
-    : IMP.exams == null ? `<div class="loading" style="padding:24px">กำลังโหลดชุดข้อสอบ…</div>`
-    : IMP.exams.length ? `
-      <label>ชุดข้อสอบในระบบสอบ</label>
-      <select id="impExam" onchange="impPick(this.value)">
-        <option value="">— เลือกชุดข้อสอบ —</option>
-        ${IMP.exams.map(x => `<option value="${esc(x.id)}" ${String(x.id) === String(IMP.pick) ? 'selected' : ''}>${
-          esc((x.title || 'ไม่มีชื่อ') + ' · ' + (x.questions || []).length + ' ข้อ' + (x.brand ? ' · ' + x.brand : ''))}</option>`).join('')}
-      </select>
-      <p class="sub" style="margin:8px 0 0">คัดลอกคำถามมาอย่างเดียว ชุดข้อสอบเดิมในระบบสอบไม่ถูกแก้</p>`
-    : `<div class="empty" style="padding:18px">ไม่พบชุดข้อสอบในระบบสอบ</div>`}
-    <div id="impPrev">${cur.err ? `<p style="color:var(--red);margin:8px 0 0">${esc(cur.err)}</p>` : impPreviewList(cur.list)}</div>
-    <label style="margin-top:12px;font-weight:600">
-      <input type="checkbox" id="impReplace" ${IMP.replace ? 'checked' : ''} onchange="IMP.replace=this.checked" style="width:auto;margin-right:7px">
-      แทนที่คำถามเดิมทั้งหมด (ไม่ติ๊ก = ต่อท้ายคำถามที่มีอยู่ ${editing.questions.length} ข้อ)
-    </label>
-    <div class="row-btns" style="margin-top:14px">
-      <button class="btn btn-primary" onclick="doImport()">นำเข้า ${cur.list.length ? cur.list.length + ' ข้อ' : ''}</button>
-      <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+function impGridHtml(){
+  const head = ['โจทย์', ...Array.from({ length:IMP_COLS }, (_, j) => 'ตัวเลือก ' + chMark(j)), 'ข้อถูก'];
+  return `<div class="table-wrap" style="max-height:340px;overflow:auto"><table class="impgrid">
+    <thead><tr><th>#</th>${head.map(h => `<th>${esc(h)}</th>`).join('')}<th></th></tr></thead>
+    <tbody>${IMP.grid.map((r, i) => `<tr>
+      <td class="muted">${i + 1}</td>
+      <td><input data-gr="${i}" data-gc="0" value="${esc(r[0])}" placeholder="โจทย์ข้อ ${i + 1}" style="min-width:220px"></td>
+      ${Array.from({ length:IMP_COLS }, (_, j) =>
+        `<td><input data-gr="${i}" data-gc="${j + 1}" value="${esc(r[j + 1])}" style="min-width:110px"></td>`).join('')}
+      <td><select data-gr="${i}" data-gc="${1 + IMP_COLS}" style="min-width:70px">
+        <option value="">—</option>
+        ${Array.from({ length:IMP_COLS }, (_, j) =>
+          `<option value="${chMark(j)}" ${String(r[1 + IMP_COLS]) === chMark(j) ? 'selected' : ''}>${chMark(j)}</option>`).join('')}
+      </select></td>
+      <td><button type="button" class="chdel" onclick="impDelRow(${i})" title="ลบแถว">✕</button></td>
+    </tr>`).join('')}</tbody></table></div>
+    <div class="row-btns" style="margin-top:8px">
+      <button class="btn btn-secondary btn-sm" onclick="impAddRows(5)">+ เพิ่มอีก 5 แถว</button>
     </div>`;
 }
 
-window.impRefresh = function(){
-  IMP.text = $('#impText').value;
-  const cur = impCurrent();
-  $('#impPrev').innerHTML = cur.err ? `<p style="color:var(--red);margin:8px 0 0">${esc(cur.err)}</p>` : impPreviewList(cur.list);
-  const b = document.querySelector('#modalBox .btn-primary');
-  if (b) b.textContent = 'นำเข้า ' + (cur.list.length ? cur.list.length + ' ข้อ' : '');
+function renderImport(){
+  $('#modalBox').innerHTML = `
+    <div class="modal-head">
+      <div><h2>นำเข้าข้อสอบ</h2>
+        <p class="sub" style="margin:0">1 แถว = 1 ข้อ · ข้อที่นำเข้าใช้ทั้งก่อนเรียนและหลังเรียน</p></div>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
+    </div>
+    <div class="seg" style="margin-bottom:12px">
+      <button type="button" class="${IMP.tab === 'grid' ? 'on' : ''}" onclick="impTab('grid')">✏️ กรอกเป็นช่อง</button>
+      <button type="button" class="${IMP.tab === 'file' ? 'on' : ''}" onclick="impTab('file')">📁 นำเข้าจากไฟล์ Excel</button>
+    </div>
+    ${IMP.tab === 'grid' ? `
+      <p class="sub" style="margin:0 0 8px">พิมพ์โจทย์และตัวเลือก แล้วเลือกข้อถูก · ตัวเลือกไม่ครบ 4 ก็ได้ อย่างน้อย 2
+        <br>มีข้อสอบใน Excel อยู่แล้ว? คัดลอกหลายแถวมาวางที่ช่องโจทย์ช่องแรก ระบบกระจายลงช่องให้</p>
+      ${impGridHtml()}`
+    : `
+      <p class="sub" style="margin:0 0 8px">ไฟล์ .xlsx หรือ .csv · คอลัมน์ตามลำดับ: <b>โจทย์ | ก | ข | ค | ง | ข้อถูก</b>
+        <br>ข้อถูกใส่ ก ข ค ง (หรือ 1 2 3 4) · แถวแรกเป็นหัวตารางได้</p>
+      <div class="row-btns">
+        <label class="btn btn-primary btn-sm" style="margin:0;cursor:pointer">📁 เลือกไฟล์
+          <input type="file" accept=".xlsx,.xls,.csv" onchange="impReadFile(this)" style="display:none"></label>
+        <button class="btn btn-secondary btn-sm" onclick="impTemplate()">⬇ ดาวน์โหลดไฟล์ตัวอย่าง</button>
+      </div>
+      ${IMP.file ? `<p class="sub" style="margin:10px 0 0">ไฟล์: <b>${esc(IMP.file.name)}</b> · ${IMP.file.rows.length} แถว</p>` : ''}`}
+    <div id="impSum">${impSummary()}</div>
+    <label style="margin-top:12px;font-weight:600">
+      <input type="checkbox" id="impReplace" style="width:auto;margin-right:7px">
+      แทนที่คำถามเดิมทั้งหมด (ไม่ติ๊ก = ต่อท้ายคำถามที่มีอยู่ ${editing.questions.length} ข้อ)
+    </label>
+    <div class="row-btns" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="doImport()">นำเข้า</button>
+      <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+    </div>`;
+  wireGrid();
+}
+
+/* อ่านค่าที่พิมพ์ในตาราง · คัดลอกจาก Excel มาวาง = กระจายลงหลายแถวหลายช่อง */
+function grabGrid(){
+  document.querySelectorAll('#modalBox [data-gr]').forEach(el => {
+    const r = +el.dataset.gr, c = +el.dataset.gc;
+    if (IMP.grid[r]) IMP.grid[r][c] = el.value;
+  });
+}
+function wireGrid(){
+  document.querySelectorAll('#modalBox [data-gr]').forEach(el => {
+    el.addEventListener(el.tagName === 'SELECT' ? 'change' : 'input', () => { grabGrid(); $('#impSum').innerHTML = impSummary(); });
+    if (el.tagName !== 'INPUT') return;
+    el.addEventListener('paste', ev => {
+      const text = (ev.clipboardData || window.clipboardData).getData('text');
+      if (!/[\t\n]/.test(text)) return;                       // วางคำเดียว ปล่อยตามปกติ
+      ev.preventDefault();
+      grabGrid();
+      const r0 = +el.dataset.gr, c0 = +el.dataset.gc;
+      const lines = text.replace(/\r/g, '').split('\n').filter((l, i, a) => l !== '' || i < a.length - 1);
+      lines.forEach((line, k) => {
+        const r = r0 + k;
+        while (IMP.grid.length <= r) IMP.grid.push(Array(2 + IMP_COLS).fill(''));
+        line.split('\t').forEach((v, j) => { if (c0 + j < 2 + IMP_COLS) IMP.grid[r][c0 + j] = v.trim(); });
+      });
+      /* ข้อถูกที่วางมาเป็นข้อความ/ตัวเลข แปลงเป็น ก ข ค ง ให้ช่องเลือกแสดงได้ */
+      IMP.grid.forEach(row => {
+        const ch = row.slice(1, 1 + IMP_COLS).filter(Boolean);
+        const i = impAnswerIdx(row[1 + IMP_COLS], ch);
+        if (row[1 + IMP_COLS] && i >= 0) row[1 + IMP_COLS] = chMark(i);
+      });
+      renderImport();
+    });
+  });
+}
+window.impAddRows = function(n){ grabGrid(); IMP.grid = IMP.grid.concat(blankRows(n)); renderImport(); };
+window.impDelRow = function(i){
+  grabGrid(); IMP.grid.splice(i, 1);
+  if (!IMP.grid.length) IMP.grid = blankRows(1);
+  renderImport();
 };
-window.impTab = async function(t){
-  if ($('#impText')) IMP.text = $('#impText').value;
-  IMP.tab = t; renderImport();
-  if (t === 'exam' && IMP.exams == null){
-    try{
-      const res = await fetch(HUB_SCRIPT_URL + '?action=exams&_=' + Date.now()).then(r => r.json());
-      IMP.exams = ((res && res.exams) || []).filter(x => (x.questions || []).length);
-    }catch(e){ IMP.exams = []; msg('โหลดชุดข้อสอบไม่สำเร็จ — ' + esc(e.message || e), 'err'); }
-    if (IMP.tab === 'exam') renderImport();
-  }
+window.impTab = function(t){ if (IMP.tab === 'grid') grabGrid(); IMP.tab = t; renderImport(); };
+
+window.impReadFile = async function(input){
+  const f = input.files && input.files[0]; if (!f) return;
+  try{
+    await loadXLSX();
+    const buf = await f.arrayBuffer();
+    const wb = XLSX.read(buf, { type:'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header:1, defval:'', raw:false });
+    IMP.file = { name: f.name, rows };
+    renderImport();
+  }catch(e){ msg('อ่านไฟล์ไม่สำเร็จ — ' + esc(e.message || e), 'err'); }
 };
-window.impPick = function(v){ IMP.pick = v; renderImport(); };
+
+window.impTemplate = async function(){
+  try{
+    await loadXLSX();
+    const rows = [
+      ['โจทย์', 'ก', 'ข', 'ค', 'ง', 'ข้อถูก'],
+      ['อุณหภูมิตู้เย็นที่ปลอดภัยคือเท่าใด', '0–4 °C', '5–10 °C', '10–15 °C', '15–20 °C', 'ก'],
+      ['เมื่อพบอาหารมีกลิ่นผิดปกติ ต้องทำอย่างไรก่อน', 'ทิ้งเอง', 'แจ้งหัวหน้างานทันที', 'ชิมดูก่อน', '', 'ข']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch:44 }, { wch:18 }, { wch:18 }, { wch:18 }, { wch:18 }, { wch:8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
+    XLSX.writeFile(wb, 'ฟอร์มข้อสอบก่อนหลังอบรม.xlsx');
+    msg('โหลดไฟล์ตัวอย่างแล้ว — กรอกทับแถวตัวอย่างได้เลย');
+  }catch(e){ msg('สร้างไฟล์ตัวอย่างไม่สำเร็จ — ' + esc(e.message || e), 'err'); }
+};
 
 window.doImport = function(){
-  const cur = impCurrent();
-  if (cur.err) return msg(cur.err, 'warn');
-  if (!cur.list.length) return msg('ยังไม่มีข้อที่นำเข้าได้', 'warn');
+  if (IMP.tab === 'grid') grabGrid();
+  const { ok } = impParsed();
+  if (!ok.length) return msg('ยังไม่มีข้อที่นำเข้าได้ — ตรวจว่ามีโจทย์ ตัวเลือกอย่างน้อย 2 ข้อ และเลือกข้อถูกแล้ว', 'warn');
+  const replace = $('#impReplace') && $('#impReplace').checked;
   const stamp = Date.now().toString(36);
-  const add = cur.list.map((x, i) => ({ id: 'q' + stamp + i, label: x.q, choices: x.choices,
-    answer: (x.answer >= 0 && x.answer < x.choices.length) ? x.answer : 0 }));
-  editing.questions = IMP.replace ? add : editing.questions.concat(add);
-  closeModal(); IMP.text = '';
+  const add = ok.map((x, i) => ({ id: 'q' + stamp + i, label: x.q, choices: x.choices, answer: x.answer }));
+  editing.questions = replace ? add : editing.questions.concat(add);
+  closeModal();
   renderEditor();
-  msg(`นำเข้า ${add.length} ข้อแล้ว (รวม ${editing.questions.length} ข้อ) — ตรวจข้อที่ถูกอีกครั้งก่อนบันทึก`);
+  msg(`นำเข้า ${add.length} ข้อแล้ว (รวม ${editing.questions.length} ข้อ) — ตรวจอีกครั้งก่อนกดบันทึก`);
 };
 
 window.saveTraining = async function(){
