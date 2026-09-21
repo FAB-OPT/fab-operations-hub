@@ -316,6 +316,11 @@ summary{font-weight:700;cursor:pointer}
   .sysbtn{flex:none;padding:8px 13px;font-size:13px}
 }
 @media print{ .sysbar{display:none} }
+
+/* เส้นทางกลับหน้าแบบฟอร์มทั่วไป — Silver/Gold เป็นฟอร์มหนึ่งในนั้น */
+.crumb{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:14px;color:var(--muted)}
+.crumb a{color:var(--orange);font-weight:700;text-decoration:none}
+.crumb b{color:var(--ink)}
 </style>
 </head>
 <body>
@@ -324,7 +329,7 @@ summary{font-weight:700;cursor:pointer}
   <button class="btn-back" onclick="backToHub()" title="กลับหน้าหลัก">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span>กลับหน้าหลัก</span>
   </button>
-  <div><p class="tb-title">ประเมินพนักงาน Silver / Gold<small>เกณฑ์ผ่าน · ระดับ · ครัว / บริการ · รอบประเมิน</small></p></div>
+  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบฟอร์มทั่วไป · ประเมินพนักงาน Silver / Gold</small></p></div>
   <div class="tb-right">
     <nav class="navtabs" id="navtabs"></nav>
     <div id="whoTag"></div>
@@ -333,10 +338,10 @@ summary{font-weight:700;cursor:pointer}
 
 <main>
 <div class="sysbar">
-  <a class="sysbtn" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
-  <a class="sysbtn on" href="silver-gold.html">🥇 ประเมิน Silver / Gold</a>
+  <a class="sysbtn on" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
   <a class="sysbtn" href="training-test.html">🎓 แบบทดสอบก่อน–หลังอบรม</a>
 </div>
+<div class="crumb"><a href="online-form.html">← แบบฟอร์มทั่วไป</a><span>›</span><b>🥇 ประเมินพนักงาน Silver / Gold</b></div>
   <div class="notice" id="msg"></div>
   <div id="view"><div class="loading">กำลังโหลด…</div></div>
 </main>
@@ -827,6 +832,19 @@ async function boot(){
   }
   renderNav();
   go('list');
+
+  /* เข้ามาจากหน้าแบบฟอร์มทั่วไป — Silver/Gold เป็นฟอร์มหนึ่งในนั้น
+     ?fill=<id> เริ่มประเมินเลย · ?tab=results|people|followup|forms เปิดแท็บนั้น
+     (&edit=<id> แก้เกณฑ์ชุดนั้น · &new=1 สร้างชุดใหม่) */
+  const qp = new URLSearchParams(location.search);
+  if (qp.get('fill') && forms.some(f => String(f.id) === qp.get('fill'))) startFill(+qp.get('fill'));
+  else if (qp.get('tab') && tabAllowed(qp.get('tab'))){
+    await go(qp.get('tab'));
+    if (qp.get('tab') === 'forms'){
+      if (qp.get('edit')) editForm(+qp.get('edit'));
+      else if (qp.get('new')) newForm();
+    }
+  }
 
   /* สิทธิ์มาถึงทีหลัง (เปิดหน้าใช้ของที่แคชไว้ก่อน จะได้ไม่ค้างรอเน็ต)
      ถ้าของจริงต่างจากที่แคช ต้องวาดแท็บใหม่ และถ้ากำลังอยู่ในแท็บที่

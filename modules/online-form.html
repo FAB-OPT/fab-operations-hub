@@ -324,7 +324,7 @@ summary{font-weight:700;cursor:pointer}
   <button class="btn-back" onclick="backToHub()" title="กลับหน้าหลัก">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span>กลับหน้าหลัก</span>
   </button>
-  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบสำรวจ · แบบเก็บข้อมูล · สร้างฟอร์มเองได้</small></p></div>
+  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบสำรวจ · แบบเก็บข้อมูล · ประเมินพนักงาน Silver / Gold</small></p></div>
   <div class="tb-right">
     <nav class="navtabs" id="navtabs"></nav>
     <div id="whoTag"></div>
@@ -334,7 +334,6 @@ summary{font-weight:700;cursor:pointer}
 <main>
 <div class="sysbar">
   <a class="sysbtn on" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
-  <a class="sysbtn" href="silver-gold.html">🥇 ประเมิน Silver / Gold</a>
   <a class="sysbtn" href="training-test.html">🎓 แบบทดสอบก่อน–หลังอบรม</a>
 </div>
   <div class="notice" id="msg"></div>
@@ -432,6 +431,8 @@ async function ofLoadPerms(){
     const { data, error } = await SB.from('hub_config').select('value').eq('key','perms').limit(1);
     if (error || !data || !data.length) return false;
     const next = ((data[0] || {}).value || {}).onlineform || null;
+    SG_PERMS = ((data[0] || {}).value || {}).silvergold || null;
+    try{ localStorage.setItem(SG_PERM_KEY, JSON.stringify(SG_PERMS)); }catch(e){}
     const before = JSON.stringify(OF_PERMS || null);
     OF_PERMS = next;
     try{ localStorage.setItem(OF_PERM_KEY, JSON.stringify(next)); }catch(e){}
@@ -521,8 +522,50 @@ function audienceLabel(f){
 /* ══════════════════════════════════════════════════════════════════
    โหลดข้อมูล
    ══════════════════════════════════════════════════════════════════ */
+/* ── ประเมินพนักงาน Silver / Gold — เป็นฟอร์มหนึ่งในหน้านี้ ─────────────
+   ตัวประเมิน (เลือกพนักงาน · คะแนนถ่วงน้ำหนัก · เกณฑ์ผ่านตามระดับ) อยู่ที่ silver-gold.html
+   ข้อมูลอยู่ตาราง of_* เดิม ผลที่กรอกไว้จึงอยู่ครบ หน้านี้แค่แสดงเป็นรายการหนึ่ง
+   และพาไปหน้าประเมิน/แก้เกณฑ์/ดูผลของชุดนั้น
+   ⚠️ ค่าตั้งต้นต้องตรงกับ OF_PERM_DEFAULTS ใน silver-gold.html และ PERM_SYSTEMS.silvergold ในฮับ */
+let SG_FORMS = [];
+const SG_PERM_KEY = 'fab_perms_silvergold_v1';
+const SG_PERM_DEFAULTS = {
+  'view-results':   ['admin','support','coo','vp','bzm'],
+  'view-followup':  ['admin','support','coo','vp','bzm'],
+  'manage-forms':   ['admin','support'],
+  'manage-people':  ['admin','support']
+};
+let SG_PERMS = null;
+try{ SG_PERMS = JSON.parse(localStorage.getItem(SG_PERM_KEY) || 'null'); }catch(e){}
+function sgCan(action){
+  if (!ME.ok) return false;
+  const p = SG_PERMS && SG_PERMS[action];
+  if (!p) return (SG_PERM_DEFAULTS[action] || []).includes(ME.role);
+  const code = String(ME.code || '');
+  if (code && (p.deny  || []).includes(code)) return false;
+  if (code && (p.allow || []).includes(code)) return true;
+  return (p.roles || []).includes(ME.role);
+}
+/* ใครเห็นชุดประเมิน — กติกาเดียวกับใน silver-gold.html */
+function sgVisible(f){
+  if (!ME.isBranch) return true;
+  const bd = f.visible_brands || [], br = f.visible_branches || [];
+  if (bd.length && !bd.includes(ME.brand)) return false;
+  if (br.length && !br.includes(ME.branch)) return false;
+  return true;
+}
+async function loadSgForms(){
+  try{
+    const { data, error } = await SB.from('of_forms').select('*').order('sort_order').order('id');
+    SG_FORMS = error ? [] : (data || []);
+  }catch(e){ SG_FORMS = []; }
+}
+const sgGo = q => { location.href = 'silver-gold.html?' + q; };
+window.sgGo = sgGo;
+
 async function loadForms(){
   await sbReady();
+  loadSgForms();
   const { data, error } = await SB.from('fm_forms').select('*').order('sort_order').order('id');
   if (error){
     $('#view').innerHTML = '';
@@ -558,7 +601,7 @@ async function boot(){
     return;
   }
   const okLoad = await loadForms();
-  await loadMine();
+  await Promise.all([loadMine(), loadSgForms()]);
   loadHubBranches();
   renderNav();
   if (okLoad) go('list');
@@ -573,7 +616,7 @@ async function boot(){
 function tabAllowed(t){
   if (t === 'results')  return ofCan('view-results');
   if (t === 'followup') return ofCan('view-followup');
-  if (t === 'forms')    return ofCan('manage-forms');
+  if (t === 'forms')    return ofCan('manage-forms') || sgCan('manage-forms');
   return true;
 }
 
@@ -589,7 +632,7 @@ function renderNav(){
   const tabs = [['list','แบบฟอร์ม']];
   if (ofCan('view-results'))  tabs.push(['results','คำตอบ']);
   if (ofCan('view-followup')) tabs.push(['followup','ติดตามสาขาที่ยังไม่ตอบ']);
-  if (ofCan('manage-forms'))  tabs.push(['forms','จัดการฟอร์ม']);
+  if (ofCan('manage-forms') || sgCan('manage-forms')) tabs.push(['forms','จัดการฟอร์ม']);
   $('#navtabs').innerHTML = tabs.map(([k,n]) =>
     `<button class="navtab ${tab===k?'on':''}" onclick="go('${k}')">${esc(n)}</button>`).join('');
 }
@@ -598,18 +641,45 @@ window.go = async function(t){
   if (t !== 'fill') fill = null;
   if (t !== 'forms') editing = null;
   tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
-  if (t === 'list'){ await loadForms(); await loadMine(); return renderList(); }
+  if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms()]); return renderList(); }
   if (t === 'results'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderResults(); }
   if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderFollowup(); }
-  if (t === 'forms'){ await loadForms(); return renderForms(); }
+  if (t === 'forms'){ await loadForms(); await loadSgForms(); return renderForms(); }
 };
 
 /* ══════════════════════════════════════════════════════════════════
    หน้ารายการแบบฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
+function sgItemHtml(f){
+  const open = f.status === 'open';
+  const nq = (f.sections || []).reduce((a, s) => a + (s.q || []).length, 0);
+  return `<div class="form-item ${open ? 'clickable' : 'off'}" ${open ? `onclick="sgGo('fill=${f.id}')"` : ''}>
+    <div class="form-row">
+      <span class="fr-emoji">${esc(f.emoji || '🥇')}</span>
+      <span class="fr-body">
+        <span class="fr-top">
+          <span class="fr-title">${esc(f.title)}</span>
+          <span class="pill ${open ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${open ? 'เปิดกรอก' : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span>
+          <span class="pill gold">ประเมินพนักงาน</span>
+        </span>
+        <span class="fr-desc">${esc(f.description || '')}</span>
+        <span class="fr-meta">
+          ${f.round ? `<span><b>${esc(f.round)}</b></span>` : ''}
+          ${nq ? `<span>${nq} คำถาม</span>` : ''}
+          <span>เลือกพนักงานที่ถูกประเมิน · มีเกณฑ์ผ่าน</span>
+        </span>
+      </span>
+      ${open ? '<span class="fr-go"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M9 18l6-6-6-6"/></svg></span>' : ''}
+    </div>
+  </div>`;
+}
+
 function renderList(){
   const list = forms.filter(f => visibleTo(f) && (isOpen(f) || ofCan('manage-forms')));
-  if (!list.length){
+  const sg = SG_FORMS.filter(f => sgVisible(f) && (f.status === 'open' || sgCan('manage-forms')));
+  /* สาขาดูคะแนนประเมินของสาขาตัวเองได้ ถ้าชุดนั้นเปิดให้ดู */
+  const sgScores = ME.isBranch && SG_FORMS.some(f => f.show_score_to_branch && sgVisible(f));
+  if (!list.length && !sg.length){
     $('#view').innerHTML = `<div class="card"><div class="empty">
       ${ofCan('manage-forms') ? 'ยังไม่มีแบบฟอร์ม — สร้างได้ที่แท็บ <b>จัดการฟอร์ม</b>'
                               : 'ตอนนี้ยังไม่มีแบบฟอร์มที่เปิดให้ตอบ'}
@@ -620,8 +690,10 @@ function renderList(){
     <div class="list-head">
       <h2>แบบฟอร์มที่เปิดอยู่</h2>
       <p class="sub">กดที่แถวเพื่อเริ่มตอบ · ระบบบันทึกชื่อผู้ตอบจากบัญชีที่เข้าระบบอยู่</p>
+      ${sgScores ? `<div class="row-btns" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ดูคะแนนประเมินพนักงานของสาขา</button></div>` : ''}
     </div>
     <div class="form-rows">
+      ${sg.map(sgItemHtml).join('')}
       ${list.map(f => {
         const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
         const nq = (f.questions || []).length;
@@ -1010,13 +1082,43 @@ window.printResp = function(id){
 /* ══════════════════════════════════════════════════════════════════
    จัดการฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
+function sgManageHtml(){
+  if (!(sgCan('manage-forms') || sgCan('view-results') || sgCan('manage-people'))) return '';
+  return `<div class="card">
+    <h2>🥇 แบบประเมินพนักงาน Silver / Gold</h2>
+    <p class="sub">ฟอร์มชนิดประเมินรายบุคคล — เลือกพนักงานที่ถูกประเมิน คะแนนถ่วงน้ำหนักรายหมวด และเกณฑ์ผ่านตามระดับ</p>
+    <div class="row-btns" style="margin-bottom:${SG_FORMS.length ? 12 : 0}px">
+      ${sgCan('manage-forms')  ? `<button class="btn btn-primary btn-sm" onclick="sgGo('tab=forms&new=1')">+ สร้างแบบประเมินพนักงาน</button>` : ''}
+      ${sgCan('view-results')  ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ผลประเมิน</button>` : ''}
+      ${sgCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=followup')">🔔 ติดตามคนที่ยังไม่ประเมิน</button>` : ''}
+      ${sgCan('manage-people') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
+    </div>
+    ${SG_FORMS.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>ชุดประเมิน</th><th>รอบ</th><th>หมวด / ข้อ</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>${SG_FORMS.map(f => {
+        const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
+        return `<tr>
+          <td><b>${esc(f.emoji || '🥇')} ${esc(f.title)}</b></td>
+          <td>${esc(f.round || '—')}</td>
+          <td>${(f.sections || []).length} หมวด · ${nq} ข้อ</td>
+          <td><span class="pill ${f.status === 'open' ? 'open' : f.status === 'draft' ? 'draft' : 'closed'}">${f.status === 'open' ? 'เปิด' : f.status === 'draft' ? 'ร่าง' : 'ปิด'}</span></td>
+          <td class="row-btns">
+            ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
+            ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
+          </td></tr>`;
+      }).join('')}</tbody></table></div>` : ''}
+  </div>`;
+}
+
 function renderForms(){
   if (editing) return renderEditor();
-  $('#view').innerHTML = `
+  /* จัดการ Silver/Gold ได้ แต่ไม่มีสิทธิ์ฟอร์มทั่วไป → เห็นเฉพาะส่วนของ Silver/Gold */
+  if (!ofCan('manage-forms')){ $('#view').innerHTML = sgManageHtml(); return; }
+  $('#view').innerHTML = sgManageHtml() + `
     <div class="card">
       <h2>จัดการแบบฟอร์ม</h2>
       <p class="sub">สร้างฟอร์มได้เองทั้งหมด — คำถามมี 8 ชนิด ไม่มีเรื่องคะแนนหรือเกณฑ์ผ่าน
-        <br>แบบประเมินพนักงาน Silver / Gold ย้ายไปอยู่ระบบของตัวเองแล้ว</p>
+</p>
       <div class="row-btns"><button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button></div>
     </div>
     <div class="card" style="padding:0;overflow:hidden">
