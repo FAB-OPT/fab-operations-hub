@@ -501,6 +501,19 @@ summary{font-weight:700;cursor:pointer}
 .delta.up{background:#eaf7ef;color:#146c43}.delta.down{background:#fff1f0;color:var(--red)}.delta.same{background:#f2f4f7;color:#475467}
 .qcmp td.c{text-align:center;width:90px;font-weight:800}
 .qcmp .y{color:var(--green)}.qcmp .x{color:var(--red)}
+.qcl{display:none}
+@media(max-width:640px){
+  .qcmp-t{display:none}
+  .qcl{display:flex;flex-direction:column;gap:10px}
+  .qc-i{border:1px solid var(--line);border-radius:12px;padding:12px 13px}
+  .qc-q{font-size:15px;line-height:1.5;font-weight:600}
+  .qc-q b{font-weight:800}
+  .qc-a{font-size:13px;color:var(--muted);margin-top:4px;line-height:1.45}
+  .qc-r{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .qc-c{display:block;text-align:center;font-size:13px;font-weight:800;border-radius:9px;padding:7px 4px;background:#F2F4F7;color:#667085}
+  .qc-c.y{background:#ECFDF3;color:#067647}
+  .qc-c.x{background:#FEF3F2;color:#B42318}
+}
 @media (max-width:560px){ .cmp{grid-template-columns:1fr} .rs-big .n{font-size:44px} }
 
 /* ── ตารางกรอกข้อสอบในหน้าต่างนำเข้า ── */
@@ -1159,7 +1172,7 @@ function renderList(){
    ══════════════════════════════════════════════════════════════════ */
 window.startRun = function(key, phase){
   const t = trainings.find(x => x.key === key); if (!t) return;
-  if (phase === 'eval'){ run = { t, phase, answers:{} }; tab = 'run'; renderNav(); return renderEval(); }
+  if (phase === 'eval'){ run = { t, phase, answers:{} }; tab = 'run'; renderNav(); renderEval(); window.scrollTo({ top:0 }); return; }
   if (!(t.questions || []).length) return msg('การอบรมนี้ยังไม่มีคำถาม', 'warn');
   run = { t, phase, person:null, answers:{} };
   tab = 'run'; renderNav(); renderPick();
@@ -1288,8 +1301,7 @@ function renderEval(){
   let no = 0;
   $('#view').innerHTML = `
     <div class="card">
-      <h2>${esc(t.title)} · ประเมินอบรม</h2>
-      <p class="sub">ไม่ระบุชื่อผู้ประเมิน · 5 = มากที่สุด · 4 = มาก · 3 = ปานกลาง · 2 = น้อย · 1 = ปรับปรุง${t.trainer ? '<br>วิทยากร ' + esc(t.trainer) : ''}</p>
+      <h2 style="margin:0">ประเมินอบรม ${esc(t.title)}</h2>
     </div>
     ${EVAL_SECS.map(sec => `
       ${sec.title ? `<div class="ev-sec">${esc(sec.title)}</div>` : ''}
@@ -1357,7 +1369,7 @@ function renderResult(d){
   $('#view').innerHTML = `
     <div class="card">
       <h2>${esc(t.title)} · ${esc(PHASE[d.phase])}</h2>
-      <p class="sub">${esc(d.person.name)}${d.person.branch ? ' · ' + esc(d.person.branch) : ''} · บันทึกคะแนนแล้ว</p>
+      <p class="sub">${esc(d.person.name)}${d.person.branch ? ' · ' + esc(d.person.branch) : ''}</p>
       <div class="rs-big">
         <div class="n">${d.score}<small> / ${d.total}</small></div>
         <div class="p">คะแนน${esc(PHASE[d.phase])} · ${d.pct}%</div>
@@ -1375,7 +1387,14 @@ function renderResult(d){
     ${d.phase === 'post' ? `
     <div class="card">
       <h2>รายข้อ</h2>
-      <div class="table-wrap"><table class="qcmp">
+      <div class="qcl">${qs.map((q, i) => {
+        const a0 = pre ? (pre.answers || {})[q.id] : null, a1 = d.answers[q.id];
+        const chip = (lb, v) => `<span class="qc-c ${v == null ? '' : v === q.answer ? 'y' : 'x'}">${lb} ${v == null ? '—' : v === q.answer ? '✓ ถูก' : '✗ ผิด'}</span>`;
+        return `<div class="qc-i"><div class="qc-q"><b>${i + 1}.</b> ${esc(q.label)}</div>
+          <div class="qc-a">ข้อถูก: ${chMark(q.answer)}. ${esc((q.choices || [])[q.answer] || '')}</div>
+          <div class="qc-r">${chip('ก่อนเรียน', a0)}${chip('หลังเรียน', a1)}</div></div>`;
+      }).join('')}</div>
+      <div class="table-wrap qcmp-t"><table class="qcmp">
         <thead><tr><th>คำถาม</th><th style="text-align:center">ก่อนเรียน</th><th style="text-align:center">หลังเรียน</th></tr></thead>
         <tbody>${qs.map((q, i) => {
           const mk = v => v == null ? '<span class="muted">—</span>' : v === q.answer ? '<span class="y">✓</span>' : '<span class="x">✗</span>';
