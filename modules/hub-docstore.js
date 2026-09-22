@@ -4,7 +4,12 @@
    · HubMod.Cfg      = ทะเบียนสาขา · สิทธิ์ปุ่ม · แบรนด์ จาก ?action=config ของฮับ
    · HubMod.Branches = รายชื่อสาขาที่ยังเปิด แยกแบรนด์ (ฮับเป็นเจ้าของ ห้ามพิมพ์รายชื่อเอง)
    · HubMod.can      = ตัดสินสิทธิ์: ห้ามรายคน > อนุญาตรายคน > ตำแหน่ง (เหมือนโมดูลอื่นของฮับ)
-   · HubMod.Store    = อ่าน/เขียนเอกสารผ่าน Apps Script (ชีตละระบบ) + รูปขึ้น Drive
+   · HubMod.Store    = อ่าน/เขียนเอกสาร (Supabase FAB HUB ตาราง hub_docs) + รูปขึ้น Drive ผ่าน Apps Script
+
+   ย้ายเอกสารจากชีต MeetExpense / BoothEquipment มา Supabase เมื่อ 22 ก.ย. 2569 (supabase/hub-docs.sql)
+   · ยังไม่ได้รัน SQL / โหลดไลบรารีไม่ขึ้น → ใช้ชีตแบบเดิมทั้งหมด
+   · เครื่องที่เคยต่อ Supabase ได้แล้ว ห้ามถอยไปเขียนชีต (อีกเครื่องจะไม่เห็น) ให้บอกว่าบันทึกไม่สำเร็จแทน
+   · เขียนสำเร็จแล้วเขียนสำเนาลงชีตตามหลังแบบไม่รอ ชีตจึงยังเป็นที่สำรอง
    ======================================================================= */
 (function (global) {
   "use strict";
@@ -13,6 +18,57 @@
   /* หลังบ้านรุ่นก่อนหน้านี้ไม่รู้จัก action=mod-docs แล้วจะตอบรายชื่อใบรับรองทั้งก้อนกลับมาแทน
      เช็คเลขรุ่นจาก counts (ก้อนเล็ก) ก่อน จะได้บอกผู้ใช้ตรง ๆ ว่ารออัปเดตหลังบ้าน */
   var MIN_BACKEND = '2026-09-14';
+
+  /* ───────── Supabase FAB HUB ───────── */
+  var SB_URL = 'https://pzspcjqlxoqnbtvlfjsy.supabase.co';
+  var SB_KEY = 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP';
+  var SB_EVER = 'hubmod_sb_ever_v1';
+  var SB = {
+    on: null, err: '', _p: null, _at: 0, _c: null,
+    ever: function () { try { return localStorage.getItem(SB_EVER) === '1'; } catch (e) { return false; } },
+    client: function () {
+      if (this._c) return this._c;
+      if (!global.supabase || !global.supabase.createClient) return null;
+      this._c = global.supabase.createClient(SB_URL, SB_KEY);
+      return this._c;
+    },
+    /* ล็อกอินครั้งเดียวแล้วใช้ต่อ (มี session ค้างอยู่ก็ไม่ขอผู้ใช้ใหม่) + ลองเรียกฟังก์ชันดูว่ารัน SQL แล้ว */
+    ready: function () {
+      var self = this;
+      if (this._p && !(this.on === false && Date.now() - this._at > 5 * 60 * 1000)) return this._p;
+      this._at = Date.now();
+      var c = this.client();
+      var go = !c ? Promise.reject(new Error('โหลดไลบรารี Supabase ไม่ขึ้น')) :
+        c.auth.getSession().then(function (s) {
+          if (s && s.data && s.data.session) return null;
+          return c.auth.signInAnonymously().then(function (r) { if (r && r.error) throw r.error; });
+        }).then(function () {
+          return c.rpc('mod_docs', { p_app: '__probe__' });
+        }).then(function (r) { if (r.error) throw r.error; return true; });
+      var cap = new Promise(function (_, no) { setTimeout(function () { no(new Error('ต่อฐานข้อมูลช้าเกิน 20 วินาที')); }, 20000); });
+      this._p = Promise.race([go, cap]).then(function () {
+        self.on = true; self.err = '';
+        try { localStorage.setItem(SB_EVER, '1'); } catch (e) {}
+        return true;
+      }, function (e) { self.on = false; self.err = (e && e.message) || String(e); return false; });
+      return this._p;
+    },
+    /* true = Supabase · false = ชีต · throw = เคยต่อได้แต่ตอนนี้ไม่ได้ */
+    mode: function () {
+      var self = this;
+      return this.ready().then(function (ok) {
+        if (ok) return true;
+        if (self.ever()) throw new Error('ต่อฐานข้อมูลไม่ได้ — ' + self.err);
+        return false;
+      });
+    },
+    rpc: function (fn, args) {
+      return this.client().rpc(fn, args).then(function (r) {
+        if (r.error) throw new Error(r.error.message || String(r.error));
+        return r.data;
+      });
+    }
+  };
 
   function lsGet(k) { try { return JSON.parse(localStorage.getItem(k) || 'null'); } catch (e) { return null; } }
   function lsSet(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
@@ -144,14 +200,21 @@
   };
   Store.prototype.hasCache = function () { return !!this.loadedAt; };
   Store.prototype.checkBackend = function () {
+    /* Supabase พร้อม = เอกสารไม่ต้องพึ่งหลังบ้านชีตแล้ว (รูปยังอัปผ่านหลังบ้าน ซึ่ง deploy แล้ว) */
+    var self = this;
+    return SB.mode().catch(function () { return true; }).then(function (sb) { return sb ? true : self._checkSheet(); });
+  };
+  Store.prototype._checkSheet = function () {
     return fetch(SCRIPT_URL + '?action=counts&_=' + Date.now())
       .then(function (r) { return r.json(); })
       .then(function (res) { return !!(res && res.version && String(res.version) >= MIN_BACKEND); });
   };
   Store.prototype.refresh = function () {
-    var self = this;
-    return fetch(SCRIPT_URL + '?action=mod-docs&app=' + encodeURIComponent(this.app) + '&_=' + Date.now())
-      .then(function (r) { return r.json(); })
+    var self = this, app = this.app;
+    return SB.mode().then(function (sb) {
+      return sb ? SB.rpc('mod_docs', { p_app: app })
+        : fetch(SCRIPT_URL + '?action=mod-docs&app=' + encodeURIComponent(app) + '&_=' + Date.now()).then(function (r) { return r.json(); });
+    })
       .then(function (res) {
         if (!res || !res.ok || !Array.isArray(res.docs)) throw new Error((res && res.error) || 'โหลดข้อมูลไม่สำเร็จ');
         var next = {};
@@ -180,9 +243,27 @@
       body: JSON.stringify(body)
     }).then(function (r) { return r.json(); });
   };
+  /* เขียน 1 ครั้ง — Supabase ก่อน สำเร็จแล้วส่งสำเนาฉบับเต็มลงชีต (ไม่รอ ไม่ส่ง expect ชีตแค่ตามให้ตรง) */
+  Store.prototype._send = function (type, col, id, data, expect) {
+    var self = this, app = this.app, by = Hub.fullName();
+    return SB.mode().then(function (sb) {
+      if (!sb) return self._post({ type: type, col: col, id: id, data: data, expect: expect || null });
+      var job = type === 'mod-delete'
+        ? SB.rpc('mod_delete', { p_app: app, p_col: col, p_id: id, p_expect: expect || null, p_by: by })
+        : SB.rpc('mod_save', { p_app: app, p_col: col, p_id: id, p_data: data, p_merge: type === 'mod-update', p_by: by, p_expect: expect || null });
+      return job.then(function (res) {
+        if (res && res.ok) {
+          var copy = type === 'mod-delete' ? { type: 'mod-delete', col: col, id: id, data: null, expect: null }
+            : { type: 'mod-save', col: col, id: id, data: res.doc && res.doc.data, expect: null };
+          if (type === 'mod-delete' || copy.data) self._post(copy).catch(function () {});
+        }
+        return res;
+      });
+    });
+  };
   Store.prototype._write = function (type, col, id, data, expect) {
     var self = this;
-    return this._post({ type: type, col: col, id: id, data: data, expect: expect || null }).then(function (res) {
+    return this._send(type, col, id, data, expect).then(function (res) {
       if (!res || !res.ok) {
         var e = new Error(res && res.error === 'conflict' ? 'รายการนี้ถูกแก้จากอีกเครื่องไปแล้ว — โหลดข้อมูลใหม่ให้แล้ว' : 'บันทึกไม่สำเร็จ' + (res && res.error ? ' (' + res.error + ')' : ''));
         e.code = res && res.error;
@@ -249,7 +330,7 @@
   }
 
   global.HubMod = {
-    SCRIPT_URL: SCRIPT_URL, MIN_BACKEND: MIN_BACKEND,
+    SCRIPT_URL: SCRIPT_URL, MIN_BACKEND: MIN_BACKEND, SB: SB,
     Hub: Hub, Cfg: Cfg, Branches: Branches, can: can, Store: Store,
     compressImage: compressImage, localDate: localDate, fmtDMY: fmtDMY
   };
