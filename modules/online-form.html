@@ -565,6 +565,19 @@ summary{font-weight:700;cursor:pointer}
 .tk-done{flex:1;text-align:center;padding:10px;font-weight:800;color:var(--green);font-size:14px}
 .tk.off{opacity:.62;box-shadow:0 1px 2px rgba(16,24,40,.05)}
 .tk.off .tk-t span{filter:grayscale(.4)}
+/* การอบรม: สามขั้น ก่อนเรียน → หลังเรียน → ประเมินอบรม */
+.tk-steps{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tk-step{border:1px solid var(--line);background:#fff;border-radius:12px;padding:9px 8px 10px;text-align:center;font:inherit;color:var(--ink);cursor:pointer;min-width:0}
+.tk-step i{display:block;font-style:normal;font-size:11.5px;font-weight:700;color:var(--muted)}
+.tk-step b{display:block;font-size:14px;font-weight:800;margin-top:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tk-step span{display:block;font-size:12.5px;color:var(--muted);margin-top:2px;font-variant-numeric:tabular-nums}
+.tk-step.now{background:var(--orange);border-color:var(--orange);color:#fff;box-shadow:0 3px 10px rgba(255,100,30,.25)}
+.tk-step.now i,.tk-step.now span{color:#fff}
+.tk-step.ok{background:#f0faf4;border-color:#cdebd8}
+.tk-step.ok span{color:var(--green);font-weight:700}
+.tk-step:disabled{cursor:default;background:#f7f8fa;color:#9aa1ab}
+.tk-step:disabled b{color:#9aa1ab}
+.tk-steps+.tk-go{margin-top:10px}
 .tk-add{border:2px dashed #d9dde4;background:transparent;box-shadow:none;min-height:190px;display:grid;place-items:center;color:var(--muted);font-weight:800;font-size:15px;cursor:pointer;border-radius:18px}
 .tk-add:hover{border-color:var(--orange);color:var(--orange)}
 @media(max-width:820px){
@@ -947,8 +960,12 @@ function ttPeople(t){
   const code = String(ME.code || '');
   return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
 }
-const ttDone = (t, ph) => ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
+const ttDone = (t, ph) => ph === 'eval'
+  ? Math.min(TT_ATT.filter(a => a.training_key === t.key && a.phase === 'eval').length, ttPeople(t).length)
+  : ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
 const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttPeople(t).length) || (t.post_open && ttDone(t, 'post') < ttPeople(t).length));
+/* ขั้นประเมินอบรมเปิดพร้อมหลังเรียน (ชุดมาตรฐาน ไม่ระบุชื่อ — ดู training-test.html) */
+const TT_STEPS = [['pre','ก่อนเรียน','pre_open'], ['post','หลังเรียน','post_open'], ['eval','ประเมินอบรม','post_open']];
 async function loadTt(){
   try{
     const [tr, at] = await Promise.all([
@@ -1097,25 +1114,25 @@ function sgItemHtml(f){
 /* ใบของแบบทดสอบก่อน–หลังอบรม · ผู้เข้าอบรมทำสองรอบ */
 function ttItemHtml(t){
   const open = t.status === 'open', nq = (t.questions || []).length, n = ttPeople(t).length;
-  const dp = ttDone(t, 'pre'), dq = ttDone(t, 'post');
-  const btn = ph => {
-    const name = ph === 'pre' ? 'ก่อนเรียน' : 'หลังเรียน';
-    if (!(ph === 'pre' ? t.pre_open : t.post_open)) return `<button class="btn btn-line" disabled>${name} · ยังไม่เปิด</button>`;
-    const left = n - (ph === 'pre' ? dp : dq);
-    return `<button class="btn ${left ? 'btn-primary' : 'btn-line'}" onclick="ttGo('run=${encodeURIComponent(t.key)}&phase=${ph}')">${name}${left ? ' · เหลือ ' + left : ' ✓'}</button>`;
-  };
+  /* ขั้นที่ต้องทำตอนนี้ = ขั้นแรกที่เปิดแล้วยังไม่ครบ · เป็นปุ่มสีส้มปุ่มเดียว */
+  const st = TT_STEPS.map(([ph, name, flag]) => ({ ph, name, on: open && t[flag], got: ttDone(t, ph) }));
+  const now = st.find(x => x.on && x.got < n);
+  const steps = st.map((x, i) => {
+    const ok = n && x.got >= n;
+    const cls = x === now ? 'now' : ok ? 'ok' : '';
+    return `<button class="tk-step ${cls}" ${x.on ? `onclick="ttGo('run=${encodeURIComponent(t.key)}&phase=${x.ph}')"` : 'disabled'}>
+      <i>ขั้น ${i + 1}</i><b>${x.name}</b><span>${!x.on ? 'ยังไม่เปิด' : ok ? 'ครบ ✓' : x.got + ' / ' + n}</span></button>`;
+  }).join('');
   const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
   return `<div class="form-item tk ${open ? '' : 'off'}">
     <div class="tk-h">
-      <div class="tk-no"><span>แบบทดสอบก่อน–หลัง${nq ? ' · ' + nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
+      <div class="tk-no"><span>การอบรม${nq ? ' · แบบทดสอบ ' + nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(t.emoji || '🎓')}</span>${esc(t.title)}</div>
       ${sub ? `<div class="tk-d">${esc(sub)}</div>` : ''}
     </div>
     <div class="tk-b">
-      <div class="tk-pg"><span>ก่อนเรียน <b>${dp}</b> / ${n}</span><span>หลังเรียน <b>${dq}</b> / ${n}</span></div>
-      <div class="tk-bar"><i style="width:${n ? dq / n * 100 : 0}%"></i></div>
-      ${open ? `<div class="tk-go">${btn('pre')}${btn('post')}</div>` : ''}
-      ${ttCan('view-results') ? `<div class="tk-go"><button class="btn btn-line" onclick="ttGo('tab=results')">ผลก่อน–หลัง</button></div>` : ''}
+      <div class="tk-steps">${steps}</div>
+      ${ttCan('view-results') ? `<div class="tk-go"><button class="btn btn-line" onclick="ttGo('tab=results')">ผลก่อน–หลัง · ผลประเมิน</button></div>` : ''}
     </div>
   </div>`;
 }
