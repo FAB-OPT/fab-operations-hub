@@ -15,7 +15,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-09-22';
+var BACKEND_VERSION = '2026-09-22b';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -1101,11 +1101,10 @@ function _fqaDeletedIds() {
   return ids;
 }
 
-function getFqaRecords(brand, since) {
-  /* อ่านชีตครั้งเดียวเก็บทั้งก้อน (ทุกแบรนด์ ไม่กรอง) แล้วค่อยคัดตามที่ขอ
-     ถ้าแยกแคชรายแบรนด์/ราย since จะกลายเป็นแคชนับไม่ถ้วนที่ต้องล้างพร้อมกัน */
-  var all = _fqaCacheGet();
-  if (!all) {
+/* อ่านชีตใหม่ทั้งก้อนแล้วใส่แคช — ใช้ทั้งตอนแคชว่าง และตอนตัวอุ่นแคชต่ออายุล่วงหน้า */
+function _fqaRebuild() {
+    var all;
+    {
     var sh = _getOrCreateSheet('FqaRecords', FQA_HEADERS);
     var values = sh.getDataRange().getValues();
     var everything = [];
@@ -1124,6 +1123,13 @@ function getFqaRecords(brand, since) {
     all = { records: everything, deleted: _fqaDeletedIds(), now: new Date().toISOString() };
     _fqaCachePut(all);
   }
+  return all;
+}
+
+function getFqaRecords(brand, since) {
+  /* อ่านชีตครั้งเดียวเก็บทั้งก้อน (ทุกแบรนด์ ไม่กรอง) แล้วค่อยคัดตามที่ขอ
+     ถ้าแยกแคชรายแบรนด์/ราย since จะกลายเป็นแคชนับไม่ถ้วนที่ต้องล้างพร้อมกัน */
+  var all = _fqaCacheGet() || _fqaRebuild();
   var records = [];
   all.records.forEach(function (rec) {
     if (brand && String(rec.brand || '') !== String(brand)) return;
@@ -1498,7 +1504,14 @@ function warmCaches() {
   step('exams', function () { getExams(); });
   step('examResults', function () { getExamResults(); });
   step('examRequests', function () { getExamRequests('', 'all'); });
-  step('fqaRecords', function () { getFqaRecords('', ''); });
+  /* ต่ออายุแคชก่อนหมด — แคชอยู่ได้ 1 ชั่วโมง ถ้ารอให้หมดเอง คนที่เปิดหน้าจังหวะนั้น
+     ต้องรออ่านชีตทั้งไฟล์ (วัดได้เกิน 90 วินาที · 22 ก.ย. 2569 เจอกล่องตรวจซิงค์ค้าง)
+     อายุเกิน 40 นาทีให้ตัวตั้งเวลาอ่านใหม่ในเบื้องหลังแทน คนใช้งานเจอแต่แคชอุ่น */
+  step('fqaRecords', function () {
+    var c = _fqaCacheGet();
+    var age = c && c.now ? (new Date().getTime() - new Date(c.now).getTime()) : Infinity;
+    if (!c || !(age < 40 * 60 * 1000)) _fqaRebuild();
+  });
   Logger.log(JSON.stringify(out));
   return out;
 }

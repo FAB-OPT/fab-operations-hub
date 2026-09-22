@@ -2218,6 +2218,16 @@ function _fqaIsoTime(v){
   return String(v);
 }
 
+/* fetch ที่มีเวลาหมด — หลังบ้านบางจังหวะค้างเป็นนาที (ตอนต้องอ่านชีตทั้งไฟล์)
+   ไม่มีเวลาหมด หน้าจอจะขึ้น "กำลังตรวจ…" / "กำลังซิงค์" ค้างไปเรื่อย ๆ ไม่รู้ว่าพังหรือรอ */
+function _fqaFetch(url, ms){
+  const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+  const t = ctl ? setTimeout(()=>ctl.abort(), ms) : null;
+  return fetch(url, ctl ? {signal:ctl.signal} : undefined)
+    .then(r=>{ if(t) clearTimeout(t); return r; },
+          e=>{ if(t) clearTimeout(t); throw (e && e.name==='AbortError') ? new Error('หลังบ้านตอบช้าเกิน '+Math.round(ms/1000)+' วินาที ลองใหม่อีกครั้ง') : e; });
+}
+
 const Cloud = {
   URL: HUB_SCRIPT_URL,
   syncing:false,
@@ -2368,8 +2378,8 @@ const Cloud = {
     }
     const incremental = !!since;
     this.setStatus('syncing');
-    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
-                 +(since?'&since='+encodeURIComponent(since):'')+'&_='+Date.now())
+    return _fqaFetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
+                 +(since?'&since='+encodeURIComponent(since):'')+'&_='+Date.now(), 150000)
       .then(r=>r.json())
       .then(res=>{
         if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
@@ -2568,9 +2578,9 @@ const Cloud = {
       if(box) box.innerHTML=h;
     };
     if(!this.enabled()) return put('<span style="color:var(--red)">ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์</span>');
-    put('กำลังตรวจ...');
+    put('กำลังตรวจ... <span style="color:var(--text3)">(ปกติไม่กี่วินาที · ถ้าหลังบ้านกำลังเปิดข้อมูลใหม่อาจถึง 1-2 นาที)</span>');
     const brand=Brand.cur;
-    return fetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now())
+    return _fqaFetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now(), 120000)
       .then(r=>r.json())
       .then(async res=>{
         if(!res || !res.ok || !Array.isArray(res.records)) throw new Error((res&&res.error)||'หลังบ้านตอบไม่ครบ');
