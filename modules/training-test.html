@@ -182,6 +182,17 @@ tbody tr:hover{background:#fcfcfd}
 .miss-pop p span{font-weight:700;color:#D92D20}
 .miss-pop .btn{width:100%;max-width:280px;padding:12px}
 .modal-box:has(.miss-pop){max-width:360px;margin-top:22vh}
+.sc-tb{width:100%;min-width:0;border-collapse:collapse;font-size:14px}
+.sc-tb th{font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.sc-tb td{padding:10px;border-bottom:1px solid var(--line)}
+.sc-tb tr:last-child td{border-bottom:0}
+.sc-tb .c{text-align:center}
+.sc-tb b{font-size:17px}
+.sc-tb small{color:var(--muted);font-size:12px}
+.sc-n{font-weight:700}
+.sc-d{font-weight:800;border-radius:999px;padding:2px 10px;font-size:13px;background:#F2F4F7;color:#475467;white-space:nowrap}
+.sc-d.up{background:#ECFDF3;color:#067647}.sc-d.down{background:#FEF3F2;color:#B42318}
+@media(max-width:560px){ .sc-tb th,.sc-tb td{padding:8px 6px} .sc-tb b{font-size:15px} }
 .modal-box{max-width:860px;margin:18px auto;background:#fff;border-radius:16px;padding:24px}
 .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
 .sec-bar{height:8px;background:#eef0f3;border-radius:99px;overflow:hidden;margin-top:5px}
@@ -1121,7 +1132,7 @@ function renderList(){
     const foot = now
       ? `<div class="tk-go"><button class="btn btn-primary" onclick="startRun('${esc(t.key)}','${now.ph}')">${now.ph === 'eval' ? 'ประเมินอบรม' : 'ทำแบบทดสอบ' + now.name} ›</button></div>`
       : staff ? `<div class="tk-go"><button class="btn btn-line" onclick="go('results')">ดูผล</button><button class="btn btn-dark" onclick="go('report')">ออกรายงาน</button></div>`
-      : st.some(x => x.on) ? '<div class="tk-go"><span class="tk-done">✓ ครบทุกขั้นแล้ว</span></div>'
+      : st.some(x => x.on) ? `<div class="tk-go"><button class="btn btn-line" onclick="showScores('${esc(t.key)}')">ดูคะแนน ก่อน–หลัง</button></div>`
       : '<div class="tk-go"><span class="tk-done" style="color:var(--muted)">ยังไม่เปิดให้ทำ</span></div>';
     const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
     return `<div class="form-item tk ${open ? '' : 'off'}">
@@ -1154,6 +1165,29 @@ window.startRun = function(key, phase){
   tab = 'run'; renderNav(); renderPick();
 };
 
+/* คะแนนรายคน: ก่อนเรียน · หลังเรียน · เปลี่ยนแปลง (หลังเรียนเทียบก่อนเรียน)
+   สาขาเห็นเฉพาะคนของสาขาตัวเอง (participantsFor) */
+function scoresHtml(t){
+  const ppl = participantsFor(t);
+  if (!ppl.length) return '';
+  const cell = a => a ? `<b>${a.score}</b><small>/${a.total}</small>` : '<span class="muted">—</span>';
+  const rows = ppl.map(p => {
+    const pre = attemptOf(t.key, 'pre', p.id), post = attemptOf(t.key, 'post', p.id);
+    const d = pre && post ? Number(post.score) - Number(pre.score) : null;
+    return `<tr><td class="sc-n">${esc(p.name)}</td><td class="c">${cell(pre)}</td><td class="c">${cell(post)}</td>
+      <td class="c">${d == null ? '<span class="muted">—</span>' : `<span class="sc-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}</span>`}</td></tr>`;
+  }).join('');
+  return `<div class="card sc-card"><h2>คะแนนผู้เข้าอบรม</h2>
+    <table class="sc-tb"><thead><tr><th>ชื่อ</th><th class="c">ก่อนเรียน</th><th class="c">หลังเรียน</th><th class="c">เปลี่ยนแปลง</th></tr></thead>
+    <tbody>${rows}</tbody></table></div>`;
+}
+window.showScores = function(key){
+  const t = trainings.find(x => x.key === key); if (!t) return;
+  tab = 'run'; renderNav(); window.scrollTo({ top:0 });
+  $('#view').innerHTML = `<div class="card"><h2>${esc(t.title)}</h2>
+    <div class="row-btns"><button class="btn btn-secondary" onclick="go('list')">‹ กลับ</button></div></div>` + scoresHtml(t);
+};
+
 function renderPick(){
   const t = run.t;
   const ppl = participantsFor(t);
@@ -1171,7 +1205,7 @@ function renderPick(){
         </div>`
       : `<div class="notice ok show" style="margin:0">ทุกคนทำ${esc(PHASE[run.phase])}ครบแล้ว</div>
         <div class="row-btns" style="margin-top:14px"><button class="btn btn-secondary" onclick="go('list')">กลับ</button></div>`}
-    </div>`;
+    </div>${scoresHtml(t)}`;
 }
 
 window.beginRun = function(){
@@ -1243,6 +1277,7 @@ window.submitRun = async function(){
   const done = { t, phase: run.phase, person: run.person, answers: run.answers, score, total: qs.length, pct };
   run = null;
   renderResult(done);
+  $('#view').insertAdjacentHTML('beforeend', scoresHtml(done.t));
 };
 
 /* ── ประเมินอบรม (ไม่ระบุชื่อ) ── */
