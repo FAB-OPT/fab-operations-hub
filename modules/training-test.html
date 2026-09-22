@@ -192,6 +192,21 @@ tbody tr:hover{background:#fcfcfd}
 .cf-act .btn-danger{background:#D92D20;color:#fff;border-color:#D92D20}
 .cf-act .btn-danger:hover{background:#B42318}
 .modal-box:has(.cf-pop){max-width:380px;margin-top:22vh}
+.ev-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:10px}
+.ev-hd .btn{flex:none}
+.es-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.es-top h2{margin:0}
+.es-i{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
+.es-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.es-h span{color:var(--muted);font-size:13px;flex:1;min-width:0}
+.es-h em{font-style:normal;font-weight:800}
+.es-g{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.es-c{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:14px;border-radius:8px;padding:4px 9px;background:#F2F4F7;color:#667085}
+.es-c i{font-style:normal;font-weight:600;font-size:11px;color:var(--muted)}
+.es-c.l5,.es-c.l4{background:#ECFDF3;color:#067647}
+.es-c.l3{background:#FFFAEB;color:#B54708}
+.es-c.l2,.es-c.l1{background:#FEF3F2;color:#B42318}
+.es-n{margin-top:10px;font-size:14px;background:#F9FAFB;border-radius:9px;padding:8px 11px;line-height:1.5}
 .sc-tb{width:100%;min-width:0;border-collapse:collapse;font-size:14px}
 .sc-tb th{font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .sc-tb td{padding:10px;border-bottom:1px solid var(--line)}
@@ -982,6 +997,15 @@ async function loadEvalSet(){
 }
 const EVAL_LV = ['', 'ปรับปรุง', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
 const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase === 'eval');
+/* แบบประเมินไม่ระบุชื่อ จึงนับรายคนไม่ได้ · นับแยกตามบัญชีที่ทำ (สาขา) แทน
+   ของเดิมนับรวมทุกสาขาแล้วเทียบกับคนของสาขาเดียว สาขาอื่นประเมินไปก่อน
+   สาขานี้เลยขึ้น "ครบแล้ว" ทั้งที่ยังไม่มีใครประเมินสักคน */
+const evalsFor = t => ME.isBranch ? evalsOf(t.key).filter(a => String(a.taker_code) === String(ME.code)) : evalsOf(t.key);
+/* ประเมินได้กี่ครั้ง = คนที่ทำหลังเรียนแล้ว ลบด้วยที่ประเมินไปแล้ว — ต้องทำหลังเรียนก่อนถึงจะประเมินได้ */
+function evalLeft(t){
+  const done = participantsFor(t).filter(p => attemptOf(t.key, 'post', p.id)).length;
+  return Math.max(0, done - evalsFor(t).length);
+}
 const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 
@@ -1144,7 +1168,11 @@ function renderList(){
     const ppl = participantsFor(t), n = ppl.length, open = t.status === 'open';
     const st = [['pre','ก่อนเรียน',t.pre_open], ['post','หลังเรียน',t.post_open], ['eval','ประเมิน',t.post_open]].map(([ph, name, on]) => ({
       ph, name, on: open && on,
-      got: ph === 'eval' ? Math.min(evalsOf(t.key).length, n) : ppl.filter(p => attemptOf(t.key, ph, p.id)).length }));
+      got: ph === 'eval' ? Math.min(evalsFor(t).length, n) : ppl.filter(p => attemptOf(t.key, ph, p.id)).length }));
+    /* ประเมินกดได้เฉพาะเมื่อมีคนทำหลังเรียนแล้วแต่ยังไม่ได้ประเมิน */
+    const ev = st[2];
+    ev.wait = ev.on && ev.got < n && !evalLeft(t);
+    if (ev.wait) ev.on = false;
     return { n, open, st, now: st.find(x => x.on && x.got < n) };
   };
   const card = t => {
@@ -1152,7 +1180,7 @@ function renderList(){
     const flow = st.map((x, i) => {
       const ok = n && x.got >= n;
       return `<button class="tk-fs ${x === now ? 'now' : ok ? 'ok' : ''}" ${x.on ? `onclick="startRun('${esc(t.key)}','${x.ph}')"` : 'disabled'}>
-        <span class="dot">${ok ? '✓' : i + 1}</span><b>${x.name}</b><span>${!x.on ? 'ยังไม่เปิด' : ok ? 'ครบแล้ว' : x.got + ' / ' + n + ' คน'}</span></button>`;
+        <span class="dot">${ok ? '✓' : i + 1}</span><b>${x.name}</b><span>${x.wait ? 'รอหลังเรียน' : !x.on ? 'ยังไม่เปิด' : ok ? 'ครบแล้ว' : x.got + ' / ' + n + ' คน'}</span></button>`;
     }).join('');
     const foot = now
       ? `<div class="tk-go"><button class="btn btn-primary" onclick="startRun('${esc(t.key)}','${now.ph}')">${now.ph === 'eval' ? 'ประเมินอบรม' : 'ทำแบบทดสอบ' + now.name} ›</button></div>`
@@ -1184,6 +1212,8 @@ function renderList(){
    ══════════════════════════════════════════════════════════════════ */
 window.startRun = function(key, phase){
   const t = trainings.find(x => x.key === key); if (!t) return;
+  if (phase === 'eval' && ME.isBranch && !evalLeft(t))
+    return msg(participantsFor(t).some(p => attemptOf(t.key, 'post', p.id)) ? 'ทุกคนที่ทำหลังเรียนแล้วประเมินครบแล้ว' : 'ต้องทำแบบทดสอบหลังเรียนก่อน ถึงจะประเมินอบรมได้', 'warn');
   if (phase === 'eval'){ run = { t, phase, answers:{} }; tab = 'run'; renderNav(); renderEval(); window.scrollTo({ top:0 }); return; }
   if (!(t.questions || []).length) return msg('การอบรมนี้ยังไม่มีคำถาม', 'warn');
   run = { t, phase, person:null, answers:{} };
@@ -1373,13 +1403,13 @@ window.submitEval = async function(){
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
   await loadAttempts();
   run = null;
-  const n = (t.participants || []).length, got = evalsOf(t.key).length;
+  const n = participantsFor(t).length, got = evalsFor(t).length;
   $('#view').innerHTML = `
     <div class="card"><div class="empty">
       <h2>ขอบคุณสำหรับการประเมิน ✓</h2>
       <p class="sub">${esc(t.title)} · ประเมินแล้ว ${got}${n ? ' / ' + n : ''} คน</p>
       <div class="row-btns" style="justify-content:center;margin-top:14px">
-        ${!n || got < n ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินคนถัดไป</button>` : ''}
+        ${(!ME.isBranch || evalLeft(t)) && (!n || got < n) ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินคนถัดไป</button>` : ''}
         <button class="btn btn-secondary" onclick="go('list')">กลับหน้าการอบรม</button>
       </div>
     </div></div>`;
@@ -1575,7 +1605,8 @@ function paintEval(){
         }).join('')}`;
     }).join('');
     return `<div class="card">
-      <h2>ผลประเมินอบรม · ${esc(t.title)}</h2>
+      <div class="ev-hd"><h2>ผลประเมินอบรม · ${esc(t.title)}</h2>
+        <button class="btn btn-line btn-sm" onclick="evalSheets('${esc(t.key)}')">ดูรายใบ (${ev.length})</button></div>
       <p class="sub">ประเมินแล้ว ${ev.length}${(t.participants || []).length ? ' / ' + t.participants.length : ''} คน · ไม่ระบุชื่อ
         ${total == null ? '' : ` · ภาพรวม <b style="color:var(--ink)">${total.toFixed(2)}%</b>`}</p>
       <div class="table-wrap"><table class="ev-tb">
@@ -1588,6 +1619,42 @@ function paintEval(){
     </div>`;
   }).join('');
 }
+
+/* แบบประเมินรายใบ — ดูคำตอบทีละใบ และลบใบที่ทำผิด/ทำซ้ำได้ (สิทธิ์เดียวกับลบผลแบบทดสอบ) */
+window.evalSheets = function(key){
+  const t = trainings.find(x => x.key === key); if (!t) return;
+  const ev = evalsOf(key).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
+  const canDel = ttCan('delete-attempt');
+  let no = 0;
+  const qn = {}; EVAL_SECS.forEach(sec => sec.q.forEach(q => { qn[q.id] = ++no; }));
+  const one = (e, i) => {
+    const a = e.answers || {};
+    const cells = Object.keys(qn).map(id => {
+      const v = Number(a[id]);
+      return `<span class="es-c ${v >= 1 && v <= 5 ? 'l' + v : ''}"><i>${qn[id]}</i>${v >= 1 && v <= 5 ? v : '—'}</span>`;
+    }).join('');
+    return `<div class="es-i">
+      <div class="es-h"><b>ใบที่ ${ev.length - i}</b>
+        <span>${esc(fmtDT(e.created_at))}${e.taker_branch ? ' · ' + esc(e.taker_branch) : ''}</span>
+        <em>${e.pct != null ? Number(e.pct).toFixed(1) + '%' : ''}</em>
+        ${canDel ? `<button class="btn btn-danger btn-sm" onclick="delEval(${e.id},'${esc(key)}')">ลบ</button>` : ''}</div>
+      <div class="es-g">${cells}</div>
+      ${a.note ? `<div class="es-n">${esc(a.note)}</div>` : ''}
+    </div>`;
+  };
+  $('#modalBox').innerHTML = `<div class="es-top"><h2>แบบประเมินรายใบ · ${esc(t.title)}</h2>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div>
+    <p class="sub">${ev.length} ใบ · ตัวเลขในช่อง = คะแนนข้อนั้น (5 มากที่สุด – 1 ปรับปรุง)</p>
+    ${ev.length ? ev.map(one).join('') : '<div class="empty">ยังไม่มีแบบประเมิน</div>'}`;
+  $('#modal').classList.add('show');
+};
+window.delEval = async function(id, key){
+  if (!ttCan('delete-attempt')) return msg('ไม่มีสิทธิ์ลบผล', 'warn');
+  if (!await askConfirm({ title:'ลบแบบประเมินใบนี้?', text:'ลบแล้ว<b>เอาคืนไม่ได้</b> คะแนนภาพรวมจะคิดใหม่โดยไม่มีใบนี้', ok:'ลบแบบประเมิน' })) return;
+  const { error } = await SB.from('tr_attempts').delete().eq('id', id);
+  if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
+  await loadAttempts(); paintResults(); evalSheets(key); msg('ลบแบบประเมินแล้ว');
+};
 
 window.detail = function(key, pid){
   const t = trainings.find(x => x.key === key); if (!t) return;
