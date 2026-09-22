@@ -387,12 +387,21 @@ summary{font-weight:700;cursor:pointer}
 .st3 button:disabled{cursor:default}
 .st3 small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
 @media(max-width:640px){ .st3{grid-template-columns:1fr} }
-.ev-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
-.ev-row:first-of-type{border-top:0}
+.ev-sec{margin:18px 2px 8px;font-weight:800;font-size:16px}
+.ev-blk{border:1px solid var(--line);border-radius:14px;padding:12px 14px;margin-top:12px;background:#fafbfc}
+.ev-bh{display:flex;gap:10px;align-items:center;margin-bottom:6px}
+.ev-bh input{flex:1;min-width:0;font-weight:800}
+.ev-row{display:flex;align-items:center;gap:10px;padding:6px 0}
 .ev-row input{flex:1;min-width:0}
 .ev-no{flex:none;width:28px;height:28px;border-radius:50%;background:#eef0f3;display:grid;place-items:center;font-weight:800;font-size:13px}
-.ev-sc{flex:none;font-size:12.5px;font-weight:700;color:var(--muted);background:#f5f6f8;border-radius:8px;padding:4px 8px}
-.ev-fixed{font-size:14px;color:var(--ink)}
+.ev-add{border:0;background:transparent;color:var(--orange);font:inherit;font-weight:700;font-size:13.5px;padding:6px 0 2px 38px;cursor:pointer}
+.ev-fixed{font-size:14px;color:var(--ink);margin-top:10px}
+.ev-tb th,.ev-tb td{font-size:13.5px}
+.ev-tb .c{text-align:center;white-space:nowrap}
+.ev-tb th.c{min-width:64px}
+.ev-tb tr.ev-h td{background:#f5f6f8;font-weight:800}
+.ev-tb tr.ev-avg td{background:#fff7f1;font-weight:800;text-align:right}
+.ev-tb tr.ev-avg td.c{text-align:center;color:#c2410c}
 .evcm{padding:10px 12px;border-radius:10px;background:#f7f8fa;margin-top:8px;font-size:14px;line-height:1.55}
 /* ── หน้าผลหลังทำเสร็จ ── */
 .rs-big{text-align:center;padding:10px 0 4px}
@@ -594,23 +603,35 @@ const PHASE = { pre:'ก่อนเรียน', post:'หลังเรี�
    ไม่ระบุชื่อผู้ประเมิน (บันทึกเป็น phase 'eval' ใน tr_attempts โดย participant_id ว่าง)
    เปิดพร้อมหลังเรียน — ไม่ต้องมีสวิตช์แยก */
 const EVAL_DEFAULT = [
-  { id:'content', label:'เนื้อหานำไปใช้ในงานได้จริง' },
-  { id:'trainer', label:'วิทยากรอธิบายเข้าใจง่าย' },
-  { id:'time',    label:'ระยะเวลาการอบรมเหมาะสม' },
-  { id:'place',   label:'สถานที่และอุปกรณ์พร้อม' },
-  { id:'overall', label:'ความพึงพอใจโดยรวม' }
+  { title:'หลักสูตร / เนื้อหา', q:[
+    { id:'c1', label:'ท่านคิดว่าสื่อประกอบการฝึกอบรมเหมาะสมเพียงใด' },
+    { id:'c2', label:'ท่านคิดว่าเอกสารที่ใช้ในการฝึกอบรม ใช้ภาษาที่สื่อได้เข้าใจง่ายในระดับใด' },
+    { id:'c3', label:'ท่านคิดว่าเนื้อหาของหลักสูตรสอดคล้องกับงานของท่านในระดับใด' },
+    { id:'c4', label:'ท่านคิดว่าจะนำความรู้ที่ได้รับไปใช้งานได้มากน้อยเพียงใด' } ] },
+  { title:'วิทยากร', q:[
+    { id:'t1', label:'วิทยากรสร้างความสนใจในกลุ่มผู้เข้ารับการฝึกอบรมได้ดีเพียงใด' },
+    { id:'t2', label:'วิทยากรยกตัวอย่างได้อย่างเหมาะสม ช่วยเพิ่มความเข้าใจได้ดีเพียงใด' },
+    { id:'t3', label:'วิทยากรถ่ายทอดเนื้อหาได้ชัดเจน และสรุปความเข้าใจได้ดีเพียงใด' },
+    { id:'t4', label:'วิทยากรเปิดโอกาสให้ผู้เข้ารับการฝึกอบรมมีส่วนร่วมมากน้อยเพียงใด' },
+    { id:'t5', label:'วิทยากรสามารถตอบข้อซักถามได้อย่างชัดเจนตรงประเด็นเพียงใด' } ] },
+  { title:'การจัดการฝึกอบรม', q:[
+    { id:'m1', label:'การเตรียมอุปกรณ์ที่ใช้ในการฝึกอบรมเหมาะสมเพียงใด' },
+    { id:'m2', label:'การอำนวยความสะดวกของเจ้าหน้าที่ฝึกอบรมเหมาะสมเพียงใด' },
+    { id:'m3', label:'ระยะเวลาในการฝึกอบรมเหมาะสมกับเนื้อหาของหลักสูตรในระดับใด' } ] }
 ];
-/* ชุดมาตรฐานแก้ได้ในตัวแก้ไขการอบรม เก็บที่ hub_config key 'tr_eval' — ใช้กับทุกการอบรม
-   ยังไม่เคยบันทึก = ใช้ EVAL_DEFAULT */
-let EVAL_QS = EVAL_DEFAULT.slice();
+/* ชุดมาตรฐานแก้ได้ในตัวแก้ไขการอบรม เก็บที่ hub_config key 'tr_eval' = { sections:[{ title, q:[{ id, label }] }] }
+   ใช้กับทุกการอบรม · ยังไม่เคยบันทึก = ใช้ EVAL_DEFAULT */
+let EVAL_SECS = EVAL_DEFAULT;
+const evalQs = () => EVAL_SECS.flatMap(sec => sec.q);
 async function loadEvalSet(){
   try{
     const { data, error } = await SB.from('hub_config').select('value').eq('key','tr_eval').limit(1);
-    const qs = !error && data && data.length && ((data[0].value || {}).questions);
-    if (Array.isArray(qs) && qs.length) EVAL_QS = qs;
+    const v = !error && data && data.length ? (data[0].value || {}) : {};
+    if (Array.isArray(v.sections) && v.sections.length) EVAL_SECS = v.sections;
+    else if (Array.isArray(v.questions) && v.questions.length) EVAL_SECS = [{ title:'', q:v.questions }];
   }catch(e){}
 }
-const EVAL_LV = ['', 'น้อยที่สุด', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
+const EVAL_LV = ['', 'ปรับปรุง', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
 const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase === 'eval');
 const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'numeric' }) : '—';
 const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
@@ -675,7 +696,7 @@ async function boot(){
      ?run=<key>&phase=pre|post เริ่มทำเลย · ?tab=results|followup|trainings เปิดแท็บนั้น
      (&edit=<id> แก้การอบรมนั้น · &new=1 สร้างใหม่) */
   const qp = new URLSearchParams(location.search);
-  if (okLoad && qp.get('run') && trainings.some(t => t.key === qp.get('run'))) startRun(qp.get('run'), qp.get('phase') === 'post' ? 'post' : 'pre');
+  if (okLoad && qp.get('run') && trainings.some(t => t.key === qp.get('run'))) startRun(qp.get('run'), ['post','eval'].includes(qp.get('phase')) ? qp.get('phase') : 'pre');
   else if (okLoad && qp.get('tab') && tabAllowed(qp.get('tab'))){
     await go(qp.get('tab'));
     if (qp.get('tab') === 'trainings'){
@@ -901,19 +922,22 @@ function renderEval(){
   const t = run.t;
   const note = ($('#evNote') || {}).value;
   if (note != null) run.note = note;
+  let no = 0;
   $('#view').innerHTML = `
     <div class="card">
       <h2>${esc(t.title)} · ประเมินอบรม</h2>
-      <p class="sub">ไม่ระบุชื่อผู้ประเมิน · ให้คะแนน 1 (น้อยที่สุด) ถึง 5 (มากที่สุด)${t.trainer ? '<br>วิทยากร ' + esc(t.trainer) : ''}</p>
+      <p class="sub">ไม่ระบุชื่อผู้ประเมิน · 5 = มากที่สุด · 4 = มาก · 3 = ปานกลาง · 2 = น้อย · 1 = ปรับปรุง${t.trainer ? '<br>วิทยากร ' + esc(t.trainer) : ''}</p>
     </div>
-    ${EVAL_QS.map((q, i) => `
+    ${EVAL_SECS.map(sec => `
+      ${sec.title ? `<div class="ev-sec">${esc(sec.title)}</div>` : ''}
+      ${sec.q.map(q => `
       <div class="card">
-        <label>${i + 1}. ${esc(q.label)}</label>
-        <div class="evsc">${[1,2,3,4,5].map(v =>
+        <label>${++no}. ${esc(q.label)}</label>
+        <div class="evsc">${[5,4,3,2,1].map(v =>
           `<button type="button" class="${run.answers[q.id] === v ? 'on' : ''}" onclick="evAnswer('${q.id}',${v})">${v}<small>${EVAL_LV[v]}</small></button>`).join('')}</div>
-      </div>`).join('')}
+      </div>`).join('')}`).join('')}
     <div class="card">
-      <label>ข้อเสนอแนะ / สิ่งที่อยากให้ปรับปรุง <span class="muted">(ไม่บังคับ)</span></label>
+      <label>ข้อเสนอแนะเพิ่มเติม <span class="muted">(ไม่บังคับ)</span></label>
       <textarea id="evNote">${esc(run.note || '')}</textarea>
       <div class="row-btns" style="margin-top:14px">
         <button class="btn btn-primary" onclick="submitEval()">ส่งแบบประเมิน</button>
@@ -925,10 +949,11 @@ window.evAnswer = function(qid, v){ run.answers[qid] = v; const y = window.scrol
 
 window.submitEval = async function(){
   const t = run.t;
-  const miss = EVAL_QS.filter(q => run.answers[q.id] == null);
+  const qs = evalQs();
+  const miss = qs.filter(q => run.answers[q.id] == null);
   if (miss.length) return msg(`ยังให้คะแนนไม่ครบ เหลืออีก ${miss.length} ข้อ`, 'warn');
   const note = ($('#evNote').value || '').trim();
-  const score = EVAL_QS.reduce((a, q) => a + run.answers[q.id], 0), total = EVAL_QS.length * 5;
+  const score = qs.reduce((a, q) => a + run.answers[q.id], 0), total = qs.length * 5;
   const { error } = await SB.from('tr_attempts').insert({
     training_key: t.key, training_title: t.title, phase: 'eval',
     participant_id: '', participant_name: '', participant_branch: ME.branch || '',
@@ -1095,20 +1120,41 @@ function paintResults(){
       </td></tr>`).join('');
 }
 
-/* ผลประเมินอบรม — เฉลี่ยรายข้อ + ข้อเสนอแนะ ของแต่ละการอบรม (ตามตัวกรองการอบรม) */
+/* ผลประเมินอบรม — ตารางแบบรายงานเดิม: จำนวนคนต่อระดับ · คิดเป็น % (เฉลี่ย ÷ 5) · เฉลี่ยรายหมวด
+   + ข้อเสนอแนะ · ของแต่ละการอบรม (ตามตัวกรองการอบรม) */
 function paintEval(){
   const el = $('#rEval'); if (!el) return;
   const list = trainings.filter(t => (!rf.training || t.key === rf.training) && evalsOf(t.key).length);
   el.innerHTML = list.map(t => {
     const ev = evalsOf(t.key);
-    const avg = id => ev.reduce((a, e) => a + Number((e.answers || {})[id] || 0), 0) / ev.length;
+    const stat = id => {
+      const vals = ev.map(e => Number((e.answers || {})[id])).filter(v => v >= 1 && v <= 5);
+      const cnt = [0,0,0,0,0,0]; vals.forEach(v => cnt[v]++);
+      return { cnt, pct: vals.length ? vals.reduce((a, v) => a + v, 0) / vals.length / 5 * 100 : null };
+    };
     const notes = ev.map(e => (e.answers || {}).note).filter(Boolean);
+    let no = 0; const all = [];
+    const body = EVAL_SECS.map(sec => {
+      const rows = sec.q.map(q => { const st = stat(q.id); if (st.pct != null) all.push(st.pct); return { q, st }; });
+      const got = rows.filter(r => r.st.pct != null);
+      const avg = got.length ? got.reduce((a, r) => a + r.st.pct, 0) / got.length : null;
+      return `${sec.title ? `<tr class="ev-h"><td colspan="8">${esc(sec.title)}</td></tr>` : ''}
+        ${rows.map(r => `<tr><td class="c">${++no}</td><td>${esc(r.q.label)}</td>
+          ${[5,4,3,2,1].map(v => `<td class="c">${r.st.cnt[v]}</td>`).join('')}
+          <td class="c"><b>${r.st.pct == null ? '—' : r.st.pct.toFixed(2)}</b></td></tr>`).join('')}
+        <tr class="ev-avg"><td colspan="7">เฉลี่ย${sec.title ? ' ' + esc(sec.title) : ''}</td><td class="c">${avg == null ? '—' : avg.toFixed(2)}</td></tr>`;
+    }).join('');
+    const total = all.length ? all.reduce((a, v) => a + v, 0) / all.length : null;
     return `<div class="card">
       <h2>ผลประเมินอบรม · ${esc(t.title)}</h2>
-      <p class="sub">ประเมินแล้ว ${ev.length}${(t.participants || []).length ? ' / ' + t.participants.length : ''} คน · ไม่ระบุชื่อ · คะแนนเต็ม 5</p>
-      <div>${EVAL_QS.map(q => { const v = avg(q.id); return `<div class="evbar"><span>${esc(q.label)}</span>
-        <span class="tr"><i style="width:${v / 5 * 100}%"></i></span><b>${v.toFixed(2)}</b></div>`; }).join('')}</div>
-      ${notes.length ? `<h3 style="margin:16px 0 4px;font-size:15px">ข้อเสนอแนะ (${notes.length})</h3>${notes.map(n => `<div class="evcm">${esc(n)}</div>`).join('')}` : ''}
+      <p class="sub">ประเมินแล้ว ${ev.length}${(t.participants || []).length ? ' / ' + t.participants.length : ''} คน · ไม่ระบุชื่อ
+        ${total == null ? '' : ` · ภาพรวม <b style="color:var(--ink)">${total.toFixed(2)}%</b>`}</p>
+      <div class="table-wrap"><table class="ev-tb">
+        <thead><tr><th class="c">ลำดับ</th><th>หัวข้อการประเมิน</th>
+          ${[5,4,3,2,1].map(v => `<th class="c">${EVAL_LV[v]}<br><span class="muted">${v}</span></th>`).join('')}<th class="c">คิดเป็น %</th></tr></thead>
+        <tbody>${body}</tbody>
+      </table></div>
+      ${notes.length ? `<h3 style="margin:16px 0 4px;font-size:15px">ข้อเสนอแนะเพิ่มเติม (${notes.length})</h3>${notes.map(n => `<div class="evcm">${esc(n)}</div>`).join('')}` : ''}
     </div>`;
   }).join('');
 }
@@ -1456,39 +1502,51 @@ window.pullRoster = function(){
   msg(added ? `ดึงรายชื่อเพิ่ม ${added} คน (รวม ${e.participants.length} คน)` : 'รายชื่อตรงกับ Training Record แล้ว ไม่มีคนใหม่');
 };
 
-/* ── แบบประเมินอบรม (ขั้น 3) — ชุดเดียวใช้ทุกการอบรม ──
+/* ── แบบประเมินอบรม (ขั้น 3) — ชุดเดียวใช้ทุกการอบรม · หัวข้อหลัก → ข้อย่อย ──
    แก้แล้วกด "บันทึกแบบประเมิน" แยกจากปุ่มบันทึกการอบรม */
 let evDraft = null;
+const evId = () => 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
 function evalEditHtml(){
-  if (!evDraft) evDraft = EVAL_QS.map(q => ({ ...q }));
+  if (!evDraft) evDraft = EVAL_SECS.map(sec => ({ title:sec.title, q:sec.q.map(q => ({ ...q })) }));
+  let no = 0;
   return `<div class="card" id="evEdit">
     <h2>ขั้น 3 · แบบประเมินอบรม</h2>
-    <p class="sub">ชุดเดียวใช้กับทุกการอบรม เทียบข้ามรุ่นได้ · ให้คะแนน 1–5 ทุกข้อ + ช่องข้อเสนอแนะท้ายแบบ · ไม่ระบุชื่อ
+    <p class="sub">ชุดเดียวใช้กับทุกการอบรม เทียบข้ามรุ่นได้ · ทุกข้อให้คะแนน 5 มากที่สุด – 1 ปรับปรุง · ท้ายแบบมีช่องข้อเสนอแนะเพิ่มเติม · ไม่ระบุชื่อ
       <br>แก้ที่นี่แล้วมีผลกับทุกการอบรม</p>
-    ${evDraft.map((q, i) => `
-      <div class="ev-row">
-        <span class="ev-no">${i + 1}</span>
-        <input value="${esc(q.label)}" oninput="evDraft[${i}].label=this.value" placeholder="เช่น วิทยากรอธิบายเข้าใจง่าย">
-        <span class="ev-sc">1–5</span>
-        <button type="button" class="btn btn-secondary btn-sm" title="ลบข้อนี้" onclick="evDel(${i})" ${evDraft.length <= 1 ? 'disabled' : ''}>ลบ</button>
+    ${evDraft.map((sec, si) => `
+      <div class="ev-blk">
+        <div class="ev-bh">
+          <input value="${esc(sec.title)}" oninput="evDraft[${si}].title=this.value" placeholder="หัวข้อหลัก เช่น วิทยากร">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="evDelSec(${si})" ${evDraft.length <= 1 ? 'disabled' : ''}>ลบหัวข้อ</button>
+        </div>
+        ${sec.q.map((q, qi) => `
+          <div class="ev-row">
+            <span class="ev-no">${++no}</span>
+            <input value="${esc(q.label)}" oninput="evDraft[${si}].q[${qi}].label=this.value" placeholder="ข้อย่อย">
+            <button type="button" class="btn btn-secondary btn-sm" title="ลบข้อนี้" onclick="evDel(${si},${qi})">ลบ</button>
+          </div>`).join('')}
+        <button type="button" class="ev-add" onclick="evAdd(${si})">+ เพิ่มข้อย่อย</button>
       </div>`).join('')}
-    <div class="ev-row ev-fixed"><span class="ev-no">✎</span><span>ข้อเสนอแนะ / สิ่งที่อยากให้ปรับปรุง <span class="muted">(ไม่บังคับ มีทุกครั้ง)</span></span></div>
+    <div class="ev-row ev-fixed"><span class="ev-no">✎</span><span>ข้อเสนอแนะเพิ่มเติม <span class="muted">(ไม่บังคับ มีทุกครั้ง)</span></span></div>
     <div class="row-btns" style="margin-top:12px">
-      <button type="button" class="btn btn-secondary btn-sm" onclick="evAdd()">+ เพิ่มข้อ</button>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="evAddSec()">+ เพิ่มหัวข้อหลัก</button>
       <button type="button" class="btn btn-primary btn-sm" onclick="evSave()">บันทึกแบบประเมิน</button>
     </div>
   </div>`;
 }
 function evPaint(){ const el = $('#evEdit'); if (el) el.outerHTML = evalEditHtml(); }
-window.evAdd = function(){ evDraft.push({ id:'q' + Date.now().toString(36), label:'' }); evPaint(); };
-window.evDel = function(i){ evDraft.splice(i, 1); evPaint(); };
+window.evAdd    = function(si){ evDraft[si].q.push({ id:evId(), label:'' }); evPaint(); };
+window.evDel    = function(si, qi){ evDraft[si].q.splice(qi, 1); evPaint(); };
+window.evAddSec = function(){ evDraft.push({ title:'', q:[{ id:evId(), label:'' }] }); evPaint(); };
+window.evDelSec = function(si){ if (confirm('ลบหัวข้อนี้พร้อมข้อย่อยทั้งหมด?')){ evDraft.splice(si, 1); evPaint(); } };
 window.evSave = async function(){
   if (!ttCan('manage-trainings')) return msg('ไม่มีสิทธิ์แก้แบบประเมิน', 'warn');
-  const qs = evDraft.map(q => ({ id:q.id, label:(q.label || '').trim() })).filter(q => q.label);
-  if (!qs.length) return msg('ต้องมีอย่างน้อย 1 ข้อ', 'warn');
-  const { error } = await SB.from('hub_config').upsert({ key:'tr_eval', value:{ questions:qs } }, { onConflict:'key' });
+  const secs = evDraft.map(sec => ({ title:(sec.title || '').trim(),
+    q:sec.q.map(q => ({ id:q.id, label:(q.label || '').trim() })).filter(q => q.label) })).filter(sec => sec.q.length);
+  if (!secs.length) return msg('ต้องมีอย่างน้อย 1 ข้อ', 'warn');
+  const { error } = await SB.from('hub_config').upsert({ key:'tr_eval', value:{ sections:secs } }, { onConflict:'key' });
   if (error) return msg('บันทึกแบบประเมินไม่สำเร็จ — ' + esc(error.message), 'err');
-  EVAL_QS = qs; evDraft = null; evPaint();
+  EVAL_SECS = secs; evDraft = null; evPaint();
   msg('บันทึกแบบประเมินแล้ว · ใช้กับทุกการอบรม');
 };
 
@@ -1524,7 +1582,7 @@ function renderEditor(){
           <i>ขั้น 2</i><b>แบบทดสอบหลังเรียน</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
         <button type="button" class="${e.post_open?'on':''}" onclick="document.getElementById('evEdit').scrollIntoView({ behavior:'smooth', block:'start' })">
           <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
-          <small>${EVAL_QS.length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · กดเพื่อดู/แก้คำถาม</small></button>
+          <small>${EVAL_SECS.length} หัวข้อ ${evalQs().length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · กดเพื่อดู/แก้คำถาม</small></button>
       </div>
     </div>
 
