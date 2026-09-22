@@ -486,6 +486,8 @@ summary{font-weight:700;cursor:pointer}
 .evcm{padding:10px 12px;border-radius:10px;background:#f7f8fa;margin-top:8px;font-size:14px;line-height:1.55}
 /* ── หน้าผลหลังทำเสร็จ ── */
 .rs-big{text-align:center;padding:10px 0 4px}
+.rs-ph{display:inline-block;font-size:17px;font-weight:800;border-radius:999px;padding:5px 16px;margin-bottom:10px;background:#EEF4FF;color:#3538CD;border:1px solid #C7D7FE}
+.rs-ph.post{background:#FFF4ED;color:#C4320A;border-color:#FDCFB0}
 .rs-big .n{font-size:54px;font-weight:800;line-height:1;letter-spacing:-.02em}
 .rs-big .n small{font-size:24px;color:var(--muted);font-weight:700}
 .rs-big .p{font-size:17px;color:var(--muted);margin-top:6px;font-weight:600}
@@ -1289,8 +1291,7 @@ window.submitRun = async function(){
 
   const done = { t, phase: run.phase, person: run.person, answers: run.answers, score, total: qs.length, pct };
   run = null;
-  renderResult(done);
-  $('#view').insertAdjacentHTML('beforeend', scoresHtml(done.t));
+  renderResult(done, scoresHtml(done.t));
 };
 
 /* ── ประเมินอบรม (ไม่ระบุชื่อ) ── */
@@ -1355,7 +1356,7 @@ window.submitEval = async function(){
 /* หน้าผลหลังทำเสร็จ
    ก่อนเรียน = บอกแค่คะแนน ไม่เฉลยรายข้อ (ชุดเดียวกับหลังเรียน เฉลยตอนนี้ = บอกข้อสอบล่วงหน้า)
    หลังเรียน = เทียบกับก่อนเรียน + ดูรายข้อว่าข้อไหนก่อนผิดแล้วหลังถูก */
-function renderResult(d){
+function renderResult(d, extra){
   const t = d.t, qs = t.questions || [];
   const pre = d.phase === 'post' ? attemptOf(t.key, 'pre', d.person.id) : null;
   const diffPt = pre ? d.score - Number(pre.score) : null;
@@ -1368,7 +1369,8 @@ function renderResult(d){
 
   $('#view').innerHTML = `
     <div class="card">
-      <h2>${esc(t.title)} · ${esc(PHASE[d.phase])}</h2>
+      <div class="rs-ph ${d.phase}">${esc(PHASE[d.phase])}</div>
+      <h2>${esc(t.title)}</h2>
       <p class="sub">${esc(d.person.name)}${d.person.branch ? ' · ' + esc(d.person.branch) : ''}</p>
       <div class="rs-big">
         <div class="n">${d.score}<small> / ${d.total}</small></div>
@@ -1403,6 +1405,7 @@ function renderResult(d){
         }).join('')}</tbody>
       </table></div>
     </div>` : ''}
+    ${extra || ''}
     <div class="card">
       <div class="row-btns">
         ${d.phase === 'post' ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินอบรมต่อ ›</button>` : ''}
