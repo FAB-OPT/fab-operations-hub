@@ -196,17 +196,33 @@ tbody tr:hover{background:#fcfcfd}
 .ev-hd .btn{flex:none}
 .es-top{display:flex;align-items:center;justify-content:space-between;gap:10px}
 .es-top h2{margin:0}
-.es-i{border:1px solid var(--line);border-radius:12px;padding:12px 14px;margin-top:10px}
-.es-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
-.es-h span{color:var(--muted);font-size:13px;flex:1;min-width:0}
-.es-h em{font-style:normal;font-weight:800}
-.es-g{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
-.es-c{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:14px;border-radius:8px;padding:4px 9px;background:#F2F4F7;color:#667085}
-.es-c i{font-style:normal;font-weight:600;font-size:11px;color:var(--muted)}
-.es-c.l5,.es-c.l4{background:#ECFDF3;color:#067647}
-.es-c.l3{background:#FFFAEB;color:#B54708}
-.es-c.l2,.es-c.l1{background:#FEF3F2;color:#B42318}
-.es-n{margin-top:10px;font-size:14px;background:#F9FAFB;border-radius:9px;padding:8px 11px;line-height:1.5}
+.es-top{align-items:flex-start;margin-bottom:6px}
+.es-i{border:1px solid var(--line);border-radius:14px;margin-top:12px;overflow:hidden}
+.es-h{display:flex;align-items:center;gap:14px;padding:12px 16px;background:#F9FAFB;border-bottom:1px solid var(--line)}
+.es-hl{flex:1;min-width:0;display:flex;flex-direction:column}
+.es-hl b{font-size:16px}
+.es-hl span{color:var(--muted);font-size:13px}
+.es-p{text-align:right;font-size:20px;font-weight:800;line-height:1.1}
+.es-p small{display:block;font-size:11px;font-weight:600;color:var(--muted)}
+.es-b{padding:4px 16px 14px}
+.es-s{font-size:13px;font-weight:800;color:var(--muted);margin:12px 0 4px;letter-spacing:.02em}
+.es-r{display:grid;grid-template-columns:22px 1fr auto;gap:10px;align-items:center;padding:7px 0;border-top:1px dashed var(--line);font-size:14px;line-height:1.45}
+.es-s + .es-r{border-top:0}
+.es-r i{font-style:normal;color:var(--muted);font-size:12.5px;font-weight:700}
+.es-v{font-size:13px;font-weight:800;border-radius:999px;padding:3px 11px;white-space:nowrap;background:#F2F4F7;color:#667085}
+.es-v.l5,.es-v.l4{background:#ECFDF3;color:#067647}
+.es-v.l3{background:#FFFAEB;color:#B54708}
+.es-v.l2,.es-v.l1{background:#FEF3F2;color:#B42318}
+.es-n{font-size:14px;background:#F9FAFB;border-radius:9px;padding:9px 12px;line-height:1.55}
+@media(max-width:560px){
+  .modal-box:has(.es-i){padding:18px 14px;margin:10px auto}
+  .es-h{padding:10px 12px;gap:10px;flex-wrap:wrap}
+  .es-hl{flex-basis:100%}
+  .es-p{text-align:left;display:flex;align-items:baseline;gap:6px;flex:1;font-size:18px}
+  .es-b{padding:2px 12px 12px}
+  .es-r{grid-template-columns:20px 1fr;row-gap:5px;font-size:14px}
+  .es-v{grid-column:2;justify-self:start}
+}
 .sc-tb{width:100%;min-width:0;border-collapse:collapse;font-size:14px}
 .sc-tb th{font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .sc-tb td{padding:10px;border-bottom:1px solid var(--line)}
@@ -1625,26 +1641,29 @@ window.evalSheets = function(key){
   const t = trainings.find(x => x.key === key); if (!t) return;
   const ev = evalsOf(key).slice().sort((a, b) => String(b.created_at || '').localeCompare(String(a.created_at || '')));
   const canDel = ttCan('delete-attempt');
-  let no = 0;
-  const qn = {}; EVAL_SECS.forEach(sec => sec.q.forEach(q => { qn[q.id] = ++no; }));
+  /* ใบละกล่อง: หัวใบ (ลำดับ · เวลา · สาขา · ภาพรวม · ลบ) แล้วเรียงข้อตามหัวข้อหลัก ข้อความเต็ม + คะแนนเป็นคำ */
   const one = (e, i) => {
     const a = e.answers || {};
-    const cells = Object.keys(qn).map(id => {
-      const v = Number(a[id]);
-      return `<span class="es-c ${v >= 1 && v <= 5 ? 'l' + v : ''}"><i>${qn[id]}</i>${v >= 1 && v <= 5 ? v : '—'}</span>`;
-    }).join('');
+    let no = 0;
+    const secs = EVAL_SECS.map(sec => `
+      ${sec.title ? `<div class="es-s">${esc(sec.title)}</div>` : ''}
+      ${sec.q.map(q => {
+        const v = Number(a[q.id]), ok = v >= 1 && v <= 5;
+        return `<div class="es-r"><i>${++no}</i><span>${esc(q.label)}</span>
+          <b class="es-v ${ok ? 'l' + v : ''}">${ok ? v + ' · ' + EVAL_LV[v] : '—'}</b></div>`;
+      }).join('')}`).join('');
     return `<div class="es-i">
-      <div class="es-h"><b>ใบที่ ${ev.length - i}</b>
-        <span>${esc(fmtDT(e.created_at))}${e.taker_branch ? ' · ' + esc(e.taker_branch) : ''}</span>
-        <em>${e.pct != null ? Number(e.pct).toFixed(1) + '%' : ''}</em>
-        ${canDel ? `<button class="btn btn-danger btn-sm" onclick="delEval(${e.id},'${esc(key)}')">ลบ</button>` : ''}</div>
-      <div class="es-g">${cells}</div>
-      ${a.note ? `<div class="es-n">${esc(a.note)}</div>` : ''}
+      <div class="es-h">
+        <div class="es-hl"><b>ใบที่ ${ev.length - i}</b><span>${esc(fmtDT(e.created_at))}${e.taker_branch ? ' · ' + esc(e.taker_branch) : ''}</span></div>
+        <div class="es-p"><small>ภาพรวม</small>${e.pct != null ? Number(e.pct).toFixed(1) + '%' : '—'}</div>
+        ${canDel ? `<button class="btn btn-danger btn-sm" onclick="delEval(${e.id},'${esc(key)}')">ลบ</button>` : ''}
+      </div>
+      <div class="es-b">${secs}
+        ${a.note ? `<div class="es-s">ข้อเสนอแนะ</div><div class="es-n">${esc(a.note)}</div>` : ''}</div>
     </div>`;
   };
-  $('#modalBox').innerHTML = `<div class="es-top"><h2>แบบประเมินรายใบ · ${esc(t.title)}</h2>
+  $('#modalBox').innerHTML = `<div class="es-top"><div><h2>แบบประเมินรายใบ</h2><p class="sub" style="margin:2px 0 0">${esc(t.title)} · ${ev.length} ใบ</p></div>
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div>
-    <p class="sub">${ev.length} ใบ · ตัวเลขในช่อง = คะแนนข้อนั้น (5 มากที่สุด – 1 ปรับปรุง)</p>
     ${ev.length ? ev.map(one).join('') : '<div class="empty">ยังไม่มีแบบประเมิน</div>'}`;
   $('#modal').classList.add('show');
 };
