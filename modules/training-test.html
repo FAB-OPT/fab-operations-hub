@@ -317,6 +317,11 @@ summary{font-weight:700;cursor:pointer}
 }
 @media print{ .sysbar{display:none} }
 
+/* เส้นทางกลับหน้าแบบฟอร์มทั่วไป — แบบทดสอบก่อน–หลังอบรมเป็นฟอร์มชนิดหนึ่งในนั้น */
+.crumb{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:14px;color:var(--muted)}
+.crumb a{color:var(--orange);font-weight:700;text-decoration:none}
+.crumb b{color:var(--ink)}
+
 /* ── ตัวเลือกแบบช่องแยก ก. ข. ค. ง. ── */
 .chrow{display:flex;align-items:center;gap:8px;margin-top:8px}
 .chrow .chmark{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
@@ -366,7 +371,7 @@ summary{font-weight:700;cursor:pointer}
   <button class="btn-back" onclick="backToHub()" title="กลับหน้าหลัก">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span>กลับหน้าหลัก</span>
   </button>
-  <div><p class="tb-title">แบบทดสอบก่อน–หลังอบรม<small>วัดว่าอบรมแล้วรู้เพิ่มขึ้นแค่ไหน · ไม่มีเกณฑ์ผ่าน</small></p></div>
+  <div><p class="tb-title">ระบบแบบฟอร์มออนไลน์<small>แบบฟอร์มทั่วไป · แบบทดสอบก่อน–หลังอบรม</small></p></div>
   <div class="tb-right">
     <nav class="navtabs" id="navtabs"></nav>
     <div id="whoTag"></div>
@@ -374,10 +379,7 @@ summary{font-weight:700;cursor:pointer}
 </div>
 
 <main>
-<div class="sysbar">
-  <a class="sysbtn" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
-  <a class="sysbtn on" href="training-test.html">🎓 แบบทดสอบก่อน–หลังอบรม</a>
-</div>
+<div class="crumb"><a href="online-form.html">← แบบฟอร์มทั่วไป</a><span>›</span><b>🎓 แบบทดสอบก่อน–หลังอบรม</b></div>
   <div class="notice" id="msg"></div>
   <div id="view"><div class="loading">กำลังโหลด…</div></div>
 </main>
@@ -589,7 +591,20 @@ async function boot(){
   const okLoad = await loadTrainings();
   await loadAttempts();
   renderNav();
-  if (okLoad) go('list');
+  if (okLoad) await go('list');
+
+  /* เข้ามาจากหน้าแบบฟอร์มทั่วไป — แบบทดสอบเป็นฟอร์มชนิดหนึ่งในนั้น
+     ?run=<key>&phase=pre|post เริ่มทำเลย · ?tab=results|followup|trainings เปิดแท็บนั้น
+     (&edit=<id> แก้การอบรมนั้น · &new=1 สร้างใหม่) */
+  const qp = new URLSearchParams(location.search);
+  if (okLoad && qp.get('run') && trainings.some(t => t.key === qp.get('run'))) startRun(qp.get('run'), qp.get('phase') === 'post' ? 'post' : 'pre');
+  else if (okLoad && qp.get('tab') && tabAllowed(qp.get('tab'))){
+    await go(qp.get('tab'));
+    if (qp.get('tab') === 'trainings'){
+      if (qp.get('edit')) editTraining(+qp.get('edit'));
+      else if (qp.get('new')) newTraining();
+    }
+  }
   ttLoadPerms().then(changed => {
     if (!changed) return;
     renderNav();

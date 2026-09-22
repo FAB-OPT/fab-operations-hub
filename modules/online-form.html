@@ -670,7 +670,7 @@ summary{font-weight:700;cursor:pointer}
   <button class="btn-back" onclick="backToHub()" title="กลับหน้าหลัก">
     <svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg><span>กลับหน้าหลัก</span>
   </button>
-  <div><p class="tb-title"><span class="tb-sys">ระบบ</span>แบบฟอร์มออนไลน์<small>แบบสำรวจ · แบบเก็บข้อมูล · ประเมินพนักงาน Silver / Gold</small></p><div class="tb-who" id="whoSub"></div></div>
+  <div><p class="tb-title"><span class="tb-sys">ระบบ</span>แบบฟอร์มออนไลน์<small>แบบสำรวจ · แบบเก็บข้อมูล · ประเมินพนักงาน · แบบทดสอบอบรม</small></p><div class="tb-who" id="whoSub"></div></div>
   <div class="tb-right">
     <nav class="navtabs" id="navtabs"></nav>
     <div id="whoTag"></div>
@@ -678,10 +678,6 @@ summary{font-weight:700;cursor:pointer}
 </div>
 
 <main>
-<div class="sysbar">
-  <a class="sysbtn on" href="online-form.html">📋 แบบฟอร์มทั่วไป</a>
-  <a class="sysbtn" href="training-test.html">🎓 <span class="lg">แบบทดสอบก่อน–หลังอบรม</span><span class="sm">แบบทดสอบอบรม</span></a>
-</div>
   <div class="notice" id="msg" onclick="clearMsg()"></div>
   <div id="view"><div class="loading">กำลังโหลด…</div></div>
 </main>
@@ -779,6 +775,8 @@ async function ofLoadPerms(){
     if (error || !data || !data.length) return false;
     const next = ((data[0] || {}).value || {}).onlineform || null;
     SG_PERMS = ((data[0] || {}).value || {}).silvergold || null;
+    TT_PERMS = ((data[0] || {}).value || {}).traintest || null;
+    try{ localStorage.setItem(TT_PERM_KEY, JSON.stringify(TT_PERMS)); }catch(e){}
     try{ localStorage.setItem(SG_PERM_KEY, JSON.stringify(SG_PERMS)); }catch(e){}
     const before = JSON.stringify(OF_PERMS || null);
     OF_PERMS = next;
@@ -910,6 +908,60 @@ async function loadSgForms(){
 const sgGo = q => { location.href = 'silver-gold.html?' + q; };
 window.sgGo = sgGo;
 
+/* ── แบบทดสอบก่อน–หลังอบรม — เป็นฟอร์มชนิดหนึ่งในหน้านี้ ────────────────
+   ตัวทำแบบทดสอบ (เลือกผู้เข้าอบรม · ก่อน/หลังเรียน · เทียบคะแนน) อยู่ที่ training-test.html
+   ข้อมูลอยู่ตาราง tr_* เดิม · สิทธิ์เป็นชุด traintest ในฮับ ตั้งค่าแยกจากฟอร์มทั่วไป
+   ⚠️ ค่าตั้งต้นต้องตรงกับ TT_PERM_DEFAULTS ใน training-test.html และ PERM_SYSTEMS.traintest ในฮับ */
+let TT_LIST = [], TT_ATT = [];
+const TT_PERM_KEY = 'fab_perms_traintest_v1';
+const TT_PERM_DEFAULTS = {
+  'view-results':    ['admin','support','coo','vp','bzm'],
+  'export-results':  ['admin','support','coo','vp','bzm'],
+  'view-followup':   ['admin','support','coo','vp','bzm'],
+  'manage-trainings':['admin','support'],
+  'delete-training': ['admin'],
+  'delete-attempt':  ['admin']
+};
+let TT_PERMS = null;
+try{ TT_PERMS = JSON.parse(localStorage.getItem(TT_PERM_KEY) || 'null'); }catch(e){}
+function ttCan(action){
+  if (!ME.ok) return false;
+  const p = TT_PERMS && TT_PERMS[action];
+  if (!p) return (TT_PERM_DEFAULTS[action] || []).includes(ME.role);
+  const code = String(ME.code || '');
+  if (code && (p.deny  || []).includes(code)) return false;
+  if (code && (p.allow || []).includes(code)) return true;
+  return (p.roles || []).includes(ME.role);
+}
+/* กติกาเดียวกับใน training-test.html */
+function ttVisible(t){
+  if (ttCan('manage-trainings') || ttCan('view-results')) return true;
+  const bd = t.visible_brands || [], br = t.visible_branches || [];
+  if (bd.length && !bd.includes(ME.brand)) return false;
+  if (br.length && !br.some(x => ME.branch === x || String(ME.code) === String(x).split(' ')[0])) return false;
+  return true;
+}
+function ttPeople(t){
+  const all = t.participants || [];
+  if (!ME.isBranch) return all;
+  const code = String(ME.code || '');
+  return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
+}
+const ttDone = (t, ph) => ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
+const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttPeople(t).length) || (t.post_open && ttDone(t, 'post') < ttPeople(t).length));
+async function loadTt(){
+  try{
+    const [tr, at] = await Promise.all([
+      SB.from('tr_trainings').select('*').order('sort_order').order('id'),
+      SB.from('tr_attempts').select('training_key,phase,participant_id')
+    ]);
+    TT_LIST = tr.error ? [] : (tr.data || []);
+    TT_ATT = at.error ? [] : (at.data || []);
+  }catch(e){ TT_LIST = []; TT_ATT = []; }
+}
+const ttGo = q => { location.href = 'training-test.html?' + q; };
+window.ttGo = ttGo;
+
 async function loadForms(){
   await sbReady();
   loadSgForms();
@@ -949,7 +1001,7 @@ async function boot(){
     return;
   }
   const okLoad = await loadForms();
-  await Promise.all([loadMine(), loadSgForms()]);
+  await Promise.all([loadMine(), loadSgForms(), loadTt()]);
   HUB_READY = loadHubBranches();
   renderNav();
   if (okLoad){ if (ofCan('view-followup')) await Promise.all([loadResponses(), HUB_READY]); go('list'); }
@@ -964,7 +1016,7 @@ async function boot(){
 function tabAllowed(t){
   if (t === 'results')  return ofCan('view-results');
   if (t === 'followup') return ofCan('view-followup');
-  if (t === 'forms')    return ofCan('manage-forms') || sgCan('manage-forms');
+  if (t === 'forms')    return ofCan('manage-forms') || sgCan('manage-forms') || ttCan('manage-trainings');
   return true;
 }
 
@@ -990,10 +1042,9 @@ function renderNav(){
   const tabs = [['list','แบบฟอร์ม','แบบฟอร์ม']];
   if (ofCan('view-results'))  tabs.push(['results','คำตอบ','คำตอบ']);
   if (ofCan('view-followup')) tabs.push(['followup','ติดตามสาขาที่ยังไม่ตอบ','ติดตาม']);
-  if (ofCan('manage-forms') || sgCan('manage-forms')) tabs.push(['forms','จัดการฟอร์ม','จัดการ']);
+  if (ofCan('manage-forms') || sgCan('manage-forms') || ttCan('manage-trainings')) tabs.push(['forms','จัดการฟอร์ม','จัดการ']);
   $('#navtabs').innerHTML = tabs.map(([k,n]) =>
-    `<button class="navtab ${(tab==='fill'?'list':tab)===k?'on':''}" onclick="go('${k}')">${TAB_ICON[k]}<span>${esc(n)}</span></button>`).join('') +
-    `<div class="nav-sec">ระบบอื่น</div><a class="navtab ext" href="training-test.html">${TAB_ICON.test}<span>แบบทดสอบก่อน–หลังอบรม</span></a>`;
+    `<button class="navtab ${(tab==='fill'?'list':tab)===k?'on':''}" onclick="go('${k}')">${TAB_ICON[k]}<span>${esc(n)}</span></button>`).join('');
   /* มือถือ: เมนูย้ายไปแถบล่าง · ซ่อนตอนกำลังตอบ/แก้ฟอร์ม เพื่อให้ปุ่มส่ง/บันทึกเป็นปุ่มเดียวที่ขอบล่าง */
   const cur = tab === 'fill' ? 'list' : tab;
   $('#tabbar').innerHTML = tabs.map(([k,,short]) =>
@@ -1006,10 +1057,10 @@ window.go = async function(t){
   if (t !== 'fill') fill = null;
   if (t !== 'forms') editing = null;
   tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
-  if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms(), ofCan('view-followup') ? loadResponses().then(() => HUB_READY) : null]); return renderList(); }
+  if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms(), loadTt(), ofCan('view-followup') ? loadResponses().then(() => HUB_READY) : null]); return renderList(); }
   if (t === 'results'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderResults(); }
   if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadResponses(); return renderFollowup(); }
-  if (t === 'forms'){ await loadForms(); await loadSgForms(); return renderForms(); }
+  if (t === 'forms'){ await loadForms(); await Promise.all([loadSgForms(), loadTt()]); return renderForms(); }
 };
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1040,6 +1091,32 @@ function sgItemHtml(f){
       ${staff ? `<button class="btn btn-line" onclick="event.stopPropagation();sgGo('tab=results')">ผลประเมิน</button>` : ''}
       ${open ? `<button class="btn ${staff ? 'btn-dark' : 'btn-primary'}" onclick="event.stopPropagation();sgGo('fill=${f.id}')">เริ่มประเมิน ›</button>` : ''}
     </div></div>
+  </div>`;
+}
+
+/* ใบของแบบทดสอบก่อน–หลังอบรม · ผู้เข้าอบรมทำสองรอบ */
+function ttItemHtml(t){
+  const open = t.status === 'open', nq = (t.questions || []).length, n = ttPeople(t).length;
+  const dp = ttDone(t, 'pre'), dq = ttDone(t, 'post');
+  const btn = ph => {
+    const name = ph === 'pre' ? 'ก่อนเรียน' : 'หลังเรียน';
+    if (!(ph === 'pre' ? t.pre_open : t.post_open)) return `<button class="btn btn-line" disabled>${name} · ยังไม่เปิด</button>`;
+    const left = n - (ph === 'pre' ? dp : dq);
+    return `<button class="btn ${left ? 'btn-primary' : 'btn-line'}" onclick="ttGo('run=${encodeURIComponent(t.key)}&phase=${ph}')">${name}${left ? ' · เหลือ ' + left : ' ✓'}</button>`;
+  };
+  const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
+  return `<div class="form-item tk ${open ? '' : 'off'}">
+    <div class="tk-h">
+      <div class="tk-no"><span>แบบทดสอบก่อน–หลัง${nq ? ' · ' + nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
+      <div class="tk-t"><span>${esc(t.emoji || '🎓')}</span>${esc(t.title)}</div>
+      ${sub ? `<div class="tk-d">${esc(sub)}</div>` : ''}
+    </div>
+    <div class="tk-b">
+      <div class="tk-pg"><span>ก่อนเรียน <b>${dp}</b> / ${n}</span><span>หลังเรียน <b>${dq}</b> / ${n}</span></div>
+      <div class="tk-bar"><i style="width:${n ? dq / n * 100 : 0}%"></i></div>
+      ${open ? `<div class="tk-go">${btn('pre')}${btn('post')}</div>` : ''}
+      ${ttCan('view-results') ? `<div class="tk-go"><button class="btn btn-line" onclick="ttGo('tab=results')">ผลก่อน–หลัง</button></div>` : ''}
+    </div>
   </div>`;
 }
 
@@ -1092,7 +1169,8 @@ function renderList(){
   const sg = SG_FORMS.filter(f => sgVisible(f) && (f.status === 'open' || sgCan('manage-forms')));
   const sgScores = ME.isBranch && SG_FORMS.some(f => f.show_score_to_branch && sgVisible(f));
   const staff = ofCan('view-followup');
-  if (!list.length && !sg.length){
+  const tt = TT_LIST.filter(t => ttVisible(t) && (t.status === 'open' || ttCan('manage-trainings')));
+  if (!list.length && !sg.length && !tt.length){
     $('#view').innerHTML = `<div class="card"><div class="empty">
       ${ofCan('manage-forms') ? `ยังไม่มีแบบฟอร์ม<br><button class="btn btn-primary" style="margin-top:12px" onclick="go('forms').then(newForm)">+ สร้างฟอร์มแรก</button>`
                               : 'ตอนนี้ยังไม่มีแบบฟอร์มที่เปิดให้ตอบ'}
@@ -1105,6 +1183,7 @@ function renderList(){
   const todo = list.filter(f => !isDone(f)).sort((a, b) => closeT(a) - closeT(b));
   const rest = list.filter(isDone);
   const sgOpen = sg.filter(f => f.status === 'open'), sgRest = sg.filter(f => f.status !== 'open');
+  const ttOpen = tt.filter(t => t.status === 'open'), ttRest = tt.filter(t => t.status !== 'open');
   let hero;
   if (staff){
     const open = list.filter(isOpen);
@@ -1113,7 +1192,7 @@ function renderList(){
       ? `<div class="hero-k">เปิดรับอยู่ ${open.length} ฟอร์ม</div><h1>${missing ? `ยังขาดคำตอบ <em>${missing} สาขา</em>` : 'ทุกสาขาตอบครบแล้ว ✓'}</h1>`
       : `<h1>เปิดรับอยู่ <em>${open.length} ฟอร์ม</em></h1>`;
   } else {
-    const n = todo.filter(f => !myAnswered.has(f.key)).length + sgOpen.length;
+    const n = todo.filter(f => !myAnswered.has(f.key)).length + sgOpen.length + ttOpen.filter(ttLeft).length;
     hero = `<div class="hero-k">สวัสดี ${esc(ME.name || '')}</div><h1>${n ? `มี <em>${n} ฟอร์ม</em> รอให้ตอบ` : 'ตอบครบทุกฟอร์มแล้ว ✓'}</h1>${n ? '' : '<p>มีฟอร์มใหม่จะขึ้นที่หน้านี้</p>'}`;
   }
   $('#view').innerHTML = `
@@ -1122,9 +1201,11 @@ function renderList(){
     </div>
     <div class="tks">
       ${sgOpen.map(sgItemHtml).join('')}
+      ${ttOpen.map(ttItemHtml).join('')}
       ${todo.map(formItemHtml).join('')}
       ${rest.map(formItemHtml).join('')}
       ${sgRest.map(sgItemHtml).join('')}
+      ${ttRest.map(ttItemHtml).join('')}
       ${ofCan('manage-forms') ? `<div class="tk-add" onclick="go('forms').then(newForm)">+ สร้างฟอร์มใหม่</div>` : ''}
     </div>`;
 }
@@ -1570,10 +1651,31 @@ function sgManageHtml(){
   </div>`;
 }
 
+function ttManageHtml(){
+  if (!(ttCan('manage-trainings') || ttCan('view-results') || ttCan('view-followup'))) return '';
+  return `<div class="card">
+    <h2 style="margin-bottom:10px">🎓 แบบทดสอบก่อน–หลังอบรม</h2>
+    <div class="sg-tiles">
+      ${ttCan('manage-trainings') ? `<button class="pri" onclick="ttGo('tab=trainings&new=1')">+ สร้างการอบรม</button>` : ''}
+      ${ttCan('view-results')     ? `<button onclick="ttGo('tab=results')">📊 ผลก่อน–หลัง</button>` : ''}
+      ${ttCan('view-followup')    ? `<button onclick="ttGo('tab=followup')">🔔 ติดตามคนที่ยังไม่ทำ</button>` : ''}
+    </div>
+    ${TT_LIST.length ? `<div class="mf-grid" style="margin-top:12px">${TT_LIST.map(t => `<div class="mf">
+        <div class="mf-top"><span class="fr-emoji">${esc(t.emoji || '🎓')}</span>
+          <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttPeople(t).length + ' คน'])}</div>
+          ${statusPill(t.status)}</div>
+        <div class="mf-acts">
+          ${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
+          ${t.status === 'open' && ttCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=followup')">ติดตาม</button>` : ''}
+        </div>
+      </div>`).join('')}</div>` : ''}
+  </div>`;
+}
+
 function renderForms(){
   if (editing) return renderEditor();
   /* จัดการ Silver/Gold ได้ แต่ไม่มีสิทธิ์ฟอร์มทั่วไป → เห็นเฉพาะส่วนของ Silver/Gold */
-  if (!ofCan('manage-forms')){ $('#view').innerHTML = sgManageHtml(); return; }
+  if (!ofCan('manage-forms')){ $('#view').innerHTML = sgManageHtml() + ttManageHtml(); return; }
   $('#view').innerHTML = `
     <div class="mh">
       <h2>แบบฟอร์มทั่วไป <span class="muted" style="font-size:13px;font-weight:600">${forms.length} ฟอร์ม</span></h2>
@@ -1593,7 +1695,7 @@ function renderForms(){
         </div>
       </div>`;
     }).join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กด "+ สร้างฟอร์มใหม่" เพื่อเริ่ม</div>'}</div>
-    <div style="margin-top:18px">${sgManageHtml()}</div>`;
+    <div style="margin-top:18px">${sgManageHtml()}${ttManageHtml()}</div>`;
 }
 
 const newKey = () => 'form-' + Date.now().toString(36);
