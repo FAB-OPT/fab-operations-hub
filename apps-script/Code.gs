@@ -1075,6 +1075,23 @@ function _fqaCacheKill() {
   } catch (e) {}
 }
 
+/* บันทึก/ลบแล้วแก้แคชตรงจุด แทนการล้างทิ้งทั้งก้อน
+   ของเดิมล้างแคชทุกครั้งที่มีคนบันทึก ผลคือคนถัดไปที่เปิดหน้าต้องรออ่านชีตทั้งไฟล์ใหม่
+   วัดจริง 22 ก.ย. 2569 รอบที่แคชว่างใช้เวลาเกิน 90 วินาที (รอบที่มีแคช 2 วินาที)
+   ฝั่งหน้าเว็บเห็นเป็น "กดซิงค์แล้วไม่มีรายการขึ้น"
+   แก้ตรงจุดแล้ว now คงค่าเดิม — ใบที่แก้มี updatedAt ใหม่กว่า now อยู่แล้ว
+   เครื่องที่ขอ "เฉพาะที่เปลี่ยนหลัง now" จึงยังได้ใบนี้ครบ
+   แคชไม่มีอยู่ หรือแก้ไม่สำเร็จ = ล้างทิ้งตามเดิม ปลอดภัยกว่าแคชเพี้ยน */
+function _fqaCachePatch(fn) {
+  try {
+    var all = _fqaCacheGet();
+    if (!all) return;
+    fn(all);
+    _fqaCacheKill();
+    _fqaCachePut(all);
+  } catch (e) { _fqaCacheKill(); }
+}
+
 /* รายการ id ที่ถูกลบ (tombstone) — ให้ทุกเครื่องลบตามแบบเด็ดขาด ไม่เด้งกลับ */
 function _fqaDeletedIds() {
   var sh = _getOrCreateSheet('FqaDeleted', FQA_DEL_HEADERS);
@@ -1195,12 +1212,20 @@ function saveFqaRecord(rec) {
     for (var i = 1; i < values.length; i++) {
       if (String(values[i][idCol]) === String(rec.id)) {
         sh.getRange(i + 1, 1, 1, headers.length).setValues([rowArr]);
-        _fqaCacheKill();
+        _fqaCachePatch(function (all) {
+          all.records = all.records.filter(function (r) { return String(r.id) !== String(rec.id); });
+          all.records.push(rec);
+          all.deleted = (all.deleted || []).filter(function (d) { return String(d) !== String(rec.id); });
+        });
         return { ok: true, id: rec.id, updated: true };
       }
     }
     sh.appendRow(rowArr);
-    _fqaCacheKill();
+    _fqaCachePatch(function (all) {
+      all.records = all.records.filter(function (r) { return String(r.id) !== String(rec.id); });
+      all.records.push(rec);
+      all.deleted = (all.deleted || []).filter(function (d) { return String(d) !== String(rec.id); });
+    });
     return { ok: true, id: rec.id, updated: false };
   } finally { lock.releaseLock(); }
 }
@@ -1218,7 +1243,10 @@ function deleteFqaRecord(id) {
       if (String(values[i][idCol]) === String(id)) { sh.deleteRow(i + 1); }
     }
     _addFqaTombstone(id);   // จำ id ที่ลบไว้ ให้เครื่องอื่นลบตาม ไม่เด้งกลับ
-    _fqaCacheKill();
+    _fqaCachePatch(function (all) {
+      all.records = all.records.filter(function (r) { return String(r.id) !== String(id); });
+      if ((all.deleted || []).indexOf(String(id)) < 0) (all.deleted = all.deleted || []).push(String(id));
+    });
     return { ok: true };
   } finally { lock.releaseLock(); }
 }

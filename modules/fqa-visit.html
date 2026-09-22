@@ -2284,11 +2284,16 @@ const Cloud = {
        ของเดิมถ้ารูปเดียวส่งไม่ผ่าน (เน็ตสะดุด/ไฟล์ใหญ่) ทั้งใบจะค้างคิวไปเรื่อย ๆ
        ผลคือเครื่องอื่นไม่เห็นใบนั้นเลย ทั้งที่ตัวหนังสือส่งได้ตั้งนานแล้ว
        ตัวที่ไม่ผ่านยังเป็น base64 อยู่ ตอนส่งจริงจะถูกคัดออกและมีข้อความบอก */
-    return ph.reduce((chain,p)=>chain.then(()=>
-      this.post({type:'upload-fqa-photo', base64:p.data, filename:'fqa-'+rec.id+'-'+Math.random().toString(36).slice(2,7)+'.jpg'})
-        .then(res=>{ if(res && res.ok && res.url) p.data=res.url; })
-        .catch(()=>{})
-    ), Promise.resolve()).then(()=>{ DB.writeRecord(rec); return rec; });
+    /* อัปทีละ 3 รูปพร้อมกัน และเขียนลิงก์ลงเครื่องทันทีทุกรูปที่อัปเสร็จ
+       ของเดิมอัปทีละรูปแล้วค่อยบันทึกตอนครบทั้งใบ ใบที่มี 30-40 รูปใช้เวลาหลายนาที
+       ถ้าคนตรวจปิดหน้าหรือพับจอกลางทาง รูปที่อัปไปแล้วไม่ถูกจำ รอบหน้าเริ่มนับหนึ่งใหม่
+       ใบนั้นจึงค้างอยู่ในเครื่องคนตรวจตลอด เครื่องอื่นไม่เห็น (เจอจริง 22 ก.ย. 2569) */
+    const one = p => this.post({type:'upload-fqa-photo', base64:p.data, filename:'fqa-'+rec.id+'-'+Math.random().toString(36).slice(2,7)+'.jpg'})
+      .then(res=>{ if(res && res.ok && res.url){ p.data=res.url; DB.writeRecord(rec); } })
+      .catch(()=>{});
+    const left = ph.slice();
+    const worker = () => left.length ? one(left.shift()).then(worker) : Promise.resolve();
+    return Promise.all([worker(), worker(), worker()]).then(()=>{ DB.writeRecord(rec); return rec; });
   },
 
   /* ส่งงานในคิวทีละชิ้นจนหมด · ออฟไลน์/ล้มเหลว = คงคิวไว้ ลองใหม่รอบหน้า */
@@ -2674,7 +2679,10 @@ const Cloud = {
     App.toast('กำลังซิงค์...');
     /* กดปุ่มเอง = ขอทั้งหมดเสมอ · เป็นทางออกเวลาข้อมูลในเครื่องเพี้ยนไปจาก cloud
        ให้เทียบกันใหม่ทั้งก้อนทีเดียว */
-    this.pull(true).then(()=>this.flush()).then(()=>this.pull(true)).then(changed=>{
+    /* ส่งของที่ค้างในเครื่องขึ้นก่อน แล้วค่อยดึง · ของเดิมดึงทั้งก้อน → ส่ง → ดึงอีกรอบ
+       รอบดึงแรกช้าได้เป็นนาทีตอนหลังบ้านไม่มีแคช ใบที่ค้างในเครื่องคนตรวจจึงต้องรอนาน
+       ทั้งที่เป็นงานที่สำคัญที่สุดของการกดปุ่มนี้ */
+    this.flush().then(()=>this.pull(true)).then(changed=>{
       if(changed){ Dash.render(); Rec.render(); if(App.view==='io') IO.stats(); }
       if(this.lastStatus==='error') App.toast('ซิงค์ไม่สำเร็จ'+(this.lastErr?(' — '+this.lastErr):''));
       else if(this.pending()) App.toast('ซิงค์ไม่สำเร็จ'+(this.lastErr?(' — '+this.lastErr):'')+' (ค้าง '+this.pending()+')');
