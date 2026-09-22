@@ -315,11 +315,25 @@ summary{font-weight:700;cursor:pointer}
 .paper-wrap{overflow-x:auto;padding:4px 2px 20px}
 .paper{width:210mm;min-height:297mm;margin:0 auto;background:#fff;box-shadow:0 2px 6px rgba(16,24,40,.08),0 18px 40px rgba(16,24,40,.10);padding:14mm 12mm;color:#111}
 .rp{font-size:12px;line-height:1.5;color:#111}
-.rp h1{font-size:19px;margin:0 0 2px;text-align:center}
-.rp .rp-sub{text-align:center;color:#444;font-size:12.5px;margin:0 0 12px}
+.rp-lh{display:grid;grid-template-columns:62px minmax(0,1fr) 190px;border:1.5px solid #111;margin-bottom:0}
+.rp-lh>div{padding:8px 10px}
+.rp-lh .lg{display:grid;place-items:center;border-right:1px solid #111;padding:6px}
+.rp-lh .lg img{width:48px;height:48px;object-fit:contain;display:block}
+.rp-lh .co b{display:block;font-size:15px;line-height:1.3}
+.rp-lh .co span{display:block;font-size:11px;color:#444;line-height:1.35}
+.rp-lh .co i{display:block;font-style:normal;font-size:11.5px;font-weight:700;margin-top:3px}
+.rp-lh .meta{border-left:1px solid #111;padding:0;display:grid;grid-template-rows:repeat(3,1fr)}
+.rp-lh .meta div{display:flex;justify-content:space-between;gap:6px;padding:3px 8px;font-size:10.5px;border-top:1px solid #111;align-items:center}
+.rp-lh .meta div:first-child{border-top:0}
+.rp-lh .meta span{color:#555}
+.rp-lh .meta b{font-weight:700;text-align:right}
+.rp-tt{border:1.5px solid #111;border-top:0;text-align:center;padding:9px 10px 8px;margin-bottom:12px;background:#f4f4f4}
+.rp-tt h1{font-size:18px;margin:0;line-height:1.3;letter-spacing:.01em}
+.rp-tt p{margin:2px 0 0;font-size:11.5px;color:#444}
 .rp h3{font-size:13.5px;margin:16px 0 6px;border-bottom:1px solid #bbb;padding-bottom:3px}
-.rp-info{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;border:1px solid #bbb;border-radius:6px;padding:8px 10px;margin-bottom:12px}
-.rp-info b{font-weight:700}
+.rp table.rp-info{margin-bottom:12px}
+.rp table.rp-info th{background:#f4f4f4;text-align:left;width:92px;white-space:nowrap}
+.rp table.rp-info td{width:auto}
 .rp-stats{display:flex;gap:8px;margin:0 0 12px}
 .rp-stats>div{flex:1;border:1px solid #bbb;border-radius:6px;padding:6px 9px}
 .rp-stats b{display:block;font-size:17px}
@@ -1332,14 +1346,31 @@ let rp = { training:'', kind:'test' };
 const f2 = v => v == null || isNaN(v) ? '—' : Number(v).toFixed(2);
 const sgn = v => (v > 0 ? '+' : '') + v;
 
+/* หัวกระดาษ: โลโก้ · ชื่อบริษัท/หน่วยงาน · กล่องข้อมูลเอกสาร แล้วแถบชื่อรายงาน */
+function rpHead(t, title, sub, code){
+  return `<div class="rp-lh">
+    <div class="lg"><img src="../logo.png" alt=""></div>
+    <div class="co"><b>บริษัท เอฟเอบี ฟู้ดโฮลดิ้ง จำกัด</b><span>FAB Food Holding Co., Ltd.</span><i>ฝ่ายปฏิบัติการ · งานฝึกอบรม</i></div>
+    <div class="meta">
+      <div><span>เอกสาร</span><b>${esc(code)}</b></div>
+      <div><span>วันที่ออกรายงาน</span><b>${esc(fmtD(new Date()))}</b></div>
+      <div><span>อ้างอิงการอบรม</span><b>${esc(t.key)}</b></div>
+    </div>
+  </div>
+  <div class="rp-tt"><h1>${esc(title)}</h1><p>${esc(sub)}</p></div>`;
+}
+/* ข้อมูลหลักสูตร: ตารางสองคู่ต่อแถว · extra = [[หัว, ค่า(html)], ...] */
 function rpInfo(t, extra){
-  return `<div class="rp-info">
-    <div><b>หลักสูตร:</b> ${esc(t.title)}</div>
-    <div><b>วันที่อบรม:</b> ${esc(t.train_date ? fmtD(t.train_date) : '—')}</div>
-    <div><b>สถานที่:</b> ${esc(t.place || '—')}</div>
-    <div><b>วิทยากร:</b> ${esc(t.trainer || '—')}</div>
-    ${extra || ''}
-  </div>`;
+  const cells = [['วันที่อบรม', esc(t.train_date ? fmtD(t.train_date) : '—')], ['สถานที่', esc(t.place || '—')],
+                 ['วิทยากร', esc(t.trainer || '—')], ...(extra || [])];
+  const rows = [];
+  for (let i = 0; i < cells.length; i += 2) rows.push(cells[i + 1]
+    ? `<tr><th>${cells[i][0]}</th><td>${cells[i][1]}</td><th>${cells[i+1][0]}</th><td>${cells[i+1][1]}</td></tr>`
+    : `<tr><th>${cells[i][0]}</th><td colspan="3">${cells[i][1]}</td></tr>`);
+  return `<table class="rp-info"><tbody>
+    <tr><th>หลักสูตร</th><td colspan="3"><b>${esc(t.title)}</b></td></tr>
+    ${rows.join('')}
+  </tbody></table>`;
 }
 const rpSign = () => `<div class="sign">
   <div><div class="ln"></div>ผู้จัดทำรายงาน<br>วันที่ ........./........./.........</div>
@@ -1366,9 +1397,8 @@ function reportTestHtml(t){
       <td class="c ${b > a ? 'up' : b < a ? 'down' : ''}">${b === a ? '0' : sgn(b - a) + ' คน'}</td></tr>`;
   }).join('');
   return `<div class="rp">
-    <h1>รายงานผลการทดสอบก่อน–หลังการฝึกอบรม</h1>
-    <p class="rp-sub">เปรียบเทียบคะแนนแบบทดสอบชุดเดียวกัน ก่อนเรียนและหลังเรียน</p>
-    ${rpInfo(t, `<div><b>ผู้เข้าอบรม:</b> ${ppl.length} คน</div><div><b>ทำครบทั้งสองรอบ:</b> ${both.length} คน · แบบทดสอบ ${qs.length} ข้อ</div>`)}
+    ${rpHead(t, 'รายงานผลการทดสอบก่อน–หลังการฝึกอบรม', 'เปรียบเทียบคะแนนแบบทดสอบชุดเดียวกัน ก่อนเรียนและหลังเรียน', 'รายงานผลทดสอบก่อน–หลัง')}
+    ${rpInfo(t, [['ผู้เข้าอบรม', ppl.length + ' คน'], ['ทำครบสองรอบ', both.length + ' คน · แบบทดสอบ ' + qs.length + ' ข้อ']])}
     <div class="rp-stats">
       <div><b>${aPre == null ? '—' : aPre.toFixed(1) + '%'}</b><span>เฉลี่ยก่อนเรียน</span></div>
       <div><b>${aPost == null ? '—' : aPost.toFixed(1) + '%'}</b><span>เฉลี่ยหลังเรียน</span></div>
@@ -1419,10 +1449,9 @@ function reportEvalHtml(t){
   const level = m => m == null ? '—' : m >= 4.51 ? 'มากที่สุด' : m >= 3.51 ? 'มาก' : m >= 2.51 ? 'ปานกลาง' : m >= 1.51 ? 'น้อย' : 'ปรับปรุง';
   const notes = ev.map(e => (e.answers || {}).note).filter(Boolean);
   return `<div class="rp">
-    <h1>รายงานผลการประเมินการฝึกอบรม</h1>
-    <p class="rp-sub">ผู้เข้าอบรมประเมินแบบไม่ระบุชื่อ · 5 = มากที่สุด · 4 = มาก · 3 = ปานกลาง · 2 = น้อย · 1 = ปรับปรุง</p>
-    ${rpInfo(t, `<div><b>ผู้ตอบแบบประเมิน:</b> ${ev.length}${ppl ? ' จาก ' + ppl + ' คน (' + Math.round(ev.length / ppl * 100) + '%)' : ' คน'}</div>
-      <div><b>ผลโดยรวม:</b> ${f2(tot)}% · ค่าเฉลี่ย ${f2(totM)} · ระดับ${level(totM)}</div>`)}
+    ${rpHead(t, 'รายงานผลการประเมินการฝึกอบรม', 'ผู้เข้าอบรมประเมินแบบไม่ระบุชื่อ · 5 = มากที่สุด · 4 = มาก · 3 = ปานกลาง · 2 = น้อย · 1 = ปรับปรุง', 'รายงานผลประเมินอบรม')}
+    ${rpInfo(t, [['ผู้ตอบแบบประเมิน', ev.length + (ppl ? ' จาก ' + ppl + ' คน (' + Math.round(ev.length / ppl * 100) + '%)' : ' คน')],
+                 ['ผลโดยรวม', `<b>${f2(tot)}%</b> · ค่าเฉลี่ย ${f2(totM)} · ระดับ<b>${level(totM)}</b>`]])}
     <table>
       <thead><tr><th rowspan="2" style="width:36px">ลำดับ</th><th rowspan="2">หัวข้อการประเมิน</th>
         <th>มากที่สุด</th><th>มาก</th><th>ปานกลาง</th><th>น้อย</th><th>ปรับปรุง</th><th rowspan="2">ค่าเฉลี่ย</th><th rowspan="2">คิดเป็น %</th></tr>
