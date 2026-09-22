@@ -548,10 +548,11 @@ summary{font-weight:700;cursor:pointer}
 .tk-h::before,.tk-h::after{content:"";position:absolute;bottom:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg)}
 .tk-h::before{left:-10px}.tk-h::after{right:-10px}
 .tk-no{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);font-weight:700;min-height:22px}
-.tk-no>span{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.tk-no>span{display:inline-flex;align-items:center;gap:7px;min-width:0;white-space:nowrap}
 .tk-k{font-style:normal;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:999px;background:#eef0f3;color:#475467;white-space:nowrap}
 .tk-k.sg{background:#fdf3d8;color:#8a5a00}
 .tk-k.tr{background:#e8f0fd;color:#1d4ed8}
+.tk-x{font-style:normal;font-weight:600}
 .tk-no .due{color:#c2410c;background:var(--orange-soft);padding:2px 9px;border-radius:999px}
 .tk-no .ok{color:var(--green);background:#e9f7ef;padding:2px 9px;border-radius:999px}
 .tk-t{display:flex;gap:10px;align-items:flex-start;margin-top:8px;font-size:17px;font-weight:800;line-height:1.38;letter-spacing:-.01em}
@@ -1115,7 +1116,7 @@ function sgItemHtml(f){
   const staff = sgCan('view-results');
   return `<div class="form-item tk ${open ? (staff ? '' : 'clickable') : 'off'}" ${open && !staff ? `onclick="sgGo('fill=${f.id}')"` : ''}>
     <div class="tk-h">
-      <div class="tk-no"><span><em class="tk-k sg">ประเมินพนักงาน</em>${nq ? nq + ' ข้อ' : ''}</span><span>${open ? esc(f.round || 'เปิดประเมิน') : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span></div>
+      <div class="tk-no"><span><em class="tk-k sg">ประเมินพนักงาน</em></span><span>${open ? esc(f.round || 'เปิดประเมิน') : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(f.emoji || '🥇')}</span>${esc(f.title)}</div>
       ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
     </div>
@@ -1148,7 +1149,7 @@ function ttItemHtml(t){
   const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
   return `<div class="form-item tk ${open ? '' : 'off'}">
     <div class="tk-h">
-      <div class="tk-no"><span><em class="tk-k tr">การอบรม</em>${nq ? nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
+      <div class="tk-no"><span><em class="tk-k tr">การอบรม</em></span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(t.emoji || '🎓')}</span>${esc(t.title)}</div>
       ${sub ? `<div class="tk-d">${esc(sub)}</div>` : ''}
     </div>
@@ -1175,6 +1176,8 @@ function formItemHtml(f){
   const staff = ofCan('view-followup');
   const status = lock ? `<span class="ok">ตอบแล้ว ${esc(myDate(f.key))}</span>`
     : !isOpen(f) ? (f.status === 'draft' ? 'ร่าง' : 'ปิดรับแล้ว') : dueHtml(f);
+  /* ใกล้ปิดรับ: ป้ายส้มย้ายมาอยู่ข้างป้ายชนิดฟอร์ม เห็นก่อน */
+  const urgent = !lock && isOpen(f) && /class="due"/.test(status);
   let body;
   if (staff && isOpen(f)){
     /* ผู้ดูแล: ความคืบหน้าจากทะเบียนสาขาของฮับ */
@@ -1193,7 +1196,7 @@ function formItemHtml(f){
   const click = open && !lock && !staff;
   return `<div class="form-item tk ${click ? 'clickable' : (!isOpen(f) || lock) ? 'off' : ''}" ${click ? `onclick="startFill('${esc(f.key)}')"` : ''}>
     <div class="tk-h">
-      <div class="tk-no"><span><em class="tk-k">แบบฟอร์ม</em>${nq} ข้อ${f.once_per_user ? '' : ' · ตอบซ้ำได้'}</span><span>${status}</span></div>
+      <div class="tk-no"><span><em class="tk-k">แบบฟอร์ม</em>${urgent ? status : f.once_per_user ? '' : '<i class="tk-x">ตอบซ้ำได้</i>'}</span><span>${urgent ? (f.once_per_user ? '' : 'ตอบซ้ำได้') : status}</span></div>
       <div class="tk-t"><span>${esc(f.emoji || '📋')}</span>${esc(f.title)}</div>
       ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
     </div>
