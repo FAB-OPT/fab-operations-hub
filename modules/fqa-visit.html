@@ -375,6 +375,19 @@ table.tb tbody tr:hover{background:var(--surface2)}
 /* ---------- PILLS / BADGES ---------- */
 .pill{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:999px;font-size:11.5px;font-weight:600;white-space:nowrap}
 .p-pass{background:var(--green-light);color:var(--green)}
+.p-unsent{background:#FFF4E5;color:#B54708;border:1px solid #FEC84B;font-weight:700;margin-left:4px;vertical-align:1px}
+.unsent-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:900;
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:min(560px,calc(100% - 24px));padding:10px 12px 10px 14px;
+  background:#fff;border:1px solid #FEC84B;border-left:5px solid #F79009;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.16)}
+.unsent-bar.busy{border-color:#B2DDFF;border-left-color:#1570EF}
+.unsent-bar .ub-ic{font-size:20px;flex:none}
+.unsent-bar .ub-tx{flex:1;min-width:0;line-height:1.35}
+.unsent-bar .ub-tx b{display:block;font-size:13.5px;color:var(--text)}
+.unsent-bar .ub-tx small{display:block;font-size:12px;color:var(--text2)}
+.unsent-bar .ub-bar{flex-basis:100%;height:6px;border-radius:9px;background:#EAECF0;overflow:hidden}
+.unsent-bar .ub-bar i{display:block;height:100%;background:#1570EF;transition:width .3s}
+@media(max-width:700px){ .unsent-bar{bottom:calc(76px + env(safe-area-inset-bottom))} }
+@media print{ .unsent-bar{display:none!important} }
 .p-fail{background:var(--red-light);color:var(--red)}
 .p-na{background:var(--surface3);color:var(--text2)}
 .p-warn{background:var(--yellow-light);color:var(--yellow)}
@@ -2218,6 +2231,16 @@ function _fqaIsoTime(v){
   return String(v);
 }
 
+/* ปิดหน้า/รีเฟรชตอนยังมีใบค้างส่ง → เบราว์เซอร์ถามยืนยันก่อน
+   ใบที่ค้างไม่หาย (อยู่ในเครื่อง) แต่ถ้าปิดกลางทาง รูปที่เหลือต้องรอเปิดหน้ารอบหน้าถึงจะส่งต่อ */
+window.addEventListener('beforeunload', e => {
+  try{
+    if(typeof Cloud !== 'undefined' && Cloud.enabled() && Cloud.syncing && Cloud.queue().some(x => x.op !== 'delete')){
+      e.preventDefault(); e.returnValue = 'ยังส่งรายงานขึ้นคลาวด์ไม่เสร็จ'; return e.returnValue;
+    }
+  }catch(err){}
+});
+
 /* fetch ที่มีเวลาหมด — หลังบ้านบางจังหวะค้างเป็นนาที (ตอนต้องอ่านชีตทั้งไฟล์)
    ไม่มีเวลาหมด หน้าจอจะขึ้น "กำลังตรวจ…" / "กำลังซิงค์" ค้างไปเรื่อย ๆ ไม่รู้ว่าพังหรือรอ */
 function _fqaFetch(url, ms){
@@ -2298,12 +2321,15 @@ const Cloud = {
        ของเดิมอัปทีละรูปแล้วค่อยบันทึกตอนครบทั้งใบ ใบที่มี 30-40 รูปใช้เวลาหลายนาที
        ถ้าคนตรวจปิดหน้าหรือพับจอกลางทาง รูปที่อัปไปแล้วไม่ถูกจำ รอบหน้าเริ่มนับหนึ่งใหม่
        ใบนั้นจึงค้างอยู่ในเครื่องคนตรวจตลอด เครื่องอื่นไม่เห็น (เจอจริง 22 ก.ย. 2569) */
+    this.upProg = { id: rec.id, branch: rec.branch || '', done: 0, total: ph.length };
+    this.paint();
     const one = p => this.post({type:'upload-fqa-photo', base64:p.data, filename:'fqa-'+rec.id+'-'+Math.random().toString(36).slice(2,7)+'.jpg'})
       .then(res=>{ if(res && res.ok && res.url){ p.data=res.url; DB.writeRecord(rec); } })
-      .catch(()=>{});
+      .catch(()=>{})
+      .then(()=>{ if(this.upProg && this.upProg.id === rec.id){ this.upProg.done++; this.paint(); } });
     const left = ph.slice();
     const worker = () => left.length ? one(left.shift()).then(worker) : Promise.resolve();
-    return Promise.all([worker(), worker(), worker()]).then(()=>{ DB.writeRecord(rec); return rec; });
+    return Promise.all([worker(), worker(), worker()]).then(()=>{ DB.writeRecord(rec); this.upProg = null; this.paint(); return rec; });
   },
 
   /* ส่งงานในคิวทีละชิ้นจนหมด · ออฟไลน์/ล้มเหลว = คงคิวไว้ ลองใหม่รอบหน้า */
@@ -2760,11 +2786,41 @@ const Cloud = {
     offline:{t:'ออฟไลน์ — รอซิงค์', c:'var(--yellow)', d:'var(--yellow)'},
     error:  {t:'ซิงค์ไม่สำเร็จ จะลองใหม่', c:'var(--red)', d:'var(--red)'}
   },
-  setStatus(k){ this.lastStatus=k; this.paint(); },
+  setStatus(k){
+    const was = this.lastStatus;
+    this.lastStatus=k; this.paint();
+    /* ส่งเสร็จ/หยุด → วาดรายการใหม่ ป้าย "ยังไม่ส่ง" จะได้หายตามจริง */
+    if(was==='syncing' && k!=='syncing'){ try{ if(document.getElementById('recTable')) Rec.render(); }catch(e){} }
+  },
+  /* แถบลอยล่างจอ — บอกว่ามีใบที่ยังอยู่แค่ในเครื่องนี้ · กำลังส่งอยู่ก็บอกความคืบหน้าและห้ามปิดหน้า */
+  banner(){
+    let el = document.getElementById('unsentBar');
+    const pend = this.enabled() ? this.queue().filter(x => x.op !== 'delete').length : 0;
+    if(!pend){ if(el) el.remove(); return; }
+    if(!el){ el = document.createElement('div'); el.id = 'unsentBar'; el.className = 'unsent-bar noprint'; document.body.appendChild(el); }
+    const up = this.upProg;
+    if(this.lastStatus === 'syncing'){
+      el.className = 'unsent-bar noprint busy';
+      el.innerHTML = `<span class="ub-ic">⇡</span><span class="ub-tx"><b>กำลังส่งรายงานขึ้นคลาวด์ · เหลือ ${pend} ใบ</b>
+        <small>${up ? `รูป ${up.done}/${up.total}${up.branch ? ' · ' + esc(up.branch) : ''} · ` : ''}อย่าเพิ่งปิดหน้านี้</small></span>
+        ${up ? `<span class="ub-bar"><i style="width:${up.total ? Math.round(up.done / up.total * 100) : 0}%"></i></span>` : ''}`;
+    }else{
+      el.className = 'unsent-bar noprint';
+      el.innerHTML = `<span class="ub-ic">⏳</span><span class="ub-tx"><b>มี ${pend} ใบยังไม่ขึ้นคลาวด์</b>
+        <small>${navigator.onLine ? (this.lastErr ? 'ส่งไม่ผ่าน: ' + esc(this.lastErr) : 'เครื่องอื่นยังไม่เห็นใบเหล่านี้') : 'ออฟไลน์อยู่ — ต่อเน็ตแล้วระบบจะส่งเอง'}</small></span>
+        <button class="btn sm pri" onclick="Cloud.syncNow()">ส่งเลย</button>`;
+    }
+  },
   paint(){
+    try{ this.banner(); }catch(e){}
+    /* ป้ายในรายการ: ใบที่กำลังส่งอยู่เปลี่ยนเป็น "กำลังส่ง" ทันที ไม่ต้องวาดรายการใหม่ทั้งหน้า */
+    try{ document.querySelectorAll('.p-unsent[data-u]').forEach(el=>{
+      el.textContent = (this.upProg && el.dataset.u === this.upProg.id) ? '⇡ กำลังส่ง' : '⏳ ยังไม่ส่ง'; }); }catch(e){}
     const s=this.STAT[this.lastStatus] || this.STAT.local;
     const pend=this.pending();
-    const label = pend && this.lastStatus!=='syncing' ? `${s.t} · ค้าง ${pend}` : s.t;
+    const up=this.upProg;
+    const label = this.lastStatus==='syncing' && up ? `กำลังส่งรูป ${up.done}/${up.total}`
+      : pend && this.lastStatus!=='syncing' ? `${s.t} · ค้าง ${pend}` : s.t;
     const el=document.getElementById('sfStore');
     if(el){ el.innerHTML=`<span class="syncdot" style="background:${s.d}"></span>${esc(label)}`; }
     /* จุดสถานะซิงค์บนหัวจอ (มือถือ — เพราะไม่มีเมนูข้างแล้ว) */
@@ -4492,6 +4548,17 @@ function planState(p){
 const PLAN_BADGE={ done:['ตรวจแล้ว','p-pass'], overdue:['เกินกำหนด','p-fail'], upcoming:['รอตรวจ','p-warn'] };
 const planBadge = s => `<span class="pill ${PLAN_BADGE[s][1]}">${PLAN_BADGE[s][0]}</span>`;
 
+/* ใบที่ยังไม่ขึ้นคลาวด์ในเครื่องนี้ — มีคิวค้าง หรือไม่เคยขึ้นเลย
+   เครื่องอื่นไม่เห็นใบพวกนี้ ต้องบอกคนตรวจให้เห็นชัดตรงรายการ ไม่ใช่ซ่อนเป็นตัวเลขในเมนู
+   (22 ก.ย. 2569 ใบค้างในเครื่องคนตรวจทั้งวันโดยไม่มีใครรู้) */
+function unsentTag(id){
+  if(!Cloud.enabled()) return '';
+  const q = Cloud.queue().some(x => x.id === id && x.op !== 'delete');
+  if(!q && Cloud.synced().has(id)) return '';
+  const up = Cloud.upProg && Cloud.upProg.id === id;
+  return `<span class="pill p-unsent" data-u="${esc(id)}" title="ใบนี้ยังอยู่แค่ในเครื่องนี้ เครื่องอื่นยังไม่เห็น">${up ? '⇡ กำลังส่ง' : '⏳ ยังไม่ส่ง'}</span>`;
+}
+
 const Rec = {
   /* จำนวนแถวที่วาดอยู่ตอนนี้ — รีเซ็ตทุกครั้งที่ตัวกรองเปลี่ยน
      ไม่งั้นกรองให้แคบลงแล้วยังค้างที่จำนวนของผลลัพธ์ชุดก่อน */
@@ -4569,7 +4636,7 @@ const Rec = {
       ${shown.map(r=>`<tr>
         <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
         ${colType?`<td>${planTypeTag(r.type)}</td>`:''}
-        <td style="min-width:180px">${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
+        <td style="min-width:180px">${esc(r.branch)} ${unsentTag(r.id)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm)}</div></td>
         <td style="max-width:300px;color:var(--text2)">${summaryHTML(r)}</td>
         ${colFail?`<td>${r.type==='FQA'?(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`):'<span style="color:var(--text3)">—</span>'}</td>`:''}
         <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
@@ -4588,7 +4655,7 @@ const Rec = {
     return `<div class="reclite">${list.map(r=>`
       <div class="rl" onclick="Rec.view('${r.id}')">
         <div class="rl-l">
-          <b>${esc(r.branch)}</b>
+          <b>${esc(r.branch)} ${unsentTag(r.id)}</b>
           <span>${summaryHTML(r)}</span>
           <em>${esc(fmtDMY(r.date))} ${esc(r.time||'')} · ${esc(r.trainer||'—')}</em>
         </div>
@@ -4604,7 +4671,7 @@ const Rec = {
       return `<div class="reccard">
         <div class="rc-top">${planTypeTag(r.type)}<div class="sp" style="flex:1"></div>
           ${r.type==='FQA'?`<span class="pill ${f?'p-fail':'p-pass'}">${f?f+' ประเด็น':'ผ่าน'}</span>`:''}</div>
-        <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)}</b>
+        <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)} ${unsentTag(r.id)}</b>
         <div class="rc-sum">${summaryHTML(r)}</div>
         <div class="rc-meta"><span>📅 ${esc(fmtDMY(r.date))} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
         <div class="rc-act">
