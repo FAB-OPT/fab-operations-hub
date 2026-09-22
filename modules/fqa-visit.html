@@ -6287,11 +6287,31 @@ const PDF = {
           .catch(()=>{ try{ window.prompt('คัดลอกลิงก์นี้เพื่อแชร์', url); }catch(e){} });
       }else{ try{ window.prompt('คัดลอกลิงก์นี้เพื่อแชร์', url); }catch(e){} }
     };
-    /* ยังไม่ขึ้นคลาวด์ → ดันขึ้นก่อน เพื่อให้ผู้รับเปิดลิงก์แล้วเห็นรายงาน */
-    if(Cloud.enabled() && !Cloud.synced().has(id)){
-      App.toast('กำลังอัปโหลดรายงานขึ้นคลาวด์ก่อนแชร์…');
-      Cloud.enqueue('save', id);
-      Cloud.flush().then(go).catch(go);
+    /* ยังไม่ขึ้นคลาวด์ (หรือแก้แล้วยังไม่ได้ส่ง) → ดันขึ้นก่อน แล้วแชร์ได้เฉพาะเมื่อขึ้นสำเร็จจริง
+       ของเดิมส่งไม่ผ่านก็แชร์ลิงก์ไปอยู่ดี ผู้รับเปิดแล้วเจอ "ไม่พบรายงาน" / ไม่ตรงกับใบที่ตั้งใจส่ง
+       ส่วนคนตรวจนึกว่าส่งแล้ว ใบนั้นเลยค้างอยู่ในเครื่องเดียว (เจอจริง 22 ก.ย. 2569)
+       อัปขึ้นเสร็จแล้วให้กดปุ่มแชร์อีกครั้งในกล่อง เพราะมือถือยอมเปิดหน้าต่างแชร์
+       เฉพาะตอนที่นิ้วกดอยู่ รออัปรูปนาน ๆ แล้วเรียกแชร์เองจะเงียบ ไม่มีอะไรเกิดขึ้น */
+    const pending = () => Cloud.queue().some(q => q.id === id);
+    if(Cloud.enabled() && (!Cloud.synced().has(id) || pending())){
+      if(!navigator.onLine) return App.toast('ออฟไลน์อยู่ — รายงานยังไม่ขึ้นคลาวด์ ต่อเน็ตแล้วกดแชร์อีกครั้ง');
+      App.toast('กำลังอัปโหลดรายงานขึ้นคลาวด์ก่อนแชร์… (ใบที่มีรูปเยอะอาจใช้เวลาสักครู่ อย่าเพิ่งปิดหน้า)');
+      if(!pending()) Cloud.enqueue('save', id);
+      const done = () => {
+        if(pending() || !Cloud.synced().has(id)){
+          return App.toast('ยังอัปโหลดรายงานไม่สำเร็จ' + (Cloud.lastErr ? ' — ' + Cloud.lastErr : '') + ' · ลิงก์จะยังเปิดไม่ได้ ลองกดแชร์อีกครั้ง');
+        }
+        PDF._goShare = go;
+        App.modal('รายงานขึ้นคลาวด์แล้ว', `<div style="text-align:center;padding:6px 0 4px">
+          <div style="font-size:14px;color:var(--text2);margin-bottom:14px">ผู้รับเปิดลิงก์แล้วจะเห็นรายงานใบนี้</div>
+          <button class="btn pri" style="min-width:200px;justify-content:center" onclick="App.closeModal();PDF._goShare&&PDF._goShare()">🔗 แชร์ลิงก์รายงาน</button></div>`);
+      };
+      /* flush กำลังวิ่งอยู่แล้ว (syncing) จะคืนทันที → รอจนคิวของใบนี้หมดหรือหยุดวิ่ง */
+      const wait = (n) => new Promise(res => {
+        const tick = () => (!Cloud.syncing || n-- <= 0) ? res() : setTimeout(tick, 1000);
+        tick();
+      });
+      Cloud.flush().then(() => wait(300)).then(() => pending() ? Cloud.flush() : null).then(done, done);
     }else go();
   },
 
