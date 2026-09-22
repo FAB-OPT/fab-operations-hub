@@ -1513,6 +1513,8 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
 </div>
 <div class="toast" id="toast"></div>
 
+<!-- ตรึงรุ่นเดียวกับโมดูลอื่นของฮับ (ต้อง >= 2.43 ถึงจะมี signInAnonymously) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script>
 /* =======================================================================
    ระบบตรวจสาขา FQA / FSQ / Visit — ร้านส้มตำเจ๊แดง (FAB Group)
@@ -2251,6 +2253,72 @@ function _fqaFetch(url, ms){
           e=>{ if(t) clearTimeout(t); throw (e && e.name==='AbortError') ? new Error('หลังบ้านตอบช้าเกิน '+Math.round(ms/1000)+' วินาที ลองใหม่อีกครั้ง') : e; });
 }
 
+/* =======================================================================
+   FQA บน Supabase FAB HUB (ตาราง fqa_records · supabase/fqa-records.sql)
+   ย้ายมาจากชีต 22 ก.ย. 2569 — ชีตต้องเปิดทั้งไฟล์ทุกครั้ง ช้าเป็นนาที ใบจึงค้างในเครื่องคนตรวจ
+   รูปยังอัปขึ้น Google Drive ผ่าน Apps Script เหมือนเดิม ในใบเก็บแค่ลิงก์
+   ช่วงเปลี่ยนผ่านยังเขียนลงชีตคู่กันไปด้วย (ไม่รอผล) ชีตจึงยังเป็นที่สำรองและใช้กับสำรองรายวันได้
+
+   ถ้าตารางยังไม่ถูกสร้าง (ยังไม่ได้รัน SQL) หรือไลบรารีโหลดไม่ขึ้น → ใช้ชีตแบบเดิมทั้งหมด
+   แต่เครื่องที่เคยต่อ Supabase ได้แล้ว ห้ามถอยไปเขียนชีตอย่างเดียว ใบจะหายจากเครื่องอื่น
+   ให้ถือว่าส่งไม่ผ่าน เก็บคิวไว้ส่งรอบหน้าแทน
+   ======================================================================= */
+const FQA_SB_URL = 'https://pzspcjqlxoqnbtvlfjsy.supabase.co';
+const FQA_SB_KEY = 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP';
+const FqaSB = {
+  on: null, err: '', _p: null, _at: 0, _c: null,
+  EVER_KEY: 'fqa_sb_ever_v1',
+  ever(){ try{ return localStorage.getItem(this.EVER_KEY) === '1'; }catch(e){ return false; } },
+  client(){
+    if(this._c) return this._c;
+    if(!window.supabase || !window.supabase.createClient) return null;
+    this._c = window.supabase.createClient(FQA_SB_URL, FQA_SB_KEY);
+    return this._c;
+  },
+  /* ล็อกอินครั้งเดียวแล้วใช้ต่อ — ของเดิมบางโมดูลขอผู้ใช้ใหม่ทุกครั้งที่เปิดหน้า */
+  ready(){
+    if(this._p && !(this.on === false && Date.now() - this._at > 5*60*1000)) return this._p;
+    this._at = Date.now();
+    const go = (async () => {
+      const c = this.client();
+      if(!c) throw new Error('โหลดไลบรารี Supabase ไม่ขึ้น');
+      const s = await c.auth.getSession();
+      if(!(s && s.data && s.data.session)){
+        const r = await c.auth.signInAnonymously();
+        if(r && r.error) throw r.error;
+      }
+      const { error } = await c.rpc('fqa_one', { p_id: '__probe__' });
+      if(error) throw error;
+      return true;
+    })();
+    const cap = new Promise((_, no) => setTimeout(() => no(new Error('ต่อฐานข้อมูลช้าเกิน 20 วินาที')), 20000));
+    this._p = Promise.race([go, cap]).then(() => {
+      this.on = true; this.err = '';
+      try{ localStorage.setItem(this.EVER_KEY, '1'); }catch(e){}
+      return true;
+    }, e => { this.on = false; this.err = (e && e.message) || String(e); return false; });
+    return this._p;
+  },
+  /* true = ใช้ Supabase · false = ใช้ชีต · throw = เคยต่อได้แต่ตอนนี้ไม่ได้ (ห้ามถอยไปชีต) */
+  mode(){
+    return this.ready().then(ok => {
+      if(ok) return true;
+      if(this.ever()) throw new Error('ต่อฐานข้อมูลไม่ได้ — ' + this.err);
+      return false;
+    });
+  },
+  _rpc(fn, args){
+    return this.client().rpc(fn, args).then(({ data, error }) => {
+      if(error) throw new Error(error.message || String(error));
+      return data;
+    });
+  },
+  pull(brand, since){ return this._rpc('fqa_pull', { p_brand: brand || '', p_since: since || null }); },
+  one(id){ return this._rpc('fqa_one', { p_id: String(id) }); },
+  save(rec){ return this._rpc('fqa_save', { rec: rec }); },
+  del(id, brand){ return this._rpc('fqa_delete', { p_id: String(id), p_brand: brand || '' }); }
+};
+
 const Cloud = {
   URL: HUB_SCRIPT_URL,
   syncing:false,
@@ -2279,8 +2347,9 @@ const Cloud = {
      ถอยหมุด 6 ชั่วโมงเวลาขอ แลกกับข้อมูลที่ซ้อนมานิดหน่อย คุ้มกว่าข้อมูลหาย */
   SINCE_SLACK_MS: 6*60*60*1000,
   FULL_EVERY_MS: 24*60*60*1000,
-  sinceKey(){ return 'fqa_sync_since_'+(Brand.cur||'jaedaeng'); },
-  fullKey(){ return 'fqa_sync_full_'+(Brand.cur||'jaedaeng'); },
+  /* หมุดของ Supabase แยกจากของชีต — สลับแหล่งแล้วต้องเริ่มดึงครบทั้งก้อนใหม่หนึ่งรอบ */
+  sinceKey(){ return (FqaSB.on ? 'fqa_sb_since_' : 'fqa_sync_since_')+(Brand.cur||'jaedaeng'); },
+  fullKey(){ return (FqaSB.on ? 'fqa_sb_full_' : 'fqa_sync_full_')+(Brand.cur||'jaedaeng'); },
   lastFull(){ try{ return Number(localStorage.getItem(this.fullKey())||0)||0; }catch(e){ return 0; } },
   markFull(){ try{ localStorage.setItem(this.fullKey(), String(Date.now())); }catch(e){} },
   since(){ try{ return localStorage.getItem(this.sinceKey())||''; }catch(e){ return ''; } },
@@ -2307,6 +2376,33 @@ const Cloud = {
     return fetch(this.URL, {method:'POST', mode:'cors', redirect:'follow',
       headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)})
       .then(r=>r.json());
+  },
+
+  /* บันทึก 1 ใบ — full = ฉบับเต็ม (ไป Supabase) · sheet = ฉบับที่ตัดให้พอดีเซลล์ชีต */
+  saveRemote(full, sheet){
+    return FqaSB.mode().then(sb => {
+      if(!sb) return this.post({type:'save-fqa-record', record:sheet});
+      return FqaSB.save(full).then(res => {
+        if(res && res.ok) this.post({type:'save-fqa-record', record:sheet}).catch(()=>{});   // สำเนาลงชีต ไม่รอ
+        return res;
+      });
+    });
+  },
+  delRemote(id, brand){
+    return FqaSB.mode().then(sb => {
+      if(!sb) return this.post({type:'delete-fqa-record', id:id});
+      return FqaSB.del(id, brand).then(res => {
+        if(res && res.ok) this.post({type:'delete-fqa-record', id:id}).catch(()=>{});
+        return res;
+      });
+    });
+  },
+  /* ดึงรายการ — รูปแบบคำตอบเหมือนกันทั้งสองแหล่ง */
+  fetchList(brand, since, ms){
+    return FqaSB.mode().then(sb => sb
+      ? FqaSB.pull(brand, since)
+      : _fqaFetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
+          +(since?'&since='+encodeURIComponent(since):'')+'&_='+Date.now(), ms).then(r=>r.json()));
   },
 
   /* อัปโหลดรูป base64 ทุกใบ → แทนด้วย URL → เขียนกลับในเครื่อง (กันอัปซ้ำ) */
@@ -2349,7 +2445,7 @@ const Cloud = {
       const item=q[0];
       let job, isSave=item.op!=='delete';
       if(item.op==='delete'){
-        job=this.post({type:'delete-fqa-record', id:item.id});
+        job=this.delRemote(item.id, brand);
       }else{
         const rec=DB.all().find(r=>r.id===item.id);
         if(!rec){ job=Promise.resolve({ok:true}); isSave=false; }
@@ -2361,9 +2457,14 @@ const Cloud = {
           }
           const clean=JSON.parse(JSON.stringify(r2));
           clean.photos=(clean.photos||[]).filter(p=>p&&!(typeof p.data==='string'&&p.data.indexOf('data:')===0)); // ตัด base64 ที่ยังค้าง
-          if(JSON.stringify(clean).length>45000) clean.photos=[];  // ด่านสุดท้าย: ถ้ายังใหญ่ ตัดรูปทั้งหมด (คงข้อความไว้)
+          clean.brand=brand;
+          clean.updatedAt=_fqaIsoTime(clean.updatedAt)||new Date().toISOString();
+          /* ชีตมีเพดานเซลล์ ~50k ตัวอักษร ใบที่ใหญ่เกินต้องตัดรูปออกก่อนลงชีต
+             Supabase ไม่มีเพดานนี้ จึงได้ฉบับเต็มเสมอ */
+          const sheet=JSON.parse(JSON.stringify(clean));
+          if(JSON.stringify(sheet).length>45000) sheet.photos=[];
           if(b64.length) App.toast('ซิงค์ข้อความเรียบร้อย · บางรูปอัปโหลดไม่สำเร็จ ลองบันทึกซ้ำภายหลัง');
-          clean.brand=brand; return this.post({type:'save-fqa-record', record:clean});
+          return this.saveRemote(clean, sheet);
         });
       }
       return job.then(res=>{
@@ -2391,6 +2492,10 @@ const Cloud = {
      ปกติ → ขอเฉพาะที่เปลี่ยนหลังหมุดเวลาล่าสุด ซึ่งมักว่างเปล่าหรือไม่กี่ KB */
   pull(full){
     if(!this.enabled() || !navigator.onLine) return Promise.resolve(false);
+    /* รู้ก่อนว่าใช้แหล่งไหน หมุดเวลาถึงจะหยิบถูกชุด */
+    return FqaSB.ready().then(()=>this._pull(full));
+  },
+  _pull(full){
     const brand=Brand.cur;
     /* ไม่มีหมุด หรือในเครื่องยังว่าง = ต้องขอทั้งหมด ไม่งั้นจะได้ข้อมูลไม่ครบ */
     /* ดึงครบทั้งก้อนเป็นระยะ — เผื่อมีอะไรตกหล่นไปแล้วจะได้กลับมาเอง
@@ -2404,9 +2509,7 @@ const Cloud = {
     }
     const incremental = !!since;
     this.setStatus('syncing');
-    return _fqaFetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)
-                 +(since?'&since='+encodeURIComponent(since):'')+'&_='+Date.now(), 150000)
-      .then(r=>r.json())
+    return this.fetchList(brand, since, 150000)
       .then(res=>{
         if(!res || !res.ok || !Array.isArray(res.records) || brand!==Brand.cur){ this.setStatus('synced'); return false; }
         const cloudIds=new Set(res.records.map(r=>r&&r.id).filter(Boolean));
@@ -2499,7 +2602,7 @@ const Cloud = {
         this.setStatus('synced');
         return changed;
       })
-      .catch(()=>{ this.setStatus('error'); return false; });
+      .catch(e=>{ this.lastErr=(e&&e.message)||String(e); this.setStatus('error'); return false; });
   },
 
 
@@ -2614,8 +2717,7 @@ const Cloud = {
     if(!this.enabled()) return put('<span style="color:var(--red)">ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์</span>');
     put('กำลังตรวจ... <span style="color:var(--text3)">(ปกติไม่กี่วินาที · ถ้าหลังบ้านกำลังเปิดข้อมูลใหม่อาจถึง 1-2 นาที)</span>');
     const brand=Brand.cur;
-    return _fqaFetch(this.URL+'?action=fqa-records&brand='+encodeURIComponent(brand)+'&_='+Date.now(), 120000)
-      .then(r=>r.json())
+    return this.fetchList(brand, '', 120000)
       .then(async res=>{
         if(!res || !res.ok || !Array.isArray(res.records)) throw new Error((res&&res.error)||'หลังบ้านตอบไม่ครบ');
         const cloud=res.records.filter(r=>r&&r.id);
@@ -2659,7 +2761,7 @@ const Cloud = {
         }).join('');
 
         put(`<div style="font-size:12.5px;line-height:1.75">
-          <div>แบรนด์ที่ดูอยู่: <b>${esc(brand)}</b></div>
+          <div>แบรนด์ที่ดูอยู่: <b>${esc(brand)}</b> · ที่เก็บ <b>${FqaSB.on ? 'Supabase FAB HUB' : 'Google Sheet'}</b></div>
           <div>บนคลาวด์ <b>${cloud.length}</b> ใบ · ในเครื่องนี้ <b>${local.length}</b> ใบ</div>
           <div>ขาดในเครื่องนี้ <b style="color:${missing.length?'var(--red)':'inherit'}">${missing.length}</b> ใบ ·
                มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ ·
@@ -7143,7 +7245,11 @@ const ReportView = {
     local().then(rec=>{
       if(rec){ clearTimeout(slow); return show(rec); }
       if(!Cloud.enabled()){ clearTimeout(slow); host.innerHTML=`<div class="rep-load">ไม่สามารถโหลดรายงานได้</div>`; return; }
-      return getJson(HUB_SCRIPT_URL+'?action=fqa-record&id='+encodeURIComponent(id)+'&_='+Date.now())
+      /* Supabase ตอบใบเดียวได้ในไม่กี่ร้อยมิลลิวินาที · ไม่เจอ (ใบเก่าที่ยังไม่ย้าย) ค่อยถามชีต */
+      const sb=()=>FqaSB.ready().then(ok=>ok ? FqaSB.one(id).catch(()=>null) : null);
+      return sb().then(r=>{
+        if(r && r.ok && (r.record || r.deleted)){ clearTimeout(slow); return r.deleted ? gone() : show(r.record); }
+        return getJson(HUB_SCRIPT_URL+'?action=fqa-record&id='+encodeURIComponent(id)+'&_='+Date.now())
         .then(res=>{
           if(res && res.ok && 'record' in res){
             clearTimeout(slow);
@@ -7157,6 +7263,7 @@ const ReportView = {
               return (!rec || del.has(String(id))) ? gone() : show(rec);
             });
         });
+      });
     }).catch(e=>{ clearTimeout(slow); failed(e); });
   },
   print(){
