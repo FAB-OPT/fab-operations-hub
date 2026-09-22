@@ -28,6 +28,8 @@ a{color:var(--orange)}
 .who-tag{display:flex;flex-direction:column;align-items:flex-end;line-height:1.3;min-width:0}
 .who-nm{font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:190px}
 .who-role{color:var(--muted);font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase}
+.who-av{display:none}
+.who-tx{display:contents}
 .navtabs{display:flex;gap:6px;flex-wrap:wrap}
 .navtab{border:1px solid var(--line);background:#fff;border-radius:10px;padding:7px 15px;font-weight:700;color:#555;font-size:14px}
 .navtab.on{background:var(--orange);border-color:var(--orange);color:#fff}
@@ -545,9 +547,13 @@ summary{font-weight:700;cursor:pointer}
 .tk-h{padding:16px 18px 14px;border-bottom:2px dashed var(--line);position:relative}
 .tk-h::before,.tk-h::after{content:"";position:absolute;bottom:-11px;width:20px;height:20px;border-radius:50%;background:var(--bg)}
 .tk-h::before{left:-10px}.tk-h::after{right:-10px}
-.tk-no{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;color:var(--muted);font-weight:700}
-.tk-no .due{color:#c2410c}
-.tk-no .ok{color:var(--green)}
+.tk-no{display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:12.5px;color:var(--muted);font-weight:700;min-height:22px}
+.tk-no>span{display:inline-flex;align-items:center;gap:7px;min-width:0}
+.tk-k{font-style:normal;font-size:11.5px;font-weight:800;padding:2px 9px;border-radius:999px;background:#eef0f3;color:#475467;white-space:nowrap}
+.tk-k.sg{background:#fdf3d8;color:#8a5a00}
+.tk-k.tr{background:#e8f0fd;color:#1d4ed8}
+.tk-no .due{color:#c2410c;background:var(--orange-soft);padding:2px 9px;border-radius:999px}
+.tk-no .ok{color:var(--green);background:#e9f7ef;padding:2px 9px;border-radius:999px}
 .tk-t{display:flex;gap:10px;align-items:flex-start;margin-top:8px;font-size:17px;font-weight:800;line-height:1.38;letter-spacing:-.01em}
 .tk-t span{font-size:22px;line-height:1.2;flex:none}
 .tk-d{font-size:13.5px;color:var(--muted);margin-top:4px;line-height:1.5}
@@ -623,9 +629,13 @@ summary{font-weight:700;cursor:pointer}
   .navtab svg{display:block;width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
   .navtab:hover{background:#f5f6f8;color:var(--ink)}
   .navtab.on{background:var(--orange-soft);color:#c2410c;border:0}
-  #whoTag{margin-top:auto;padding:14px 10px 12px;border-top:1px solid var(--line)}
-  .who-tag{align-items:flex-start}
-  .who-nm{max-width:210px;font-size:14px}
+  #whoTag{margin-top:auto;padding:14px 4px 12px;border-top:1px solid var(--line)}
+  .who-tag{flex-direction:row;align-items:center;gap:10px}
+  .who-av{display:grid;flex:none;width:38px;height:38px;border-radius:12px;place-items:center;background:var(--orange-soft);color:#c2410c;font-weight:800;font-size:16px}
+  .who-av.code{font-size:12px;letter-spacing:.02em}
+  .who-tx{display:flex;flex-direction:column;min-width:0;gap:3px}
+  .who-nm{max-width:170px;font-size:14px;line-height:1.3}
+  .who-role{align-self:flex-start;text-transform:none;letter-spacing:0;font-size:11px;font-weight:700;color:#475467;background:#eef0f3;padding:1px 8px;border-radius:999px}
   .btn-back{order:3;justify-content:center;width:100%;padding:10px 14px}
 
   main{padding:26px 40px 60px;max-width:1180px;margin:0 auto;width:100%}
@@ -1044,8 +1054,13 @@ function renderWho(){
   if (!ME.ok){ $('#whoTag').innerHTML = ''; return; }
   /* มือถือ: ชื่อผู้ใช้อยู่ใต้ชื่อระบบ บรรทัดเดียว ไม่แย่งที่กันซ้ายขวา */
   $('#whoSub').textContent = (ME.name || 'ผู้ใช้') + ' · ' + (ME.isBranch ? 'สาขา' : ME.title);
+  /* สาขา: วงกลมเป็นรหัสสาขา ชื่อเป็นชื่อสาขา · คนอื่น: วงกลมเป็นอักษรแรกของชื่อ */
+  const nm = String(ME.name || 'ผู้ใช้'), m = nm.match(/^(\d{3,6})\s+(.+)$/);
+  const av = ME.isBranch && m ? m[1] : (nm.replace(/^[^\u0E01-\u0E2E A-Za-z]+/, '').trim()[0] || '•').toUpperCase();
   $('#whoTag').innerHTML = `<div class="who-tag">
-    <span class="who-nm">${esc(ME.name || 'ผู้ใช้')}</span><span class="who-role">${esc(ME.title)}</span></div>`;
+    <span class="who-av ${av.length > 2 ? 'code' : ''}">${esc(av)}</span>
+    <span class="who-tx"><span class="who-nm">${esc(ME.isBranch && m ? m[2] : nm)}</span>
+      <span class="who-role">${esc(ME.isBranch ? 'สาขา' : ME.title)}</span></span></div>`;
 }
 /* ไอคอนแถบเมนูล่าง */
 const TAB_ICON = {
@@ -1100,7 +1115,7 @@ function sgItemHtml(f){
   const staff = sgCan('view-results');
   return `<div class="form-item tk ${open ? (staff ? '' : 'clickable') : 'off'}" ${open && !staff ? `onclick="sgGo('fill=${f.id}')"` : ''}>
     <div class="tk-h">
-      <div class="tk-no"><span>ประเมินพนักงาน${nq ? ' · ' + nq + ' ข้อ' : ''}</span><span>${open ? esc(f.round || 'เปิดประเมิน') : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span></div>
+      <div class="tk-no"><span><em class="tk-k sg">ประเมินพนักงาน</em>${nq ? nq + ' ข้อ' : ''}</span><span>${open ? esc(f.round || 'เปิดประเมิน') : f.status === 'draft' ? 'ร่าง' : 'ปิดแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(f.emoji || '🥇')}</span>${esc(f.title)}</div>
       ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
     </div>
@@ -1133,7 +1148,7 @@ function ttItemHtml(t){
   const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
   return `<div class="form-item tk ${open ? '' : 'off'}">
     <div class="tk-h">
-      <div class="tk-no"><span>การอบรม${nq ? ' · ' + nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
+      <div class="tk-no"><span><em class="tk-k tr">การอบรม</em>${nq ? nq + ' ข้อ' : ''}</span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(t.emoji || '🎓')}</span>${esc(t.title)}</div>
       ${sub ? `<div class="tk-d">${esc(sub)}</div>` : ''}
     </div>
@@ -1178,7 +1193,7 @@ function formItemHtml(f){
   const click = open && !lock && !staff;
   return `<div class="form-item tk ${click ? 'clickable' : (!isOpen(f) || lock) ? 'off' : ''}" ${click ? `onclick="startFill('${esc(f.key)}')"` : ''}>
     <div class="tk-h">
-      <div class="tk-no"><span>${nq} ข้อ${f.once_per_user ? '' : ' · ตอบได้หลายครั้ง'}</span><span>${status}</span></div>
+      <div class="tk-no"><span><em class="tk-k">แบบฟอร์ม</em>${nq} ข้อ${f.once_per_user ? '' : ' · ตอบซ้ำได้'}</span><span>${status}</span></div>
       <div class="tk-t"><span>${esc(f.emoji || '📋')}</span>${esc(f.title)}</div>
       ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
     </div>
