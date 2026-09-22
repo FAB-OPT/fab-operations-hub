@@ -170,6 +170,18 @@ tbody tr:hover{background:#fcfcfd}
 /* ── กล่องซ้อน ── */
 .modal{display:none;position:fixed;inset:0;background:rgba(16,24,40,.5);z-index:60;padding:18px;overflow-y:auto}
 .modal.show{display:block}
+.q-miss{border-color:#F04438!important;box-shadow:0 0 0 3px rgba(240,68,56,.14)!important}
+.q-miss>label::after{content:"ยังไม่ได้ตอบ";margin-left:8px;font-size:12px;font-weight:800;color:#fff;background:#D92D20;border-radius:999px;padding:1px 9px;vertical-align:2px}
+.q-pulse{animation:qpulse .9s ease 2}
+@keyframes qpulse{50%{box-shadow:0 0 0 8px rgba(240,68,56,.22)}}
+.miss-pop{text-align:center;padding:6px 4px 2px}
+.miss-pop .mp-ic{width:52px;height:52px;border-radius:50%;background:#FEF3F2;color:#D92D20;font-size:28px;font-weight:800;display:grid;place-items:center;margin:0 auto 10px}
+.miss-pop h2{margin:0 0 6px;font-size:20px}
+.miss-pop p{margin:0 0 16px;color:var(--muted);line-height:1.6}
+.miss-pop p b{color:var(--ink)}
+.miss-pop p span{font-weight:700;color:#D92D20}
+.miss-pop .btn{width:100%;max-width:280px;padding:12px}
+.modal-box:has(.miss-pop){max-width:360px;margin-top:22vh}
 .modal-box{max-width:860px;margin:18px auto;background:#fff;border-radius:16px;padding:24px}
 .modal-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:16px}
 .sec-bar{height:8px;background:#eef0f3;border-radius:99px;overflow:hidden;margin-top:5px}
@@ -1178,7 +1190,7 @@ function renderRun(){
       <p class="sub">ผู้ทำ: <b>${esc(run.person.name)}</b>${run.person.branch ? ' · ' + esc(run.person.branch) : ''}</p>
     </div>
     ${(t.questions || []).map((q, i) => `
-      <div class="card">
+      <div class="card q-card ${run.flag && run.answers[q.id] == null ? 'q-miss' : ''}" id="q-${q.id}">
         <label>${i + 1}. ${esc(q.label)}</label>
         <div class="runch">${(q.choices || []).map((c, j) =>
           `<button type="button" class="${run.answers[q.id] === j ? 'on' : ''}" onclick="answer('${q.id}',${j})"><b>${chMark(j)}</b>${esc(c)}</button>`).join('')}</div>
@@ -1190,12 +1202,32 @@ function renderRun(){
       </div>
     </div>`;
 }
-window.answer = function(qid, j){ run.answers[qid] = j; renderRun(); };
+window.answer = function(qid, j){ run.answers[qid] = j; const y = window.scrollY; renderRun(); window.scrollTo({ top:y }); };
+
+/* กดส่งแล้วยังตอบไม่ครบ: บอกว่าข้อไหน แล้วพาไปข้อแรกที่ยังไม่ตอบ
+   ข้อที่ยังไม่ตอบขึ้นกรอบแดงไว้ จนกว่าจะตอบ */
+function missPopup(qs, miss){
+  const nums = miss.map(q => qs.indexOf(q) + 1);
+  const list = nums.length > 12 ? nums.slice(0, 12).join(', ') + ' …' : nums.join(', ');
+  $('#modalBox').innerHTML = `<div class="miss-pop">
+    <div class="mp-ic">!</div>
+    <h2>ยังตอบไม่ครบ</h2>
+    <p>ยังไม่ได้ตอบ <b>${miss.length} ข้อ</b><br><span>ข้อ ${list}</span></p>
+    <button class="btn btn-primary" onclick="goMiss('${miss[0].id}')">ไปที่ข้อ ${nums[0]} ›</button>
+  </div>`;
+  $('#modal').classList.add('show');
+}
+window.goMiss = function(qid){
+  closeModal();
+  const el = document.getElementById('q-' + qid); if (!el) return;
+  el.scrollIntoView({ behavior:'smooth', block:'center' });
+  el.classList.remove('q-pulse'); void el.offsetWidth; el.classList.add('q-pulse');
+};
 
 window.submitRun = async function(){
   const t = run.t, qs = t.questions || [];
   const miss = qs.filter(q => run.answers[q.id] == null);
-  if (miss.length) return msg(`ยังตอบไม่ครบ เหลืออีก ${miss.length} ข้อ`, 'warn');
+  if (miss.length){ run.flag = true; renderRun(); return missPopup(qs, miss); }
   const score = qs.reduce((a, q) => a + (run.answers[q.id] === q.answer ? 1 : 0), 0);
   const pct = qs.length ? Math.round(score / qs.length * 1000) / 10 : 0;
   const { error } = await SB.from('tr_attempts').insert({
@@ -1227,7 +1259,7 @@ function renderEval(){
     ${EVAL_SECS.map(sec => `
       ${sec.title ? `<div class="ev-sec">${esc(sec.title)}</div>` : ''}
       ${sec.q.map(q => `
-      <div class="card">
+      <div class="card q-card ${run.flag && run.answers[q.id] == null ? 'q-miss' : ''}" id="q-${q.id}">
         <label>${++no}. ${esc(q.label)}</label>
         <div class="evsc">${[5,4,3,2,1].map(v =>
           `<button type="button" class="${run.answers[q.id] === v ? 'on' : ''}" onclick="evAnswer('${q.id}',${v})">${v}<small>${EVAL_LV[v]}</small></button>`).join('')}</div>
@@ -1247,7 +1279,7 @@ window.submitEval = async function(){
   const t = run.t;
   const qs = evalQs();
   const miss = qs.filter(q => run.answers[q.id] == null);
-  if (miss.length) return msg(`ยังให้คะแนนไม่ครบ เหลืออีก ${miss.length} ข้อ`, 'warn');
+  if (miss.length){ run.note = ($('#evNote') || {}).value; run.flag = true; renderEval(); return missPopup(qs, miss); }
   const note = ($('#evNote').value || '').trim();
   const score = qs.reduce((a, q) => a + run.answers[q.id], 0), total = qs.length * 5;
   const { error } = await SB.from('tr_attempts').insert({
