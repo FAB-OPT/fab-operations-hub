@@ -2389,7 +2389,7 @@ const Cloud = {
         const pendingDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
         const seen=this.synced();
         const byId={}; DB.all().forEach(r=>byId[r.id]=r);
-        let changed=false;
+        let changed=false, newerUp=0;
         /* 1) รวมของจาก cloud (ใหม่กว่าชนะ) + จำว่า id นี้อยู่บน cloud แล้ว */
         res.records.forEach(cr=>{
           if(!cr || !cr.id || pendingDel.has(cr.id) || deletedIds.has(cr.id)) return;   // กำลังจะลบ/ถูกลบแล้ว → ไม่ดึงกลับ
@@ -2399,6 +2399,14 @@ const Cloud = {
           const heavy = lr && (lr.photos||[]).some(p=>p && typeof p.data==='string' && p.data.indexOf('data:')===0)
                            && !(cr.photos||[]).some(p=>p && typeof p.data==='string' && p.data.indexOf('data:')===0);
           if(!lr || heavy || _fqaIsoTime(cr.updatedAt) > _fqaIsoTime(lr.updatedAt)){ byId[cr.id]=cr; changed=true; }
+          /* ในเครื่องใหม่กว่าคลาวด์ และไม่มีคิวค้าง = แก้แล้วไม่เคยถูกส่งขึ้น → ส่งขึ้นใหม่
+             ของเดิมเช็คแค่ "id นี้อยู่บนคลาวด์แล้วหรือยัง" ใบที่เปิดจากแผนตรวจแล้วกรอกผล
+             ใช้ id เดิมของแผน จึงถูกนับว่าอยู่บนคลาวด์แล้ว ทั้งที่บนคลาวด์ยังเป็นแผนเปล่า
+             ถ้าคิวของใบนั้นหลุดไป (ปิดหน้ากลางทาง / ส่งไม่ผ่านแล้วถูกทิ้ง) จะไม่มีวันขึ้นอีกเลย
+             เจอจริง 22 ก.ย. 2569: FQA สยามพารากอน อยู่แค่ในเครื่องคนตรวจ เครื่องอื่นเห็นแค่แผน */
+          else if(lr && !pend.has(cr.id) && _fqaIsoTime(lr.updatedAt) > _fqaIsoTime(cr.updatedAt) && newerUp < 30){
+            newerUp++; this.enqueue('save', cr.id);
+          }
           seen.add(cr.id);
         });
         /* 2) รายการในเครื่องที่หายไปจาก cloud
@@ -2591,6 +2599,8 @@ const Cloud = {
         const del=new Set((res.deleted||[]).map(String));
         const pendDel=new Set(this.queue().filter(x=>x.op==='delete').map(x=>x.id));
         const missing=cloud.filter(r=>!lid.has(r.id));
+        const cById={}; cloud.forEach(r=>cById[r.id]=r);
+        const newer=local.filter(r=>cById[r.id] && _fqaIsoTime(r.updatedAt) > _fqaIsoTime(cById[r.id].updatedAt));
         const extra=local.filter(r=>!cid.has(r.id));
         this._diagMissing=missing;
 
@@ -2626,7 +2636,9 @@ const Cloud = {
           <div>แบรนด์ที่ดูอยู่: <b>${esc(brand)}</b></div>
           <div>บนคลาวด์ <b>${cloud.length}</b> ใบ · ในเครื่องนี้ <b>${local.length}</b> ใบ</div>
           <div>ขาดในเครื่องนี้ <b style="color:${missing.length?'var(--red)':'inherit'}">${missing.length}</b> ใบ ·
-               มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ</div>
+               มีในเครื่องแต่ไม่มีบนคลาวด์ <b style="color:${extra.length?'var(--yellow)':'inherit'}">${extra.length}</b> ใบ ·
+               ในเครื่องใหม่กว่าคลาวด์ <b style="color:${newer.length?'var(--yellow)':'inherit'}">${newer.length}</b> ใบ</div>
+          ${newer.length?`<div style="font-size:11.5px;color:var(--text3)">${newer.slice(0,5).map(r=>esc(fmtDMY(r.date)+' · '+(r.type||'')+' · '+(r.branch||''))).join('<br>')}</div>`:''}
           <div>คิวค้างส่ง <b style="color:${this.pending()?'var(--yellow)':'inherit'}">${this.pending()}</b> · รายการที่ถูกลบทั้งระบบ ${del.size}</div>
           ${this.lastErr?`<div style="color:var(--red)">ส่งไม่ผ่านล่าสุด: ${esc(this.lastErr)}</div>`:''}
           <div style="margin-top:10px;padding:10px 12px;border-radius:10px;
