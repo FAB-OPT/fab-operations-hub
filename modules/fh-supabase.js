@@ -60,6 +60,42 @@ function _fhCfgPermsRow() {
   });
 }
 
+/* ───────── คำขออบรม + ใบรับรอง ย้ายไป FAB HUB (22 ก.ย. 2569 · supabase/fh-to-hub.sql) ─────────
+   ทะเบียนพนักงาน (fh_employees) อยู่ที่ Training Record เหมือนเดิม ใช้ร่วมกับระบบ Training Record
+   · FAB HUB ยังไม่มีตาราง (ยังไม่ได้รัน SQL) → ใช้โปรเจกต์เดิมต่อ ไม่มีอะไรเปลี่ยน
+   · เครื่องที่เคยใช้ FAB HUB ได้แล้ว ห้ามถอยไปเขียนโปรเจกต์เดิม (ข้อมูลจะแยกกันสองที่)
+     ต่อไม่ได้ = ให้ล้มแล้วใช้ทางสำรอง Google Sheets ตามเดิมของแต่ละฟังก์ชัน */
+var FH_MOVED = { fh_requests: 1, fh_certificates: 1 };
+var FH_HUB_EVER = 'fh_hub_tables_ever_v1';
+var _fhHubP = null, _fhHubOn = null, _fhHubAt = 0;
+function _fhHubEver() { try { return localStorage.getItem(FH_HUB_EVER) === '1'; } catch (e) { return false; } }
+function _fhHubReady() {
+  if (_fhHubP && !(_fhHubOn === false && Date.now() - _fhHubAt > 5 * 60 * 1000)) return _fhHubP;
+  _fhHubAt = Date.now();
+  if (!FH_CFG.client) { _fhHubOn = false; _fhHubP = Promise.resolve(false); return _fhHubP; }
+  var probe = Promise.resolve(FH_CFG.auth).then(function () {
+    return FH_CFG.client.from('fh_certificates').select('id').limit(1);
+  }).then(function (r) { if (r.error) throw r.error; return true; });
+  var cap = new Promise(function (_, no) { setTimeout(function () { no(new Error('FAB HUB ตอบช้าเกิน 20 วินาที')); }, 20000); });
+  _fhHubP = Promise.race([probe, cap]).then(function () {
+    _fhHubOn = true;
+    try { localStorage.setItem(FH_HUB_EVER, '1'); } catch (e) {}
+    return true;
+  }, function (e) {
+    _fhHubOn = false;
+    console.warn('[FH] ใช้ตารางใน FAB HUB ไม่ได้' + (_fhHubEver() ? '' : ' → ใช้โปรเจกต์เดิม'), e && e.message);
+    return false;
+  });
+  return _fhHubP;
+}
+/* client ของตาราง — เรียกหลัง _fhHubReady() เสมอ (ตัวห่อท้ายไฟล์ทำให้แล้ว) */
+function _fhC(table) {
+  if (!FH_MOVED[table]) return FH_SB.client;
+  if (_fhHubOn) return FH_CFG.client;
+  if (_fhHubEver()) throw new Error('ต่อฐานข้อมูล FAB HUB ไม่ได้');
+  return FH_SB.client;
+}
+
 /* เผื่อต้องชี้ไปฐานอื่นในอนาคต — เรียกจาก console ได้: fhSbSaveConfig(url, key) แล้วรีเฟรช */
 function fhSbSaveConfig(url, key, dualWrite) {
   localStorage.setItem('fh_sb_cfg', JSON.stringify({ url: url, key: key, on: true, dualWrite: dualWrite !== false }));
@@ -169,7 +205,7 @@ function _sbEmpIn(e) {
 function _sbSelectAll(table, mapOut) {
   var PAGE = 1000, all = [];
   function page(from) {
-    return FH_SB.client.from(table).select('*').order('id', { ascending: true }).range(from, from + PAGE - 1)
+    return _fhC(table).from(table).select('*').order('id', { ascending: true }).range(from, from + PAGE - 1)
       .then(function(res){
         if (res.error) throw res.error;
         var rows = res.data || [];
@@ -285,7 +321,7 @@ function fhSaveRequests(records) {
     (records || []).forEach(function(r){ if (r && r.name) r.name = fhStripTitle(r.name) || r.name; });
   }
   if (!FH_SB.ready) return _sheetsPost({ type: 'save-requests', records: records });
-  return FH_SB.client.from('fh_requests').insert(records.map(_sbReqIn)).select('id')
+  return _fhC('fh_requests').from('fh_requests').insert(records.map(_sbReqIn)).select('id')
     .then(function(res){
       if (res.error) throw res.error;
       return _alsoSheets({ type: 'save-requests', records: records })
@@ -350,7 +386,7 @@ function fhSaveCertificates(records, opts) {
   function oldIds() {                    // ต้องวนดึง — Supabase คืนทีละ 1,000 แถว
     var PAGE = 1000, ids = [];
     function page(from) {
-      return FH_SB.client.from('fh_certificates').select('id').range(from, from + PAGE - 1)
+      return _fhC('fh_certificates').from('fh_certificates').select('id').range(from, from + PAGE - 1)
         .then(function(res){
           if (res.error) throw res.error;
           var rows = res.data || [];
@@ -365,7 +401,7 @@ function fhSaveCertificates(records, opts) {
     var CH = 500;                        // ยัดทีละ 500 แถว กัน payload ใหญ่เกินจนถูกตัด
     function chunk(i) {
       if (i >= rows.length) return rows.length;
-      return FH_SB.client.from('fh_certificates').insert(rows.slice(i, i + CH))
+      return _fhC('fh_certificates').from('fh_certificates').insert(rows.slice(i, i + CH))
         .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
     }
     return Promise.resolve(chunk(0));
@@ -375,7 +411,7 @@ function fhSaveCertificates(records, opts) {
     var CH = 200;
     function chunk(i) {
       if (i >= ids.length) return null;
-      return FH_SB.client.from('fh_certificates').delete().in('id', ids.slice(i, i + CH))
+      return _fhC('fh_certificates').from('fh_certificates').delete().in('id', ids.slice(i, i + CH))
         .then(function(res){ if (res.error) throw res.error; return chunk(i + CH); });
     }
     return Promise.resolve(chunk(0));
@@ -421,7 +457,7 @@ function fhSaveCertificates(records, opts) {
 function fhClearCertificates() {
   var sheets = _sheetsPost({ type: 'clear-certificates' });
   if (!FH_SB.ready) return sheets;
-  return FH_SB.client.from('fh_certificates').delete().gte('id', 0)
+  return _fhC('fh_certificates').from('fh_certificates').delete().gte('id', 0)
     .then(function(res){ if (res.error) throw res.error; })
     .then(function(){ return sheets.catch(function(){ return null; }); })
     .then(function(){ return { ok: true }; })
@@ -436,7 +472,7 @@ function fhUpdateRequest(key, record) {
   if (!FH_SB.ready || id === '' || id == null) {
     return _sheetsPost({ type: 'update-request', key: key, record: record });
   }
-  return FH_SB.client.from('fh_requests').update(_sbReqIn(record)).eq('id', id).select('id')
+  return _fhC('fh_requests').from('fh_requests').update(_sbReqIn(record)).eq('id', id).select('id')
     .then(function(res){
       if (res.error) throw res.error;
       if (!res.data || !res.data.length) return { ok: false, error: 'ไม่พบรายการนี้แล้ว (อาจถูกลบไปก่อนหน้า)' };
@@ -457,7 +493,7 @@ function fhBulkUpdateRequests(jobs, onProgress) {
   }
   if (onProgress) onProgress(0, jobs.length);
   var ups = jobs.map(function(j){ var o = _sbReqIn(j.record); o.id = j.rec._sbId; delete o.ts; return o; });
-  return FH_SB.client.from('fh_requests').upsert(ups, { onConflict: 'id' })
+  return _fhC('fh_requests').from('fh_requests').upsert(ups, { onConflict: 'id' })
     .then(function(res){
       if (res.error) throw res.error;
       return _alsoSheets({ type: 'bulk-update-requests', updates: jobs.map(function(j){
@@ -476,7 +512,7 @@ function fhBulkUpdateRequests(jobs, onProgress) {
 function fhDeleteRequest(key) {
   var id = key && key.sbId;
   if (!FH_SB.ready || id === '' || id == null) return _sheetsPost({ type: 'delete-request', key: key });
-  return FH_SB.client.from('fh_requests').delete().eq('id', id).select('id')
+  return _fhC('fh_requests').from('fh_requests').delete().eq('id', id).select('id')
     .then(function(res){
       if (res.error) throw res.error;
       /* ไม่มีแถวถูกลบ = id นั้นไม่มีอยู่จริง ต้องบอกให้รู้ ไม่ใช่รายงานว่าสำเร็จ
@@ -497,7 +533,7 @@ function fhBulkDeleteRequests(records, onProgress) {
   }
   if (onProgress) onProgress(0, records.length);
   var ids = records.map(function(r){ return r._sbId; });
-  return FH_SB.client.from('fh_requests').delete().in('id', ids)
+  return _fhC('fh_requests').from('fh_requests').delete().in('id', ids)
     .then(function(res){
       if (res.error) throw res.error;
       return _alsoSheets({ type: 'bulk-delete-requests', keys: records.map(_fhReqKey) })
@@ -524,7 +560,7 @@ function fhSbMigrate(opts) {
   var seq = Promise.resolve();
   jobs.forEach(function(j){
     seq = seq.then(function(){
-      return FH_SB.client.from(j.table).select('id', { count: 'exact', head: true })
+      return _fhC(j.table).from(j.table).select('id', { count: 'exact', head: true })
         .then(function(res){
           var have = res.count || 0;
           if (have > 0 && !opts.force) { report.push({ table: j.table, skipped: true, have: have }); return; }
@@ -539,7 +575,7 @@ function fhSbMigrate(opts) {
               function chunk(i) {
                 if (i >= rows.length) { report.push({ table: j.table, inserted: done }); return; }
                 if (opts.onStep) opts.onStep(j.action + ': ' + i + '/' + rows.length);
-                return FH_SB.client.from(j.table).insert(rows.slice(i, i + CH))
+                return _fhC(j.table).from(j.table).insert(rows.slice(i, i + CH))
                   .then(function(res2){
                     if (res2.error) throw res2.error;
                     done += Math.min(CH, rows.length - i);
@@ -561,7 +597,7 @@ function fhSbCompare() {
   return Promise.all(pairs.map(function(p){
     return Promise.all([
       fetch(SCRIPT_URL + '?action=' + p[0] + '&_=' + Date.now()).then(function(r){ return r.json(); }).then(function(j){ return (j.records || []).length; }),
-      FH_SB.client.from(p[1]).select('id', { count: 'exact', head: true }).then(function(r){ return r.count || 0; })
+      _fhC(p[1]).from(p[1]).select('id', { count: 'exact', head: true }).then(function(r){ return r.count || 0; })
     ]).then(function(n){ return { name: p[0], sheets: n[0], supabase: n[1], same: n[0] === n[1] }; });
   }));
 }
@@ -569,4 +605,17 @@ function fhSbCompare() {
 /* หน้าตั้งค่าที่เก็บข้อมูลย้ายไปรวมที่ HUB แล้ว (⚙️ เครื่องมือผู้ดูแลระบบ → 🗄️ ที่เก็บข้อมูล)
    ฟังก์ชัน UI เดิม (sbRenderStatus/sbRunMigrate/sbRunCompare/sbClearCfg) ถูกลบออก
    ส่วน fhSbMigrate/fhSbCompare ที่เหลือไว้ เผื่อเรียกจาก console ตอนแก้ปัญหาเฉพาะหน้า */
-var FH_BUILD = '2026-08-10 · 09:30';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
+/* ห่อทุกฟังก์ชันที่แตะคำขอ/ใบรับรอง ให้รอรู้ก่อนว่าใช้ FAB HUB หรือโปรเจกต์เดิม
+   (ถามครั้งเดียวต่อการเปิดหน้า ครั้งต่อไปคืนทันที) */
+['fhLoadRequests', 'fhLoadCertificates', 'fhSaveRequests', 'fhSaveCertificates', 'fhClearCertificates',
+ 'fhUpdateRequest', 'fhBulkUpdateRequests', 'fhDeleteRequest', 'fhBulkDeleteRequests', 'fhSbMigrate', 'fhSbCompare']
+  .forEach(function (n) {
+    var f = window[n];
+    if (typeof f !== 'function') return;
+    window[n] = function () {
+      var self = this, a = arguments;
+      return _fhHubReady().then(function () { return f.apply(self, a); });
+    };
+  });
+
+var FH_BUILD = '2026-09-22 · 22:30';   // บัมพ์ทุกครั้งที่แก้ fh-*.js
