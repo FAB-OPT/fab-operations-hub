@@ -2789,6 +2789,8 @@ label.fld>span>b{font-weight:800}
 
 <div class="toast" id="toast"></div>
 
+<!-- ตรึงรุ่นเดียวกับโมดูลอื่นของฮับ (ต้อง >= 2.43 ถึงจะมี signInAnonymously) -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script>
 /* ═════════════════════ CONFIG / SESSION ═════════════════════ */
 var SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
@@ -3144,6 +3146,113 @@ function apiPost(body){
     });
   }, label);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════
+   ระบบสอบบน Supabase — โปรเจกต์ Training Record (supabase/online-exam.sql)
+   ย้ายจากชีต Exams / ExamResults / ExamRequests เมื่อ 22 ก.ย. 2569
+   หลังบ้านชีตตอบ 3–36 วินาที และบางรอบตอบมาไม่ครบ (ดูบันทึกการวัดข้างบน)
+
+   ดักที่ apiGet / apiPost ที่เดียว ฟังก์ชันใน SQL คืนรูปแบบเดียวกับ Code.gs เป๊ะ
+   ส่วนอื่นของหน้าจึงไม่ต้องแก้เลย
+   · ยังไม่ได้รัน SQL / ไลบรารีโหลดไม่ขึ้น → ใช้ชีตแบบเดิมทั้งหมด
+   · เครื่องที่เคยต่อ Supabase ได้แล้ว ห้ามถอยไปชีต (รหัสเข้าสอบคนละชุดกัน) ให้บอกว่าต่อไม่ได้แทน
+   · ชุดข้อสอบกับผลสอบเขียนสำเนาลงชีตตามหลังแบบไม่รอ (ที่สำรอง)
+     คำขอสอบไม่เขียนสำเนา เพราะชีตสร้าง id/รหัสของตัวเอง สำเนาจะไม่ตรงกันอยู่ดี
+   ═══════════════════════════════════════════════════════════════════════ */
+var OE_SB = {
+  url: 'https://cyjfgperenakjeazsfgf.supabase.co',
+  key: 'sb_publishable_xAtQvH3Bdaqt7PVJGbkxWw_KVhfBszo',
+  EVER: 'oe_sb_ever_v1',
+  on: null, err: '', _p: null, _at: 0, _c: null,
+  ever: function(){ try { return localStorage.getItem(this.EVER) === '1'; } catch(e){ return false; } },
+  client: function(){
+    if(this._c) return this._c;
+    if(!window.supabase || !window.supabase.createClient) return null;
+    this._c = window.supabase.createClient(this.url, this.key);
+    return this._c;
+  },
+  ready: function(){
+    var self = this;
+    if(this._p && !(this.on === false && Date.now() - this._at > 5*60*1000)) return this._p;
+    this._at = Date.now();
+    var c = this.client();
+    var go = !c ? Promise.reject(new Error('โหลดไลบรารี Supabase ไม่ขึ้น')) :
+      c.auth.getSession().then(function(s){
+        if(s && s.data && s.data.session) return null;
+        return c.auth.signInAnonymously().then(function(r){ if(r && r.error) throw r.error; });
+      }).then(function(){ return c.from('oe_exams').select('id').limit(1); })
+        .then(function(r){
+          if(r.error) throw r.error;
+          /* ตารางว่าง = เพิ่งรัน SQL ยังย้ายข้อมูลไม่เสร็จ → ยังไม่สลับ ไม่งั้นจะเห็นชุดข้อสอบหายหมด */
+          if(!(r.data || []).length) throw new Error('ตารางระบบสอบยังว่าง (ยังย้ายข้อมูลไม่เสร็จ)');
+          return true;
+        });
+    var cap = new Promise(function(_, no){ setTimeout(function(){ no(new Error('ต่อฐานข้อมูลช้าเกิน 20 วินาที')); }, 20000); });
+    this._p = Promise.race([go, cap]).then(function(){
+      self.on = true; self.err = '';
+      try { localStorage.setItem(self.EVER, '1'); } catch(e){}
+      return true;
+    }, function(e){ self.on = false; self.err = (e && e.message) || String(e); return false; });
+    return this._p;
+  },
+  mode: function(){
+    var self = this;
+    return this.ready().then(function(ok){
+      if(ok) return true;
+      if(self.ever()) throw new Error('ต่อฐานข้อมูลระบบสอบไม่ได้ — ' + self.err);
+      return false;
+    });
+  },
+  rpc: function(fn, args){
+    return this.client().rpc(fn, args).then(function(r){
+      if(r.error) throw new Error(r.error.message || String(r.error));
+      return r.data;
+    });
+  }
+};
+var _oeGetSheet = apiGet, _oePostSheet = apiPost;
+var _oeStr = function(v){ return v == null ? '' : String(v); };
+apiGet = function(action, qs){
+  var map = { 'exams': 'oe_exams', 'exam-results': 'oe_results', 'exam-requests': 'oe_requests' };
+  if(!map[action]) return _oeGetSheet(action, qs);
+  return OE_SB.mode().then(function(sb){
+    if(!sb) return _oeGetSheet(action, qs);
+    var args = {};
+    if(action === 'exam-requests'){
+      var q = new URLSearchParams(qs || '');
+      args = { p_branch: q.get('branch') || '', p_scope: q.get('scope') || '' };
+    }
+    return OE_SB.rpc(map[action], args);
+  });
+};
+apiPost = function(body){
+  var t = body && body.type;
+  var call = {
+    'save-exam':           function(){ return ['oe_save_exam', { exam: body.exam }]; },
+    'delete-exam':         function(){ return ['oe_delete_exam', { p_id: _oeStr(body.id) }]; },
+    'submit-exam-result':  function(){ return ['oe_submit_result', { r: body.result }]; },
+    'delete-exam-result':  function(){ return ['oe_delete_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId) }]; },
+    'request-exam':        function(){ return ['oe_request', { req: body.req }]; },
+    'decide-exam-request': function(){ return ['oe_decide', { p_id: _oeStr(body.id), p_decision: _oeStr(body.decision), p_by: _oeStr(body.by), p_note: _oeStr(body.note) }]; },
+    'verify-exam-code':    function(){ return ['oe_verify_code', { p_code: _oeStr(body.code), p_exam_id: _oeStr(body.examId) }]; },
+    'use-exam-code':       function(){ return ['oe_use_code', { p_code: _oeStr(body.code) }]; },
+    'delete-exam-request': function(){ return ['oe_delete_request', { p_id: _oeStr(body.id) }]; }
+  }[t];
+  if(!call) return _oePostSheet(body);
+  var mirror = { 'save-exam':1, 'delete-exam':1, 'submit-exam-result':1, 'delete-exam-result':1 }[t];
+  return OE_SB.mode().then(function(sb){
+    if(!sb) return _oePostSheet(body);
+    var c = call();
+    return OE_SB.rpc(c[0], c[1]).then(function(res){
+      if(mirror && res && res.ok){
+        var copy = JSON.parse(JSON.stringify(body));
+        if(t === 'save-exam' && res.id && copy.exam) copy.exam.id = res.id;   // ชีตใช้ id เดียวกัน
+        _oePostSheet(copy).catch(function(){});
+      }
+      return res;
+    });
+  });
+};
 
 /* ข้อความท้ายกล่องว่างเปล่า — บอกสาเหตุจริง ไม่ใช่ประโยคกลาง ๆ
    .catch จับได้ทั้ง error ตอนยิงและ error ตอนวาดหน้าจอ จึงต้องแยกให้เห็นด้วย
