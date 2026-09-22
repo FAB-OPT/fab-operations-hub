@@ -182,6 +182,16 @@ tbody tr:hover{background:#fcfcfd}
 .miss-pop p span{font-weight:700;color:#D92D20}
 .miss-pop .btn{width:100%;max-width:280px;padding:12px}
 .modal-box:has(.miss-pop){max-width:360px;margin-top:22vh}
+.cf-pop{text-align:center;padding:6px 4px 2px}
+.cf-pop .cf-ic{width:52px;height:52px;border-radius:50%;background:#FEF3F2;font-size:24px;display:grid;place-items:center;margin:0 auto 12px}
+.cf-pop h2{margin:0 0 6px;font-size:19px;line-height:1.4}
+.cf-pop p{margin:0 0 18px;color:var(--muted);line-height:1.6;font-size:14.5px}
+.cf-pop p b{color:var(--ink)}
+.cf-act{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.cf-act .btn{padding:12px;justify-content:center}
+.cf-act .btn-danger{background:#D92D20;color:#fff;border-color:#D92D20}
+.cf-act .btn-danger:hover{background:#B42318}
+.modal-box:has(.cf-pop){max-width:380px;margin-top:22vh}
 .sc-tb{width:100%;min-width:0;border-collapse:collapse;font-size:14px}
 .sc-tb th{font-size:12.5px;color:var(--muted);font-weight:700;text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
 .sc-tb td{padding:10px;border-bottom:1px solid var(--line)}
@@ -1253,6 +1263,29 @@ function renderRun(){
 }
 window.answer = function(qid, j){ run.answers[qid] = j; const y = window.scrollY; renderRun(); window.scrollTo({ top:y }); };
 
+/* ป็อปอัพยืนยันแบบเดียวกับหน้าระบบ แทน confirm() ของเบราว์เซอร์
+   ถ้าเปิดทับป็อปอัพอื่นอยู่ (เช่นรายละเอียดผลรายคน) กดยกเลิกแล้วกลับไปหน้าเดิม */
+function askConfirm(o){
+  const box = $('#modalBox'), modal = $('#modal');
+  const wasOpen = modal.classList.contains('show'), prev = box.innerHTML;
+  return new Promise(res => {
+    box.innerHTML = `<div class="cf-pop">
+      <div class="cf-ic">${o.icon || '🗑'}</div>
+      <h2>${o.title}</h2>
+      ${o.text ? `<p>${o.text}</p>` : ''}
+      <div class="cf-act">
+        <button class="btn btn-secondary" data-a="0">ยกเลิก</button>
+        <button class="btn ${o.danger === false ? 'btn-primary' : 'btn-danger'}" data-a="1">${o.ok || 'ยืนยัน'}</button>
+      </div></div>`;
+    modal.classList.add('show');
+    box.querySelectorAll('[data-a]').forEach(b => b.onclick = () => {
+      const yes = b.dataset.a === '1';
+      if (!yes && wasOpen) box.innerHTML = prev; else if (!wasOpen) closeModal();
+      res(yes);
+    });
+  });
+}
+
 /* กดส่งแล้วยังตอบไม่ครบ: บอกว่าข้อไหน แล้วพาไปข้อแรกที่ยังไม่ตอบ
    ข้อที่ยังไม่ตอบขึ้นกรอบแดงไว้ จนกว่าจะตอบ */
 function missPopup(qs, miss){
@@ -1596,7 +1629,9 @@ window.detail = function(key, pid){
 
 window.delAttempts = async function(key, pid){
   if (!ttCan('delete-attempt')) return msg('ไม่มีสิทธิ์ลบผล', 'warn');
-  if (!confirm('ลบผลทั้งก่อนและหลังเรียนของคนนี้?\n\nลบแล้วให้ทำใหม่ได้ แต่ของเดิมเอาคืนไม่ได้')) return;
+  const who = ((attempts.find(a => a.training_key === key && String(a.participant_id) === String(pid)) || {}).participant_name) || '';
+  if (!await askConfirm({ title:'ลบผลก่อนเรียนและหลังเรียน' + (who ? '<br>ของ ' + esc(who) : ''),
+    text:'ลบแล้วคนนี้ทำใหม่ได้ แต่ผลเดิม<b>เอาคืนไม่ได้</b>', ok:'ลบผล' })) return;
   const ids = attempts.filter(a => a.training_key === key && String(a.participant_id) === String(pid)).map(a => a.id);
   for (const id of ids){
     const { error } = await SB.from('tr_attempts').delete().eq('id', id);
@@ -1964,8 +1999,9 @@ window.delTraining = async function(id){
   if (!ttCan('delete-training')) return msg('ไม่มีสิทธิ์ลบการอบรม', 'warn');
   const t = trainings.find(x => x.id === id); if (!t) return;
   const used = attempts.filter(a => a.training_key === t.key).length;
-  if (!confirm(`ลบการอบรม "${t.title}" ?\n\n` +
-    (used ? `มีผลแบบทดสอบแล้ว ${used} รายการ — ผลจะไม่ถูกลบ แต่จะไม่มีตัวการอบรมให้เทียบคำถาม\n\n` : '') + 'ยืนยันการลบ?')) return;
+  if (!await askConfirm({ title:'ลบการอบรม<br>' + esc(t.title),
+    text: used ? `มีผลแบบทดสอบแล้ว <b>${used} รายการ</b> — ผลไม่ถูกลบ แต่จะไม่มีตัวการอบรมให้เทียบคำถาม` : 'ลบแล้วเอาคืนไม่ได้',
+    ok:'ลบการอบรม' })) return;
   const { error } = await SB.from('tr_trainings').delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ลบเรียบร้อย'); await loadTrainings(); renderTrainings();
@@ -2107,7 +2143,9 @@ function evPaint(){ const el = $('#evEdit'); if (el) el.outerHTML = evalEditHtml
 window.evAdd    = function(si){ evDraft[si].q.push({ id:evId(), label:'' }); evPaint(); };
 window.evDel    = function(si, qi){ evDraft[si].q.splice(qi, 1); evPaint(); };
 window.evAddSec = function(){ evDraft.push({ title:'', q:[{ id:evId(), label:'' }] }); evPaint(); };
-window.evDelSec = function(si){ if (confirm('ลบหัวข้อนี้พร้อมข้อย่อยทั้งหมด?')){ evDraft.splice(si, 1); evPaint(); } };
+window.evDelSec = async function(si){
+  if (await askConfirm({ title:'ลบหัวข้อนี้พร้อมข้อย่อยทั้งหมด?', text:'ยังไม่บันทึกจนกว่าจะกด "บันทึกแบบประเมิน"', ok:'ลบหัวข้อ' })){ evDraft.splice(si, 1); evPaint(); }
+};
 window.evSave = async function(){
   if (!ttCan('manage-trainings')) return msg('ไม่มีสิทธิ์แก้แบบประเมิน', 'warn');
   const secs = evDraft.map(sec => ({ title:(sec.title || '').trim(),
