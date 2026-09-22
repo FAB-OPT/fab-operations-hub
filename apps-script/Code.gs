@@ -1846,10 +1846,10 @@ function _ckSbToken() {
   return j.access_token;
 }
 function _ckSbHeaders() { return { apikey: CK_SB_KEY, Authorization: 'Bearer ' + _ckSbToken() }; }
-/* ย้ายข้อมูลแล้วหรือยัง = ตารางมีใบเช็คลิสต์รายวันแล้ว */
+/* ย้ายข้อมูลแล้วหรือยัง = มีป้าย _meta/live (เขียนเป็นขั้นสุดท้ายหลังย้ายครบ) */
 function _ckSbLive() {
   try {
-    var res = UrlFetchApp.fetch(CK_SB_URL + '/rest/v1/ck_docs?select=id&col=eq.dailyChecklists&limit=1',
+    var res = UrlFetchApp.fetch(CK_SB_URL + '/rest/v1/ck_docs?select=id&col=eq._meta&id=eq.live&limit=1',
       { headers: _ckSbHeaders(), muteHttpExceptions: true });
     if (res.getResponseCode() !== 200) return false;
     return (JSON.parse(res.getContentText() || '[]') || []).length > 0;
