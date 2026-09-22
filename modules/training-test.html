@@ -558,6 +558,11 @@ summary{font-weight:700;cursor:pointer}
   table:has(.mc-h) td.mc-b,table:has(.mc-h) td.mc-x{flex-basis:100%;margin-top:-8px;font-size:13px;color:var(--muted)}
   table:has(.mc-h) td[data-l]::before{content:attr(data-l);display:block;font-size:11.5px;font-weight:700;color:var(--muted);margin-bottom:2px}
   table:has(.mc-h) td.mc-a{margin-left:auto}
+  table:has(.mc-h) td.mc-n br+.muted{display:block;margin-top:2px}
+  table:has(.mc-h) tr:has(td[data-l="วันที่"]){display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px 12px}
+  table:has(.mc-h) tr:has(td[data-l="วันที่"]) td.mc-n,table:has(.mc-h) tr:has(td[data-l="วันที่"]) td.mc-a{grid-column:1/-1;margin-left:0}
+  table:has(.mc-h) tr:has(td[data-l="วันที่"]) td.mc-a{display:grid;grid-template-columns:1fr auto;gap:8px}
+  table:has(.mc-h) tr:has(td[data-l="วันที่"]) td{font-size:13.5px}
 }
 
 /* ════════ มือถือแบบแอป — เหมือนหน้าแบบฟอร์มทั่วไป ════════
@@ -1623,8 +1628,8 @@ function renderReport(){
           `<option value="${esc(x.key)}" ${x.key === rp.training ? 'selected' : ''}>${esc(x.title)}${x.train_date ? ' · ' + esc(fmtD(x.train_date)) : ''}</option>`).join('')}</select></div>
         <button class="btn btn-primary rp-print" onclick="printReport()">🖨 พิมพ์ / บันทึก PDF</button>
       <div class="rp-kind">
-        <button type="button" class="${rp.kind === 'test' ? 'on' : ''}" onclick="rpKind('test')"><i>รายงาน 1 · ${nBoth} คน</i><b>ทดสอบก่อน–หลัง เปรียบเทียบ</b></button>
-        <button type="button" class="${rp.kind === 'eval' ? 'on' : ''}" onclick="rpKind('eval')"><i>รายงาน 2 · ${nEv} คน</i><b>แบบประเมินอบรม</b></button>
+        <button type="button" class="${rp.kind === 'test' ? 'on' : ''}" onclick="rpKind('test')"><b>ทดสอบก่อน–หลัง เปรียบเทียบ</b></button>
+        <button type="button" class="${rp.kind === 'eval' ? 'on' : ''}" onclick="rpKind('eval')"><b>แบบประเมินอบรม</b></button>
       </div>
       </div>
     </div>
@@ -1712,22 +1717,22 @@ function renderTrainings(){
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table>
-        <thead><tr><th>การอบรม</th><th>วันที่</th><th>คำถาม</th><th>ผู้เข้าอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>ประเมิน</th><th>สถานะ</th><th></th></tr></thead>
+        <thead class="mc-h"><tr><th>การอบรม</th><th>วันที่</th><th>คำถาม</th><th>ผู้เข้าอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>ประเมิน</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${trainings.map(t => {
           const ppl = (t.participants || []).length;
           const dP = (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id)).length;
           const dQ = (t.participants || []).filter(p => attemptOf(t.key,'post',p.id)).length;
           return `<tr>
-            <td><b>${esc(t.emoji || '🎓')} ${esc(t.title)}</b>${t.trainer ? `<br><span class="muted" style="font-size:12.5px">วิทยากร ${esc(t.trainer)}</span>` : ''}</td>
-            <td>${esc(fmtD(t.train_date))}</td>
-            <td>${(t.questions || []).length} ข้อ</td>
-            <td>${ppl} คน</td>
-            <td>${t.pre_open ? `<span class="pill open">เปิด</span> ${dP}/${ppl}` : `<span class="pill closed">ปิด</span> ${dP}/${ppl}`}</td>
-            <td>${t.post_open ? `<span class="pill open">เปิด</span> ${dQ}/${ppl}` : `<span class="pill closed">ปิด</span> ${dQ}/${ppl}`}</td>
-            <td>${t.post_open ? `<span class="pill open">เปิด</span> ${evalsOf(t.key).length}/${ppl}` : `<span class="pill closed">ปิด</span> ${evalsOf(t.key).length}/${ppl}`}</td>
-            <td><span class="pill ${t.status === 'open' ? 'open' : t.status === 'draft' ? 'draft' : 'closed'}">${
+            <td class="mc-n"><b>${esc(t.emoji || '🎓')} ${esc(t.title)}</b>${t.trainer ? `<br><span class="muted" style="font-size:12.5px">วิทยากร ${esc(t.trainer)}</span>` : ''}</td>
+            <td data-l="วันที่">${esc(fmtD(t.train_date))}</td>
+            <td data-l="คำถาม">${(t.questions || []).length} ข้อ</td>
+            <td data-l="ผู้เข้าอบรม">${ppl} คน</td>
+            <td data-l="ก่อนเรียน">${t.pre_open ? `<span class="pill open">เปิด</span> ${dP}/${ppl}` : `<span class="pill closed">ปิด</span> ${dP}/${ppl}`}</td>
+            <td data-l="หลังเรียน">${t.post_open ? `<span class="pill open">เปิด</span> ${dQ}/${ppl}` : `<span class="pill closed">ปิด</span> ${dQ}/${ppl}`}</td>
+            <td data-l="ประเมิน">${t.post_open ? `<span class="pill open">เปิด</span> ${evalsOf(t.key).length}/${ppl}` : `<span class="pill closed">ปิด</span> ${evalsOf(t.key).length}/${ppl}`}</td>
+            <td data-l="สถานะ"><span class="pill ${t.status === 'open' ? 'open' : t.status === 'draft' ? 'draft' : 'closed'}">${
               t.status === 'open' ? 'เปิดอยู่' : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></td>
-            <td class="row-btns">
+            <td class="row-btns mc-a">
               <button class="btn btn-secondary btn-sm" onclick="editTraining(${t.id})">แก้ไข</button>
               ${ttCan('delete-training') ? `<button class="btn btn-danger btn-sm" onclick="delTraining(${t.id})">ลบ</button>` : ''}
             </td></tr>`;
