@@ -75,7 +75,12 @@ function _fhHubReady() {
   if (!FH_CFG.client) { _fhHubOn = false; _fhHubP = Promise.resolve(false); return _fhHubP; }
   var probe = Promise.resolve(FH_CFG.auth).then(function () {
     return FH_CFG.client.from('fh_certificates').select('id').limit(1);
-  }).then(function (r) { if (r.error) throw r.error; return true; });
+  }).then(function (r) {
+    if (r.error) throw r.error;
+    /* ตารางว่าง = เพิ่งรัน SQL ยังคัดลอกข้อมูลมาไม่เสร็จ → ยังไม่สลับ ไม่งั้นหน้าจอจะเห็นใบรับรองเป็นศูนย์ */
+    if (!(r.data || []).length) throw new Error('ตารางใน FAB HUB ยังว่าง (ยังคัดลอกข้อมูลไม่เสร็จ)');
+    return true;
+  });
   var cap = new Promise(function (_, no) { setTimeout(function () { no(new Error('FAB HUB ตอบช้าเกิน 20 วินาที')); }, 20000); });
   _fhHubP = Promise.race([probe, cap]).then(function () {
     _fhHubOn = true;
