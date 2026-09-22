@@ -317,6 +317,31 @@ summary{font-weight:700;cursor:pointer}
 }
 @media print{ .sysbar{display:none} }
 
+/* ════════ หน้าจอคอม — แถบเมนูซ้ายแบบเดียวกับหน้าแบบฟอร์มทั่วไป ════════ */
+.navtab svg{display:none}
+@media(min-width:821px){
+  body{display:grid;grid-template-columns:252px minmax(0,1fr);min-height:100vh}
+  .topbar{position:sticky;top:0;height:100vh;flex-direction:column;align-items:stretch;flex-wrap:nowrap;gap:0;
+    padding:22px 14px 16px;border-bottom:0;border-right:1px solid var(--line);overflow-y:auto}
+  .topbar>div:nth-child(2){order:1;padding:0 10px 18px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .tb-title{font-size:18px;line-height:1.3}
+  .tb-title small{font-size:12.5px;margin-top:4px;line-height:1.5}
+  .tb-right{order:2;flex:1;flex-direction:column;align-items:stretch;margin:0;gap:0;flex-wrap:nowrap}
+  .navtabs{flex-direction:column;gap:3px;flex-wrap:nowrap}
+  .navtab{display:flex;align-items:center;gap:11px;border:0;background:transparent;text-align:left;padding:10px 12px;border-radius:11px;font-size:14.5px;color:#4b5563}
+  .navtab svg{display:block;width:20px;height:20px;flex:none;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .navtab:hover{background:#f5f6f8;color:var(--ink)}
+  .navtab.on{background:var(--orange-soft);color:#c2410c;border:0}
+  #whoTag{margin-top:auto;padding:14px 10px 12px;border-top:1px solid var(--line)}
+  .who-tag{align-items:flex-start}
+  .who-nm{max-width:210px;font-size:14px}
+  .btn-back{order:3;justify-content:center;width:100%;padding:10px 14px}
+
+  main{padding:26px 40px 60px;max-width:1180px;margin:0 auto;width:100%}
+  .notice.show{position:fixed;top:18px;right:24px;left:auto;max-width:460px;z-index:70;box-shadow:0 12px 30px rgba(16,24,40,.18)}
+  main{max-width:1180px}
+}
+
 /* เส้นทางกลับหน้าแบบฟอร์มทั่วไป — แบบทดสอบก่อน–หลังอบรมเป็นฟอร์มชนิดหนึ่งในนั้น */
 .crumb{display:flex;align-items:center;gap:8px;margin:-4px 0 14px;font-size:14px;color:var(--muted)}
 .crumb a{color:var(--orange);font-weight:700;text-decoration:none}
@@ -350,6 +375,18 @@ summary{font-weight:700;cursor:pointer}
 .evbar .tr{height:8px;border-radius:9px;background:#eef0f3;overflow:hidden}
 .evbar .tr i{display:block;height:100%;background:var(--orange)}
 .evbar b{text-align:right;font-variant-numeric:tabular-nums}
+.st3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:6px}
+.st3 button{border:1px solid var(--line);background:#fff;border-radius:14px;padding:12px 14px;text-align:left;font:inherit;color:var(--ink);cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:flex-start}
+.st3 i{display:block;font-style:normal;font-size:12px;font-weight:700;color:var(--muted)}
+.st3 b{display:block;font-size:15.5px;margin-top:2px}
+.st3 span{display:inline-flex;align-items:center;gap:6px;margin-top:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.st3 span::before{content:"";width:9px;height:9px;border-radius:50%;background:#c3c8d0}
+.st3 button.on{border-color:var(--orange);background:var(--orange-soft)}
+.st3 button.on span{color:#c2410c}
+.st3 button.on span::before{background:var(--orange)}
+.st3 button:disabled{cursor:default}
+.st3 small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
+@media(max-width:640px){ .st3{grid-template-columns:1fr} }
 .evcm{padding:10px 12px;border-radius:10px;background:#f7f8fa;margin-top:8px;font-size:14px;line-height:1.55}
 /* ── หน้าผลหลังทำเสร็จ ── */
 .rs-big{text-align:center;padding:10px 0 4px}
@@ -650,13 +687,19 @@ function renderWho(){
   $('#whoTag').innerHTML = `<div class="who-tag">
     <span class="who-nm">${esc(ME.name || 'ผู้ใช้')}</span><span class="who-role">${esc(ME.title)}</span></div>`;
 }
+const TAB_ICON = {
+  list:      '<svg viewBox="0 0 24 24"><path d="M2.5 9 12 4.5 21.5 9 12 13.5z"/><path d="M6.5 11v5c1.5 1.6 3.3 2.4 5.5 2.4s4-.8 5.5-2.4v-5"/></svg>',
+  results:   '<svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>',
+  followup:  '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
+  trainings: '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>'
+};
 function renderNav(){
   const tabs = [['list','การอบรม']];
-  if (ttCan('view-results'))    tabs.push(['results','ผลก่อน–หลัง']);
+  if (ttCan('view-results'))    tabs.push(['results','ผลก่อน–หลัง · ประเมิน']);
   if (ttCan('view-followup'))   tabs.push(['followup','ติดตามคนที่ยังไม่ทำ']);
   if (ttCan('manage-trainings'))tabs.push(['trainings','จัดการการอบรม']);
   $('#navtabs').innerHTML = tabs.map(([k,n]) =>
-    `<button class="navtab ${tab===k?'on':''}" onclick="go('${k}')">${esc(n)}</button>`).join('');
+    `<button class="navtab ${(tab==='run'?'list':tab)===k?'on':''}" onclick="go('${k}')">${TAB_ICON[k]}<span>${esc(n)}</span></button>`).join('');
 }
 window.go = async function(t){
   if (!tabAllowed(t)){ tab = 'list'; renderNav(); renderList(); return msg('ไม่มีสิทธิ์เข้าหน้านี้', 'warn'); }
@@ -1246,7 +1289,7 @@ function renderTrainings(){
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table>
-        <thead><tr><th>การอบรม</th><th>วันที่</th><th>คำถาม</th><th>ผู้เข้าอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>สถานะ</th><th></th></tr></thead>
+        <thead><tr><th>การอบรม</th><th>วันที่</th><th>คำถาม</th><th>ผู้เข้าอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>ประเมิน</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${trainings.map(t => {
           const ppl = (t.participants || []).length;
           const dP = (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id)).length;
@@ -1258,13 +1301,14 @@ function renderTrainings(){
             <td>${ppl} คน</td>
             <td>${t.pre_open ? `<span class="pill open">เปิด</span> ${dP}/${ppl}` : `<span class="pill closed">ปิด</span> ${dP}/${ppl}`}</td>
             <td>${t.post_open ? `<span class="pill open">เปิด</span> ${dQ}/${ppl}` : `<span class="pill closed">ปิด</span> ${dQ}/${ppl}`}</td>
+            <td>${t.post_open ? `<span class="pill open">เปิด</span> ${evalsOf(t.key).length}/${ppl}` : `<span class="pill closed">ปิด</span> ${evalsOf(t.key).length}/${ppl}`}</td>
             <td><span class="pill ${t.status === 'open' ? 'open' : t.status === 'draft' ? 'draft' : 'closed'}">${
               t.status === 'open' ? 'เปิดอยู่' : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></td>
             <td class="row-btns">
               <button class="btn btn-secondary btn-sm" onclick="editTraining(${t.id})">แก้ไข</button>
               ${ttCan('delete-training') ? `<button class="btn btn-danger btn-sm" onclick="delTraining(${t.id})">ลบ</button>` : ''}
             </td></tr>`;
-        }).join('') || '<tr><td colspan="8"><div class="empty">ยังไม่มีการอบรม</div></td></tr>'}
+        }).join('') || '<tr><td colspan="9"><div class="empty">ยังไม่มีการอบรม</div></td></tr>'}
         </tbody>
       </table></div>
     </div>`;
@@ -1410,14 +1454,24 @@ function renderEditor(){
         <div><label>สถานที่</label><input data-t="place" value="${esc(e.place || '')}"></div>
         <div><label>วิทยากร</label><input data-t="trainer" value="${esc(e.trainer || '')}"></div>
       </div>
-      <div class="grid3" style="margin-top:12px">
+      <div style="margin-top:12px;max-width:320px">
         <div><label>สถานะ</label><select data-t="status">
           ${['draft','open','closed'].map(s => `<option value="${s}" ${e.status===s?'selected':''}>${
             s==='draft'?'ร่าง':s==='open'?'เปิดอยู่':'จบแล้ว'}</option>`).join('')}</select></div>
-        <div><label>แบบทดสอบก่อนเรียน</label>
-          <div class="seg"><button type="button" class="${e.pre_open?'on':''}" onclick="togOpen('pre_open')">${e.pre_open?'เปิดให้ทำ':'ปิดอยู่'}</button></div></div>
-        <div><label>แบบทดสอบหลังเรียน</label>
-          <div class="seg"><button type="button" class="${e.post_open?'on':''}" onclick="togOpen('post_open')">${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</button></div></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ขั้นตอนของผู้เข้าอบรม</h2>
+      <p class="sub">กดที่ขั้นเพื่อเปิด/ปิดให้ทำ · เปิดก่อนเรียนไว้ก่อนอบรม แล้วเปิดหลังเรียนเมื่ออบรมจบ</p>
+      <div class="st3">
+        <button type="button" class="${e.pre_open?'on':''}" onclick="togOpen('pre_open')">
+          <i>ขั้น 1</i><b>แบบทดสอบก่อนเรียน</b><span>${e.pre_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
+        <button type="button" class="${e.post_open?'on':''}" onclick="togOpen('post_open')">
+          <i>ขั้น 2</i><b>แบบทดสอบหลังเรียน</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
+        <button type="button" class="${e.post_open?'on':''}" disabled>
+          <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
+          <small>ชุดมาตรฐาน ${EVAL_QS.length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน</small></button>
       </div>
     </div>
 
