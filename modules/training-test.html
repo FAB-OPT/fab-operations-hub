@@ -387,6 +387,12 @@ summary{font-weight:700;cursor:pointer}
 .st3 button:disabled{cursor:default}
 .st3 small{display:block;font-size:12px;color:var(--muted);margin-top:4px;line-height:1.45}
 @media(max-width:640px){ .st3{grid-template-columns:1fr} }
+.ev-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid var(--line)}
+.ev-row:first-of-type{border-top:0}
+.ev-row input{flex:1;min-width:0}
+.ev-no{flex:none;width:28px;height:28px;border-radius:50%;background:#eef0f3;display:grid;place-items:center;font-weight:800;font-size:13px}
+.ev-sc{flex:none;font-size:12.5px;font-weight:700;color:var(--muted);background:#f5f6f8;border-radius:8px;padding:4px 8px}
+.ev-fixed{font-size:14px;color:var(--ink)}
 .evcm{padding:10px 12px;border-radius:10px;background:#f7f8fa;margin-top:8px;font-size:14px;line-height:1.55}
 /* ── หน้าผลหลังทำเสร็จ ── */
 .rs-big{text-align:center;padding:10px 0 4px}
@@ -587,13 +593,23 @@ const PHASE = { pre:'ก่อนเรียน', post:'หลังเรี�
 /* ขั้นที่ 3 ประเมินอบรม — ชุดมาตรฐานชุดเดียวทุกการอบรม จะได้เทียบข้ามรุ่นได้
    ไม่ระบุชื่อผู้ประเมิน (บันทึกเป็น phase 'eval' ใน tr_attempts โดย participant_id ว่าง)
    เปิดพร้อมหลังเรียน — ไม่ต้องมีสวิตช์แยก */
-const EVAL_QS = [
+const EVAL_DEFAULT = [
   { id:'content', label:'เนื้อหานำไปใช้ในงานได้จริง' },
   { id:'trainer', label:'วิทยากรอธิบายเข้าใจง่าย' },
   { id:'time',    label:'ระยะเวลาการอบรมเหมาะสม' },
   { id:'place',   label:'สถานที่และอุปกรณ์พร้อม' },
   { id:'overall', label:'ความพึงพอใจโดยรวม' }
 ];
+/* ชุดมาตรฐานแก้ได้ในตัวแก้ไขการอบรม เก็บที่ hub_config key 'tr_eval' — ใช้กับทุกการอบรม
+   ยังไม่เคยบันทึก = ใช้ EVAL_DEFAULT */
+let EVAL_QS = EVAL_DEFAULT.slice();
+async function loadEvalSet(){
+  try{
+    const { data, error } = await SB.from('hub_config').select('value').eq('key','tr_eval').limit(1);
+    const qs = !error && data && data.length && ((data[0].value || {}).questions);
+    if (Array.isArray(qs) && qs.length) EVAL_QS = qs;
+  }catch(e){}
+}
 const EVAL_LV = ['', 'น้อยที่สุด', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
 const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase === 'eval');
 const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'numeric' }) : '—';
@@ -650,6 +666,7 @@ async function boot(){
     return;
   }
   const okLoad = await loadTrainings();
+  await loadEvalSet();
   await loadAttempts();
   renderNav();
   if (okLoad) await go('list');
@@ -1439,6 +1456,42 @@ window.pullRoster = function(){
   msg(added ? `ดึงรายชื่อเพิ่ม ${added} คน (รวม ${e.participants.length} คน)` : 'รายชื่อตรงกับ Training Record แล้ว ไม่มีคนใหม่');
 };
 
+/* ── แบบประเมินอบรม (ขั้น 3) — ชุดเดียวใช้ทุกการอบรม ──
+   แก้แล้วกด "บันทึกแบบประเมิน" แยกจากปุ่มบันทึกการอบรม */
+let evDraft = null;
+function evalEditHtml(){
+  if (!evDraft) evDraft = EVAL_QS.map(q => ({ ...q }));
+  return `<div class="card" id="evEdit">
+    <h2>ขั้น 3 · แบบประเมินอบรม</h2>
+    <p class="sub">ชุดเดียวใช้กับทุกการอบรม เทียบข้ามรุ่นได้ · ให้คะแนน 1–5 ทุกข้อ + ช่องข้อเสนอแนะท้ายแบบ · ไม่ระบุชื่อ
+      <br>แก้ที่นี่แล้วมีผลกับทุกการอบรม</p>
+    ${evDraft.map((q, i) => `
+      <div class="ev-row">
+        <span class="ev-no">${i + 1}</span>
+        <input value="${esc(q.label)}" oninput="evDraft[${i}].label=this.value" placeholder="เช่น วิทยากรอธิบายเข้าใจง่าย">
+        <span class="ev-sc">1–5</span>
+        <button type="button" class="btn btn-secondary btn-sm" title="ลบข้อนี้" onclick="evDel(${i})" ${evDraft.length <= 1 ? 'disabled' : ''}>ลบ</button>
+      </div>`).join('')}
+    <div class="ev-row ev-fixed"><span class="ev-no">✎</span><span>ข้อเสนอแนะ / สิ่งที่อยากให้ปรับปรุง <span class="muted">(ไม่บังคับ มีทุกครั้ง)</span></span></div>
+    <div class="row-btns" style="margin-top:12px">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="evAdd()">+ เพิ่มข้อ</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="evSave()">บันทึกแบบประเมิน</button>
+    </div>
+  </div>`;
+}
+function evPaint(){ const el = $('#evEdit'); if (el) el.outerHTML = evalEditHtml(); }
+window.evAdd = function(){ evDraft.push({ id:'q' + Date.now().toString(36), label:'' }); evPaint(); };
+window.evDel = function(i){ evDraft.splice(i, 1); evPaint(); };
+window.evSave = async function(){
+  if (!ttCan('manage-trainings')) return msg('ไม่มีสิทธิ์แก้แบบประเมิน', 'warn');
+  const qs = evDraft.map(q => ({ id:q.id, label:(q.label || '').trim() })).filter(q => q.label);
+  if (!qs.length) return msg('ต้องมีอย่างน้อย 1 ข้อ', 'warn');
+  const { error } = await SB.from('hub_config').upsert({ key:'tr_eval', value:{ questions:qs } }, { onConflict:'key' });
+  if (error) return msg('บันทึกแบบประเมินไม่สำเร็จ — ' + esc(error.message), 'err');
+  EVAL_QS = qs; evDraft = null; evPaint();
+  msg('บันทึกแบบประเมินแล้ว · ใช้กับทุกการอบรม');
+};
+
 function renderEditor(){
   const e = editing;
   $('#view').innerHTML = `
@@ -1469,9 +1522,9 @@ function renderEditor(){
           <i>ขั้น 1</i><b>แบบทดสอบก่อนเรียน</b><span>${e.pre_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
         <button type="button" class="${e.post_open?'on':''}" onclick="togOpen('post_open')">
           <i>ขั้น 2</i><b>แบบทดสอบหลังเรียน</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
-        <button type="button" class="${e.post_open?'on':''}" disabled>
+        <button type="button" class="${e.post_open?'on':''}" onclick="document.getElementById('evEdit').scrollIntoView({ behavior:'smooth', block:'start' })">
           <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
-          <small>ชุดมาตรฐาน ${EVAL_QS.length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน</small></button>
+          <small>${EVAL_QS.length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · กดเพื่อดู/แก้คำถาม</small></button>
       </div>
     </div>
 
@@ -1516,7 +1569,7 @@ function renderEditor(){
     </div>
 
     <div class="card">
-      <h2>คำถาม (${e.questions.length} ข้อ) — ใช้ชุดเดียวกันทั้งก่อนและหลังเรียน</h2>
+      <h2>ขั้น 1–2 · แบบทดสอบ (${e.questions.length} ข้อ) — ชุดเดียวกันทั้งก่อนและหลังเรียน</h2>
       <p class="sub">ข้อละ 1 คะแนน · <b>คะแนนเต็ม ${e.questions.length} คะแนน</b> · กด "ตั้งเป็นข้อถูก" ข้างตัวเลือกที่ถูก</p>
       <div class="row-btns" style="margin-bottom:12px">
         <button class="btn btn-secondary btn-sm" onclick="addQuestion()">+ เพิ่มคำถาม</button>
@@ -1544,6 +1597,8 @@ function renderEditor(){
           <div class="row-btns" style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="addChoice(${i})">+ เพิ่มตัวเลือก</button></div>
         </div>`).join('') || '<div class="empty">ยังไม่มีคำถาม</div>'}
     </div>
+
+    ${evalEditHtml()}
 
     <div class="card">
       <div class="row-btns">
