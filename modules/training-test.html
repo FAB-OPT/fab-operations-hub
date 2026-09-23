@@ -187,6 +187,45 @@ tbody tr:hover{background:#fcfcfd}
   .rs-tb tbody td[data-l]::before{content:attr(data-l) ' ';color:var(--muted);font-size:12.5px;font-weight:600}
 }
 
+/* ── กราฟคะแนนก่อน–หลัง รายคน ──
+   แท่งคู่ต่อคน อ่านได้ว่าใครขึ้นใครลงโดยไม่ต้องไล่ตัวเลขในตาราง
+   ทำด้วย CSS ล้วน ไม่ต้องโหลดไลบรารีกราฟ (หน้านี้ต้องเปิดได้เร็วบนมือถือ) */
+.ch-card{margin-bottom:18px}
+.ch-hd{display:flex;align-items:flex-start;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-bottom:14px}
+.ch-hd h3{margin:0;font-size:17px;font-weight:800}
+.ch-hd small{display:block;color:var(--muted);font-size:12.5px;margin-top:3px}
+.ch-key{display:flex;gap:16px;font-size:12.5px;font-weight:700;color:#475467;white-space:nowrap}
+.ch-key i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:0}
+.ch-key i.pre{background:#6172F3}
+.ch-key i.post{background:#12B76A}
+.ch-wrap{max-height:520px;overflow:auto}
+.ch-r{display:grid;grid-template-columns:168px 1fr 78px;align-items:center;gap:12px;
+  padding:10px 0;border-bottom:1px dashed var(--line)}
+.ch-r:last-child{border-bottom:0}
+.ch-nm{min-width:0;font-weight:700;font-size:13.5px;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ch-nm small{display:block;color:var(--muted);font-weight:500;font-size:12px;overflow:hidden;text-overflow:ellipsis}
+.ch-bars{display:grid;gap:6px;min-width:0}
+.ch-b{display:grid;grid-template-columns:1fr 46px;align-items:center;gap:8px}
+/* เส้นแบ่งทุก 25% เพื่อกะระดับคะแนนด้วยตา */
+.ch-tr{height:20px;border-radius:4px;
+  background:repeating-linear-gradient(90deg,#E7EAF0 0 1px,#F6F7F9 1px 25%)}
+.ch-tr i{display:block;height:100%;border-radius:4px;min-width:3px}
+.ch-tr i.pre{background:#6172F3}
+.ch-tr i.post{background:#12B76A}
+.ch-b em{font-style:normal;font-weight:800;font-size:12.5px;color:#344054;text-align:right}
+.ch-dd{text-align:right}
+.ch-ax{display:grid;grid-template-columns:168px 1fr 78px;gap:12px;margin-top:8px}
+.ch-ax .t{grid-column:2;display:grid;grid-template-columns:1fr 46px;gap:8px}
+.ch-ax .t u{grid-column:1;display:flex;justify-content:space-between;text-decoration:none;
+  border-top:1px solid var(--line);padding-top:6px;color:var(--muted);font-size:11.5px;font-weight:600}
+@media(max-width:820px){
+  .ch-r{grid-template-columns:1fr auto;grid-template-areas:'nm dd' 'bars bars';gap:8px 10px}
+  .ch-nm{grid-area:nm}
+  .ch-dd{grid-area:dd}
+  .ch-bars{grid-area:bars}
+  .ch-ax{display:none}
+}
+
 /* ── การกรอกฟอร์ม ── */
 .flow-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap}
 .eyebrow{margin:0 0 3px;color:var(--orange);font-weight:800;font-size:13.5px}
@@ -1608,6 +1647,7 @@ function renderResults(){
       </div>
     </div>
     <div class="stats rs" id="rStats"></div>
+    <div id="rChart"></div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table class="rs-tb">
         <thead class="mc-h"><tr><th>ผู้เข้าอบรม</th><th>สาขา</th><th>การอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>เปลี่ยนแปลง</th><th></th></tr></thead>
@@ -1652,6 +1692,7 @@ function paintResults(){
     : '<span class="muted">ยังไม่ทำ</span>';
   const _chip = d => d == null ? '<span class="muted">—</span>'
     : `<span class="rs-chip ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}%</span>`;
+  paintChart(both, _chip);
   $('#rBody').innerHTML = rows.map(r => `<tr>
       <td class="mc-n"><div class="rs-who"><span class="rs-av">${esc((r.p.name || '?').trim().charAt(0))}</span>
         <span><b>${esc(r.p.name)}</b><small class="rs-sub">${esc(r.p.branch || '')}</small></span></div></td>
@@ -1663,6 +1704,31 @@ function paintResults(){
       <td class="row-btns mc-a">
         <button class="btn btn-secondary btn-sm" onclick="detail('${esc(r.t.key)}','${esc(r.p.id)}')">ดู</button>
       </td></tr>`).join('');
+}
+
+/* กราฟแท่งคู่ ก่อน–หลัง รายคน · เรียงจากพัฒนาขึ้นมากที่สุด
+   นับเฉพาะคนที่ทำครบสองรอบ เพราะคนที่ทำรอบเดียวไม่มีอะไรให้เทียบ */
+function paintChart(both, chip){
+  const el = $('#rChart'); if (!el) return;
+  if (!both.length){ el.innerHTML = ''; return; }
+  const list = both.slice().sort((a, b) => b.diff - a.diff || Number(b.post.pct) - Number(a.post.pct));
+  const bar = (a, cls) => `<div class="ch-b"><div class="ch-tr"><i class="${cls}" style="width:${Math.max(1, Math.min(100, a.pct))}%"></i></div><em>${a.pct}%</em></div>`;
+  el.innerHTML = `
+    <div class="card ch-card">
+      <div class="ch-hd">
+        <div><h3>กราฟคะแนนก่อน–หลัง รายคน</h3>
+          <small>เฉพาะคนที่ทำครบสองรอบ ${list.length} คน · เรียงจากพัฒนาขึ้นมากที่สุด</small></div>
+        <div class="ch-key"><span><i class="pre"></i>ก่อนเรียน</span><span><i class="post"></i>หลังเรียน</span></div>
+      </div>
+      <div class="ch-wrap">
+        ${list.map(r => `<div class="ch-r">
+          <div class="ch-nm">${esc(r.p.name)}<small>${esc(r.p.branch || '')}</small></div>
+          <div class="ch-bars">${bar(r.pre, 'pre')}${bar(r.post, 'post')}</div>
+          <div class="ch-dd">${chip(r.diff)}</div>
+        </div>`).join('')}
+      </div>
+      <div class="ch-ax"><div class="t"><u><span>0%</span><span>25%</span><span>50%</span><span>75%</span><span>100%</span></u></div></div>
+    </div>`;
 }
 
 /* ผลประเมินอบรม — ตารางแบบรายงานเดิม: จำนวนคนต่อระดับ · คิดเป็น % (เฉลี่ย ÷ 5) · เฉลี่ยรายหมวด
