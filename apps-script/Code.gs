@@ -15,7 +15,7 @@
    บัมพ์ทุกครั้งที่แก้ไฟล์นี้ · ถ้าหน้าเว็บเห็นเลขเก่ากว่าที่คาด จะเตือนให้ deploy ใหม่ */
 // บัมพ์เลขนี้ทุกครั้งที่แก้ไฟล์นี้ แล้วเช็คหลัง deploy ด้วย ?action=counts
 // (ถ้า counts คืนรายชื่อใบรับรองแทนตัวเลข = ยังเป็นตัวเก่าอยู่ ยังไม่ได้ deploy)
-var BACKEND_VERSION = '2026-09-23b';
+var BACKEND_VERSION = '2026-09-23c';
 
 var CACHE_SEC = 300;
 // 'round' = รุ่นที่ ณ ตอนส่งรายชื่อ (snapshot) — กันตารางอบรมเปลี่ยนแล้วรายชื่อเก่าย้ายรุ่นตาม
@@ -1728,6 +1728,105 @@ function deleteExamRequest(id) {
     }
     return { ok: false, error: 'not found' };
   } finally { lock.releaseLock(); }
+}
+
+/* =======================================================================
+   อายุการเก็บรูป — ลบของเก่าอัตโนมัติ (ตั้งเมื่อ 23 ก.ย. 2569)
+
+   ตกลงกันไว้:
+     · รูปเช็คลิสต์เปิด–ปิดร้าน + ตรวจสาขาเจ๊แดง (Cloudflare R2) = 360 วัน
+     · รูปใบเบิกเงินประชุมร้าน (Google Drive)                   = 180 วัน
+
+   ไฟล์จริงกับลิงก์ในเอกสารต้องลบคู่กัน ไม่งั้นใบเก่าจะขึ้นรูปแตก
+     · ไฟล์ใน R2   — ตั้งกฎลบตามอายุที่หน้าเว็บ Cloudflare (ทำครั้งเดียว ไม่เกี่ยวกับสคริปต์นี้)
+     · ไฟล์ใน Drive — สคริปต์นี้ย้ายลงถังขยะ (กู้คืนได้ 30 วัน)
+     · ลิงก์ในเอกสาร — สคริปต์นี้สั่งฐานข้อมูลล้างให้ แล้วหน้าเว็บจะขึ้นข้อความแทนรูป
+
+   ตัวเอกสาร ผลตรวจ จำนวนเงิน สถานะ ไม่ถูกแตะ — ล้างเฉพาะช่องรูป
+   ตั้งตัวตั้งเวลาด้วย setupPhotoRetention() (รันครั้งเดียวจาก editor)
+   ======================================================================= */
+var CK_PHOTO_KEEP_DAYS = 360;    /* เช็คลิสต์ + เจ๊แดง (R2) */
+var MX_PHOTO_KEEP_DAYS = 180;    /* ใบเบิกเงินประชุม (Drive) */
+var MX_PHOTO_FOLDER = 'Meeting Expense Photos';
+
+/* --- Supabase FAB HUB (เอกสารโมดูลเล็ก) --- */
+var HUBSB_URL = 'https://pzspcjqlxoqnbtvlfjsy.supabase.co';
+var HUBSB_KEY = 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP';
+function _sbToken(url, key, cacheKey) {
+  var cache = CacheService.getScriptCache();
+  var t = cache.get(cacheKey);
+  if (t) return t;
+  var res = UrlFetchApp.fetch(url + '/auth/v1/signup', {
+    method: 'post', contentType: 'application/json', payload: '{}',
+    headers: { apikey: key }, muteHttpExceptions: true });
+  var j = JSON.parse(res.getContentText() || '{}');
+  if (!j.access_token) throw new Error('ล็อกอิน Supabase ไม่สำเร็จ: ' + res.getContentText().slice(0, 200));
+  cache.put(cacheKey, j.access_token, 3000);
+  return j.access_token;
+}
+function _sbRpc(url, key, cacheKey, fn, args) {
+  var res = UrlFetchApp.fetch(url + '/rest/v1/rpc/' + fn, {
+    method: 'post', contentType: 'application/json',
+    headers: { apikey: key, Authorization: 'Bearer ' + _sbToken(url, key, cacheKey) },
+    payload: JSON.stringify(args), muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error(fn + ' ตอบ ' + res.getResponseCode() + ': ' + res.getContentText().slice(0, 200));
+  return JSON.parse(res.getContentText() || 'null');
+}
+function _daysAgoIso(days) { return new Date(Date.now() - days * 86400000).toISOString(); }
+function _daysAgoDate(days) {
+  return Utilities.formatDate(new Date(Date.now() - days * 86400000), CKB_TZ, 'yyyy-MM-dd');
+}
+
+/* ล้างลิงก์รูปในใบเช็คลิสต์ที่เกินอายุ (ฐานข้อมูล Training Record) */
+function purgeChecklistPhotoLinks() {
+  var before = _daysAgoDate(CK_PHOTO_KEEP_DAYS), out = {};
+  ['dailyChecklists', 'jaedaengAudits'].forEach(function (col) {
+    try {
+      var r = _sbRpc(CK_SB_URL, CK_SB_KEY, 'ck_sb_tok', 'ck_purge_photos',
+        { p_col: col, p_before: before, p_limit: 500 });
+      out[col] = (r && r.purged) || 0;
+    } catch (e) { out[col] = 'ผิดพลาด: ' + (e && e.message); }
+  });
+  return { ok: true, before: before, result: out };
+}
+
+/* ล้างลิงก์รูปในใบเบิกเงินประชุมที่เกินอายุ + ย้ายไฟล์รูปใน Drive ลงถังขยะ */
+function purgeMeetExpensePhotos() {
+  var cut = _daysAgoIso(MX_PHOTO_KEEP_DAYS), links = 0, files = 0, err = '';
+  try {
+    var r = _sbRpc(HUBSB_URL, HUBSB_KEY, 'hub_sb_tok', 'mod_purge_photos',
+      { p_app: 'mx', p_col: 'claims', p_before: cut, p_limit: 500 });
+    links = (r && r.purged) || 0;
+  } catch (e) { err = 'ล้างลิงก์ไม่สำเร็จ: ' + (e && e.message); }
+  try {
+    var it = DriveApp.getFoldersByName(MX_PHOTO_FOLDER);
+    if (it.hasNext()) {
+      var folder = it.next(), fi = folder.getFiles(), edge = new Date(cut);
+      /* ทำได้ไม่เกิน 300 ไฟล์ต่อคืน กันชนโควตาเวลาของ Apps Script */
+      while (fi.hasNext() && files < 300) {
+        var f = fi.next();
+        if (f.getDateCreated() < edge && !f.isTrashed()) { f.setTrashed(true); files++; }
+      }
+    }
+  } catch (e2) { err += (err ? ' · ' : '') + 'ย้ายไฟล์ลงถังขยะไม่สำเร็จ: ' + (e2 && e2.message); }
+  return { ok: !err, before: cut, links: links, filesTrashed: files, error: err };
+}
+
+/* ตัวที่ตัวตั้งเวลาเรียกทุกคืน */
+function purgeOldPhotosDaily() {
+  var a = purgeChecklistPhotoLinks(), b = purgeMeetExpensePhotos();
+  var msg = 'เช็คลิสต์: ' + JSON.stringify(a.result) + ' · เบิกเงิน: ลิงก์ ' + b.links + ' ใบ · ไฟล์ ' + b.filesTrashed + ' ไฟล์' + (b.error ? ' · ' + b.error : '');
+  Logger.log(msg);
+  return { ok: true, checklist: a, meetExpense: b };
+}
+
+/* รันครั้งเดียวจาก editor — ตั้งให้ทำงานทุกคืนตี 3 */
+function setupPhotoRetention() {
+  ScriptApp.getProjectTriggers().forEach(function (t) {
+    if (t.getHandlerFunction() === 'purgeOldPhotosDaily') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('purgeOldPhotosDaily').timeBased().everyDays(1).atHour(3).create();
+  return 'ตั้งตัวตั้งเวลาลบรูปเก่า ทุกวันตี 3 เรียบร้อย';
 }
 
 /* =======================================================================
