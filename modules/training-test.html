@@ -1242,7 +1242,7 @@ window.startRun = function(key, phase){
 
 /* คะแนนรายคน: ก่อนเรียน · หลังเรียน · เปลี่ยนแปลง (หลังเรียนเทียบก่อนเรียน)
    สาขาเห็นเฉพาะคนของสาขาตัวเอง (participantsFor) */
-function scoresHtml(t){
+function scoresHtml(t, bare){
   const ppl = participantsFor(t);
   if (!ppl.length) return '';
   const cell = a => a ? `<b>${a.score}</b><small>/${a.total}</small>` : '<span class="muted">—</span>';
@@ -1252,18 +1252,23 @@ function scoresHtml(t){
     return `<tr><td class="sc-n">${esc(p.name)}</td><td class="c">${cell(pre)}</td><td class="c">${cell(post)}</td>
       <td class="c">${d == null ? '<span class="muted">—</span>' : `<span class="sc-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}</span>`}</td></tr>`;
   }).join('');
-  return `<div class="card sc-card"><h2>คะแนนผู้เข้าอบรม</h2>
-    <table class="sc-tb"><thead><tr><th>ชื่อ</th><th class="c">ก่อนเรียน</th><th class="c">หลังเรียน</th><th class="c">เปลี่ยนแปลง</th></tr></thead>
-    <tbody>${rows}</tbody></table></div>`;
+  const table = `<table class="sc-tb"><thead><tr><th>ชื่อ</th><th class="c">ก่อนเรียน</th><th class="c">หลังเรียน</th><th class="c">เปลี่ยนแปลง</th></tr></thead>
+    <tbody>${rows}</tbody></table>`;
+  if (bare) return table;
+  return `<div class="card sc-card"><h2>คะแนนผู้เข้าอบรม</h2>${table}</div>`;
 }
 window.showScores = function(key){
   const t = trainings.find(x => x.key === key); if (!t) return;
   tab = 'run'; renderNav(); window.scrollTo({ top:0 });
-  /* ปุ่มกลับอยู่ล่างสุดกึ่งกลาง เหมือนหน้าอื่น — ของเดิมเป็นปุ่มเล็กชิดซ้ายใต้หัวเรื่อง ดูเคว้ง */
-  $('#view').innerHTML = `<div class="card"><h2 style="margin:0">${esc(t.title)}</h2></div>`
-    + scoresHtml(t)
-    + `<div class="card"><div class="row-btns sub-go">
-        <button class="btn btn-secondary" onclick="go('list')">‹ กลับหน้าการอบรม</button></div></div>`;
+  /* กรอบเดียวจบ: ชื่อการอบรม → ตารางคะแนน → ปุ่มกลับล่างสุดกึ่งกลาง */
+  $('#view').innerHTML = `<div class="card sc-card">
+      <h2 style="margin:0 0 2px">${esc(t.title)}</h2>
+      <p class="sub" style="margin:0 0 12px">คะแนนผู้เข้าอบรม</p>
+      ${scoresHtml(t, true)}
+      <div class="row-btns sub-go" style="margin-top:16px">
+        <button class="btn btn-secondary" onclick="go('list')">‹ กลับหน้าการอบรม</button>
+      </div>
+    </div>`;
 };
 
 function renderPick(){
