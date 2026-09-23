@@ -34,6 +34,8 @@ a{color:var(--orange)}
 .navtab.on{background:var(--orange);border-color:var(--orange);color:#fff}
 
 main{padding:22px clamp(12px,3vw,26px) 70px;max-width:1320px;margin:auto}
+/* หน้าที่เป็นตารางข้อมูลใช้จอเต็ม — ของเดิมตีกรอบ 1320px ทำให้จอกว้างเหลือที่ว่างข้างละเกือบ 500px */
+main.wide{max-width:1680px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);padding:clamp(16px,3vw,24px);margin-bottom:18px}
 h2{margin:0 0 4px;font-size:19px;font-weight:800;letter-spacing:-.01em}
 h3{margin:0 0 4px;font-size:16px;font-weight:800}
@@ -136,6 +138,54 @@ tbody tr:hover{background:#fcfcfd}
 .stat{border:1px solid var(--line);border-radius:12px;padding:13px 15px;background:#fff}
 .stat b{display:block;font-size:25px;font-weight:800;line-height:1.25}
 .stat span{color:var(--muted);font-size:13px}
+/* การ์ดตัวเลขของหน้าออกรายงาน — พื้นสีอ่อนตามความหมาย ไม่ใช่การ์ดขาวสี่ใบเหมือนกันหมด
+   (ขาวล้วนสี่ใบ ตาต้องอ่านคำอธิบายทุกใบถึงจะรู้ว่าใบไหนคืออะไร) */
+.stats.rs{grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px}
+.stats.rs .stat{position:relative;padding:16px 18px 16px 22px;border-radius:14px;overflow:hidden;box-shadow:var(--shadow)}
+.stats.rs .stat::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--k,#cbd5e1)}
+.stats.rs .stat b{font-size:30px;letter-spacing:-.02em}
+.stats.rs .stat span{font-size:13px;font-weight:600}
+.stats.rs .stat small{display:block;color:var(--muted);font-size:12px;font-weight:500;margin-top:2px}
+.stat.k-n{--k:#64748B;background:#F8FAFC}
+.stat.k-pre{--k:#3538CD;background:#F5F6FF}
+.stat.k-post{--k:#067647;background:#F2FDF6}
+.stat.k-up{--k:#067647;background:#F2FDF6}
+.stat.k-down{--k:#B42318;background:#FEF6F5}
+.stat.k-flat{--k:#94A3B8;background:#F8FAFC}
+
+/* ── ตารางผลก่อน–หลัง ── */
+.rs-tb{width:100%;min-width:0;border-collapse:separate;border-spacing:0}
+.rs-tb thead th{position:sticky;top:0;z-index:1;background:#F8FAFC;border-bottom:1px solid var(--line);
+  font-size:12.5px;font-weight:800;color:var(--muted);letter-spacing:.02em;padding:12px 16px;text-align:left;white-space:nowrap}
+.rs-tb tbody td{padding:13px 16px;border-bottom:1px solid var(--line);vertical-align:middle}
+.rs-tb tbody tr:nth-child(even){background:#FCFCFD}
+.rs-tb tbody tr:hover{background:var(--orange-soft)}
+.rs-tb tbody tr:last-child td{border-bottom:0}
+.rs-who{display:flex;align-items:center;gap:11px;min-width:0}
+.rs-av{flex:none;width:34px;height:34px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:14px;
+  background:var(--orange-soft);color:#C4320A}
+.rs-who b{display:block;font-weight:700;line-height:1.3}
+.rs-who small{display:block;color:var(--muted);font-size:12.5px}
+.rs-tb .rs-sub{display:none}                      /* จอกว้างมีคอลัมน์สาขาอยู่แล้ว ไม่ต้องซ้ำใต้ชื่อ */
+@media(max-width:820px){ .rs-tb .rs-sub{display:block} }
+.rs-sc{font-weight:800;font-size:16px;white-space:nowrap}
+.rs-sc small{color:var(--muted);font-weight:600;font-size:12.5px;margin-left:3px}
+.rs-bar{height:6px;border-radius:99px;background:#EEF1F6;overflow:hidden;margin-top:5px;min-width:96px}
+.rs-bar i{display:block;height:100%;border-radius:99px}
+.rs-bar i.pre{background:#6172F3}
+.rs-bar i.post{background:#12B76A}
+.rs-chip{display:inline-flex;align-items:center;gap:5px;font-weight:800;font-size:13.5px;border-radius:999px;padding:5px 12px;white-space:nowrap;
+  background:#F2F4F7;color:#475467}
+.rs-chip.up{background:#ECFDF3;color:#067647}
+.rs-chip.down{background:#FEF3F2;color:#B42318}
+.rs-tb td.mc-a{width:1%;white-space:nowrap;text-align:right}
+.rs-tb td.mc-a .btn{padding:7px 16px}
+@media(max-width:820px){
+  .rs-tb thead{display:none}
+  .rs-tb tbody tr{display:grid;grid-template-columns:1fr auto;gap:2px 10px;padding:12px 14px;border-bottom:1px solid var(--line)}
+  .rs-tb tbody td{border:0;padding:2px 0}
+  .rs-tb tbody td[data-l]::before{content:attr(data-l) ' ';color:var(--muted);font-size:12.5px;font-weight:600}
+}
 
 /* ── การกรอกฟอร์ม ── */
 .flow-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;margin-bottom:16px;flex-wrap:wrap}
@@ -1180,6 +1230,7 @@ function pendingList(){
 }
 
 function renderList(){
+  try { document.querySelector('main').classList.remove('wide'); } catch (e) {}
   const list = trainings.filter(t => visibleTo(t) && (t.status === 'open' || ttCan('manage-trainings')));
   const staff = ttCan('view-results');
   if (!list.length){
@@ -1538,6 +1589,7 @@ function resultRows(){
 }
 
 function renderResults(){
+  try { document.querySelector('main').classList.add('wide'); } catch (e) {}
   const branches = [...new Set(trainings.flatMap(t => (t.participants || []).map(p => p.branch).filter(Boolean)))].sort();
   $('#view').innerHTML = `
     <div class="card">
@@ -1555,9 +1607,9 @@ function renderResults(){
         <button class="btn btn-secondary rf-print" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
       </div>
     </div>
-    <div class="stats" id="rStats"></div>
+    <div class="stats rs" id="rStats"></div>
     <div class="card" style="padding:0;overflow:hidden">
-      <div class="table-wrap"><table>
+      <div class="table-wrap"><table class="rs-tb">
         <thead class="mc-h"><tr><th>ผู้เข้าอบรม</th><th>สาขา</th><th>การอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>เปลี่ยนแปลง</th><th></th></tr></thead>
         <tbody id="rBody"></tbody>
       </table></div>
@@ -1580,20 +1632,34 @@ function paintResults(){
   const avgPre  = both.length ? (both.reduce((a,r) => a + Number(r.pre.pct), 0) / both.length).toFixed(1) : '—';
   const avgPost = both.length ? (both.reduce((a,r) => a + Number(r.post.pct), 0) / both.length).toFixed(1) : '—';
   const avgDiff = both.length ? (both.reduce((a,r) => a + r.diff, 0) / both.length).toFixed(1) : '—';
+  const _dTone = avgDiff === '—' ? 'flat' : (+avgDiff > 0 ? 'up' : (+avgDiff < 0 ? 'down' : 'flat'));
   $('#rStats').innerHTML = `
-    <div class="stat"><b>${rows.length}</b><span>ผู้เข้าอบรมที่มีผล</span></div>
-    <div class="stat"><b>${avgPre}${avgPre==='—'?'':'%'}</b><span>เฉลี่ยก่อนเรียน</span></div>
-    <div class="stat"><b>${avgPost}${avgPost==='—'?'':'%'}</b><span>เฉลี่ยหลังเรียน</span></div>
-    <div class="stat"><b style="color:${avgDiff !== '—' && +avgDiff > 0 ? 'var(--green)' : 'inherit'}">${avgDiff==='—'?'—':(+avgDiff>0?'+':'')+avgDiff+'%'}</b><span>เปลี่ยนแปลงเฉลี่ย</span></div>`;
+    <div class="stat k-n"><b>${rows.length}</b><span>ผู้เข้าอบรมที่มีผล</span>
+      <small>ทำครบสองรอบ ${both.length} คน</small></div>
+    <div class="stat k-pre"><b>${avgPre}${avgPre==='—'?'':'%'}</b><span>เฉลี่ยก่อนเรียน</span>
+      <small>จากคนที่ทำครบสองรอบ</small></div>
+    <div class="stat k-post"><b>${avgPost}${avgPost==='—'?'':'%'}</b><span>เฉลี่ยหลังเรียน</span>
+      <small>จากคนที่ทำครบสองรอบ</small></div>
+    <div class="stat k-${_dTone}"><b>${avgDiff==='—'?'—':(+avgDiff>0?'▲ +':(+avgDiff<0?'▼ ':''))+avgDiff+'%'}</b>
+      <span>เปลี่ยนแปลงเฉลี่ย</span>
+      <small>${both.length ? 'ดีขึ้น ' + both.filter(r => r.diff > 0).length + ' คน · เท่าเดิม ' + both.filter(r => r.diff === 0).length + ' · ลดลง ' + both.filter(r => r.diff < 0).length : 'ยังไม่มีใครทำครบสองรอบ'}</small></div>`;
   $('#rEmpty').style.display = rows.length ? 'none' : '';
   paintEval();
+  /* คะแนนมีแถบสัดส่วนใต้ตัวเลข — เทียบก่อน/หลังด้วยตาได้โดยไม่ต้องคิดเลข */
+  const _cell = (a, cls) => a
+    ? `<div class="rs-sc">${a.pct}%<small>${a.score}/${a.total}</small></div>
+       <div class="rs-bar"><i class="${cls}" style="width:${Math.max(2, a.pct)}%"></i></div>`
+    : '<span class="muted">ยังไม่ทำ</span>';
+  const _chip = d => d == null ? '<span class="muted">—</span>'
+    : `<span class="rs-chip ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}%</span>`;
   $('#rBody').innerHTML = rows.map(r => `<tr>
-      <td class="mc-n"><b>${esc(r.p.name)}</b></td>
-      <td class="mc-b">${esc(r.p.branch || '')}</td>
+      <td class="mc-n"><div class="rs-who"><span class="rs-av">${esc((r.p.name || '?').trim().charAt(0))}</span>
+        <span><b>${esc(r.p.name)}</b><small class="rs-sub">${esc(r.p.branch || '')}</small></span></div></td>
+      <td class="mc-b muted" style="font-size:13.5px">${esc(r.p.branch || '')}</td>
       <td class="muted mc-x" style="font-size:13px">${esc(r.t.title)}</td>
-      <td data-l="ก่อนเรียน">${pctCell(r.pre)}</td>
-      <td data-l="หลังเรียน">${pctCell(r.post)}</td>
-      <td data-l="เปลี่ยนแปลง">${diffCell(r.diff)}</td>
+      <td data-l="ก่อนเรียน">${_cell(r.pre, 'pre')}</td>
+      <td data-l="หลังเรียน">${_cell(r.post, 'post')}</td>
+      <td data-l="เปลี่ยนแปลง">${_chip(r.diff)}</td>
       <td class="row-btns mc-a">
         <button class="btn btn-secondary btn-sm" onclick="detail('${esc(r.t.key)}','${esc(r.p.id)}')">ดู</button>
       </td></tr>`).join('');
