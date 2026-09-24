@@ -650,8 +650,10 @@ button.ri:hover{background:var(--bg3)}
    ตัดเหลือบรรทัดเดียว "ข้อสอบพนักงานค..." กับ "ข้อสอบพนักงานบ..." ดูเหมือนกันหมด */
 .xr-title .t{min-width:0;overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;line-height:1.35}
 .xr-title .st{flex:none}
-.xr-meta{font-size:11.5px;color:var(--text3);margin-top:3px;
-  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+/* รายละเอียดใต้ชื่อชุดขึ้นได้สองบรรทัด — บรรทัดเดียวแล้วตัดท้าย ทำให้ของท้ายแถว
+   (ช่วงวันที่ · เกณฑ์ผ่านรายส่วน) หายไปทั้งที่ยังมีที่เหลือด้านล่าง */
+.xr-meta{font-size:11.5px;color:var(--text3);margin-top:3px;line-height:1.45;
+  overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
 .xr-facts{display:flex;border:1px solid var(--border);border-radius:11px;overflow:hidden;background:var(--bg)}
 .xr-facts>div{padding:7px 13px;text-align:center;border-right:1px solid var(--border);min-width:66px}
 .xr-facts>div:last-child{border-right:none}
@@ -3426,7 +3428,14 @@ function oeTrackCount(ex, track){
 }
 function oePassLabel(ex){
   if(!oePartMode(ex)) return (ex && ex.passingScorePercent != null ? ex.passingScorePercent : OE_PASS_PCT) + '%';
-  return 'รวม ' + oePartPass(ex, 'all') + ' · บ.' + oePartPass(ex, 'service') + ' · ค.' + oePartPass(ex, 'kitchen') + '%';
+  return oePartPass(ex, 'all') + '%';
+}
+/* เกณฑ์ของแต่ละส่วน จะพูดถึงก็ต่อเมื่อไม่เท่ากับเกณฑ์รวม — เท่ากันหมดไม่ต้องบอกซ้ำ */
+function oePassDetail(ex){
+  if(!oePartMode(ex)) return '';
+  var a = oePartPass(ex, 'all'), sv = oePartPass(ex, 'service'), ki = oePartPass(ex, 'kitchen');
+  if(sv === a && ki === a) return '';
+  return 'เกณฑ์ผ่าน บริการ ' + sv + '% · ครัว ' + ki + '%';
 }
 /* อ่านช่อง "ส่วน" ในไฟล์ Excel — พิมพ์ไทยหรืออังกฤษก็ได้ ว่างไว้ = ใช้ร่วม */
 function oePartParse(v){
@@ -4238,6 +4247,7 @@ function _oeExamRow(ex){
   if(ex.startDate || ex.endDate){
     sub.push((ex.startDate ? _oeDate(ex.startDate) : 'เปิดแล้ว') + ' – ' + (ex.endDate ? _oeDate(ex.endDate) : 'ไม่กำหนดปิด'));
   }
+  var passSub = oePassDetail(ex); if(passSub) sub.push(passSub);
   /* แถบสัดส่วนผ่าน/ไม่ผ่าน — เห็นภาพก่อนอ่านตัวเลข ถ้ายังไม่มีใครทำก็บอกตรง ๆ */
   /* แถบสัดส่วนผ่าน/ไม่ผ่าน — เห็นภาพก่อนอ่านตัวเลข ถ้ายังไม่มีใครทำก็บอกไปตรง ๆ
      แถบเดิมหนา 6px เต็มสี พอผ่าน 0% เลยกลายเป็นแท่งแดงยาวสะดุดตากว่าชื่อชุดข้อสอบ
@@ -6008,10 +6018,11 @@ function renderBranchExams(){
         '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
         '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>' +
       '</div>' +
-      ((nDraw < nQ || ex.endDate)
+      ((nDraw < nQ || ex.endDate || oePassDetail(ex))
         ? '<div class="bx-note">'
           + (nDraw < nQ ? '<span>สุ่มจากคลัง ' + nQ + ' ข้อ</span>' : '')
           + (ex.endDate ? '<span>ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '')
+          + (oePassDetail(ex) ? '<span>' + esc(oePassDetail(ex)) + '</span>' : '')
           + '</div>'
         : '') +
       /* ชุดที่ต้องขออนุมัติ จะไม่มีปุ่มเข้าสอบตรง ๆ — ต้องขอสิทธิ์แล้วรอรหัสก่อน */
