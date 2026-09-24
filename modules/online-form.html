@@ -1084,17 +1084,21 @@ function ttPeople(t){
   const code = String(ME.code || '');
   return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
 }
+const ttEvals = t => TT_ATT.filter(a => a.training_key === t.key && a.phase === 'eval' &&
+  (!ME.isBranch || String(a.taker_code) === String(ME.code)));
 const ttDone = (t, ph) => ph === 'eval'
-  ? Math.min(TT_ATT.filter(a => a.training_key === t.key && a.phase === 'eval').length, ttPeople(t).length)
+  ? Math.min(ttEvals(t).length, ttPeople(t).length)
   : ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
-const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttPeople(t).length) || (t.post_open && ttDone(t, 'post') < ttPeople(t).length));
+const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttPeople(t).length)
+  || (t.post_open && ttDone(t, 'post') < ttPeople(t).length)
+  || (t.post_open && ttDone(t, 'eval') < ttPeople(t).length));
 /* ขั้นประเมินอบรมเปิดพร้อมหลังเรียน (ชุดมาตรฐาน ไม่ระบุชื่อ — ดู training-test.html) */
 const TT_STEPS = [['pre','ก่อนเรียน','pre_open'], ['post','หลังเรียน','post_open'], ['eval','ประเมินอบรม','post_open']];
 async function loadTt(){
   try{
     const [tr, at] = await Promise.all([
       SB.from('tr_trainings').select('*').order('sort_order').order('id'),
-      SB.from('tr_attempts').select('training_key,phase,participant_id')
+      SB.from('tr_attempts').select('training_key,phase,participant_id,taker_code')
     ]);
     TT_LIST = tr.error ? [] : (tr.data || []);
     TT_ATT = at.error ? [] : (at.data || []);
