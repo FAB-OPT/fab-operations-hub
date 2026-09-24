@@ -1030,12 +1030,32 @@ select.txt{appearance:none;-webkit-appearance:none;
 .q-part.p-kitchen{border-color:#fdba74;background:#fff7ed;color:#c2410c}
 .q-partcount{font-style:normal;font-size:12px;color:var(--text2);margin-left:6px}
 .q-partcount.hidden{display:none}
-/* เกณฑ์ผ่านแยกตามตำแหน่ง — ข้อสอบชุดเดียว แต่ละตำแหน่งใช้ % ไม่เท่ากัน */
+/* เกณฑ์ผ่านแยกตามตำแหน่ง — ข้อสอบชุดเดียว แต่ละตำแหน่งใช้ % ไม่เท่ากัน
+   ตั้งใจให้กรอกเร็ว: มีหัวคอลัมน์บอกว่าช่องไหนคืออะไร · กดชิปตำแหน่งที่เคยใช้แทนพิมพ์เอง
+   · ปุ่ม +/− ปรับเกณฑ์ทีละ 5 ไม่ต้องลากเลือกตัวเลขเดิมทิ้ง */
 .pos-pass{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg3)}
-.pos-row{display:flex;align-items:center;gap:9px;margin-bottom:9px}
-.pos-row .pos-n{flex:1;min-width:0;font:inherit;font-size:13.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff}
-.pos-row .num-in{flex:0 0 118px}
-.pos-empty{font-size:12.5px;color:var(--text3);margin-bottom:10px}
+.pos-hd{display:flex;gap:9px;font-size:12px;font-weight:700;color:var(--text3);margin-bottom:7px;padding:0 2px}
+.pos-hd b{flex:1;font-weight:700}
+.pos-hd i{font-style:normal;flex:0 0 156px}
+.pos-row{display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.pos-row .pos-n{flex:1;min-width:0;font:inherit;font-size:14px;padding:11px 12px;border-radius:10px;border:1px solid var(--border);background:#fff}
+.pos-row .pos-n:focus{border-color:var(--gold);outline:none;box-shadow:0 0 0 3px rgba(255,122,26,.13)}
+.pos-num{flex:0 0 156px;display:flex;align-items:center;gap:0;background:#fff;border:1px solid var(--border);border-radius:10px;overflow:hidden}
+.pos-num button{width:38px;height:42px;border:0;background:#fff;color:var(--text2);font:inherit;font-size:17px;font-weight:700;cursor:pointer}
+.pos-num button:hover{background:var(--bg3);color:var(--gold)}
+.pos-num .pos-p{width:100%;min-width:0;border:0;text-align:center;font:inherit;font-size:15px;font-weight:800;padding:10px 0;background:transparent}
+.pos-num .pos-p:focus{outline:none}
+.pos-num .pos-p::-webkit-outer-spin-button,.pos-num .pos-p::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+.pos-num .pos-p{-moz-appearance:textfield}
+.pos-num .u{padding-right:10px;font-size:13px;font-weight:700;color:var(--text3)}
+.pos-del{flex:0 0 auto;width:38px;height:38px;border:1px solid var(--border);background:#fff;border-radius:10px;
+  color:var(--text3);cursor:pointer;font-size:15px;line-height:1}
+.pos-del:hover{border-color:var(--red);color:var(--red);background:var(--red-soft)}
+.pos-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:4px}
+.pos-sug{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
+.pos-sug button{font:inherit;font-size:12.5px;font-weight:700;border:1px dashed var(--border2);background:#fff;color:var(--text2);
+  border-radius:999px;padding:6px 12px;cursor:pointer}
+.pos-sug button:hover{border-style:solid;border-color:var(--gold);color:var(--gold)}
 .part-pass .pp-h{font-size:12px;font-weight:800;color:var(--text2);margin:12px 0 6px}
 .part-pass .pp-h:first-child{margin-top:0}
 .part-pass .pp-h em{font-style:normal;font-weight:600;color:var(--text3);margin-left:6px}
@@ -2332,9 +2352,14 @@ label.fld>span>b{font-weight:800}
                ผู้สอบเลือกตำแหน่งของตัวเองก่อนเริ่ม แล้วระบบตัดสินด้วยเกณฑ์ของตำแหน่งนั้น -->
           <div class="switch-row"><div><div class="sw-t">เกณฑ์ผ่านแยกตามตำแหน่ง</div><div class="sw-d">ข้อสอบชุดเดียวกันทุกตำแหน่ง ต่างกันแค่ % ที่ถือว่าผ่าน · ผู้สอบเลือกตำแหน่งเองก่อนเริ่มสอบ</div></div><label class="sw"><input type="checkbox" id="edPosMode" onchange="oePosModeToggle()"><span class="track"></span></label></div>
           <div class="pos-pass" id="edPosBox" hidden>
-            <div class="pp-note">ตำแหน่งที่ไม่ได้ใส่ไว้ในรายการนี้ จะใช้เกณฑ์ผ่านหลักด้านบน</div>
+            <div class="pos-hd"><b>ตำแหน่ง</b><i>เกณฑ์ผ่าน</i></div>
             <div id="edPosRows"></div>
-            <button type="button" class="btn btn-soft btn-sm" onclick="oePosAdd()">+ เพิ่มตำแหน่ง</button>
+            <datalist id="oePosNames"></datalist>
+            <div class="pos-acts">
+              <button type="button" class="btn btn-soft btn-sm" onclick="oePosAdd()">+ เพิ่มตำแหน่ง</button>
+              <span class="pos-sug" id="edPosSug"></span>
+            </div>
+            <p class="fld-note" style="margin-top:10px">ตำแหน่งที่ไม่ได้ใส่ไว้ จะใช้เกณฑ์ผ่านหลัก <b id="edPosBase">70</b>% ในช่องด้านบน</p>
           </div>
           <p class="fld-note" id="edDrawNote"></p>
           <p class="fld-note"><b>เตือนได้</b> = สลับแท็บ/ออกจอ/จับภาพ ได้กี่ครั้งก่อนถูกตัดสิทธิ์</p>
@@ -4577,10 +4602,19 @@ function _oePartModePaint(){
 /* ── ตารางตำแหน่งในตัวแก้ไข ── */
 function _oePosRowHtml(name, pass){
   return '<div class="pos-row">' +
-    '<input class="pos-n" placeholder="ชื่อตำแหน่ง เช่น ผู้ช่วยผู้จัดการ" value="' + esc(name || '') + '">' +
-    '<div class="num-in"><input class="pos-p" type="number" min="0" max="100" value="' + (pass == null ? 70 : pass) + '"><span class="unit">%</span></div>' +
-    '<button type="button" class="btn btn-danger btn-sm btn-icon" title="ลบตำแหน่งนี้" onclick="this.parentNode.remove();_oePosBoxPaint()">' +
-    '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button></div>';
+    '<input class="pos-n" list="oePosNames" placeholder="เช่น ผู้ช่วยผู้จัดการ" oninput="_oePosSugPaint()" value="' + esc(name || '') + '">' +
+    '<div class="pos-num">' +
+      '<button type="button" tabindex="-1" title="ลด 5%" onclick="_oePosStep(this,-5)">−</button>' +
+      '<input class="pos-p" type="number" min="0" max="100" value="' + (pass == null ? 70 : pass) + '">' +
+      '<span class="u">%</span>' +
+      '<button type="button" tabindex="-1" title="เพิ่ม 5%" onclick="_oePosStep(this,5)">+</button>' +
+    '</div>' +
+    '<button type="button" class="pos-del" title="ลบตำแหน่งนี้" onclick="this.parentNode.remove();_oePosBoxPaint()">✕</button></div>';
+}
+/* ปรับทีละ 5 — ค่าที่ใช้จริงเป็นเลขกลม ๆ แทบทุกครั้ง พิมพ์ใหม่ทุกทีเสียเวลา */
+function _oePosStep(btn, d){
+  var inp = btn.parentNode.querySelector('.pos-p');
+  inp.value = Math.min(100, Math.max(0, (parseInt(inp.value, 10) || 0) + d));
 }
 function _oePosPaintRows(list){
   var box = $('edPosRows'); if(!box) return;
@@ -4593,16 +4627,49 @@ function _oePosRead(){
              pass: Math.min(100, Math.max(0, parseInt(r.querySelector('.pos-p').value, 10) || 0)) };
   }).filter(function(x){ return x.name; });
 }
+/* ตำแหน่งที่เคยมีคนกรอกไว้จริง (จากผลสอบ + คำขอสอบ) — กดชิปแล้วได้ชื่อที่สะกดตรงกัน
+   ไม่ต้องพิมพ์เอง และไม่เสี่ยงสะกดคนละแบบจนระบบจับคู่เกณฑ์ไม่เจอ */
+function _oePosKnown(){
+  var seen = {}, out = [];
+  var add = function(v){
+    var t = String(v == null ? '' : v).trim();
+    if(!t || t.length > 40) return;
+    var k = t.toLowerCase();
+    if(seen[k]) { seen[k].n++; return; }
+    seen[k] = { t: t, n: 1 }; out.push(seen[k]);
+  };
+  (typeof RESULTS !== 'undefined' ? RESULTS || [] : []).forEach(function(r){ add(r && r.position); });
+  (typeof EXAM_REQS !== 'undefined' ? EXAM_REQS || [] : []).forEach(function(r){ add(r && r.position); });
+  return out.sort(function(a, b){ return b.n - a.n; }).map(function(x){ return x.t; });
+}
+function _oePosSugPaint(){
+  var box = $('edPosSug'); if(!box) return;
+  var used = {};
+  [].forEach.call(document.querySelectorAll('#edPosRows .pos-n'), function(i){ used[(i.value || '').trim().toLowerCase()] = 1; });
+  var list = _oePosKnown().filter(function(t){ return !used[t.toLowerCase()]; }).slice(0, 6);
+  var dl = $('oePosNames');
+  if(dl) dl.innerHTML = _oePosKnown().map(function(t){ return '<option value="' + esc(t) + '">'; }).join('');
+  box.innerHTML = list.length
+    ? 'เคยใช้: ' + list.map(function(t){ return '<button type="button" onclick="oePosAdd(\'' + esc(t).replace(/'/g, "\\'") + '\')">+ ' + esc(t) + '</button>'; }).join('')
+    : '';
+}
 function _oePosBoxPaint(){
   var on = $('edPosMode') && $('edPosMode').checked;
   var box = $('edPosBox'); if(box) box.hidden = !on;
   var rows = $('edPosRows');
-  if(on && rows && !rows.querySelector('.pos-row')) rows.innerHTML = _oePosRowHtml('', 70) + _oePosRowHtml('', 80);
+  if(on && rows && !rows.querySelector('.pos-row')) rows.innerHTML = _oePosRowHtml('', 70);
+  var base = $('edPosBase'), ed = $('edPass');
+  if(base && ed) base.textContent = parseInt(ed.value, 10) || 70;
+  _oePosSugPaint();
 }
-function oePosAdd(){
+function oePosAdd(name){
   var rows = $('edPosRows'); if(!rows) return;
-  rows.insertAdjacentHTML('beforeend', _oePosRowHtml('', 70));
-  var last = rows.querySelector('.pos-row:last-child .pos-n'); if(last) last.focus();
+  /* แถวว่างที่ยังไม่ได้ตั้งชื่อ ใช้แถวนั้นเลย ดีกว่าเพิ่มแถวว่างซ้อนอีกแถว */
+  var blank = [].filter.call(rows.querySelectorAll('.pos-n'), function(i){ return !i.value.trim(); })[0];
+  if(name && blank){ blank.value = name; _oePosSugPaint(); return; }
+  rows.insertAdjacentHTML('beforeend', _oePosRowHtml(name || '', 70));
+  var last = rows.querySelector('.pos-row:last-child .pos-n');
+  if(name) _oePosSugPaint(); else if(last) last.focus();
 }
 function oePosModeToggle(){
   /* สองโหมดนี้ตัดสินคนละทาง เปิดพร้อมกันแล้วไม่รู้ว่าใช้เกณฑ์ไหน — เปิดอันหนึ่งปิดอีกอัน */
