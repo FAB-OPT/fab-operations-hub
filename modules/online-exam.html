@@ -1030,6 +1030,12 @@ select.txt{appearance:none;-webkit-appearance:none;
 .q-part.p-kitchen{border-color:#fdba74;background:#fff7ed;color:#c2410c}
 .q-partcount{font-style:normal;font-size:12px;color:var(--text2);margin-left:6px}
 .q-partcount.hidden{display:none}
+/* เกณฑ์ผ่านแยกตามตำแหน่ง — ข้อสอบชุดเดียว แต่ละตำแหน่งใช้ % ไม่เท่ากัน */
+.pos-pass{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:14px;background:var(--bg3)}
+.pos-row{display:flex;align-items:center;gap:9px;margin-bottom:9px}
+.pos-row .pos-n{flex:1;min-width:0;font:inherit;font-size:13.5px;padding:10px 12px;border-radius:10px;border:1px solid var(--border);background:#fff}
+.pos-row .num-in{flex:0 0 118px}
+.pos-empty{font-size:12.5px;color:var(--text3);margin-bottom:10px}
 .part-pass .pp-h{font-size:12px;font-weight:800;color:var(--text2);margin:12px 0 6px}
 .part-pass .pp-h:first-child{margin-top:0}
 .part-pass .pp-h em{font-style:normal;font-weight:600;color:var(--text3);margin-left:6px}
@@ -2322,6 +2328,14 @@ label.fld>span>b{font-weight:800}
               </div>
             </div>
           </div>
+          <!-- เกณฑ์ผ่านแยกตามตำแหน่ง — ใช้ข้อสอบชุดเดียวกันทุกตำแหน่ง ต่างกันแค่ % ที่ถือว่าผ่าน
+               ผู้สอบเลือกตำแหน่งของตัวเองก่อนเริ่ม แล้วระบบตัดสินด้วยเกณฑ์ของตำแหน่งนั้น -->
+          <div class="switch-row"><div><div class="sw-t">เกณฑ์ผ่านแยกตามตำแหน่ง</div><div class="sw-d">ข้อสอบชุดเดียวกันทุกตำแหน่ง ต่างกันแค่ % ที่ถือว่าผ่าน · ผู้สอบเลือกตำแหน่งเองก่อนเริ่มสอบ</div></div><label class="sw"><input type="checkbox" id="edPosMode" onchange="oePosModeToggle()"><span class="track"></span></label></div>
+          <div class="pos-pass" id="edPosBox" hidden>
+            <div class="pp-note">ตำแหน่งที่ไม่ได้ใส่ไว้ในรายการนี้ จะใช้เกณฑ์ผ่านหลักด้านบน</div>
+            <div id="edPosRows"></div>
+            <button type="button" class="btn btn-soft btn-sm" onclick="oePosAdd()">+ เพิ่มตำแหน่ง</button>
+          </div>
           <p class="fld-note" id="edDrawNote"></p>
           <p class="fld-note"><b>เตือนได้</b> = สลับแท็บ/ออกจอ/จับภาพ ได้กี่ครั้งก่อนถูกตัดสิทธิ์</p>
         </section>
@@ -2567,7 +2581,9 @@ label.fld>span>b{font-weight:800}
             <label class="p-fld"><span>รหัสพนักงาน *</span><input class="p-txt" id="inId" placeholder="เช่น 100234" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           </div>
           <label class="p-fld"><span>สาขา *</span><select class="p-txt" id="inBranch" onchange="this.parentNode.classList.remove('bad')"></select></label>
-          <label class="p-fld"><span>ตำแหน่ง *</span><input class="p-txt" id="inPosition" placeholder="เช่น พนักงานครัว" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
+          <label class="p-fld"><span>ตำแหน่ง *</span>
+            <select class="p-txt" id="inPositionSel" hidden onchange="oePosPick()"></select>
+            <input class="p-txt" id="inPosition" placeholder="เช่น พนักงานครัว" autocomplete="off" oninput="this.parentNode.classList.remove('bad')"></label>
           </div>
           <button class="p-btn" id="btnBeginExam" onclick="beginExam()">เริ่มทำข้อสอบ</button>
         </div>
@@ -3398,6 +3414,31 @@ var OE_TRACKS  = { all:'รวมทั้งหมด', service:'บริก�
 var OE_TRACK_ORDER = ['all', 'service', 'kitchen'];   // ลำดับที่แสดงทุกที่: รวมทั้งหมด → บริการ → ครัว
 var OE_PART_TH = { common:'ใช้ร่วม', service:'บริการ', kitchen:'ครัว' };
 function oePartMode(ex){ return !!(ex && ex.partMode); }
+/* ── เกณฑ์ผ่านตามตำแหน่ง ──
+   เก็บเป็น posPass: [{name, pass}] · ว่าง = ไม่ได้ใช้โหมดนี้
+   ตำแหน่งที่ไม่อยู่ในรายการใช้เกณฑ์ผ่านหลักของชุด */
+function oePosList(ex){
+  var a = (ex && ex.posPass) || [];
+  if(!Array.isArray(a)) return [];
+  return a.filter(function(x){ return x && String(x.name || '').trim(); })
+          .map(function(x){ return { name: String(x.name).trim(), pass: Math.min(100, Math.max(0, Number(x.pass) || 0)) }; });
+}
+function oePosMode(ex){ return oePosList(ex).length > 0; }
+function oePassForPos(ex, pos){
+  var base = Number(ex && ex.passingScorePercent);
+  if(!isFinite(base)) base = OE_PASS_PCT;
+  var key = String(pos == null ? '' : pos).trim().toLowerCase();
+  if(!key) return base;
+  var hit = oePosList(ex).filter(function(x){ return x.name.toLowerCase() === key; })[0];
+  return hit ? hit.pass : base;
+}
+/* เกณฑ์ที่ใช้ตัดสินใบนี้ — ใบที่บันทึกไว้แล้วยึดค่าที่ติดมากับใบ (แก้เกณฑ์ทีหลังผลเก่าต้องไม่เปลี่ยน)
+   ใบเก่าที่ยังไม่มีค่านี้ ย้อนคิดจากตำแหน่งที่บันทึกไว้ */
+function oeResPassMark(r, ex){
+  if(r && r.passMark != null && isFinite(Number(r.passMark))) return Number(r.passMark);
+  if(ex && oePosMode(ex)) return oePassForPos(ex, r && r.position);
+  return (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
+}
 function oeQPart(q){ var p = q && q.part; return (p === 'service' || p === 'kitchen') ? p : 'common'; }
 function oeInPart(q, partKey){ var p = oeQPart(q); return p === 'common' || p === partKey; }
 function oeInTrack(q, track){ return track === 'all' || oeInPart(q, track); }
@@ -3427,11 +3468,18 @@ function oeTrackCount(ex, track){
   return (d > 0 && d < n) ? d : n;
 }
 function oePassLabel(ex){
+  if(oePosMode(ex)){
+    /* หลายตำแหน่ง = หลายเกณฑ์ · ช่องเดียวใส่ไม่หมด บอกเป็นช่วงแล้วแจกแจงบรรทัดล่าง */
+    var v = oePosList(ex).map(function(x){ return x.pass; });
+    var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
+    return lo === hi ? lo + '%' : lo + '–' + hi + '%';
+  }
   if(!oePartMode(ex)) return (ex && ex.passingScorePercent != null ? ex.passingScorePercent : OE_PASS_PCT) + '%';
   return oePartPass(ex, 'all') + '%';
 }
 /* เกณฑ์ของแต่ละส่วน จะพูดถึงก็ต่อเมื่อไม่เท่ากับเกณฑ์รวม — เท่ากันหมดไม่ต้องบอกซ้ำ */
 function oePassDetail(ex){
+  if(oePosMode(ex)) return oePosList(ex).map(function(x){ return x.name + ' ' + x.pass + '%'; }).join(' · ');
   if(!oePartMode(ex)) return '';
   var a = oePartPass(ex, 'all'), sv = oePartPass(ex, 'service'), ki = oePartPass(ex, 'kitchen');
   if(sv === a && ki === a) return '';
@@ -4420,6 +4468,9 @@ function openExamEditor(id){
   $('edViol').value = ex ? ex.maxViolations : 3;
   $('edDraw').value = ex ? (parseInt(ex.drawCount) || 0) : 0;
   $('edPartMode').checked = !!(ex && ex.partMode);
+  $('edPosMode').checked = oePosMode(ex);
+  _oePosPaintRows(oePosList(ex));
+  _oePosBoxPaint();
   $('edPassSrv').value = ex ? oePartPass(ex, 'service') : 70;
   $('edPassKit').value = ex ? oePartPass(ex, 'kitchen') : 70;
   $('edPassAll').value = ex ? oePartPass(ex, 'all') : 70;
@@ -4523,7 +4574,43 @@ function _oePartModePaint(){
     if(f) f.classList.toggle('off', on);
   });
 }
+/* ── ตารางตำแหน่งในตัวแก้ไข ── */
+function _oePosRowHtml(name, pass){
+  return '<div class="pos-row">' +
+    '<input class="pos-n" placeholder="ชื่อตำแหน่ง เช่น ผู้ช่วยผู้จัดการ" value="' + esc(name || '') + '">' +
+    '<div class="num-in"><input class="pos-p" type="number" min="0" max="100" value="' + (pass == null ? 70 : pass) + '"><span class="unit">%</span></div>' +
+    '<button type="button" class="btn btn-danger btn-sm btn-icon" title="ลบตำแหน่งนี้" onclick="this.parentNode.remove();_oePosBoxPaint()">' +
+    '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button></div>';
+}
+function _oePosPaintRows(list){
+  var box = $('edPosRows'); if(!box) return;
+  box.innerHTML = (list && list.length ? list : []).map(function(x){ return _oePosRowHtml(x.name, x.pass); }).join('');
+}
+function _oePosRead(){
+  var box = $('edPosRows'); if(!box) return [];
+  return [].map.call(box.querySelectorAll('.pos-row'), function(r){
+    return { name: (r.querySelector('.pos-n').value || '').trim(),
+             pass: Math.min(100, Math.max(0, parseInt(r.querySelector('.pos-p').value, 10) || 0)) };
+  }).filter(function(x){ return x.name; });
+}
+function _oePosBoxPaint(){
+  var on = $('edPosMode') && $('edPosMode').checked;
+  var box = $('edPosBox'); if(box) box.hidden = !on;
+  var rows = $('edPosRows');
+  if(on && rows && !rows.querySelector('.pos-row')) rows.innerHTML = _oePosRowHtml('', 70) + _oePosRowHtml('', 80);
+}
+function oePosAdd(){
+  var rows = $('edPosRows'); if(!rows) return;
+  rows.insertAdjacentHTML('beforeend', _oePosRowHtml('', 70));
+  var last = rows.querySelector('.pos-row:last-child .pos-n'); if(last) last.focus();
+}
+function oePosModeToggle(){
+  /* สองโหมดนี้ตัดสินคนละทาง เปิดพร้อมกันแล้วไม่รู้ว่าใช้เกณฑ์ไหน — เปิดอันหนึ่งปิดอีกอัน */
+  if($('edPosMode').checked && $('edPartMode').checked){ $('edPartMode').checked = false; oePartModeToggle(); }
+  _oePosBoxPaint();
+}
 function oePartModeToggle(){
+  if($('edPartMode').checked && $('edPosMode') && $('edPosMode').checked){ $('edPosMode').checked = false; _oePosBoxPaint(); }
   syncDraftFromDOM();
   _oePartModePaint();
   renderQEditor();
@@ -5045,6 +5132,7 @@ function collectExamFromForm(){
     blockScreenshot: $('edShot').checked,
     autoSubmitOnMaxViolations: $('edAuto').checked,
     partMode: pm,
+    posPass: $('edPosMode').checked ? _oePosRead() : [],
     passService: Math.min(100, Math.max(0, parseInt($('edPassSrv').value)||70)),
     passKitchen: Math.min(100, Math.max(0, parseInt($('edPassKit').value)||70)),
     timeService: Math.max(1, parseInt($('edTimeSrv').value)||20),
@@ -5720,7 +5808,7 @@ function _oeReportHtml(r){
     ? currentBrand
     : (r.brand || (ex && ex.brand) || '');
   var bi = bkey ? (brandInfo(bkey) || {}) : {};
-  var passMark = (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
+  var passMark = oeResPassMark(r, ex);
 
   /* ช่องติ๊กแบบฟอร์มกระดาษ — เอกสารทางการตัดสินด้วยเครื่องหมายถูก ไม่ใช่ป้ายสี
      สีเป็นแค่ตัวช่วยอ่าน ถึงปริ๊นต์ขาวดำก็ยังรู้ว่าติ๊กช่องไหน */
@@ -5753,7 +5841,8 @@ function _oeReportHtml(r){
       return esc(p.label) + ' ตอบถูก <b>' + esc(p.correct) + '</b>/' + esc(p.total) + ' = <b>' + esc(p.pct) + '</b> %' +
         '<span class="gap">(เกณฑ์ ' + esc(p.passMark) + ' %)</span><span class="gap">' + (p.pass ? 'ผ่าน' : '<b>ไม่ผ่าน</b>') + '</span>';
     }).join('<br>'), 0]);
-  } else if(passMark != null) rows.push(['เกณฑ์ผ่าน', '<b>' + passMark + '</b> % ขึ้นไป', 0]);
+  } else if(passMark != null) rows.push(['เกณฑ์ผ่าน',
+    '<b>' + passMark + '</b> % ขึ้นไป' + (r.position ? '<span class="gap">ตำแหน่ง ' + esc(r.position) + '</span>' : ''), 0]);
   rows.push(['ผลการประเมิน', cbox(pass, 'ผ่าน', 'ok') + cbox(!pass, 'ไม่ผ่าน', 'bad'), 0]);
   /* ตัวเลขนี้คือเหตุผลที่คนสอบอยากรู้ผลที่สุด ต้องอยู่ในใบที่พิมพ์ */
   rows.push(['ฐานเงินเดือนที่เพิ่ม', bump
@@ -6080,7 +6169,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('exRunTitle').textContent = CFG.title || 'แบบทดสอบ';
   $('mQ').textContent = examDrawCount(CFG);
   $('mT').textContent = CFG.timeLimitMinutes;
-  $('mP').textContent = CFG.passingScorePercent + '%';
+  $('mP').textContent = oePassLabel(CFG);
   $('mV').textContent = CFG.maxViolations;
   var _vm = $('vMax'); if(_vm) _vm.textContent = CFG.maxViolations;
   $('lockMax').textContent = CFG.maxViolations;
@@ -6125,6 +6214,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
   $('inId').value = R.student.id || '';
   $('inPosition').value = R.student.position || '';
+  _oePosFieldPaint();
   $('inName').readOnly = false;
   $('inId').readOnly = false;
   /* สาขาที่ล็อกอินอยู่มีตัวเดียว ก็ให้เหลือตัวเลือกเดียว เลือกผิดไม่ได้
@@ -6233,6 +6323,33 @@ function closeExamOverlay(){
 
 /* ทำเครื่องหมายช่องที่ยังว่าง แล้วเด้งไปที่ช่องนั้น — บอกแค่ toast อย่างเดียว
    ผู้สอบต้องไล่หาเองว่าช่องไหนขาด */
+/* ชุดที่ตั้งเกณฑ์ตามตำแหน่ง ให้เลือกจากรายการแทนพิมพ์เอง — พิมพ์เองแล้วสะกดไม่ตรง
+   ระบบจะจับคู่เกณฑ์ไม่เจอ แล้วไปใช้เกณฑ์หลักโดยไม่มีใครรู้ตัว
+   ค่าที่เลือกถูกเขียนกลับลงช่องเดิม (#inPosition) โค้ดที่เหลือจึงอ่านที่เดิมได้เหมือนเดิม */
+function _oePosFieldPaint(){
+  var sel = $('inPositionSel'), inp = $('inPosition');
+  if(!sel || !inp || !R) return;
+  var list = oePosList(R.exam);
+  if(!list.length){ sel.hidden = true; inp.hidden = false; return; }
+  sel.hidden = false; inp.hidden = true;
+  var cur = String(inp.value || '').trim().toLowerCase();
+  var keep = list.filter(function(x){ return x.name.toLowerCase() === cur; })[0];
+  sel.innerHTML = '<option value="">— เลือกตำแหน่งของคุณ —</option>' +
+    list.map(function(x){
+      return '<option value="' + esc(x.name) + '"' + (keep && keep.name === x.name ? ' selected' : '') + '>' +
+        esc(x.name) + ' · เกณฑ์ผ่าน ' + x.pass + '%</option>';
+    }).join('');
+  inp.value = keep ? keep.name : '';
+  oePosPick();
+}
+function oePosPick(){
+  var sel = $('inPositionSel'), inp = $('inPosition');
+  if(!sel || !inp) return;
+  inp.value = sel.value;
+  if(sel.parentNode && sel.parentNode.classList) sel.parentNode.classList.remove('bad');
+  var mp = $('mP');
+  if(mp && R && oePosMode(R.exam)) mp.textContent = sel.value ? oePassForPos(R.exam, sel.value) + '%' : oePassLabel(R.exam);
+}
 function _oeFieldFail(id, msg){
   var el = $(id);
   if(el){
@@ -6392,7 +6509,9 @@ function beginExam(){
   var empId = $('inId').value.trim();
   if(!empId) return _oeFieldFail('inId', 'กรุณากรอกรหัสพนักงานก่อนเริ่ม');
   var position = $('inPosition').value.trim();
-  if(!position) return _oeFieldFail('inPosition', 'กรุณากรอกตำแหน่งก่อนเริ่ม');
+  if(!position) return oePosMode(R.exam)
+    ? _oeFieldFail('inPositionSel', 'กรุณาเลือกตำแหน่งก่อนเริ่ม — เกณฑ์ผ่านขึ้นกับตำแหน่ง')
+    : _oeFieldFail('inPosition', 'กรุณากรอกตำแหน่งก่อนเริ่ม');
 
   var branch = currentBranchName || $('inBranch').value.trim();
   if(!branch){
@@ -6760,7 +6879,9 @@ function computeAndShow(){
   R.questions.forEach(function(q,i){ var sel=R.answers[i]; if(sel!=null && q.choices[sel].correct) correct++; });
   var wrong=total-correct;
   var pct=Math.round(correct/total*100);
-  var pass=pct>=R.exam.passingScorePercent;
+  /* เกณฑ์ผ่านของคนนี้ — ชุดที่ตั้งตามตำแหน่งจะใช้เกณฑ์ของตำแหน่งที่เลือกไว้ */
+  var _mark = oePassForPos(R.exam, R.student && R.student.position);
+  var pass=pct>=_mark;
   /* ชุดที่แบ่งส่วน: ตัดสินรายส่วนด้วยเกณฑ์ของส่วนนั้น ต้องผ่านทุกส่วนที่สอบ
      คะแนนส่วนบริการ = ข้อบริการ + ข้อใช้ร่วม · ส่วนครัวเช่นเดียวกัน */
   var parts=null;
@@ -6787,12 +6908,11 @@ function computeAndShow(){
     }
     pass = parts[0].pass;
   }
-  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts};
+  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts,passMark:_mark};
 
   /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ตามกติกา — เลขบนวงต้องตรงกับ
      ที่บันทึกไว้จริง ไม่งั้นคนสอบเห็น 85% แล้วไปเห็น 70% ในผลสอบทีหลัง */
-  var shown = (R.isRetake && pct > R.exam.passingScorePercent)
-    ? R.exam.passingScorePercent : pct;
+  var shown = (R.isRetake && pct > _mark) ? _mark : pct;
   var arc=$('ringArc'), C=351.9;
   arc.style.stroke = pass ? '#10b981' : '#ef4444';
   arc.style.strokeDashoffset = C-(C*shown/100);
@@ -6812,7 +6932,8 @@ function computeAndShow(){
            '% <i>เกณฑ์ ' + p.passMark + '%</i> ' +
            (p.pass ? (_info ? 'ถึงเกณฑ์' : 'ผ่าน') : (_info ? 'ต่ำกว่าเกณฑ์' : 'ไม่ผ่าน')) + '</span>';
        }).join('') + '</span>')
-    : ('ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · เกณฑ์ผ่าน ' + R.exam.passingScorePercent + '%');
+    : ('ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · เกณฑ์ผ่าน ' + _mark + '%' +
+       (oePosMode(R.exam) && R.student.position ? ' (ตำแหน่ง ' + esc(R.student.position) + ')' : ''));
   _oePaintResNote();
 
   /* โหมดทดลองไม่มีผลจริงให้พิมพ์ ซ่อนปุ่มเอกสารไว้ */
@@ -6865,6 +6986,7 @@ function _oeRunResult(){
       examId:R.exam.id, examTitle:R.exam.title, brand:R.exam.brand||'',
       name:R.student.name, empId:R.student.id, branch:R.student.branch, position:R.student.position||'',
       pct:R.result.pct, correct:R.result.correct, total:R.result.total,
+      passMark: R.result.passMark != null ? R.result.passMark : null,
       result: R.result.pass?'ผ่าน':'ไม่ผ่าน', pass:R.result.pass,
       violations:R.violations, finishReason:R.finishReason,
       track: R.track || '', parts: (R.result && R.result.parts) || null,
