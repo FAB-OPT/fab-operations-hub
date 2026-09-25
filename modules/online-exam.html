@@ -1055,6 +1055,10 @@ select.txt{appearance:none;-webkit-appearance:none;
 /* แถบบอกสเกล อยู่ใต้คอลัมน์แถบเลื่อนพอดี เพราะใช้ตารางเดียวกับแถว */
 .pos-scale{display:grid;grid-template-columns:minmax(132px,1fr) minmax(130px,1.5fr) 92px 36px;gap:10px;margin-top:2px}
 .pos-scale .sc{grid-column:2;display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text3)}
+/* เกณฑ์ของตำแหน่งที่ไม่ได้ใส่ไว้ — ย้ายมาอยู่ท้ายกล่องนี้ เพราะพอแยกตามตำแหน่งแล้ว
+   ช่อง "ถือว่าผ่านที่" ข้างบนจะถูกซ่อน (มีสองที่ให้ตั้งเกณฑ์พร้อมกันแล้วสับสน) */
+.pos-base{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:11px;border-top:1px dashed var(--border)}
+.pos-base .p-lb{flex:1;min-width:0}
 .pos-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .pos-sug{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
 .pos-sug button{font:inherit;font-size:12.5px;font-weight:700;border:1px dashed var(--border2);background:#fff;color:var(--text2);
@@ -2395,7 +2399,8 @@ label.fld>span>b{font-weight:800}
               <button type="button" class="btn btn-soft btn-sm" onclick="oePosAdd()">+ เพิ่มตำแหน่ง</button>
               <span class="pos-sug" id="edPosSug"></span>
             </div>
-            <p class="fld-note" style="margin-top:10px">ตำแหน่งที่ไม่ได้ใส่ไว้ จะใช้เกณฑ์ผ่านหลัก <b id="edPosBase">70</b>% ในช่องด้านบน</p>
+            <div class="pos-base"><div class="p-lb">ตำแหน่งอื่นที่ไม่ได้ใส่ไว้<small>ใครที่เลือกตำแหน่งนอกรายการนี้ ใช้เกณฑ์นี้</small></div>
+              <div class="p-in"><input id="edPosBase" type="number" min="0" max="100" value="70" oninput="_oePosBaseSync()"><i>%</i></div></div>
           </div>
               <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
@@ -3285,11 +3290,28 @@ var OE_SB = {
       return false;
     });
   },
+  /* เน็ตสะดุดแวบเดียว (TypeError: Failed to fetch) ไม่ควรกลายเป็นป้ายแดง
+     "แสดงข้อมูลที่โหลดไว้ล่าสุด" — ลองใหม่เงียบ ๆ 2 ครั้งก่อนค่อยยอมแพ้
+     ทุกคำสั่งของระบบสอบยิงซ้ำได้ หลังบ้านกันของซ้ำไว้แล้ว (ดูหมายเหตุ apiPost) */
+  _net: function(e){
+    var m = ((e && e.message) || String(e || '')).toLowerCase();
+    return m.indexOf('failed to fetch') >= 0 || m.indexOf('networkerror') >= 0 ||
+           m.indexOf('load failed') >= 0 || m.indexOf('timeout') >= 0 ||
+           m.indexOf('502') >= 0 || m.indexOf('503') >= 0 || m.indexOf('504') >= 0;
+  },
   rpc: function(fn, args){
-    return this.client().rpc(fn, args).then(function(r){
-      if(r.error) throw new Error(r.error.message || String(r.error));
-      return r.data;
-    });
+    var self = this, tries = 0;
+    var once = function(){
+      return self.client().rpc(fn, args).then(function(r){
+        if(r.error) throw new Error(r.error.message || String(r.error));
+        return r.data;
+      }).catch(function(e){
+        if(tries >= 2 || !self._net(e)) throw e;
+        tries++;
+        return new Promise(function(go){ setTimeout(go, tries * 700); }).then(once);
+      });
+    };
+    return once();
   }
 };
 var _oeGetSheet = apiGet, _oePostSheet = apiPost;
@@ -4706,8 +4728,20 @@ function _oePosBoxPaint(){
   var rows = $('edPosRows');
   if(on && rows && !rows.querySelector('.pos-row')) rows.innerHTML = _oePosRowHtml('', 70);
   var base = $('edPosBase'), ed = $('edPass');
-  if(base && ed) base.textContent = parseInt(ed.value, 10) || 70;
+  if(base && ed) base.value = parseInt(ed.value, 10) || 70;
+  /* ช่อง "ถือว่าผ่านที่" ด้านบนคือค่าเดียวกับ "ตำแหน่งอื่นที่ไม่ได้ใส่ไว้"
+     โชว์พร้อมกันสองที่แล้วงง — แยกตามตำแหน่งเมื่อไร ซ่อนช่องข้างบนไว้ */
+  var row = ed && ed.closest ? ed.closest('.p-row') : null;
+  if(row) row.hidden = on;
   _oePosSugPaint();
+}
+/* พิมพ์ในช่องท้ายกล่อง = แก้เกณฑ์หลักของชุด (ช่องเดียวกับ "ถือว่าผ่านที่") */
+function _oePosBaseSync(){
+  var base = $('edPosBase'), ed = $('edPass');
+  if(!base || !ed) return;
+  var v = parseInt(base.value, 10);
+  if(isNaN(v)) return;
+  ed.value = Math.min(100, Math.max(0, v));
 }
 function oePosAdd(name){
   var rows = $('edPosRows'); if(!rows) return;
