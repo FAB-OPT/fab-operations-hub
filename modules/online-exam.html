@@ -1055,10 +1055,6 @@ select.txt{appearance:none;-webkit-appearance:none;
 /* แถบบอกสเกล อยู่ใต้คอลัมน์แถบเลื่อนพอดี เพราะใช้ตารางเดียวกับแถว */
 .pos-scale{display:grid;grid-template-columns:minmax(132px,1fr) minmax(130px,1.5fr) 92px 36px;gap:10px;margin-top:2px}
 .pos-scale .sc{grid-column:2;display:flex;justify-content:space-between;font-size:11px;font-weight:600;color:var(--text3)}
-/* เกณฑ์ของตำแหน่งที่ไม่ได้ใส่ไว้ — ย้ายมาอยู่ท้ายกล่องนี้ เพราะพอแยกตามตำแหน่งแล้ว
-   ช่อง "ถือว่าผ่านที่" ข้างบนจะถูกซ่อน (มีสองที่ให้ตั้งเกณฑ์พร้อมกันแล้วสับสน) */
-.pos-base{display:flex;align-items:center;gap:12px;margin-top:12px;padding-top:11px;border-top:1px dashed var(--border)}
-.pos-base .p-lb{flex:1;min-width:0}
 .pos-acts{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:12px}
 .pos-sug{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:12.5px;color:var(--text3)}
 .pos-sug button{font:inherit;font-size:12.5px;font-weight:700;border:1px dashed var(--border2);background:#fff;color:var(--text2);
@@ -1216,6 +1212,7 @@ select.txt{appearance:none;-webkit-appearance:none;
 .ed2 .adm .ph{background:var(--gold-soft);border-bottom:1px solid var(--gold-line);color:#c2410c}
 .ed2 .pb{padding:14px 15px}
 .p-row{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px dashed var(--border)}
+.p-row[hidden]{display:none}   /* display:flex ชนะ hidden ของเบราว์เซอร์ ต้องเขียนทับเอง */
 .p-row:last-child{border-bottom:0}
 .p-lb{flex:1;min-width:0;font-size:13.5px;font-weight:700}
 .p-lb small{display:block;font-size:11.5px;color:var(--text3);font-weight:600;margin-top:1px;line-height:1.45}
@@ -2399,8 +2396,6 @@ label.fld>span>b{font-weight:800}
               <button type="button" class="btn btn-soft btn-sm" onclick="oePosAdd()">+ เพิ่มตำแหน่ง</button>
               <span class="pos-sug" id="edPosSug"></span>
             </div>
-            <div class="pos-base"><div class="p-lb">ตำแหน่งอื่นที่ไม่ได้ใส่ไว้<small>ใครที่เลือกตำแหน่งนอกรายการนี้ ใช้เกณฑ์นี้</small></div>
-              <div class="p-in"><input id="edPosBase" type="number" min="0" max="100" value="70" oninput="_oePosBaseSync()"><i>%</i></div></div>
           </div>
               <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
@@ -4727,21 +4722,12 @@ function _oePosBoxPaint(){
   var box = $('edPosBox'); if(box) box.hidden = !on;
   var rows = $('edPosRows');
   if(on && rows && !rows.querySelector('.pos-row')) rows.innerHTML = _oePosRowHtml('', 70);
-  var base = $('edPosBase'), ed = $('edPass');
-  if(base && ed) base.value = parseInt(ed.value, 10) || 70;
-  /* ช่อง "ถือว่าผ่านที่" ด้านบนคือค่าเดียวกับ "ตำแหน่งอื่นที่ไม่ได้ใส่ไว้"
-     โชว์พร้อมกันสองที่แล้วงง — แยกตามตำแหน่งเมื่อไร ซ่อนช่องข้างบนไว้ */
+  /* แยกตามตำแหน่งแล้ว เกณฑ์อยู่ในรายการนี้ที่เดียว — ซ่อนช่อง "ถือว่าผ่านที่" ข้างบนไป
+     (ผู้สอบต้องเลือกจากรายการนี้อยู่แล้ว ไม่มีตำแหน่งนอกรายการให้ต้องเผื่อ) */
+  var ed = $('edPass');
   var row = ed && ed.closest ? ed.closest('.p-row') : null;
   if(row) row.hidden = on;
   _oePosSugPaint();
-}
-/* พิมพ์ในช่องท้ายกล่อง = แก้เกณฑ์หลักของชุด (ช่องเดียวกับ "ถือว่าผ่านที่") */
-function _oePosBaseSync(){
-  var base = $('edPosBase'), ed = $('edPass');
-  if(!base || !ed) return;
-  var v = parseInt(base.value, 10);
-  if(isNaN(v)) return;
-  ed.value = Math.min(100, Math.max(0, v));
 }
 function oePosAdd(name){
   var rows = $('edPosRows'); if(!rows) return;
