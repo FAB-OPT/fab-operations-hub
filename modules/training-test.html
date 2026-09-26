@@ -2477,6 +2477,7 @@ function renderEditor(){
       <div class="row-btns" style="margin-bottom:12px">
         <button class="btn btn-secondary btn-sm" onclick="addQuestion()">+ เพิ่มคำถาม</button>
         <button class="btn btn-primary btn-sm" onclick="openImport()">⬆ นำเข้าข้อสอบ</button>
+        <button class="btn btn-secondary btn-sm" onclick="exportQuestions()">⬇ ส่งออกข้อสอบ</button>
       </div>
       ${e.questions.map((q, i) => `
         <div class="card" style="margin:0 0 12px;background:#fafbfc">
@@ -2716,6 +2717,33 @@ window.impTemplate = async function(){
     XLSX.writeFile(wb, 'ฟอร์มข้อสอบก่อนหลังอบรม.xlsx');
     msg('โหลดไฟล์ตัวอย่างแล้ว — กรอกทับแถวตัวอย่างได้เลย');
   }catch(e){ msg('สร้างไฟล์ตัวอย่างไม่สำเร็จ — ' + esc(e.message || e), 'err'); }
+};
+
+/* ส่งออกข้อสอบของการอบรมนี้เป็น Excel — คอลัมน์ตรงกับแบบฟอร์มนำเข้า
+   จึงใช้เป็นทั้งสำเนาสำรอง และใช้แก้ในไฟล์แล้วนำเข้ากลับ (ติ๊ก "แทนที่ของเดิม") */
+window.exportQuestions = async function(){
+  grabEditor();
+  const qs = (editing && editing.questions || []).filter(q => (q.label || '').trim());
+  if (!qs.length) return msg('ยังไม่มีคำถามให้ส่งออก', 'warn');
+  try{
+    await loadXLSX();
+    const wide = Math.max(IMP_COLS, ...qs.map(q => (q.choices || []).length));
+    const rows = [['โจทย์', ...Array.from({ length: wide }, (_, j) => chMark(j)), 'ข้อถูก']];
+    qs.forEach(q => {
+      const c = (q.choices || []).slice();
+      while (c.length < wide) c.push('');
+      /* ในระบบเก็บข้อถูกเป็นลำดับเริ่มจาก 0 · ในไฟล์ใช้ ก ข ค ง ให้คนอ่านรู้เรื่อง */
+      rows.push([q.label, ...c, chMark(typeof q.answer === 'number' ? q.answer : 0)]);
+    });
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = [{ wch:52 }, ...Array.from({ length: wide }, () => ({ wch:20 })), { wch:8 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
+    /* ชื่อไฟล์ห้ามมีอักขระที่ Windows ใช้ไม่ได้ ไม่งั้นเบราว์เซอร์บันทึกไม่ลง */
+    const name = String((editing && editing.title) || 'ข้อสอบ').replace(/[\/:*?"<>|]+/g, ' ').trim().slice(0, 60);
+    XLSX.writeFile(wb, 'ข้อสอบ-' + name + '.xlsx');
+    msg('ส่งออก ' + qs.length + ' ข้อแล้ว · ไฟล์นี้นำเข้ากลับได้เลย');
+  }catch(e){ msg('ส่งออกไม่สำเร็จ — ' + esc(e.message || e), 'err'); }
 };
 
 window.doImport = function(){
