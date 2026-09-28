@@ -4609,6 +4609,34 @@ function updateDrawHint(){
   note.innerHTML='ผู้สอบแต่ละคนจะได้ <b>'+want+' ข้อ</b> สุ่มจากคลัง <b>'+pool+' ข้อ</b> · คนละชุดกัน';
 }
 
+/* หน้าที่เปิดค้างไว้นาน ๆ ถือชุดข้อสอบเวอร์ชันเก่าอยู่ในมือ กดแก้ทีหลังก็เริ่มจากของเก่าทุกครั้ง
+   (เจอจริง 28 ก.ย. 69 — เติมคำถามคืนในระบบแล้ว แต่หน้าที่เปิดค้างยังนับได้ 248 ทุกครั้งที่กดบันทึก)
+   จึงไปดึงของล่าสุดมาตั้งแต่ตอนเปิดตัวแก้ไข ตอนนั้นยังไม่มีใครพิมพ์อะไร ทับได้ปลอดภัย
+   ถ้าเริ่มพิมพ์ไปแล้วจะไม่ทับ ปล่อยให้ตัวกันบันทึกทับตอนกดบันทึกจัดการต่อ (มีปุ่มดึงมารวม) */
+var _oeEdDirty = false, _oeEdSeq = 0;
+function _oeEdRefresh(id){
+  if(!id) return;
+  var seq = ++_oeEdSeq;
+  OE_SB.mode().then(function(sb){
+    if(!sb) return;
+    return OE_SB.rpc('oe_exams', {}).then(function(r){
+      if(seq !== _oeEdSeq || editingId !== id) return;      /* เปิดชุดอื่นไปแล้ว */
+      var list = (r && r.exams) || r || [];
+      var fresh = list.filter(function(x){ return x.id === id; })[0];
+      if(!fresh) return;
+      var i = EXAMS.findIndex(function(x){ return x.id === id; });
+      if(i >= 0) EXAMS[i] = fresh; else EXAMS.push(fresh);
+      _oeStash('exams', EXAMS);
+      renderAdminExams();
+      var now = (fresh.questions || []).length;
+      if(_oeEdDirty || now === draftQuestions.length) return;
+      draftQuestions = JSON.parse(JSON.stringify(fresh.questions || []));
+      _qOpen = {};
+      renderQEditor();
+      toast('โหลดของล่าสุดจากระบบแล้ว · ตอนนี้ ' + now + ' ข้อ');
+    });
+  }).catch(function(){});
+}
 function openExamEditor(id){
   editingId = id;
   var ex = id ? EXAMS.find(function(x){return x.id===id;}) : null;
@@ -4664,6 +4692,8 @@ function openExamEditor(id){
   var _ip=$('importPanel'); if(_ip) _ip.classList.add('hidden');
   examTab(1);
   $('editorModal').classList.add('show');
+  _oeEdDirty = false;
+  _oeEdRefresh(id);
 }
 function closeEditor(){ $('editorModal').classList.remove('show'); }
 
@@ -9475,6 +9505,10 @@ function _cfClose(v){
   if(r) r(v);
 }
 document.addEventListener('DOMContentLoaded', function(){
+  var _em = $('editorModal');
+  if(_em) ['input', 'change'].forEach(function(ev){
+    _em.addEventListener(ev, function(){ _oeEdDirty = true; }, true);
+  });
   $('cfYes').addEventListener('click', function(){ _cfClose(true); });
   $('cfNo').addEventListener('click', function(){ _cfClose(false); });
   $('cfAlt').addEventListener('click', function(){ _cfClose('alt'); });
