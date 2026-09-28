@@ -1770,8 +1770,12 @@ function reportSumHtml(f){
       const opts = q.type === 'yesno' ? ['ใช่','ไม่ใช่'] : (q.options || []);
       const cnt = o => vals.filter(v => Array.isArray(v) ? v.includes(o) : v === o).length;
       const other = [...new Set(vals.flat().filter(v => !opts.includes(v)))];
+      /* เรียงจากตัวเลือกที่ตอบมากไปน้อย — อ่านรายงานแล้วรู้ทันทีว่าคำตอบส่วนใหญ่คืออะไร
+         ของเดิมเรียงตามลำดับตัวเลือกในฟอร์ม ต้องกวาดตาหาเลขมากสุดเอง */
+      const rowsC = [...opts, ...other].map(o => ({ o, n: cnt(o) }))
+        .sort((a, b) => b.n - a.n || String(a.o).localeCompare(String(b.o), 'th'));
       return head + `<table><thead><tr><th>ตัวเลือก</th><th style="width:90px">จำนวน</th><th style="width:90px">ร้อยละ</th></tr></thead><tbody>
-        ${[...opts, ...other].map(o => `<tr><td>${esc(o)}</td><td class="c">${cnt(o)}</td><td class="c">${pctOf(cnt(o), vals.length)}</td></tr>`).join('')}
+        ${rowsC.map(x => `<tr><td>${esc(x.o)}</td><td class="c">${x.n}</td><td class="c">${pctOf(x.n, vals.length)}</td></tr>`).join('')}
       </tbody></table>`;
     }
     if (q.type === 'scale' || q.type === 'number'){
@@ -1806,13 +1810,32 @@ function reportSumHtml(f){
   </div>`;
 }
 
+/* คะแนนของผู้ตอบหนึ่งคน = เฉลี่ยจากข้อแบบให้คะแนน (scale) และตัวเลข
+   ฟอร์มที่ไม่มีข้อพวกนี้จะคืน null แล้วรายงานจะเรียงตามเวลาส่งเหมือนเดิม */
+function ofScoreOf(r, qs){
+  const nums = [];
+  (qs || []).forEach(q => {
+    if (q.type !== 'scale' && q.type !== 'number') return;
+    const v = Number((r.answers || {})[q.id]);
+    if (!isNaN(v)) nums.push(q.type === 'scale' ? v / (q.max || 5) * 100 : v);
+  });
+  return nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
+}
 function reportAllHtml(f){
-  const list = responses.filter(r => r.form_key === f.key);
   const qs = f.questions || [];
+  const scored = qs.some(q => q.type === 'scale' || q.type === 'number');
+  /* เรียงคะแนนมากไปน้อย — รายงานเปิดมาเห็นสาขาที่ทำได้ดีสุดก่อน ตามด้วยตัวที่ต้องตาม */
+  const list = responses.filter(r => r.form_key === f.key)
+    .map(r => ({ r, sc: scored ? ofScoreOf(r, qs) : null }))
+    .sort((a, b) => scored ? ((b.sc == null ? -1 : b.sc) - (a.sc == null ? -1 : a.sc))
+                           : String(b.r.created_at || '').localeCompare(String(a.r.created_at || '')))
+    .map(x => Object.assign({}, x.r, { _sc: x.sc }));
   return `<div class="rp">
     ${rpHead('รายงานคำตอบแบบฟอร์มรายสาขา')}
     ${rpInfo(f, list)}
-    ${list.map((r, i) => `<div class="resp"><h4>${i + 1}. ${esc(r.respondent_branch || r.respondent_name || '')} <span style="font-weight:400;color:#666">· ส่งเมื่อ ${esc(fmtDT(r.created_at))}</span></h4>
+    ${scored ? '<p style="color:#666;margin:0 0 8px">เรียงจากคะแนนเฉลี่ยมากไปน้อย</p>' : ''}
+    ${list.map((r, i) => `<div class="resp"><h4>${i + 1}. ${esc(r.respondent_branch || r.respondent_name || '')} <span style="font-weight:400;color:#666">· ส่งเมื่อ ${esc(fmtDT(r.created_at))}${
+      r._sc == null ? '' : ' · คะแนนเฉลี่ย ' + (Math.round(r._sc * 10) / 10) + (scored ? '%' : '')}</span></h4>
       <table class="qa"><tbody>${qs.map((q, k) => `<tr><td>${k + 1}. ${esc(q.label)}</td><td>${esc(ansText((r.answers || {})[q.id]))}</td></tr>`).join('')}</tbody></table></div>`).join('')
       || '<p style="color:#666">— ยังไม่มีคำตอบ —</p>'}
     ${rpSign()}
