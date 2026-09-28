@@ -2892,6 +2892,7 @@ label.fld>span>b{font-weight:800}
     </div>
     <div class="modal-foot cf-foot">
       <button class="btn btn-soft" id="cfNo">ยกเลิก</button>
+      <button class="btn btn-primary solid hidden" id="cfAlt">ทางเลือก</button>
       <button class="btn btn-danger solid" id="cfYes">ยืนยัน</button>
     </div>
   </div>
@@ -5424,6 +5425,7 @@ function collectExamFromForm(){
 /* หน้าที่เปิดค้างไว้นาน ๆ ถือคำถามชุดเก่าอยู่ในมือ พอกดบันทึกจะเขียนทับของใหม่ทั้งก้อน
    (เกิดจริง 28 ก.ย. 69 — เพิ่มคำถาม 2 ข้อทางระบบ แล้วแท็บเก่ากดบันทึกทับ คำถามหายไป)
    ก่อนบันทึกจึงไปอ่านของจริงมาเทียบก่อน ถ้าของจริงมีมากกว่า ให้คนกดตัดสินใจ */
+function _oeQKey(q){ return String((q && q.q) || '').replace(/\s+/g, ' ').trim(); }
 function _oeConfirmOverwrite(exam){
   if(!exam || !exam.id) return Promise.resolve(true);
   var mine = (exam.questions || []).length;
@@ -5434,12 +5436,28 @@ function _oeConfirmOverwrite(exam){
       var cur = list.filter(function(x){ return x.id === exam.id; })[0];
       var now = cur ? (cur.questions || []).length : 0;
       if(now <= mine) return true;
+      /* ข้อที่มีในระบบแต่ไม่มีในหน้านี้ — เอากลับมารวมได้ ไม่ต้องเลือกระหว่างทิ้งงานตัวเอง
+         กับทับงานคนอื่น (เดิมมีแค่ บันทึกทับ / ยกเลิก ซึ่งทั้งคู่ก็เสียของอยู่ดี) */
+      var have = {};
+      (exam.questions || []).forEach(function(q){ have[_oeQKey(q)] = 1; });
+      var missing = (cur.questions || []).filter(function(q){ return !have[_oeQKey(q)]; });
       return oeConfirm({
         icon: '⚠️', title: 'คำถามในระบบมีมากกว่าในหน้านี้',
-        text: 'อาจมีคนเพิ่มคำถามหลังจากที่คุณเปิดหน้านี้ · กดบันทึกทับแล้วส่วนที่เพิ่มมาจะหายไป',
-        facts: [['ในระบบตอนนี้', now + ' ข้อ'], ['หน้านี้ถืออยู่', mine + ' ข้อ']],
-        warn: 'ถ้าไม่แน่ใจ ให้กดยกเลิกแล้วเปิดหน้าใหม่ ค่อยแก้อีกครั้ง',
+        text: 'มีคนเพิ่มคำถามหลังจากที่คุณเปิดหน้านี้ · กด <b>ดึงมารวม</b> แล้วจะไม่มีอะไรหาย',
+        facts: [['ในระบบตอนนี้', now + ' ข้อ'], ['หน้านี้ถืออยู่', mine + ' ข้อ'],
+                ['ที่จะดึงกลับมา', missing.length + ' ข้อ']],
+        alt: 'ดึงมารวมแล้วบันทึก',
+        warn: 'กดบันทึกทับ = คำถาม ' + missing.length + ' ข้อนั้นหายไปถาวร',
         yes: 'บันทึกทับ', no: 'ยกเลิก'
+      }).then(function(v){
+        if(v !== 'alt') return v;
+        /* รวมแล้วต้องเห็นในแท็บคำถามด้วย ไม่ใช่แอบเติมตอนบันทึกอย่างเดียว */
+        exam.questions = (exam.questions || []).concat(JSON.parse(JSON.stringify(missing)));
+        draftQuestions = JSON.parse(JSON.stringify(exam.questions));
+        _qOpen = {};
+        renderQEditor();
+        toast('ดึงคำถามที่ขาด ' + missing.length + ' ข้อกลับมารวมแล้ว');
+        return true;
       });
     }).catch(function(){ return true; });   /* อ่านของจริงไม่ได้ ก็อย่าขวางการบันทึก */
   }).catch(function(){ return true; });
@@ -9443,8 +9461,12 @@ function oeConfirm(o){
   $('cfWarn').textContent = o.warn || '';
   $('cfYes').textContent = o.yes || 'ยืนยัน';
   $('cfNo').textContent = o.no || 'ยกเลิก';
+  /* ปุ่มที่สาม (ไม่บังคับ) = ทางออกที่ปลอดภัยกว่าทั้งสองปุ่มเดิม · คืนค่า 'alt' */
+  var alt = $('cfAlt');
+  alt.classList.toggle('hidden', !o.alt);
+  alt.textContent = o.alt || '';
   $('cfModal').classList.add('show');
-  setTimeout(function(){ $('cfNo').focus(); }, 30);
+  setTimeout(function(){ (o.alt ? alt : $('cfNo')).focus(); }, 30);
   return new Promise(function(res){ _cfResolve = res; });
 }
 function _cfClose(v){
@@ -9455,6 +9477,7 @@ function _cfClose(v){
 document.addEventListener('DOMContentLoaded', function(){
   $('cfYes').addEventListener('click', function(){ _cfClose(true); });
   $('cfNo').addEventListener('click', function(){ _cfClose(false); });
+  $('cfAlt').addEventListener('click', function(){ _cfClose('alt'); });
   /* กดพื้นหลังหรือ Esc = ยกเลิก — ทางออกที่ปลอดภัยเสมอ */
   $('cfModal').addEventListener('click', function(e){ if(e.target === this) _cfClose(false); });
   document.addEventListener('keydown', function(e){
