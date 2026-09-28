@@ -1990,17 +1990,28 @@ function reportTestHtml(t){
     return { p, pre, post, d: pre && post ? Number(post.score) - Number(pre.score) : null };
   });
   const both = rows.filter(r => r.d != null);
+  /* เรียงคะแนนหลังเรียนมากไปน้อย — เปิดรายงานเห็นคนได้มากสุดก่อน คนที่ยังไม่ทำไปอยู่ท้ายสุด
+     คะแนนเท่ากันเอาคนที่พัฒนาขึ้นมากกว่าขึ้นก่อน */
+  rows.sort((a, b) => {
+    const pa = a.post ? Number(a.post.pct) : -1, pb = b.post ? Number(b.post.pct) : -1;
+    if (pa !== pb) return pb - pa;
+    const da = a.d == null ? -99 : a.d, db = b.d == null ? -99 : b.d;
+    if (da !== db) return db - da;
+    return String(a.p.name || '').localeCompare(String(b.p.name || ''), 'th');
+  });
   const avgOf = (list, fn) => list.length ? list.reduce((a, r) => a + fn(r), 0) / list.length : null;
   const aPre = avgOf(both, r => Number(r.pre.pct)), aPost = avgOf(both, r => Number(r.post.pct));
   const up = both.filter(r => r.d > 0).length, same = both.filter(r => r.d === 0).length, down = both.filter(r => r.d < 0).length;
+  /* เรียงข้อที่ตอบถูกหลังเรียนมากไปน้อย — ข้อที่ยังตอบผิดเยอะจะไปกองอยู่ท้ายตาราง เห็นชัดว่าต้องสอนซ้ำข้อไหน
+     เลขข้อยังเป็นเลขเดิมในชุดข้อสอบ จะได้อ้างอิงกลับไปหาคำถามถูกตัว */
   const qRows = qs.map((q, i) => {
     const cnt = ph => both.filter(r => (r[ph].answers || {})[q.id] === q.answer).length;
-    const a = cnt('pre'), b = cnt('post');
-    return `<tr><td class="c">${i + 1}</td><td>${esc(q.label)}</td>
+    return { q, i, a: cnt('pre'), b: cnt('post') };
+  }).sort((x, y) => y.b - x.b || (y.b - y.a) - (x.b - x.a) || x.i - y.i)
+    .map(({ q, i, a, b }) => `<tr><td class="c">${i + 1}</td><td>${esc(q.label)}</td>
       <td class="c">${a} (${both.length ? Math.round(a / both.length * 100) : 0}%)</td>
       <td class="c">${b} (${both.length ? Math.round(b / both.length * 100) : 0}%)</td>
-      <td class="c ${b > a ? 'up' : b < a ? 'down' : ''}">${b === a ? '0' : sgn(b - a) + ' คน'}</td></tr>`;
-  }).join('');
+      <td class="c ${b > a ? 'up' : b < a ? 'down' : ''}">${b === a ? '0' : sgn(b - a) + ' คน'}</td></tr>`).join('');
   return `<div class="rp">
     ${rpHead(t, 'รายงานผลการทดสอบก่อน–หลังการฝึกอบรม', 'เปรียบเทียบคะแนนแบบทดสอบชุดเดียวกัน ก่อนเรียนและหลังเรียน', 'รายงานผลทดสอบก่อน–หลัง')}
     ${rpInfo(t, [['ผู้เข้าอบรม', ppl.length + ' คน'], ['ทำครบสองรอบ', both.length + ' คน · แบบทดสอบ ' + qs.length + ' ข้อ']])}
@@ -2010,7 +2021,7 @@ function reportTestHtml(t){
       <div><b>${aPre == null ? '—' : sgn((aPost - aPre).toFixed(1)) + '%'}</b><span>เปลี่ยนแปลงเฉลี่ย</span></div>
       <div><b>${up} / ${same} / ${down}</b><span>ดีขึ้น / เท่าเดิม / ลดลง (คน)</span></div>
     </div>
-    <h3>1. ผลรายบุคคล</h3>
+    <h3>1. ผลรายบุคคล <span style="font-weight:400;font-size:12px;color:#666">· เรียงคะแนนหลังเรียนมากไปน้อย</span></h3>
     <table>
       <thead><tr><th style="width:36px">ลำดับ</th><th>ชื่อ–สกุล</th><th>สาขา</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>เปลี่ยนแปลง</th><th>ผล</th></tr></thead>
       <tbody>${rows.map((r, i) => `<tr><td class="c">${i + 1}</td><td>${esc(r.p.name)}</td><td>${esc(r.p.branch || '')}</td>
@@ -2020,7 +2031,7 @@ function reportTestHtml(t){
         <td class="c">${r.d == null ? '—' : r.d > 0 ? '▲ ดีขึ้น' : r.d < 0 ? '▼ ลดลง' : 'เท่าเดิม'}</td></tr>`).join('') ||
         '<tr><td colspan="7" class="c">ยังไม่มีผู้เข้าอบรม</td></tr>'}</tbody>
     </table>
-    ${qs.length ? `<h3>2. ผลรายข้อ (นับเฉพาะคนที่ทำครบทั้งสองรอบ ${both.length} คน)</h3>
+    ${qs.length ? `<h3>2. ผลรายข้อ (นับเฉพาะคนที่ทำครบทั้งสองรอบ ${both.length} คน) <span style="font-weight:400;font-size:12px;color:#666">· เรียงตอบถูกหลังเรียนมากไปน้อย</span></h3>
     <table>
       <thead><tr><th style="width:36px">ข้อ</th><th>คำถาม</th><th>ตอบถูก ก่อนเรียน</th><th>ตอบถูก หลังเรียน</th><th>เปลี่ยนแปลง</th></tr></thead>
       <tbody>${qRows}</tbody>

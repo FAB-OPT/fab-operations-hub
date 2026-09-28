@@ -30,6 +30,9 @@
     } catch (e) {}
     var bar = document.getElementById('fabViewAsBar');
     if (bar) bar.remove();
+    /* ต้องลบสไตล์ด้วย — ในนั้นมี body{padding-top} ถ้าเหลือไว้ ขอบบนจะว่างค้างทั้งที่ไม่มีแถบแล้ว */
+    var css = document.getElementById('fabViewAsCss');
+    if (css) css.remove();
     /* ฮับไม่กู้ session อัตโนมัติ reload แล้วจะเด้งไปหน้ากรอกรหัส — ให้หน้านั้นจัดการเอง */
     if (typeof window.fabViewAsRehome === 'function') { window.fabViewAsRehome(); return; }
     location.reload();
@@ -47,6 +50,7 @@
     bar.querySelector('b').textContent = who;      // ชื่อคนมาจากข้อมูล ไม่ใส่เป็น HTML
     bar.querySelector('.va-btn').onclick = exit;
     var css = document.createElement('style');
+    css.id = 'fabViewAsCss';
     css.textContent =
       '#fabViewAsBar{position:fixed;left:0;right:0;top:0;z-index:99999;display:flex;align-items:center;gap:10px;' +
       'padding:7px 14px;background:#7c3aed;color:#fff;font-family:Sarabun,sans-serif;font-size:13px;font-weight:700;' +
