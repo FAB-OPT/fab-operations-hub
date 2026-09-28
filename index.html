@@ -874,10 +874,15 @@ body.hub-clean .hub-icon-danger:hover { background: #fee2e2; color: #dc2626; }
 .hub-icon-view .hub-btn-label { display: inline !important; }
 body.hub-clean .hub-icon-view { background: #f5f3ff; color: #6d28d9; }
 body.hub-clean .hub-icon-view:hover { background: #ede9fe; color: #5b21b6; }
+body.hub-clean .hub-icon-view.on { background: #7c3aed; color: #fff; }
+body.hub-clean .hub-icon-view.on:hover { background: #6d28d9; color: #fff; }
 @media (max-width: 860px) {
-  /* จอแคบเหลือไอคอนอย่างเดียว ปุ่มออกจากระบบสำคัญกว่า ต้องไม่ถูกเบียดตก */
+  /* จอแคบเหลือไอคอนอย่างเดียว ปุ่มออกจากระบบสำคัญกว่า ต้องไม่ถูกเบียดตก
+     ยกเว้นตอนกำลังสวมมุมมอง — ปุ่มกลับต้องอ่านออกเสมอ */
   .hub-icon-view { width: 36px !important; padding: 0; }
   .hub-icon-view .hub-btn-label { display: none !important; }
+  .hub-icon-view.on { width: auto !important; padding: 0 13px 0 9px; }
+  .hub-icon-view.on .hub-btn-label { display: inline !important; }
 }
 
 /* ── หัวหน้า ── */
@@ -3187,7 +3192,7 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
     </div>
     <div class="topbar-actions">
       <span id="menuBranchTag"></span>
-      <button class="hub-icon-btn hub-icon-view admin-role-only" onclick="openViewAsModal()" title="ดูในมุมมองของสาขาหรือคนอื่น" aria-label="ดูในมุมมองอื่น">
+      <button class="hub-icon-btn hub-icon-view admin-role-only" id="btnViewAs" onclick="viewAsBtnClick()" title="ดูในมุมมองของสาขาหรือคนอื่น" aria-label="ดูในมุมมองอื่น">
         <svg class="ico ico-lg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg><span class="hub-btn-label">ดูในมุมมองอื่น</span>
       </button>
       <button class="hub-icon-btn admin-role-only" onclick="openAdminToolsModal()" title="เครื่องมือผู้ดูแลระบบ" aria-label="เครื่องมือผู้ดูแลระบบ">
@@ -4564,6 +4569,7 @@ function enterApp(role) {
     if (loginCard) loginCard.classList.remove('exiting');
     loginView.classList.remove('fading-out');
     isAdminMode = isTeamMgmt;  // ทุก Team Mgmt role = admin view (ดูทุกระบบ)
+    try { viewAsBtnPaint(); } catch(e) {}
     showMenuView();
     var user = findUserByCode(branchPin);
     var welcomeText = isTeamMgmt
@@ -6531,7 +6537,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-09-28 · 17:15';
+var HUB_BUILD = '2026-09-28 · 17:40';
 
 /* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
    GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
@@ -7411,6 +7417,22 @@ function openAdminToolsModal() {
    ทุกระบบอ่านตัวตนจากที่เดียวกัน จึงเห็นเหมือนคนนั้นล็อกอินเข้ามาเอง
    ตัวจริงเก็บไว้ที่ fab_view_as_real กดกลับเป็นตัวเองได้ทุกหน้า (modules/view-as.js) */
 var VIEW_AS_FLAG = 'fab_view_as', VIEW_AS_REAL = 'fab_view_as_real';
+/* ปุ่มเดียวทำสองหน้าที่ — ปกติ = เข้าไปเลือกมุมมอง · กำลังสวมอยู่ = กลับเป็นตัวเอง
+   (ที่เดิม ที่เดียว ไม่ต้องไปหาปุ่มกลับที่อื่น) */
+function viewAsBtnClick() {
+  if (_viewAsOn()) { if (window.fabViewAsExit) window.fabViewAsExit(); else fabViewAsRehome(); return; }
+  openViewAsModal();
+}
+function _viewAsOn(){ try { return !!localStorage.getItem(VIEW_AS_FLAG); } catch(e) { return false; } }
+function viewAsBtnPaint() {
+  var b = document.getElementById('btnViewAs');
+  if (!b) return;
+  var on = _viewAsOn();
+  b.classList.toggle('on', on);
+  b.title = on ? 'กลับไปใช้บัญชีของตัวเอง' : 'ดูในมุมมองของสาขาหรือคนอื่น';
+  var lb = b.querySelector('.hub-btn-label');
+  if (lb) lb.textContent = on ? 'กลับเป็นตัวเอง' : 'ดูในมุมมองอื่น';
+}
 function _viewAsList(kind) {
   if (kind === 'branch') {
     return Object.keys(BRANCHES).sort().map(function(code){
@@ -7473,7 +7495,7 @@ function viewAsGo(code, isBranch) {
        ถ้า reload จะเด้งไปหน้ากรอกรหัสทันที */
     var u = isBranch ? null : findUserByCode(code);
     enterApp(isBranch ? 'branch' : ((u && u.role) || 'admin'));
-    setTimeout(function(){ if (window.fabViewAsPaint) window.fabViewAsPaint(); }, 50);
+    setTimeout(function(){ if (window.fabViewAsPaint) window.fabViewAsPaint(); viewAsBtnPaint(); }, 50);
   } catch (e) { alert('สลับมุมมองไม่สำเร็จ: ' + e.message); return; }
 }
 /* กลับเป็นตัวเองขณะอยู่ในฮับ — view-as.js คืนค่า session ให้แล้ว เหลือวาดเมนูใหม่ */
