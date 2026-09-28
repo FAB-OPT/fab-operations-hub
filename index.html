@@ -6548,7 +6548,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-09-28 · 18:45';
+var HUB_BUILD = '2026-09-28 · 19:00';
 
 /* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
    GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
@@ -7452,8 +7452,13 @@ function _viewAsList(kind) {
     });
   }
   var roleTitle = { admin:'Admin', coo:'COO', vp:'VP', bzm:'BZM', support:'Support' };
+  /* เรียงตามลำดับตำแหน่งจริง ไม่ใช่ตามตัวอักษรของคีย์ (ของเดิม bzm ขึ้นก่อน coo/vp)
+     ตำแหน่งเดียวกันเรียงชื่อเล่นตามพจนานุกรมไทย */
+  var order = { admin:0, coo:1, vp:2, bzm:3, support:4 };
   return (USERS || []).slice().sort(function(a, b){
-    return String(a.role).localeCompare(String(b.role)) || String(a.nick || a.name).localeCompare(String(b.nick || b.name), 'th');
+    var ra = order[a.role] == null ? 9 : order[a.role], rb = order[b.role] == null ? 9 : order[b.role];
+    if (ra !== rb) return ra - rb;
+    return String(a.nick || a.name || '').localeCompare(String(b.nick || b.name || ''), 'th');
   }).map(function(u){
     return { code: u.code, label: (u.nick || u.name || u.code), sub: (u.name || ''), role: u.role || '',
              tag: roleTitle[u.role] || u.role || '', isBranch: false };
