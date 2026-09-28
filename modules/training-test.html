@@ -1344,6 +1344,9 @@ function scoresHtml(t, bare){
   const rows = ppl.map(p => {
     const pre = attemptOf(t.key, 'pre', p.id), post = attemptOf(t.key, 'post', p.id);
     const d = pre && post ? Number(post.score) - Number(pre.score) : null;
+    return { p, pre, post, d };
+  }).sort((a, b) => ttRank(a.post && a.post.pct, a.d, a.p.name, b.post && b.post.pct, b.d, b.p.name))
+    .map(({ p, pre, post, d }) => {
     return `<tr><td class="sc-n">${esc(p.name)}</td><td class="c">${cell(pre)}</td><td class="c">${cell(post)}</td>
       <td class="c">${d == null ? '<span class="muted">—</span>' : `<span class="sc-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}</span>`}</td></tr>`;
   }).join('');
@@ -1611,6 +1614,15 @@ function renderResult(d, extra){
 let rf = { training:'', branch:'', q:'' };
 
 /* 1 แถว = 1 คน พร้อมคะแนนก่อนและหลังของการอบรมนั้น */
+/* กติกาเรียงเดียวกันทั้งระบบ: คะแนนหลังเรียนมากไปน้อย · เท่ากันดูที่พัฒนาขึ้น · เท่ากันอีกเรียงชื่อ
+   คนที่ยังไม่ได้ทำหลังเรียนไปอยู่ท้ายสุดเสมอ (ยังไม่มีคะแนนให้เทียบ) */
+function ttRank(aPost, aDiff, aName, bPost, bDiff, bName){
+  const pa = aPost == null ? -1 : Number(aPost), pb = bPost == null ? -1 : Number(bPost);
+  if (pa !== pb) return pb - pa;
+  const da = aDiff == null ? -999 : aDiff, db = bDiff == null ? -999 : bDiff;
+  if (da !== db) return db - da;
+  return String(aName || '').localeCompare(String(bName || ''), 'th');
+}
 function resultRows(){
   const list = [];
   trainings.filter(t => !rf.training || t.key === rf.training).forEach(t => {
@@ -1624,7 +1636,8 @@ function resultRows(){
   const q = (rf.q || '').trim().toLowerCase();
   return list.filter(r =>
     (!rf.branch || (r.p.branch || '') === rf.branch) &&
-    (!q || (`${r.p.name} ${r.p.branch || ''} ${r.t.title}`).toLowerCase().includes(q)));
+    (!q || (`${r.p.name} ${r.p.branch || ''} ${r.t.title}`).toLowerCase().includes(q)))
+    .sort((a, b) => ttRank(a.post && a.post.pct, a.diff, a.p.name, b.post && b.post.pct, b.diff, b.p.name));
 }
 
 function renderResults(){
@@ -1992,13 +2005,7 @@ function reportTestHtml(t){
   const both = rows.filter(r => r.d != null);
   /* เรียงคะแนนหลังเรียนมากไปน้อย — เปิดรายงานเห็นคนได้มากสุดก่อน คนที่ยังไม่ทำไปอยู่ท้ายสุด
      คะแนนเท่ากันเอาคนที่พัฒนาขึ้นมากกว่าขึ้นก่อน */
-  rows.sort((a, b) => {
-    const pa = a.post ? Number(a.post.pct) : -1, pb = b.post ? Number(b.post.pct) : -1;
-    if (pa !== pb) return pb - pa;
-    const da = a.d == null ? -99 : a.d, db = b.d == null ? -99 : b.d;
-    if (da !== db) return db - da;
-    return String(a.p.name || '').localeCompare(String(b.p.name || ''), 'th');
-  });
+  rows.sort((a, b) => ttRank(a.post && a.post.pct, a.d, a.p.name, b.post && b.post.pct, b.d, b.p.name));
   const avgOf = (list, fn) => list.length ? list.reduce((a, r) => a + fn(r), 0) / list.length : null;
   const aPre = avgOf(both, r => Number(r.pre.pct)), aPost = avgOf(both, r => Number(r.post.pct));
   const up = both.filter(r => r.d > 0).length, same = both.filter(r => r.d === 0).length, down = both.filter(r => r.d < 0).length;
