@@ -6525,7 +6525,7 @@ function loadPermsFromCloud() {
 /* รุ่นของไฟล์นี้ — บัมพ์ทุกครั้งที่แก้ index.html
    GitHub Pages แคช index.html ไว้ ~10 นาที เบราว์เซอร์อาจใช้ของเก่าอยู่โดยไม่รู้ตัว
    เอาไว้เทียบว่าที่เปิดอยู่เป็นรุ่นล่าสุดจริงไหม (เคยหลงมาแล้ว 2 รอบ) */
-var HUB_BUILD = '2026-09-28 · 16:10';
+var HUB_BUILD = '2026-09-28 · 16:45';
 
 /* ═══════════ เช็คว่ามีเวอร์ชันใหม่บนเซิร์ฟเวอร์ไหม ═══════════
    GitHub Pages ส่ง Cache-Control: max-age=600 มากับ index.html
@@ -7459,16 +7459,27 @@ function viewAsGo(code, isBranch) {
         session: localStorage.getItem(FAB_SESSION_KEY) || ''
       }));
     }
-    sessionStorage.setItem('fab_role', isBranch ? 'branch' : 'admin');
-    sessionStorage.setItem('fab_branch_pin', code);
-    sessionStorage.setItem('fab_branch_name', isBranch ? (BRANCHES[code] || '') : '');
     branchPin = code;
     currentBranchName = isBranch ? (BRANCHES[code] || '') : '';
-    saveFabSession(isBranch ? 'branch' : 'tm', code, code, currentBranchName);
     localStorage.setItem(VIEW_AS_FLAG, (isBranch ? code + ' ' : '') + name);
+    closeViewAsModal();
+    /* enterApp เขียน session + วาดเมนูใหม่ในหน้าเดิม — ฮับไม่กู้ session อัตโนมัติ
+       ถ้า reload จะเด้งไปหน้ากรอกรหัสทันที */
+    var u = isBranch ? null : findUserByCode(code);
+    enterApp(isBranch ? 'branch' : ((u && u.role) || 'admin'));
+    setTimeout(function(){ if (window.fabViewAsPaint) window.fabViewAsPaint(); }, 50);
   } catch (e) { alert('สลับมุมมองไม่สำเร็จ: ' + e.message); return; }
-  location.reload();
 }
+/* กลับเป็นตัวเองขณะอยู่ในฮับ — view-as.js คืนค่า session ให้แล้ว เหลือวาดเมนูใหม่ */
+window.fabViewAsRehome = function () {
+  try {
+    var role = sessionStorage.getItem('fab_role') || '';
+    var pin = sessionStorage.getItem('fab_branch_pin') || '';
+    branchPin = pin;
+    if (role === 'branch') { currentBranchName = getBranchFullName(pin); enterApp('branch'); }
+    else { var u = findUserByCode(pin); currentBranchName = ''; enterApp((u && u.role) || 'admin'); }
+  } catch (e) { location.reload(); }
+};
 function closeAdminToolsModal() {
   document.getElementById('adminToolsModal').classList.remove('show');
 }

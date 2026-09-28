@@ -28,6 +28,10 @@
       localStorage.removeItem(FLAG);
       localStorage.removeItem(REAL);
     } catch (e) {}
+    var bar = document.getElementById('fabViewAsBar');
+    if (bar) bar.remove();
+    /* ฮับไม่กู้ session อัตโนมัติ reload แล้วจะเด้งไปหน้ากรอกรหัส — ให้หน้านั้นจัดการเอง */
+    if (typeof window.fabViewAsRehome === 'function') { window.fabViewAsRehome(); return; }
     location.reload();
   }
 
@@ -62,4 +66,5 @@
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', paint);
   else paint();
   window.fabViewAsExit = exit;
+  window.fabViewAsPaint = paint;   /* ฮับสลับมุมมองในหน้าเดิม ไม่ได้โหลดใหม่ ต้องสั่งวาดแถบเอง */
 })();
