@@ -2835,7 +2835,9 @@ label.fld>span>b{font-weight:800}
       <label class="fld"><span>ชื่อ–สกุลผู้เข้าสอบ <b class="req">*</b></span>
         <input class="txt" id="reqName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
       <label class="fld"><span>ตำแหน่ง <b class="req">*</b></span>
-        <input class="txt" id="reqPosition" placeholder="เช่น พนักงานครัว / ผู้ช่วยผู้จัดการ" autocomplete="off"></label>
+        <select class="txt" id="reqPositionSel" hidden onchange="oeReqPosPick()"></select>
+        <input class="txt" id="reqPosition" placeholder="เช่น พนักงานครัว / ผู้ช่วยผู้จัดการ" autocomplete="off">
+        <em class="fld-hint" id="reqPosHint" hidden>เกณฑ์ผ่านขึ้นกับตำแหน่ง · เลือกแล้วเปลี่ยนตอนสอบไม่ได้</em></label>
       <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน <b class="req">*</b></span>
         <input class="txt" id="reqEmpId" placeholder="เช่น 100234" autocomplete="off">
         <em class="fld-hint">ชื่อที่กรอกตรงนี้จะถูกใช้เป็นชื่อในผลสอบ แก้ตอนสอบไม่ได้</em></label>
@@ -6488,6 +6490,11 @@ function _oePosFieldPaint(){
   var list = oePosList(R.exam);
   if(!list.length){ sel.hidden = true; inp.hidden = false; return; }
   sel.hidden = false; inp.hidden = true;
+  /* ตำแหน่งมาจากใบขอสิทธิ์ที่อนุมัติแล้ว = เปลี่ยนไม่ได้ (เกณฑ์ผ่านผูกกับใบนั้น) */
+  var locked = !!(R.accessCode && R.student && R.student.position &&
+    list.some(function(x){ return x.name === String(R.student.position).trim(); }));
+  sel.disabled = locked;
+  sel.title = locked ? 'ตำแหน่งตามใบขอสิทธิ์ที่อนุมัติแล้ว เปลี่ยนไม่ได้' : '';
   var cur = String(inp.value || '').trim().toLowerCase();
   var keep = list.filter(function(x){ return x.name.toLowerCase() === cur; })[0];
   sel.innerHTML = '<option value="">— เลือกตำแหน่งของคุณ —</option>' +
@@ -8828,12 +8835,30 @@ function openReqForm(examId){
   $('reqName').value = '';
   $('reqEmpId').value = '';
   $('reqPosition').value = '';
+  _oeReqPosPaint();
   $('reqFormMsg').textContent = '';
   _reqTrack = '';
   _oeReqTrackPaint();
   $('reqModal').classList.add('show');
   if(!_oeFillReqBranch()) oeLoadPermsFromHub();   // ผลลัพธ์จะวิ่งกลับมาเติมเองที่ _oeCacheBranches
   setTimeout(function(){ $('reqName').focus(); }, 60);
+}
+/* ชุดที่ตั้งเกณฑ์ผ่านตามตำแหน่ง — เลือกตำแหน่งตั้งแต่ตอนขอสิทธิ์
+   ผู้อนุมัติจะได้เห็นว่าขอสอบในเกณฑ์ไหน และตอนเข้าสอบไม่ต้องเลือกซ้ำ (ล็อกตามใบที่อนุมัติ) */
+function _oeReqPosPaint(){
+  var sel = $('reqPositionSel'), inp = $('reqPosition'), hint = $('reqPosHint');
+  if(!sel || !inp) return;
+  var list = oePosList(_reqExam);
+  if(!list.length){ sel.hidden = true; inp.hidden = false; if(hint) hint.hidden = true; return; }
+  sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
+  sel.innerHTML = '<option value="">— เลือกตำแหน่งที่จะสอบ —</option>' +
+    list.map(function(x){ return '<option value="' + esc(x.name) + '">' + esc(x.name) + ' · เกณฑ์ผ่าน ' + x.pass + '%</option>'; }).join('');
+  sel.value = '';
+  inp.value = '';
+}
+function oeReqPosPick(){
+  var sel = $('reqPositionSel'), inp = $('reqPosition');
+  if(sel && inp) inp.value = sel.value;   /* โค้ดที่เหลืออ่านค่าจากช่องเดิมเหมือนเดิม */
 }
 /* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนก็ให้เลือกเอง
    ทะเบียนว่าง = เครื่องนี้ยังไม่เคยได้ข้อมูลจากฮับ ไปดึงมาแล้วเติมให้ใหม่
@@ -8877,7 +8902,12 @@ function submitExamRequest(){
   var branch = (currentBranchName || $('reqBranch').value || '').trim();
   if(!branch){ $('reqFormMsg').textContent = 'กรุณาเลือกสาขา'; $('reqBranch').focus(); return; }
   var position = $('reqPosition').value.trim();
-  if(!position){ $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); return; }
+  if(!position){
+    var _posSel = $('reqPositionSel');
+    if(_posSel && !_posSel.hidden){ $('reqFormMsg').textContent = 'กรุณาเลือกตำแหน่งที่จะสอบ — เกณฑ์ผ่านขึ้นกับตำแหน่ง'; _posSel.focus(); }
+    else { $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); }
+    return;
+  }
   if(!_reqExam) return;
   if(oePartMode(_reqExam) && !_reqTrack){ $('reqFormMsg').textContent = 'กรุณาเลือกส่วนที่จะสอบ — บริการ / ครัว / ทั้งหมด'; return; }
   var _who = getHubSession() || {};
