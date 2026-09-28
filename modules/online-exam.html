@@ -1237,6 +1237,20 @@ select.txt{appearance:none;-webkit-appearance:none;
 .p-in input::-webkit-outer-spin-button,.p-in input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .p-in i{font-style:normal;font-size:12px;color:var(--text3);font-weight:700}
 .p-row.off{opacity:.45}
+/* เอกสารที่แนบกับผลสอบ + ขั้นฐานเงินเดือน — ตั้งได้รายชุดข้อสอบ */
+.doc-pick{display:flex;flex-wrap:wrap;gap:8px}
+.doc-pick label{display:flex;align-items:center;gap:8px;border:1.5px solid var(--border);border-radius:10px;
+  padding:8px 12px;font-size:13px;font-weight:600;cursor:pointer;background:var(--card)}
+.doc-pick input{width:16px;height:16px;accent-color:var(--gold);cursor:pointer}
+.bump-box{margin:4px 0 10px;padding:12px 14px;border:1.5px dashed var(--border);border-radius:12px}
+.bump-box.hidden{display:none}
+.bump-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;font-size:13px;font-weight:600;color:var(--text2)}
+.bump-row input{width:86px;padding:7px 10px;border:1.5px solid var(--border);border-radius:8px;
+  background:var(--card);color:var(--text);font:inherit;text-align:right}
+.bump-row .x{margin-left:auto;border:0;background:transparent;color:var(--text2);cursor:pointer;font-size:15px;padding:2px 6px}
+.bump-add{border:1.5px dashed var(--border);background:transparent;color:var(--text2);border-radius:9px;
+  padding:7px 14px;font:inherit;font-size:13px;font-weight:700;cursor:pointer}
+.docs-none{font-size:13px;font-weight:600;color:var(--text2)}
 .p-note{font-size:12px;color:var(--text3);line-height:1.55;margin:-2px 0 10px}
 .ed2 .switch-row{padding:10px 0;border-bottom:1px dashed var(--border)}
 .ed2 .switch-row:last-child{border-bottom:0}
@@ -2465,6 +2479,17 @@ label.fld>span>b{font-weight:800}
               <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ / ออกหน้าจอ</div><div class="sw-d">ออกจากหน้านี้เมื่อไร นับเป็นการเตือน</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen และเครื่องมือจับภาพ</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์และส่งข้อสอบทันทีเมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
+
+              <!-- แต่ละชุดใช้เอกสารคนละชุดและไม่ได้ผูกกับฐานเงินเดือนเหมือนกันหมด จึงตั้งแยกรายชุด -->
+              <div class="p-row" style="flex-direction:column;align-items:stretch;gap:9px">
+                <div class="p-lb">เอกสารที่แนบกับผลสอบ<small>ติ๊กเฉพาะใบที่ชุดนี้ต้องใช้ · ใบผลสอบมีอยู่แล้วทุกชุด</small></div>
+                <div class="doc-pick" id="edDocs"></div>
+              </div>
+              <div class="switch-row"><div><div class="sw-t">ผ่านแล้วได้ปรับฐานเงินเดือน</div><div class="sw-d">ตั้งเองว่าคะแนนเท่าไรได้เพิ่มเท่าไร · ปิดไว้ = ชุดนี้ไม่เกี่ยวกับฐานเงินเดือน</div></div><label class="sw"><input type="checkbox" id="edBumpMode" onchange="oeBumpModeToggle()"><span class="track"></span></label></div>
+              <div class="bump-box hidden" id="edBumpBox">
+                <div id="edBumpRows"></div>
+                <button type="button" class="bump-add" onclick="oeBumpAdd()">+ เพิ่มขั้นคะแนน</button>
+              </div>
             </div>
           </section>
 
@@ -3497,7 +3522,38 @@ function _oeResyncMode(){
    จะได้ย้อนดูได้ว่าจริง ๆ ทำได้เท่าไร */
 var OE_PASS_PCT   = 70;
 var OE_RETAKE_DAY = 14;
-var OE_BUMP = [[90, 1500], [80, 1000], [70, 500]];   /* คะแนนตั้งแต่ → ฐานเงินเดือนที่เพิ่ม */
+var OE_BUMP = [[90, 1500], [80, 1000], [70, 500]];   /* ค่าเริ่มต้นของชุดที่ยังไม่เคยตั้งเอง */
+
+/* ── เอกสารประกอบผลสอบ + ฐานเงินเดือน · ตั้งได้รายชุดข้อสอบ ──
+   แต่ละชุดใช้เอกสารไม่เหมือนกัน (ชุดปรับตำแหน่งไม่ได้ใช้ใบประเมินทดลองงาน)
+   และไม่ใช่ทุกชุดที่ผูกกับการปรับฐานเงินเดือน
+   ชุดที่ยังไม่เคยตั้งค่า (ex.docs / ex.bump ไม่มี) ใช้ของเดิมทั้งหมด
+   จะได้ไม่มีอะไรหายไปจากใบที่เคยพิมพ์ไปแล้ว */
+var OE_DOC_LIST = [
+  { key:'adjust',   label:'ใบปรับสภาพ' },
+  { key:'evaluate', label:'แบบประเมินทดลองงาน' },
+  { key:'service',  label:'แบบประเมินผลการบริการ' },
+  { key:'kitchen',  label:'แบบประเมินผลงานครัว' }
+];
+function oeExamDocs(ex){
+  var d = ex && ex.docs;
+  if(!Array.isArray(d)) return OE_DOC_LIST.map(function(x){ return x.key; });
+  return OE_DOC_LIST.map(function(x){ return x.key; }).filter(function(k){ return d.indexOf(k) >= 0; });
+}
+/* [[คะแนนตั้งแต่ %, บาทที่เพิ่ม], ...] เรียงมากไปน้อย · [] = ชุดนี้ไม่เกี่ยวกับฐานเงินเดือน */
+function oeExamBump(ex){
+  var b = ex && ex.bump;
+  if(!Array.isArray(b)) return OE_BUMP;
+  return b.map(function(x){ return [Number(x[0]) || 0, Number(x[1]) || 0]; })
+          .filter(function(x){ return x[1] > 0; })
+          .sort(function(a, c){ return c[0] - a[0]; });
+}
+/* ผลสอบเก็บแค่ชื่อ/ไอดีชุด ต้องตามไปหาตัวชุดเองเวลาจะดูค่าที่ตั้งไว้ */
+function _oeExamOf(r){
+  if(!r) return null;
+  return (EXAMS || []).find(function(e){ return r.examId && e.id === r.examId; }) ||
+         (EXAMS || []).find(function(e){ return r.examTitle && e.title === r.examTitle; }) || null;
+}
 
 /* ══ แบ่งส่วนข้อสอบ บริการ / ครัว ══
    ชุดเดียวแบ่งเป็นสองส่วน ผู้สอบเลือกเองว่าจะสอบ บริการ · ครัว · หรือทั้งหมด
@@ -3613,8 +3669,9 @@ function _oeEffPct(r){
   var raw = Number(r && r.pct) || 0;
   return _oeCapped(r) ? OE_PASS_PCT : raw;
 }
-function _oeBump(pct){
-  for(var i = 0; i < OE_BUMP.length; i++) if(pct >= OE_BUMP[i][0]) return OE_BUMP[i][1];
+function _oeBump(pct, ex){
+  var tb = oeExamBump(ex);
+  for(var i = 0; i < tb.length; i++) if(pct >= tb[i][0]) return tb[i][1];
   return 0;
 }
 /* เหลือกี่วันที่ยังสอบใหม่ได้ · null = สอบใหม่ไม่ได้แล้ว (ผ่านแล้ว/ครบสองรอบ/เลย 14 วัน) */
@@ -4590,6 +4647,12 @@ function openExamEditor(id){
   $('edLeave').checked = ex ? ex.blockLeaveScreen!==false : true;
   $('edShot').checked = ex ? ex.blockScreenshot!==false : true;
   $('edAuto').checked = ex ? ex.autoSubmitOnMaxViolations!==false : true;
+  _oeDocsPaint(oeExamDocs(ex));
+  /* ชุดที่ปิดฐานเงินเดือนไว้เอง (bump: []) ต้องไม่ถูกเปิดกลับตอนเปิดฟอร์ม */
+  var _bp = ex ? oeExamBump(ex) : OE_BUMP;
+  $('edBumpMode').checked = _bp.length > 0;
+  _oeBumpPaint(_bp);
+  oeBumpModeToggle();
   draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
   _qOpen = {};
   renderQEditor();
@@ -5251,6 +5314,51 @@ function doFileImport(){
   var ip=$('importPanel'); if(ip) ip.classList.add('hidden');   // พับแผงนำเข้าหลังนำเข้าเสร็จ
 }
 
+/* ── เอกสาร + ฐานเงินเดือน รายชุดข้อสอบ ── */
+function _oeDocsPaint(sel){
+  var box = $('edDocs'); if(!box) return;
+  box.innerHTML = OE_DOC_LIST.map(function(d){
+    return '<label><input type="checkbox" value="' + d.key + '"' +
+      (sel.indexOf(d.key) >= 0 ? ' checked' : '') + '>' + esc(d.label) + '</label>';
+  }).join('');
+}
+function _oeDocsRead(){
+  var box = $('edDocs');
+  if(!box) return OE_DOC_LIST.map(function(d){ return d.key; });
+  return [].slice.call(box.querySelectorAll('input:checked')).map(function(i){ return i.value; });
+}
+function _oeBumpRowHtml(pct, baht){
+  return '<div class="bump-row">ตั้งแต่ <input type="number" min="0" max="100" class="b-pct" value="' + pct + '"> % ขึ้นไป' +
+    ' → เพิ่ม <input type="number" min="0" step="100" class="b-amt" value="' + baht + '"> บาท' +
+    '<button type="button" class="x" title="ลบขั้นนี้" onclick="oeBumpDel(this)">✕</button></div>';
+}
+function _oeBumpPaint(list){
+  var box = $('edBumpRows'); if(!box) return;
+  box.innerHTML = ((list && list.length) ? list : OE_BUMP).map(function(b){
+    return _oeBumpRowHtml(b[0], b[1]);
+  }).join('');
+}
+function oeBumpAdd(){
+  var box = $('edBumpRows'); if(!box) return;
+  box.insertAdjacentHTML('beforeend', _oeBumpRowHtml(70, 500));
+}
+function oeBumpDel(btn){
+  var row = (btn && btn.closest) ? btn.closest('.bump-row') : null;
+  if(row) row.remove();
+}
+function oeBumpModeToggle(){
+  var box = $('edBumpBox');
+  if(box) box.classList.toggle('hidden', !($('edBumpMode') && $('edBumpMode').checked));
+}
+/* เรียงมากไปน้อยให้เอง คนกรอกจะได้ไม่ต้องคิดลำดับ · ขั้นที่ให้ 0 บาทถือว่าไม่ได้ตั้ง */
+function _oeBumpRead(){
+  var box = $('edBumpRows'); if(!box) return [];
+  return [].slice.call(box.querySelectorAll('.bump-row')).map(function(row){
+    return [Math.min(100, Math.max(0, parseInt(row.querySelector('.b-pct').value) || 0)),
+            Math.max(0, parseInt(row.querySelector('.b-amt').value) || 0)];
+  }).filter(function(b){ return b[1] > 0; }).sort(function(a, c){ return c[0] - a[0]; });
+}
+
 function collectExamFromForm(){
   syncDraftFromDOM();
   var title = $('edTitle').value.trim();
@@ -5297,6 +5405,8 @@ function collectExamFromForm(){
     autoSubmitOnMaxViolations: $('edAuto').checked,
     partMode: pm,
     posPass: $('edPosMode').checked ? _oePosRead() : [],
+    docs: _oeDocsRead(),
+    bump: $('edBumpMode').checked ? _oeBumpRead() : [],
     passService: Math.min(100, Math.max(0, parseInt($('edPassSrv').value)||70)),
     passKitchen: Math.min(100, Math.max(0, parseInt($('edPassKit').value)||70)),
     timeService: Math.max(1, parseInt($('edTimeSrv').value)||20),
@@ -5778,7 +5888,7 @@ function _oeRuleNote(r, isRound2){
   var left = isRound2 ? null : _oeRetakeLeft(r);
   if(left != null) out.push('<span class="rn warn">สอบใหม่ได้อีก 1 ครั้ง ภายใน ' + left
     + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่</span>');
-  var bump = isPass(r) ? _oeBump(capped ? OE_PASS_PCT : _oeEffPct(r)) : 0;
+  var bump = isPass(r) ? _oeBump(capped ? OE_PASS_PCT : _oeEffPct(r), _oeExamOf(r)) : 0;
   if(bump) out.push('<span class="rn ok">ได้ฐานเงินเดือนเพิ่ม ' + bump.toLocaleString() + ' บาท</span>');
   return out.length ? '<div class="rd-rules">' + out.join('') + '</div>' : '';
 }
@@ -5986,7 +6096,8 @@ function _oeReportHtml(r){
   var wrong = Math.max(0, total - right);
   var pct = (total > 0) ? Math.round(right / total * 100) : (Number(r.pct) || 0);
   /* คะแนนที่ใช้จริงตามกติกา (รอบสองตัดเหลือเท่าเกณฑ์) กับฐานเงินเดือนที่ได้ */
-  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff) : 0;
+  var _exOf = _oeExamOf(r), _bumpTbl = oeExamBump(_exOf);
+  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff, _exOf) : 0;
   var v = Number(r.violations || 0);
   var um = _oeUsedMin(r);
   var per = (um != null && total > 0) ? (um / total) : null;
@@ -6038,11 +6149,12 @@ function _oeReportHtml(r){
   } else if(passMark != null) rows.push(['เกณฑ์ผ่าน',
     '<b>' + passMark + '</b> % ขึ้นไป' + (r.position ? '<span class="gap">ตำแหน่ง ' + esc(r.position) + '</span>' : ''), 0]);
   rows.push(['ผลการประเมิน', cbox(pass, 'ผ่าน', 'ok') + cbox(!pass, 'ไม่ผ่าน', 'bad'), 0]);
-  /* ตัวเลขนี้คือเหตุผลที่คนสอบอยากรู้ผลที่สุด ต้องอยู่ในใบที่พิมพ์ */
-  rows.push(['ฐานเงินเดือนที่เพิ่ม', bump
+  /* ตัวเลขนี้คือเหตุผลที่คนสอบอยากรู้ผลที่สุด ต้องอยู่ในใบที่พิมพ์
+     ชุดที่ไม่ได้ผูกกับฐานเงินเดือนไม่ต้องมีแถวนี้เลย ดีกว่าขึ้นขีดกลางให้สงสัย */
+  if(_bumpTbl.length) rows.push(['ฐานเงินเดือนที่เพิ่ม', bump
     ? '<b class="big">' + bump.toLocaleString() + '</b> บาท <span class="gap">(เกณฑ์ '
-      + OE_BUMP.map(function(b2, i){
-          var hi = i ? (OE_BUMP[i - 1][0] - 1) : 100;
+      + _bumpTbl.map(function(b2, i){
+          var hi = i ? (_bumpTbl[i - 1][0] - 1) : 100;
           return b2[0] + '-' + hi + ' % = ' + b2[1].toLocaleString();
         }).reverse().join(' · ') + ' บาท)</span>'
     : '<b>-</b> <span class="gap">ได้เมื่อผ่านเกณฑ์เท่านั้น</span>', 0]);
@@ -7342,7 +7454,8 @@ function _docSheetExam(r){
   var right = Number(r.correct);
   if(isNaN(right)) right = ans.filter(_oeAnsOk).length;
   var pct = (total > 0) ? Math.round(right / total * 100) : (Number(r.pct) || 0);
-  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff) : 0;
+  var _exOf = _oeExamOf(r), _bumpTbl = oeExamBump(_exOf);
+  var eff = _oeCapped(r) ? OE_PASS_PCT : pct, capped = _oeCapped(r), bump = pass ? _oeBump(eff, _exOf) : 0;
   var ex = (EXAMS || []).find(function(e){ return r.examId && e.id === r.examId; });
   var passMark = (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
   var um = _oeUsedMin(r);
@@ -7413,7 +7526,7 @@ function _docPayNum(v){
 }
 function _docPayBump(){
   var r = _docR;
-  return (r && isPass(r)) ? _oeBump(_oeEffPct(r)) : 0;
+  return (r && isPass(r)) ? _oeBump(_oeEffPct(r), _oeExamOf(r)) : 0;
 }
 function _docPayCalc(){
   var box = document.querySelector('#docsSheets [data-doc="adjust"]');
@@ -7459,11 +7572,15 @@ function openDocSet(){
   var ov = $('examOverlay');
   _docFromExam = !!(ov && ov.classList.contains('show'));
   if(_docFromExam) ov.classList.remove('show');
-  $('docsPick').innerHTML =
-    '<label><input type="checkbox" id="pickAdjust" onchange="docsPickForm(\'adjust\',this.checked)">ใบปรับสภาพ</label>' +
-    '<label><input type="checkbox" id="pickEvaluate" onchange="docsPickForm(\'evaluate\',this.checked)">แบบประเมินทดลองงาน</label>' +
-    '<label><input type="checkbox" id="pickService" onchange="docsPickForm(\'service\',this.checked)">แบบประเมินผลการบริการ</label>' +
-    '<label><input type="checkbox" id="pickKitchen" onchange="docsPickForm(\'kitchen\',this.checked)">แบบประเมินผลงานครัว</label>';
+  /* ใบที่ให้ติ๊กมาจากที่ตั้งไว้ในชุดข้อสอบ — ชุดปรับตำแหน่งไม่ต้องเห็นใบประเมินทดลองงาน */
+  var _picks = oeExamDocs(_oeExamOf(r));
+  var _pickId = { adjust:'pickAdjust', evaluate:'pickEvaluate', service:'pickService', kitchen:'pickKitchen' };
+  $('docsPick').innerHTML = _picks.length
+    ? OE_DOC_LIST.filter(function(d){ return _picks.indexOf(d.key) >= 0; }).map(function(d){
+        return '<label><input type="checkbox" id="' + _pickId[d.key] + '" onchange="docsPickForm(\''
+          + d.key + '\',this.checked)">' + esc(d.label) + '</label>';
+      }).join('')
+    : '<span class="docs-none">ชุดนี้ไม่ได้ตั้งเอกสารแนบไว้ — มีเฉพาะใบผลสอบ</span>';
   /* เปิดมาเห็นแค่ใบผลสอบ ที่เหลือติ๊กเอาเองตามที่ต้องใช้จริง
      ไม่ใช่ทุกครั้งที่ต้องมีใบปรับสภาพ กางมาให้ทุกทีก็ต้องเลื่อนผ่านเปล่า ๆ */
   $('docsSheets').innerHTML = _docSheetExam(r);
