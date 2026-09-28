@@ -5311,10 +5311,40 @@ function collectExamFromForm(){
   };
 }
 
+/* หน้าที่เปิดค้างไว้นาน ๆ ถือคำถามชุดเก่าอยู่ในมือ พอกดบันทึกจะเขียนทับของใหม่ทั้งก้อน
+   (เกิดจริง 28 ก.ย. 69 — เพิ่มคำถาม 2 ข้อทางระบบ แล้วแท็บเก่ากดบันทึกทับ คำถามหายไป)
+   ก่อนบันทึกจึงไปอ่านของจริงมาเทียบก่อน ถ้าของจริงมีมากกว่า ให้คนกดตัดสินใจ */
+function _oeConfirmOverwrite(exam){
+  if(!exam || !exam.id) return Promise.resolve(true);
+  var mine = (exam.questions || []).length;
+  return OE_SB.mode().then(function(sb){
+    if(!sb) return true;
+    return OE_SB.rpc('oe_exams', {}).then(function(r){
+      var list = (r && r.exams) || r || [];
+      var cur = list.filter(function(x){ return x.id === exam.id; })[0];
+      var now = cur ? (cur.questions || []).length : 0;
+      if(now <= mine) return true;
+      return oeConfirm({
+        icon: '⚠️', title: 'คำถามในระบบมีมากกว่าในหน้านี้',
+        text: 'อาจมีคนเพิ่มคำถามหลังจากที่คุณเปิดหน้านี้ · กดบันทึกทับแล้วส่วนที่เพิ่มมาจะหายไป',
+        facts: [['ในระบบตอนนี้', now + ' ข้อ'], ['หน้านี้ถืออยู่', mine + ' ข้อ']],
+        warn: 'ถ้าไม่แน่ใจ ให้กดยกเลิกแล้วเปิดหน้าใหม่ ค่อยแก้อีกครั้ง',
+        yes: 'บันทึกทับ', no: 'ยกเลิก'
+      });
+    }).catch(function(){ return true; });   /* อ่านของจริงไม่ได้ ก็อย่าขวางการบันทึก */
+  }).catch(function(){ return true; });
+}
 function saveExam(){
   var exam = collectExamFromForm();
   if(!exam) return;
-  var btn=$('btnSaveExam'); var old=btn.innerHTML; btn.innerHTML='<span class="loading"></span> กำลังบันทึก…'; btn.disabled=true;
+  var btn=$('btnSaveExam'); var old=btn.innerHTML; btn.innerHTML='<span class="loading"></span> กำลังตรวจของล่าสุด…'; btn.disabled=true;
+  _oeConfirmOverwrite(exam).then(function(ok){
+    if(!ok){ btn.innerHTML=old; btn.disabled=false; return; }
+    btn.innerHTML='<span class="loading"></span> กำลังบันทึก…';
+    _saveExamNow(exam, btn, old);
+  });
+}
+function _saveExamNow(exam, btn, old){
   apiPost({ type:'save-exam', exam:exam }).then(function(res){
     if(res && res.ok){
       toast('บันทึกชุดข้อสอบเรียบร้อย','ok');
@@ -6271,13 +6301,9 @@ function renderBranchExams(){
         '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
         '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>' +
       '</div>' +
-      ((nDraw < nQ || ex.endDate || oePassDetail(ex))
-        ? '<div class="bx-note">'
-          + (nDraw < nQ ? '<span>สุ่มจากคลัง ' + nQ + ' ข้อ</span>' : '')
-          + (ex.endDate ? '<span>ปิดรับ ' + _oeDate(ex.endDate) + '</span>' : '')
-          + (oePassDetail(ex) ? '<span>' + esc(oePassDetail(ex)) + '</span>' : '')
-          + '</div>'
-        : '') +
+      /* เหลือแค่วันปิดรับ — จำนวนข้อในคลังกับเกณฑ์รายตำแหน่งเป็นเรื่องหลังบ้าน
+         สาขาเห็นเกณฑ์ของตัวเองตอนเลือกตำแหน่งในใบขอสิทธิ์อยู่แล้ว */
+      (ex.endDate ? '<div class="bx-note"><span>ปิดรับ ' + _oeDate(ex.endDate) + '</span></div>' : '') +
       /* ชุดที่ต้องขออนุมัติ จะไม่มีปุ่มเข้าสอบตรง ๆ — ต้องขอสิทธิ์แล้วรอรหัสก่อน */
       (examNeedsApproval(ex)
         ? '<button class="btn btn-primary" data-oe-action="request-exam" onclick="openReqForm(\'' + ex.id + '\')">' +
