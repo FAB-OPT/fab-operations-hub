@@ -2008,6 +2008,15 @@ const Hub = {
    ======================================================================= */
 const FV_PERM_KEY = 'fab_fqavisit_perms_v1';
 let FV_PERMS = null;
+/* ── รู้สิทธิ์จริงแล้วหรือยัง ──
+   เดิมถ้าเครื่องยังไม่มีแคชและฮับยังไม่ตอบ (หรือฮับล่ม) FV_PERMS จะเป็น null
+   ซึ่งถูกตีความว่า "ฮับไม่ได้ตั้ง = ไม่คุม" แล้วเปิดทุกเมนูให้ไปก่อน
+   สาขาที่เปิดบนมือถือเครื่องใหม่จึงเห็น "แผนการตรวจสาขา" ทั้งที่สิทธิ์ปิดอยู่
+   (เจอจริง 29 ก.ย. 69 — วันเดียวกับที่ Apps Script ของฮับล่มไปพักหนึ่ง สิทธิ์เลยโหลดไม่ได้ทั้งวัน)
+   ตอนนี้ระหว่างที่ยังไม่รู้ ให้เห็นเฉพาะเมนูพื้นฐานไปก่อน แล้วค่อยเปิดตามสิทธิ์จริงเมื่อรู้ */
+let FV_PERMS_READY = false;
+/* เมนูที่ทุกตำแหน่งเห็นได้ตามค่าที่ตั้งไว้ในฮับอยู่แล้ว — ปลอดภัยพอจะโชว์ระหว่างรอ */
+const FV_OPEN_ACTIONS = ['view-dash', 'view-list', 'view-report'];
 /* view (data-v) → action id ในตารางสิทธิ์ของฮับ */
 const FV_VIEW_ACTION = {
   dash:'view-dash', list:'view-list', plan:'view-plan',
@@ -2017,13 +2026,16 @@ const FV_VIEW_ACTION = {
 };
 function fvLoadPermsCache(){
   try{ FV_PERMS = JSON.parse(localStorage.getItem(FV_PERM_KEY) || 'null'); }catch(e){ FV_PERMS = null; }
+  if(FV_PERMS) FV_PERMS_READY = true;        // เคยโหลดจากฮับมาก่อน ใช้ของเดิมไปก่อนได้
 }
 function fvLoadPermsFromHub(){
   return fetch(HUB_SCRIPT_URL + '?action=config&_=' + Date.now())
     .then(r => r.json())
     .then(res => {
-      if(res && res.ok && res.perms && res.perms.fqavisit){
-        FV_PERMS = res.perms.fqavisit;
+      if(res && res.ok && res.perms){
+        /* ฮับตอบแล้วแต่ไม่มีของโมดูลนี้ = ยังไม่เคยตั้ง = ไม่คุม (เก็บเป็น {} เพื่อให้รู้ว่าถามแล้ว) */
+        FV_PERMS = res.perms.fqavisit || {};
+        FV_PERMS_READY = true;
         try{ localStorage.setItem(FV_PERM_KEY, JSON.stringify(FV_PERMS)); }catch(e){}
         fvApplyPerms();
       }
@@ -2031,7 +2043,11 @@ function fvLoadPermsFromHub(){
     .catch(e => console.warn('[perms] โหลดสิทธิ์จาก HUB ไม่ได้ — ใช้ค่าเดิม', e));
 }
 function fvCan(actionId){
-  if(!FV_PERMS || !actionId) return true;          // ฮับยังไม่ตั้ง = ไม่คุม
+  if(!actionId) return true;
+  /* ยังไม่รู้สิทธิ์ (ไม่มีแคช + ฮับยังไม่ตอบ/ล่ม) → ให้เฉพาะเมนูพื้นฐาน
+     แอดมินไม่ถูกล็อก ไม่งั้นฮับล่มทีเดียวทำงานไม่ได้ทั้งระบบ */
+  if(!FV_PERMS_READY) return Hub.isAdmin() || FV_OPEN_ACTIONS.indexOf(actionId) >= 0;
+  if(!FV_PERMS) return true;                       // ฮับยืนยันว่ายังไม่ตั้ง = ไม่คุม
   const p = FV_PERMS[actionId];
   if(!p) return true;                              // ไม่ได้นิยาม action นี้ = ไม่คุม
   const s = Hub.session() || {};
