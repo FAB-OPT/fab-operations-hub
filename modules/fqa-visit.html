@@ -1165,6 +1165,9 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
 </head>
 <body>
 
+<!-- คะแนน STA ปีที่แล้ว (2568) — ไฟล์นิ่ง ไม่ต้องซิงก์ · สร้างจากไฟล์สรุปของทีม Training -->
+<script src="data/sta-2568.js"></script>
+
 <nav class="botnav noprint" id="botnav">
   <button data-v="dash" onclick="App.go('dash')"><span class="bi">◧</span>แดชบอร์ด</button>
   <button data-v="list" onclick="App.go('list')"><span class="bi">☰</span>รายการ</button>
@@ -1202,6 +1205,7 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
       <button class="nav" data-v="list"><span class="ic">☰</span> รายการตรวจทั้งหมด</button>
       <button class="nav" data-v="plan"><span class="ic">🗓</span> แผนการตรวจสาขา</button>
       <button class="nav" data-v="coverage"><span class="ic">◍</span> สรุปการเข้าตรวจสาขา</button>
+      <button class="nav" data-v="sta68"><span class="ic">🗂</span> คะแนน STA ปีที่แล้ว</button>
 
       <div class="navgrp">บันทึกการตรวจ</div>
       <button class="nav" data-v="fqa" data-form="FQA"><span class="ic">✓</span> ฟอร์ม FQA</button>
@@ -1430,6 +1434,9 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
 
       <!-- ---------- สรุปการเข้าตรวจสาขา ---------- -->
       <section class="view" id="v-coverage"></section>
+
+      <!-- คะแนน STA ปี 2568 — ข้อมูลอ้างอิงปีที่แล้ว ไม่ใช่ผลตรวจในระบบ -->
+      <section class="view" id="v-sta68"></section>
 
       <!-- ---------- MASTER DATA ---------- -->
       <section class="view" id="v-master">
@@ -2019,7 +2026,7 @@ let FV_PERMS_READY = false;
 const FV_OPEN_ACTIONS = ['view-dash', 'view-list', 'view-report'];
 /* view (data-v) → action id ในตารางสิทธิ์ของฮับ */
 const FV_VIEW_ACTION = {
-  dash:'view-dash', list:'view-list', plan:'view-plan',
+  dash:'view-dash', list:'view-list', plan:'view-plan', sta68:'view-list',
   coverage:'view-plan',   /* ใช้สิทธิ์เดียวกับ "แผนการตรวจสาขา" — เป็นเรื่องการวางแผนเข้าตรวจเหมือนกัน */
   fqa:'form-fqa', fsq:'form-fsq', visit:'form-visit', sta:'form-visit',   /* STA ใช้สิทธิ์เดียวกับ Visit — คนกลุ่มเดียวกันเข้าตรวจ */
   report:'view-report', io:'view-io', master:'view-master'
@@ -3125,6 +3132,7 @@ const App = {
   moreSheet(){
     const items=[
       {icon:'◍', label:'สรุปการเข้าตรวจสาขา', sub:'เข้าล่าสุดเมื่อไร · แผนที่จะเข้าถัดไป · ใครยังไม่ได้เข้า', run:()=>this.go('coverage'), v:'coverage'},
+      {icon:'🗂', label:'คะแนน STA ปีที่แล้ว', sub:'ผลปี 2568 รายสาขา · ข้อที่ตก · วันที่ตรวจ', run:()=>this.go('sta68'), v:'sta68'},
       {icon:'📄', label:'ออกรายงาน', sub:'PDF · Excel · เจาะรายครั้ง', run:()=>this.go('report'), v:'report'},
       {icon:'⬆', label:'นำเข้าข้อมูล', sub:'นำผลตรวจเดิมเข้าระบบ (มีเทมเพลต)', run:()=>this.go('io'), v:'io'}
     ].filter(it=>fvCan(FV_VIEW_ACTION[it.v]));
@@ -3161,7 +3169,7 @@ const App = {
       fqa:'แบบฟอร์มการตรวจ Food Quality Assurance (FQA)',
       fsq:'แบบฟอร์ม Food and Service Quality กรณี Complaint',
       visit:'แบบฟอร์ม Visit', sta:'แบบฟอร์ม Visit', plan:'แผนการตรวจสาขา', report:'ออกรายงาน',
-      coverage:'สรุปการเข้าตรวจสาขา',
+      coverage:'สรุปการเข้าตรวจสาขา', sta68:'คะแนน STA ปีที่แล้ว (2568)',
       master:'จัดการฐานข้อมูล', io:'นำเข้าข้อมูล'
     }[v];
     document.getElementById('pageTitle').textContent=meta;
@@ -3171,6 +3179,7 @@ const App = {
     if(v==='master') Master.render();
     if(v==='plan') Plan.open();
     if(v==='coverage') Coverage.render();
+    if(v==='sta68') Sta68.render();
     if(isForm){ Form.open(v==='fqa'?'FQA':v==='fsq'?'FSQ':v==='sta'?'STA':'VISIT', Form.pendingEdit); Form.pendingEdit=null; }
     /* ปุ่มฟอร์ม — ตอน "แก้ไข" รายการเดิม ไม่ต้องมีปุ่ม "ล้างฟอร์ม" */
     const formBtns = (isForm && !Form.editing ? `<button class="btn" onclick="Form.reset()">ล้างฟอร์ม</button>` : '')
@@ -5672,6 +5681,155 @@ const trainerTag = n => { if(!n) return `<span style="color:var(--text3)">—</s
    ซึ่งเป็นคนละคำถามกัน และอันหลังคือสิ่งที่ต้องลงมือ
    ยึดทะเบียนสาขาของฮับเป็นตัวตั้ง แล้วเอาผลตรวจไปแปะ — สาขาที่ไม่มีผลตรวจจึงโผล่เอง
    ══════════════════════════════════════════════════════════════ */
+/* ══════════════════════════════════════════════════════════════
+   คะแนน STA ปีที่แล้ว (2568)
+   ข้อมูลนิ่งจากไฟล์ modules/data/sta-2568.js — คะแนน+ข้อที่ตกมาจากไฟล์สรุปของทีม Training
+   วันที่ตรวจแกะจากชื่อไฟล์ใบตรวจ (DDMMYYYY_ST-รหัสสาขา)
+   ใช้เป็นข้อมูลอ้างอิงก่อนเข้าตรวจปีนี้ — ไม่ได้ผูกกับผลตรวจในระบบ จึงไม่ต้องซิงก์
+   ปีหน้าสร้างไฟล์ใหม่ทับ แล้วเปลี่ยนเลขปีในไฟล์นั้นที่เดียว
+   ══════════════════════════════════════════════════════════════ */
+const Sta68 = {
+  q: '', zone: '', only: '', limit: 40, _sized: 0,
+  data(){ return (window.STA_2568 || {meta:{}, branches:[], topFails:[]}); },
+  setQ(v){ this.q = String(v||'').trim(); this.limit = Mobile.page(); this.render(); },
+  setZone(v){ this.zone = v || ''; this.limit = Mobile.page(); this.render(); },
+  setOnly(v){ this.only = (this.only === v) ? '' : v; this.limit = Mobile.page(); this.render(); },
+  showMore(){ this.limit += Mobile.page(); this.render(); },
+
+  /* เอาเฉพาะสาขาที่ยังอยู่ในทะเบียนของแบรนด์/เขตที่ผู้ใช้ดูแล
+     สาขาที่ปิดไปแล้วหรือย้ายแบรนด์ยังอยู่ในไฟล์ แต่ไม่ต้องโชว์ให้สับสน */
+  rows(){
+    const keys = fvMyBranchKeys();                   // null = ไม่กรอง (แอดมิน/ผู้บริหาร)
+    const inReg = new Set((M.branches()||[]).map(b => branchKey(b.name)));
+    return this.data().branches.filter(b => {
+      const k = 'c' + b.code;
+      if(inReg.size && !inReg.has(k)) return false;  // ไม่อยู่ในทะเบียนปัจจุบัน
+      if(keys && !keys.has(k)) return false;         // นอกเขตของ BZM
+      return true;
+    });
+  },
+  cls(pct){ return pct == null ? '' : (pct >= 95 ? 'p-pass' : pct >= STA_PASS_PCT ? 'p-warn' : 'p-fail'); },
+
+  render(){
+    const el = document.getElementById('v-sta68'); if(!el) return;
+    if(!window.STA_2568){
+      el.innerHTML = '<div class="card"><div class="bd" style="text-align:center;padding:40px;color:var(--text3)">' +
+        'ยังโหลดไฟล์คะแนนปีที่แล้วไม่ได้ (modules/data/sta-2568.js)</div></div>';
+      return;
+    }
+    if(!this._sized){ this.limit = Mobile.page(); this._sized = 1; }
+    const all = this.rows();
+    const scored = all.filter(b => b.pct != null);
+    const avg = scored.length ? Math.round(scored.reduce((a,b) => a + b.pct, 0) / scored.length * 10) / 10 : 0;
+    const low = scored.filter(b => b.pct < STA_PASS_PCT);
+    const perfect = scored.filter(b => b.pct >= 100);
+    const noData = all.filter(b => b.pct == null);
+
+    const zones = [...new Set(all.map(b => b.bzm).filter(Boolean))].sort((a,b) => a.localeCompare(b,'th'));
+    let rows = all.slice();
+    if(this.zone) rows = rows.filter(b => b.bzm === this.zone);
+    if(this.q){
+      const q = this.q.toLowerCase();
+      rows = rows.filter(b => (b.code + ' ' + b.name + ' ' + b.bzm).toLowerCase().indexOf(q) >= 0);
+    }
+    if(this.only === 'low')  rows = rows.filter(b => b.pct != null && b.pct < STA_PASS_PCT);
+    if(this.only === 'full') rows = rows.filter(b => b.pct != null && b.pct >= 100);
+    rows.sort((a,b) => (b.pct == null ? -1 : b.pct) - (a.pct == null ? -1 : a.pct));
+
+    const shown = rows.slice(0, this.limit), moreN = rows.length - shown.length;
+    const top = this.data().topFails || [];
+
+    const body = shown.length ? shown.map(b => `<tr>
+        <td><b>${esc(b.code)}</b> ${esc(b.name)}</td>
+        <td>${b.bzm ? esc(b.bzm) : '<span style="color:var(--text3)">—</span>'}</td>
+        <td style="white-space:nowrap">${b.pct == null
+          ? '<span style="color:var(--text3)">ไม่มีคะแนน</span>'
+          : '<span class="pill ' + this.cls(b.pct) + '" style="font-weight:800">' + b.pct + '%</span>'}</td>
+        <td class="mono" style="white-space:nowrap">${b.date ? esc(fmtDMY(b.date)) : '<span style="color:var(--text3)">ไม่ระบุ</span>'}</td>
+        <td>${b.fails.length
+          ? '<span style="display:flex;flex-wrap:wrap;gap:5px">' + b.fails.map(f =>
+              '<span class="pill p-fail" style="font-weight:600;font-size:11.5px">' + esc(f) + '</span>').join('') + '</span>'
+          : '<span class="pill p-pass" style="font-weight:600">ไม่มีข้อตก</span>'}</td>
+      </tr>`).join('')
+      : '<tr><td colspan="5" style="text-align:center;padding:34px;color:var(--text3)">ไม่พบสาขาที่ตรงกับตัวกรอง</td></tr>';
+
+    el.innerHTML = `
+      <div class="kpis">
+        <div class="kpi"><div class="k">คะแนนเฉลี่ยปี 2568</div>
+          <div class="v">${avg}<small>%</small></div>
+          <div class="d">จาก ${scored.length} สาขาที่มีคะแนน</div></div>
+        <div class="kpi ${low.length?'':'ok'}"><div class="k">ต่ำกว่าเกณฑ์ ${STA_PASS_PCT}%</div>
+          <div class="v">${low.length}<small>สาขา</small></div>
+          <div class="d">${low.length? 'ควรเข้าตรวจก่อน' : 'ผ่านเกณฑ์ทุกสาขา'}</div></div>
+        <div class="kpi ok"><div class="k">ได้เต็ม 100%</div>
+          <div class="v">${perfect.length}<small>สาขา</small></div>
+          <div class="d">ไม่มีข้อตกเลยทั้งใบ</div></div>
+        <div class="kpi ${noData.length?'wn':'ok'}"><div class="k">ไม่มีข้อมูลปีที่แล้ว</div>
+          <div class="v">${noData.length}<small>สาขา</small></div>
+          <div class="d">${noData.length? 'ยังไม่เคยตรวจ หรือไม่มีคะแนนในไฟล์' : 'มีข้อมูลครบทุกสาขา'}</div></div>
+      </div>
+
+      ${top.length ? `
+      <div class="card">
+        <div class="hd"><h3>หัวข้อที่ตกมากที่สุดทั้งบริษัท</h3><div class="sp"></div>
+          <span class="note">นับจากทุกสาขาในไฟล์ปี 2568</span></div>
+        <div class="bd">
+          <!-- เรียงจากตกมากไปน้อย โชว์ 6 อันดับแรกพอ ที่เหลือเป็นหางยาวที่ไม่ได้ช่วยตัดสินใจ -->
+          ${top.slice(0,6).map((t,i) => `
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:9px">
+              <span class="pill ${i<2?'p-fail':'p-warn'}" style="font-weight:800;min-width:34px;text-align:center">${i+1}</span>
+              <span style="flex:1;min-width:0;font-weight:600">${esc(t.label)}</span>
+              <span style="flex:none;color:var(--text3);white-space:nowrap">ตก <b style="color:var(--text)">${t.n}</b> สาขา</span>
+              <span class="bar" style="flex:none;width:90px;height:8px;border-radius:4px;background:var(--line,#e6e6ec);overflow:hidden">
+                <i style="display:block;height:100%;width:${Math.min(100,t.pct)}%;background:var(--red,#c0392b)"></i></span>
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+
+      <div class="card noprint">
+        <div class="hd"><h3>ตัวกรอง</h3><div class="sp"></div>
+          <span class="seg mini">
+            <button class="${this.only===''?'on':''}" onclick="Sta68.setOnly('')">ทุกสาขา</button>
+            <button class="${this.only==='low'?'on':''}" onclick="Sta68.setOnly('low')">ต่ำกว่าเกณฑ์ (${low.length})</button>
+            <button class="${this.only==='full'?'on':''}" onclick="Sta68.setOnly('full')">เต็ม 100% (${perfect.length})</button>
+          </span>
+        </div>
+        <div class="bd">
+          <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px">
+            <div class="fld"><label class="lbl">ค้นหาสาขา</label>
+              <input class="inp" placeholder="รหัส หรือ ชื่อสาขา" value="${attr(this.q)}" oninput="Sta68.setQ(this.value)"></div>
+            <div class="fld"><label class="lbl">เขต</label>
+              <select class="inp" onchange="Sta68.setZone(this.value)">
+                <option value="">ทุกเขต</option>
+                ${zones.map(z => `<option value="${attr(z)}"${this.zone===z?' selected':''}>${esc(z)}</option>`).join('')}
+              </select></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="hd"><h3>รายสาขา</h3><div class="sp"></div>
+          <span class="note">${rows.length} สาขา · เรียงคะแนนมากไปน้อย</span></div>
+        <div class="bd" style="padding:0"><div class="tw">
+          <table class="tb">
+            <thead><tr><th>สาขา</th><th>เขต</th><th>คะแนน</th><th>วันที่ตรวจ</th><th>ข้อที่ตก</th></tr></thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+        ${moreN > 0 ? `<div style="padding:12px;text-align:center;border-top:1px solid var(--line,#e6e6ec)">
+          <button class="btn gho" onclick="Sta68.showMore()">ดูเพิ่มอีก ${Math.min(moreN, Mobile.page())} สาขา (เหลือ ${moreN})</button></div>` : ''}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="bd" style="color:var(--text3);font-size:12.5px;line-height:1.7">
+          ที่มา: ไฟล์สรุปคะแนน STA 2568 ของทีม Training · วันที่ตรวจแกะจากชื่อไฟล์ใบตรวจในโฟลเดอร์ STA 2568<br>
+          เป็นข้อมูลอ้างอิงปีที่แล้ว ไม่ได้ผูกกับผลตรวจในระบบนี้ — สาขาที่ปิดไปแล้วหรือย้ายแบรนด์จะไม่แสดง
+        </div>
+      </div>`;
+  }
+};
+
 const Coverage = {
   cycle: 90,        // รอบการเข้าตรวจที่ถือว่าปกติ (วัน)
   zone: '',         // กรองตามเขต
