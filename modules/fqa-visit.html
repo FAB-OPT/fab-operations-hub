@@ -4672,7 +4672,11 @@ function canEdit(){ const r=(Hub.session()&&Hub.session().role)||Hub.role()||'';
 /* แผน "ตรวจแล้ว" = มีผลตรวจสาขานั้นในช่วง [วันแผน, วันแผน+30วัน] · เลยกำหนดแต่ยังไม่ตรวจ = เกินกำหนด · อนาคต = รอตรวจ */
 function planState(p){
   const end=addDaysISO(p.date,30), pk=branchKey(p.branch);
-  const hit=inspections().filter(r=>branchKey(r.branch)===pk && (!p.ptype || r.type===p.ptype))
+  /* เทียบชนิดผ่าน planType() ไม่ใช่เทียบสตริงตรง ๆ
+     แผนเก็บชนิดแบบรวม (STA ถูกนับเป็น VISIT ตั้งแต่ตอนบันทึก) แต่ใบตรวจของซานตาเฟ่เก็บเป็น STA
+     เทียบตรง ๆ จึงไม่มีวันตรงกัน แผนที่ตรวจไปแล้วเลยค้างเป็น "เกินกำหนด" ตลอด
+     (เจอจริง 29 ก.ย. 69 — 5005/5046 ตรวจวันที่ 18 ก.ย. ตรงกับวันแผนเป๊ะ แต่ยังขึ้นเกินกำหนด) */
+  const hit=inspections().filter(r=>branchKey(r.branch)===pk && (!p.ptype || planType(r.type)===planType(p.ptype)))
     .find(r=>r.date>=p.date && r.date<=end);
   if(hit) return {s:'done', on:hit.date, id:hit.id};
   return { s: p.date < todayISO() ? 'overdue' : 'upcoming' };
