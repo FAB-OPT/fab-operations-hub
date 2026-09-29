@@ -3453,6 +3453,16 @@ function staPrevAuto(rec){
   const sc=staScore(best);
   return { src:'auto', id:best.id, date:best.date, pct:sc.pct, got:sc.got, total:sc.total||sc.full };
 }
+/* ผลปี 2568 จากไฟล์สรุป — ใช้เมื่อในระบบยังไม่มีใบตรวจของสาขานั้น
+   ใบแรกที่ตรวจในระบบจึงมีตัวเทียบให้เลย ไม่ต้องเปิดใบเก่ามานั่งกรอกเอง
+   ถือเป็นตัวสำรอง: ถ้ามีใบในระบบแล้วใช้ใบนั้นเสมอ และถ้าผู้ตรวจกรอกเองก็ใช้ของที่กรอก */
+function staPrev68(rec){
+  if(!rec || !rec.branch || !window.STA_2568) return null;
+  const k = branchKey(rec.branch);                       // 'c5001'
+  const hit = (STA_2568.branches || []).filter(b => ('c' + b.code) === k)[0];
+  if(!hit || hit.pct == null) return null;
+  return { src:'sta2568', date:hit.date || '', pct:hit.pct, year:2568, fails:hit.fails || [] };
+}
 function staPrevManual(rec){
   const raw=String(rec.prevPct==null?'':rec.prevPct).trim();
   const p=parseFloat(raw);
@@ -3469,7 +3479,7 @@ function staPrev(rec, live){
     return rec.prev || null;
   }
   const auto = rec.prevMode==='manual' ? null : staPrevAuto(rec);
-  return auto || staPrevManual(rec);
+  return auto || staPrevManual(rec) || (rec.prevMode==='manual' ? null : staPrev68(rec));
 }
 /* เปลี่ยนแปลงเป็นจุดเปอร์เซ็นต์ เช่น 72.5% → 84% = +11.5 */
 function staDelta(pct, prev){
@@ -4155,24 +4165,30 @@ const Form = {
     if(!s.notes) s.notes={};
     if(!Array.isArray(s.verify)) s.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g));
     const sc=staScore(s);
-    const auto=staPrevAuto(s), prev=staPrev(s,true), dl=staDelta(sc.pct, prev);
+    const auto=staPrevAuto(s), f68=staPrevAuto(s)?null:staPrev68(s), prev=staPrev(s,true), dl=staDelta(sc.pct, prev);
 
-    /* ผลการเข้าครั้งก่อน — วางไว้ใต้ข้อมูลการตรวจ เพราะผูกกับสาขาที่เพิ่งเลือก */
-    const manual = !auto || s.prevMode==='manual';
+    /* ผลการเข้าครั้งก่อน — วางไว้ใต้ข้อมูลการตรวจ เพราะผูกกับสาขาที่เพิ่งเลือก
+       มีสามแหล่ง: ใบตรวจในระบบ > ไฟล์ผลปี 2568 > กรอกเอง */
+    const manual = (!auto && !f68) || s.prevMode==='manual';
     const prevCard=`<div class="card sta-prev">
       <div class="hd"><span class="sec-no">↺</span><h3>คะแนนการเข้าครั้งก่อน</h3><div class="sp"></div>
-        ${auto && s.prevMode==='manual' ? `<button class="btn sm" onclick="Form.staPrevMode('')">ใช้ผลที่มีในระบบ</button>`
-          : auto ? `<button class="btn sm" onclick="Form.staPrevMode('manual')">กรอกเองแทน</button>` : ''}</div>
+        ${(auto || f68) && s.prevMode==='manual' ? `<button class="btn sm" onclick="Form.staPrevMode('')">ใช้${auto?'ผลที่มีในระบบ':'ผลปี 2568'}</button>`
+          : (auto || f68) ? `<button class="btn sm" onclick="Form.staPrevMode('manual')">กรอกเองแทน</button>` : ''}</div>
       <div class="bd">${
         !s.branch ? `<p class="hint" style="margin:0">เลือกสาขาก่อน ระบบจะหาผลการเข้าครั้งก่อนของสาขานั้นให้</p>`
         : !manual ? `<div class="sta-pv">
-            <div><span class="sta-lbl">ครั้งก่อน · ${esc(fmtDMY(auto.date))}</span><span class="pv">${staNum(auto.pct)}%</span>
-              <small>${staNum(auto.got)} / ${staNum(auto.total)} คะแนน · ${staPassText(auto.pct)}</small></div>
+            <div><span class="sta-lbl">ครั้งก่อน${(auto||f68).date?' · '+esc(fmtDMY((auto||f68).date)):' · ไม่ระบุวันที่'}</span>
+              <span class="pv">${staNum((auto||f68).pct)}%</span>
+              <small>${auto ? staNum(auto.got)+' / '+staNum(auto.total)+' คะแนน · '+staPassText(auto.pct)
+                            : 'ผลตรวจปี 2568 · '+staPassText(f68.pct)}</small></div>
             <div class="ar">→</div>
             <div><span class="sta-lbl">ครั้งนี้${sc.done<sc.all?' (ยังตอบไม่ครบ)':''}</span><span class="pv">${staNum(sc.pct)}%</span>
               <small class="sta-dl ${dl.dir}">${dl.text}</small></div>
           </div>
-          <p class="hint" style="margin:10px 0 0">ดึงจากใบตรวจเลขที่ <span class="mono">${esc(auto.id)}</span> ใบล่าสุดของสาขานี้ที่ตรวจก่อนวันนี้</p>`
+          ${auto
+            ? `<p class="hint" style="margin:10px 0 0">ดึงจากใบตรวจเลขที่ <span class="mono">${esc(auto.id)}</span> ใบล่าสุดของสาขานี้ที่ตรวจก่อนวันนี้</p>`
+            : `<p class="hint" style="margin:10px 0 0">ในระบบยังไม่มีใบตรวจของสาขานี้ — ดึงจากไฟล์ผลตรวจการสอนงาน <b>ปี 2568</b>${
+                f68.fails.length ? ` · ปีที่แล้วตกไว้ ${f68.fails.length} ข้อ: ${esc(f68.fails.slice(0,3).join(' · '))}${f68.fails.length>3?' …':''}` : ' · ปีที่แล้วไม่มีข้อตก'}</p>`}`
         : `<div class="grid g4">
             <div class="fld"><label class="lbl">คะแนนครั้งก่อน (%)</label>
               <input type="number" class="inp" min="0" max="100" step="0.01" inputmode="decimal" placeholder="เช่น 89.58"
