@@ -4558,7 +4558,8 @@ function clearPin() {
   if (first) first.focus();
 }
 
-function enterApp(role) {
+function enterApp(role, silent) {
+  /* silent = true: สลับมุมมอง (ดูในมุมมองอื่น / กลับเป็นตัวเอง) — ไม่ขึ้นป็อปอัพยินดีต้อนรับและประกาศสาขาซ้ำทุกครั้งที่สลับ */
   // role อาจเป็น 'branch' หรือ 'admin'/'vp'/'coo'/'bzm' (Team Management)
   var isTeamMgmt = (role !== 'branch');
   // Persist session — module compat: sessionStorage.fab_role = 'admin' for team mgmt (treat as non-branch)
@@ -4586,9 +4587,9 @@ function enterApp(role) {
     var welcomeText = isTeamMgmt
       ? (user ? user.name + ' (' + (user.role || 'Team').toUpperCase() + ')' : 'Team Management')
       : currentBranchName;
-    showWelcome(welcomeText);
+    if (!silent) showWelcome(welcomeText);
     // Fallback: if welcome modal isn't closed in 6s, still try to show announcements
-    if (!isAdminMode) {
+    if (!isAdminMode && !silent) {
       setTimeout(function(){
         var welcomeShown = document.getElementById('welcomeModal').classList.contains('show');
         var annShown = document.getElementById('branchAnnouncementsModal').classList.contains('show');
@@ -7545,7 +7546,7 @@ function viewAsGo(code, isBranch) {
     /* enterApp เขียน session + วาดเมนูใหม่ในหน้าเดิม — ฮับไม่กู้ session อัตโนมัติ
        ถ้า reload จะเด้งไปหน้ากรอกรหัสทันที */
     var u = isBranch ? null : findUserByCode(code);
-    enterApp(isBranch ? 'branch' : ((u && u.role) || 'admin'));
+    enterApp(isBranch ? 'branch' : ((u && u.role) || 'admin'), true);
     setTimeout(function(){ if (window.fabViewAsPaint) window.fabViewAsPaint(); viewAsBtnPaint(); }, 50);
   } catch (e) { alert('สลับมุมมองไม่สำเร็จ: ' + e.message); return; }
 }
@@ -7555,8 +7556,8 @@ window.fabViewAsRehome = function () {
     var role = sessionStorage.getItem('fab_role') || '';
     var pin = sessionStorage.getItem('fab_branch_pin') || '';
     branchPin = pin;
-    if (role === 'branch') { currentBranchName = getBranchFullName(pin); enterApp('branch'); }
-    else { var u = findUserByCode(pin); currentBranchName = ''; enterApp((u && u.role) || 'admin'); }
+    if (role === 'branch') { currentBranchName = getBranchFullName(pin); enterApp('branch', true); }
+    else { var u = findUserByCode(pin); currentBranchName = ''; enterApp((u && u.role) || 'admin', true); }
   } catch (e) { location.reload(); }
 };
 function closeAdminToolsModal() {
