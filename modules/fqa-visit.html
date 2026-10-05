@@ -1539,11 +1539,10 @@ const DEFAULT_MASTER = {
   lists: {
     fqaItems: [
       'ความสมบูรณ์ของบรรจุภัณฑ์หรือภาชนะบรรจุ',
-      'สี กลิ่น ลักษณะ และสภาพโดยรวมของวัตถุดิบ',
+      'สี กลิ่น ลักษณะ และสภาพโดยรวมของวัตถุดิบ (ไม่พบ เสื่อมคุณภาพ หรือมีสิ่งปนเปื้อน)',
       'วันรับเข้า / วันเปิดใช้ / วันหมดอายุ',
       'การหมุนเวียนวัตถุดิบตามหลัก FIFO / FEFO',
       'การจัดเก็บแยกประเภทอย่างถูกต้อง',
-      'ไม่พบวัตถุดิบ เสื่อมคุณภาพ หรือมีสิ่งปนเปื้อน',
       'ขั้นตอนการเตรียมวัตถุดิบ'
     ],
     categories: ['คุณภาพอาหาร','การบริการ','ความสะอาด','อื่นๆ'],
@@ -1922,9 +1921,12 @@ const DB = (()=>{
 
 /* หัวข้อ FQA ที่ยกเลิก (17 ก.ย. 2569) — ใบที่บันทึกไว้แล้วก็ไม่แสดงและไม่นับคะแนน (ข้อมูลเดิมในชีตไม่ถูกลบ)
    ข้อมูลหลักที่เคยบันทึกไว้ในเครื่อง/คลาวด์ยังมีสองหัวข้อนี้ → กรองออกตอนอ่านเสมอ */
-const FQA_REMOVED = ['อุณหภูมิในการจัดเก็บเหมาะสมตามประเภทวัตถุดิบ','ปริมาณวัตถุดิบเพียงพอต่อการขายประจำวัน'];
+const FQA_REMOVED = ['อุณหภูมิในการจัดเก็บเหมาะสมตามประเภทวัตถุดิบ','ปริมาณวัตถุดิบเพียงพอต่อการขายประจำวัน','ไม่พบวัตถุดิบ เสื่อมคุณภาพ หรือมีสิ่งปนเปื้อน'];
+/* หัวข้อที่เปลี่ยนชื่อ (5 ต.ค. 2569): ใบเก่าที่บันทึกด้วยชื่อเดิมแสดง/นับคะแนนเป็นชื่อใหม่ ไม่แยกเป็นสองหัวข้อ */
+const FQA_RENAMED = { 'สี กลิ่น ลักษณะ และสภาพโดยรวมของวัตถุดิบ': 'สี กลิ่น ลักษณะ และสภาพโดยรวมของวัตถุดิบ (ไม่พบ เสื่อมคุณภาพ หรือมีสิ่งปนเปื้อน)' };
+const fqaName = n => FQA_RENAMED[String(n==null?'':n).trim()] || n;
 const fqaActive = c => !(c && FQA_REMOVED.includes(String(c.item||'').trim()));
-const fqaChecks = r => ((r && r.checks) || []).filter(fqaActive);
+const fqaChecks = r => ((r && r.checks) || []).filter(fqaActive).map(c => (c && FQA_RENAMED[String(c.item||'').trim()]) ? Object.assign({}, c, { item: fqaName(c.item) }) : c);
 
 /* ---------- ตัวช่วยเข้าถึงข้อมูลหลัก ---------- */
 const M = {
@@ -1934,7 +1936,7 @@ const M = {
   trainers(){ return this.m.trainers; },
   materials(){ return this.m.materials; },
   menus(){ return this.m.menus; },
-  list(k){ const a=this.m.lists[k]||[]; return k==='fqaItems' ? a.filter(i=>!FQA_REMOVED.includes(String(i).trim())) : a; },
+  list(k){ const a=this.m.lists[k]||[]; return k==='fqaItems' ? a.filter(i=>!FQA_REMOVED.includes(String(i).trim())).map(fqaName).filter((v,i,arr)=>arr.indexOf(v)===i) : a; },
   branchOf(name){ return this.branches().find(b=>b.name===name); },
   commit(m){ DB.setMaster(m); Filters.fill(); }
 };
@@ -3758,7 +3760,7 @@ const Form = {
   /* หัวข้อ FQA อาจถูกแก้ในหน้าข้อมูลหลัก — ปรับร่างให้ตรงกันโดยคงคำตอบเดิม */
   syncChecks(){
     const d=this.drafts.FQA; if(!d||!d.checks) return;
-    const old={}; d.checks.forEach(c=>old[c.item]=c);
+    const old={}; d.checks.forEach(c=>{ old[fqaName(c.item)]=Object.assign({}, c, { item: fqaName(c.item) }); });
     d.checks=M.list('fqaItems').map(i=> old[i] || {item:i,result:'',detail:'',fix:''});
   },
   reset(){ App.confirm({icon:'🧹', title:'ล้างฟอร์ม', msg:'ล้างข้อมูลที่กรอกไว้ในฟอร์มนี้ทั้งหมด?', okText:'ล้างฟอร์ม', onOk:()=>{
