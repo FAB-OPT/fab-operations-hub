@@ -189,13 +189,24 @@
   .br-view .form-card>.payee{display:none}
   .br-view .form-card textarea{min-height:92px}
   .br-view .narrow{max-width:none}
-  .br-view .narrow.hist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start}
-  .br-view .narrow.hist>.sec,.br-view .narrow.hist>.sum2{grid-column:1/-1}
-  .br-view .narrow.hist>.slip{margin-top:0}
+  .br-view .hist-cards{display:none}
+  .br-view .hist-tbl{display:block;margin-top:14px}
+  .hist-tbl .hrow{display:grid;grid-template-columns:96px 150px minmax(0,1.3fr) minmax(0,1.3fr) 120px 150px 28px;gap:12px;align-items:center;padding:12px 16px;
+    border-bottom:1px solid var(--border);font-size:14px;cursor:pointer}
+  .hist-tbl .hrow:hover{background:var(--bg3)}
+  .hist-tbl .hth{background:var(--bg3);font-size:12px;font-weight:700;color:var(--text3);cursor:default}
+  .hist-tbl .hth:hover{background:var(--bg3)}
+  .hist-tbl .hrow .num{font-weight:800;font-variant-numeric:tabular-nums;text-align:right}
+  .hist-tbl .hrow small{display:block;font-size:12px;color:var(--text3)}
+  .hist-tbl .hrow .chev{color:var(--text3);transition:transform .15s}
+  .hist-tbl .hrow.open .chev{transform:rotate(90deg)}
+  .hist-tbl .hdet{padding:4px 16px 16px 16px;background:var(--bg3);border-bottom:1px solid var(--border)}
+  .hist-tbl .hdet .slip{margin-top:6px;max-width:560px}
   .br-view .narrow.payee-pg{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:0 24px;align-items:start}
   .br-view .narrow.payee-pg>*{grid-column:1}
   .br-view .narrow.payee-pg>.fcard{grid-column:2;grid-row:1/span 5;margin-top:16px;padding:20px 22px}
 }
+.hist-tbl{display:none}
 /* จอแคบ */
 @media(max-width:899px){
   .app{display:block}
@@ -600,9 +611,26 @@ function branchHistory(body,mine){
   const nRounds=new Set(okYear.map(roundIdOf)).size;
   w.innerHTML=`<div class="sum2"><div><small>อนุมัติปีนี้</small><b>${baht(sumOf(okYear))} ฿</b></div><div><small>เฉลี่ยต่อรอบ</small><b>${nRounds?baht(Math.round(sumOf(okYear)/nRounds)):"0"} ฿</b></div></div>`;
   const g={}; mine.forEach(x=>(g[roundIdOf(x)]=g[roundIdOf(x)]||[]).push(x));
+  const cards=document.createElement("div"); cards.className="hist-cards"; w.appendChild(cards);
   Object.keys(g).sort().reverse().forEach(rid=>{
-    w.insertAdjacentHTML("beforeend",`<div class="sec">รอบ ${esc(roundLabel(rid))}</div>`);
-    g[rid].forEach(x=>w.appendChild(slip(x,false)));
+    cards.insertAdjacentHTML("beforeend",`<div class="sec">รอบ ${esc(roundLabel(rid))}</div>`);
+    g[rid].forEach(x=>cards.appendChild(slip(x,false)));
+  });
+  /* จอกว้าง: ตารางหนึ่งแถวต่อใบ · กดแถวเพื่อดูรายละเอียด/รูป/ลบ */
+  const tb=document.createElement("div"); tb.className="hist-tbl rowlist"; w.appendChild(tb);
+  tb.innerHTML=`<div class="hrow hth"><span>รอบ</span><span>เลขเอกสาร</span><span>ผู้ทำการเบิก</span><span>ผู้รับเงิน</span><span style="text-align:right">ยอด (฿)</span><span>สถานะ · ส่งเมื่อ</span><span></span></div>`;
+  mine.slice().sort((a,b)=>roundIdOf(b).localeCompare(roundIdOf(a))||byTime(a,b)).forEach(x=>{
+    const st=statusOf(x), row=document.createElement("div"); row.className="hrow";
+    row.innerHTML=`<span><b>${esc(roundLabel(roundIdOf(x)))}</b></span><span class="docno">${esc(x.docNo||x.id)}</span>
+      <span>${esc(x.claimantName||"-")}</span><span>${esc(x.payeeName||x.payee||"-")}${x.payeePosition?`<small>${esc(x.payeePosition)}</small>`:""}</span>
+      <span class="num">${money(x.amount)}</span><span>${pill(st)}<small>${esc(stamp(x.submittedAt))}</small></span><span class="chev">›</span>`;
+    let det=null;
+    row.onclick=()=>{
+      if(det){ det.remove(); det=null; row.classList.remove("open"); return; }
+      det=document.createElement("div"); det.className="hdet"; det.appendChild(slip(x,false));
+      row.after(det); row.classList.add("open");
+    };
+    tb.appendChild(row);
   });
 }
 function branchPayee(body){
