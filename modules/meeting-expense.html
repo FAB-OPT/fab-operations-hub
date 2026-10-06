@@ -173,6 +173,18 @@
 .rowlist small{display:block;font-size:12px;color:var(--text3)}
 /* ═══ จอกว้าง · หน้าสาขา: เต็มจอ · ฟอร์มซ้าย | ใบเบิกตัวอย่างสด + วงเงินขวา (ติดขอบ) · ประวัติเป็นตาราง · ผู้รับเงิน 2 คอลัมน์ ═══ */
 .hist-tbl,.live{display:none}
+.dn-head{display:flex;align-items:center;gap:14px;background:var(--green-soft);border:1px solid var(--green-line);border-radius:16px;padding:16px 20px}
+.dn-head .ck{width:42px;height:42px;border-radius:50%;background:var(--green);color:#fff;display:grid;place-items:center;font-size:22px;flex:none}
+.dn-head b{font-size:18px}.dn-card{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 26px;margin-top:14px}
+.dn-track{position:relative;display:grid;grid-template-columns:1fr 1fr 1fr}
+.dn-line{position:absolute;left:12px;right:12px;top:10px;height:3px;background:#e5e7eb;border-radius:9px}.dn-line i{display:block;height:100%;background:var(--gold);border-radius:9px;transition:width .4s}
+.dn-node{position:relative;padding-top:30px;min-width:0}.dn-node:nth-child(3){text-align:center}.dn-node:nth-child(4){text-align:right}
+.dn-node .dot{position:absolute;top:0;width:24px;height:24px;border-radius:50%;border:3px solid #d1d5db;background:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
+.dn-node:nth-child(3) .dot{left:50%;transform:translateX(-50%)}.dn-node:nth-child(4) .dot{right:0}
+.dn-node.is-done .dot{background:var(--gold);border-color:var(--gold)}.dn-node.is-cur .dot{background:#fff;border-color:var(--gold);box-shadow:0 0 0 4px var(--gold-soft)}
+.dn-node b{display:block;font-size:14.5px}.dn-node small{display:block;font-size:12.5px;color:var(--text3);font-weight:600}.dn-node:not(.is-done) b{color:var(--text3)}
+.dn-det{display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,1fr);gap:36px}.dn-amt{font-size:40px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.15;margin:2px 0 8px}
+.dn-ph img{width:110px!important;height:110px!important;border-radius:12px;object-fit:cover}
 @media(min-width:900px){
   .main.br-view{max-width:none;padding:28px 40px 90px}
   .br-view .head h1{font-size:26px}
@@ -517,6 +529,22 @@ function liveAside(r){
   };
   return d;
 }
+/* จอกว้าง: หน้า "ส่งเอกสารแล้ว" — สรุปสถานะ + เส้นขั้นตอนตามสถานะจริง + รายละเอียด/รูปเต็มความกว้าง */
+function doneWide(x){
+  const st=statusOf(x), idx=st==="อนุมัติ"?2:st==="รอดำเนินการ"?1:0, cut=Number(x.claimedAmount)>Number(x.amount)+1e-9;
+  const sub=[stamp(x.submittedAt),idx>=1?(idx===1&&x.statusAt?stamp(x.statusAt)+(x.statusBy?" · "+x.statusBy:""):"ผู้ดูแลรับเรื่องแล้ว"):"รอผู้ดูแลรับเรื่อง",idx===2?stamp(x.statusAt)+(x.statusBy?" · "+x.statusBy:""):"ยังไม่อนุมัติ"];
+  const names=["ส่งแล้ว","รอดำเนินการ","อนุมัติ / โอนเงิน"];
+  const mayDelete=can("delete-own")&&ME.role==="branch"&&x.branchCode===ME.code&&st!=="อนุมัติ";
+  const d=document.createElement("div"); d.className="dn";
+  d.innerHTML=`<div class="dn-head"><div class="ck">✓</div><div style="min-width:0"><b>ส่งเอกสารรอบ ${esc(roundLabel(roundIdOf(x)))} แล้ว</b><div class="muted">เลขเอกสาร ${esc(x.docNo||x.id)} · เบิกได้รอบละ 1 ครั้ง ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div></div><span style="margin-left:auto">${pill(st)}</span></div>
+    <div class="dn-card"><div class="dn-track"><div class="dn-line"><i style="width:${idx*50}%"></i></div>${names.map((n,i)=>`<div class="dn-node${i<=idx?" is-done":""}${i===idx&&idx<2?" is-cur":""}"><span class="dot">${i<=idx&&!(i===idx&&idx<2)?"✓":""}</span><b>${n}</b><small>${esc(sub[i])}</small></div>`).join("")}</div></div>
+    <div class="dn-card dn-det"><div><div class="muted" style="font-weight:700">${cut?"จ่ายตามวงเงิน":"ยอดเบิก"}</div><div class="dn-amt">${money(x.amount)} ฿</div>${cut?`<div class="note-cut" style="display:inline-block">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน (ส่วนเกิน ${money(x.claimedAmount-x.amount)} ฿ ไม่จ่าย)</div>`:""}
+      <div style="margin-top:12px"><div class="lead"><span>ผู้ทำการเบิก</span><b>${esc(x.claimantName||"-")}</b></div><div class="lead"><span>ผู้รับเงิน</span><b>${esc([x.payeeName||x.payee,x.payeePosition].filter(Boolean).join(" · ")||"-")}</b></div><div class="lead"><span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))}</b></div>${x.note?`<div class="lead"><span>หมายเหตุ</span><b style="max-width:340px">${esc(x.note)}</b></div>`:""}</div></div>
+      <div><div class="muted" style="font-weight:700;margin-bottom:8px">รูปใบเสร็จ (${(x.photos||[]).length})</div><div class="dn-ph" id="dnph"></div>${mayDelete?'<div style="margin-top:14px"><button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button></div>':'<div class="muted" style="margin-top:14px">'+(st==="อนุมัติ"?"อนุมัติแล้ว แก้ไขไม่ได้":"")+'</div>'}</div></div>`;
+  const ph=photoStrip(x.photos); if(ph) $("#dnph",d).appendChild(ph);
+  if(mayDelete) $("#dndel",d).onclick=()=>removeClaim(x);
+  return d;
+}
 function branchSend(body,r,mine){
   if(!can("submit-claim")){
     body.insertAdjacentHTML("beforeend",`<div class="empty">สาขานี้ยังไม่ได้รับสิทธิ์ส่งเอกสาร<br>ติดต่อผู้ดูแลฮับ</div>`); return;
@@ -534,6 +562,7 @@ function branchSend(body,r,mine){
   body.appendChild(grid);
 
   const done=activeClaim(r.id,ME.code);
+  if(done&&WIDE()){ left.appendChild(doneWide(done)); return; }
   if(done){
     const st=statusOf(done);
     left.insertAdjacentHTML("beforeend",`<div class="done"><div class="ck">✓</div><b>รอบนี้ส่งเอกสารแล้ว</b>
