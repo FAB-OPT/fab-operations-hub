@@ -272,6 +272,7 @@ const thisRoundId=()=>HubMod.localDate().slice(0,7);
 const roundLabel=id=>{const[y,m]=String(id||"").split("-");
   return (["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+m]||"")+" "+((+y||0)+543);};
 /* รอบที่สาขาส่งได้ = รอบที่เปิดล่าสุด · ไม่มีรอบเปิด = รอบล่าสุด (แสดงว่าปิดแล้ว) */
+const rng=r=>r.startDate&&r.dueDate?dmy(r.startDate)+" – "+dmy(r.dueDate):r.dueDate?"ถึง "+dmy(r.dueDate):r.startDate?"ตั้งแต่ "+dmy(r.startDate):"";
 const currentRound=()=>{const r=ROUNDS(); return r.find(x=>x.open)||r[0]||null;};
 const roundIdOf=c=>c.roundId||String(c.submittedAt||"").slice(0,7);
 const isRejected=c=>statusOf(c)==="ไม่อนุมัติ";
@@ -360,7 +361,7 @@ function frame(tabs,active,onTab,roundBox){
 }
 function roundBoxHtml(r,extra){
   if(!r) return `<div class="rbox">รอบเบิก<b>ยังไม่มีรอบ</b></div>`;
-  return `<div class="rbox">รอบ${r.open?"ปัจจุบัน":"ล่าสุด"}<b>${esc(roundLabel(r.id))}</b>${r.open?(r.dueDate?"เปิดรับถึง "+esc(dmy(r.dueDate)):"เปิดรับเอกสาร"):"ปิดรับแล้ว"}${extra||""}</div>`;
+  return `<div class="rbox">รอบ${r.open?"ปัจจุบัน":"ล่าสุด"}<b>${esc(roundLabel(r.id))}</b>${r.open?(rng(r)?"เปิดรับ "+esc(rng(r)):"เปิดรับเอกสาร"):"ปิดรับแล้ว"}${extra||""}</div>`;
 }
 function updLabel(){
   const at=S.loadedAt?new Date(S.loadedAt):null;
@@ -406,7 +407,7 @@ function renderBranch(){
     TAB,k=>{TAB=k;renderBranch();},roundBoxHtml(r,extra));
   const brand=Branches.brandName(Branches.brandOf(ME.code));
   body.innerHTML=`<div class="head"><h1>${esc(ME.name)}</h1>${r?`<span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"รอบ "+esc(roundLabel(r.id))+" เปิดรับ":"ปิดรับเอกสารแล้ว"}</span>`:""}<span class="sp"></span>${updLabel()}
-    <div class="sub">สาขา · ${esc(brand)} · ${r?"รอบ "+esc(roundLabel(r.id))+(r.open&&r.dueDate?" · ส่งได้ถึง "+esc(dmy(r.dueDate)):""):"ยังไม่มีรอบเบิก"} · เบิกได้รอบละ 1 ครั้ง</div></div>`;
+    <div class="sub">สาขา · ${esc(brand)} · ${r?"รอบ "+esc(roundLabel(r.id))+(r.open&&rng(r)?" · ส่งได้ "+esc(rng(r)):""):"ยังไม่มีรอบเบิก"} · เบิกได้รอบละ 1 ครั้ง</div></div>`;
   if(TAB==="hist") return branchHistory(body,mine);
   if(TAB==="payee") return branchPayee(body);
   branchSend(body,r,mine);
@@ -427,7 +428,7 @@ function sideInfo(r,mine){
     +(r?`<div class="card"><h3>รอบ ${esc(roundLabel(r.id))}</h3>
       <div class="lead"><span>วงเงิน</span><b>${limitOf(r.id,ME.code)?baht(limitOf(r.id,ME.code))+" ฿":"ยังไม่ได้ตั้ง"}</b></div>
       <div class="lead"><span>สถานะรอบ</span><b>${r.open?"เปิดรับเอกสาร":"ปิดรับแล้ว"}</b></div>
-      ${r.dueDate?`<div class="lead"><span>ส่งได้ถึง</span><b>${esc(dmy(r.dueDate))}</b></div>`:""}
+      ${rng(r)?`<div class="lead"><span>ช่วงส่งเอกสาร</span><b>${esc(rng(r))}</b></div>`:""}
       <div class="lead"><span>สิทธิ์เบิก</span><b>1 ครั้ง / รอบ${activeClaim(r.id,ME.code)?" (ใช้แล้ว)":" (ยังไม่ใช้)"}</b></div></div>`:"")
     +(past.length?`<div class="sec">รอบก่อน</div>`:"");
   past.forEach(c=>d.appendChild(slip(c,false)));
@@ -810,13 +811,14 @@ function exportCsv(list){
 function roundForm(r){
   const f=document.createElement("div");
   f.innerHTML=`<div class="field"><label>เดือนของรอบ</label><input id="rm" type="month" value="${esc(r?r.id:thisRoundId())}" ${r?"disabled":""}></div>
-    <div class="f2"><div class="field"><label>วงเงินต่อสาขา (บาท)</label><input id="rl" type="number" min="0" step="0.01" value="${r?Number(r.limitDefault)||0:Number(CFG().defaultLimit)||0}"></div>
-    <div class="field"><label>ส่งเอกสารได้ถึงวันที่</label><input id="rd" type="date" value="${esc(r?r.dueDate||"":"")}"></div></div>
-    <div class="muted">สาขาที่ตั้งวงเงินเฉพาะไว้ (เมนู “วงเงินสาขา”) จะใช้วงเงินเฉพาะแทน · ใส่ 0 = ใช้วงเงินเริ่มต้นกลาง</div>`;
+    <div class="f2"><div class="field"><label>ส่งเอกสารได้ตั้งแต่วันที่</label><input id="rs" type="date" value="${esc(r?r.startDate||"":"")}"></div>
+    <div class="field"><label>ถึงวันที่</label><input id="rd" type="date" value="${esc(r?r.dueDate||"":"")}"></div></div>
+    <div class="muted">วงเงินตั้งรายสาขาที่เมนู “วงเงินสาขา” (แต่ละสาขาไม่เท่ากัน)</div>`;
   modal(r?"แก้รอบ "+roundLabel(r.id):"เปิดรอบเบิกใหม่",f,async()=>{
     const id=r?r.id:$("#rm",f).value;
     if(!/^\d{4}-\d{2}$/.test(id)) throw new Error("เลือกเดือนก่อน");
-    const patch={limitDefault:Math.max(0,Number($("#rl",f).value)||0),dueDate:$("#rd",f).value||""};
+    const patch={startDate:$("#rs",f).value||"",dueDate:$("#rd",f).value||""};
+    if(patch.startDate&&patch.dueDate&&patch.startDate>patch.dueDate) throw new Error("วันที่เริ่มต้องไม่เกินวันที่สิ้นสุด");
     await S.refresh().catch(()=>{});
     if(r){ await S.update("rounds",id,patch); toast("บันทึกแล้ว"); return; }
     if(roundOf(id)) throw new Error("มีรอบเดือนนี้อยู่แล้ว");
@@ -836,7 +838,7 @@ function adminRounds(body){
     const ok=list.filter(c=>statusOf(c)==="อนุมัติ"), wait=list.filter(isWaiting);
     const c=document.createElement("div"); c.className="card"+(r.open?" hl":"");
     c.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start"><b style="font-size:18px">รอบ ${esc(roundLabel(r.id))}</b><span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"เปิดรับ":"ปิดแล้ว"}</span></div>
-      <div class="muted" style="margin:2px 0 10px">${r.dueDate?"ส่งได้ถึง "+esc(dmy(r.dueDate))+" · ":""}วงเงิน ${baht(r.limitDefault||CFG().defaultLimit||0)} ฿/สาขา</div>
+      <div class="muted" style="margin:2px 0 10px">${rng(r)||"ยังไม่กำหนดช่วงวันที่"}</div>
       <div class="lead"><span>สาขาที่ส่งแล้ว</span><b>${sent} / ${nb}</b></div>
       <div class="meter" style="margin:4px 0 8px"><i style="width:${nb?Math.min(100,sent/nb*100):0}%"></i></div>
       <div class="lead"><span>อนุมัติแล้ว</span><b>${money(sumOf(ok))} ฿</b></div>
