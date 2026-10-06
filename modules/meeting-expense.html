@@ -883,6 +883,7 @@ function adminLimits(body,r){
         <span>${lim?`<div class="meter"><i class="${u>lim?"over":""}" style="width:${Math.min(100,u/lim*100)}%"></i></div>`:""}<small class="num">${u?baht(u)+" ฿":"ยังไม่ส่ง"}</small></span>
         <span>${own?`<span class="pill p-wait">เฉพาะสาขา</span>`:`<span class="muted">ตามรอบ</span>`}</span>
         <span><button class="btn ghost sm" data-lim="${esc(b.code)}">ตั้งวงเงิน</button></span></div>`;}).join("")}</div>`;
+    const c=$("#snp",out); if(c) c.onchange=()=>{window._showNoPayee=c.checked;draw();};
   };
   out.onclick=e=>{ const b=e.target.closest("[data-lim]"); if(b) limitForm(all.find(x=>x.code===b.dataset.lim)); };
   wireTools(body,"lq",draw);
@@ -1108,9 +1109,11 @@ function adminPayees(body){
   });
   const all=Branches.list(), out=$("#out",body);
   const draw=()=>{
-    const list=all.filter(matchBranch);
-    if(!list.length){ out.innerHTML=`<div class="empty">ไม่พบสาขา</div>`; return; }
-    out.innerHTML=`<div class="muted" style="margin:0 2px 8px">${list.length} สาขา · มีข้อมูล ${list.filter(b=>payeeOf(b.code).name).length}</div>
+    const base=all.filter(matchBranch), hidden=base.filter(b=>!payeeOf(b.code).name).length;
+    const list=window._showNoPayee?base:base.filter(b=>payeeOf(b.code).name);
+    const tg=hidden?`<label class="muted" style="display:inline-flex;gap:6px;align-items:center;margin-left:10px"><input type="checkbox" id="snp" ${window._showNoPayee?"checked":""}> แสดงสาขาที่ยังไม่มีบัญชี (${hidden})</label>`:"";
+    if(!list.length){ out.innerHTML=`<div class="muted" style="margin:0 2px 8px">${tg}</div><div class="empty">ไม่พบสาขาที่มีบัญชีรับเงิน</div>`; const c=$("#snp",out); if(c) c.onchange=()=>{window._showNoPayee=c.checked;draw();}; return; }
+    out.innerHTML=`<div class="muted" style="margin:0 2px 8px">${list.length} สาขา${tg}</div>
       <div class="rowlist"><div class="tr th"><span>สาขา</span><span>พนักงานรับเงิน</span><span>ธนาคาร / เลขบัญชี</span><span>อัปเดต</span><span></span></div>
       ${list.map(b=>{ const p=payeeOf(b.code);
         return `<div class="tr line-item"><span><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)}</small></span>
