@@ -387,7 +387,7 @@ function loadEmps(){
       if(!(ss.data&&ss.data.session)){ const r=await c.auth.signInAnonymously(); if(r.error) throw r.error; }
       let rows=[],from=0;
       for(;;){ const r=await c.from("fh_employees").select("name,emp_id,branch,position").range(from,from+999); if(r.error) throw r.error; rows=rows.concat(r.data||[]); if((r.data||[]).length<1000||from>20000) break; from+=1000; }
-      EMPS=rows.filter(x=>x.name).map(x=>({name:String(x.name).trim(),code:String(x.emp_id||"").trim(),branch:String(x.branch||"").trim(),position:String(x.position||"").trim()}));
+      EMPS=rows.filter(x=>x.name&&!/หลักสูตร/.test(x.name)&&String(x.emp_id||"")!=="ผ่าน").map(x=>({name:String(x.name).trim(),code:String(x.emp_id||"").trim(),branch:String(x.branch||"").trim(),position:String(x.position||"").trim()}));
     }catch(e){ console.warn("[เบิกเงินประชุม] โหลดทะเบียนพนักงานไม่ได้ — พิมพ์เองได้",e); EMPS=[]; _empP=null; }
     return EMPS;
   })();
