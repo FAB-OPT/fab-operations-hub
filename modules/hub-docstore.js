@@ -109,13 +109,15 @@
     loadSb: function () {
       var self = this;
       return SB.ready().then(function () {
-        return SB.client().from('hub_config').select('key,value').in('key', ['branches', 'perms', 'brands']);
+        return SB.client().from('hub_config').select('key,value').in('key', ['branches', 'perms', 'brands', 'jaedaengBranches']);
       }).then(function (r) {
         if (r.error) throw r.error;
         var m = {}; (r.data || []).forEach(function (x) { m[x.key] = x.value; });
         if (!m.branches) throw new Error('hub_config ไม่มี branches');
         var prev = self.data || {};
-        self.data = { branches: m.branches, perms: m.perms || prev.perms || null, brands: m.brands || prev.brands || null };
+        /* เจ๊แดง: ทะเบียนจริงของฮับคือรายการ jaedaengBranches (ชื่อร้าน) — เก็บเฉพาะชื่อไว้ใช้กรองรหัส 40xx ที่ถูกลบออกจากฮับแล้ว */
+        var jd = Array.isArray(m.jaedaengBranches) ? m.jaedaengBranches.map(function (x) { return String((x && x.name) || x || ''); }) : null;
+        self.data = { branches: m.branches, perms: m.perms || prev.perms || null, brands: m.brands || prev.brands || null, jaedaengBranches: jd };
         lsSet(CFG_KEY, self.data);
         return self.data;
       });
@@ -164,6 +166,12 @@
       var st = raw.statusMap || {}, self = this;
       return Object.keys(raw.branches)
         .filter(function (c) { return includeClosed || st[c] !== 'closed'; })
+        .filter(function (c) {
+          /* รหัส 40xx (เจ๊แดง จุ่มนัว) ที่ไม่อยู่ในรายการร้านของฮับแล้ว = ถูกลบออกจากฮับ → ไม่แสดง */
+          var jd = Cfg.data && Cfg.data.jaedaengBranches;
+          if (includeClosed || !jd || !jd.length || c.slice(0, 2) !== '40') return true;
+          return jd.some(function (n) { return n.indexOf(c) === 0; });
+        })
         .sort()
         .map(function (c) {
           var b = self.brandOf(c);
