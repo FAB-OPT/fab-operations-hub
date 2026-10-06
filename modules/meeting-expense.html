@@ -120,6 +120,7 @@
 .slip .top{display:flex;justify-content:space-between;align-items:flex-start;gap:8px}
 .slip .amt{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.25}
 .slip .desc{margin-top:8px;font-size:13.5px;white-space:pre-wrap;border-top:1px dashed var(--border);padding-top:8px}
+.slip .note-cut{margin-top:8px;font-size:13px;background:var(--gold-soft);color:var(--gold-ink);border:1px solid var(--gold-line);border-radius:8px;padding:6px 9px;font-weight:700}
 .slip .note-no{margin-top:8px;font-size:13px;background:var(--red-soft);color:var(--red-ink);border-radius:8px;padding:6px 9px}
 .slip .acts select{width:auto;min-width:140px;padding:6px 30px 6px 10px;font-size:13px}
 .slip .acts .push{margin-left:auto}
@@ -187,7 +188,7 @@
   .lslip .lh{padding:16px 20px;background:linear-gradient(135deg,#e8620c,#ff9a3c);color:#fff}.lslip .lh small{opacity:.88;font-weight:600}.lslip .lh b{display:block;font-size:17px}
   .lslip .lb{padding:6px 20px}.lslip .lb small{display:block;font-weight:500;color:var(--text3)}
   .lslip .lt{display:flex;justify-content:space-between;align-items:baseline;padding:14px 20px;background:var(--bg3);border-top:2px solid var(--text)}.lslip .lt b{font-size:28px;font-variant-numeric:tabular-nums}
-  .lslip .lf{padding:10px 20px;font-size:13px;color:var(--text3)}.lslip .lf.over{color:var(--red-ink);font-weight:700}
+  .lslip .lf{padding:10px 20px;font-size:13px;color:var(--text3)}.lslip .lf.cut{color:var(--gold-ink);background:var(--gold-soft);font-weight:700}
   .br-view .hist-cards{display:none}
   .br-view .hist-tbl{display:block;margin-top:14px}
   .br-view .narrow{max-width:none}
@@ -481,7 +482,7 @@ function quotaCard(r){
   const lim=limitOf(r.id,ME.code);
   return `<div class="card quota" style="margin-top:0"><div class="muted" style="font-weight:700">วงเงินต่อรอบ · รอบ ${esc(roundLabel(r.id))}</div>
     <div class="big" id="left">${lim?baht(lim)+" ฿":"—"}</div>
-    <div class="row2"><span>เบิกได้ 1 ครั้ง / รอบ</span><span>${lim?"ยอดต้องไม่เกินวงเงินนี้":"ยังไม่ได้ตั้งวงเงิน"}</span></div></div>`;
+    <div class="row2"><span>เบิกได้ 1 ครั้ง / รอบ</span><span>${lim?"เกินได้ แต่จ่ายไม่เกินวงเงิน":"ยังไม่ได้ตั้งวงเงิน"}</span></div></div>`;
 }
 function sideInfo(r,mine){
   const pay=payeeOf(ME.code);
@@ -512,7 +513,7 @@ function liveAside(r){
     const g=id=>{const e=document.getElementById(id);return e?e.value:"";}, am=Number(g("am"))||0, left=lim-am;
     $("#lv-cn",d).textContent=g("cn").trim()||"—"; $("#lv-nt",d).textContent=g("nt").trim()||"—";
     $("#lv-ph",d).textContent=DRAFT.photos.length+" / "+MAX_PHOTOS; $("#lv-am",d).textContent=money(am)+" ฿";
-    const l=$("#lv-left",d); l.className="lf"+(lim&&left<-1e-9?" over":""); l.textContent=!lim?"ยังไม่ได้ตั้งวงเงิน":left<-1e-9?"เกินวงเงิน "+money(-left)+" บาท":"อยู่ในวงเงิน "+money(lim)+" บาท";
+    const l=$("#lv-left",d); l.className="lf"+(lim&&left<-1e-9?" cut":""); l.textContent=!lim?"ยังไม่ได้ตั้งวงเงิน":left<-1e-9?"ยอดเกินวงเงิน · จ่ายตามวงเงิน "+money(lim)+" บาท (ส่วนเกิน "+money(-left)+" ไม่จ่าย)":"อยู่ในวงเงิน "+money(lim)+" บาท";
   };
   return d;
 }
@@ -554,6 +555,8 @@ function branchSend(body,r,mine){
   left.appendChild(f);
   const msg=(t,cls)=>{const m=$("#msg",f); m.textContent=t||""; m.className="msg"+(cls?" "+cls:"");};
   ["cn","am","nt"].forEach((id,i)=>$("#"+id,f).oninput=e=>{DRAFT[["claimant","amount","note"][i]]=e.target.value;});
+  { const lim=limitOf(r.id,ME.code), hint=()=>{ const a=Number($("#am",f).value)||0; msg(lim&&a>lim+1e-9?"ยอดเกินวงเงิน — ระบบจะจ่ายตามวงเงิน "+money(lim)+" บาท":"",""); };
+    $("#am",f).addEventListener("input",hint); hint(); }
 
   /* รูปที่แนบ: อัปขึ้น Drive ทันที กด × เพื่อเอาออก */
   let busy=0;
@@ -605,14 +608,15 @@ function branchSend(body,r,mine){
       const lim=limitOf(r.id,ME.code), left2=lim-used(r.id,ME.code);
       if(!lim) throw new Error("รอบนี้ยังไม่ได้ตั้งวงเงิน ติดต่อผู้ดูแล");
       if(activeClaim(r.id,ME.code)) throw new Error("รอบนี้สาขาส่งเอกสารไปแล้ว (เบิกได้รอบละ 1 ครั้ง)");
-      if(amount>left2+1e-9) throw new Error("เกินวงเงิน ("+money(Math.max(0,left2))+" บาท)");
+      const payAmt=Math.min(amount,Math.max(0,left2));   // เกินวงเงินส่งได้ แต่ตัดเหลือเท่าวงเงิน
+      if(payAmt<=0) throw new Error("รอบนี้ไม่มีวงเงินเหลือให้เบิก ติดต่อผู้ดูแล");
       const docNo=newDocNo();
       await S.set("claims",docNo,{docNo,roundId:r.id,branchCode:ME.code,branchName:ME.name,claimantName:claimant,
-        amount,note,photos:DRAFT.photos.slice(0,MAX_PHOTOS),
+        amount:payAmt,claimedAmount:amount,note,photos:DRAFT.photos.slice(0,MAX_PHOTOS),
         payeeName:p2.name,payeeEmpCode:p2.empCode||"",payeePosition:p2.position||"",
         status:"ส่งแล้ว",submittedAt:nowISO(),submittedBy:Hub.fullName()});
       DRAFT={claimant:"",amount:"",note:"",photos:[]};
-      toast("ส่งสำเร็จ · เลขเอกสาร "+docNo);
+      toast("ส่งสำเร็จ · เลขเอกสาร "+docNo+(payAmt<amount?" · ตัดตามวงเงิน "+money(payAmt)+" บาท":""));
       renderBranch();
     }catch(err){ msg("ส่งไม่สำเร็จ: "+(err.message||"ลองใหม่อีกครั้ง"),"bad"); b.disabled=false; b.textContent="ส่งเอกสาร"; }
   };
@@ -703,6 +707,7 @@ function slip(x,admin){
       <div class="lead"><span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))} · รอบ ${esc(roundLabel(roundIdOf(x)))}</b></div>
       ${x.statusAt?`<div class="lead"><span>อัปเดตสถานะ</span><b>${esc(x.statusBy||"-")} · ${esc(stamp(x.statusAt))}</b></div>`:""}
     </div>
+    ${Number(x.claimedAmount)>Number(x.amount)+1e-9?`<div class="note-cut">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน เหลือ ${money(x.amount)} ฿</div>`:""}
     ${x.note?`<div class="desc">${esc(x.note)}</div>`:""}
     ${x.reviewNote?`<div class="note-no">ผู้ดูแล: ${esc(x.reviewNote)}</div>`:""}`;
   const ph=photoStrip(x.photos);
@@ -898,7 +903,7 @@ function tableHtml(list,manage){
 }
 function exportCsv(list){
   if(!list.length) return toast("ไม่มีรายการให้ส่งออก");
-  const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย"]]
+  const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด (จ่ายตามวงเงิน)","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย"]]
     .concat(list.map(c=>[c.docNo||c.id,roundLabel(roundIdOf(c)),c.branchCode,Branches.nameOf(c.branchCode)||c.branchName||"",
       Branches.brandName(Branches.brandOf(c.branchCode)),c.claimantName||"",Number(c.amount)||0,c.payeeName||c.payee||"",c.payeeEmpCode||"",
       c.payeePosition||"",statusOf(c),stamp(c.submittedAt),c.note||"",c.statusBy||""]));
