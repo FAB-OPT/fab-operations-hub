@@ -105,7 +105,26 @@
   var CFG_KEY = 'hubmod_config_v1';
   var Cfg = {
     data: lsGet(CFG_KEY),
+    /* ฮับอ่านทะเบียนสาขา/สิทธิ์จาก Supabase (hub_config) ก่อน — ต้องอ่านที่เดียวกัน ไม่งั้นสาขาที่ลบ/ปิดไปแล้วยังโผล่ (Sheets เก่า) */
+    loadSb: function () {
+      var self = this;
+      return SB.ready().then(function () {
+        return SB.client().from('hub_config').select('key,value').in('key', ['branches', 'perms', 'brands']);
+      }).then(function (r) {
+        if (r.error) throw r.error;
+        var m = {}; (r.data || []).forEach(function (x) { m[x.key] = x.value; });
+        if (!m.branches) throw new Error('hub_config ไม่มี branches');
+        var prev = self.data || {};
+        self.data = { branches: m.branches, perms: m.perms || prev.perms || null, brands: m.brands || prev.brands || null };
+        lsSet(CFG_KEY, self.data);
+        return self.data;
+      });
+    },
     load: function () {
+      var self = this;
+      return this.loadSb().catch(function () { return self.loadSheets(); });
+    },
+    loadSheets: function () {
       var self = this;
       return fetch(SCRIPT_URL + '?action=config&_=' + Date.now())
         .then(function (r) { return r.json(); })

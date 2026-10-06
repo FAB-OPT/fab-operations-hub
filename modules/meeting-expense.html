@@ -207,7 +207,7 @@
 <div id="modalHost"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
-<script src="hub-docstore.js?v=20260922"></script>
+<script src="hub-docstore.js?v=20261006"></script>
 <script>
 "use strict";
 const {Hub, Cfg} = HubMod;
@@ -675,6 +675,7 @@ function adminTabs(){
   if(can("view-claims")||can("update-status")) t.push({k:"list",t:"เอกสารเบิก",ic:"🧾",n:CLAIMS().filter(isWaiting).length});
   if(can("manage-rounds")) t.push({k:"rounds",t:"รอบเบิก",ic:"🗓"});
   if(can("view-claims")||can("update-status")) t.push({k:"bzm",t:"สรุปตาม BZM",ic:"👥"});
+  if(can("view-claims")||can("update-status")) t.push({k:"rpt",t:"รายงาน",ic:"📊"});
   if(can("manage-limits")) t.push({k:"limits",t:"วงเงินสาขา",ic:"💰"});
   if(can("manage-payees")) t.push({k:"payees",t:"บัญชีรับเงิน",ic:"🏦",n:PREQ().filter(p=>p.status==="pending").length});
   return t;
@@ -690,7 +691,7 @@ function renderAdmin(){
   if(r&&nb){ const sent=sentBranches(r.id);
     extra=`<div class="meter" style="margin-top:8px"><i style="width:${Math.min(100,sent/nb*100)}%"></i></div><div style="margin-top:4px">ส่งแล้ว ${sent} / ${nb} สาขา</div>`; }
   const body=frame(tabs,ATAB,k=>{ATAB=k;renderAdmin();},roundBoxHtml(r,extra));
-  ({list:adminList,bzm:adminBzm,rounds:adminRounds,limits:adminLimits,payees:adminPayees})[ATAB](body,r);
+  ({list:adminList,bzm:adminBzm,rpt:adminReport,rounds:adminRounds,limits:adminLimits,payees:adminPayees})[ATAB](body,r);
 }
 function adminList(body,r){
   const manage=can("update-status");
@@ -895,6 +896,72 @@ function adminLimits(body,r){
   wireTools(body,"lq",draw);
   draw();
 }
+/* ═════════════ รายงานเบิกเงินประชุม ═════════════
+   เลือกช่วงเดือน + เกณฑ์นับ → สรุปตัวเลข · กราฟรายเดือน · แยกตาม BZM / แบรนด์ / สาขา · สาขาที่ไม่เคยเบิกในช่วง · ส่งออก Excel · พิมพ์
+   สาขาตามทะเบียนฮับ (ไม่รวมสาขาที่ปิด/รหัส 60) · เอกสารที่ไม่อนุมัติไม่นับ */
+let RV={from:"",to:"",basis:"ok",by:"bzm"};
+function adminReport(body){
+  const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort();
+  const cur=thisRoundId();
+  if(!RV.to||!/^\d{4}-\d{2}$/.test(RV.to)) RV.to=rids.length?rids[rids.length-1]:cur;
+  if(!RV.from||!/^\d{4}-\d{2}$/.test(RV.from)) RV.from=RV.to.slice(0,4)+"-01";
+  if(RV.from>RV.to) RV.from=RV.to;
+  body.innerHTML=`<div class="head"><h1>รายงานเบิกเงินประชุม</h1><span class="sp"></span>${updLabel()}<button class="btn ghost sm" id="rcsv">⬇ ส่งออก Excel</button><button class="btn ghost sm" id="rprt">🖨 พิมพ์</button>
+      <div class="sub">สาขาตามทะเบียนฮับ · ไม่นับเอกสารที่ไม่อนุมัติ · เลือกช่วงเดือนและเกณฑ์ที่ต้องการดู</div></div>
+    <div class="fl"><label class="muted">ตั้งแต่ <input type="month" id="rf" value="${esc(RV.from)}"></label><label class="muted">ถึง <input type="month" id="rt" value="${esc(RV.to)}"></label>
+      <span><button class="chip ${RV.basis==="ok"?"on":""}" data-b="ok">เฉพาะอนุมัติแล้ว</button> <button class="chip ${RV.basis==="all"?"on":""}" data-b="all">รวมรอตรวจ</button></span></div>
+    <div id="rout"></div>`;
+  const redo=()=>adminReport(body);
+  $("#rf",body).onchange=e=>{RV.from=e.target.value||RV.from;redo();};
+  $("#rt",body).onchange=e=>{RV.to=e.target.value||RV.to;redo();};
+  body.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>{RV.basis=b.dataset.b;redo();});
+  const inRange=id=>id>=RV.from&&id<=RV.to, okOnly=RV.basis==="ok";
+  const cl=CLAIMS().filter(c=>!isRejected(c)&&inRange(roundIdOf(c))&&(!okOnly||statusOf(c)==="อนุมัติ"));
+  const brs=Branches.list(), byCode={}; brs.forEach(b=>byCode[b.code]=b);
+  const inList=cl.filter(c=>byCode[c.branchCode]);
+  const out=$("#rout",body);
+  const tot=sumOf(inList), nb=new Set(inList.map(c=>c.branchCode)).size;
+  const months=[]; { let [y,m]=RV.from.split("-").map(Number); const [ey,em]=RV.to.split("-").map(Number); while((y<ey||(y===ey&&m<=em))&&months.length<36){ months.push(y+"-"+String(m).padStart(2,"0")); m++; if(m>12){m=1;y++;} } }
+  const mv=months.map(id=>({id,v:sumOf(inList.filter(c=>roundIdOf(c)===id))}));
+  const mx=Math.max(1,...mv.map(x=>x.v));
+  const multiYear=RV.from.slice(0,4)!==RV.to.slice(0,4);
+  const chart=`<div class="card" style="margin-bottom:14px"><div class="lead" style="margin-bottom:8px"><span>ยอดเบิกรายเดือน</span><b>${baht(tot)} ฿</b></div>
+    <div style="display:flex;align-items:flex-end;gap:6px;height:170px;overflow-x:auto;padding-top:18px">${mv.map(x=>`<div style="flex:1 0 40px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;min-width:40px">
+      <small class="num" style="font-size:10.5px;color:var(--text3)">${x.v?baht(x.v):""}</small>
+      <div style="width:70%;max-width:34px;border-radius:6px 6px 0 0;background:${x.v?"var(--primary,#F97316)":"var(--border)"};height:${x.v?Math.max(3,x.v/mx*100*0.78):1.5}%"></div>
+      <small style="font-size:11px;margin-top:4px">${MONTHS_TH[+x.id.slice(5,7)]}${multiYear?" "+String((+x.id.slice(0,4)+543)%100):""}</small></div>`).join("")}</div></div>`;
+  const keyOf={bzm:c=>bzmOf(c.branchCode).label,brand:c=>byCode[c.branchCode].brandName,branch:c=>byCode[c.branchCode].code+" "+byCode[c.branchCode].name};
+  const g={}; inList.forEach(c=>{ const k=keyOf[RV.by](c); const o=g[k]||(g[k]={k,sum:0,n:0,br:new Set()}); o.sum+=Number(c.amount)||0; o.n++; o.br.add(c.branchCode); });
+  const rows=Object.values(g).sort((a,b)=>b.sum-a.sum);
+  const gt=[["bzm","ตาม BZM"],["brand","ตามแบรนด์"],["branch","ตามสาขา"]];
+  const tbl=`<div class="card" style="margin-bottom:14px"><div class="fl" style="margin:0 0 10px">${gt.map(([k,t])=>`<button class="chip ${RV.by===k?"on":""}" data-g="${k}">${t}</button>`).join(" ")}</div>
+    ${rows.length?`<div class="rowlist"><div class="tr th"><span>${RV.by==="bzm"?"BZM":RV.by==="brand"?"แบรนด์":"สาขา"}</span><span>ใบเบิก</span><span>สาขา</span><span>ยอดเบิก</span><span>สัดส่วน</span></div>
+    ${rows.map(x=>`<div class="tr line-item"><span><b>${esc(x.k)}</b></span><span class="num">${x.n}</span><span class="num">${x.br.size}</span><span class="num"><b>${baht(x.sum)}</b></span>
+      <span><div class="meter"><i style="width:${tot?x.sum/tot*100:0}%"></i></div><small class="num">${tot?(x.sum/tot*100).toFixed(1):0}%</small></span></div>`).join("")}</div>`:`<div class="empty">ช่วงนี้ยังไม่มีเอกสารเบิก${okOnly?"ที่อนุมัติ":""}</div>`}</div>`;
+  const sentSet=new Set(inList.map(c=>c.branchCode));
+  const lim=(CFG().limits||{}), dl=Number(CFG().defaultLimit)||0;
+  const none=brs.filter(b=>!sentSet.has(b.code)&&(Number(lim[b.code])>0||dl>0));
+  const nonec=none.length?`<details class="card" style="margin-bottom:14px"><summary style="cursor:pointer"><b>สาขาที่ไม่มีการเบิกในช่วงนี้</b> <span class="pill p-wait">${none.length} สาขา</span></summary>
+    <div class="rowlist" style="margin-top:10px">${none.map(b=>`<div class="tr line-item"><span><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)}</small></span><span>${esc(bzmOf(b.code).label)}</span></div>`).join("")}</div></details>`:"";
+  out.innerHTML=`<div class="kstrip"><div><small>ยอดเบิกรวม</small><b class="g">${baht(tot)}</b><em>${okOnly?"อนุมัติแล้ว":"รวมรอตรวจ"} · ${months.length} เดือน</em></div>
+      <div><small>จำนวนใบเบิก</small><b>${inList.length}</b><em>${nb} สาขา</em></div>
+      <div><small>เฉลี่ยต่อใบ</small><b>${inList.length?baht(Math.round(tot/inList.length)):"—"}</b><em>บาท</em></div>
+      <div><small>ไม่มีการเบิก</small><b class="o">${none.length}</b><em>จาก ${brs.length} สาขา</em></div></div>${chart}${tbl}${nonec}`;
+  out.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{RV.by=b.dataset.g;redo();});
+  $("#rprt",body).onclick=()=>window.print();
+  $("#rcsv",body).onclick=()=>{
+    if(!inList.length) return toast("ไม่มีรายการให้ส่งออก");
+    const R=[["รอบ","รหัสสาขา","สาขา","แบรนด์","BZM","ผู้รับเงิน","ยอดเบิก","สถานะ"]];
+    inList.slice().sort((a,b)=>roundIdOf(a).localeCompare(roundIdOf(b))||String(a.branchCode).localeCompare(String(b.branchCode)))
+      .forEach(c=>{ const b=byCode[c.branchCode]; R.push([roundIdOf(c),b.code,b.name,b.brandName,bzmOf(b.code).label,c.payeeName||c.payee||"",Number(c.amount)||0,statusOf(c)]); });
+    const cell=v=>{ const t=String(v==null?"":v); return /[",\r\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; };
+    const a=document.createElement("a");
+    a.href=URL.createObjectURL(new Blob(["﻿"+R.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));
+    a.download="รายงานเบิกเงินประชุม-"+RV.from+"ถึง"+RV.to+".csv";
+    document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
+  };
+}
+
 /* ═════════════ สรุปตาม BZM ═════════════
    BZM ของสาขา = ตามทะเบียนสาขาของฮับ (ฮับเป็นเจ้าของ) · ยอดนับจากเอกสารเบิกที่ไม่ถูกปฏิเสธ · "อนุมัติ" = สถานะอนุมัติ */
 const MONTHS_TH=["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
