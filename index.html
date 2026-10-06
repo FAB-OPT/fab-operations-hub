@@ -3779,9 +3779,33 @@ function loadUsersFromCloud() {
     })
     .catch(function(){ return USERS; });
 }
+function _usersSig(a) {
+  return JSON.stringify((a || []).map(function(u){ return [u.code, u.name, u.nick, u.role, (Array.isArray(u.brands) && u.brands.length ? u.brands : [u.brand]).join(',')].join('|'); }).sort());
+}
+function _verifyUsersSaved() {
+  if (!HUB_CFG.ready) return Promise.resolve();
+  return _sbLoadConfig().then(function(r){
+    if (r && Array.isArray(r.users) && _usersSig(r.users) !== _usersSig(USERS)) throw new Error('อ่านกลับจากฐานข้อมูลแล้วไม่ตรงกับที่บันทึก — กรุณากดบันทึกอีกครั้ง');
+  }, function(){ /* อ่านกลับไม่ได้ = ไม่ตัดสิน */ });
+}
 function saveUsersToCloud() {
   return hubPostJson({ type: 'set-config', key: 'users', value: USERS })
-  .then(function(res){ hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed'); return res; });
+  .then(function(res){
+    hubBustConfig(); if (!res.ok) throw new Error(res.error || 'save failed');
+    if (res.fallback) throw new Error('ฐานข้อมูลหลัก (Supabase) ไม่รับข้อมูล บันทึกลง Google Sheets แทน — หน้าอื่นจะยังไม่เห็นการแก้ไขนี้');
+    return _verifyUsersSaved().then(function(){ return res; });
+  });
+}
+/* แก้ผู้ใช้ 1 คน/ลบ 1 คน → อ่านรายชื่อล่าสุดจาก Cloud มาแก้เฉพาะคนนั้นแล้วค่อยบันทึก
+   (เดิมเอาก้อนในเครื่องที่อาจเก่าไปทับทั้งก้อน — คนอื่นที่เพิ่งแก้จากเครื่องอื่นหายหมด) */
+function _usersMutateFresh(apply) {
+  return hubGetConfig({ force: true }).then(function(res){
+    if (!(res && res.ok && Array.isArray(res.users) && res.users.length)) throw new Error('อ่านรายชื่อล่าสุดจาก Cloud ไม่ได้ — ยังไม่บันทึกขึ้น Cloud เพื่อกันข้อมูลเก่าไปทับ');
+    USERS = res.users;
+    apply();
+    saveUsersLocal();
+    return saveUsersToCloud();
+  });
 }
 
 /* ── Migration ครั้งเดียว: ซิงค์ชื่อ/นิค ของผู้ใช้ built-in ให้ตรงกับ DEFAULT_USERS ──
@@ -6082,7 +6106,18 @@ function openUserMgmtModal() {
   renderUserMgmtList();
   document.getElementById('userMgmtModal').classList.add('show');
   // refresh จาก cloud (ถ้า Apps Script รองรับ users) แล้ว re-render
-  loadUsersFromCloud().then(renderUserMgmtList).catch(function(){});
+  _syncUsersSync('กำลังโหลดรายชื่อล่าสุดจาก Cloud...', 'var(--text2)');
+  hubGetConfig({ force: true }).then(function(res){
+    if (res && res.ok && Array.isArray(res.users) && res.users.length) {
+      USERS = res.users; saveUsersLocal();
+      renderUserMgmtList();
+      _syncUsersSync('✓ แสดงรายชื่อล่าสุดจาก Cloud (' + (res.source === 'supabase' ? 'Supabase' : 'Google Sheets') + ')', 'var(--green)');
+    } else {
+      _syncUsersSync('⚠ ยังไม่มีรายชื่อบน Cloud — กำลังแสดงข้อมูลในเครื่อง', '#B45309');
+    }
+  }).catch(function(err){
+    _syncUsersSync('⚠ โหลดรายชื่อล่าสุดจาก Cloud ไม่ได้ — กำลังแสดงข้อมูลในเครื่องที่อาจเก่า · ' + (err && err.message || ''), '#B45309');
+  });
 }
 function closeUserMgmtModal() {
   document.getElementById('userMgmtModal').classList.remove('show');
@@ -6139,12 +6174,16 @@ function saveUserEdit() {
   var newUser = { code: code, name: name, nick: nick, role: role, brands: brands, brand: brand };
   if (brands.length > 1) newUser.crossBrand = true;
 
-  if (_editingUserCode) {
-    var idx = USERS.findIndex(function(u){ return u.code === _editingUserCode; });
-    if (idx >= 0) USERS[idx] = newUser;
-  } else {
-    USERS.push(newUser);
-  }
+  var _origCode = _editingUserCode;
+  var _applyUser = function(){
+    if (_origCode) {
+      var idx = USERS.findIndex(function(u){ return u.code === _origCode; });
+      if (idx >= 0) USERS[idx] = newUser; else USERS.push(newUser);
+    } else {
+      USERS.push(newUser);
+    }
+  };
+  _applyUser();   // แสดงผลทันทีในเครื่อง · ตอนบันทึกขึ้น Cloud จะอ่านของล่าสุดมาแก้ซ้ำเฉพาะคนนี้
 
   saveUsersLocal();
   renderUserMgmtList();
@@ -6162,9 +6201,9 @@ function saveUserEdit() {
     showInfo('✓ เปลี่ยนรหัสผ่านสำเร็จ', 'รหัสใหม่: <b>' + escapeHtml(code) + '</b><br>ครั้งต่อไป login ด้วยรหัสนี้');
   }
   _syncUsersSync('กำลังซิงค์ Cloud...', 'var(--text2)');
-  saveUsersToCloud()
-    .then(function(){ _syncUsersSync('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
-    .catch(function(err){ _syncUsersSync('⚠ บันทึกในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+  _usersMutateFresh(_applyUser)
+    .then(function(){ renderUserMgmtList(); _syncUsersSync('✓ บันทึกขึ้น Cloud แล้ว และอ่านกลับตรงกัน · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
+    .catch(function(err){ _syncUsersSync('⚠ ยังไม่ได้บันทึกขึ้น Cloud (เก็บในเครื่องนี้ไว้ก่อน) · ' + err.message, '#B45309'); });
 }
 
 function quickDeleteUser(code) {
@@ -6178,13 +6217,14 @@ function quickDeleteUser(code) {
     okText: 'ลบเลย'
   }).then(function(ok){
     if (!ok) return;
-    USERS = USERS.filter(function(x){ return x.code !== code; });
+    var _applyDel = function(){ USERS = USERS.filter(function(x){ return x.code !== code; }); };
+    _applyDel();
     saveUsersLocal();
     renderUserMgmtList();
     _syncUsersSync('กำลังซิงค์ Cloud...', 'var(--text2)');
-    saveUsersToCloud()
-      .then(function(){ _syncUsersSync('✓ ลบและซิงค์ Cloud สำเร็จ', 'var(--green)'); })
-      .catch(function(err){ _syncUsersSync('⚠ ลบในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
+    _usersMutateFresh(_applyDel)
+      .then(function(){ renderUserMgmtList(); _syncUsersSync('✓ ลบและบันทึกขึ้น Cloud แล้ว (อ่านกลับตรงกัน)', 'var(--green)'); })
+      .catch(function(err){ _syncUsersSync('⚠ ลบในเครื่องแล้วแต่ยังไม่ได้บันทึกขึ้น Cloud · ' + err.message, '#B45309'); });
   });
 }
 
@@ -6873,6 +6913,11 @@ async function _sbSaveConfig(key, value) {
       .then(function(r){ if (r.error) console.warn('[HUB] สำเนา fh_config เดิมไม่สำเร็จ', r.error.message); });
   }
   var res = await HUB_CFG.client.from(HUB_CFG.table).upsert(row, { onConflict: 'key' });
+  if (res.error) {
+    /* ถูกปฏิเสธ (มักเพราะโทเคนล็อกอินหมดอายุ/ล็อกอินครั้งแรกไม่ผ่าน) → ล็อกอินใหม่แล้วลองอีกรอบ */
+    try { await HUB_CFG.client.auth.signInAnonymously(); } catch (e) {}
+    res = await HUB_CFG.client.from(HUB_CFG.table).upsert(row, { onConflict: 'key' });
+  }
   if (res.error) throw res.error;
   return { ok: true };
 }
@@ -7178,7 +7223,7 @@ function hubPostJson(payload, tries) {
       .catch(function(e){
         // Supabase พัง → ต้องรอ Sheets จริง ๆ เพราะเป็นที่เดียวที่จะเก็บได้
         console.warn('[HUB] Supabase เขียนไม่ผ่าน → ใช้ Sheets แทน', e);
-        return _hubPostSheets(payload, tries);
+        return _hubPostSheets(payload, tries).then(function(r){ if (r && typeof r === 'object') r.fallback = true; return r; });
       });
   }
   return _hubPostSheets(payload, tries);
