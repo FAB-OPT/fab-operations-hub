@@ -466,7 +466,7 @@ function renderBranch(){
   const pend=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="pending").length;
   let extra="";
   if(r){ const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code);
-    extra=lim?`<div class="meter" style="margin-top:8px"><i style="width:${Math.min(100,use/lim*100)}%"></i></div><div style="margin-top:4px">ใช้ไป ${baht(use)} / ${baht(lim)} ฿</div>`:""; }
+    extra=lim?`<div style="margin-top:6px">วงเงิน <b style="display:inline">${baht(lim)} ฿</b> · เบิกได้ 1 ครั้ง</div>`:""; }
   const body=frame([{k:"send",t:"ส่งเอกสาร",ic:"🧾"},{k:"hist",t:"ประวัติ",ic:"🕘",n:mine.length},{k:"payee",t:"ผู้รับเงิน",ic:"🏦",n:pend}],
     TAB,k=>{TAB=k;renderBranch();},roundBoxHtml(r,extra));
   const brand=Branches.brandName(Branches.brandOf(ME.code));
@@ -478,11 +478,10 @@ function renderBranch(){
   branchSend(body,r,mine);
 }
 function quotaCard(r){
-  const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code), left=lim-use;
-  return `<div class="card quota" style="margin-top:0"><div class="muted" style="font-weight:700">วงเงินคงเหลือ · รอบ ${esc(roundLabel(r.id))}</div>
-    <div class="big" id="left">${lim?baht(Math.max(0,left))+" ฿":"—"}</div>
-    ${lim?`<div class="meter"><i class="${use>lim?"over":""}" style="width:${Math.min(100,use/lim*100)}%"></i></div>`:""}
-    <div class="row2"><span>ใช้ไป ${baht(use)}</span><span>${lim?"วงเงิน "+baht(lim):"ยังไม่ได้ตั้งวงเงิน"}</span></div></div>`;
+  const lim=limitOf(r.id,ME.code);
+  return `<div class="card quota" style="margin-top:0"><div class="muted" style="font-weight:700">วงเงินต่อรอบ · รอบ ${esc(roundLabel(r.id))}</div>
+    <div class="big" id="left">${lim?baht(lim)+" ฿":"—"}</div>
+    <div class="row2"><span>เบิกได้ 1 ครั้ง / รอบ</span><span>${lim?"ยอดต้องไม่เกินวงเงินนี้":"ยังไม่ได้ตั้งวงเงิน"}</span></div></div>`;
 }
 function sideInfo(r,mine){
   const pay=payeeOf(ME.code);
@@ -507,13 +506,13 @@ function liveAside(r){
     <div class="lead"><span>ผู้รับเงิน</span><b>${pay.name?esc(pay.name)+`<small>${esc([pay.position,pay.empCode?"รหัส "+pay.empCode:""].filter(Boolean).join(" · "))}</small>`:"ยังไม่มีผู้รับเงิน"}</b></div>
     <div class="lead"><span>หมายเหตุ</span><b id="lv-nt" style="max-width:240px">—</b></div><div class="lead"><span>รูปใบเสร็จ</span><b id="lv-ph">0 / ${MAX_PHOTOS}</b></div></div>
     <div class="lt"><span>ยอดเบิก</span><b id="lv-am">0.00 ฿</b></div><div class="lf" id="lv-left"></div></div>
-    <div class="card"><div class="lead"><span>วงเงินคงเหลือ · รอบ ${esc(roundLabel(r.id))}</span><b>${lim?baht(Math.max(0,lim-use))+" ฿":"ยังไม่ได้ตั้ง"}</b></div>${lim?`<div class="meter" style="margin:6px 0"><i class="${use>lim?"over":""}" style="width:${Math.min(100,use/lim*100)}%"></i></div>`:""}
+    <div class="card"><div class="lead"><span>วงเงินต่อรอบ · รอบ ${esc(roundLabel(r.id))}</span><b>${lim?baht(lim)+" ฿":"ยังไม่ได้ตั้ง"}</b></div>
       <div class="lead"><span>ช่วงส่งเอกสาร</span><b>${esc(rng(r)||"—")}</b></div><div class="lead" style="border:0"><span>สิทธิ์เบิก</span><b>1 ครั้ง / รอบ</b></div></div>`;
   d._upd=()=>{
-    const g=id=>{const e=document.getElementById(id);return e?e.value:"";}, am=Number(g("am"))||0, left=lim-use-am;
+    const g=id=>{const e=document.getElementById(id);return e?e.value:"";}, am=Number(g("am"))||0, left=lim-am;
     $("#lv-cn",d).textContent=g("cn").trim()||"—"; $("#lv-nt",d).textContent=g("nt").trim()||"—";
     $("#lv-ph",d).textContent=DRAFT.photos.length+" / "+MAX_PHOTOS; $("#lv-am",d).textContent=money(am)+" ฿";
-    const l=$("#lv-left",d); l.className="lf"+(lim&&left<-1e-9?" over":""); l.textContent=!lim?"ยังไม่ได้ตั้งวงเงิน":left<-1e-9?"เกินวงเงิน "+money(-left)+" บาท":"เหลือหลังเบิก "+money(left)+" บาท";
+    const l=$("#lv-left",d); l.className="lf"+(lim&&left<-1e-9?" over":""); l.textContent=!lim?"ยังไม่ได้ตั้งวงเงิน":left<-1e-9?"เกินวงเงิน "+money(-left)+" บาท":"อยู่ในวงเงิน "+money(lim)+" บาท";
   };
   return d;
 }
