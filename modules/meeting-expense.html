@@ -170,6 +170,32 @@
 .rowlist .tr:last-child{border-bottom:0}
 .rowlist .th{background:var(--bg3);font-size:12px;font-weight:700;color:var(--text3)}
 .rowlist small{display:block;font-size:12px;color:var(--text3)}
+/* ═══ จอกว้าง · หน้าสาขา: กรอบกลาง 1160px · ส่งเอกสาร 2 คอลัมน์ (ฟอร์ม | สรุปติดขอบ) · ประวัติ 2 คอลัมน์ · ผู้รับเงิน 2 คอลัมน์ ═══ */
+@media(min-width:900px){
+  .main.br-view{width:100%;max-width:1160px;margin:0 auto;padding-top:28px}
+  .br-view .head h1{font-size:26px}
+  .br-view .bgrid{grid-template-columns:minmax(0,1fr) 380px;gap:22px;margin-top:18px}
+  .br-view .bgrid>:last-child{position:sticky;top:20px;display:flex;flex-direction:column;gap:12px}
+  .br-view .bgrid>:last-child .card{margin-top:0}
+  .br-view .bgrid>:last-child .sec{margin:6px 2px 0}
+  .br-view .quota{display:grid;grid-template-columns:auto 1fr;gap:2px 28px;align-items:center}
+  .br-view .quota>.muted{grid-column:1/-1}
+  .br-view .quota .big{font-size:38px}
+  .br-view .quota .meter{grid-column:2;margin:0}
+  .br-view .quota .row2{grid-column:1/-1;margin-top:8px}
+  .br-view .form-card{display:grid;grid-template-columns:1fr 1fr;gap:0 16px;padding:20px 22px}
+  .br-view .form-card>*{grid-column:1/-1}
+  .br-view .form-card>.c2{grid-column:auto}
+  .br-view .form-card>.payee{display:none}
+  .br-view .form-card textarea{min-height:92px}
+  .br-view .narrow{max-width:none}
+  .br-view .narrow.hist{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;align-items:start}
+  .br-view .narrow.hist>.sec,.br-view .narrow.hist>.sum2{grid-column:1/-1}
+  .br-view .narrow.hist>.slip{margin-top:0}
+  .br-view .narrow.payee-pg{display:grid;grid-template-columns:minmax(0,400px) minmax(0,1fr);gap:0 24px;align-items:start}
+  .br-view .narrow.payee-pg>*{grid-column:1}
+  .br-view .narrow.payee-pg>.fcard{grid-column:2;grid-row:1/span 5;margin-top:16px;padding:20px 22px}
+}
 /* จอแคบ */
 @media(max-width:899px){
   .app{display:block}
@@ -438,6 +464,7 @@ function renderBranch(){
   const body=frame([{k:"send",t:"ส่งเอกสาร",ic:"🧾"},{k:"hist",t:"ประวัติ",ic:"🕘",n:mine.length},{k:"payee",t:"ผู้รับเงิน",ic:"🏦",n:pend}],
     TAB,k=>{TAB=k;renderBranch();},roundBoxHtml(r,extra));
   const brand=Branches.brandName(Branches.brandOf(ME.code));
+  body.classList.add("br-view");
   body.innerHTML=`<div class="head"><h1>${esc(ME.name)}</h1>${r?`<span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"รอบ "+esc(roundLabel(r.id))+" เปิดรับ":"ปิดรับเอกสารแล้ว"}</span>`:""}<span class="sp"></span>${updLabel()}
     <div class="sub">สาขา · ${esc(brand)} · ${r?"รอบ "+esc(roundLabel(r.id))+(r.open&&rng(r)?" · ส่งได้ "+esc(rng(r)):""):"ยังไม่มีรอบเบิก"} · เบิกได้รอบละ 1 ครั้ง</div></div>`;
   if(TAB==="hist") return branchHistory(body,mine);
@@ -494,8 +521,8 @@ function branchSend(body,r,mine){
 
   const f=document.createElement("div"); f.className="card form-card";
   f.innerHTML=`<h3>ส่งเอกสารเบิก</h3>${payeeBox(payeeOf(ME.code))}
-    <div class="field"><label>ชื่อผู้ทำการเบิก</label><input id="cn" autocomplete="name" placeholder="ชื่อ–นามสกุล" value="${esc(DRAFT.claimant)}"></div>
-    <div class="field"><label>จำนวนเงิน (บาท)</label><input id="am" inputmode="decimal" placeholder="0.00" value="${esc(DRAFT.amount)}"></div>
+    <div class="field c2"><label>ชื่อผู้ทำการเบิก</label><input id="cn" autocomplete="name" placeholder="ชื่อ–นามสกุล" value="${esc(DRAFT.claimant)}"></div>
+    <div class="field c2"><label>จำนวนเงิน (บาท)</label><input id="am" inputmode="decimal" placeholder="0.00" value="${esc(DRAFT.amount)}"></div>
     <div class="field"><label>หมายเหตุ (ถ้ามี)</label><textarea id="nt" placeholder="เช่น ค่าอาหารว่างประชุมพนักงาน 12 คน">${esc(DRAFT.note)}</textarea></div>
     <div class="field"><label>แนบรูปใบเสร็จ (1–${MAX_PHOTOS} รูป)</label><input id="ph" type="file" accept="image/*" multiple>
       <div class="photos" id="strip"></div></div>
@@ -566,7 +593,7 @@ function branchSend(body,r,mine){
   };
 }
 function branchHistory(body,mine){
-  const w=document.createElement("div"); w.className="narrow"; body.appendChild(w);
+  const w=document.createElement("div"); w.className="narrow hist"; body.appendChild(w);
   if(!mine.length){ w.innerHTML=`<div class="empty">ยังไม่มีประวัติ</div>`; return; }
   const y=String(new Date().getFullYear());
   const okYear=mine.filter(c=>statusOf(c)==="อนุมัติ"&&roundIdOf(c).slice(0,4)===y);
@@ -579,7 +606,7 @@ function branchHistory(body,mine){
   });
 }
 function branchPayee(body){
-  const w=document.createElement("div"); w.className="narrow"; body.appendChild(w);
+  const w=document.createElement("div"); w.className="narrow payee-pg"; body.appendChild(w);
   const cur=payeeOf(ME.code);
   const pend=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="pending");
   const last=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="rejected").sort((a,b)=>(b.reviewedAt||"").localeCompare(a.reviewedAt||""))[0];
@@ -595,7 +622,7 @@ function branchPayee(body){
       ${last.reviewNote?`<div style="margin-top:8px;font-size:14px">${esc(last.reviewNote)}</div>`:""}</div>`);
   }
   if(!can("request-payee")) return;
-  const f=document.createElement("div"); f.className="card";
+  const f=document.createElement("div"); f.className="card fcard";
   f.innerHTML=`<h3>${cur.name?"แจ้งเปลี่ยนผู้รับเงิน":"แจ้งผู้รับเงิน"}</h3><div class="muted" style="margin-bottom:12px">ข้อมูลใหม่จะใช้ได้หลังผู้ดูแลอนุมัติ</div>
     ${payeeFields(pend.length?{}:cur)}
     <div class="field"><label>เหตุผล</label><input id="pr" placeholder="เช่น ผู้จัดการสาขาคนเดิมย้ายสาขา"></div>
