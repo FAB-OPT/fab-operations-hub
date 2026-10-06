@@ -180,12 +180,23 @@
   .br-view .bs-sect{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:20px 26px;margin-bottom:14px}
   .br-view .bs-g2{display:grid;grid-template-columns:1fr 1fr;gap:0 20px}
   .br-view .bs-rail{display:flex;gap:14px;align-items:stretch;position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 14px}
-  .br-view .bs-rail>div:first-child{display:flex;flex:1;gap:6px;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:8px}
-  .bs-st{flex:1;min-width:0;display:flex;gap:12px;align-items:center;padding:10px 14px;border-radius:12px;font-weight:700;color:var(--text2);cursor:pointer}
-  .bs-st:hover{background:var(--bg3)}
-  .bs-st i{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:#eef0f3;font-style:normal;font-size:13px;flex:none;color:var(--text2)}
-  .bs-st small{display:block;font-weight:500;color:var(--text3);font-size:12px}
-  .bs-st.on{background:var(--gold-soft);color:var(--gold-ink)}.bs-st.on i{background:var(--gold);color:#fff}
+  .br-view .bs-rail>.bs-card{display:block;flex:1;min-width:0;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px 26px 14px}
+  .bs-track{position:relative;display:grid;grid-template-columns:1fr 1fr 1fr;flex:1;min-width:0}
+  .bs-line{position:absolute;left:11px;right:11px;top:10px;height:3px;background:#e5e7eb;border-radius:9px}
+  .bs-fill{display:block;height:100%;width:0;background:var(--gold);border-radius:9px;transition:width .4s ease}
+  .bs-node{position:relative;cursor:pointer;padding-top:30px;min-width:0}
+  .bs-node .dot{position:absolute;top:0;width:24px;height:24px;border-radius:50%;border:3px solid #d1d5db;background:#fff;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff;transition:all .25s}
+  .bs-node:nth-child(3) .dot{left:50%;transform:translateX(-50%)}
+  .bs-node:nth-child(3){text-align:center}
+  .bs-node:nth-child(4) .dot{right:0}
+  .bs-node:nth-child(4){text-align:right}
+  .bs-node.is-done .dot{background:var(--gold);border-color:var(--gold)}
+  .bs-node.is-cur .dot{border-color:var(--gold);box-shadow:0 0 0 4px var(--gold-soft)}
+  .bs-node b{display:block;font-size:14.5px;font-weight:800;color:var(--text2)}
+  .bs-node.is-cur b,.bs-node.is-done b{color:var(--text)}
+  .bs-node small{display:block;font-size:12.5px;color:var(--text3);font-weight:600}
+  .bs-node.is-done small{color:var(--green-ink)}
+  .bs-node.is-warn small{color:var(--red-ink)}
   .br-view .bs-rail .quota{margin:0;flex:none;width:340px;padding:12px 18px}
   .br-view .bs-rail .quota .big{font-size:26px}
   .br-view .bs-rail .quota .meter{margin:4px 0}
@@ -492,15 +503,26 @@ function renderBranch(){
   branchSend(body,r,mine);
 }
 function railHtml(steps){
-  return `<div>${steps.map((st,i)=>`<div class="bs-st${i?"":" on"}" data-n="${i}"><i>${i+1}</i><div>${esc(st[0])}<small>${esc(st[1])}</small></div></div>`).join("")}</div>`;
+  return `<div class="bs-card"><div class="bs-track"><div class="bs-line"><i class="bs-fill"></i></div>${steps.map((st,i)=>`<div class="bs-node${i?"":" is-cur"}" data-n="${i}"><span class="dot"></span><b>${esc(st[0])}</b><small>${esc(st[1])}</small></div>`).join("")}</div></div>`;
 }
-function railSpy(rail,root){
-  const secs=[...root.querySelectorAll(".bs-sect")]; if(!secs.length||!WIDE()) return;
-  const items=[...rail.querySelectorAll(".bs-st")];
-  items.forEach((e,i)=>e.onclick=()=>{ const t=secs[i]; if(t) t.scrollIntoView({behavior:"smooth",block:"center"}); });
-  const upd=()=>{ let a=0; secs.forEach((x,i)=>{ if(x.getBoundingClientRect().top<innerHeight*0.32) a=i; }); items.forEach((e,i)=>e.classList.toggle("on",i===a)); };
-  if(window._spyFn) removeEventListener("scroll",window._spyFn);
-  window._spyFn=upd; addEventListener("scroll",upd,{passive:true}); upd();
+/* เส้นขั้นตอนอัปเดตสด: calc() คืน [{done,sub,warn}] ต่อขั้น · ขั้นปัจจุบัน = ขั้นแรกที่ยังไม่ครบ */
+function railSpy(rail,root,calc){
+  const nodes=[...rail.querySelectorAll(".bs-node")], fill=rail.querySelector(".bs-fill");
+  if(!nodes.length||!WIDE()) return;
+  const secs=[...root.querySelectorAll(".bs-sect")];
+  nodes.forEach((e,i)=>e.onclick=()=>{ const t=secs[i]; if(t) t.scrollIntoView({behavior:"smooth",block:"center"}); });
+  const upd=()=>{
+    let st; try{ st=calc(); }catch(e){ return; }
+    const cur=st.findIndex(x=>!x.done), c=cur<0?st.length:cur;
+    nodes.forEach((e,i)=>{ const x=st[i]||{};
+      e.classList.toggle("is-done",!!x.done); e.classList.toggle("is-cur",i===cur); e.classList.toggle("is-warn",!!x.warn);
+      e.querySelector(".dot").textContent=x.done?"✓":"";
+      if(x.sub) e.querySelector("small").textContent=x.sub; });
+    if(fill) fill.style.width=(cur<0?100:Math.min(100,c*50))+"%";
+  };
+  root.addEventListener("input",upd); root.addEventListener("change",upd);
+  const strip=root.querySelector("#strip"); if(strip) new MutationObserver(upd).observe(strip,{childList:true,subtree:true});
+  upd();
 }
 function quotaCard(r){
   const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code), left=lim-use;
@@ -564,7 +586,16 @@ function branchSend(body,r,mine){
       <div class="bs-chk"><div><small>เงินเข้า</small><b>${esc(_pay.name||"ยังไม่มีผู้รับเงิน")}</b><span class="muted">${esc([_pay.position,_pay.empCode?"รหัส "+_pay.empCode:""].filter(Boolean).join(" · "))}</span></div>
         <div><small>ส่งได้ถึง</small><b>${r.dueDate?esc(dmy(r.dueDate)):"—"}</b><span class="muted">เบิกได้รอบละ 1 ครั้ง</span></div></div>
       <div class="submit-row"><span class="msg" id="msg"></span><button class="btn" id="send">ส่งเอกสาร</button></div></div>`;
-  left.appendChild(f); railSpy(rail,f);
+  left.appendChild(f);
+  railSpy(rail,f,()=>{
+    const cn=($("#cn",f).value||"").trim(), am=Number($("#am",f).value);
+    const lim=limitOf(r.id,ME.code), left2=lim-used(r.id,ME.code), valid=am>0&&isFinite(am), over=valid&&lim&&am>left2+1e-9;
+    const n=DRAFT.photos.length;
+    const s1=!!cn&&valid&&!over, s2=n>=1, p=payeeOf(ME.code);
+    return [{done:s1,warn:over,sub:over?"เกินวงเงิน ("+money(Math.max(0,left2))+" บาท)":s1?"ครบแล้ว · "+money(am)+" บาท":"ชื่อผู้เบิก · ยอด · หมายเหตุ"},
+      {done:s2,sub:s2?"แนบแล้ว "+n+" รูป":"แนบอย่างน้อย 1 รูป (สูงสุด "+MAX_PHOTOS+")"},
+      {done:s1&&s2&&!!p.name,sub:s1&&s2?(p.name?"พร้อมส่ง":"ยังไม่มีผู้รับเงิน"):"กรอกข้อ 1–2 ให้ครบก่อน"}];
+  });
   const msg=(t,cls)=>{const m=$("#msg",f); m.textContent=t||""; m.className="msg"+(cls?" "+cls:"");};
   ["cn","am","nt"].forEach((id,i)=>$("#"+id,f).oninput=e=>{DRAFT[["claimant","amount","note"][i]]=e.target.value;});
 
@@ -675,7 +706,10 @@ function branchPayee(body){
     <div class="bs-sect"><div class="bs-h"><i>1</i>ผู้รับเงินใหม่</div>${payeeFields(pend.length?{}:cur)}</div>
     <div class="bs-sect"><div class="bs-h"><i>2</i>เหตุผล</div><div class="field" style="margin:0"><label>เหตุผล</label><input id="pr" placeholder="เช่น ผู้จัดการสาขาคนเดิมย้ายสาขา"></div></div>
     <div class="bs-sect"><div class="bs-h"><i>3</i>ส่งคำขอ</div><button class="btn full" id="preq" ${pend.length?"disabled":""}>${pend.length?"มีคำขอค้างอยู่ · รออนุมัติ":"ส่งคำขอ"}</button></div>`;
-  w.appendChild(f); attachEmpPick(f); railSpy(rail,f);
+  w.appendChild(f); attachEmpPick(f); railSpy(rail,f,()=>{
+    const nm=($("#pn",f).value||"").trim(), rs=($("#pr",f).value||"").trim();
+    return [{done:!!nm,sub:nm?nm:"พิมพ์ชื่อหรือรหัสพนักงาน"},{done:!!rs,sub:rs?"ระบุแล้ว":"ผู้ดูแลจะเห็นตอนอนุมัติ"},{done:!!nm&&!!rs,sub:nm&&rs?"พร้อมส่งคำขอ":"ใช้ได้หลังอนุมัติ"}];
+  });
   $("#preq",f).onclick=async e=>{
     const b=e.currentTarget;
     try{
