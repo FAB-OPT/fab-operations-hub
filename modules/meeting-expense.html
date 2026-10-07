@@ -1468,7 +1468,22 @@ function adminRounds(body){
   if(cur){ const a=$("#rcact",body);
     const ed=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"แก้ช่วงวันที่"}); ed.onclick=()=>roundForm(cur);
     const t=Object.assign(document.createElement("button"),{className:"btn sm "+(cur.open?"no":"ok"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
-    t.onclick=()=>toggle(cur,t); a.append(ed,t); }
+    t.onclick=()=>toggle(cur,t);
+    const dl=Object.assign(document.createElement("button"),{className:"btn sm danger",textContent:"ลบรอบ"}); dl.onclick=()=>delRound(cur);
+    a.append(ed,t,dl); }
+  /* ลบรอบ — ลบได้เฉพาะรอบที่ยังไม่มีเอกสารเบิก (มีแล้วให้ปิดรับแทน เอกสารเดิมจะได้ไม่เสียรอบอ้างอิง) */
+  function delRound(r){
+    const n=CLAIMS().filter(c=>roundIdOf(c)===r.id).length;
+    if(n){ toast("รอบนี้มีเอกสารเบิก "+n+" ใบ ลบไม่ได้ — กด “ปิดรับ” แทน"); return; }
+    const f=document.createElement("div");
+    f.innerHTML='<div style="font-size:15px">ยืนยันลบรอบ <b>'+esc(roundLabel(r.id))+'</b> ?</div><div class="muted" style="margin-top:6px">รอบนี้ยังไม่มีเอกสารเบิก · ลบแล้วเรียกคืนไม่ได้ (สร้างรอบใหม่ได้)</div>';
+    modal("ลบรอบเบิก",f,async()=>{
+      await S.refresh().catch(()=>{});
+      if(CLAIMS().some(c=>roundIdOf(c)===r.id)) throw new Error("เพิ่งมีสาขาส่งเอกสารเข้ามา ลบไม่ได้แล้ว");
+      await S.remove("rounds",r.id);
+      toast("ลบรอบแล้ว");
+    },"ลบรอบ",true);
+  }
   async function toggle(r,b){ b.disabled=true; try{ await S.update("rounds",r.id,{open:!r.open},{open:r.open}); toast(r.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว"); }catch(e){ toast(e.message||"ทำรายการไม่สำเร็จ"); b.disabled=false; } }
   $("#nrsave",body).onclick=async e=>{
     const st=$("#nrs",body).value, du=$("#nrd",body).value, b=e.currentTarget;
@@ -1494,7 +1509,8 @@ function adminRounds(body){
     const c=tr.lastElementChild;
     const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้วันที่"}); ed.onclick=()=>roundForm(r);
     const t=Object.assign(document.createElement("button"),{className:"ab "+(r.open?"no":"yes"),textContent:r.open?"ปิดรับ":"เปิดรับ"}); t.onclick=()=>toggle(r,t);
-    c.append(ed,t); tb.appendChild(tr);
+    const dl=Object.assign(document.createElement("button"),{className:"ab no",textContent:"ลบ"}); dl.onclick=()=>delRound(r);
+    c.append(ed,t,dl); tb.appendChild(tr);
   });
 }
 /* สาขามาจากทะเบียนของฮับเท่านั้น — เพิ่ม/ปิดสาขาที่ฮับ (⚙️ → 🏪 จัดการสาขา) ที่นี่ตั้งแค่วงเงินและบัญชี */
