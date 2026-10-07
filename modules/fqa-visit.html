@@ -452,6 +452,16 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .reccard .rc-act .btn{flex:1;justify-content:center}
 .lg{display:flex;flex-wrap:wrap;gap:9px 16px;margin-top:12px;font-size:12px;color:var(--text2)}
 .lg i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
+.cmpbar{border:1px solid var(--border);border-radius:12px;background:var(--surface2);padding:12px 14px;margin-bottom:14px;font-size:13px}
+.cmpbar.none{color:var(--text3);border-style:dashed}
+.cmpbar .row1{display:flex;gap:6px 16px;flex-wrap:wrap;align-items:center}.cmpbar b{color:var(--text)}
+.cmpbar .big{font-size:20px;font-weight:800;font-variant-numeric:tabular-nums}
+.cmpbar .live{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.chk-cmp{font-size:11px;font-weight:800;border-radius:6px;padding:1px 8px;white-space:nowrap}
+.chk-cmp.prev-ok{background:rgba(16,185,129,.12);color:var(--green)}.chk-cmp.prev-no{background:rgba(239,68,68,.12);color:var(--red)}
+.chk-cmp.worse{background:var(--red);color:#fff}.chk-cmp.better{background:var(--green);color:#fff}.chk-cmp.repeat{background:#f59e0b;color:#fff}
+.chk-prev{margin:8px 0 0 34px;padding:8px 12px;border-left:3px solid var(--text3);background:var(--surface2);border-radius:0 8px 8px 0;font-size:12.5px;color:var(--text2)}
+.chk-prev b{color:var(--text)}
 .cm-sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .cm-sum span{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 12px;font-size:13px;color:var(--text2)}
 .cm-sum b{color:var(--text);font-variant-numeric:tabular-nums}
@@ -3832,7 +3842,9 @@ const Form = {
       /* STA — เปลี่ยนสาขาแล้วผลครั้งก่อนต้องเปลี่ยนตาม
          คะแนนที่กรอกเองไว้เป็นของสาขาเดิม ติดไปสาขาใหม่จะเทียบผิดสาขา จึงล้างทิ้ง */
       if(this.type==='STA'){ this.s.prevPct=''; this.s.prevDate=''; this.s.prevMode='';
-        this.persist(); this.render(); return; } }
+        this.persist(); this.render(); return; }
+      /* FQA — เลือก/เปลี่ยนสาขาแล้วต้องวาดใหม่ เพื่อดึงผลตรวจครั้งก่อนของสาขานั้นมาเทียบ */
+      if(this.type==='FQA'){ this.persist(); this.render(); return; } }
     if(path==='category') this.render();
     this.persist();
   },
@@ -3984,6 +3996,24 @@ const Form = {
   fqaBody(){
     const s=this.s; s.checks=fqaChecks(s);
     const n=Math.max(1,s.checks.length);
+    /* ── เทียบกับครั้งก่อนของสาขานี้ ── */
+    const prev=fqaPrevRec(s), pmap={};
+    if(prev) fqaChecks(prev).forEach(c=>{ if(c.item) pmap[c.item]=c; });
+    const rateOf=list=>{ let p=0,t=0; list.forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; }); return t?{p,t,pct:Math.round(p/t*100),f:t-p}:null; };
+    const pr=prev?rateOf(fqaChecks(prev)):null, cu=rateOf(s.checks);
+    const chgOf=c=>{ const p=pmap[c.item]; if(!p||!c.result||c.result==='N/A'||!p.result||p.result==='N/A') return '';
+      return c.result==='ไม่ผ่าน'?(p.result==='ผ่าน'?'worse':'repeat'):(p.result==='ไม่ผ่าน'?'better':''); };
+    const cnt={worse:0,repeat:0,better:0}; s.checks.forEach(c=>{ const k=chgOf(c); if(k) cnt[k]++; });
+    const cmpBar = !s.branch ? `<div class="cmpbar none">เลือกสาขาในข้อ 1 ก่อน ระบบจะแสดงผลตรวจ FQA ครั้งก่อนของสาขานั้นให้เทียบทีละหัวข้อ</div>`
+      : !prev||!pr ? `<div class="cmpbar none">สาขานี้ยังไม่มีใบ FQA ก่อนหน้าในระบบ — ใบนี้จะเป็นตัวตั้งต้นสำหรับครั้งถัดไป</div>`
+      : `<div class="cmpbar"><div class="row1"><b>เทียบกับครั้งก่อน</b><span>${esc(fmtDMY(prev.date))}${prev.trainer?' · ผู้ตรวจ '+esc(prev.trainer):''}</span>
+          <span>ผ่าน <span class="big">${pr.pct}%</span> (ไม่ผ่าน ${pr.f} จาก ${pr.t} หัวข้อ)</span>
+          ${cu?`<span>ใบนี้ตอนนี้ <span class="big">${cu.pct}%</span> ${(()=>{ const d=cu.pct-pr.pct; return `<span class="chk-cmp ${d>0?'better':d<0?'worse':'prev-ok'}">${d>0?'▲ +'+d:d<0?'▼ '+d:'เท่าเดิม'} จุด</span>`; })()}</span>`:'<span class="hint">ยังไม่ได้ให้ผลหัวข้อใดในใบนี้</span>'}</div>
+          ${cnt.worse+cnt.repeat+cnt.better?`<div class="live">${cnt.worse?`<span class="chk-cmp worse">แย่ลง ${cnt.worse} หัวข้อ</span>`:''}${cnt.repeat?`<span class="chk-cmp repeat">ไม่ผ่านซ้ำ ${cnt.repeat} หัวข้อ</span>`:''}${cnt.better?`<span class="chk-cmp better">ดีขึ้น ${cnt.better} หัวข้อ</span>`:''}</div>`:''}</div>`;
+    const prevTag=c=>{ const p=pmap[c.item]; if(!p||!p.result||p.result==='N/A') return ''; const k=chgOf(c);
+      return `<span class="chk-cmp ${p.result==='ผ่าน'?'prev-ok':'prev-no'}" title="ผลครั้งก่อน ${esc(fmtDMY(prev.date))}">ก่อนหน้า: ${p.result}</span>${k?`<span class="chk-cmp ${k}">${k==='worse'?'แย่ลง':k==='repeat'?'ไม่ผ่านซ้ำ':'ดีขึ้น'}</span>`:''}`; };
+    const prevNote=c=>{ const p=pmap[c.item]; if(!p||p.result!=='ไม่ผ่าน'||!(p.detail||p.fix)) return '';
+      return `<div class="chk-prev"><b>ครั้งก่อนพบ</b> (${esc(fmtDMY(prev.date))}): ${esc(p.detail||'—')}${p.fix?' · <b>แก้ไข</b>: '+esc(p.fix):''}</div>`; };
     const done=s.checks.filter(c=>c.result).length, pass=s.checks.filter(c=>c.result==='ผ่าน').length,
           fail=s.checks.filter(c=>c.result==='ไม่ผ่าน').length;
     return `
@@ -4013,15 +4043,17 @@ const Form = {
           <div class="meter"><i class="a" style="width:${pass/n*100}%"></i><i class="b" style="width:${fail/n*100}%"></i><i class="c" style="width:${(done-pass-fail)/n*100}%"></i></div>
         </div></div>
       <div class="bd">
+        ${cmpBar}
         ${s.checks.map((c,i)=>`
         <div class="chk ${c.result==='ไม่ผ่าน'?'fail open':''} ${c.detail||c.fix?'open':''}">
           <div class="chk-top">
             <span class="chk-n">${String(i+1).padStart(2,'0')}</span>
-            <span class="chk-t">${esc(c.item)}</span>
+            <span class="chk-t">${esc(c.item)} ${prevTag(c)}</span>
             <span class="seg">
               ${['ผ่าน','ไม่ผ่าน','N/A'].map(v=>`<button data-v="${v}" class="${c.result===v?'on':''}" onclick="Form.setCheck(${i},'${v}')">${v}</button>`).join('')}
             </span>
           </div>
+          ${prevNote(c)}
           <div class="chk-x">
             <div class="fld"><label class="lbl">รายละเอียด / สิ่งที่พบ</label>
               <textarea class="inp" oninput="Form.setRow('checks',${i},'detail',this.value)">${esc(c.detail)}</textarea></div>
@@ -5434,6 +5466,20 @@ function heatmap(rowKeys, cols, matrix){
    ผลของแต่ละใบ = % หัวข้อที่ผ่าน (ผ่าน ÷ ผ่านกับไม่ผ่าน · ข้ามหัวข้อที่ไม่ได้ตรวจ)
    ล่าสุด = ใบล่าสุดของสาขาในชุดที่ส่งเข้ามา · ก่อนหน้า = ใบถัดมาของสาขาเดียวกัน · ผลต่างเป็น "จุด" (percentage point)
    เขตของสาขาอ่านจากทะเบียนสาขาของฮับตอนนี้ · ไม่มีก็ใช้เขตที่บันทึกในใบ */
+/* ใบ FQA ครั้งก่อนของสาขาเดียวกัน — ล่าสุดที่เกิดก่อนใบนี้ (วัน+เวลา) ไม่นับใบตัวเอง ไม่นับใบที่ยังไม่ได้ให้ผลสักหัวข้อ */
+function fqaPrevRec(rec){
+  if(!rec || !rec.branch) return null;
+  const k=branchKey(rec.branch), me=(rec.date||'')+' '+(rec.time||'');
+  let best=null, bestAt='';
+  DB.all().forEach(r=>{
+    if(!r || r.type!=='FQA' || r.id===rec.id || branchKey(r.branch)!==k) return;
+    if(!fqaChecks(r).some(c=>c.result==='ผ่าน'||c.result==='ไม่ผ่าน')) return;
+    const at=(r.date||'')+' '+(r.time||'');
+    if(at>=me || at<=bestAt) return;
+    best=r; bestAt=at;
+  });
+  return best;
+}
 /* เทียบรายหัวข้อของสองใบ: worse = ผ่าน→ไม่ผ่าน · better = ไม่ผ่าน→ผ่าน · repeat = ไม่ผ่านซ้ำ · fail = ไม่ผ่านและไม่มีใบก่อนหน้าให้เทียบ · ok = ผ่านทั้งคู่ */
 const CMP_LABEL={worse:'แย่ลง (ผ่าน→ไม่ผ่าน)',better:'ดีขึ้น (ไม่ผ่าน→ผ่าน)',repeat:'ไม่ผ่านซ้ำ',fail:'ไม่ผ่าน (ไม่มีใบก่อนหน้า)',ok:'ผ่านทั้งสองครั้ง',na:'ไม่ได้ตรวจ'};
 function cmpDetail(L,P){
