@@ -6725,10 +6725,34 @@ const PDF = {
     </div>`;
 
     if(r.type==='FQA'){
+      /* ── เปรียบเทียบกับครั้งก่อนของสาขา (ใบ FQA ล่าสุดที่เกิดก่อนใบนี้) ── */
+      const prev=fqaPrevRec(r), pmap={};
+      if(prev) fqaChecks(prev).forEach(c=>{ if(c.item) pmap[c.item]=c; });
+      const rt=list=>{ let p=0,t=0; list.forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; }); return t?{pct:Math.round(p/t*100),f:t-p,t}:null; };
+      const cu=rt(fqaChecks(r)), pr=prev?rt(fqaChecks(prev)):null;
+      const chg=c=>{ const p=pmap[c.item]; if(!p||!p.result||p.result==='N/A'||!c.result||c.result==='N/A') return '';
+        return c.result==='ไม่ผ่าน'?(p.result==='ผ่าน'?'worse':'repeat'):(p.result==='ไม่ผ่าน'?'better':'same'); };
+      const CHL={worse:['แย่ลง','#DC2626'],repeat:['ไม่ผ่านซ้ำ','#B45309'],better:['ดีขึ้น','#16A34A'],same:['เท่าเดิม','#666']};
+      const cnt={worse:0,repeat:0,better:0}; fqaChecks(r).forEach(c=>{ const k=chg(c); if(cnt[k]!=null) cnt[k]++; });
+      if(prev&&pr&&cu){
+        const d=cu.pct-pr.pct;
+        b+=sec('เปรียบเทียบกับครั้งก่อน',`<div class="pdfinfo" style="margin:0"><div class="pi-grid" style="grid-template-columns:repeat(4,1fr)">
+          ${kv('ครั้งก่อน',fmtDMY(prev.date)+(prev.trainer?' · '+prev.trainer:''))}
+          ${kv('ผลครั้งก่อน',pr.pct+'% (ไม่ผ่าน '+pr.f+'/'+pr.t+')')}
+          ${kv('ผลใบนี้',cu.pct+'% (ไม่ผ่าน '+cu.f+'/'+cu.t+')')}
+          <div class="kv"><span>เปลี่ยนแปลง</span><b style="color:${d>0?'#16A34A':d<0?'#DC2626':'#666'}">${d>0?'▲ +'+d:d<0?'▼ '+d:'เท่าเดิม'} จุด</b></div></div>
+          <div style="padding:2px 14px 10px;font-size:11.5px;color:#555">แย่ลง <b style="color:#DC2626">${cnt.worse}</b> · ไม่ผ่านซ้ำ <b style="color:#B45309">${cnt.repeat}</b> · ดีขึ้น <b style="color:#16A34A">${cnt.better}</b> หัวข้อ</div></div>`);
+      } else b+=sec('เปรียบเทียบกับครั้งก่อน',`<p class="pdftext" style="color:#777">${prev?'ใบก่อนหน้ายังไม่มีผลหัวข้อให้เทียบ':'สาขานี้ยังไม่มีใบ FQA ก่อนหน้าในระบบ — ใบนี้เป็นตัวตั้งต้นสำหรับครั้งถัดไป'}</p>`);
       if((r.materials||[]).length)
         b+=sec('วัตถุดิบที่สุ่มตรวจ',`<div class="pdfchips">${r.materials.map(m=>`<span>${esc(m)}</span>`).join('')}</div>`);
       const cs=fqaChecks(r).filter(c=>c.result||c.detail);
-      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(
+      const prevNote=c=>{ const p=pmap[c.item]; return (p&&p.result==='ไม่ผ่าน'&&(p.detail||p.fix))?`<div style="margin-top:3px;font-size:10px;color:#777">ครั้งก่อนพบ: ${esc(p.detail||'—')}${p.fix?' · แก้ไข: '+esc(p.fix):''}</div>`:''; };
+      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', prev
+        ? tbl([{h:'รายการตรวจ',w:'22%'},{h:'ผล',w:'9%',c:1},{h:'ครั้งก่อน',w:'10%',c:1},{h:'เปลี่ยน',w:'10%',c:1},{h:'สิ่งที่พบ',w:'25%'},{h:'การแก้ไข',w:'24%'}],
+          cs.map(c=>{ const p=pmap[c.item], k=chg(c);
+            return `<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td class="c">${p&&p.result?pill(p.result):'—'}</td>
+              <td class="c" style="font-weight:800;font-size:10.5px;color:${k&&CHL[k]?CHL[k][1]:'#999'}">${k&&CHL[k]?CHL[k][0]:'—'}</td><td>${esc(c.detail)}${prevNote(c)}</td><td>${esc(c.fix)}</td></tr>`; }))
+        : tbl(
         [{h:'รายการตรวจ',w:'26%'},{h:'ผล',w:'12%',c:1},{h:'สิ่งที่พบ',w:'31%'},{h:'การแก้ไข',w:'31%'}],
         cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
       const mm=(r.menus||[]).filter(m=>m.menu);
