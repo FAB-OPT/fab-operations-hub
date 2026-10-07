@@ -1490,6 +1490,7 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
           <button class="iotile" onclick="Report.pdf()"><span class="io-ic" style="background:#C62828;">PDF</span><div><b>ตารางสรุปรายการตรวจ</b><span>รายงานภาพรวมตามตัวกรอง</span></div></button>
           <button class="iotile" onclick="Report.excel()"><span class="io-ic" style="background:#1D6F42;">XLS</span><div><b>Excel — ทุกฟอร์มแยกชีต</b><span>ตามตัวกรอง · เอาไปทำ Pivot</span></div></button>
           <button class="iotile" onclick="PDF.dashboard()"><span class="io-ic" style="background:#AD1457;">PDF</span><div><b>แดชบอร์ด (กราฟภาพรวม)</b><span>ตามช่วง/ประเภทที่ตั้งในหน้าแดชบอร์ด</span></div></button>
+          <button class="iotile" data-form="FQA" onclick="Report.compare()"><span class="io-ic" style="background:#E65100;">PDF</span><div><b>เปรียบเทียบผลตรวจล่าสุด</b><span>รายสาขา แยกเขต BZM · ใบล่าสุดเทียบใบก่อนหน้า (ตามตัวกรอง)</span></div></button>
         </div>
 
         <div class="dsec"><span>ออกรายงานรายครั้ง (เจาะแต่ละใบ)</span></div>
@@ -5418,6 +5419,35 @@ function heatmap(rowKeys, cols, matrix){
 /* =======================================================================
    DASHBOARD
    ======================================================================= */
+/* ───── เปรียบเทียบผลตรวจ FQA ล่าสุด รายสาขา / แยกเขต BZM (ใช้ร่วมกัน: การ์ดแดชบอร์ด · PDF · Excel) ─────
+   ผลของแต่ละใบ = % หัวข้อที่ผ่าน (ผ่าน ÷ ผ่านกับไม่ผ่าน · ข้ามหัวข้อที่ไม่ได้ตรวจ)
+   ล่าสุด = ใบล่าสุดของสาขาในชุดที่ส่งเข้ามา · ก่อนหน้า = ใบถัดมาของสาขาเดียวกัน · ผลต่างเป็น "จุด" (percentage point)
+   เขตของสาขาอ่านจากทะเบียนสาขาของฮับตอนนี้ · ไม่มีก็ใช้เขตที่บันทึกในใบ */
+function fqaCmp(fqa){
+  const res=r=>{ let p=0,t=0; fqaChecks(r).forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; });
+    return t?{r,date:r.date||'',pct:Math.round(p/t*100),f:t-p,t}:null; };
+  const by={};
+  fqa.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.id||'').localeCompare(String(a.id||'')))
+    .forEach(r=>{ const x=res(r); if(x&&r.branch) (by[r.branch]=by[r.branch]||[]).push(x); });
+  const zoneOf=n=>{ const b=M.branchOf(n); return (b&&b.bzm)||(by[n]&&by[n][0].r.bzm)||'ไม่ระบุเขต'; };
+  const zones={};
+  Object.keys(by).forEach(n=>{ const z=zoneOf(n); (zones[z]=zones[z]||{name:z,rows:[],miss:[]}).rows.push({n,L:by[n][0],P:by[n][1]||null}); });
+  (M.branches()||[]).forEach(b=>{ if(!by[b.name]){ const z=b.bzm||'ไม่ระบุเขต'; (zones[z]=zones[z]||{name:z,rows:[],miss:[]}).miss.push(b.name); } });
+  const list=Object.values(zones).filter(z=>z.rows.length||z.miss.length)
+    .sort((a,b)=>a.name==='ไม่ระบุเขต'?1:b.name==='ไม่ระบุเขต'?-1:a.name.localeCompare(b.name,'th'));
+  list.forEach(z=>{
+    z.rows.sort((a,b)=>a.L.pct-b.L.pct||a.n.localeCompare(b.n,'th'));      // ต้องดูแลก่อน = ผ่านน้อยสุดขึ้นบน
+    z.avgL=z.rows.length?Math.round(z.rows.reduce((a,x)=>a+x.L.pct,0)/z.rows.length):null;
+    const c=z.rows.filter(x=>x.P); z.nCmp=c.length; z.dAvg=c.length?Math.round(c.reduce((a,x)=>a+(x.L.pct-x.P.pct),0)/c.length):null;
+  });
+  const t={up:0,dn:0,eq:0,nw:0,sum:0,n:0};
+  list.forEach(z=>z.rows.forEach(x=>{ t.sum+=x.L.pct; t.n++; if(!x.P) t.nw++; else { const d=x.L.pct-x.P.pct; if(d>0)t.up++; else if(d<0)t.dn++; else t.eq++; } }));
+  t.avg=t.n?Math.round(t.sum/t.n):0;
+  return {list,total:t,has:list.some(z=>z.rows.length)};
+}
+const cmpTone=d=>d>0?'cm-up':d<0?'cm-dn':'cm-eq';
+const cmpTxt=d=>d>0?'▲ +'+d:d<0?'▼ '+d:'—';
+
 const Dash = {
   monthType:'stack', type:'',
   setMonthType(t){ this.monthType=t;
@@ -5599,43 +5629,20 @@ const Dash = {
      เขตของสาขาอ่านจากทะเบียนสาขาของฮับตอนนี้ (BZM ย้ายเขตแล้วก็ตามไป) · ไม่มีก็ใช้เขตที่บันทึกในใบ */
   renderCmp(fqa){
     const host=document.getElementById('chCmp'); if(!host) return;
-    const res=r=>{ let p=0,t=0; fqaChecks(r).forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; });
-      return t?{r,date:r.date||'',pct:Math.round(p/t*100),f:t-p,t}:null; };
-    const by={};
-    fqa.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.id||'').localeCompare(String(a.id||'')))
-      .forEach(r=>{ const x=res(r); if(x&&r.branch) (by[r.branch]=by[r.branch]||[]).push(x); });
-    const zoneOf=n=>{ const b=M.branchOf(n); return (b&&b.bzm)||(by[n]&&by[n][0].r.bzm)||'ไม่ระบุเขต'; };
-    const zones={};
-    Object.keys(by).forEach(n=>{ const z=zoneOf(n); (zones[z]=zones[z]||{name:z,rows:[]}).rows.push({n,L:by[n][0],P:by[n][1]||null}); });
-    /* สาขาในเขตที่ยังไม่มีผลตรวจในช่วงนี้ */
-    const noRes={};
-    (M.branches()||[]).forEach(b=>{ if(!by[b.name]){ const z=b.bzm||'ไม่ระบุเขต'; (noRes[z]=noRes[z]||[]).push(b.name); } });
-    Object.keys(noRes).forEach(z=>{ if(!zones[z]) zones[z]={name:z,rows:[]}; });
-    const list=Object.values(zones).filter(z=>z.rows.length||(noRes[z.name]||[]).length)
-      .sort((a,b)=>a.name==='ไม่ระบุเขต'?1:b.name==='ไม่ระบุเขต'?-1:a.name.localeCompare(b.name,'th'));
-    if(!list.some(z=>z.rows.length)){ host.innerHTML=emptyBox('ยังไม่มีผลตรวจ FQA ในช่วงที่เลือก'); return; }
-    const tone=d=>d>0?'cm-up':d<0?'cm-dn':'cm-eq';
-    const dtxt=d=>d>0?'▲ +'+d:d<0?'▼ '+d:'—';
-    let nUp=0,nDn=0,nEq=0,nNew=0,sumL=0,nL=0;
-    list.forEach(z=>z.rows.forEach(x=>{ sumL+=x.L.pct; nL++; if(!x.P) nNew++; else { const d=x.L.pct-x.P.pct; if(d>0)nUp++; else if(d<0)nDn++; else nEq++; } }));
-    const sum=`<div class="cm-sum"><span>เฉลี่ยล่าสุดทุกสาขา <b>${nL?Math.round(sumL/nL):0}%</b></span><span>ดีขึ้น <b class="cm-up">${nUp}</b> สาขา</span><span>แย่ลง <b class="cm-dn">${nDn}</b> สาขา</span><span>เท่าเดิม <b>${nEq}</b></span><span>ตรวจครั้งแรกในช่วงนี้ <b>${nNew}</b></span></div>`;
-    const html=list.map(z=>{
-      const rows=z.rows.slice().sort((a,b)=>a.L.pct-b.L.pct||a.n.localeCompare(b.n,'th'));   // ต้องดูแลก่อน = ผ่านน้อยสุดขึ้นบน
-      const avgL=rows.length?Math.round(rows.reduce((a,x)=>a+x.L.pct,0)/rows.length):null;
-      const cmp=rows.filter(x=>x.P), dAvg=cmp.length?Math.round(cmp.reduce((a,x)=>a+(x.L.pct-x.P.pct),0)/cmp.length):null;
-      const miss=noRes[z.name]||[];
-      return `<details class="cm-z" open><summary><b>${esc(z.name)}</b><span class="note">${rows.length} สาขามีผลตรวจ${miss.length?' · ยังไม่มีผล '+miss.length:''}</span><span class="sp"></span>
-        ${avgL==null?'':`<span>เฉลี่ยล่าสุด <b style="font-size:16px">${avgL}%</b></span>`}
-        ${dAvg==null?'':`<span class="cm-pill ${tone(dAvg)}" title="เฉลี่ยผลต่างเฉพาะสาขาที่มีใบก่อนหน้า ${cmp.length} สาขา">${dtxt(dAvg)} จุด</span>`}</summary>
-        ${rows.length?`<div class="cm-g hd2"><span>สาขา</span><span>ล่าสุด</span><span>ก่อนหน้า</span><span style="text-align:right">เปลี่ยน</span></div>`:''}
-        ${rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null;
+    const m=fqaCmp(fqa);
+    if(!m.has){ host.innerHTML=emptyBox('ยังไม่มีผลตรวจ FQA ในช่วงที่เลือก'); return; }
+    const t=m.total;
+    const sum=`<div class="cm-sum"><span>เฉลี่ยล่าสุดทุกสาขา <b>${t.avg}%</b></span><span>ดีขึ้น <b class="cm-up">${t.up}</b> สาขา</span><span>แย่ลง <b class="cm-dn">${t.dn}</b> สาขา</span><span>เท่าเดิม <b>${t.eq}</b></span><span>ตรวจครั้งแรกในช่วงนี้ <b>${t.nw}</b></span></div>`;
+    host.innerHTML=sum+m.list.map(z=>`<details class="cm-z" open><summary><b>${esc(z.name)}</b><span class="note">${z.rows.length} สาขามีผลตรวจ${z.miss.length?' · ยังไม่มีผล '+z.miss.length:''}</span><span class="sp"></span>
+        ${z.avgL==null?'':`<span>เฉลี่ยล่าสุด <b style="font-size:16px">${z.avgL}%</b></span>`}
+        ${z.dAvg==null?'':`<span class="cm-pill ${cmpTone(z.dAvg)}" title="เฉลี่ยผลต่างเฉพาะสาขาที่มีใบก่อนหน้า ${z.nCmp} สาขา">${cmpTxt(z.dAvg)} จุด</span>`}</summary>
+        ${z.rows.length?`<div class="cm-g hd2"><span>สาขา</span><span>ล่าสุด</span><span>ก่อนหน้า</span><span style="text-align:right">เปลี่ยน</span></div>`:''}
+        ${z.rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null;
           return `<div class="cm-g"><div><b>${esc(x.n)}</b></div>
             <div><small>${fmtDMY(x.L.date)}</small><div class="pc">${x.L.pct}%</div><div class="bar"><i style="width:${x.L.pct}%"></i></div><small>ไม่ผ่าน ${x.L.f} จาก ${x.L.t} หัวข้อ</small></div>
             <div>${x.P?`<small>${fmtDMY(x.P.date)}</small><div class="pc" style="color:var(--text2)">${x.P.pct}%</div><div class="bar"><i style="width:${x.P.pct}%;background:var(--text3)"></i></div><small>ไม่ผ่าน ${x.P.f} จาก ${x.P.t} หัวข้อ</small>`:'<small>ยังไม่มีใบก่อนหน้า</small><div class="pc" style="color:var(--text3)">ตรวจครั้งแรก</div>'}</div>
-            <div class="cm-d ${d==null?'cm-eq':tone(d)}">${d==null?'—':dtxt(d)+' จุด'}</div></div>`; }).join('')}
-        ${miss.length?`<div class="cm-none">ยังไม่มีผลตรวจในช่วงนี้: ${miss.map(esc).join(' · ')}</div>`:''}</details>`;
-    }).join('');
-    host.innerHTML=sum+html;
+            <div class="cm-d ${d==null?'cm-eq':cmpTone(d)}">${d==null?'—':cmpTxt(d)+' จุด'}</div></div>`; }).join('')}
+        ${z.miss.length?`<div class="cm-none">ยังไม่มีผลตรวจในช่วงนี้: ${z.miss.map(esc).join(' · ')}</div>`:''}</details>`).join('');
   },
 
   /* ---------- ผลการตรวจ STA ----------
@@ -6848,6 +6855,26 @@ const PDF = {
       this.name('สรุปรายการตรวจ'));
   },
 
+  /* ---------- เปรียบเทียบผลตรวจ FQA ล่าสุด รายสาขา แยกเขต BZM (ตามตัวกรองหน้าออกรายงาน) ---------- */
+  compare(list, sub){
+    const fqa=(list||[]).filter(r=>r.type==='FQA'), m=fqaCmp(fqa);
+    if(!m.has) return App.toast('ไม่มีผลตรวจ FQA ตามตัวกรอง');
+    const t=m.total;
+    const tone=d=>d>0?'color:#0b7a55':d<0?'color:#b42318':'color:#6b7280';
+    const body=`<div class="pdfstats"><div><b>${t.avg}%</b>เฉลี่ยผลล่าสุด</div><div><b>${t.up}</b>สาขาดีขึ้น</div><div><b>${t.dn}</b>สาขาแย่ลง</div><div><b>${t.eq}</b>เท่าเดิม</div><div><b>${t.nw}</b>ตรวจครั้งแรก</div></div>
+      ${m.list.map(z=>`<div class="pdfcard"><h2>${esc(z.name)} <span style="font-weight:500;font-size:12px;color:#6b7280">· ${z.rows.length} สาขามีผลตรวจ${z.avgL!=null?' · เฉลี่ยล่าสุด '+z.avgL+'%':''}${z.dAvg!=null?' · <span style="'+tone(z.dAvg)+'">'+cmpTxt(z.dAvg)+' จุด</span>':''}</span></h2>
+        <table class="pdftb"><thead><tr><th style="width:34%">สาขา</th><th>ล่าสุด</th><th>ก่อนหน้า</th><th style="width:14%">เปลี่ยน (จุด)</th></tr></thead><tbody>
+        ${z.rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null; return `<tr><td>${esc(x.n)}</td>
+          <td><b>${x.L.pct}%</b> <span class="sm">${esc(fmtDMY(x.L.date))} · ไม่ผ่าน ${x.L.f}/${x.L.t}</span></td>
+          <td>${x.P?`<b>${x.P.pct}%</b> <span class="sm">${esc(fmtDMY(x.P.date))} · ไม่ผ่าน ${x.P.f}/${x.P.t}</span>`:'<span class="sm">ตรวจครั้งแรก</span>'}</td>
+          <td class="c" style="font-weight:800;${d==null?'color:#6b7280':tone(d)}">${d==null?'—':cmpTxt(d)}</td></tr>`; }).join('')}
+        ${z.miss.length?`<tr><td colspan="4" class="sm">ยังไม่มีผลตรวจในช่วงนี้: ${z.miss.map(esc).join(' · ')}</td></tr>`:''}
+        </tbody></table></div>`).join('')}
+      <div class="sm" style="margin-top:8px">ผลของแต่ละใบ = % หัวข้อ FQA ที่ผ่าน · ล่าสุดเทียบกับใบก่อนหน้าของสาขาเดียวกันในช่วงที่เลือก · ผลต่างเป็นจุดเปอร์เซ็นต์</div>`;
+    return this.render(this.wrap('เปรียบเทียบผลตรวจล่าสุด รายสาขา แยกตามเขต BZM', (sub?sub+' · ':'')+t.n+' สาขามีผลตรวจ', body),
+      this.name('เปรียบเทียบผลตรวจ'));
+  },
+
   /* ---------- 3) แดชบอร์ดตามช่วงที่กรองอยู่ ---------- */
   dashboard(){
     const rows=Filters.apply(DB.all());
@@ -6995,6 +7022,7 @@ const Report = {
     </div></div>`;
   },
   pdf(){   const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); PDF.summary(l, this.label()); },
+  compare(){ const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); PDF.compare(l, this.label()); },
   excel(){ const l=this.filtered(); if(!l.length) return App.toast('ไม่มีรายการตามตัวกรอง'); IO.exportXlsx(l); }
 };
 
@@ -7056,7 +7084,14 @@ const IO = {
         'ข้อแนะนำ (ฟอร์มเดิม)':x.advice||''}));
     });
     const master=M.branches().map((b,i)=>({'ลำดับ':i+1,'สาขา':b.name,'ผู้จัดการเขต':b.bzm}));
-    return {summary,fqaItem,fqaMenu,comp,visit,sta,staVerify,master};
+    /* เปรียบเทียบผลตรวจ FQA ล่าสุด รายสาขา แยกเขต — ชีตเดียว ใช้ทำ Pivot ต่อได้ */
+    const cmp=[]; if(Brand.has('FQA')){ const m=fqaCmp(rows.filter(r=>r.type==='FQA'));
+      m.list.forEach(z=>{ z.rows.forEach(x=>{ const d=x.P?x.L.pct-x.P.pct:'';
+        cmp.push({'เขต BZM':z.name,'สาขา':x.n,'วันที่ตรวจล่าสุด':x.L.date,'ผลล่าสุด (% ผ่าน)':x.L.pct,'ไม่ผ่านล่าสุด (หัวข้อ)':x.L.f,'หัวข้อที่ตรวจล่าสุด':x.L.t,
+          'วันที่ตรวจก่อนหน้า':x.P?x.P.date:'','ผลก่อนหน้า (% ผ่าน)':x.P?x.P.pct:'','ไม่ผ่านก่อนหน้า (หัวข้อ)':x.P?x.P.f:'','เปลี่ยน (จุด)':d,
+          'สถานะ':x.P?(d>0?'ดีขึ้น':d<0?'แย่ลง':'เท่าเดิม'):'ตรวจครั้งแรกในช่วงนี้'}); });
+        z.miss.forEach(n=>cmp.push({'เขต BZM':z.name,'สาขา':n,'สถานะ':'ยังไม่มีผลตรวจในช่วงนี้'})); }); }
+    return {summary,fqaItem,fqaMenu,comp,visit,sta,staVerify,master,cmp};
   },
 
   exportXlsx(rows){
@@ -7068,7 +7103,7 @@ const IO = {
         const ws=XLSX.utils.json_to_sheet(arr);
         ws['!cols']=Object.keys(arr[0]).map(k=>({wch:Math.min(46,Math.max(12,k.length+6))}));
         XLSX.utils.book_append_sheet(wb,ws,name); };
-      add('สรุปรายการตรวจ',d.summary); add('FQA วัตถุดิบ',d.fqaItem); add('FQA เมนู',d.fqaMenu);
+      add('สรุปรายการตรวจ',d.summary); add('เปรียบเทียบผลตรวจ',d.cmp); add('FQA วัตถุดิบ',d.fqaItem); add('FQA เมนู',d.fqaMenu);
       add('Complaint',d.comp); add('Visit',d.visit);
       add('Visit รายข้อ',d.sta); add('Visit ทวนสอบพนักงาน',d.staVerify);
       add('ข้อมูลสาขา',d.master);
