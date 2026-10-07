@@ -174,6 +174,21 @@
 /* ═══ จอกว้าง · หน้าสาขา: เต็มจอ · ฟอร์มซ้าย | ใบเบิกตัวอย่างสด + วงเงินขวา (ติดขอบ) · ประวัติเป็นตาราง · ผู้รับเงิน 2 คอลัมน์ ═══ */
 .hist-tbl,.live{display:none}
 /* ฝั่งสาขา · ดีไซน์ขาว-ส้ม: แถบสรุปรอบ + ฟอร์มเรียงลงมา + ช่องรูป 3 ช่อง */
+.bgrid.one{grid-template-columns:minmax(0,1fr)!important}
+.dv2{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:20px;align-items:start;margin-top:16px}
+.dv2 .card{margin-top:0;padding:24px 28px}
+.dv2 .sum{background:var(--bg3);border-radius:14px;padding:18px 20px;margin:14px 0 18px}.dv2 .sum small{color:var(--text3);font-weight:600}
+.dv2 .sum .big{font-size:38px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.dv2 .sum .chip{display:inline-block;margin-top:8px;background:var(--gold-soft);color:var(--gold-ink);border:1px solid var(--gold-line);border-radius:99px;padding:3px 12px;font-size:13px;font-weight:700}
+.dv2 .kv{display:grid;grid-template-columns:150px 1fr;gap:10px 16px;font-size:14.5px}.dv2 .kv span{color:var(--text3)}.dv2 .kv b{font-weight:700}
+.dv2 .rcp{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px}.dv2 .rcp img{width:112px;height:112px;border-radius:12px;object-fit:cover;border:1px solid var(--border);cursor:zoom-in}
+.tl{position:relative;margin-top:14px}.tl .nd{position:relative;padding:0 0 22px 38px}.tl .nd:last-child{padding-bottom:0}
+.tl .nd::before{content:"";position:absolute;left:11px;top:26px;bottom:0;width:2px;background:var(--border)}.tl .nd:last-child::before{display:none}
+.tl .nd.on::before{background:#2f6fe0}
+.tl .dot{position:absolute;left:0;top:0;width:24px;height:24px;border-radius:50%;border:2.5px solid var(--border2);background:#fff;display:grid;place-items:center;font-size:12px;color:#fff;font-weight:800}
+.tl .nd.ok .dot{background:#2f6fe0;border-color:#2f6fe0}.tl .nd.cur .dot{border-color:#e0a21a;background:#e0a21a;box-shadow:0 0 0 4px rgba(224,162,26,.18)}
+.tl .nd b{display:block;font-size:15px}.tl .nd.ok b{color:#2f6fe0}.tl .nd.cur b{color:#b9780a}.tl .nd.idle b{color:var(--text3)}
+.tl .nd small{display:block;color:var(--text2);font-size:13px;margin-top:2px;line-height:1.5}.tl .nd.idle small{color:var(--text3)}
 .rstrip{display:flex;justify-content:space-between;align-items:center;gap:14px 28px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px 22px;margin-top:14px}
 .rstrip b{font-size:17px}.rstrip small{display:block;font-size:12.5px;color:var(--text3);font-weight:600}
 .rstrip .rs-r{display:flex;gap:26px;align-items:center}.rstrip .rs-r>div+div{border-left:1px solid var(--border);padding-left:26px}
@@ -559,17 +574,22 @@ function liveAside(r){
 }
 /* จอกว้าง: หน้า "ส่งเอกสารแล้ว" — สรุปสถานะ + เส้นขั้นตอนตามสถานะจริง + รายละเอียด/รูปเต็มความกว้าง */
 function doneWide(x){
-  const st=statusOf(x), idx=st==="อนุมัติ"?2:st==="รอดำเนินการ"?1:0, cut=Number(x.claimedAmount)>Number(x.amount)+1e-9;
-  const sub=[stamp(x.submittedAt),idx>=1?(idx===1&&x.statusAt?stamp(x.statusAt)+(x.statusBy?" · "+x.statusBy:""):"ผู้ดูแลรับเรื่องแล้ว"):"รอผู้ดูแลรับเรื่อง",idx===2?stamp(x.statusAt)+(x.statusBy?" · "+x.statusBy:""):"ยังไม่อนุมัติ"];
-  const names=["ส่งแล้ว","รอดำเนินการ","อนุมัติ / โอนเงิน"];
+  const st=statusOf(x), idx=st==="อนุมัติ"||st==="ไม่อนุมัติ"?2:st==="รอดำเนินการ"?1:0, cut=Number(x.claimedAmount)>Number(x.amount)+1e-9, no=st==="ไม่อนุมัติ";
   const mayDelete=can("delete-own")&&ME.role==="branch"&&x.branchCode===ME.code&&st!=="อนุมัติ";
-  const d=document.createElement("div"); d.className="dn";
-  d.innerHTML=`<div class="dn-head"><div class="ck">✓</div><div style="min-width:0"><b>ส่งเอกสารรอบ ${esc(roundLabel(roundIdOf(x)))} แล้ว</b><div class="muted">เลขเอกสาร ${esc(x.docNo||x.id)} · เบิกได้รอบละ 1 ครั้ง ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div></div><span style="margin-left:auto">${pill(st)}</span></div>
-    <div class="dn-card"><div class="dn-track"><div class="dn-line"><i style="width:${idx*50}%"></i></div>${names.map((n,i)=>`<div class="dn-node${i<=idx?" is-done":""}${i===idx&&idx<2?" is-cur":""}"><span class="dot">${i<=idx&&!(i===idx&&idx<2)?"✓":""}</span><b>${n}</b><small>${esc(sub[i])}</small></div>`).join("")}</div></div>
-    <div class="dn-card dn-det"><div><div class="muted" style="font-weight:700">${cut?"จ่ายตามวงเงิน":"ยอดเบิก"}</div><div class="dn-amt">${money(x.amount)} ฿</div>${cut?`<div class="note-cut" style="display:inline-block">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน (ส่วนเกิน ${money(x.claimedAmount-x.amount)} ฿ ไม่จ่าย)</div>`:""}
-      <div style="margin-top:12px"><div class="lead"><span>ผู้ทำการเบิก</span><b>${esc(x.claimantName||"-")}</b></div><div class="lead"><span>ผู้รับเงิน</span><b>${esc([x.payeeName||x.payee,x.payeePosition].filter(Boolean).join(" · ")||"-")}</b></div><div class="lead"><span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))}</b></div>${x.note?`<div class="lead"><span>หมายเหตุ</span><b style="max-width:340px">${esc(x.note)}</b></div>`:""}</div></div>
-      <div><div class="muted" style="font-weight:700;margin-bottom:8px">รูปใบเสร็จ (${(x.photos||[]).length})</div><div class="dn-ph" id="dnph"></div>${mayDelete?'<div style="margin-top:14px"><button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button></div>':'<div class="muted" style="margin-top:14px">'+(st==="อนุมัติ"?"อนุมัติแล้ว แก้ไขไม่ได้":"")+'</div>'}</div></div>`;
-  const ph=photoStrip(x.photos); if(ph) $("#dnph",d).appendChild(ph);
+  const who=t=>x.statusBy?" · โดย "+esc(x.statusBy):"";
+  const nodes=[
+    {c:"ok",t:"ส่งแล้ว",d:stamp(x.submittedAt)+(x.submittedBy?" · โดย "+esc(x.submittedBy):"")},
+    idx>=1?{c:idx===1?"cur":"ok",t:"รอดำเนินการ",d:"ผู้ดูแลรับเรื่องแล้ว"+(idx===1&&x.statusAt?" · "+stamp(x.statusAt):"")}:{c:"cur",t:"รอดำเนินการ",d:"ผู้ดูแลกำลังตรวจเอกสาร"},
+    idx===2?{c:no?"ok":"ok",t:no?"ไม่อนุมัติ":"อนุมัติ",d:stamp(x.statusAt)+who()+(no&&x.reason?"<br>เหตุผล: "+esc(x.reason):"")}:{c:"idle",t:"อนุมัติ / ไม่อนุมัติ",d:"ถ้าอนุมัติ เงินโอนเข้าบัญชีผู้รับเงินภายใน 7 วันทำการ ถ้าไม่อนุมัติ จะแสดงเหตุผลที่นี่"}];
+  const d=document.createElement("div");
+  d.innerHTML=`<div class="rstrip" style="margin-top:0"><div><b>ส่งเอกสารรอบ ${esc(roundLabel(roundIdOf(x)))} แล้ว</b><div class="muted" style="font-size:13.5px">รอบนี้ส่งครบ 1 ครั้งแล้ว · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div></div>${pill(st)}</div>
+    <div class="dv2"><div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="font-size:17px;margin:0">รายละเอียดเอกสาร</h3><span class="muted" style="font-size:13px">เลขที่ ${esc(x.docNo||x.id)}</span></div>
+      <div class="sum"><small>${cut?"ยอดที่จะได้รับ":"ยอดเบิก"}</small><div class="big">${money(x.amount)} บาท</div>${cut?`<span class="chip">ขอเบิก ${money(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${money(x.amount)}</span>`:""}</div>
+      <div class="kv"><span>ผู้ทำการเบิก</span><b>${esc(x.claimantName||"-")}</b><span>ผู้รับเงิน</span><b>${esc([x.payeeName||x.payee,x.payeeEmpCode,x.payeePosition].filter(Boolean).join(" · ")||"-")}</b>${x.note?`<span>หมายเหตุ</span><b>${esc(x.note)}</b>`:""}<span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))}</b></div>
+      <div class="muted" style="margin-top:20px;font-weight:600">ใบเสร็จ ${(x.photos||[]).length} รูป</div><div class="rcp" id="dnph"></div>
+      ${mayDelete?'<div style="margin-top:18px"><button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button></div>':'<div class="muted" style="margin-top:14px">'+(st==="อนุมัติ"?"อนุมัติแล้ว แก้ไขไม่ได้":"")+'</div>'}</div>
+    <div class="card"><h3 style="font-size:17px;margin:0">สถานะเอกสาร</h3><div class="tl">${nodes.map(n=>`<div class="nd ${n.c}"><span class="dot">${n.c==="ok"?"✓":""}</span><b>${n.t}</b><small>${n.d}</small></div>`).join("")}</div></div></div>`;
+  (x.photos||[]).forEach(u=>{ const im=new Image(); im.src=u; im.alt="ใบเสร็จ"; im.onclick=()=>zoom(u); $("#dnph",d).appendChild(im); });
   if(mayDelete) $("#dndel",d).onclick=()=>removeClaim(x);
   return d;
 }
@@ -586,7 +606,8 @@ function branchSend(body,r,mine){
   const grid=document.createElement("div"); grid.className="bgrid";
   const left=document.createElement("div");
   grid.append(left);
-  const aside=WIDE()?(activeClaim(r.id,ME.code)?sideInfo(r,mine):liveAside(r)):null;
+  const aside=WIDE()&&!doneNow?liveAside(r):null;
+  if(doneNow&&WIDE()) grid.classList.add("one");
   if(aside) grid.append(aside);
   body.appendChild(grid);
 
