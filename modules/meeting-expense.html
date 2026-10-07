@@ -1407,11 +1407,10 @@ function adminList(body,r){
       <select id="fr" class="hs" aria-label="รอบ">${rids.map(id=>`<option value="${esc(id)}" ${F.round===id?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}
         <option value="_all" ${F.round==="_all"?"selected":""}>ทุกรอบ</option></select>
       <button class="tbtn" id="csv">${mi("excel",18)} Excel</button></div>
-    <div class="adsplit"><aside class="glass-card vk" id="vk"><div id="chips"></div><hr><div class="vkrow t-yl"><i class="vi">${mi("coins",20)}</i><small>ยอดอนุมัติ</small><b id="kamt"></b></div><hr>
-      <div class="vkrow"><small>แบรนด์</small><select id="fb" class="hs" aria-label="แบรนด์"><option value="">ทุกแบรนด์</option>${Branches.brands().map(k=>`<option value="${esc(k)}" ${F.brand===k?"selected":""}>${esc(Branches.brandName(k))}</option>`).join("")}</select></div></aside>
+    <div class="adsplit"><aside class="glass-card vk" id="vk"><div id="chips"></div><hr><div class="vkrow t-yl"><i class="vi">${mi("coins",20)}</i><small>ยอดอนุมัติ</small><b id="kamt"></b></div></aside>
       <div style="min-width:0"><div id="out"></div><div id="bulk"></div></div></div>`;
   const out=$("#out",body);
-  const scope=()=>CLAIMS().filter(c=>(F.round==="_all"||!F.round||roundIdOf(c)===F.round)&&(!F.brand||Branches.brandOf(c.branchCode)===F.brand));
+  const scope=()=>CLAIMS().filter(c=>(F.round==="_all"||!F.round||roundIdOf(c)===F.round));
   const listNow=()=>{ const q=F.q.trim().toLowerCase();
     return scope().filter(c=>(!F.status||(F.status==="_wait"?isWaiting(c):statusOf(c)===F.status))
       &&(!q||[c.branchCode,Branches.label(c.branchCode,c.branchName),c.claimantName,c.payeeName,c.docNo||c.id].join(" ").toLowerCase().indexOf(q)>=0))
@@ -1467,7 +1466,7 @@ function adminList(body,r){
   };
   $("#chips",body).onclick=e=>{ const b=e.target.closest("[data-st]"); if(!b) return; F.status=b.dataset.st; draw(); };
   $("#fr",body).onchange=e=>{F.round=e.target.value;draw();};
-  $("#fb",body).onchange=e=>{F.brand=e.target.value;draw();};
+  
   $("#fq",body).oninput=e=>{F.q=e.target.value;draw();};
   $("#csv",body).onclick=()=>exportCsv(listNow());
   draw();
