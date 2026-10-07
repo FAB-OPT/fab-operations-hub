@@ -2002,16 +2002,15 @@ function limitForm(b){
     await saveCfg({limits}); toast("บันทึกแล้ว");
   });
 }
+let PAYF="all";
 function adminPayees(body){
   const pend=PREQ().filter(p=>p.status==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
-    body.innerHTML=`<div class="head"><h1>ผู้รับเงิน</h1><span class="sp"></span></div>
-    <div class="rbn"><i class="ki">${mi("doc",26)}</i><div><b>คำขอเปลี่ยนผู้รับเงิน ${pend.length} รายการ</b><small>${pend.length?"รออนุมัติ — กดอนุมัติหรือไม่อนุมัติที่การ์ดด้านล่าง":"ไม่มีคำขอค้างอยู่"}</small></div></div>
-    <div id="reqs" class="grid2" style="margin:0"></div>
-    <div class="lbar"><span class="bc tabs2">${brandChips()}</span><span class="sp" style="flex:1"></span>
-      <span class="sbox">${mi("search",18)}<input id="pq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
-    <div id="out"></div>`;
+  PAYF=PAYF||"all";
+  body.innerHTML=`<div class="head"><h1>ผู้รับเงิน</h1><span class="sp"></span><span class="sbox" style="min-width:300px;max-width:360px">${mi("search",18)}<input id="pq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
+    <div class="adsplit"><aside class="glass-card vk" id="pside"></aside>
+      <div style="min-width:0;display:flex;flex-direction:column;gap:14px"><div id="reqs" class="grid2" style="margin:0"></div><div id="out"></div></div></div>`;
   const rq=$("#reqs",body);
-  if(!pend.length) rq.remove();
+
   pend.forEach(p=>{
     const c=document.createElement("div"); c.className="card hl";
     c.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(Branches.label(p.branchCode,p.branchName))}</b><span class="muted">${esc(stamp(p.createdAt))}</span></div>
@@ -2041,23 +2040,32 @@ function adminPayees(body){
     };
     a.append(y,n); c.appendChild(a); rq.appendChild(c);
   });
-  const all=Branches.list(), out=$("#out",body);
+  if(!pend.length) rq.remove();
+  const all=Branches.list(), out=$("#out",body), side=$("#pside",body);
+  const drawSide=()=>{
+    const nm=b=>payeeOf(b.code).name, inBrand=all.filter(b=>!F.brand||b.brand===F.brand);
+    const rowB=(k,t,n,on)=>`<div class="vkrow btn-st ${on?"on":""}" data-pb="${esc(k)}"><small>${esc(t)}</small><b>${n}</b></div>`;
+    const rowS=(k,t,n,tone,ic)=>`<div class="vkrow btn-st ${tone} ${PAYF===k?"on":""}" data-ps="${k}"><i class="vi">${mi(ic,20)}</i><small>${t}</small><b>${n}</b></div>`;
+    side.innerHTML=rowB("","ทุกแบรนด์",all.length,!F.brand)+Branches.brands().map(k=>rowB(k,Branches.brandName(k),all.filter(b=>b.brand===k).length,F.brand===k)).join("")
+      +`<hr>`+rowS("all","ทั้งหมด",inBrand.length,"t-or","doc")+rowS("has","มีผู้รับเงิน",inBrand.filter(nm).length,"t-gr","check")+rowS("no","ยังไม่มีผู้รับเงิน",inBrand.filter(b=>!nm(b)).length,"t-am","warn")
+      +`<hr><div class="vkrow t-yl" id="preqrow" style="cursor:${pend.length?"pointer":"default"}"><i class="vi">${mi("clock",20)}</i><small>คำขอรออนุมัติ</small><b>${pend.length}</b></div>`;
+  };
+  side.onclick=e=>{ const b=e.target.closest("[data-pb]"), st=e.target.closest("[data-ps]"), rr=e.target.closest("#preqrow");
+    if(b){ F.brand=b.dataset.pb; draw(); } else if(st){ PAYF=st.dataset.ps; draw(); } else if(rr&&pend.length){ const r0=$("#reqs",body); if(r0) r0.scrollIntoView({behavior:"smooth",block:"start"}); } };
   const draw=()=>{
-    const base=all.filter(matchBranch), hidden=base.filter(b=>!payeeOf(b.code).name).length;
-    const list=window._showNoPayee?base:base.filter(b=>payeeOf(b.code).name);
-    const tg=hidden?`<label class="muted" style="display:inline-flex;gap:6px;align-items:center;margin-left:14px"><input type="checkbox" id="snp" ${window._showNoPayee?"checked":""} style="width:auto;height:auto"> แสดงสาขาที่ยังไม่มีผู้รับเงิน (${hidden})</label>`:"";
-    const hook=()=>{ const c=$("#snp",out); if(c) c.onchange=()=>{window._showNoPayee=c.checked;draw();}; };
-    if(!list.length){ out.innerHTML=`<div class="muted" style="margin:6px 2px 8px">${tg}</div><div class="empty">ไม่พบสาขาที่มีผู้รับเงิน</div>`; hook(); return; }
-    const pg=pager("pay",list.length,8,F.brand+"|"+F.q+"|"+(window._showNoPayee?1:0),"per","รายการ");
-    out.innerHTML=`<div class="muted" style="margin:4px 2px 10px;font-size:14px">${list.length} สาขา${tg}</div>
-      <div class="glass-card"><table class="mtbl"><thead><tr><th>สาขา</th><th>พนักงานผู้รับเงิน</th><th>ตำแหน่ง</th><th>อัปเดตล่าสุด</th><th class="r">จัดการ</th></tr></thead><tbody>
+    drawSide();
+    const qq=F.q.trim().toLowerCase();
+    const base=all.filter(b=>(!F.brand||b.brand===F.brand)&&(!qq||(b.code+" "+b.name+" "+(payeeOf(b.code).name||"")+" "+(payeeOf(b.code).empCode||"")).toLowerCase().indexOf(qq)>=0));
+    const list=PAYF==="has"?base.filter(b=>payeeOf(b.code).name):PAYF==="no"?base.filter(b=>!payeeOf(b.code).name):base;
+    if(!list.length){ out.innerHTML=`<div class="empty">ไม่พบสาขาที่ตรงกับตัวกรอง</div>`; return; }
+    const pg=pager("pay",list.length,10,F.brand+"|"+F.q+"|"+PAYF,"per","รายการ");
+    out.innerHTML=`<div class="glass-card"><table class="mtbl"><thead><tr><th>สาขา</th><th>พนักงานผู้รับเงิน</th><th>ตำแหน่ง</th><th>อัปเดตล่าสุด</th><th class="r">จัดการ</th></tr></thead><tbody>
       ${list.slice(pg.s,pg.e).map(b=>{ const p=payeeOf(b.code);
         return `<tr><td><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)}</small></td>
         <td>${p.name?`<b>${esc(p.name)}</b>${p.empCode?`<small>รหัส ${esc(p.empCode)}</small>`:""}`:`<span class="pillg">ยังไม่มีผู้รับเงิน</span>`}</td>
         <td>${p.name&&p.position?esc(p.position):"—"}</td>
         <td style="color:#6b7280">${p.updatedAt?esc(dmy(p.updatedAt)):"—"}</td>
         <td class="r"><button class="ab ghost view" data-pay="${esc(b.code)}">${mi("pen",16)} แก้ไข</button></td></tr>`;}).join("")}</tbody></table>${pg.html}</div>`;
-    hook();
   };
   out.onclick=e=>{ const btn=e.target.closest("[data-pay]"); if(!btn) return;
     const b=all.find(x=>x.code===btn.dataset.pay), cur=payeeOf(b.code);
@@ -2070,7 +2078,7 @@ function adminPayees(body){
     });
   };
   bindPager(out,"pay",draw);
-  wireTools(body,"pq",draw);
+  $("#pq",body).oninput=e=>{F.q=e.target.value;draw();};
   draw();
 }
 
