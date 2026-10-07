@@ -689,6 +689,7 @@ const _ic=p=>'<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke
 const NAVIC={doc:_ic('<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/><path d="M14 3v5h5M9 13h6M9 17h6"/>'),
   clock:_ic('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>'),
   user:_ic('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')};
+let DETAIL=null;   /* ใบที่เปิดดูรายละเอียดจากหน้าประวัติ */
 function renderBranch(){
   const r=currentRound();
   const mine=CLAIMS().filter(x=>x.branchCode===ME.code).sort(byTime);
@@ -697,9 +698,14 @@ function renderBranch(){
   if(r){ const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code);
     extra=lim?`<div style="margin-top:6px">วงเงิน <b style="display:inline">${baht(lim)} ฿</b> · เบิกได้ 1 ครั้ง</div>`:""; }
   const body=frame([{k:"send",t:"ส่งเอกสาร",ic:NAVIC.doc},{k:"hist",t:"ประวัติ",ic:NAVIC.clock,n:mine.length},{k:"payee",t:"ผู้รับเงิน",ic:NAVIC.user,n:pend}],
-    TAB,k=>{TAB=k;renderBranch();},roundBoxHtml(r,extra));
+    TAB,k=>{TAB=k;DETAIL=null;renderBranch();},roundBoxHtml(r,extra));
   body.classList.add("br-view");
   body.innerHTML=`<div class="head"><h1>${TAB==="hist"?"ประวัติการเบิก":TAB==="payee"?"ผู้รับเงิน":"ส่งเอกสาร"}</h1><span class="sp"></span><span id="hdr-r"></span></div>`;
+  if(TAB==="hist"&&DETAIL){
+    const x=CLAIMS().find(c=>c.id===DETAIL);
+    if(x){ body.appendChild(doneWide(x)); return; }
+    DETAIL=null;
+  }
   if(TAB==="hist") return branchHistory(body,mine);
   if(TAB==="payee") return branchPayee(body);
   branchSend(body,r,mine);
@@ -775,7 +781,7 @@ function doneWide(x){
         <div><span>วันที่ส่งเอกสาร</span><b>${esc(stamp(x.submittedAt))}</b></div>
         <div><span>สถานะ</span><b>${pill(st,ok?"✓ อนุมัติแล้ว":st)}</b></div></div>
       ${bn}
-      <div class="dact"><button class="btn ghost" id="dnhist">ดูประวัติรายการ</button>${mayDelete?'<button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button>':""}</div></div>
+      <div class="dact"><button class="btn ghost" id="dnhist">${DETAIL?"← กลับประวัติ":"ดูประวัติรายการ"}</button>${mayDelete?'<button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button>':""}</div></div>
     <div class="card dmr"><div class="dmh"><span class="clip">📎</span><h3>เอกสารแนบ</h3><span class="cnt">${ph} ไฟล์</span></div>
       <div class="dpics" id="dnph">${ph?"":'<div class="muted" style="padding:60px 0;text-align:center">ไม่มีรูปแนบ</div>'}</div></div></div>`;
   /* หัวรายการ */
@@ -792,7 +798,7 @@ function doneWide(x){
     const cap=document.createElement("div"); cap.className="dcap"; cap.textContent="หลักฐานแนบ "+(i+1);
     w.append(im,cap,bt); $("#dnph",d).appendChild(w);
   });
-  $("#dnhist",d).onclick=()=>{TAB="hist";renderBranch();};
+  $("#dnhist",d).onclick=()=>{TAB="hist";DETAIL=null;renderBranch();};
   if(mayDelete) $("#dndel",d).onclick=()=>removeClaim(x);
   return d;
 }
@@ -932,7 +938,7 @@ function branchHistory(body,mine){
   const cards=document.createElement("div"); cards.className="hist-cards"; w.appendChild(cards);
   Object.keys(g).sort().reverse().forEach(rid=>{
     cards.insertAdjacentHTML("beforeend",`<div class="sec">รอบ ${esc(roundLabel(rid))}</div>`);
-    g[rid].forEach(x=>cards.appendChild(slip(x,false,true)));
+    g[rid].forEach(x=>{ const c=slip(x,false,true); c.style.cursor="pointer"; c.onclick=()=>{ DETAIL=x.id; renderBranch(); }; cards.appendChild(c); });
   });
   /* จอกว้าง: ตารางหนึ่งแถวต่อใบ · กดแถวเพื่อดูรายละเอียด/รูป/ลบ */
   const tb=document.createElement("div"); tb.className="hist-tbl rowlist"; w.appendChild(tb);
@@ -943,12 +949,7 @@ function branchHistory(body,mine){
     row.innerHTML=`<span><b>${esc(roundLabel(roundIdOf(x)))}</b></span><span>${esc(thDate(x.submittedAt)||stamp(x.submittedAt))}</span>
       <span>${esc(x.claimantName||"-")}</span><span>${cutH?`<span class="cutchip">ขอเบิก ${baht(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${baht(x.amount)}</span>`:"<b>"+baht(x.amount)+" บาท</b>"}${st==="ไม่อนุมัติ"&&x.reason?`<span class="rsn">เหตุผล: ${esc(x.reason)}</span>`:""}</span>
       <span>${(x.photos||[]).length} รูป</span><span>${pill(st)}</span><span class="chev">›</span>`;
-    let det=null;
-    row.onclick=()=>{
-      if(det){ det.remove(); det=null; row.classList.remove("open"); return; }
-      det=document.createElement("div"); det.className="hdet"; det.appendChild(slip(x,false));
-      row.after(det); row.classList.add("open");
-    };
+    row.onclick=()=>{ DETAIL=x.id; renderBranch(); };
     tb.appendChild(row);
   });
 
