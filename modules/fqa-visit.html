@@ -469,6 +469,17 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .cm-up{color:var(--green)}.cm-dn{color:var(--red)}.cm-eq{color:var(--text3)}
 .cm-pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
 .cm-pill.cm-up{background:rgba(16,185,129,.12)}.cm-pill.cm-dn{background:rgba(239,68,68,.12)}.cm-pill.cm-eq{background:var(--surface3)}
+.cm-r{border-top:1px solid var(--border)}.cm-r>summary{list-style:none;cursor:pointer;border-top:0}.cm-r>summary::-webkit-details-marker{display:none}.cm-r>summary:hover{background:var(--surface2)}.cm-r[open]>summary{background:var(--surface2)}
+.cm-mini{display:flex;gap:6px;flex-wrap:wrap;margin-top:3px}.cm-mini span{font-size:11px;font-weight:800;border-radius:6px;padding:0 6px}
+.cm-c-worse{background:rgba(239,68,68,.12);color:var(--red)}.cm-c-repeat{background:rgba(245,158,11,.16);color:#a16207}.cm-c-fail{background:rgba(239,68,68,.08);color:var(--red)}.cm-c-better{background:rgba(16,185,129,.12);color:var(--green)}.cm-c-ok{background:var(--surface3);color:var(--text2)}.cm-c-na{background:var(--surface3);color:var(--text3)}
+.cm-chip{display:inline-block;border-radius:7px;padding:1px 9px;font-size:12px;font-weight:800;white-space:nowrap}
+.cm-x{padding:12px 16px 16px;background:var(--surface);border-top:1px dashed var(--border)}
+.cm-meta{display:flex;gap:6px 18px;flex-wrap:wrap;font-size:12.5px;color:var(--text3);margin-bottom:10px}.cm-meta b{color:var(--text2)}
+.cm-chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.cm-t{width:100%;border-collapse:collapse;font-size:13px}.cm-t th{text-align:left;font-size:11.5px;color:var(--text3);padding:6px 8px;border-bottom:1px solid var(--border)}.cm-t td{padding:8px;border-bottom:1px solid var(--border);vertical-align:top}
+.cm-ok{color:var(--green);font-weight:800;white-space:nowrap}.cm-no{color:var(--red);font-weight:800;white-space:nowrap}
+.cm-menu{margin-top:10px;font-size:13px}.cm-okl{margin-top:10px;font-size:12px;color:var(--text3)}
+@media(max-width:700px){.cm-t thead{display:none}.cm-t tr{display:block;border-bottom:1px solid var(--border);padding:6px 0}.cm-t td{display:block;border:0;padding:2px 8px}}
 .cm-none{padding:10px 16px;border-top:1px dashed var(--border);font-size:12.5px;color:var(--text3)}
 @media(max-width:700px){.cm-g{grid-template-columns:1fr 1fr;gap:6px 10px}.cm-g.hd2{display:none}.cm-g>:first-child{grid-column:1/-1}.cm-d{grid-column:1/-1;text-align:left}}
 .hbar{margin-bottom:10px}
@@ -5423,6 +5434,24 @@ function heatmap(rowKeys, cols, matrix){
    ผลของแต่ละใบ = % หัวข้อที่ผ่าน (ผ่าน ÷ ผ่านกับไม่ผ่าน · ข้ามหัวข้อที่ไม่ได้ตรวจ)
    ล่าสุด = ใบล่าสุดของสาขาในชุดที่ส่งเข้ามา · ก่อนหน้า = ใบถัดมาของสาขาเดียวกัน · ผลต่างเป็น "จุด" (percentage point)
    เขตของสาขาอ่านจากทะเบียนสาขาของฮับตอนนี้ · ไม่มีก็ใช้เขตที่บันทึกในใบ */
+/* เทียบรายหัวข้อของสองใบ: worse = ผ่าน→ไม่ผ่าน · better = ไม่ผ่าน→ผ่าน · repeat = ไม่ผ่านซ้ำ · fail = ไม่ผ่านและไม่มีใบก่อนหน้าให้เทียบ · ok = ผ่านทั้งคู่ */
+const CMP_LABEL={worse:'แย่ลง (ผ่าน→ไม่ผ่าน)',better:'ดีขึ้น (ไม่ผ่าน→ผ่าน)',repeat:'ไม่ผ่านซ้ำ',fail:'ไม่ผ่าน (ไม่มีใบก่อนหน้า)',ok:'ผ่านทั้งสองครั้ง',na:'ไม่ได้ตรวจ'};
+function cmpDetail(L,P){
+  const idx=r=>{ const o={}; if(r) fqaChecks(r).forEach(c=>{ if(c.item) o[c.item]=c; }); return o; };
+  const lc=idx(L.r), pc=idx(P&&P.r);
+  const names=M.list('fqaItems').slice(); [lc,pc].forEach(o=>Object.keys(o).forEach(k=>{ if(names.indexOf(k)<0) names.push(k); }));
+  const items=names.map(item=>{
+    const l=lc[item]||null, p=pc[item]||null, lr=l&&l.result, pr=p&&p.result;
+    let chg='na';
+    if(lr==='ไม่ผ่าน') chg=!P||!pr?'fail':pr==='ผ่าน'?'worse':'repeat';
+    else if(lr==='ผ่าน') chg=pr==='ไม่ผ่าน'?'better':pr==='ผ่าน'?'ok':'ok';
+    return {item,l,p,chg};
+  }).filter(x=>x.l||x.p);
+  const cnt={worse:0,better:0,repeat:0,fail:0,ok:0,na:0}; items.forEach(x=>cnt[x.chg]++);
+  const menusFail=((L.r&&L.r.menus)||[]).filter(m=>m&&m.menu&&(m.cook==='ไม่ผ่าน'||m.taste==='ไม่ผ่าน'));
+  return {items,cnt,trainer:(L.r&&L.r.trainer)||'',mats:(L.r&&L.r.materials)||[],menusN:((L.r&&L.r.menus)||[]).filter(m=>m&&m.menu).length,menusFail,
+    prevTrainer:(P&&P.r&&P.r.trainer)||''};
+}
 function fqaCmp(fqa){
   const res=r=>{ let p=0,t=0; fqaChecks(r).forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; });
     return t?{r,date:r.date||'',pct:Math.round(p/t*100),f:t-p,t}:null; };
@@ -5431,7 +5460,7 @@ function fqaCmp(fqa){
     .forEach(r=>{ const x=res(r); if(x&&r.branch) (by[r.branch]=by[r.branch]||[]).push(x); });
   const zoneOf=n=>{ const b=M.branchOf(n); return (b&&b.bzm)||(by[n]&&by[n][0].r.bzm)||'ไม่ระบุเขต'; };
   const zones={};
-  Object.keys(by).forEach(n=>{ const z=zoneOf(n); (zones[z]=zones[z]||{name:z,rows:[],miss:[]}).rows.push({n,L:by[n][0],P:by[n][1]||null}); });
+  Object.keys(by).forEach(n=>{ const z=zoneOf(n); const L=by[n][0],P=by[n][1]||null; (zones[z]=zones[z]||{name:z,rows:[],miss:[]}).rows.push({n,L,P,det:cmpDetail(L,P)}); });
   (M.branches()||[]).forEach(b=>{ if(!by[b.name]){ const z=b.bzm||'ไม่ระบุเขต'; (zones[z]=zones[z]||{name:z,rows:[],miss:[]}).miss.push(b.name); } });
   const list=Object.values(zones).filter(z=>z.rows.length||z.miss.length)
     .sort((a,b)=>a.name==='ไม่ระบุเขต'?1:b.name==='ไม่ระบุเขต'?-1:a.name.localeCompare(b.name,'th'));
@@ -5632,16 +5661,28 @@ const Dash = {
     const m=fqaCmp(fqa);
     if(!m.has){ host.innerHTML=emptyBox('ยังไม่มีผลตรวจ FQA ในช่วงที่เลือก'); return; }
     const t=m.total;
-    const sum=`<div class="cm-sum"><span>เฉลี่ยล่าสุดทุกสาขา <b>${t.avg}%</b></span><span>ดีขึ้น <b class="cm-up">${t.up}</b> สาขา</span><span>แย่ลง <b class="cm-dn">${t.dn}</b> สาขา</span><span>เท่าเดิม <b>${t.eq}</b></span><span>ตรวจครั้งแรกในช่วงนี้ <b>${t.nw}</b></span></div>`;
+    const sum=`<div class="cm-sum"><span>เฉลี่ยล่าสุดทุกสาขา <b>${t.avg}%</b></span><span>ดีขึ้น <b class="cm-up">${t.up}</b> สาขา</span><span>แย่ลง <b class="cm-dn">${t.dn}</b> สาขา</span><span>เท่าเดิม <b>${t.eq}</b></span><span>ตรวจครั้งแรกในช่วงนี้ <b>${t.nw}</b></span></div>
+      <div class="note" style="margin:-4px 0 12px">แตะที่แถวสาขาเพื่อดูรายหัวข้อ: หัวข้อไหนแย่ลง ดีขึ้น ไม่ผ่านซ้ำ พร้อมสิ่งที่พบและวิธีแก้ไข</div>`;
+    const chip=(k,n,l)=>n?`<span class="cm-chip cm-c-${k}">${l} ${n}</span>`:'';
+    const detail=x=>{ const d=x.det, ch=d.items.filter(i=>['worse','repeat','fail','better'].indexOf(i.chg)>=0).sort((a,b)=>['worse','repeat','fail','better'].indexOf(a.chg)-['worse','repeat','fail','better'].indexOf(b.chg));
+      const okN=d.items.filter(i=>i.chg==='ok'), cell=c=>c?(c.result==='ผ่าน'?'<span class="cm-ok">ผ่าน</span>':c.result==='ไม่ผ่าน'?'<span class="cm-no">ไม่ผ่าน</span>':'<span class="mut">—</span>'):'<span class="mut">—</span>';
+      return `<div class="cm-x">
+        <div class="cm-meta"><span>ผู้ตรวจล่าสุด <b>${esc(d.trainer||'—')}</b></span>${x.P?`<span>ครั้งก่อน <b>${esc(d.prevTrainer||'—')}</b></span>`:''}<span>วัตถุดิบที่สุ่มตรวจ <b>${d.mats.length?esc(d.mats.join(', ')):'—'}</b></span><span>เมนูที่ตรวจ <b>${d.menusN}</b>${d.menusFail.length?` · ไม่ผ่าน <b class="cm-dn">${d.menusFail.length}</b>`:''}</span></div>
+        <div class="cm-chips">${chip('worse',d.cnt.worse,'แย่ลง')}${chip('repeat',d.cnt.repeat,'ไม่ผ่านซ้ำ')}${chip('fail',d.cnt.fail,'ไม่ผ่าน')}${chip('better',d.cnt.better,'ดีขึ้น')}${chip('ok',d.cnt.ok,'ผ่านทั้งสองครั้ง')}</div>
+        ${ch.length?`<table class="cm-t"><thead><tr><th>หัวข้อ</th><th>ก่อนหน้า</th><th>ล่าสุด</th><th>การเปลี่ยนแปลง</th><th>สิ่งที่พบ / วิธีแก้ไข (ล่าสุด)</th></tr></thead><tbody>
+          ${ch.map(i=>`<tr><td><b>${esc(i.item)}</b></td><td>${cell(i.p)}</td><td>${cell(i.l)}</td><td><span class="cm-chip cm-c-${i.chg}">${CMP_LABEL[i.chg]}</span></td>
+            <td>${i.l&&(i.l.detail||i.l.fix)?`${i.l.detail?'<div>'+esc(i.l.detail)+'</div>':''}${i.l.fix?'<div class="mut">แก้ไข: '+esc(i.l.fix)+'</div>':''}`:'<span class="mut">—</span>'}</td></tr>`).join('')}</tbody></table>`:'<div class="mut" style="padding:6px 0">ไม่มีหัวข้อที่ไม่ผ่านหรือเปลี่ยนแปลง</div>'}
+        ${d.menusFail.length?`<div class="cm-menu"><b>เมนูที่ไม่ผ่าน (ล่าสุด)</b>${d.menusFail.map(mm=>`<div>• ${esc(mm.menu)} — ${[mm.cook==='ไม่ผ่าน'?'ขั้นตอนการปรุง':'',mm.taste==='ไม่ผ่าน'?'หน้าตา/รสชาติ':''].filter(Boolean).join(', ')}${mm.detail?': '+esc(mm.detail):''}${mm.fix?` <span class="mut">(แก้ไข: ${esc(mm.fix)})</span>`:''}</div>`).join('')}</div>`:''}
+        ${okN.length?`<div class="cm-okl">ผ่านทั้งสองครั้ง: ${okN.map(i=>esc(i.item)).join(' · ')}</div>`:''}</div>`; };
     host.innerHTML=sum+m.list.map(z=>`<details class="cm-z" open><summary><b>${esc(z.name)}</b><span class="note">${z.rows.length} สาขามีผลตรวจ${z.miss.length?' · ยังไม่มีผล '+z.miss.length:''}</span><span class="sp"></span>
         ${z.avgL==null?'':`<span>เฉลี่ยล่าสุด <b style="font-size:16px">${z.avgL}%</b></span>`}
         ${z.dAvg==null?'':`<span class="cm-pill ${cmpTone(z.dAvg)}" title="เฉลี่ยผลต่างเฉพาะสาขาที่มีใบก่อนหน้า ${z.nCmp} สาขา">${cmpTxt(z.dAvg)} จุด</span>`}</summary>
         ${z.rows.length?`<div class="cm-g hd2"><span>สาขา</span><span>ล่าสุด</span><span>ก่อนหน้า</span><span style="text-align:right">เปลี่ยน</span></div>`:''}
         ${z.rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null;
-          return `<div class="cm-g"><div><b>${esc(x.n)}</b></div>
+          return `<details class="cm-r"><summary class="cm-g"><div><b>${esc(x.n)}</b><div class="cm-mini">${x.det.cnt.worse?`<span class="cm-c-worse">แย่ลง ${x.det.cnt.worse}</span>`:''}${x.det.cnt.repeat?`<span class="cm-c-repeat">ซ้ำ ${x.det.cnt.repeat}</span>`:''}${x.det.cnt.better?`<span class="cm-c-better">ดีขึ้น ${x.det.cnt.better}</span>`:''}</div></div>
             <div><small>${fmtDMY(x.L.date)}</small><div class="pc">${x.L.pct}%</div><div class="bar"><i style="width:${x.L.pct}%"></i></div><small>ไม่ผ่าน ${x.L.f} จาก ${x.L.t} หัวข้อ</small></div>
             <div>${x.P?`<small>${fmtDMY(x.P.date)}</small><div class="pc" style="color:var(--text2)">${x.P.pct}%</div><div class="bar"><i style="width:${x.P.pct}%;background:var(--text3)"></i></div><small>ไม่ผ่าน ${x.P.f} จาก ${x.P.t} หัวข้อ</small>`:'<small>ยังไม่มีใบก่อนหน้า</small><div class="pc" style="color:var(--text3)">ตรวจครั้งแรก</div>'}</div>
-            <div class="cm-d ${d==null?'cm-eq':cmpTone(d)}">${d==null?'—':cmpTxt(d)+' จุด'}</div></div>`; }).join('')}
+            <div class="cm-d ${d==null?'cm-eq':cmpTone(d)}">${d==null?'—':cmpTxt(d)+' จุด'}</div></summary>${detail(x)}</details>`; }).join('')}
         ${z.miss.length?`<div class="cm-none">ยังไม่มีผลตรวจในช่วงนี้: ${z.miss.map(esc).join(' · ')}</div>`:''}</details>`).join('');
   },
 
@@ -6861,13 +6902,21 @@ const PDF = {
     if(!m.has) return App.toast('ไม่มีผลตรวจ FQA ตามตัวกรอง');
     const t=m.total;
     const tone=d=>d>0?'color:#0b7a55':d<0?'color:#b42318':'color:#6b7280';
+    const chgCol={worse:'#b42318',repeat:'#a16207',fail:'#b42318',better:'#0b7a55'};
+    const det=x=>{ const d=x.det, ch=d.items.filter(i=>['worse','repeat','fail','better'].indexOf(i.chg)>=0)
+        .sort((a,b)=>['worse','repeat','fail','better'].indexOf(a.chg)-['worse','repeat','fail','better'].indexOf(b.chg));
+      const okN=d.items.filter(i=>i.chg==='ok');
+      return `<tr><td colspan="4" style="background:#fafafa"><div class="sm">ผู้ตรวจล่าสุด ${esc(d.trainer||'—')}${x.P?' · ครั้งก่อน '+esc(d.prevTrainer||'—'):''} · วัตถุดิบที่สุ่มตรวจ ${d.mats.length?esc(d.mats.join(', ')):'—'} · เมนูที่ตรวจ ${d.menusN}${d.menusFail.length?' (ไม่ผ่าน '+d.menusFail.length+')':''}</div>
+        ${ch.length?ch.map(i=>`<div style="margin-top:3px"><b style="color:${chgCol[i.chg]}">[${CMP_LABEL[i.chg]}]</b> <b>${esc(i.item)}</b>${i.l&&i.l.detail?' — '+esc(i.l.detail):''}${i.l&&i.l.fix?' <span class="sm">(แก้ไข: '+esc(i.l.fix)+')</span>':''}</div>`).join(''):'<div class="sm" style="margin-top:3px">ไม่มีหัวข้อที่ไม่ผ่านหรือเปลี่ยนแปลง</div>'}
+        ${d.menusFail.map(mm=>`<div style="margin-top:3px"><b style="color:#b42318">[เมนูไม่ผ่าน]</b> ${esc(mm.menu)}${mm.detail?' — '+esc(mm.detail):''}${mm.fix?' <span class="sm">(แก้ไข: '+esc(mm.fix)+')</span>':''}</div>`).join('')}
+        ${okN.length?`<div class="sm" style="margin-top:3px">ผ่านทั้งสองครั้ง: ${okN.map(i=>esc(i.item)).join(' · ')}</div>`:''}</td></tr>`; };
     const body=`<div class="pdfstats"><div><b>${t.avg}%</b>เฉลี่ยผลล่าสุด</div><div><b>${t.up}</b>สาขาดีขึ้น</div><div><b>${t.dn}</b>สาขาแย่ลง</div><div><b>${t.eq}</b>เท่าเดิม</div><div><b>${t.nw}</b>ตรวจครั้งแรก</div></div>
       ${m.list.map(z=>`<div class="pdfcard"><h2>${esc(z.name)} <span style="font-weight:500;font-size:12px;color:#6b7280">· ${z.rows.length} สาขามีผลตรวจ${z.avgL!=null?' · เฉลี่ยล่าสุด '+z.avgL+'%':''}${z.dAvg!=null?' · <span style="'+tone(z.dAvg)+'">'+cmpTxt(z.dAvg)+' จุด</span>':''}</span></h2>
         <table class="pdftb"><thead><tr><th style="width:34%">สาขา</th><th>ล่าสุด</th><th>ก่อนหน้า</th><th style="width:14%">เปลี่ยน (จุด)</th></tr></thead><tbody>
-        ${z.rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null; return `<tr><td>${esc(x.n)}</td>
+        ${z.rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null; return `<tr><td><b>${esc(x.n)}</b></td>
           <td><b>${x.L.pct}%</b> <span class="sm">${esc(fmtDMY(x.L.date))} · ไม่ผ่าน ${x.L.f}/${x.L.t}</span></td>
           <td>${x.P?`<b>${x.P.pct}%</b> <span class="sm">${esc(fmtDMY(x.P.date))} · ไม่ผ่าน ${x.P.f}/${x.P.t}</span>`:'<span class="sm">ตรวจครั้งแรก</span>'}</td>
-          <td class="c" style="font-weight:800;${d==null?'color:#6b7280':tone(d)}">${d==null?'—':cmpTxt(d)}</td></tr>`; }).join('')}
+          <td class="c" style="font-weight:800;${d==null?'color:#6b7280':tone(d)}">${d==null?'—':cmpTxt(d)}</td></tr>${det(x)}`; }).join('')}
         ${z.miss.length?`<tr><td colspan="4" class="sm">ยังไม่มีผลตรวจในช่วงนี้: ${z.miss.map(esc).join(' · ')}</td></tr>`:''}
         </tbody></table></div>`).join('')}
       <div class="sm" style="margin-top:8px">ผลของแต่ละใบ = % หัวข้อ FQA ที่ผ่าน · ล่าสุดเทียบกับใบก่อนหน้าของสาขาเดียวกันในช่วงที่เลือก · ผลต่างเป็นจุดเปอร์เซ็นต์</div>`;
@@ -7091,7 +7140,10 @@ const IO = {
           'วันที่ตรวจก่อนหน้า':x.P?x.P.date:'','ผลก่อนหน้า (% ผ่าน)':x.P?x.P.pct:'','ไม่ผ่านก่อนหน้า (หัวข้อ)':x.P?x.P.f:'','เปลี่ยน (จุด)':d,
           'สถานะ':x.P?(d>0?'ดีขึ้น':d<0?'แย่ลง':'เท่าเดิม'):'ตรวจครั้งแรกในช่วงนี้'}); });
         z.miss.forEach(n=>cmp.push({'เขต BZM':z.name,'สาขา':n,'สถานะ':'ยังไม่มีผลตรวจในช่วงนี้'})); }); }
-    return {summary,fqaItem,fqaMenu,comp,visit,sta,staVerify,master,cmp};
+    const cmpItems=[]; if(Brand.has('FQA')){ fqaCmp(rows.filter(r=>r.type==='FQA')).list.forEach(z=>z.rows.forEach(x=>x.det.items.forEach(i=>{
+      cmpItems.push({'เขต BZM':z.name,'สาขา':x.n,'หัวข้อ':i.item,'ผลก่อนหน้า':i.p?i.p.result:'','ผลล่าสุด':i.l?i.l.result:'','การเปลี่ยนแปลง':CMP_LABEL[i.chg],
+        'สิ่งที่พบ (ล่าสุด)':i.l?i.l.detail||'':'','วิธีแก้ไข (ล่าสุด)':i.l?i.l.fix||'':'','วันที่ตรวจล่าสุด':x.L.date,'ผู้ตรวจล่าสุด':x.det.trainer,'วันที่ตรวจก่อนหน้า':x.P?x.P.date:''}); }))); }
+    return {summary,fqaItem,fqaMenu,comp,visit,sta,staVerify,master,cmp,cmpItems};
   },
 
   exportXlsx(rows){
@@ -7103,7 +7155,7 @@ const IO = {
         const ws=XLSX.utils.json_to_sheet(arr);
         ws['!cols']=Object.keys(arr[0]).map(k=>({wch:Math.min(46,Math.max(12,k.length+6))}));
         XLSX.utils.book_append_sheet(wb,ws,name); };
-      add('สรุปรายการตรวจ',d.summary); add('เปรียบเทียบผลตรวจ',d.cmp); add('FQA วัตถุดิบ',d.fqaItem); add('FQA เมนู',d.fqaMenu);
+      add('สรุปรายการตรวจ',d.summary); add('เปรียบเทียบผลตรวจ',d.cmp); add('เปรียบเทียบรายหัวข้อ',d.cmpItems); add('FQA วัตถุดิบ',d.fqaItem); add('FQA เมนู',d.fqaMenu);
       add('Complaint',d.comp); add('Visit',d.visit);
       add('Visit รายข้อ',d.sta); add('Visit ทวนสอบพนักงาน',d.staVerify);
       add('ข้อมูลสาขา',d.master);
