@@ -3609,6 +3609,32 @@ function staShareMsg(r, url){
   return { text:text, html:html };
 }
 function staShareText(r, url){ return staShareMsg(r, url).text; }
+
+/* ข้อความนำส่งใบ FQA ของเจ๊แดง — แบบฟอร์มข้อความของฝ่าย Operations Training
+   · "พี่ปอ" คงเดิมทุกใบ · BZM = ชื่อเล่นของเขตที่สาขานั้นสังกัด (ดึงจากใบ/ทะเบียนสาขาของฮับ)
+   · ชื่อท้ายข้อความและบรรทัด "ติดต่อสอบถาม" = ผู้ตรวจของใบนั้น
+   · ไม่ใส่ลิงก์ — ข้อความบอกว่ามีรายละเอียดตามไฟล์แนบ ผู้ส่งแนบ PDF ของใบเอง */
+function fqaShareMsg(r){
+  const nick = v => { const t=String(v||'').trim(); const m=/\(([^()]+)\)\s*$/.exec(t); return m ? m[1].trim() : t.replace(/^คุณ\s*/,'').trim(); };
+  const bzmRaw = r.bzm || ((M.branchOf(r.branch)||{}).bzm) || '';
+  const bz = nick(bzmRaw);
+  const br = String(r.branch||'').trim();
+  const pm = /^ร้านส้มตำเจ๊แดง\s*\(([^()]+)\)\s*$/.exec(br);
+  const bName = pm ? 'สาขา'+pm[1].trim() : (br ? 'สาขา '+br : '');
+  const d = String(r.date||'').slice(0,10), dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
+  const dateTh = dm ? Number(dm[3])+' '+TH_MONTHS[Number(dm[2])-1]+' '+(Number(dm[1])+543) : fmtDMY(r.date);
+  const who = String(r.trainer||'').trim();
+  const lines = [
+    'เรียน พี่ปอ '+(bz?bz+' ':'')+'และทุกท่านที่เกี่ยวข้อง', '',
+    'ฝ่าย Operations Training ขอนำส่งรายงานการตรวจ FQA และการ Re-Training ร้านเจ๊แดงสามย่าน '+bName+' เมื่อวันที่ '+dateTh+' โดยมีรายละเอียดตามไฟล์แนบค่ะ', '',
+    'หากมีข้อสงสัยหรือต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถาม'+(who||'ฝ่าย Operations Training ')+'ได้ค่ะ', '',
+    'ขอบคุณค่ะ'].concat(who?[who]:[]).concat(['Operations Training']
+  ).filter((x,i,a)=>!(x==='' && a[i-1]==='' ) );
+  const text = lines.join('\n');
+  const html = '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;font-size:14px;line-height:1.75;color:#1F2328">'
+    + lines.map(x=>x===''?'<div>&nbsp;</div>':'<div>'+esc(x)+'</div>').join('') + '</div>';
+  return { text:text, html:html };
+}
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
 const STA_FORM = [
   { key:'A', name:'CAREER PATH & COACHING', group:'การสอนงาน', items:[
@@ -6910,6 +6936,8 @@ const PDF = {
       const title=`${TYPE_LABEL[r.type]||'รายงานการตรวจ'} · ${r.branch||''}`.trim();
       /* STA — ส่งพร้อมข้อความนำส่ง ให้ดูและแก้ก่อนส่ง */
       if(r.type==='STA'){ const m=staShareMsg(r,url); return this.shareSheet(m.text, m.html); }
+      /* FQA ของเจ๊แดง — ข้อความนำส่งของฝ่าย Operations Training (แก้ได้ก่อนส่ง) */
+      if(r.type==='FQA' && (Brand.cur||'jaedaeng')==='jaedaeng'){ const m=fqaShareMsg(r); return this.shareSheet(m.text, m.html); }
       if(navigator.share){
         navigator.share({title, text:title, url}).catch(()=>{});
       }else if(navigator.clipboard && navigator.clipboard.writeText){
