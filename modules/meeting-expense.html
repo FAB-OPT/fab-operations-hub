@@ -407,6 +407,12 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
   .br-view .narrow.payee-pg>.fcard{grid-row:1/span 4!important;margin-top:0!important;padding:26px 30px!important}
   .br-view .narrow.payee-pg>*{margin-top:0}.br-view .narrow.payee-pg>.card:not(.fcard){margin-bottom:14px}
 }
+.adg{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:18px;margin-top:14px;align-items:start}
+.adg .dtb>div{grid-template-columns:170px 1fr;padding:11px 4px;font-size:14.5px}
+.adg .dact{margin-top:14px}
+.adpics{display:grid;gap:14px}
+.adpics .dpic img{max-height:300px}
+@media(max-width:899px){.adg{grid-template-columns:1fr}.adg .dtb>div{grid-template-columns:120px 1fr}}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
 .aph .rcp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .aph .rcp img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:18px;cursor:zoom-in;box-shadow:0 8px 22px rgba(20,24,40,.14)}
@@ -1207,14 +1213,51 @@ function removeClaim(x){
   },"ลบเอกสาร",true);
 }
 function detail(x){
-  const d=document.createElement("div");
-  const s=slip(x,false); const a=$(".acts",s); if(a) a.remove();
-  d.appendChild(s);
-  s.querySelectorAll(".photos img").forEach(i=>{i.style.width="130px";i.style.height="170px";});
-  const rid=roundIdOf(x), lim=limitOf(rid,x.branchCode);
-  d.insertAdjacentHTML("beforeend",`<div class="card"><div class="lead"><span>วงเงินสาขา รอบ ${esc(roundLabel(rid))}</span><b>${lim?baht(used(rid,x.branchCode))+" / "+baht(lim)+" ฿":"ยังไม่ได้ตั้ง"}</b></div>
-    ${x.payeeEmpCode?`<div class="lead"><span>รหัสพนักงานผู้รับเงิน</span><b>${esc(x.payeeEmpCode)}</b></div>`:""}</div>`);
-  modal(Branches.label(x.branchCode,x.branchName),d,null);
+  const st=statusOf(x), ok=st==="อนุมัติ", rej=st==="ไม่อนุมัติ", idx=ok||rej?2:st==="รอดำเนินการ"?1:0;
+  const rid=roundIdOf(x), lim=limitOf(rid,x.branchCode), photos=x.photos||[];
+  const who=x.statusBy?" · โดย "+esc(x.statusBy):"";
+  const steps=[
+    {c:"ok",t:"ส่งเอกสาร",d:stamp(x.submittedAt)},
+    {c:idx>=1?(idx===1?"cur":"ok"):"cur",t:idx>=1?"รับเรื่องแล้ว":"รอรับเรื่อง",d:""},
+    idx===2?{c:rej?"bad":"ok",t:rej?"ไม่อนุมัติ":"อนุมัติแล้ว",d:stamp(x.statusAt)+who}:{c:"idle",t:"รออนุมัติ",d:""}];
+  const d=document.createElement("div"); d.className="adet";
+  d.innerHTML=`<div class="dstep" style="padding:14px 18px;gap:14px;box-shadow:none;background:#f7f8fa">${steps.map((n,k)=>`<div class="ds ${n.c}"><span class="dot" style="width:30px;height:30px;font-size:15px">${n.c==="ok"?"✓":n.c==="bad"?"✕":""}</span><span><b style="font-size:15px">${n.t}</b>${n.d?`<small style="font-size:12px">${esc(n.d)}</small>`:""}</span></div>${k<2?`<i class="ln ${steps[k+1].c==="idle"||steps[k+1].c==="cur"?"":"on"}"></i>`:""}`).join("")}</div>
+    <div class="adg"><div>
+      <div class="damt" style="padding:14px 18px"><i class="orb">${mi("wallet",26)}</i><div><small>ยอดเงินที่ขอเบิก</small><div class="abig" style="font-size:38px">${baht(x.amount)} บาท</div></div></div>
+      <div class="dtb">
+        <div><span>สาขา</span><b>${esc(Branches.label(x.branchCode,x.branchName))}</b></div>
+        <div><span>เลขที่เอกสาร</span><b>${esc(x.docNo||x.id)}</b></div>
+        <div><span>ผู้ทำการเบิก</span><b>${esc(x.claimantName||"-")}</b></div>
+        <div><span>ผู้รับเงิน</span><b>${esc(x.payeeName||x.payee||"-")}</b></div>
+        ${x.payeeEmpCode?`<div><span>รหัสพนักงาน</span><b>${esc(x.payeeEmpCode)}</b></div>`:""}
+        ${x.payeePosition?`<div><span>ตำแหน่ง</span><b>${esc(x.payeePosition)}</b></div>`:""}
+        ${x.note?`<div><span>หมายเหตุ</span><b>${esc(x.note)}</b></div>`:""}
+        <div><span>วงเงินสาขา · รอบ ${esc(roundLabel(rid))}</span><b>${lim?baht(used(rid,x.branchCode))+" / "+baht(lim)+" บาท":"ยังไม่ได้ตั้ง"}</b></div>
+        <div><span>สถานะ</span><b>${pill(st)}</b></div>
+        ${rej&&x.reason?`<div><span>เหตุผลที่ไม่อนุมัติ</span><b style="color:#b42318">${esc(x.reason)}</b></div>`:""}
+      </div>
+      <div class="dact" id="adAct"></div></div>
+    <div class="dmr" style="background:#f4f5f8;border-radius:16px;padding:16px"><div class="dmh" style="margin-bottom:12px"><h3 style="font-size:16px">เอกสารแนบ</h3><span class="cnt">${photos.length} ไฟล์</span></div>
+      <div class="adpics" id="adPics">${photos.length?"":'<div class="muted" style="padding:30px 0;text-align:center">ไม่มีรูปแนบ</div>'}</div></div></div>`;
+  let box;
+  photos.forEach((u,k)=>{
+    const w=document.createElement("div"); w.className="dpic";
+    const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(k+1); im.onclick=()=>zoom(u);
+    const cap=document.createElement("div"); cap.className="dcap"; cap.textContent="หลักฐานแนบ "+(k+1);
+    const bt=document.createElement("div"); bt.className="dpb";
+    const z=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"🔍 ขยาย"}); z.onclick=()=>zoom(u);
+    const dl=Object.assign(document.createElement("a"),{className:"btn ghost sm",textContent:"⬇ ดาวน์โหลด",href:u,download:(x.docNo||x.id)+"-"+(k+1)+".jpg",target:"_blank",rel:"noopener"});
+    bt.append(z,dl); w.append(im,cap,bt); $("#adPics",d).appendChild(w);
+  });
+  /* ปุ่มตัดสินในกล่องนี้เลย ไม่ต้องปิดไปกดที่ตาราง */
+  const act=$("#adAct",d);
+  if(can("update-status")){
+    const mk=(to,t,cls)=>{ const b=Object.assign(document.createElement("button"),{className:"ab "+cls,textContent:t}); b.style.margin="0"; b.onclick=()=>{ rowAct(x.id,to,b); if(to!=="ไม่อนุมัติ" && box) box.remove(); }; act.appendChild(b); };
+    if(ok||rej) mk("รอดำเนินการ","ยกเลิกผล","ghost");
+    else{ mk("อนุมัติ","อนุมัติ","yes"); mk("ไม่อนุมัติ","ไม่อนุมัติ","no"); }
+  }
+  box=modal("รายละเอียดเอกสาร",d,null);
+  const mb=box.querySelector(".modal"); if(mb) mb.style.maxWidth="980px";
 }
 
 /* ═════════════ ผู้ดูแล / ทีมบริหาร ═════════════ */
