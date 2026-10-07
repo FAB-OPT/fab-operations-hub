@@ -685,6 +685,24 @@ table.pdftb td.c{text-align:center}
 table.pdftb .sm{font-size:10px;color:#888}
 table.pdftb tr{page-break-inside:avoid}
 .pd-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
+.cx-top{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin-bottom:12px}
+.cx-box{border:1px solid #D1D5DB;border-radius:10px;padding:10px 14px;text-align:center}
+.cx-box.now{border-color:#D6142B;border-width:1.5px}
+.cx-box small{display:block;font-size:10px;font-weight:700;color:#777;letter-spacing:.02em}
+.cx-box .n{display:block;font-size:30px;font-weight:800;line-height:1.15;font-variant-numeric:tabular-nums}
+.cx-box .d{display:block;font-size:11px;font-weight:700;color:#333}
+.cx-box .f{display:block;font-size:10.5px;color:#666}
+.cx-mid{text-align:center;font-weight:800;font-size:13px;line-height:1.3}.cx-mid i{display:block;font-style:normal;font-size:22px}
+.cx-note{font-size:10.5px;color:#666;margin:2px 0 10px}
+.cx-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.cx-cell{border:1px solid #D1D5DB;border-radius:8px;padding:8px 9px;page-break-inside:avoid}
+.cx-cell .t{font-size:10.5px;font-weight:700;line-height:1.35;min-height:28px}
+.cx-cell .r{display:flex;align-items:center;justify-content:center;gap:6px;margin:6px 0 3px}
+.cx-cell .m{text-align:center;font-size:8.5px;color:#666;line-height:1.2}
+.cx-cell .k{display:inline-block;width:24px;height:24px;border-radius:6px;color:#fff;font-size:12px;font-weight:800;line-height:24px;text-align:center}
+.cx-cell .k.ok{background:#16A34A}.cx-cell .k.no{background:#DC2626}.cx-cell .k.na{background:#CBD5E1}
+.cx-cell .l{text-align:center;font-size:10.5px;font-weight:800;margin-top:3px}
+.cx-cell.worse{border-color:#DC2626;background:#FEF2F2}.cx-cell.repeat{border-color:#F59E0B;background:#FFFBEB}.cx-cell.better{border-color:#16A34A;background:#ECFDF3}
 .pd-pill.ok{background:#ECFDF3;color:#16A34A} .pd-pill.no{background:#FEF2F2;color:#DC2626} .pd-pill.na{background:#EEE;color:#666}
 .pdfstats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
 .pdfstats div{border:1px solid #E5E5E5;border-left:3px solid var(--accent);border-radius:7px;padding:9px 12px;font-size:10.5px;color:#777}
@@ -6735,26 +6753,32 @@ const PDF = {
       const CHL={worse:['แย่ลง','#DC2626'],repeat:['ไม่ผ่านซ้ำ','#B45309'],better:['ดีขึ้น','#16A34A'],same:['เท่าเดิม','#666']};
       const cnt={worse:0,repeat:0,better:0}; fqaChecks(r).forEach(c=>{ const k=chg(c); if(cnt[k]!=null) cnt[k]++; });
       if(prev&&pr&&cu){
-        const d=cu.pct-pr.pct;
-        b+=sec('เปรียบเทียบกับครั้งก่อน',`<div class="pdfinfo" style="margin:0"><div class="pi-grid" style="grid-template-columns:repeat(4,1fr)">
-          ${kv('ครั้งก่อน',fmtDMY(prev.date)+(prev.trainer?' · '+prev.trainer:''))}
-          ${kv('ผลครั้งก่อน',pr.pct+'% (ไม่ผ่าน '+pr.f+'/'+pr.t+')')}
-          ${kv('ผลใบนี้',cu.pct+'% (ไม่ผ่าน '+cu.f+'/'+cu.t+')')}
-          <div class="kv"><span>เปลี่ยนแปลง</span><b style="color:${d>0?'#16A34A':d<0?'#DC2626':'#666'}">${d>0?'▲ +'+d+' จุด':d<0?'▼ '+d+' จุด':'เท่าเดิม'}</b></div></div>
-          <div style="padding:2px 14px 10px;font-size:11.5px;color:#555">แย่ลง <b style="color:#DC2626">${cnt.worse}</b> · ไม่ผ่านซ้ำ <b style="color:#B45309">${cnt.repeat}</b> · ดีขึ้น <b style="color:#16A34A">${cnt.better}</b> หัวข้อ</div></div>`);
+        const d=cu.pct-pr.pct, dc=d>0?'#16A34A':d<0?'#DC2626':'#666';
+        const sd=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||'')); return m?m[3]+'/'+m[2]+'/'+String(+m[1]+543).slice(2):''; };   // 07/10/69
+        const all=fqaChecks(r).filter(c=>c.item);
+        const pItems=Object.keys(pmap).filter(k=>!all.some(c=>c.item===k)).map(k=>pmap[k]);
+        const rows=all.concat(pItems.map(c=>({item:c.item,result:'',detail:'',fix:'',_gone:1})));
+        const mk=v=>v==='ผ่าน'?'<span class="k ok">✓</span>':v==='ไม่ผ่าน'?'<span class="k no">✕</span>':'<span class="k na">—</span>';
+        const lab=k=>k&&CHL[k]?`<div class="l" style="color:${CHL[k][1]}">${CHL[k][0]}</div>`:'<div class="l" style="color:#999">ไม่ได้เทียบ</div>';
+        b+=sec('เปรียบเทียบกับครั้งก่อน',`
+          <div class="cx-top">
+            <div class="cx-box"><small>ครั้งก่อน</small><span class="n" style="color:#6B7280">${pr.pct}%</span><span class="d">${esc(fmtDMY(prev.date))}</span><span class="f">ไม่ผ่าน ${pr.f} จาก ${pr.t} หัวข้อ${prev.trainer?' · '+esc(prev.trainer):''}</span></div>
+            <div class="cx-mid" style="color:${dc}"><i>${d>0?'▲':d<0?'▼':'＝'}</i>${d===0?'เท่าเดิม':(d>0?'+':'')+d+' จุด'}</div>
+            <div class="cx-box now"><small>ใบนี้</small><span class="n">${cu.pct}%</span><span class="d">${esc(fmtDMY(r.date))}</span><span class="f">ไม่ผ่าน ${cu.f} จาก ${cu.t} หัวข้อ${r.trainer?' · '+esc(r.trainer):''}</span></div>
+          </div>
+          <div class="cx-note">แย่ลง <b style="color:#DC2626">${cnt.worse}</b> · ไม่ผ่านซ้ำ <b style="color:#B45309">${cnt.repeat}</b> · ดีขึ้น <b style="color:#16A34A">${cnt.better}</b> หัวข้อ — ในแต่ละช่อง ซ้าย = ครั้งก่อน (${esc(sd(prev.date))}) · ขวา = ใบนี้ (${esc(sd(r.date))})</div>
+          <div class="cx-grid">${rows.map(c=>{ const p=pmap[c.item], k=c._gone?'':chg(c);
+            return `<div class="cx-cell ${k&&k!=='same'?k:''}"><div class="t">${esc(c.item)}</div>
+              <div class="r">${mk(p&&p.result)}<span>→</span>${mk(c._gone?'':c.result)}</div>
+              <div class="m">${esc(sd(prev.date))} → ${esc(sd(r.date))}</div>${lab(k)}</div>`; }).join('')}</div>`);
       } else b+=sec('เปรียบเทียบกับครั้งก่อน',`<p class="pdftext" style="color:#777">${prev?'ใบก่อนหน้ายังไม่มีผลหัวข้อให้เทียบ':'สาขานี้ยังไม่มีใบ FQA ก่อนหน้าในระบบ — ใบนี้เป็นตัวตั้งต้นสำหรับครั้งถัดไป'}</p>`);
       if((r.materials||[]).length)
         b+=sec('วัตถุดิบที่สุ่มตรวจ',`<div class="pdfchips">${r.materials.map(m=>`<span>${esc(m)}</span>`).join('')}</div>`);
       const cs=fqaChecks(r).filter(c=>c.result||c.detail);
       const prevNote=c=>{ const p=pmap[c.item]; return (p&&p.result==='ไม่ผ่าน'&&(p.detail||p.fix))?`<div style="margin-top:3px;font-size:10px;color:#777">ครั้งก่อนพบ: ${esc(p.detail||'—')}${p.fix?' · แก้ไข: '+esc(p.fix):''}</div>`:''; };
-      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', prev
-        ? tbl([{h:'รายการตรวจ',w:'22%'},{h:'ผล',w:'9%',c:1},{h:'ครั้งก่อน',w:'10%',c:1},{h:'เปลี่ยน',w:'10%',c:1},{h:'สิ่งที่พบ',w:'25%'},{h:'การแก้ไข',w:'24%'}],
-          cs.map(c=>{ const p=pmap[c.item], k=chg(c);
-            return `<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td class="c">${p&&p.result?pill(p.result):'—'}</td>
-              <td class="c" style="font-weight:800;font-size:10.5px;color:${k&&CHL[k]?CHL[k][1]:'#999'}">${k&&CHL[k]?CHL[k][0]:'—'}</td><td>${esc(c.detail)}${prevNote(c)}</td><td>${esc(c.fix)}</td></tr>`; }))
-        : tbl(
+      if(cs.length) b+=sec('ผลตรวจวัตถุดิบ', tbl(
         [{h:'รายการตรวจ',w:'26%'},{h:'ผล',w:'12%',c:1},{h:'สิ่งที่พบ',w:'31%'},{h:'การแก้ไข',w:'31%'}],
-        cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}</td><td>${esc(c.fix)}</td></tr>`)));
+        cs.map(c=>`<tr class="${bad(c.result)?'rowbad':''}"><td>${esc(c.item)}</td><td class="c">${pill(c.result)}</td><td>${esc(c.detail)}${prevNote(c)}</td><td>${esc(c.fix)}</td></tr>`)));
       const mm=(r.menus||[]).filter(m=>m.menu);
       if(mm.length) b+=sec('สุ่มเมนู', tbl(
         [{h:'เมนู',w:'18%'},{h:'การปรุง',w:'12%',c:1},{h:'หน้าตา/รสชาติ',w:'14%',c:1},{h:'สิ่งที่พบ',w:'28%'},{h:'การแก้ไข',w:'28%'}],
