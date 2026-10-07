@@ -1763,9 +1763,10 @@ function adminBzmZone(body,r){
     return {b,lim,sent,ok,has:cs.length>0,p:payeeOf(b.code),st:!cs.length?"ยังไม่ส่ง":ok>0?"อนุมัติ":"รอตรวจ"}; }).filter(x=>x.lim>0||x.has);
   const T=rows.reduce((a,x)=>({lim:a.lim+x.lim,sent:a.sent+x.sent,ok:a.ok+x.ok,ns:a.ns+(x.has?0:1)}),{lim:0,sent:0,ok:0,ns:0});
   const parts=String(BV.zone).split(" · "), noKey=!bzmOf(list[0]?list[0].code:"").key;
-  body.innerHTML=`<div class="head"><button class="tbtn" id="zback">‹ กลับ</button><h1>${noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0])}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
+  body.innerHTML=`<div class="head"><h1>${noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0])}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
     <div class="kts">${kt("org","gy","จำนวนสาขา",rows.length,"")}${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>","")}${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",rows.length-T.ns+" สาขา",true)}${kt("check","gr","อนุมัติแล้ว",baht(T.ok)+" <i>บาท</i>","ยังไม่ส่ง "+T.ns+" สาขา",true)}</div>
-    <div class="lbar"><span class="tabs2" id="zchips"></span><span style="flex:1"></span><span class="sbox">${mi("search",18)}<input id="zq" placeholder="ค้นหารหัส / ชื่อสาขา / ผู้รับเงิน"></span></div><div id="zout"></div>`;
+    <div class="lbar"><span class="tabs2" id="zchips"></span><span style="flex:1"></span><span class="sbox">${mi("search",18)}<input id="zq" placeholder="ค้นหารหัส / ชื่อสาขา / ผู้รับเงิน"></span></div><div id="zout"></div>
+    <div style="display:flex;justify-content:center;margin-top:6px"><button class="tbtn" id="zback">‹ กลับไปหน้าสรุปตาม BZM</button></div>`;
   $("#zback",body).onclick=()=>{ BV.zone=""; adminBzm(body,r); };
   const out=$("#zout",body);
   const draw=()=>{
@@ -1773,16 +1774,15 @@ function adminBzmZone(body,r){
     const cnt=k=>rows.filter(x=>k==="all"||x.st===k).length;
     $("#zchips",body).innerHTML=[["all","ทั้งหมด"],["ยังไม่ส่ง","ยังไม่ส่ง"],["รอตรวจ","รอตรวจ"],["อนุมัติ","อนุมัติ"]].map(([k,t])=>`<button class="chip ${ZF===k?"on":""}" data-zf="${esc(k)}">${esc(t)} <em>${cnt(k)}</em></button>`).join("");
     const v=rows.filter(x=>(ZF==="all"||x.st===ZF)&&(!q||(x.b.code+" "+x.b.name+" "+(x.p.name||"")).toLowerCase().indexOf(q)>=0));
-    const pg=pager("zone",v.length,10,ZF+"|"+q+"|"+BV.zone,"r","สาขา");
+    const cntTxt=`<div class="pgbar"><div>แสดง ${v.length} จาก ${rows.length} สาขา</div></div>`;
     out.innerHTML=v.length?`<div class="glass-card" style="margin-top:12px"><table class="mtbl"><thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th class="r">วงเงิน (บาท)</th><th class="r">เบิก (บาท)</th><th class="r">อนุมัติ (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>
-      ${v.slice(pg.s,pg.e).map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${x.p.name?esc(x.p.name):"<span class='muted'>—</span>"}</td>
+      ${v.map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${x.p.name?esc(x.p.name):"<span class='muted'>—</span>"}</td>
         <td class="r">${x.lim?baht(x.lim):"—"}</td><td class="r">${x.has?baht(x.sent):"—"}</td><td class="r">${x.ok?baht(x.ok):"—"}</td>
-        <td class="c">${x.st==="อนุมัติ"?'<span class="pillk">อนุมัติ</span>':x.st==="รอตรวจ"?'<span class="pillo">รอตรวจ</span>':'<span class="pillg">ยังไม่ส่ง</span>'}</td></tr>`).join("")}</tbody></table>${pg.html}</div>`
+        <td class="c">${x.st==="อนุมัติ"?'<span class="pillk">อนุมัติ</span>':x.st==="รอตรวจ"?'<span class="pillo">รอตรวจ</span>':'<span class="pillg">ยังไม่ส่ง</span>'}</td></tr>`).join("")}</tbody></table>${cntTxt}</div>`
       :`<div class="empty" style="margin-top:12px">ไม่พบสาขาที่ตรงกับตัวกรอง</div>`;
   };
   body.addEventListener("click",e=>{ const b=e.target.closest("[data-zf]"); if(b){ ZF=b.dataset.zf; draw(); } });
   $("#zq",body).oninput=draw;
-  bindPager(out,"zone",draw);
   draw();
 }
 function adminBzm(body,r){
