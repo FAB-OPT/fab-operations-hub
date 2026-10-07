@@ -452,6 +452,25 @@ svg.ch{width:100%;height:auto;display:block;overflow:visible}
 .reccard .rc-act .btn{flex:1;justify-content:center}
 .lg{display:flex;flex-wrap:wrap;gap:9px 16px;margin-top:12px;font-size:12px;color:var(--text2)}
 .lg i{width:9px;height:9px;border-radius:2px;display:inline-block;margin-right:5px}
+.cm-sum{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px}
+.cm-sum span{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:6px 12px;font-size:13px;color:var(--text2)}
+.cm-sum b{color:var(--text);font-variant-numeric:tabular-nums}
+.cm-z{border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;background:var(--surface)}
+.cm-z>summary{list-style:none;cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 16px;background:var(--surface2);flex-wrap:wrap}
+.cm-z>summary::-webkit-details-marker{display:none}
+.cm-z>summary:before{content:"▸";color:var(--text3);transition:transform .15s}.cm-z[open]>summary:before{transform:rotate(90deg)}
+.cm-z>summary b{font-size:15px}.cm-z .sp{flex:1}
+.cm-g{display:grid;grid-template-columns:minmax(0,1.8fr) minmax(0,1fr) minmax(0,1fr) 92px;gap:12px;align-items:center;padding:10px 16px;border-top:1px solid var(--border);font-size:13.5px}
+.cm-g.hd2{background:var(--surface);font-size:11.5px;font-weight:700;color:var(--text3);border-top:0;padding:8px 16px}
+.cm-g small{display:block;color:var(--text3);font-size:11.5px}
+.cm-g .pc{font-size:18px;font-weight:800;font-variant-numeric:tabular-nums;line-height:1.2}
+.cm-g .bar{height:5px;border-radius:9px;background:var(--surface3);margin-top:4px;overflow:hidden}.cm-g .bar i{display:block;height:100%;background:var(--accent);border-radius:9px}
+.cm-d{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.cm-up{color:var(--green)}.cm-dn{color:var(--red)}.cm-eq{color:var(--text3)}
+.cm-pill{display:inline-block;border-radius:99px;padding:2px 10px;font-size:12px;font-weight:800;font-variant-numeric:tabular-nums}
+.cm-pill.cm-up{background:rgba(16,185,129,.12)}.cm-pill.cm-dn{background:rgba(239,68,68,.12)}.cm-pill.cm-eq{background:var(--surface3)}
+.cm-none{padding:10px 16px;border-top:1px dashed var(--border);font-size:12.5px;color:var(--text3)}
+@media(max-width:700px){.cm-g{grid-template-columns:1fr 1fr;gap:6px 10px}.cm-g.hd2{display:none}.cm-g>:first-child{grid-column:1/-1}.cm-d{grid-column:1/-1;text-align:left}}
 .hbar{margin-bottom:10px}
 .hbar .lb{display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px;gap:10px}
 .hbar .lb b{font-variant-numeric:tabular-nums;font-weight:700;color:var(--text2);flex:none}
@@ -1351,6 +1370,10 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
           <div class="card">
             <div class="hd"><h3>วัตถุดิบและเมนูที่ถูกตรวจบ่อย</h3></div>
             <div class="bd"><div id="chTopItem"></div></div>
+          </div>
+          <div class="card" id="cmpCard">
+            <div class="hd"><h3>เปรียบเทียบผลตรวจล่าสุด รายสาขา แยกตามเขต BZM</h3><div class="sp"></div><span class="note">ใบล่าสุด เทียบกับใบก่อนหน้าของสาขานั้น</span></div>
+            <div class="bd"><div id="chCmp"></div></div>
           </div>
           <div class="card">
             <div class="hd"><h3>ตารางความร้อน — ประเด็นที่พบรายสาขา / รายเดือน</h3><div class="sp"></div><span class="note">สีเข้ม = พบประเด็นมาก</span></div>
@@ -5563,9 +5586,56 @@ const Dash = {
     const topTopics=Object.entries(topicC).map(([k,v])=>({k,v,t:v+' ครั้ง'})).sort((a,b)=>b.v-a.v).slice(0,8);
     document.getElementById('chVisitTopics').innerHTML = topTopics.length? hbars(topTopics,RED[1]) : emptyBox('ยังไม่มีหัวข้อการอบรม');
 
+    this.renderCmp(fqa);
     if(Brand.has('STA')) this.renderSta(rows.filter(r=>r.type==='STA'));
 
     this.applyType();
+  },
+
+  /* ---------- เปรียบเทียบผลตรวจ FQA ล่าสุด รายสาขา / แยกเขต BZM ----------
+     ผลของแต่ละใบ = % หัวข้อที่ผ่าน (ผ่าน ÷ ผ่านกับไม่ผ่าน · ข้ามหัวข้อที่ไม่ได้ตรวจ)
+     ล่าสุด = ใบล่าสุดของสาขาในช่วงที่เลือก · ก่อนหน้า = ใบถัดมาของสาขาเดียวกัน
+     ผลต่างเป็น "จุด" (percentage point) ไม่ใช่เปอร์เซ็นต์ของเปอร์เซ็นต์
+     เขตของสาขาอ่านจากทะเบียนสาขาของฮับตอนนี้ (BZM ย้ายเขตแล้วก็ตามไป) · ไม่มีก็ใช้เขตที่บันทึกในใบ */
+  renderCmp(fqa){
+    const host=document.getElementById('chCmp'); if(!host) return;
+    const res=r=>{ let p=0,t=0; fqaChecks(r).forEach(c=>{ if(c.result==='ผ่าน'){p++;t++;} else if(c.result==='ไม่ผ่าน') t++; });
+      return t?{r,date:r.date||'',pct:Math.round(p/t*100),f:t-p,t}:null; };
+    const by={};
+    fqa.slice().sort((a,b)=>String(b.date||'').localeCompare(String(a.date||''))||String(b.id||'').localeCompare(String(a.id||'')))
+      .forEach(r=>{ const x=res(r); if(x&&r.branch) (by[r.branch]=by[r.branch]||[]).push(x); });
+    const zoneOf=n=>{ const b=M.branchOf(n); return (b&&b.bzm)||(by[n]&&by[n][0].r.bzm)||'ไม่ระบุเขต'; };
+    const zones={};
+    Object.keys(by).forEach(n=>{ const z=zoneOf(n); (zones[z]=zones[z]||{name:z,rows:[]}).rows.push({n,L:by[n][0],P:by[n][1]||null}); });
+    /* สาขาในเขตที่ยังไม่มีผลตรวจในช่วงนี้ */
+    const noRes={};
+    (M.branches()||[]).forEach(b=>{ if(!by[b.name]){ const z=b.bzm||'ไม่ระบุเขต'; (noRes[z]=noRes[z]||[]).push(b.name); } });
+    Object.keys(noRes).forEach(z=>{ if(!zones[z]) zones[z]={name:z,rows:[]}; });
+    const list=Object.values(zones).filter(z=>z.rows.length||(noRes[z.name]||[]).length)
+      .sort((a,b)=>a.name==='ไม่ระบุเขต'?1:b.name==='ไม่ระบุเขต'?-1:a.name.localeCompare(b.name,'th'));
+    if(!list.some(z=>z.rows.length)){ host.innerHTML=emptyBox('ยังไม่มีผลตรวจ FQA ในช่วงที่เลือก'); return; }
+    const tone=d=>d>0?'cm-up':d<0?'cm-dn':'cm-eq';
+    const dtxt=d=>d>0?'▲ +'+d:d<0?'▼ '+d:'—';
+    let nUp=0,nDn=0,nEq=0,nNew=0,sumL=0,nL=0;
+    list.forEach(z=>z.rows.forEach(x=>{ sumL+=x.L.pct; nL++; if(!x.P) nNew++; else { const d=x.L.pct-x.P.pct; if(d>0)nUp++; else if(d<0)nDn++; else nEq++; } }));
+    const sum=`<div class="cm-sum"><span>เฉลี่ยล่าสุดทุกสาขา <b>${nL?Math.round(sumL/nL):0}%</b></span><span>ดีขึ้น <b class="cm-up">${nUp}</b> สาขา</span><span>แย่ลง <b class="cm-dn">${nDn}</b> สาขา</span><span>เท่าเดิม <b>${nEq}</b></span><span>ตรวจครั้งแรกในช่วงนี้ <b>${nNew}</b></span></div>`;
+    const html=list.map(z=>{
+      const rows=z.rows.slice().sort((a,b)=>a.L.pct-b.L.pct||a.n.localeCompare(b.n,'th'));   // ต้องดูแลก่อน = ผ่านน้อยสุดขึ้นบน
+      const avgL=rows.length?Math.round(rows.reduce((a,x)=>a+x.L.pct,0)/rows.length):null;
+      const cmp=rows.filter(x=>x.P), dAvg=cmp.length?Math.round(cmp.reduce((a,x)=>a+(x.L.pct-x.P.pct),0)/cmp.length):null;
+      const miss=noRes[z.name]||[];
+      return `<details class="cm-z" open><summary><b>${esc(z.name)}</b><span class="note">${rows.length} สาขามีผลตรวจ${miss.length?' · ยังไม่มีผล '+miss.length:''}</span><span class="sp"></span>
+        ${avgL==null?'':`<span>เฉลี่ยล่าสุด <b style="font-size:16px">${avgL}%</b></span>`}
+        ${dAvg==null?'':`<span class="cm-pill ${tone(dAvg)}" title="เฉลี่ยผลต่างเฉพาะสาขาที่มีใบก่อนหน้า ${cmp.length} สาขา">${dtxt(dAvg)} จุด</span>`}</summary>
+        ${rows.length?`<div class="cm-g hd2"><span>สาขา</span><span>ล่าสุด</span><span>ก่อนหน้า</span><span style="text-align:right">เปลี่ยน</span></div>`:''}
+        ${rows.map(x=>{ const d=x.P?x.L.pct-x.P.pct:null;
+          return `<div class="cm-g"><div><b>${esc(x.n)}</b></div>
+            <div><small>${fmtDMY(x.L.date)}</small><div class="pc">${x.L.pct}%</div><div class="bar"><i style="width:${x.L.pct}%"></i></div><small>ไม่ผ่าน ${x.L.f} จาก ${x.L.t} หัวข้อ</small></div>
+            <div>${x.P?`<small>${fmtDMY(x.P.date)}</small><div class="pc" style="color:var(--text2)">${x.P.pct}%</div><div class="bar"><i style="width:${x.P.pct}%;background:var(--text3)"></i></div><small>ไม่ผ่าน ${x.P.f} จาก ${x.P.t} หัวข้อ</small>`:'<small>ยังไม่มีใบก่อนหน้า</small><div class="pc" style="color:var(--text3)">ตรวจครั้งแรก</div>'}</div>
+            <div class="cm-d ${d==null?'cm-eq':tone(d)}">${d==null?'—':dtxt(d)+' จุด'}</div></div>`; }).join('')}
+        ${miss.length?`<div class="cm-none">ยังไม่มีผลตรวจในช่วงนี้: ${miss.map(esc).join(' · ')}</div>`:''}</details>`;
+    }).join('');
+    host.innerHTML=sum+html;
   },
 
   /* ---------- ผลการตรวจ STA ----------
