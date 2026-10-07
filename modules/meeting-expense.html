@@ -705,7 +705,7 @@ function liveAside(r){
 }
 /* จอกว้าง: หน้า "ส่งเอกสารแล้ว" — สรุปสถานะ + เส้นขั้นตอนตามสถานะจริง + รายละเอียด/รูปเต็มความกว้าง */
 function doneWide(x){
-  const st=statusOf(x), idx=st==="อนุมัติ"||st==="ไม่อนุมัติ"?2:st==="รอดำเนินการ"?1:0, cut=Number(x.claimedAmount)>Number(x.amount)+1e-9, no=st==="ไม่อนุมัติ";
+  const st=statusOf(x), idx=st==="อนุมัติ"||st==="ไม่อนุมัติ"?2:st==="รอดำเนินการ"?1:0, cut=false, no=st==="ไม่อนุมัติ";
   const mayDelete=can("delete-own")&&ME.role==="branch"&&x.branchCode===ME.code&&st!=="อนุมัติ";
   const who=t=>x.statusBy?" · โดย "+esc(x.statusBy):"";
   const nodes=[
@@ -871,7 +871,7 @@ function branchHistory(body,mine){
   tb.innerHTML=`<div class="hrow hth"><span>รอบ</span><span>ส่งเมื่อ</span><span>ผู้ทำการเบิก</span><span>จำนวนเงิน</span><span>ใบเสร็จ</span><span>สถานะ</span><span></span></div>`;
   mine.slice().sort((a,b)=>roundIdOf(b).localeCompare(roundIdOf(a))||byTime(a,b)).forEach(x=>{
     const st=statusOf(x), row=document.createElement("div"); row.className="hrow";
-    const cutH=Number(x.claimedAmount)>Number(x.amount)+1e-9;
+    const cutH=false;
     row.innerHTML=`<span><b>${esc(roundLabel(roundIdOf(x)))}</b></span><span>${esc(thDate(x.submittedAt)||stamp(x.submittedAt))}</span>
       <span>${esc(x.claimantName||"-")}</span><span>${cutH?`<span class="cutchip">ขอเบิก ${baht(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${baht(x.amount)}</span>`:"<b>"+baht(x.amount)+" บาท</b>"}${st==="ไม่อนุมัติ"&&x.reason?`<span class="rsn">เหตุผล: ${esc(x.reason)}</span>`:""}</span>
       <span>${(x.photos||[]).length} รูป</span><span>${pill(st)}</span><span class="chev">›</span>`;
@@ -931,7 +931,7 @@ function slip(x,admin,compact){
   const manage=admin&&can("update-status");
   /* การ์ดแบบย่อ (มือถือ): ฝั่งผู้ดูแล = สาขา+ยอด+ปุ่มอนุมัติ · ฝั่งสาขา = รอบ+ยอด+วันที่ส่ง */
   if(admin||compact){
-    const cutH=Number(x.claimedAmount)>Number(x.amount)+1e-9;
+    const cutH=false;
     const amt=cutH?`<span class="cutchip">ขอเบิก ${baht(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${baht(x.amount)}</span>`:`<div class="amt">${baht(x.amount)} บาท</div>`;
     const title=admin?esc(Branches.label(x.branchCode,x.branchName)):"<b>"+esc(roundLabel(roundIdOf(x)))+"</b>";
     const meta=admin?esc(x.claimantName||"-")+" · "+esc(stamp(x.submittedAt))+" · ใบเสร็จ "+(x.photos||[]).length+" รูป"
@@ -960,7 +960,7 @@ function slip(x,admin,compact){
       <div class="lead"><span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))} · รอบ ${esc(roundLabel(roundIdOf(x)))}</b></div>
       ${x.statusAt?`<div class="lead"><span>อัปเดตสถานะ</span><b>${esc(x.statusBy||"-")} · ${esc(stamp(x.statusAt))}</b></div>`:""}
     </div>
-    ${Number(x.claimedAmount)>Number(x.amount)+1e-9?`<div class="note-cut">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน เหลือ ${money(x.amount)} ฿</div>`:""}
+    ${false?`<div class="note-cut">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน เหลือ ${money(x.amount)} ฿</div>`:""}
     ${x.note?`<div class="desc">${esc(x.note)}</div>`:""}
     ${x.reviewNote?`<div class="note-no">ผู้ดูแล: ${esc(x.reviewNote)}</div>`:""}`;
   const ph=photoStrip(x.photos);
@@ -1152,7 +1152,7 @@ function tableHtml(list,manage){
   const btn=(id,to,t,cls)=>`<button class="ab ${cls}" data-act="${esc(to)}" data-id="${esc(id)}">${t}</button>`;
   return `<div class="twrap adm"><table class="tbl"><thead><tr>${manage?`<th style="width:34px"><input type="checkbox" data-all="1" aria-label="เลือกทั้งหมด" ${allOn?"checked":""}></th>`:""}
     <th>สาขา / BZM</th><th>ผู้ทำการเบิก</th><th>ส่งเมื่อ</th><th>จำนวนเงิน (วงเงิน)</th><th>ใบเสร็จ</th><th>สถานะ</th>${manage?"<th></th>":""}${del?"<th></th>":""}</tr></thead><tbody>
-    ${list.map(c=>{ const rid=roundIdOf(c), lim=limitOf(rid,c.branchCode), st=statusOf(c), cutH=Number(c.claimedAmount)>Number(c.amount)+1e-9;
+    ${list.map(c=>{ const rid=roundIdOf(c), lim=limitOf(rid,c.branchCode), st=statusOf(c), cutH=false;
       const a=!manage?"":(st==="อนุมัติ"||st==="ไม่อนุมัติ")?btn(c.id,"รอดำเนินการ","ยกเลิกผล","ghost"):btn(c.id,"ไม่อนุมัติ","ไม่อนุมัติ","no")+btn(c.id,"อนุมัติ","อนุมัติ","yes");
       return `<tr class="slip ${SEL.has(c.id)?"sel":""}">
       ${manage?`<td><input type="checkbox" data-sel="${esc(c.id)}" aria-label="เลือก ${esc(c.docNo||c.id)}" ${SEL.has(c.id)?"checked":""}></td>`:""}
