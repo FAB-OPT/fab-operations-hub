@@ -431,6 +431,20 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .vk select{width:auto;min-width:130px;margin-left:auto;height:40px;border-radius:12px}
 .vk #kamt{font-size:18px}
 @media(max-width:899px){.adsplit{grid-template-columns:1fr}.vk{position:static}.vk #chips{display:grid;grid-template-columns:1fr 1fr}}
+.rgrid{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)!important;gap:16px!important;margin-bottom:16px}
+.rhero{padding:26px 30px;display:grid;grid-template-columns:150px 1fr;gap:26px;align-items:center}
+.rhero .ring{width:150px;height:150px;border-radius:50%;display:grid;place-items:center;position:relative}
+.rhero .ring::before{content:"";position:absolute;inset:14px;border-radius:50%;background:#fff}.rhero .ring div{position:relative;text-align:center}
+.rhero .ring b{font-size:32px;display:block;line-height:1}.rhero .ring small{font-size:12.5px;color:#777}
+.rhero .rbig{font-size:34px;font-weight:800;margin:2px 0 4px}
+.rhero .cd{display:inline-flex;gap:8px;align-items:center;background:#fff1e8;color:#c2410c;border-radius:12px;padding:6px 12px;font-weight:700;font-size:14px;margin:8px 0 4px}
+.rhero .m4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}
+.rhero .m4>div{background:#f7f8fa;border-radius:16px;padding:12px 16px}.rhero .m4 small{display:block;color:#777;font-size:12.5px}.rhero .m4 b{font-size:22px;font-variant-numeric:tabular-nums}
+.rnext{padding:22px 26px}
+.mchip{height:40px;border-radius:99px;padding:0 18px;border:1px solid #e3e6ea;background:#fff;font:600 14.5px inherit;font-family:inherit;color:#444;cursor:pointer}
+.mchip.on{border:1.5px solid var(--ac);background:#fff2e8;color:var(--acd);font-weight:700}
+.dts{display:grid;grid-template-columns:1fr 1fr;gap:10px}.dts label{font-size:12.5px;color:#8a8f98;margin:0}.dts input{margin-top:4px;border-radius:12px}
+@media(max-width:899px){.rgrid{grid-template-columns:1fr!important}.rhero{grid-template-columns:1fr;justify-items:center;text-align:center}.rhero .m4{grid-template-columns:1fr 1fr}}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
 .aph .rcp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .aph .rcp img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:18px;cursor:zoom-in;box-shadow:0 8px 22px rgba(20,24,40,.14)}
@@ -1505,35 +1519,42 @@ function roundForm(r){
 function adminRounds(body){
   const rounds=ROUNDS(), nb=Branches.list().length, cur=currentRound();
   const last=(rounds.slice().sort((a,b)=>a.id.localeCompare(b.id)).pop()||{}).id||thisRoundId();
-  const nid=(()=>{ let [y,m]=last.split("-").map(Number); m++; if(m>12){m=1;y++;} return y+"-"+String(m).padStart(2,"0"); })();
+  const nxt=id=>{ let [y,m]=id.split("-").map(Number); m++; if(m>12){m=1;y++;} return y+"-"+String(m).padStart(2,"0"); };
+  const nid0=nxt(last), nid2=nxt(nid0), nid=(window._nrId===nid2?nid2:nid0);
   const nextR=roundOf(nid), pad=n=>String(n).padStart(2,"0");
   const left=cur&&cur.dueDate?Math.ceil((new Date(cur.dueDate+"T23:59:59")-new Date())/864e5):null;
   const sentC=cur?sentBranches(cur.id):0;
   const rowOf=r=>{ const list=CLAIMS().filter(c=>roundIdOf(c)===r.id&&!isRejected(c)), n=sentBranches(r.id);
     const tot=list.reduce((a,c)=>a+(Number(c.amount)||0),0);
     return {r,n,tot,has:list.length>0}; };
-  body.innerHTML=`<div class="head"><h1>รอบเบิก</h1><span class="sp"></span><button class="btn" id="addr">+ สร้างรอบใหม่</button></div>
+  const curClaims=cur?CLAIMS().filter(c=>roundIdOf(c)===cur.id&&!isRejected(c)):[];
+  const M={lim:cur?Branches.list().reduce((a,b)=>a+limitOf(cur.id,b.code),0):0, sent:sumOf(curClaims), ok:sumOf(curClaims.filter(c=>statusOf(c)==="อนุมัติ")), wait:curClaims.filter(isWaiting).length};
+  const pct=nb?Math.min(100,sentC/nb*100):0;
+  const mchip=id=>`<button class="mchip ${id===nid?"on":""}" data-nid="${id}">${esc(roundLabel(id))}</button>`;
+  body.innerHTML=`<div class="head"><h1>รอบเบิก</h1><span class="sp"></span><button class="tbtn pri" id="addr">+ สร้างรอบใหม่</button></div>
     <div class="rgrid">
-      <div class="card rcur">${cur?`<div style="display:flex;justify-content:space-between;align-items:center"><span class="muted">รอบปัจจุบัน</span><span class="pill ${cur.open?"p-ok":"p-no"}">${cur.open?"เปิดรับเอกสาร":"ปิดรับแล้ว"}</span></div>
-        <div class="rbig">${esc(roundLabel(cur.id))}</div>
-        <div style="font-size:15px;color:#555">${cur.startDate&&cur.dueDate?"ส่งได้ตั้งแต่วันที่ "+thDate(cur.startDate)+" ถึงวันที่ "+thDate(cur.dueDate):esc(rng(cur)||"ยังไม่กำหนดช่วงวันที่")}${left!=null&&left>=0?" · เหลืออีก "+left+" วัน":""}</div>
-        <div class="lead" style="margin-top:22px;font-weight:700"><span style="color:#2b2b2b">ความคืบหน้าในการส่งเอกสาร</span><b>${sentC} / ${nb} สาขา (${nb?(sentC/nb*100).toFixed(2):0}%)</b></div>
-        <div class="meter" style="margin:6px 0 10px"><i style="width:${nb?Math.min(100,sentC/nb*100):0}%"></i></div>
-        ${nb-sentC>0?`<a class="rlnk" id="unsent" style="display:inline-flex;gap:8px;align-items:center">${mi("warn",22)} ${nb-sentC} สาขาที่ยังไม่ส่ง →</a>`:`<span class="muted">ทุกสาขาส่งแล้ว</span>`}
-        <div class="acts" id="rcact"></div>`:`<div class="muted">ยังไม่มีรอบเปิดอยู่ กด "สร้างรอบใหม่"</div>`}</div>
-      <div class="card"><h3 style="font-size:17px">ตั้งค่ารอบถัดไป · ${esc(roundLabel(nid))}</h3>
-        <div class="field"><label>ส่งได้ตั้งแต่วันที่</label><input id="nrs" type="date" value="${esc((nextR&&nextR.startDate)||nid+"-01")}"></div>
-        <div class="field"><label>ถึงวันที่</label><input id="nrd" type="date" value="${esc((nextR&&nextR.dueDate)||nid+"-15")}"></div>
-        <button class="btn" id="nrsave" style="width:100%;background:#fff;color:var(--acd);border:1.5px solid var(--ac);box-shadow:none">บันทึกรอบ</button>
+      <div class="glass-card rhero">${cur?`<div class="ring" style="background:conic-gradient(var(--ac) 0 ${pct}%,#eceff3 ${pct}% 100%)"><div><b>${sentC}/${nb}</b><small>สาขาที่ส่ง</small></div></div>
+        <div><span class="pill ${cur.open?"p-ok":"p-no"}">● ${cur.open?"เปิดรับเอกสาร":"ปิดรับแล้ว"}</span>
+          <div class="rbig">${esc(roundLabel(cur.id))}</div>
+          <div class="muted" style="font-size:14px">${cur.startDate&&cur.dueDate?"ส่งได้ "+thDate(cur.startDate)+" – "+thDate(cur.dueDate):esc(rng(cur)||"ยังไม่กำหนดช่วงวันที่")}</div>
+          ${left!=null&&left>=0?`<span class="cd">⏳ เหลืออีก ${left} วัน</span>`:""}
+          <div class="m4"><div><small>วงเงินรวม</small><b>${baht(M.lim)}</b></div><div><small>ส่งเบิกแล้ว</small><b style="color:#e8590c">${baht(M.sent)}</b></div><div><small>อนุมัติแล้ว</small><b style="color:#15803d">${baht(M.ok)}</b></div><div><small>รอตรวจ</small><b>${M.wait}</b></div></div>
+          <div class="acts" id="rcact" style="margin-top:16px">${nb-sentC>0?`<button class="ab ghost" id="unsent">${mi("warn",18)} ${nb-sentC} สาขาที่ยังไม่ส่ง →</button>`:`<span class="muted">ทุกสาขาส่งแล้ว ✓</span>`}</div></div>`
+        :`<div class="muted" style="grid-column:1/-1">ยังไม่มีรอบเปิดอยู่ กด "สร้างรอบใหม่"</div>`}</div>
+      <div class="glass-card rnext"><h3 style="font-size:17px;margin:0 0 2px">เตรียมรอบถัดไป</h3><div class="muted" style="margin-bottom:12px">เลือกเดือน แล้วกำหนดช่วงส่ง</div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">${mchip(nid0)}${mchip(nid2)}</div>
+        <div class="dts"><label>ส่งได้ตั้งแต่<input id="nrs" type="date" value="${esc((nextR&&nextR.startDate)||nid+"-01")}"></label><label>ถึง<input id="nrd" type="date" value="${esc((nextR&&nextR.dueDate)||nid+"-15")}"></label></div>
+        <button class="tbtn pri" id="nrsave" style="width:100%;justify-content:center;margin-top:14px">บันทึกรอบ</button>
         <div class="muted" style="font-size:12.5px;margin-top:8px">บันทึกแล้วรอบนี้ยังไม่เปิดรับ · กด "เปิดรับ" ในตารางด้านล่างเมื่อถึงเวลา</div></div></div>
-    <div class="twrap adm" style="margin-top:16px"><table class="tbl"><thead><tr><th>รอบ</th><th>ส่งได้ตั้งแต่วันที่</th><th>ถึงวันที่</th><th>สาขาที่ส่ง</th><th>ยอดจ่ายรวม</th><th>สถานะรอบ</th><th></th></tr></thead><tbody id="rtb"></tbody></table></div>`;
+    <div class="glass-card"><table class="mtbl"><thead><tr><th>รอบ</th><th style="width:34%">ความคืบหน้า</th><th>สาขาที่ส่ง</th><th>ยอดจ่าย</th><th>สถานะ</th><th></th></tr></thead><tbody id="rtb"></tbody></table></div>`;
+  body.querySelectorAll("[data-nid]").forEach(b=>b.onclick=()=>{ window._nrId=b.dataset.nid; adminRounds(body); });
   $("#addr",body).onclick=()=>roundForm(null);
   const un=$("#unsent",body); if(un) un.onclick=()=>{ ATAB="bzm"; renderAdmin(); };
   if(cur){ const a=$("#rcact",body);
-    const ed=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"แก้ช่วงวันที่"}); ed.onclick=()=>roundForm(cur);
-    const t=Object.assign(document.createElement("button"),{className:"btn sm "+(cur.open?"no":"ok"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
+    const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้ช่วงวันที่"}); ed.onclick=()=>roundForm(cur);
+    const t=Object.assign(document.createElement("button"),{className:"ab "+(cur.open?"no":"yes"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
     t.onclick=()=>toggle(cur,t);
-    const dl=Object.assign(document.createElement("button"),{className:"btn sm danger",textContent:"ลบรอบ"}); dl.onclick=()=>delRound(cur);
+    const dl=Object.assign(document.createElement("button"),{className:"ab no",textContent:"ลบรอบ"}); dl.onclick=()=>delRound(cur);
     a.append(ed,t,dl); }
   /* ลบรอบ — ลบได้เฉพาะรอบที่ยังไม่มีเอกสารเบิก (มีแล้วให้ปิดรับแทน เอกสารเดิมจะได้ไม่เสียรอบอ้างอิง) */
   function delRound(r){
@@ -1565,10 +1586,12 @@ function adminRounds(body){
   const all=rounds.slice().sort((a,b)=>b.id.localeCompare(a.id)).map(rowOf);
   if(!all.length) tb.innerHTML=`<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">ยังไม่มีรอบเบิก</td></tr>`;
   all.forEach(({r,n,tot,has})=>{
-    const state=r.open?["p-ok","เปิดรับ"]:r.id>base?["p-sent","ยังไม่เปิด"]:["p-no","ปิดแล้ว"];
+    const state=r.open?["pillk","เปิดรับ"]:r.id>base?["pilly","ยังไม่เปิด"]:["pillg","ปิดแล้ว"];
+    const p=nb?Math.min(100,n/nb*100):0;
     const tr=document.createElement("tr");
-    tr.innerHTML=`<td><b>${esc(roundLabel(r.id))}</b></td><td>${esc(thDate(r.startDate)||"—")}</td><td>${esc(thDate(r.dueDate)||"—")}</td>
-      <td>${has||r.open?n+" / "+nb:"—"}</td><td>${has?baht(tot)+" บาท":"—"}</td><td><span class="pill ${state[0]}">${state[1]}</span></td>
+    tr.innerHTML=`<td><b>${esc(roundLabel(r.id))}</b><small>${r.startDate||r.dueDate?esc((thDate(r.startDate)||"…")+" – "+(thDate(r.dueDate)||"…")):"ยังไม่กำหนดวันที่"}</small></td>
+      <td>${has||r.open?`<div class="bar-s"><div class="bar"><i style="width:${p}%"></i></div></div>`:"—"}</td>
+      <td>${has||r.open?n+" / "+nb:"—"}</td><td>${has?baht(tot)+" บาท":"—"}</td><td><span class="${state[0]}">${state[1]}</span></td>
       <td style="text-align:right;white-space:nowrap"></td>`;
     const c=tr.lastElementChild;
     const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้วันที่"}); ed.onclick=()=>roundForm(r);
@@ -1577,6 +1600,7 @@ function adminRounds(body){
     c.append(ed,t,dl); tb.appendChild(tr);
   });
 }
+
 /* สาขามาจากทะเบียนของฮับเท่านั้น — เพิ่ม/ปิดสาขาที่ฮับ (⚙️ → 🏪 จัดการสาขา) ที่นี่ตั้งแค่วงเงินและบัญชี */
 const matchBranch=b=>{const q=F.q.trim().toLowerCase();
   return (!F.brand||b.brand===F.brand)&&(!q||(b.code+" "+b.name).toLowerCase().indexOf(q)>=0);};
