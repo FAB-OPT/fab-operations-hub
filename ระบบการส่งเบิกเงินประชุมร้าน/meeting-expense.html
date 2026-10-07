@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ระบบเบิกเงินประชุมร้าน</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#efeeec; --surface:#ffffff; --surface2:#faf8f5;
+  --ink:#2b2b2b; --ink2:#6a635c; --ink3:#948d85;
+  --line:#e4e0da; --line2:#efebe5;
+  --ac:#ff7a1a; --acd:#c2540a; --ac1:#fff4ea; --ac2:#ffe8d4;
+  --sent:#1d5f8a; --sent-bg:#e4eff7;
+  --wait:#9a6100; --wait-bg:#fbf0da;
+  --ok:#1e6b4c; --ok-bg:#dfeee7;
+  --no:#963a32; --no-bg:#f7e4e2;
+  --shadow:0 1px 2px rgba(43,43,43,.05);
+  --r-card:16px; --r-field:10px;
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --bg:#15140f; --surface:#1e1c17; --surface2:#262320;
+    --ink:#efece6; --ink2:#b5aea5; --ink3:#8b847b;
+    --line:#332f29; --line2:#2a2721;
+    --ac:#ff8c3a; --acd:#ffa865; --ac1:#2b1f14; --ac2:#3a2716;
+    --sent:#8ec4e8; --sent-bg:#16242e;
+    --wait:#e1ae4e; --wait-bg:#2f2611;
+    --ok:#6cc69d; --ok-bg:#113026;
+    --no:#e39189; --no-bg:#331c19;
+    --shadow:none;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15140f; --surface:#1e1c17; --surface2:#262320;
+  --ink:#efece6; --ink2:#b5aea5; --ink3:#8b847b;
+  --line:#332f29; --line2:#2a2721;
+  --ac:#ff8c3a; --acd:#ffa865; --ac1:#2b1f14; --ac2:#3a2716;
+  --sent:#8ec4e8; --sent-bg:#16242e;
+  --wait:#e1ae4e; --wait-bg:#2f2611;
+  --ok:#6cc69d; --ok-bg:#113026;
+  --no:#e39189; --no-bg:#331c19;
+  --shadow:none;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);
+  font-family:Sarabun,"Segoe UI",system-ui,sans-serif;
+  font-size:15px;line-height:1.6;-webkit-text-size-adjust:100%}
+.hide{display:none!important}
+
+/* ---------- shell ---------- */
+.app{display:flex;min-height:100vh;align-items:flex-start}
+.side{width:244px;flex:none;background:var(--surface);border-right:1px solid var(--line);
+  padding:20px 16px;display:flex;flex-direction:column;gap:18px;position:sticky;top:0;height:100vh}
+.brandrow{display:flex;gap:11px;align-items:flex-start;min-width:0}
+.logo{width:38px;height:38px;flex:none;border-radius:11px;background:var(--ac);color:#fff;
+  display:grid;place-items:center;font-size:19px;font-weight:800}
+.brandrow .nm{font-weight:700;font-size:15.5px;line-height:1.3}
+.brandrow .sub{font-size:12px;color:var(--ink3);line-height:1.45;word-break:break-word}
+.mlabel{font-size:11.5px;letter-spacing:.08em;color:var(--ink3);font-weight:600;margin:0 0 6px 6px}
+.menu{display:flex;flex-direction:column;gap:3px}
+.menu button{display:block;width:100%;text-align:left;font:inherit;font-size:14.5px;font-weight:500;
+  color:var(--ink2);background:none;border:0;border-radius:10px;padding:10px 13px;cursor:pointer}
+.menu button:hover{background:var(--surface2);color:var(--ink)}
+.menu button[aria-current="true"]{background:var(--ac);color:#fff;font-weight:600}
+.menu .badge{float:right;background:rgba(255,255,255,.28);border-radius:99px;
+  font-size:12px;padding:0 8px;font-weight:700}
+.menu button:not([aria-current="true"]) .badge{background:var(--ac2);color:var(--acd)}
+.side .foot{margin-top:auto}
+.main{flex:1;min-width:0;padding:20px 24px 40px;max-width:1180px}
+.mtabs{display:none}
+
+@media(max-width:899px){
+  .side{display:none}
+  .main{padding:14px 14px 88px}
+  .mtabs{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:40;gap:6px;
+    background:var(--surface);border-top:1px solid var(--line);
+    padding:7px 8px calc(7px + env(safe-area-inset-bottom))}
+  .mtabs button{flex:1;min-height:46px;font:inherit;font-size:13.5px;font-weight:600;
+    color:var(--ink2);background:none;border:0;border-radius:11px;cursor:pointer;padding:4px}
+  .mtabs button[aria-current="true"]{background:var(--ac);color:#fff}
+}
+
+/* ---------- page head ---------- */
+.phead{background:linear-gradient(103deg,var(--ac1),var(--surface) 62%);
+  border:1px solid var(--line);border-radius:var(--r-card);padding:14px 18px;
+  display:flex;gap:12px;align-items:center;flex-wrap:wrap;box-shadow:var(--shadow)}
+.phead h1{margin:0;font-size:20px;font-weight:700;letter-spacing:-.01em;line-height:1.3}
+.phead .sub{font-size:13px;color:var(--ink2);margin-top:2px}
+.phead .right{margin-left:auto;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.grow{flex:1;min-width:0}
+
+/* ---------- cards / stats ---------- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-card);
+  padding:16px 18px;margin:14px 0;box-shadow:var(--shadow)}
+.card h2{margin:0 0 12px;font-size:16px;font-weight:700}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(142px,1fr));gap:11px;margin:14px 0}
+.stat{background:var(--ac1);border:1px solid var(--line);border-radius:14px;padding:13px 15px}
+.stat span{display:block;font-size:12.5px;color:var(--ink2)}
+.stat b{display:block;font-size:25px;font-weight:700;line-height:1.25;letter-spacing:-.02em;
+  font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stat .foot{font-size:12px;color:var(--ink3)}
+.stat.hi b{color:var(--acd)}
+.stat.ok b{color:var(--ok)}
+.stat.no b{color:var(--no)}
+.gauge{height:6px;border-radius:99px;background:var(--ac2);overflow:hidden;margin:2px 0 14px}
+.gauge i{display:block;height:100%;background:var(--ac)}
+.gauge i.over{background:var(--no)}
+
+/* ---------- table ---------- */
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:12px;font-weight:600;letter-spacing:.04em;color:var(--ink3);text-align:left;
+  padding:9px 12px;border-bottom:2px solid var(--ac);white-space:nowrap}
+.tbl td{padding:12px;border-bottom:1px solid var(--line2);font-size:14.5px;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tbl .b{font-weight:600}
+.tbl tr.wait td{background:var(--ac1)}
+.wrapx{overflow-x:auto;margin:0 -2px}
+@media(max-width:699px){
+  .tbl,.tbl tbody,.tbl tr,.tbl td{display:block;width:100%}
+  .tbl thead{display:none}
+  .tbl tr{border:1px solid var(--line);border-radius:13px;padding:4px 2px;margin:10px 0;background:var(--surface)}
+  .tbl tr.wait{background:var(--ac1)}
+  .tbl td{border-bottom:1px solid var(--line2);display:flex;gap:12px;align-items:baseline;padding:9px 13px}
+  .tbl td:last-child{border-bottom:0}
+  .tbl td::before{content:attr(data-l);flex:none;width:98px;font-size:12.5px;color:var(--ink3)}
+  .tbl td.num{text-align:left;justify-content:flex-start}
+  /* บนมือถือ: ช่องแรกเป็นหัวการ์ด ช่องปุ่มเต็มความกว้าง ไม่ต้องมีป้ายกำกับ */
+  .tbl td:first-child{display:block;font-size:16px;font-weight:700;padding-top:12px}
+  .tbl td:first-child::before,.tbl td:last-child::before{display:none}
+  .tbl td:last-child{display:block}
+  .tbl td:last-child .btn{width:100%}
+}
+
+/* ---------- pills / status ---------- */
+.pill{display:inline-block;font-size:12px;font-weight:600;padding:3px 11px;border-radius:99px;white-space:nowrap}
+.p-sent{background:var(--sent-bg);color:var(--sent)}
+.p-wait{background:var(--wait-bg);color:var(--wait)}
+.p-ok{background:var(--ok-bg);color:var(--ok)}
+.p-no{background:var(--no-bg);color:var(--no)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 4px}
+.chip{font:inherit;font-size:13.5px;font-weight:600;color:var(--ink2);background:var(--surface);
+  border:1px solid var(--line);border-radius:99px;padding:6px 14px;cursor:pointer;white-space:nowrap}
+.chip[aria-pressed="true"]{background:var(--ac1);border-color:var(--ac);color:var(--acd)}
+.chip .n{margin-left:6px;font-size:12px;color:var(--ink3)}
+.chip[aria-pressed="true"] .n{color:var(--acd)}
+
+/* ---------- timeline ---------- */
+.tl{list-style:none;margin:0;padding:0}
+.tl li{position:relative;padding:0 0 16px 26px;font-size:14px}
+.tl li::before{content:"";position:absolute;left:3px;top:4px;width:11px;height:11px;border-radius:50%;
+  border:2px solid var(--line);background:var(--surface)}
+.tl li::after{content:"";position:absolute;left:8px;top:17px;bottom:0;width:1px;background:var(--line)}
+.tl li:last-child{padding-bottom:0}
+.tl li:last-child::after{display:none}
+.tl li.done::before{border-color:var(--ok);background:var(--ok)}
+.tl li.now::before{border-color:var(--ac);background:var(--ac)}
+.tl li.no::before{border-color:var(--no);background:var(--no)}
+.tl b{font-weight:600;display:block}
+.tl span{font-size:12.5px;color:var(--ink3)}
+
+/* ---------- generic bits ---------- */
+.sec{display:flex;align-items:baseline;gap:9px;margin:22px 2px 6px}
+.sec b{font-size:14px;font-weight:700}
+.sec span{font-size:12.5px;color:var(--ink3)}
+.sec::after{content:"";flex:1;height:1px;background:var(--line)}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.muted{color:var(--ink3);font-size:13px}
+.empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--r-card);
+  text-align:center;color:var(--ink3);padding:30px 18px;font-size:14px;line-height:1.7;margin:12px 0}
+.lead{display:flex;align-items:baseline;gap:7px;font-size:13.5px;color:var(--ink2);margin-top:4px}
+.lead .fill{flex:1;border-bottom:1px dotted var(--line);transform:translateY(-3px)}
+.lead .v{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+.photos{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.photos img,.photos .ph{width:66px;height:66px;object-fit:cover;border-radius:10px;
+  border:1px solid var(--line);background:var(--surface2);cursor:pointer}
+.amt{font-size:27px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1.2}
+.amt em{font-style:normal;font-size:13.5px;font-weight:400;color:var(--ink3);margin-left:4px}
+
+/* ---------- forms ---------- */
+label{display:block;font-size:12.5px;color:var(--ink2);margin:0 0 6px;font-weight:600}
+input,select,textarea{width:100%;font:inherit;font-size:15px;color:var(--ink);background:var(--surface2);
+  border:1px solid var(--line);border-radius:var(--r-field);padding:10px 12px}
+textarea{min-height:64px;resize:vertical}
+input:focus,select:focus,textarea:focus,button:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.field{margin:0 0 13px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+@media(max-width:560px){.f2{grid-template-columns:1fr}}
+.cols{display:grid;grid-template-columns:1.55fr 1fr;gap:14px;align-items:start}
+@media(max-width:899px){.cols{grid-template-columns:1fr}}
+button{font-family:inherit}
+.btn{background:var(--ac);color:#fff;border:0;border-radius:var(--r-field);padding:10px 18px;
+  font-size:14.5px;font-weight:600;cursor:pointer}
+.btn:hover{background:var(--acd)}
+.btn.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.btn.ghost:hover{background:var(--surface2)}
+.btn.sm{padding:7px 13px;font-size:13.5px}
+.btn.ok{background:var(--ok)}
+.btn.ok:hover{filter:brightness(.92)}
+.btn.no{background:transparent;color:var(--no);border:1px solid var(--line)}
+.btn.no:hover{background:var(--no-bg)}
+.btn.full{width:100%;padding:13px;font-size:15.5px}
+.btn:disabled{opacity:.42;cursor:not-allowed}
+.btn:disabled:hover{background:var(--ac)}
+.actions{display:flex;gap:8px;margin-top:13px;flex-wrap:wrap}
+.line-item{display:flex;gap:11px;align-items:center;padding:12px 0;border-bottom:1px solid var(--line2)}
+.card .line-item:last-child{border-bottom:0;padding-bottom:2px}
+
+/* ---------- modal / toast / login ---------- */
+.mask{position:fixed;inset:0;background:rgba(30,24,18,.55);z-index:60;display:flex;
+  align-items:flex-end;justify-content:center}
+.modal{background:var(--surface);width:100%;max-width:620px;max-height:92vh;overflow:auto;
+  border-radius:18px 18px 0 0;padding:20px 18px 26px}
+@media(min-width:700px){.mask{align-items:center;padding:20px}.modal{border-radius:16px}}
+@media (prefers-reduced-motion:no-preference){.modal{animation:rise .2s cubic-bezier(.2,.8,.3,1)}}
+@keyframes rise{from{transform:translateY(14px);opacity:0}}
+.modal h2{margin:0 0 16px;font-size:18px;font-weight:700}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:26px;z-index:90;background:var(--ink);
+  color:var(--bg);padding:11px 20px;border-radius:99px;font-size:14px;box-shadow:0 6px 18px rgba(43,43,43,.25)}
+.login-page{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px;
+  background:linear-gradient(160deg,var(--ac1),var(--bg) 55%)}
+.login{width:100%;max-width:360px;background:var(--surface);border:1px solid var(--line);
+  border-radius:20px;padding:26px 24px 24px;box-shadow:0 10px 30px rgba(43,43,43,.07)}
+.login .logo{margin-bottom:14px}
+.login h1{font-size:21px;margin:0 0 4px;font-weight:700}
+.login p{color:var(--ink3);font-size:13.5px;margin:0 0 20px}
+.login input{text-align:center;font-size:17px;letter-spacing:.06em;padding:13px}
+.login .hint{margin-top:14px;font-size:12.5px;color:var(--ink3);text-align:center}
+</style>
+</head>
+<body>
+<div id="app"><div class="empty" style="margin:20vh 16px">กำลังเชื่อมต่อ…</div></div>
+<div id="modalHost"></div>
+
+<script>
+"use strict";
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const money=n=>(Number(n)||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
+const short=n=>{n=Number(n)||0; return n>=1e6?(n/1e6).toFixed(1)+"ล.":n>=1e4?Math.round(n/1e3)+"K":money(n).replace(".00","");};
+const nowISO=()=>new Date().toISOString();
+const thisRoundId=()=>new Date().toISOString().slice(0,7);
+const roundLabel=id=>{const[y,m]=String(id).split("-");
+  return ["","ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+m]+" "+(+y+543);};
+const dateTH=s=>{ if(!s)return "-"; const d=new Date(s); if(isNaN(d))return String(s).slice(0,10);
+  return d.getDate()+" "+["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][d.getMonth()]+" "+(d.getFullYear()+543);};
+const timeTH=s=>{ if(!s)return ""; const d=new Date(s); if(isNaN(d))return "";
+  return d.toLocaleTimeString("th-TH",{hour:"2-digit",minute:"2-digit"})+" น."; };
+function toast(t){const e=document.createElement("div");e.className="toast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2300);}
+
+let DB=null, CFG=null, ROUNDS=[], CLAIMS=[], PAYEES={}, PREQ=[], PHOTO={};
+let ME=null, TAB="now", ATAB="claims", FILTER="all";
+
+/* photos */
+function compress(file){
+  return new Promise((res,rej)=>{
+    const fr=new FileReader(); fr.onerror=()=>rej(new Error("อ่านไฟล์ไม่ได้"));
+    fr.onload=()=>{ const img=new Image(); img.onerror=()=>rej(new Error("ไฟล์ไม่ใช่รูปภาพ"));
+      img.onload=()=>{ const max=1100, sc=Math.min(1,max/Math.max(img.width,img.height));
+        const c=document.createElement("canvas"); c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        let q=.72,o=c.toDataURL("image/jpeg",q);
+        while(o.length>170000&&q>.28){q-=.1;o=c.toDataURL("image/jpeg",q);}
+        res(o); }; img.src=fr.result; };
+    fr.readAsDataURL(file); });
+}
+async function savePhoto(u){const id=uid();await DB.doc("photos/"+id).set({d:u,at:nowISO()});PHOTO[id]=u;return id;}
+function photoNode(id){
+  if(PHOTO[id]){const i=new Image();i.src=PHOTO[id];i.alt="บิลที่แนบ";i.onclick=()=>zoom(id);return i;}
+  const d=document.createElement("div"); d.className="ph";
+  DB.doc("photos/"+id).get().then(s=>{ if(!s.exists)return; PHOTO[id]=s.data().d;
+    const i=new Image();i.src=PHOTO[id];i.alt="บิลที่แนบ";i.onclick=()=>zoom(id);d.replaceWith(i);}).catch(()=>{});
+  return d;
+}
+function zoom(id){ if(!PHOTO[id])return;
+  const m=document.createElement("div");m.className="mask";
+  m.innerHTML=`<img src="${PHOTO[id]}" alt="บิลขยาย" style="max-width:96%;max-height:92vh;border-radius:12px;margin:auto">`;
+  m.onclick=()=>m.remove();document.body.appendChild(m);}
+function photoField(t){
+  const box=document.createElement("div");box.className="field";box.ids=[];
+  box.innerHTML=`<label>${t}</label><input type="file" accept="image/*" capture="environment" multiple>
+    <div class="photos" style="margin-top:9px"></div>`;
+  const inp=$("input",box),strip=$(".photos",box);
+  inp.onchange=async()=>{ for(const f of Array.from(inp.files||[])){
+      try{ const u=await compress(f); box.ids.push(await savePhoto(u));
+        const i=new Image();i.src=u;i.alt="บิลที่แนบ";strip.appendChild(i);}catch(e){toast(e.message||"แนบรูปไม่สำเร็จ");} }
+    inp.value=""; };
+  return box;
+}
+
+/* helpers */
+const branchOf=c=>(CFG.branches||[]).find(b=>b.code===c)||{code:c,name:c,limit:0};
+const roundOf=id=>ROUNDS.find(r=>r.id===id);
+const currentRound=()=>ROUNDS.slice().sort((a,b)=>b.id.localeCompare(a.id))[0]||null;
+const used=(rid,code)=>CLAIMS.filter(c=>c.roundId===rid&&c.branchCode===code&&c.status!=="rejected")
+  .reduce((s,c)=>s+(Number(c.amount)||0),0);
+function limitOf(rid,code){ const r=roundOf(rid)||{}, b=branchOf(code);
+  if(r.limits&&r.limits[code]!=null) return Number(r.limits[code]);
+  if(b.limit) return Number(b.limit);
+  return Number(r.limitDefault)||Number(CFG.defaultLimit)||0; }
+const payeeName=c=>(PAYEES[c]&&PAYEES[c].name)||"";
+const statusPill=s=>s==="approved"?["p-ok","อนุมัติแล้ว"]:s==="rejected"?["p-no","ไม่อนุมัติ"]:["p-wait","รอตรวจ"];
+
+function modal(title,body,onSave,saveTxt="บันทึก"){
+  const m=document.createElement("div");m.className="mask";
+  const box=document.createElement("div");box.className="modal";
+  box.innerHTML=`<h2>${esc(title)}</h2>`;box.appendChild(body);
+  const act=document.createElement("div");act.className="actions";act.style.marginTop="18px";
+  const s=Object.assign(document.createElement("button"),{className:"btn",textContent:saveTxt});
+  const c=Object.assign(document.createElement("button"),{className:"btn ghost",textContent:"ยกเลิก"});
+  c.onclick=()=>m.remove();
+  s.onclick=async()=>{s.disabled=true;try{await onSave();m.remove();}catch(e){toast(e.message||"บันทึกไม่สำเร็จ");s.disabled=false;}};
+  act.append(s,c);box.appendChild(act);m.appendChild(box);
+  m.onclick=e=>{if(e.target===m)m.remove();};
+  $("#modalHost").appendChild(m);return m;
+}
+
+/* login */
+function renderLogin(){
+  const a=$("#app");
+  if(!CFG||!CFG.adminCode){
+    a.innerHTML=`<div class="login-page"><div class="login">
+      <div class="logo">บ</div>
+      <h1>ตั้งค่าครั้งแรก</h1>
+      <p>ตั้งรหัสสำหรับฝ่ายบัญชี/ออฟฟิศ เพื่อเริ่มใช้ระบบ</p>
+      <div class="field"><input id="ac" placeholder="รหัสผู้ดูแล" autocomplete="off"></div>
+      <button class="btn full" id="go">เริ่มใช้งาน</button></div></div>`;
+    $("#go").onclick=async()=>{ const v=$("#ac").value.trim(); if(!v)return toast("ใส่รหัสก่อน");
+      await DB.doc("meta/config").set({adminCode:v,branches:[],defaultLimit:0,createdAt:nowISO()});
+      localStorage.setItem("mx_login",v); toast("ตั้งค่าเรียบร้อย"); };
+    return;
+  }
+  a.innerHTML=`<div class="login-page"><div class="login">
+    <div class="logo">บ</div>
+    <h1>เบิกเงินประชุมร้าน</h1>
+    <p>ใส่รหัสสาขา หรือรหัสฝ่ายบัญชี</p>
+    <div class="field"><input id="lc" placeholder="รหัสเข้าใช้งาน" autocomplete="off"></div>
+    <button class="btn full" id="go">เข้าใช้งาน</button>
+    <div class="hint">ขอรหัสสาขาได้จากฝ่ายบัญชี</div></div></div>`;
+  const go=()=>{ const v=$("#lc").value.trim(); if(!v)return;
+    if(v===CFG.adminCode) ME={role:"admin"};
+    else { const b=(CFG.branches||[]).find(x=>x.code.toLowerCase()===v.toLowerCase());
+      if(!b) return toast("ไม่พบรหัสนี้"); ME={role:"branch",code:b.code,name:b.name}; }
+    localStorage.setItem("mx_login",v); render(); };
+  $("#go").onclick=go; $("#lc").onkeydown=e=>{if(e.key==="Enter")go();};
+}
+function autoLogin(){
+  const v=localStorage.getItem("mx_login"); if(!v||!CFG||!CFG.adminCode)return;
+  if(v===CFG.adminCode){ME={role:"admin"};return;}
+  const b=(CFG.branches||[]).find(x=>x.code.toLowerCase()===v.toLowerCase());
+  if(b) ME={role:"branch",code:b.code,name:b.name};
+}
+const logout=()=>{localStorage.removeItem("mx_login");ME=null;render();};
+
+/* shell: เมนูซ้ายบนจอใหญ่ แถบแท็บล่างบนมือถือ */
+function shell(who,sub,tabs,active,onTab){
+  $("#app").innerHTML=`
+    <div class="app">
+      <aside class="side">
+        <div class="brandrow"><div class="logo">บ</div>
+          <div class="grow"><div class="nm">เบิกประชุมร้าน</div><div class="sub">${esc(who)}<br>${esc(sub)}</div></div></div>
+        <div><div class="mlabel">เมนูหลัก</div><nav class="menu">
+          ${tabs.map(x=>`<button data-k="${x.k}" aria-current="${x.k===active}">${esc(x.t)}${x.n?`<span class="badge">${x.n}</span>`:""}</button>`).join("")}
+        </nav></div>
+        <div class="foot"><button class="btn ghost" style="width:100%" id="out">ออกจากระบบ</button></div>
+      </aside>
+      <main class="main" id="body"></main>
+    </div>
+    <nav class="mtabs">
+      ${tabs.map(x=>`<button data-k="${x.k}" aria-current="${x.k===active}">${esc(x.t)}</button>`).join("")}
+    </nav>`;
+  $("#out").onclick=logout;
+  $("#app").querySelectorAll(".menu button,.mtabs button").forEach(b=>b.onclick=()=>onTab(b.dataset.k));
+  return $("#body");
+}
+function pageHead(title,sub,right){
+  return `<div class="phead"><div class="grow"><h1>${esc(title)}</h1>${sub?`<div class="sub">${sub}</div>`:""}</div>
+    ${right?`<div class="right">${right}</div>`:""}</div>`;
+}
+
+/* ---------- BRANCH ---------- */
+function renderBranch(){
+  const r=currentRound();
+  const tabs=[{k:"now",t:"ส่งเอกสาร"},{k:"hist",t:"ประวัติ"},{k:"payee",t:"ผู้รับเงิน"}];
+  const body=shell(ME.name,"รหัสสาขา "+ME.code,tabs,TAB,k=>{TAB=k;renderBranch();});
+  if(TAB==="payee") return branchPayee(body);
+  if(TAB==="hist")  return branchHistory(body);
+
+  if(!r){ body.innerHTML=pageHead("ส่งเอกสาร","")+
+    `<div class="empty">ยังไม่มีรอบเบิกที่เปิดไว้<br>รอฝ่ายบัญชีเปิดรอบก่อนนะครับ</div>`; return; }
+
+  const lim=limitOf(r.id,ME.code), use=used(r.id,ME.code), left=lim-use;
+  const pct=lim?Math.min(100,use/lim*100):0;
+  const mine=CLAIMS.filter(x=>x.roundId===r.id&&x.branchCode===ME.code)
+    .sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""));
+
+  body.innerHTML=pageHead("ส่งเอกสาร",
+    `รอบ ${esc(roundLabel(r.id))}${r.dueDate?" · ส่งถึงวันที่ "+esc(dateTH(r.dueDate)):""}`,
+    `<span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"เปิดรับเอกสาร":"ปิดรับแล้ว"}</span>`)+
+    `<div class="stats">
+      <div class="stat"><span>วงเงินต่อรอบ</span><b>${short(lim)}</b><div class="foot">บาท</div></div>
+      <div class="stat"><span>ส่งเบิกแล้ว</span><b>${short(use)}</b><div class="foot">${mine.length} ใบ</div></div>
+      <div class="stat hi"><span>คงเหลือ</span><b>${short(left)}</b><div class="foot">บาท</div></div>
+    </div>
+    <div class="gauge"><i class="${use>lim?"over":""}" style="width:${pct}%"></i></div>
+    <div class="cols"><div id="formcol"></div><div id="sidecol"></div></div>
+    <div id="listcol"></div>`;
+
+  /* ฟอร์มส่งเอกสาร อยู่ในหน้าเลย */
+  const fc=$("#formcol",body);
+  if(r.open){
+    const card=document.createElement("div"); card.className="card"; card.style.margin="0";
+    card.innerHTML=`<h2>กรอกข้อมูลการเบิก</h2>
+      <div class="f2">
+        <div class="field"><label>จำนวนเงิน (บาท)</label><input id="am" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00"></div>
+        <div class="field"><label>วันที่ประชุม</label><input id="dt" type="date" value="${new Date().toISOString().slice(0,10)}"></div>
+      </div>
+      <div class="field"><label>ผู้รับเงิน</label><input id="pe" value="${esc(payeeName(ME.code))}" placeholder="ชื่อผู้รับเงิน"></div>
+      <div class="field"><label>รายละเอียด</label><textarea id="nt" placeholder="เช่น ค่าอาหารว่างประชุมพนักงาน 12 คน"></textarea></div>`;
+    const pf=photoField("แนบรูปใบเสร็จ (อย่างน้อย 1 รูป)"); card.appendChild(pf);
+    const send=Object.assign(document.createElement("button"),{className:"btn full",textContent:"ส่งเอกสาร"});
+    send.onclick=async()=>{
+      send.disabled=true;
+      try{
+        const amount=Number($("#am",card).value); if(!amount||amount<=0) throw new Error("ใส่จำนวนเงินก่อน");
+        if(!pf.ids.length) throw new Error("แนบรูปบิลอย่างน้อย 1 รูป");
+        if(lim&&amount>left) throw new Error("เกินวงเงินคงเหลือ ("+money(left)+" บาท)");
+        const id=uid();
+        await DB.doc("claims/"+id).set({id,roundId:r.id,branchCode:ME.code,branchName:ME.name,amount,
+          meetDate:$("#dt",card).value,payee:$("#pe",card).value.trim(),note:$("#nt",card).value.trim(),
+          photoIds:pf.ids,status:"pending",submittedAt:nowISO()});
+        toast("ส่งเอกสารเรียบร้อย");
+      }catch(e){ toast(e.message||"ส่งไม่สำเร็จ"); send.disabled=false; }
+    };
+    card.appendChild(send);
+    card.insertAdjacentHTML("beforeend",`<div class="muted" style="text-align:center;margin-top:8px">ส่งแล้วแก้ไขไม่ได้ กรุณาตรวจสอบก่อนกดส่ง</div>`);
+    fc.appendChild(card);
+  } else {
+    fc.innerHTML=`<div class="empty" style="margin:0">รอบนี้ปิดรับเอกสารแล้ว<br>ติดต่อฝ่ายบัญชีถ้าต้องส่งเพิ่ม</div>`;
+  }
+
+  /* กล่องผู้รับเงิน + ขั้นตอน */
+  $("#sidecol",body).innerHTML=`
+    <div class="card" style="margin:0">
+      <h2>ผู้รับเงิน</h2>
+      <div style="font-size:17px;font-weight:600">${esc(payeeName(ME.code)||"ยังไม่ได้ระบุ")}</div>
+      ${(PAYEES[ME.code]||{}).note?`<div class="muted">${esc(PAYEES[ME.code].note)}</div>`:""}
+      <div class="muted" style="margin-top:8px">เปลี่ยนผู้รับเงินได้ที่เมนู “ผู้รับเงิน” โดยส่งคำขอให้ฝ่ายบัญชีอนุมัติ</div>
+    </div>
+    <div class="card">
+      <h2>หลังส่งเอกสาร</h2>
+      <ul class="tl">
+        <li class="done"><b>ส่งแล้ว</b><span>สาขาส่งเอกสารเข้าระบบ</span></li>
+        <li class="now"><b>รอตรวจ</b><span>ฝ่ายบัญชีตรวจเอกสารและรูปบิล</span></li>
+        <li><b>อนุมัติ หรือ ไม่อนุมัติ</b><span>ผลและหมายเหตุจะขึ้นในใบของรอบนี้</span></li>
+      </ul>
+    </div>`;
+
+  const lc=$("#listcol",body);
+  lc.insertAdjacentHTML("beforeend",`<div class="sec"><b>เอกสารที่ส่งรอบนี้</b><span>${mine.length} ใบ</span></div>`);
+  if(!mine.length) lc.insertAdjacentHTML("beforeend",`<div class="empty">ยังไม่ได้ส่งเอกสารรอบนี้</div>`);
+  mine.forEach(x=>lc.appendChild(claimCard(x,false)));
+}
+function branchHistory(body){
+  const mine=CLAIMS.filter(x=>x.branchCode===ME.code);
+  body.innerHTML=pageHead("ประวัติการเบิก",`สาขา ${esc(ME.name)}`,"");
+  if(!mine.length){ body.insertAdjacentHTML("beforeend",`<div class="empty">ยังไม่มีประวัติการเบิก</div>`); return; }
+  const g={}; mine.forEach(x=>(g[x.roundId]=g[x.roundId]||[]).push(x));
+  const rows=[];
+  Object.keys(g).sort().reverse().forEach(rid=>{
+    g[rid].sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||"")).forEach(x=>{
+      const p=statusPill(x.status);
+      rows.push(`<tr class="${x.status==="pending"?"wait":""}">
+        <td data-l="รอบ" class="b">${esc(roundLabel(x.roundId))}</td>
+        <td data-l="ส่งเมื่อ">${esc(dateTH(x.submittedAt))}</td>
+        <td data-l="ผู้รับเงิน">${esc(x.payee||"-")}</td>
+        <td data-l="จำนวนเงิน" class="num b">${money(x.amount)}</td>
+        <td data-l="ใบเสร็จ" class="num">${(x.photoIds||[]).length} รูป</td>
+        <td data-l="สถานะ"><span class="pill ${p[0]}">${p[1]}</span>${x.reviewNote?`<div class="muted">${esc(x.reviewNote)}</div>`:""}</td></tr>`);
+    });
+  });
+  const sum=mine.filter(x=>x.status==="approved").reduce((s,x)=>s+(Number(x.amount)||0),0);
+  body.insertAdjacentHTML("beforeend",`<div class="stats">
+      <div class="stat"><span>เอกสารทั้งหมด</span><b>${mine.length}</b><div class="foot">ใบ</div></div>
+      <div class="stat ok"><span>อนุมัติรวม</span><b>${short(sum)}</b><div class="foot">บาท</div></div>
+      <div class="stat"><span>รอตรวจ</span><b>${mine.filter(x=>x.status==="pending").length}</b><div class="foot">ใบ</div></div>
+    </div>
+    <div class="card"><div class="wrapx"><table class="tbl">
+      <thead><tr><th>รอบ</th><th>ส่งเมื่อ</th><th>ผู้รับเงิน</th><th class="num">จำนวนเงิน</th><th class="num">ใบเสร็จ</th><th>สถานะ</th></tr></thead>
+      <tbody>${rows.join("")}</tbody></table></div></div>`);
+}
+function branchPayee(body){
+  const cur=PAYEES[ME.code]||{};
+  const pend=PREQ.filter(p=>p.branchCode===ME.code&&p.status==="pending");
+  body.innerHTML=pageHead("ผู้รับเงิน",`สาขา ${esc(ME.name)}`,"")+
+    `<div class="cols">
+      <div>
+        <div class="card" style="margin:14px 0 0">
+          <h2>ผู้รับเงินปัจจุบัน</h2>
+          <div style="font-size:20px;font-weight:700">${esc(cur.name||"ยังไม่ได้ระบุ")}</div>
+          ${cur.note?`<div class="muted">${esc(cur.note)}</div>`:""}
+          ${cur.updatedAt?`<div class="muted" style="margin-top:6px">อัปเดต ${esc(dateTH(cur.updatedAt))}</div>`:""}
+        </div>
+        <div id="reqbox"></div>
+      </div>
+      <div class="card" style="margin:14px 0 0">
+        <h2>ขั้นตอนการเปลี่ยน</h2>
+        <ul class="tl">
+          <li class="done"><b>สาขาส่งคำขอ</b><span>ระบุชื่อคนใหม่และเหตุผล</span></li>
+          <li class="now"><b>ฝ่ายบัญชีตรวจ</b><span>ขอค้างได้ครั้งละ 1 คำขอ</span></li>
+          <li><b>มีผลกับรอบถัดไป</b><span>ชื่อใหม่จะขึ้นในฟอร์มส่งเอกสาร</span></li>
+        </ul>
+      </div>
+    </div>`;
+  const box=$("#reqbox",body);
+  if(pend.length){
+    box.innerHTML=`<div class="card" style="border-color:var(--ac)">
+      <span class="pill p-wait">รอฝ่ายบัญชีอนุมัติ</span>
+      <div style="margin-top:9px;font-size:16px">ขอเปลี่ยนเป็น <b>${esc(pend[0].newName)}</b></div>
+      ${pend[0].bank?`<div class="muted">${esc(pend[0].bank)}</div>`:""}
+      ${pend[0].reason?`<div class="muted">เหตุผล: ${esc(pend[0].reason)}</div>`:""}</div>`;
+    return;
+  }
+  const card=document.createElement("div"); card.className="card";
+  card.innerHTML=`<h2>ขอเปลี่ยนผู้รับเงิน</h2>
+    <div class="field"><label>ชื่อผู้รับเงินคนใหม่</label><input id="pn" placeholder="ชื่อ นามสกุล"></div>
+    <div class="field"><label>ช่องทางรับเงิน</label><input id="pb" placeholder="เช่น ธ.กสิกร 123-4-56789-0"></div>
+    <div class="field"><label>เหตุผลที่เปลี่ยน</label><textarea id="pr" placeholder="เช่น ผจก.สาขาคนเดิมย้ายสาขา"></textarea></div>`;
+  const b=Object.assign(document.createElement("button"),{className:"btn full",textContent:"ส่งคำขอเปลี่ยน"});
+  b.onclick=async()=>{
+    b.disabled=true;
+    try{
+      const n=$("#pn",card).value.trim(); if(!n) throw new Error("ใส่ชื่อผู้รับเงินก่อน");
+      const id=uid();
+      await DB.doc("payeeReq/"+id).set({id,branchCode:ME.code,branchName:ME.name,newName:n,
+        bank:$("#pb",card).value.trim(),reason:$("#pr",card).value.trim(),status:"pending",createdAt:nowISO()});
+      toast("ส่งคำขอให้ฝ่ายบัญชีแล้ว");
+    }catch(e){ toast(e.message||"ส่งคำขอไม่สำเร็จ"); b.disabled=false; }
+  };
+  card.appendChild(b);
+  card.insertAdjacentHTML("beforeend",`<div class="muted" style="text-align:center;margin-top:8px">มีผลเมื่อฝ่ายบัญชีอนุมัติ</div>`);
+  box.appendChild(card);
+}
+
+/* การ์ดเอกสาร 1 ใบ */
+function claimCard(x,admin){
+  const s=document.createElement("div"); s.className="card";
+  const p=statusPill(x.status);
+  s.innerHTML=`<div class="row" style="align-items:flex-start">
+      <div class="grow">
+        <div class="amt">${money(x.amount)}<em>บาท</em></div>
+        <div class="muted">${admin?esc(x.branchName)+" · ":""}รอบ ${esc(roundLabel(x.roundId))}</div>
+      </div><span class="pill ${p[0]}">${p[1]}</span></div>
+    <div style="margin-top:10px">
+      <div class="lead"><span>วันที่ประชุม</span><span class="fill"></span><span class="v">${esc(dateTH(x.meetDate))}</span></div>
+      <div class="lead"><span>ผู้รับเงิน</span><span class="fill"></span><span class="v">${esc(x.payee||"-")}</span></div>
+      <div class="lead"><span>ส่งเมื่อ</span><span class="fill"></span><span class="v">${esc(dateTH(x.submittedAt))} ${esc(timeTH(x.submittedAt))}</span></div>
+    </div>
+    ${x.note?`<div class="muted" style="margin-top:10px;padding-top:10px;border-top:1px dashed var(--line);font-size:14px;color:var(--ink)">${esc(x.note)}</div>`:""}
+    ${x.reviewNote?`<div class="muted" style="margin-top:6px">บัญชี: ${esc(x.reviewNote)}</div>`:""}`;
+  const ph=document.createElement("div"); ph.className="photos";
+  (x.photoIds||[]).forEach(id=>ph.appendChild(photoNode(id)));
+  if(ph.children.length) s.appendChild(ph);
+  if(admin&&x.status==="pending"){
+    const a=document.createElement("div"); a.className="actions";
+    const y=Object.assign(document.createElement("button"),{className:"btn sm ok",textContent:"อนุมัติ"});
+    const n=Object.assign(document.createElement("button"),{className:"btn sm no",textContent:"ไม่อนุมัติ"});
+    y.onclick=()=>review(x,"approved"); n.onclick=()=>review(x,"rejected");
+    a.append(y,n); s.appendChild(a);
+  }
+  return s;
+}
+function review(x,status){
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="muted" style="margin-bottom:12px">${esc(x.branchName)} · ${money(x.amount)} บาท</div>
+    <div class="field"><label>หมายเหตุถึงสาขา</label><textarea id="rn" placeholder="${status==="rejected"?"เหตุผลที่ไม่อนุมัติ":"ไม่ใส่ก็ได้"}"></textarea></div>`;
+  modal(status==="approved"?"อนุมัติเอกสารนี้":"ไม่อนุมัติเอกสารนี้",f,async()=>{
+    await DB.doc("claims/"+x.id).update({status,reviewNote:$("#rn",f).value.trim(),reviewedAt:nowISO()});
+    toast(status==="approved"?"อนุมัติแล้ว":"บันทึกแล้ว");
+  },"ยืนยัน");
+}
+
+/* ---------- ADMIN ---------- */
+function renderAdmin(){
+  const r=currentRound();
+  const pend=CLAIMS.filter(c=>c.status==="pending");
+  const tabs=[{k:"claims",t:"เอกสารเบิก",n:pend.length||0},{k:"rounds",t:"รอบเบิก"},
+    {k:"branches",t:"สาขา & วงเงิน"},{k:"payees",t:"ผู้รับเงิน",n:PREQ.filter(p=>p.status==="pending").length||0}];
+  const body=shell("ฝ่ายบัญชี",r?"รอบล่าสุด "+roundLabel(r.id):"ยังไม่มีรอบเบิก",tabs,ATAB,k=>{ATAB=k;renderAdmin();});
+  ({claims:adminClaims,rounds:adminRounds,branches:adminBranches,payees:adminPayees})[ATAB](body);
+}
+function adminClaims(body){
+  if(!ROUNDS.length){ body.innerHTML=pageHead("เอกสารเบิก","")+
+    `<div class="empty">ยังไม่มีรอบเบิก<br>ไปที่เมนู “รอบเบิก” เพื่อเปิดรอบแรก</div>`; return; }
+  const r=currentRound();
+  body.innerHTML=pageHead("เอกสารเบิก","",
+    `<select id="rs" style="width:auto;min-width:150px">
+      ${ROUNDS.slice().sort((a,b)=>b.id.localeCompare(a.id)).map(x=>`<option value="${x.id}">รอบ ${esc(roundLabel(x.id))}</option>`).join("")}
+      <option value="_all">ทุกรอบ</option></select>`)+
+    `<div id="sum"></div><div class="chips" id="chips"></div><div id="out"></div>`;
+  const sel=$("#rs",body); if(r) sel.value=r.id;
+  const draw=()=>{
+    const rid=sel.value;
+    const all=CLAIMS.filter(c=>rid==="_all"||c.roundId===rid)
+      .sort((a,b)=>(a.status==="pending"?0:1)-(b.status==="pending"?0:1)||(b.submittedAt||"").localeCompare(a.submittedAt||""));
+    const n={all:all.length,pending:0,approved:0,rejected:0};
+    all.forEach(c=>n[c.status]=(n[c.status]||0)+1);
+    const wait=all.filter(c=>c.status==="pending").reduce((s,c)=>s+(Number(c.amount)||0),0);
+    const tot=all.filter(c=>c.status==="approved").reduce((s,c)=>s+(Number(c.amount)||0),0);
+    const sent=rid==="_all"?null:new Set(all.map(c=>c.branchCode)).size;
+    $("#sum",body).innerHTML=`<div class="stats">
+      <div class="stat hi"><span>รอตรวจ</span><b>${n.pending||0}</b><div class="foot">${money(wait)} บาท</div></div>
+      <div class="stat ok"><span>อนุมัติแล้ว</span><b>${n.approved||0}</b><div class="foot">${money(tot)} บาท</div></div>
+      <div class="stat no"><span>ไม่อนุมัติ</span><b>${n.rejected||0}</b><div class="foot">ใบ</div></div>
+      <div class="stat"><span>${rid==="_all"?"เอกสารทั้งหมด":"สาขาที่ส่งแล้ว"}</span><b>${rid==="_all"?all.length:sent+" / "+((CFG.branches||[]).length||0)}</b><div class="foot">${rid==="_all"?"ใบ":"สาขา"}</div></div>
+    </div>`;
+    const F=[["all","ทั้งหมด"],["pending","รอตรวจ"],["approved","อนุมัติ"],["rejected","ไม่อนุมัติ"]];
+    $("#chips",body).innerHTML=F.map(([k,t])=>
+      `<button class="chip" data-f="${k}" aria-pressed="${FILTER===k}">${t}<span class="n">${k==="all"?n.all:(n[k]||0)}</span></button>`).join("");
+    $("#chips",body).querySelectorAll(".chip").forEach(b=>b.onclick=()=>{FILTER=b.dataset.f;draw();});
+    const list=FILTER==="all"?all:all.filter(c=>c.status===FILTER);
+    const out=$("#out",body); out.innerHTML="";
+    if(!list.length){ out.innerHTML=`<div class="empty">ไม่มีเอกสารในเงื่อนไขนี้</div>`; return; }
+    const rows=list.map(x=>{
+      const p=statusPill(x.status);
+      return `<tr class="${x.status==="pending"?"wait":""}" data-id="${esc(x.id)}">
+        <td data-l="สาขา" class="b">${esc(x.branchName)}<div class="muted">${esc(x.branchCode)} · รอบ ${esc(roundLabel(x.roundId))}</div></td>
+        <td data-l="ผู้รับเงิน">${esc(x.payee||"-")}</td>
+        <td data-l="ส่งเมื่อ">${esc(dateTH(x.submittedAt))}<div class="muted">${esc(timeTH(x.submittedAt))}</div></td>
+        <td data-l="จำนวนเงิน" class="num b">${money(x.amount)}<div class="muted">วงเงิน ${short(limitOf(x.roundId,x.branchCode))}</div></td>
+        <td data-l="ใบเสร็จ" class="num">${(x.photoIds||[]).length} รูป</td>
+        <td data-l="สถานะ"><span class="pill ${p[0]}">${p[1]}</span></td>
+        <td data-l="จัดการ" class="num"><button class="btn sm ghost" data-a="open">ดู</button></td></tr>`;
+    }).join("");
+    out.innerHTML=`<div class="card"><div class="wrapx"><table class="tbl">
+      <thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th>ส่งเมื่อ</th><th class="num">จำนวนเงิน</th><th class="num">ใบเสร็จ</th><th>สถานะ</th><th></th></tr></thead>
+      <tbody>${rows}</tbody></table></div></div>`;
+    out.querySelectorAll("button[data-a=open]").forEach(b=>b.onclick=()=>{
+      const x=CLAIMS.find(c=>c.id===b.closest("tr").dataset.id); if(!x)return;
+      const host=document.createElement("div"); host.className="mask";
+      const box=document.createElement("div"); box.className="modal";
+      box.appendChild(claimCard(x,true));
+      const close=Object.assign(document.createElement("button"),{className:"btn ghost",textContent:"ปิด"});
+      close.style.marginTop="6px"; close.onclick=()=>host.remove();
+      box.appendChild(close); host.appendChild(box);
+      host.onclick=e=>{if(e.target===host)host.remove();};
+      $("#modalHost").appendChild(host);
+    });
+  };
+  sel.onchange=draw; draw();
+}
+function adminRounds(body){
+  body.innerHTML=pageHead("รอบเบิก","",`<button class="btn" id="newr">+ สร้างรอบใหม่</button>`);
+  $("#newr",body).onclick=()=>{
+    const f=document.createElement("div");
+    f.innerHTML=`<div class="field"><label>เดือนของรอบ</label><input id="rm" type="month" value="${thisRoundId()}"></div>
+      <div class="f2"><div class="field"><label>วงเงินต่อสาขา (บาท)</label><input id="rl" type="number" min="0" value="${CFG.defaultLimit||0}"></div>
+      <div class="field"><label>ส่งเอกสารถึงวันที่</label><input id="rd" type="date"></div></div>
+      <div class="muted">วงเงินนี้ใช้กับสาขาที่ไม่ได้ตั้งวงเงินเฉพาะไว้</div>`;
+    modal("เปิดรอบเบิกใหม่",f,async()=>{
+      const id=$("#rm",f).value; if(!id) throw new Error("เลือกเดือนก่อน");
+      if(roundOf(id)) throw new Error("มีรอบเดือนนี้อยู่แล้ว");
+      await DB.doc("rounds/"+id).set({id,open:true,limitDefault:Number($("#rl",f).value)||0,
+        dueDate:$("#rd",f).value||"",limits:{},createdAt:nowISO()});
+      toast("เปิดรอบแล้ว");
+    },"เปิดรอบ");
+  };
+  if(!ROUNDS.length){ body.insertAdjacentHTML("beforeend",
+    `<div class="empty">ยังไม่มีรอบเบิก<br>เปิดรอบแรกเพื่อให้สาขาเริ่มส่งเอกสารได้</div>`); return; }
+
+  const cur=currentRound();
+  if(cur){
+    const list=CLAIMS.filter(c=>c.roundId===cur.id);
+    const sent=new Set(list.map(c=>c.branchCode)).size, tot=(CFG.branches||[]).length;
+    const sum=list.filter(c=>c.status==="approved").reduce((s,c)=>s+(Number(c.amount)||0),0);
+    const c=document.createElement("div"); c.className="card";
+    c.innerHTML=`<div class="row" style="align-items:flex-start">
+        <div class="grow"><div class="muted">รอบปัจจุบัน</div>
+          <div style="font-size:24px;font-weight:700;letter-spacing:-.02em">${esc(roundLabel(cur.id))}</div>
+          <div class="muted">${cur.dueDate?"ส่งได้ถึงวันที่ "+esc(dateTH(cur.dueDate))+" · ":""}อนุมัติแล้ว ${money(sum)} บาท</div></div>
+        <span class="pill ${cur.open?"p-ok":"p-no"}">${cur.open?"เปิดรับเอกสาร":"ปิดแล้ว"}</span></div>
+      <div class="lead" style="margin-top:12px"><span>สาขาที่ส่งแล้ว</span><span class="fill"></span><span class="v">${sent} / ${tot} สาขา</span></div>
+      <div class="gauge" style="margin-top:7px"><i style="width:${tot?Math.min(100,sent/tot*100):0}%"></i></div>`;
+    const a=document.createElement("div"); a.className="actions";
+    const t=Object.assign(document.createElement("button"),
+      {className:"btn sm "+(cur.open?"no":"ok"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
+    t.onclick=async()=>{ try{await DB.doc("rounds/"+cur.id).update({open:!cur.open});
+      toast(cur.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว");}catch(e){toast("ทำรายการไม่สำเร็จ");} };
+    a.appendChild(t); c.appendChild(a); body.appendChild(c);
+  }
+
+  const rows=ROUNDS.slice().sort((a,b)=>b.id.localeCompare(a.id)).map(r=>{
+    const list=CLAIMS.filter(c=>c.roundId===r.id);
+    const sum=list.filter(c=>c.status==="approved").reduce((s,c)=>s+(Number(c.amount)||0),0);
+    const sent=new Set(list.map(c=>c.branchCode)).size;
+    return `<tr data-id="${esc(r.id)}">
+      <td data-l="รอบ" class="b">${esc(roundLabel(r.id))}</td>
+      <td data-l="ถึงวันที่">${r.dueDate?esc(dateTH(r.dueDate)):"-"}</td>
+      <td data-l="สาขาที่ส่ง" class="num">${sent} / ${(CFG.branches||[]).length}</td>
+      <td data-l="เอกสาร" class="num">${list.length} ใบ</td>
+      <td data-l="อนุมัติรวม" class="num b">${money(sum)}</td>
+      <td data-l="สถานะ"><span class="pill ${r.open?"p-ok":"p-no"}">${r.open?"เปิดรับ":"ปิดแล้ว"}</span></td>
+      <td data-l="จัดการ" class="num"><button class="btn sm ghost" data-a="t">${r.open?"ปิดรับ":"เปิดรับ"}</button></td></tr>`;
+  }).join("");
+  body.insertAdjacentHTML("beforeend",`<div class="sec"><b>รอบทั้งหมด</b><span>${ROUNDS.length} รอบ</span></div>
+    <div class="card"><div class="wrapx"><table class="tbl">
+    <thead><tr><th>รอบ</th><th>ถึงวันที่</th><th class="num">สาขาที่ส่ง</th><th class="num">เอกสาร</th><th class="num">อนุมัติรวม</th><th>สถานะ</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`);
+  body.querySelectorAll("button[data-a=t]").forEach(b=>b.onclick=async()=>{
+    const id=b.closest("tr").dataset.id, r=roundOf(id); if(!r)return;
+    try{ await DB.doc("rounds/"+id).update({open:!r.open}); toast(r.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว"); }
+    catch(e){ toast("ทำรายการไม่สำเร็จ"); }
+  });
+}
+function adminBranches(body){
+  body.innerHTML=pageHead("สาขา & วงเงิน","",`<button class="btn" id="addb">+ เพิ่มสาขา</button>`);
+  $("#addb",body).onclick=()=>branchForm(null);
+  const w=document.createElement("div"); w.className="card";
+  w.innerHTML=`<div class="field" style="margin:0"><label>วงเงินเริ่มต้นของทุกสาขา (บาท)</label>
+    <div class="row"><input id="dl" class="grow" type="number" min="0" value="${CFG.defaultLimit||0}">
+    <button class="btn sm" id="sdl">บันทึก</button></div>
+    <div class="muted" style="margin-top:7px">สาขาที่ตั้งวงเงินเฉพาะไว้จะใช้ค่าของตัวเองก่อน</div></div>`;
+  body.appendChild(w);
+  $("#sdl",w).onclick=async()=>{ await DB.doc("meta/config").update({defaultLimit:Number($("#dl",w).value)||0}); toast("บันทึกแล้ว"); };
+  const list=CFG.branches||[];
+  if(!list.length){ body.insertAdjacentHTML("beforeend",
+    `<div class="empty">ยังไม่มีสาขา<br>เพิ่มสาขาแล้วส่งรหัสให้ผู้จัดการสาขาใช้เข้าระบบ</div>`); return; }
+  const rows=list.map((b,i)=>`<tr data-i="${i}">
+      <td data-l="สาขา" class="b">${esc(b.name)}</td>
+      <td data-l="รหัสเข้าใช้">${esc(b.code)}</td>
+      <td data-l="วงเงิน" class="num">${b.limit?money(b.limit):`<span class="muted">ตามค่าเริ่มต้น</span>`}</td>
+      <td data-l="ผู้รับเงิน">${esc(payeeName(b.code)||"ยังไม่ได้ระบุ")}</td>
+      <td data-l="จัดการ" class="num"><button class="btn sm ghost" data-a="e">แก้ไข</button></td></tr>`).join("");
+  body.insertAdjacentHTML("beforeend",`<div class="sec"><b>สาขาทั้งหมด</b><span>${list.length} สาขา</span></div>
+    <div class="card"><div class="wrapx"><table class="tbl">
+    <thead><tr><th>สาขา</th><th>รหัสเข้าใช้</th><th class="num">วงเงิน</th><th>ผู้รับเงิน</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`);
+  body.querySelectorAll("button[data-a=e]").forEach(b=>b.onclick=()=>branchForm(+b.closest("tr").dataset.i));
+}
+function branchForm(i){
+  const b=i==null?{code:"",name:"",limit:0}:CFG.branches[i];
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="field"><label>ชื่อสาขา</label><input id="bn" value="${esc(b.name)}" placeholder="เช่น เจ๊แดง สาขาสามย่าน"></div>
+    <div class="f2"><div class="field"><label>รหัสเข้าใช้งาน</label><input id="bc" value="${esc(b.code)}" placeholder="เช่น JD01"></div>
+      <div class="field"><label>วงเงินเฉพาะสาขา</label><input id="bl" type="number" min="0" value="${b.limit||0}"></div></div>
+    <div class="muted">ใส่ 0 = ใช้วงเงินเริ่มต้น</div>`;
+  if(i!=null){ const d=Object.assign(document.createElement("button"),{className:"btn sm no",textContent:"ลบสาขานี้"});
+    d.style.marginTop="12px";
+    d.onclick=async()=>{ if(!confirm("ลบสาขานี้?"))return;
+      const arr=CFG.branches.slice(); arr.splice(i,1);
+      await DB.doc("meta/config").update({branches:arr}); d.closest(".mask").remove(); toast("ลบแล้ว"); };
+    f.appendChild(d); }
+  modal(i==null?"เพิ่มสาขา":"แก้ไขสาขา",f,async()=>{
+    const name=$("#bn",f).value.trim(), code=$("#bc",f).value.trim();
+    if(!name||!code) throw new Error("ใส่ชื่อสาขาและรหัสให้ครบ");
+    if(code===CFG.adminCode) throw new Error("รหัสนี้ซ้ำกับรหัสฝ่ายบัญชี");
+    const arr=(CFG.branches||[]).slice();
+    if(arr.some((x,j)=>j!==i&&x.code.toLowerCase()===code.toLowerCase())) throw new Error("รหัสสาขาซ้ำ");
+    const rec={code,name,limit:Number($("#bl",f).value)||0};
+    if(i==null) arr.push(rec); else arr[i]=rec;
+    await DB.doc("meta/config").update({branches:arr}); toast("บันทึกแล้ว");
+  });
+}
+function adminPayees(body){
+  const pend=PREQ.filter(p=>p.status==="pending");
+  body.innerHTML=pageHead("ผู้รับเงิน","",`<span class="pill ${pend.length?"p-wait":"p-ok"}">คำขอค้าง ${pend.length}</span>`)+
+    `<div class="sec"><b>คำขอเปลี่ยนผู้รับเงิน</b><span>${pend.length} รายการ</span></div><div id="reqs"></div>`;
+  const reqs=$("#reqs",body);
+  if(!pend.length) reqs.innerHTML=`<div class="empty">ไม่มีคำขอค้างอยู่</div>`;
+  pend.forEach(p=>{
+    const c=document.createElement("div"); c.className="card";
+    c.innerHTML=`<div class="row" style="align-items:flex-start">
+        <div class="grow"><div style="font-weight:700;font-size:16px">${esc(p.branchName)}</div>
+          <div class="muted">ขอเมื่อ ${esc(dateTH(p.createdAt))}</div></div>
+        <span class="pill p-wait">รออนุมัติ</span></div>
+      <div class="cols" style="margin-top:12px">
+        <div class="row" style="gap:12px;align-items:stretch">
+          <div style="flex:1;background:var(--surface2);border:1px solid var(--line);border-radius:12px;padding:11px 13px">
+            <div class="muted">ผู้รับเงินเดิม</div><b>${esc(payeeName(p.branchCode)||"ยังไม่ได้ระบุ")}</b></div>
+          <div style="flex:1;background:var(--ac1);border:1px solid var(--ac2);border-radius:12px;padding:11px 13px">
+            <div class="muted">ผู้รับเงินใหม่</div><b>${esc(p.newName)}</b>
+            ${p.bank?`<div class="muted">${esc(p.bank)}</div>`:""}</div>
+        </div>
+        <div class="muted">${p.reason?"เหตุผล: "+esc(p.reason):"ไม่ได้ระบุเหตุผล"}</div>
+      </div>`;
+    const a=document.createElement("div"); a.className="actions";
+    const y=Object.assign(document.createElement("button"),{className:"btn sm ok",textContent:"อนุมัติ · เปลี่ยนผู้รับเงิน"});
+    const n=Object.assign(document.createElement("button"),{className:"btn sm no",textContent:"ไม่อนุมัติ"});
+    y.onclick=async()=>{ await DB.doc("payees/"+p.branchCode).set({name:p.newName,note:p.bank||"",updatedAt:nowISO()});
+      await DB.doc("payeeReq/"+p.id).update({status:"approved",reviewedAt:nowISO()}); toast("เปลี่ยนผู้รับเงินแล้ว"); };
+    n.onclick=async()=>{ await DB.doc("payeeReq/"+p.id).update({status:"rejected",reviewedAt:nowISO()}); toast("ปฏิเสธคำขอแล้ว"); };
+    a.append(y,n); c.appendChild(a); reqs.appendChild(c);
+  });
+  const list=CFG.branches||[];
+  body.insertAdjacentHTML("beforeend",`<div class="sec"><b>ผู้รับเงินปัจจุบัน</b><span>${list.length} สาขา</span></div>`);
+  if(!list.length){ body.insertAdjacentHTML("beforeend",`<div class="empty">ยังไม่มีสาขาในระบบ</div>`); return; }
+  const rows=list.map(b=>`<tr data-c="${esc(b.code)}">
+      <td data-l="สาขา" class="b">${esc(b.name)}<div class="muted">${esc(b.code)}</div></td>
+      <td data-l="ผู้รับเงิน">${payeeName(b.code)?esc(payeeName(b.code)):`<span class="muted">ยังไม่ได้ระบุ</span>`}</td>
+      <td data-l="ช่องทาง">${esc((PAYEES[b.code]||{}).note||"-")}</td>
+      <td data-l="อัปเดต">${(PAYEES[b.code]||{}).updatedAt?esc(dateTH(PAYEES[b.code].updatedAt)):"-"}</td>
+      <td data-l="จัดการ" class="num"><button class="btn sm ghost" data-a="s">ตั้งเอง</button></td></tr>`).join("");
+  body.insertAdjacentHTML("beforeend",`<div class="card"><div class="wrapx"><table class="tbl">
+    <thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th>ช่องทาง</th><th>อัปเดต</th><th></th></tr></thead>
+    <tbody>${rows}</tbody></table></div></div>`);
+  body.querySelectorAll("button[data-a=s]").forEach(btn=>btn.onclick=()=>{
+    const code=btn.closest("tr").dataset.c, b=branchOf(code);
+    const f=document.createElement("div");
+    f.innerHTML=`<div class="field"><label>ชื่อผู้รับเงิน</label><input id="n" value="${esc(payeeName(code))}"></div>
+      <div class="field"><label>ช่องทางรับเงิน</label><input id="k" value="${esc((PAYEES[code]||{}).note||"")}"></div>`;
+    modal("ผู้รับเงิน · "+b.name,f,async()=>{
+      await DB.doc("payees/"+code).set({name:$("#n",f).value.trim(),note:$("#k",f).value.trim(),updatedAt:nowISO()});
+      toast("บันทึกแล้ว"); });
+  });
+}
+
+/* boot */
+function render(){
+  if(!CFG||!CFG.adminCode||!ME){ renderLogin(); return; }
+  ME.role==="admin"?renderAdmin():renderBranch();
+}
+(async()=>{
+  DB=await claude.use("db");
+  if(!DB){ $("#app").innerHTML=`<div class="empty" style="margin:20vh 16px">หน้านี้ต้องเปิดผ่านลิงก์แอปบน claude.ai จึงจะบันทึกข้อมูลได้</div>`; return; }
+  let first=true;
+  DB.doc("meta/config").onSnapshot(s=>{ CFG=s.exists?s.data():{};
+    if(first){ first=false; autoLogin(); } else if(ME&&ME.role==="branch"){
+      const b=(CFG.branches||[]).find(x=>x.code===ME.code); if(b) ME.name=b.name; }
+    render(); },
+    e=>toast("โหลดการตั้งค่าไม่สำเร็จ ("+e.code+")"));
+  DB.collection("rounds").onSnapshot(s=>{ROUNDS=s.docs.map(d=>({id:d.id,...d.data()}));if(CFG)render();});
+  DB.collection("claims").onSnapshot(s=>{CLAIMS=s.docs.map(d=>({id:d.id,...d.data()}));if(CFG)render();});
+  DB.collection("payees").onSnapshot(s=>{PAYEES={};s.docs.forEach(d=>PAYEES[d.id]=d.data());if(CFG)render();});
+  DB.collection("payeeReq").onSnapshot(s=>{PREQ=s.docs.map(d=>({id:d.id,...d.data()}));if(CFG)render();});
+})();
+</script>
+</body>
+</html>
