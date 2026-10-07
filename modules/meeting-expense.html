@@ -454,6 +454,9 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .utabs{display:flex;gap:6px;padding:6px 20px 0;border-bottom:1px solid #e6e9ee}
 .utabs button{height:52px;padding:0 24px;border:0;background:none;font:600 15.5px inherit;font-family:inherit;color:#6b7280;cursor:pointer;position:relative;display:inline-flex;align-items:center;justify-content:center}
 .utabs button:hover{color:#2b2b2b}
+.utabs .cn{margin-left:8px;background:#eef0f4;border-radius:99px;padding:0 9px;font-size:12.5px;line-height:22px;font-weight:700;color:#555;display:inline-block}
+.utabs .cn.o{background:#fff0e6;color:#e8590c}
+.utabs button.on .cn{background:var(--ac);color:#fff}
 .utabs button.on{color:var(--acd);font-weight:800}
 .utabs button.on::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--ac)}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
@@ -1683,7 +1686,7 @@ function adminLimits(body,r){
 /* ═════════════ รายงานเบิกเงินประชุม ═════════════
    เลือกช่วงเดือน + เกณฑ์นับ → สรุปตัวเลข · กราฟรายเดือน · แยกตาม BZM / แบรนด์ / สาขา · สาขาที่ไม่เคยเบิกในช่วง · ส่งออก Excel · พิมพ์
    สาขาตามทะเบียนฮับ (ไม่รวมสาขาที่ปิด/รหัส 60) · เอกสารที่ไม่อนุมัติไม่นับ */
-let RV={from:"",to:"",basis:"ok",by:"bzm"};
+let RV={from:"",to:"",basis:"ok",by:"branch",f:"all"};
 function adminReport(body){
   const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort();
   const cur=thisRoundId();
@@ -1714,25 +1717,26 @@ function adminReport(body){
     <div class="cht"><div class="yl">${[4,3,2,1,0].map(i=>`<span>${baht(Math.round(mx/4*i))}</span>`).join("")}</div>
     <div class="pl">${mv.map(x=>`<div class="col"><span class="v">${x.v?baht(x.v):0}</span><div class="b ${x.v?"":"z"}" style="${x.v?"height:"+Math.max(3,x.v/mx*100)+"%":""}"></div></div>`).join("")}</div>
     <div class="xl">${mv.map(x=>`<span class="${x.id===lastId?"cur":""}">${MONTHS_TH[+x.id.slice(5,7)]}${multiYear?" "+String((+x.id.slice(0,4)+543)%100):""}</span>`).join("")}</div></div></div>`;
-  const keyOf={bzm:c=>bzmOf(c.branchCode).label,brand:c=>byCode[c.branchCode].brandName,branch:c=>byCode[c.branchCode].code+" "+byCode[c.branchCode].name};
-  const g={}; inList.forEach(c=>{ const k=keyOf[RV.by](c); const o=g[k]||(g[k]={k,sum:0,n:0,br:new Set()}); o.sum+=Number(c.amount)||0; o.n++; o.br.add(c.branchCode); });
-  const rows=Object.values(g).sort((a,b)=>b.sum-a.sum);
-  const gt=[["bzm","ตาม BZM"],["brand","ตามแบรนด์"],["branch","ตามสาขา"]];
-  const tbl=`<div class="glass-card"><div class="utabs">${gt.map(([k,t])=>`<button class="${RV.by===k?"on":""}" data-g="${k}">${t}</button>`).join("")}</div>
-    ${rows.length?`<table class="mtbl"><thead><tr><th>${RV.by==="bzm"?"BZM":RV.by==="brand"?"แบรนด์":"สาขา"}</th><th>ใบเบิก</th><th>สาขา</th><th class="r">ยอดเบิก</th><th style="width:30%">สัดส่วน</th></tr></thead><tbody>
-    ${rows.map(x=>`<tr><td><b>${esc(x.k)}</b></td><td>${x.n}</td><td>${x.br.size}</td><td class="r"><b>${baht(x.sum)}</b></td>
-      <td><div class="bar-s"><div class="bar"><i style="width:${tot?x.sum/tot*100:0}%"></i></div><b>${tot?(x.sum/tot*100).toFixed(1):0}%</b></div></td></tr>`).join("")}</tbody></table>`:`<div class="empty" style="margin:14px">ช่วงนี้ยังไม่มีเอกสารเบิก${okOnly?"ที่อนุมัติ":""}</div>`}</div>`;
-  const sentSet=new Set(inList.map(c=>c.branchCode));
+  /* ตารางเดียว: ทุกสาขาในช่วงที่เลือก — สาขาที่เบิกแล้ว + สาขาที่ไม่มีการเบิก (ที่ตั้งวงเงินไว้) */
   const lim=(CFG().limits||{}), dl=Number(CFG().defaultLimit)||0;
-  const none=brs.filter(b=>!sentSet.has(b.code)&&(Number(lim[b.code])>0||dl>0));
-  const pg=pager("rptnone",none.length,5,RV.from+RV.to+RV.basis,"r","รายการ");
-  const nonec=none.length?`<details class="glass-card" open><summary style="cursor:pointer;list-style:none;display:flex;gap:12px;align-items:center;padding:16px 22px;font-size:18px;font-weight:700">▾ สาขาที่ไม่มีการเบิกในช่วงนี้ <span class="pillo" style="font-size:14px">${none.length} สาขา</span></summary>
-    <table class="mtbl"><thead><tr><th>รหัสสาขา</th><th>ชื่อสาขา</th><th>BZM</th></tr></thead><tbody>${none.slice(pg.s,pg.e).map(b=>`<tr><td>${esc(b.code)}</td><td>${esc(b.name)}</td><td>${esc(bzmOf(b.code).key||"—")}</td></tr>`).join("")}</tbody></table><div id="rptpg">${pg.html}</div></details>`:"";
+  const g={}; inList.forEach(c=>{ const o=g[c.branchCode]||(g[c.branchCode]={n:0,sum:0}); o.n++; o.sum+=Number(c.amount)||0; });
+  const all=brs.filter(b=>g[b.code]||Number(lim[b.code])>0||dl>0).map(b=>({b,n:(g[b.code]||{}).n||0,sum:(g[b.code]||{}).sum||0}))
+    .sort((x,y)=>y.sum-x.sum||String(x.b.code).localeCompare(String(y.b.code)));
+  const none=all.filter(x=>!x.n);
+  const cntF={all:all.length,sent:all.length-none.length,none:none.length};
+  const flt=["all","sent","none"].indexOf(RV.f)>=0?RV.f:"all";
+  const shown=all.filter(x=>flt==="all"||(flt==="sent"?x.n>0:!x.n));
+  const pg=pager("rptbr",shown.length,10,RV.from+RV.to+RV.basis+flt,"r","สาขา");
+  const tbl=`<div class="glass-card"><div class="utabs">${[["all","ทุกสาขา"],["sent","เบิกแล้ว"],["none","ไม่มีการเบิกในช่วงนี้"]].map(([k,t])=>`<button class="${flt===k?"on":""}" data-f="${k}">${t} <span class="cn ${k==="none"?"o":""}">${cntF[k]}</span></button>`).join("")}</div>
+    ${shown.length?`<table class="mtbl"><thead><tr><th>สาขา</th><th>BZM</th><th class="c">ใบเบิก</th><th class="r">ยอดเบิก</th><th style="width:26%">สัดส่วน</th></tr></thead><tbody>
+    ${shown.slice(pg.s,pg.e).map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${esc(bzmOf(x.b.code).key||"—")}</td><td class="c">${x.n||"—"}</td>
+      <td class="r">${x.n?`<b>${baht(x.sum)}</b>`:`<span class="pillg">ไม่มีการเบิก</span>`}</td>
+      <td>${x.n?`<div class="bar-s"><div class="bar"><i style="width:${tot?x.sum/tot*100:0}%"></i></div><b>${tot?(x.sum/tot*100).toFixed(1):0}%</b></div>`:"—"}</td></tr>`).join("")}</tbody></table>${pg.html}`:`<div class="empty" style="margin:14px">ไม่มีสาขาที่ตรงกับตัวกรอง</div>`}</div>`;
   out.innerHTML=`<div class="kts">${kt("coins","gr","ยอดเบิกรวม",baht(tot)+" <i>บาท</i>",(okOnly?"อนุมัติแล้ว":"รวมรอตรวจ")+" · "+months.length+" เดือน",true)}
       ${kt("doc","gy","จำนวนใบเบิก",inList.length,nb+" สาขา")}${kt("receipt","gy","เฉลี่ยต่อใบ",inList.length?baht(Math.round(tot/inList.length))+" <i>บาท</i>":"—","")}
-      ${kt("ban","or","ไม่มีการเบิก",none.length,"จาก "+brs.length+" สาขา",true)}</div>${chart}${tbl}${nonec}`;
-  out.querySelectorAll("[data-g]").forEach(b=>b.onclick=()=>{RV.by=b.dataset.g;redo();});
-  bindPager(out,"rptnone",redo);
+      ${kt("ban","or","ไม่มีการเบิก",none.length,"จาก "+all.length+" สาขา",true)}</div>${chart}${tbl}`;
+  out.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{RV.f=b.dataset.f;redo();});
+  bindPager(out,"rptbr",redo);
   $("#rprt",body).onclick=()=>window.print();
   $("#rcsv",body).onclick=()=>{
     if(!inList.length) return toast("ไม่มีรายการให้ส่งออก");
