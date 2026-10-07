@@ -470,6 +470,33 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .lin{width:120px!important;height:42px!important;text-align:right;font-weight:700;border-radius:12px!important}
 .bar-s .bar i.over{background:#dc2626}
 @media(max-width:899px){.lmain{grid-template-columns:1fr}.lside{position:static}.lin{width:96px!important}}
+@media(max-width:899px){
+  .mtbl{display:block;overflow:visible}.mtbl thead{display:none}.mtbl tbody{display:block}
+  .mtbl tr{display:grid;grid-template-columns:1fr auto;gap:2px 12px;padding:14px 16px;border-top:1px solid #eef0f4;align-items:center}
+  .mtbl tbody tr:first-child{border-top:0}
+  .mtbl td{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:5px 0!important;border:0!important;font-size:14px;grid-column:1/-1;text-align:left!important;white-space:normal!important}
+  .mtbl td.ttl{font-size:15.5px;grid-column:1/-1;padding-bottom:6px!important}
+  .mtbl td[data-l]::before{content:attr(data-l);color:#8a8f98;font-size:13px;font-weight:500;flex:none}
+  .mtbl td.r,.mtbl td.c{justify-content:space-between}
+  .mtbl td small{margin-top:0}
+  .mtbl td:last-child:not([data-l]):not(.ttl){justify-content:flex-end}
+  .mtbl tr.warnrow{background:#fff3ea}
+  .glass-card{overflow:hidden}
+  .kts{gap:10px}.kt{padding:12px 14px;gap:10px}.kt .ki{width:40px;height:40px}.kt .ki svg{width:20px;height:20px}
+  .kt b{font-size:21px;white-space:normal}.kt small{font-size:13px}.kt em{font-size:12px}
+  .chartbox{padding:14px 12px 10px}.chartbox h3{font-size:16px}
+  .cht{grid-template-columns:34px 1fr;gap:0 4px}.cht .pl,.cht .xl{gap:3px}.cht .col .v{font-size:9.5px}.cht .xl span{font-size:10.5px}.cht .yl{font-size:11px}
+  .utabs{padding:4px 8px 0;overflow-x:auto}.utabs button{padding:0 12px;height:48px;font-size:14px;white-space:nowrap}
+  .pgbar{padding:12px 14px}.pgn button{min-width:36px;height:36px}
+  .lin{width:110px!important}
+  .main>.head{padding:10px 14px}.main>.head h1{font-size:19px}
+  .tabs2{gap:8px}.tabs2 .chip{height:42px;padding:0 14px;font-size:14px}
+  .lbar{gap:8px}.sbox{min-width:0;flex:1 1 100%}
+  .rbn{padding:12px 14px}
+  .adet .adg{grid-template-columns:1fr}
+  .kt>div{min-width:0}.kt b i{display:block;margin:0;font-size:13px}
+  .cht{grid-template-columns:34px minmax(0,1fr)!important}.cht .col{min-width:0}.cht .col .v{overflow:visible;white-space:nowrap;letter-spacing:-.3px}.cht .pl{overflow:visible}.chartbox{padding-right:20px}.cht .xl{min-width:0;overflow:hidden}.cht .xl span{min-width:0;font-size:10px}
+}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
 .aph .rcp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .aph .rcp img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:18px;cursor:zoom-in;box-shadow:0 8px 22px rgba(20,24,40,.14)}
@@ -1398,6 +1425,17 @@ function openRowMenu(btn){
 }
 const brandChips=()=>[["","ทุกแบรนด์"]].concat(Branches.brands().map(k=>[k,Branches.brandName(k)]))
   .map(([k,t])=>'<button class="chip '+(F.brand===k?"on":"")+'" data-b="'+esc(k)+'">'+esc(t)+"</button>").join("");
+/* มือถือ: ตาราง .mtbl เปลี่ยนเป็นการ์ดต่อแถว · ป้ายหน้าค่ามาจากหัวคอลัมน์ (ติดให้เองทุกครั้งที่ตารางถูกวาดใหม่) */
+function labelTables(root){
+  (root||document).querySelectorAll(".mtbl").forEach(t=>{
+    const hs=[...t.querySelectorAll("thead th")].map(h=>h.textContent.trim());
+    t.querySelectorAll("tbody tr").forEach(tr=>{
+      if(tr.dataset.lb) return; tr.dataset.lb="1";
+      [...tr.children].forEach((td,i)=>{ if(td.colSpan>1) return; const l=hs[i]||""; if(l&&i>0&&!td.querySelector('input[type=checkbox]')) td.setAttribute("data-l",l); if(i===0) td.classList.add("ttl"); });
+    });
+  });
+}
+(()=>{ let tm=null; new MutationObserver(()=>{ clearTimeout(tm); tm=setTimeout(()=>labelTables(document.getElementById("app")),30); }).observe(document.body,{childList:true,subtree:true}); })();
 function adminTabs(){
   const t=[];
   if(can("view-claims")||can("update-status")) t.push({k:"list",t:"เอกสารเบิก",ic:mi("doc"),n:CLAIMS().filter(isWaiting).length});
