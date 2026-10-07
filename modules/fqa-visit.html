@@ -6749,18 +6749,32 @@ const PDF = {
       const CHL={worse:['แย่ลง','#DC2626'],repeat:['ไม่ผ่านซ้ำ','#B45309'],better:['ดีขึ้น','#16A34A'],same:['เท่าเดิม','#666']};
       const cnt={worse:0,repeat:0,better:0}; fqaChecks(r).forEach(c=>{ const k=chg(c); if(cnt[k]!=null) cnt[k]++; });
       if(prev&&pr&&cu){
-        const d=cu.pct-pr.pct, tone=d>0?'up':d<0?'dn':'eq';
-        const col=v=>v>=STA_PASS_PCT?'#16A34A':'#DC2626';          // ≥ 80% = เขียว · ต่ำกว่า = แดง (เกณฑ์เดียวกับฟอร์ม Visit ซานตาเฟ่)
-        const gauge=v=>`<svg viewBox="0 0 120 70"><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="#EEF0F3" stroke-width="12" stroke-linecap="round"/><path d="M10 62 A50 50 0 0 1 110 62" fill="none" stroke="${col(v)}" stroke-width="12" stroke-linecap="round" stroke-dasharray="${(v/100*157.08).toFixed(1)} 157.08"/><text x="60" y="58" text-anchor="middle" font-size="25" font-weight="800" fill="${col(v)}" font-family="Sarabun,sans-serif">${v}%</text></svg>`;
+        const d=cu.pct-pr.pct, dir=d>0?'up':d<0?'down':'same';
+        const okc=v=>v>=STA_PASS_PCT?'ok':'no';
+        const passN=cu.t-cu.f;
+        const bar=(lab,date,pct)=>`<div class="sh-bar"><span class="l">${lab}<small>(${esc(fmtDMY(date))})</small></span><span class="t"><i class="${okc(pct)}" style="width:${Math.max(1.5,Math.min(100,pct))}%"></i></span><b class="${okc(pct)}">${pct}%</b></div>`;
+        const line=`<u style="left:calc(var(--lw) + (100% - var(--lw) - var(--rw)) * ${STA_PASS_PCT/100})"><em>เกณฑ์ ${STA_PASS_PCT}%</em></u>`;
+        const rel=(pr.pct&&d!==0)?Math.round(Math.abs(d)/pr.pct*1000)/10+'%':'';
         const chs=fqaChecks(r).filter(c=>c.item&&chg(c)&&chg(c)!=='same').sort((x,y)=>['worse','repeat','better'].indexOf(chg(x))-['worse','repeat','better'].indexOf(chg(y)));
         const sameN=fqaChecks(r).filter(c=>chg(c)==='same').length;
         b+=sec('เปรียบเทียบกับครั้งก่อน',`
-          <div class="cg-top">
-            <div>${gauge(pr.pct)}<div class="nm">ครั้งก่อน</div><div class="sub">${esc(fmtDMY(prev.date))} · ไม่ผ่าน ${pr.f}/${pr.t}${prev.trainer?'<br>ผู้ตรวจ '+esc(prev.trainer):''}</div></div>
-            <div class="cg-mid"><span class="cg-pill ${tone}">${d>0?'▲ +'+d+' จุด':d<0?'▼ '+d+' จุด':'เท่าเดิม'}</span><span class="sub">เทียบครั้งก่อน</span></div>
-            <div>${gauge(cu.pct)}<div class="nm">ใบนี้</div><div class="sub">${esc(fmtDMY(r.date))} · ไม่ผ่าน ${cu.f}/${cu.t}${r.trainer?'<br>ผู้ตรวจ '+esc(r.trainer):''}</div></div>
-          </div>
-          <div class="cg-list">${chs.map(c=>{ const k=chg(c); return `<div class="cg-row ${k}"><b>${CHL[k][0]}</b><span>${esc(c.item)}</span></div>`; }).join('')}
+          <div class="sh"><div class="sh-main">
+            <div class="sh-score">
+              <span class="k">ผลตรวจครั้งนี้</span>
+              <b class="${okc(cu.pct)}">${cu.pct}<small>%</small></b>
+              <span class="g">ผ่าน ${passN} / ${cu.t} หัวข้อ</span>
+              <span class="s"><span>ไม่ผ่าน <b>${cu.f}</b> หัวข้อ</span><span>แย่ลง <b>${cnt.worse}</b> · ไม่ผ่านซ้ำ <b>${cnt.repeat}</b> · ดีขึ้น <b>${cnt.better}</b></span></span>
+            </div>
+            <div class="sh-cmp">
+              <div class="sh-bars">${bar('ผล ใบนี้',r.date,cu.pct)}${bar('ผล ครั้งก่อน',prev.date,pr.pct)}${line}</div>
+              <div class="sh-delta ${dir}">
+                <span class="k">เทียบกับครั้งก่อน</span>
+                <b>${d===0?'เท่าเดิม':(d>0?'▲ +':'▼ −')+Math.abs(d)}</b>
+                ${d===0?'':`<span class="u">จุดเปอร์เซ็นต์${rel?' · '+(d>0?'เพิ่มขึ้น ':'ลดลง ')+rel:''}</span>`}
+              </div>
+            </div>
+          </div></div>
+          <div class="cg-list" style="margin-top:10px">${chs.map(c=>{ const k=chg(c); return `<div class="cg-row ${k}"><b>${CHL[k][0]}</b><span>${esc(c.item)}</span></div>`; }).join('')}
             ${chs.length?'':'<div class="cg-row same"><b>เท่าเดิม</b><span>ไม่มีหัวข้อที่เปลี่ยนแปลง</span></div>'}
             ${sameN?`<div style="margin:4px 2px 0;font-size:10.5px;color:#666">ผ่านทั้งสองครั้ง ${sameN} หัวข้อ</div>`:''}</div>`);
       } else b+=sec('เปรียบเทียบกับครั้งก่อน',`<p class="pdftext" style="color:#777">${prev?'ใบก่อนหน้ายังไม่มีผลหัวข้อให้เทียบ':'สาขานี้ยังไม่มีใบ FQA ก่อนหน้าในระบบ — ใบนี้เป็นตัวตั้งต้นสำหรับครั้งถัดไป'}</p>`);
