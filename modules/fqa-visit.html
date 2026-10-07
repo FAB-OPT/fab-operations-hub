@@ -3815,7 +3815,7 @@ const Form = {
     const r={ id:uid(), type, date:todayISO(), time:nowHM(), branch:'', bzm:'',
       trainer:(M.trainers()[0]||''), photos:[], createdAt:new Date().toISOString() };
     if(type==='FQA'){ r.materials=[]; r.checks=M.list('fqaItems').map(i=>({item:i,result:'',detail:'',fix:''})); r.menus=[this.menuRow()]; }
-    if(type==='FSQ'){ Object.assign(r,{complaint:'',menu:'',category:'',categoryOther:'',channel:'',severity:''}); r.issues=[this.issueRow()]; }
+    if(type==='FSQ'){ Object.assign(r,{complaint:'',menu:'',category:'',categoryOther:'',channel:'',severity:'',pcDate:'',pcText:'',pcNone:false}); r.issues=[this.issueRow()]; }
     if(type==='VISIT'){ r.visitType=[]; r.visitTypeOther=''; r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     /* STA — marks เก็บผลรายข้อ ('A1.mgr' → pass/fail/na) · notes เก็บสิ่งที่จดเพิ่มของข้อนั้น
        แยกสองก้อนเพราะคนละเรื่องกัน และทำให้เพิ่ม/ลดข้อในเกณฑ์ทีหลังได้โดยใบเก่าไม่พัง */
@@ -3896,7 +3896,7 @@ const Form = {
       if(this.type==='STA'){ this.s.prevPct=''; this.s.prevDate=''; this.s.prevMode='';
         this.persist(); this.render(); return; }
       /* FQA — เลือก/เปลี่ยนสาขาแล้วต้องวาดใหม่ เพื่อดึงผลตรวจครั้งก่อนของสาขานั้นมาเทียบ */
-      if(this.type==='FQA'){ this.persist(); this.render(); return; } }
+      if(this.type==='FQA' || this.type==='FSQ'){ this.persist(); this.render(); return; } }
     if(path==='category') this.render();
     this.persist();
   },
@@ -4187,6 +4187,19 @@ const Form = {
         </div>
         ${/อื่น/.test(s.category)?`<div class="fld" style="margin-top:12px"><label class="lbl">ระบุประเภทอื่นๆ</label>
           <input class="inp" value="${attr(s.categoryOther)}" oninput="Form.set('categoryOther',this.value)"></div>`:''}
+        ${(()=>{
+          const pc=s.branch?fsqPrevRec(s):null;
+          const head='<div style="font-weight:800;margin:18px 0 8px">เคส Complaint ล่าสุดก่อนหน้านี้ของสาขา</div>';
+          if(!s.branch) return head+'<div class="cmpbar none">เลือกสาขาในข้อ 1 ก่อน ระบบจะดึงเคส Complaint ล่าสุดของสาขานั้นมาให้</div>';
+          if(pc){ const c=fsqCaseSnap(pc);
+            return head+`<div class="cmpbar"><div class="row1"><b>จากระบบ</b><span>${esc(fmtDMY(c.date))}</span>${c.category?`<span>ประเภท <b>${esc(c.category)}</b></span>`:''}${c.severity?`<span>ความรุนแรง <b>${esc(c.severity)}</b></span>`:''}${c.trainer?`<span>ผู้ตรวจ ${esc(c.trainer)}</span>`:''}</div>
+              <div style="margin-top:6px">${esc(c.complaint)}</div>
+              ${c.problems.length?`<div style="margin-top:6px;color:var(--text2)">ปัญหาที่พบ: ${c.problems.map(esc).join(' · ')}</div>`:''}</div>`; }
+          return head+`<div class="cmpbar" style="border-color:var(--accent)"><div style="font-weight:700;margin-bottom:8px">ไม่พบเคส Complaint ก่อนหน้าของสาขานี้ในระบบ — ต้องระบุเคสล่าสุด (ถ้าไม่เคยมี ให้ติ๊กช่องด้านล่าง)</div>
+            <label style="display:flex;gap:8px;align-items:center;margin-bottom:10px;font-weight:600"><input type="checkbox" ${s.pcNone?'checked':''} onchange="Form.set('pcNone',this.checked);Form.render()"> สาขานี้ไม่เคยมีเคส Complaint ก่อนหน้า</label>
+            ${s.pcNone?'':`<div class="grid g2"><div class="fld"><label class="lbl">วันที่ของเคสล่าสุด</label><input type="date" class="inp" value="${attr(s.pcDate)}" onchange="Form.set('pcDate',this.value)"></div>
+              <div class="fld"><label class="lbl">เรื่องที่ร้องเรียน / สรุปเคสล่าสุด</label><textarea class="inp" oninput="Form.set('pcText',this.value)">${esc(s.pcText)}</textarea></div></div>`}</div>`;
+        })()}
       </div>
     </div>
 
@@ -4601,6 +4614,11 @@ const Form = {
       if(/อื่น/.test(s.category) && need(s.categoryOther)) return 'กรุณาระบุประเภทอื่นๆ';
       if(need(s.channel))   return 'กรุณาเลือกช่องทางที่รับบริการ';
       if(need(s.severity))  return 'กรุณาเลือกความรุนแรง';
+      /* เคสล่าสุดก่อนหน้า: มีในระบบ = ดึงให้เอง · ไม่มี = ต้องกรอกเอง หรือยืนยันว่าไม่เคยมี */
+      if(!fsqPrevRec(s) && !s.pcNone){
+        if(need(s.pcDate)) return 'กรุณาระบุวันที่ของเคส Complaint ล่าสุดของสาขา (หรือติ๊ก "ไม่เคยมีเคส Complaint ก่อนหน้า")';
+        if(need(s.pcText)) return 'กรุณาระบุเรื่อง/สรุปของเคส Complaint ล่าสุดของสาขา (หรือติ๊ก "ไม่เคยมีเคส Complaint ก่อนหน้า")';
+      }
       const keys=['problem','cause','immediate'];
       const keysOld=['problem','immediate','cause','prevention','advice'];
       const anyKeys=keysOld;
@@ -4644,6 +4662,8 @@ const Form = {
     if(!rec.createdBy) rec.createdBy = Hub.who();   // จำผู้บันทึกครั้งแรก (ชื่อเล่น+บทบาท) ไว้ตามเดิม
     /* STA — เก็บผลครั้งก่อนติดไปกับใบ รายงานที่เปิดผ่านลิงก์แชร์จะได้เทียบได้เหมือนกัน */
     if(rec.type==='STA') rec.prev = staPrev(rec, true);
+    /* FSQ — เก็บเคสก่อนหน้าติดไปกับใบ (จากระบบ / กรอกเอง / ไม่เคยมี) */
+    if(rec.type==='FSQ'){ const pc=fsqPrevRec(rec); rec.prevCase = pc ? fsqCaseSnap(pc) : (rec.pcNone ? {src:'none'} : {src:'manual', date:rec.pcDate||'', complaint:rec.pcText||''}); }
     /* ตัดพนักงาน/หัวข้อประเมินที่ว่างเปล่าออกก่อนบันทึก */
     if(rec.newStaff) rec.newStaff = rec.newStaff
       .map(st=>({...st, evals:(st.evals||[]).filter(e=>e.main||e.sub||e.method||e.score||e.detail)}))
@@ -5532,6 +5552,26 @@ function fqaPrevRec(rec){
   });
   return best;
 }
+/* เคส Complaint (FSQ) ล่าสุดก่อนหน้าของสาขาเดียวกัน — ล่าสุดที่เกิดก่อนใบนี้ ไม่นับใบตัวเอง ไม่นับใบที่ยังไม่มีเรื่องร้องเรียน */
+function fsqPrevRec(rec){
+  if(!rec || !rec.branch) return null;
+  const k=branchKey(rec.branch), me=(rec.date||'')+' '+(rec.time||'');
+  let best=null, bestAt='';
+  DB.all().forEach(r=>{
+    if(!r || r.type!=='FSQ' || r.id===rec.id || branchKey(r.branch)!==k || !String(r.complaint||'').trim()) return;
+    const at=(r.date||'')+' '+(r.time||'');
+    if(at>=me || at<=bestAt) return;
+    best=r; bestAt=at;
+  });
+  return best;
+}
+function fsqCaseSnap(x){
+  return { src:'auto', id:x.id, date:x.date||'', complaint:x.complaint||'', menu:x.menu||'',
+    category:/อื่น/.test(x.category||'')?(x.categoryOther||x.category):(x.category||''), severity:x.severity||'', trainer:x.trainer||'',
+    problems:(x.issues||[]).map(i=>String(i.problem||'').trim()).filter(Boolean) };
+}
+/* ข้อมูลเคสก่อนหน้าของใบนี้: ที่เก็บติดไปกับใบ (ลิงก์แชร์เห็นเหมือนกัน) · ใบเก่าที่ยังไม่มีให้คิดสดจากระบบ */
+function fsqPrevInfo(r){ if(r && r.prevCase) return r.prevCase; const p=fsqPrevRec(r); return p?fsqCaseSnap(p):null; }
 /* เทียบรายหัวข้อของสองใบ: worse = ผ่าน→ไม่ผ่าน · better = ไม่ผ่าน→ผ่าน · repeat = ไม่ผ่านซ้ำ · fail = ไม่ผ่านและไม่มีใบก่อนหน้าให้เทียบ · ok = ผ่านทั้งคู่ */
 const CMP_LABEL={worse:'แย่ลง (ผ่าน→ไม่ผ่าน)',better:'ดีขึ้น (ไม่ผ่าน→ผ่าน)',repeat:'ไม่ผ่านซ้ำ',fail:'ไม่ผ่าน (ไม่มีใบก่อนหน้า)',ok:'ผ่านทั้งสองครั้ง',na:'ไม่ได้ตรวจ'};
 function cmpDetail(L,P){
@@ -6834,6 +6874,11 @@ const PDF = {
         mm.map(m=>`<tr class="${bad(m.cook)||bad(m.taste)?'rowbad':''}"><td>${esc(m.menu)}</td><td class="c">${pill(m.cook)}</td><td class="c">${pill(m.taste)}</td><td>${esc(m.detail)}</td><td>${esc(m.fix)}</td></tr>`)));
     }
     if(r.type==='FSQ'){
+      { const pc=fsqPrevInfo(r);
+        b+=sec('เคส Complaint ล่าสุดก่อนหน้านี้', !pc ? '<p class="pdftext" style="color:#777">ไม่พบเคสก่อนหน้าของสาขานี้ในระบบ</p>'
+          : pc.src==='none' ? '<p class="pdftext" style="color:#777">สาขานี้ไม่เคยมีเคส Complaint ก่อนหน้า (ผู้ตรวจยืนยัน)</p>'
+          : `<div class="pdfinfo" style="margin:0"><div class="pi-grid" style="grid-template-columns:repeat(4,1fr)">${kv('วันที่ของเคส',fmtDMY(pc.date))}${kv('ประเภท',pc.category)}${kv('ความรุนแรง',pc.severity)}${kv('ที่มา',pc.src==='manual'?'ผู้ตรวจกรอกเอง':'จากระบบ')}</div>
+              <div style="padding:2px 14px 10px;font-size:12px"><b>เรื่อง:</b> ${esc(pc.complaint||'—')}${pc.menu?' · เมนู '+esc(pc.menu):''}${(pc.problems||[]).length?'<br><b>ปัญหาที่พบ:</b> '+pc.problems.map(esc).join(' · '):''}</div></div>`); }
       b+=sec('รายละเอียด Complaint',
         `<p class="pdflabel">เรื่องที่ลูกค้าร้องเรียน</p><p class="pdftext" style="margin-bottom:13px">${esc(r.complaint)}</p>
          <div class="pi-grid" style="padding:0;grid-template-columns:repeat(2,1fr);gap:11px 16px">${kv('เมนูที่เกี่ยวข้อง',r.menu)}${kv('ประเภท',/อื่น/.test(r.category)?(r.categoryOther||r.category):r.category)}
@@ -7252,7 +7297,7 @@ const IO = {
         r.menus.forEach(m=>{ if(m.menu) fqaMenu.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้ตรวจ':r.trainer,
           'เมนู':m.menu,'ขั้นตอนการปรุง':m.cook,'หน้าตาอาหารและรสชาติ':m.taste,'รายละเอียด / สิ่งที่พบ':m.detail,'วิธีการแก้ไขเบื้องต้น':m.fix}); });
       }
-      if(r.type==='FSQ') r.issues.forEach(x=>comp.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
+      if(r.type==='FSQ') r.issues.forEach(x=>comp.push({'เลขที่':r.id,'เคสก่อนหน้า (วันที่)':(fsqPrevInfo(r)||{}).date||'','เคสก่อนหน้า (เรื่อง)':(fsqPrevInfo(r)||{}).src==='none'?'ไม่เคยมีเคสก่อนหน้า':((fsqPrevInfo(r)||{}).complaint||''),'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
         'รายละเอียด Complaint':r.complaint,'เมนูที่เกี่ยวข้อง':r.menu,'ประเภท':/อื่น/.test(r.category)?(r.categoryOther||r.category):r.category,
         'ช่องทาง':r.channel,'ความรุนแรง':r.severity,'ปัญหาที่พบ':x.problem,'สาเหตุ':x.cause,
         'การแก้ไขเบื้องต้นและแนวทางการป้องกัน':issueFix(x),
