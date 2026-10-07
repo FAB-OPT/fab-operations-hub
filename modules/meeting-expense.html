@@ -459,6 +459,17 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .utabs button.on .cn{background:var(--ac);color:#fff}
 .utabs button.on{color:var(--acd);font-weight:800}
 .utabs button.on::after{content:"";position:absolute;left:14px;right:14px;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--ac)}
+.lmain{display:grid;grid-template-columns:300px minmax(0,1fr);gap:16px;align-items:start}
+.lside{padding:22px;position:sticky;top:16px}.lside h4{margin:0 0 4px;font-size:16px}
+.lside .lbig{font-size:36px;font-weight:800;color:#14935a;margin:8px 0 2px;line-height:1.1}.lside .lbig small{font-size:16px;color:#777;font-weight:500}
+.lstk{display:flex;height:12px;border-radius:99px;overflow:hidden;margin:16px 0 8px;background:#eceff3}.lstk i{display:block;height:100%}
+.lrow{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid #eef0f4;font-size:14.5px}.lrow b{font-variant-numeric:tabular-nums}
+.ldot{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:8px}
+.ldef{border-top:1px solid #eef0f4;margin-top:14px;padding-top:14px}.ldef label{font-size:13.5px;color:#555;margin-bottom:8px}
+.ldefrow{display:flex;gap:8px;align-items:center}.ldefrow .tbtn{height:46px}
+.lin{width:120px!important;height:42px!important;text-align:right;font-weight:700;border-radius:12px!important}
+.bar-s .bar i.over{background:#dc2626}
+@media(max-width:899px){.lmain{grid-template-columns:1fr}.lside{position:static}.lin{width:96px!important}}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
 .aph .rcp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .aph .rcp img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:18px;cursor:zoom-in;box-shadow:0 8px 22px rgba(20,24,40,.14)}
@@ -1649,36 +1660,56 @@ function wireTools(body,idQ,draw){
 }
 function adminLimits(body,r){
   const cfg=CFG();
+  const BC=["#ff7a1a","#3b82f6","#8b5cf6","#14935a","#e0457b","#e0a21a"];
   body.innerHTML=`<div class="head"><h1>วงเงินสาขา</h1><span class="sp"></span>
-      ${can("manage-payees")?`<button class="tbtn" id="imp" title="นำเข้ารายชื่อทีมผู้จัดการสาขา + งบต่อคน จากไฟล์ Excel">${mi("upload",18)} นำเข้ารายชื่อ/วงเงิน (Excel)</button>`:""}
-      <span class="cpbar">วงเงินเริ่มต้นกลาง <input id="dl" type="number" min="0" step="0.01" value="${Number(cfg.defaultLimit)||0}"><span class="u">บาท</span></span>
-      <button class="tbtn pri" id="sdl">บันทึก</button></div>
-    <div class="lbar"><span class="bc tabs2">${brandChips()}</span><span class="sp" style="flex:1"></span><span id="ltile"></span>
-      <span class="sbox">${mi("search",18)}<input id="lq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
-    <div id="lsub" class="muted" style="margin:-4px 2px 0;font-size:14px"></div><div id="out"></div>`;
+      ${can("manage-payees")?`<button class="tbtn" id="imp" title="นำเข้ารายชื่อทีมผู้จัดการสาขา + งบต่อคน จากไฟล์ Excel">${mi("upload",18)} นำเข้า Excel</button>`:""}
+      <span class="sbox" style="min-width:260px;max-width:300px">${mi("search",18)}<input id="lq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
+    <div class="lmain"><aside class="glass-card lside" id="lside"></aside>
+      <div style="min-width:0"><div class="glass-card"><div class="bc tabs2" style="padding:14px 18px;border-bottom:1px solid #eef0f4">${brandChips()}</div><div id="out"></div></div></div></div>`;
   if($("#imp",body)) $("#imp",body).onclick=openImport;
-  $("#sdl",body).onclick=async e=>{ const b=e.currentTarget; b.disabled=true;
-    try{ await S.refresh().catch(()=>{}); await saveCfg({defaultLimit:Math.max(0,Number($("#dl",body).value)||0)}); toast("บันทึกแล้ว"); b.disabled=false; }
-    catch(err){ toast(err.message); b.disabled=false; } };
-  const all=Branches.list(), out=$("#out",body);
-  const effLim=b=>{ const limits=CFG().limits||{}, own=Number(limits[b.code])>0; return r?limitOf(r.id,b.code):(own?Number(limits[b.code]):Number(CFG().defaultLimit)||0); };
-  const draw=()=>{
-    if(!all.length){ out.innerHTML=`<div class="empty">ยังโหลดทะเบียนสาขาจากฮับไม่ได้<br>ลองรีเฟรชหน้านี้อีกครั้ง</div>`; return; }
-    const list=all.filter(matchBranch), limits=CFG().limits||{};
-    const total=list.reduce((s,b)=>s+effLim(b),0);
-    $("#ltile",body).innerHTML=kt("coins","gr","วงเงินรวม",baht(total)+" <i>บาท</i>","");
-    $("#lsub",body).textContent=list.length+" สาขา · ตั้งวงเงินเฉพาะ "+list.filter(b=>Number(limits[b.code])>0).length+" สาขา";
-    if(!list.length){ out.innerHTML=`<div class="empty">ไม่พบสาขาที่ค้นหา</div>`; return; }
-    const pg=pager("lim",list.length,8,F.brand+"|"+F.q,"n","สาขา");
-    out.innerHTML=`<div class="glass-card" style="margin-top:12px"><table class="mtbl"><thead><tr><th>สาขา</th><th class="r">วงเงินต่อรอบ</th><th class="c">ใช้ไปในรอบนี้</th><th class="c">ที่มาของวงเงิน</th><th class="r">จัดการ</th></tr></thead><tbody>
-      ${list.slice(pg.s,pg.e).map(b=>{ const own=Number(limits[b.code])>0, lim=effLim(b), u=r?used(r.id,b.code):0;
-        return `<tr><td><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)}</small></td>
-        <td class="r"><b>${lim?baht(lim)+" บาท":"ยังไม่ได้ตั้ง"}</b></td>
-        <td class="c">${u?`<b>${baht(u)} บาท</b>`:`<span class="pillg">ยังไม่ส่ง</span>`}</td>
-        <td class="c">${own?`<span class="pillo">เฉพาะสาขา</span>`:`<span class="pilly">ตามรอบ</span>`}</td>
-        <td class="r"><button class="ab ghost view" data-lim="${esc(b.code)}">${mi("pen",16)} ตั้งวงเงิน</button></td></tr>`;}).join("")}</tbody></table>${pg.html}</div>`;
+  const all=Branches.list(), out=$("#out",body), side=$("#lside",body);
+  const limitsNow=()=>CFG().limits||{};
+  const effLim=b=>{ const own=Number(limitsNow()[b.code])>0; return r?limitOf(r.id,b.code):(own?Number(limitsNow()[b.code]):Number(CFG().defaultLimit)||0); };
+  const drawSide=()=>{
+    const brands=Branches.brands(), by={}; let tot=0, usedAll=0, nUsed=0;
+    all.forEach(b=>{ const l=effLim(b); tot+=l; (by[b.brand]=by[b.brand]||{n:0,s:0}); by[b.brand].n++; by[b.brand].s+=l; if(r){ const u=used(r.id,b.code); if(u>0){ usedAll+=u; nUsed++; } } });
+    const stk=brands.map((k,i)=>`<i style="width:${tot?(by[k]||{s:0}).s/tot*100:0}%;background:${BC[i%BC.length]}"></i>`).join("");
+    const rows=brands.map((k,i)=>`<div class="lrow"><span><i class="ldot" style="background:${BC[i%BC.length]}"></i>${esc(Branches.brandName(k))} <span class="muted">(${(by[k]||{n:0}).n})</span></span><b>${baht((by[k]||{s:0}).s)}</b></div>`).join("");
+    side.innerHTML=`<h4>วงเงินรวมต่อรอบ</h4><div class="lbig">${baht(tot)} <small>บาท</small></div><div class="muted">${all.length} สาขา</div>
+      <div class="lstk">${stk}</div>${rows}
+      <div class="lrow" style="margin-top:12px"><span>ใช้ไปในรอบนี้</span><b style="color:#e8590c">${baht(usedAll)}</b></div><div class="muted" style="text-align:right;margin-top:-6px;font-size:12.5px">${nUsed} สาขา</div>
+      <div class="ldef"><label>วงเงินเริ่มต้นกลาง <span class="muted" style="font-weight:400">(สาขาที่ไม่ได้ตั้งเอง)</span></label>
+        <div class="ldefrow"><div class="amtbox" style="max-width:none;flex:1"><input id="dl" type="number" min="0" step="0.01" value="${Number(cfg.defaultLimit)||0}"><span>บาท</span></div><button class="tbtn pri" id="sdl">บันทึก</button></div></div>`;
+    $("#sdl",side).onclick=async e=>{ const b=e.currentTarget; b.disabled=true;
+      try{ await S.refresh().catch(()=>{}); await saveCfg({defaultLimit:Math.max(0,Number($("#dl",side).value)||0)}); toast("บันทึกวงเงินเริ่มต้นแล้ว"); }
+      catch(err){ toast(err.message); } b.disabled=false; };
   };
-  out.onclick=e=>{ const b=e.target.closest("[data-lim]"); if(b) limitForm(all.find(x=>x.code===b.dataset.lim)); };
+  const draw=()=>{
+    if(!all.length){ out.innerHTML=`<div class="empty" style="margin:14px">ยังโหลดทะเบียนสาขาจากฮับไม่ได้<br>ลองรีเฟรชหน้านี้อีกครั้ง</div>`; return; }
+    drawSide();
+    const list=all.filter(matchBranch), limits=limitsNow();
+    if(!list.length){ out.innerHTML=`<div class="empty" style="margin:14px">ไม่พบสาขาที่ค้นหา</div>`; return; }
+    const pg=pager("lim",list.length,20,F.brand+"|"+F.q,"per","สาขา");
+    out.innerHTML=`<table class="mtbl"><thead><tr><th>สาขา</th><th class="r">วงเงินต่อรอบ</th><th>ใช้ไปแล้ว</th><th class="r"></th></tr></thead><tbody>
+      ${list.slice(pg.s,pg.e).map(b=>{ const own=Number(limits[b.code])>0, lim=effLim(b), u=r?used(r.id,b.code):0, p=lim?Math.min(100,u/lim*100):0;
+        return `<tr data-code="${esc(b.code)}"><td><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)} · ${own?"เฉพาะสาขา":"ตามค่ากลาง/รอบ"}</small></td>
+        <td class="r"><input class="lin" type="number" min="0" step="1" value="${lim||""}" placeholder="0" data-orig="${lim||0}"> บาท</td>
+        <td>${u?`<div class="bar-s"><div class="bar"><i class="${u>lim?"over":""}" style="width:${p}%"></i></div></div><small>${baht(u)} / ${lim?baht(lim):"—"}</small>`:`<span class="pillg">ยังไม่ส่ง</span>`}</td>
+        <td class="r"><button class="ab ghost lsv" disabled>บันทึก</button></td></tr>`;}).join("")}</tbody></table>${pg.html}`;
+  };
+  out.addEventListener("input",e=>{ const i=e.target.closest(".lin"); if(!i) return; const b=i.closest("tr").querySelector(".lsv"); const dirty=Number(i.value||0)!==Number(i.dataset.orig); b.disabled=!dirty; b.classList.toggle("yes",dirty); });
+  out.addEventListener("keydown",e=>{ if(e.key==="Enter"&&e.target.closest(".lin")){ e.preventDefault(); const b=e.target.closest("tr").querySelector(".lsv"); if(!b.disabled) b.click(); } });
+  out.addEventListener("click",async e=>{
+    const b=e.target.closest(".lsv"); if(!b||b.disabled) return;
+    const tr=b.closest("tr"), code=tr.dataset.code, v=Math.max(0,Number(tr.querySelector(".lin").value)||0);
+    b.disabled=true; b.textContent="กำลังบันทึก…";
+    try{
+      await S.refresh().catch(()=>{});
+      const limits=Object.assign({},CFG().limits||{});
+      if(v>0) limits[code]=v; else delete limits[code];
+      await saveCfg({limits}); toast("บันทึกวงเงิน "+code+" แล้ว");
+    }catch(err){ toast(err.message||"บันทึกไม่สำเร็จ"); b.disabled=false; b.textContent="บันทึก"; }
+  });
   bindPager(out,"lim",draw);
   wireTools(body,"lq",draw);
   draw();
