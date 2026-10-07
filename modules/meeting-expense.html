@@ -301,7 +301,7 @@ body::before{content:"";position:fixed;inset:0;z-index:-1;pointer-events:none;
 .card,.kstrip,.rstrip,.rowlist,.slip,.fcard,.dv2 .card,.empty,.dn-card,.twrap{border-radius:var(--r)}
 .main{padding:0 0 24px!important;display:flex;flex-direction:column;gap:16px}
 .main>*{margin-top:0!important}
-.main>.head{height:62px;border-radius:var(--r);padding:0 24px;flex-wrap:nowrap}
+.main>.head{min-height:62px;border-radius:var(--r);padding:8px 24px;flex-wrap:nowrap}
 .main>.head h1{font-size:22px;font-weight:700;letter-spacing:0;white-space:nowrap}
 .main>.head .sub{display:none}
 .brand{margin:0 0 6px;padding:0 8px;gap:10px;align-items:center}
@@ -358,6 +358,11 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .who .wc b{display:block;font-size:14px;color:#2b2b2b}.who .wc small{font-size:12px;font-weight:500;color:#6b6b6b}
 .cutchip{white-space:normal}
 .dv2{grid-template-columns:minmax(0,1fr)!important}
+.dcard{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:36px}
+.dright .rcp{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}
+.dright .rcp img{width:100%!important;height:auto!important;aspect-ratio:3/4;border-radius:14px}
+.main>.head h1 .hsub{display:block;font-size:12.5px;font-weight:500;color:var(--text3);margin-top:2px}
+@media(max-width:899px){.dcard{grid-template-columns:1fr}}
 .hsteps{display:flex;align-items:center;gap:10px}
 .hsteps .hs{display:flex;align-items:center;gap:8px}
 .hsteps .dot{width:22px;height:22px;border-radius:50%;border:2.5px solid var(--border2);background:#fff;display:grid;place-items:center;font-size:11px;color:#fff;font-weight:800;flex:none}
@@ -699,13 +704,13 @@ function doneWide(x){
     idx>=1?{c:idx===1?"cur":"ok",t:"รอดำเนินการ",d:"ผู้ดูแลรับเรื่องแล้ว"+(idx===1&&x.statusAt?" · "+stamp(x.statusAt):"")}:{c:"cur",t:"รอดำเนินการ",d:"ผู้ดูแลกำลังตรวจเอกสาร"},
     idx===2?{c:no?"ok":"ok",t:no?"ไม่อนุมัติ":"อนุมัติ",d:stamp(x.statusAt)+who()+(no&&x.reason?"<br>เหตุผล: "+esc(x.reason):"")}:{c:"idle",t:"อนุมัติ / ไม่อนุมัติ",d:"ถ้าอนุมัติ เงินโอนเข้าบัญชีผู้รับเงินภายใน 7 วันทำการ ถ้าไม่อนุมัติ จะแสดงเหตุผลที่นี่"}];
   const d=document.createElement("div");
-  d.innerHTML=`<div class="rstrip" style="margin-top:0"><div><b>ส่งเอกสารรอบ ${esc(roundLabel(roundIdOf(x)))} แล้ว</b><div class="muted" style="font-size:13.5px">รอบนี้ส่งครบ 1 ครั้งแล้ว · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div></div>${pill(st)}</div>
-    <div class="dv2"><div class="card"><div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="font-size:17px;margin:0">รายละเอียดเอกสาร</h3><span class="muted" style="font-size:13px">เลขที่ ${esc(x.docNo||x.id)}</span></div>
-      <div class="sum"><small>${cut?"ยอดที่จะได้รับ":"ยอดเบิก"}</small><div class="big">${money(x.amount)} บาท</div>${cut?`<span class="chip">ขอเบิก ${baht(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${baht(x.amount)}</span>`:""}</div>
+  d.innerHTML=`<div class="dv2"><div class="card dcard"><div class="dleft"><div style="display:flex;justify-content:space-between;align-items:baseline"><h3 style="font-size:17px;margin:0">รายละเอียดเอกสาร</h3><span class="muted" style="font-size:13px">เลขที่ ${esc(x.docNo||x.id)}</span></div>
+      <div class="sum"><small>${cut?"ยอดที่จะได้รับ":"ยอดเบิก"}</small><div class="big">${baht(x.amount)} บาท</div>${cut?`<span class="chip">ขอเบิก ${baht(x.claimedAmount)} · ตัดตามวงเงิน เหลือ ${baht(x.amount)}</span>`:""}</div>
       <div class="kv"><span>ผู้ทำการเบิก</span><b>${esc(x.claimantName||"-")}</b><span>ผู้รับเงิน</span><b>${esc([x.payeeName||x.payee,x.payeeEmpCode,x.payeePosition].filter(Boolean).join(" · ")||"-")}</b>${x.note?`<span>หมายเหตุ</span><b>${esc(x.note)}</b>`:""}<span>ส่งเมื่อ</span><b>${esc(stamp(x.submittedAt))}</b></div>
-      <div class="muted" style="margin-top:20px;font-weight:600">ใบเสร็จ ${(x.photos||[]).length} รูป</div><div class="rcp" id="dnph"></div>
-      ${mayDelete?'<div style="margin-top:18px"><button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button></div>':'<div class="muted" style="margin-top:14px">'+(st==="อนุมัติ"?"อนุมัติแล้ว แก้ไขไม่ได้":"")+'</div>'}</div>
-</div>`;
+      ${mayDelete?'<div style="margin-top:22px"><button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button></div>':'<div class="muted" style="margin-top:18px">'+(st==="อนุมัติ"?"อนุมัติแล้ว แก้ไขไม่ได้":"")+'</div>'}</div>
+      <div class="dright"><div class="muted" style="font-weight:700;margin-bottom:10px">ใบเสร็จ ${(x.photos||[]).length} รูป</div><div class="rcp" id="dnph">${(x.photos||[]).length?"":'<div class="muted">ไม่มีรูปแนบ</div>'}</div></div></div></div>`;
+  { const h=document.querySelector(".main>.head h1"); if(h) h.innerHTML=`ส่งเอกสารรอบ ${esc(roundLabel(roundIdOf(x)))} แล้ว<small class="hsub">รอบนี้ส่งครบ 1 ครั้งแล้ว · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</small>`; }
+  /*END*/
   { const hr=document.getElementById("hdr-r");
     if(hr) hr.innerHTML=`<div class="hsteps">${nodes.map((n,i)=>`<div class="hs ${n.c}" title="${esc(n.d.replace(/<br>/g," "))}"><span class="dot">${n.c==="ok"?"✓":""}</span><span><b>${n.t}</b><small>${n.d.split(" · ")[0].replace(/<br>.*/,"")}</small></span></div>${i<2?'<i class="ln"></i>':""}`).join("")}</div>`; }
   (x.photos||[]).forEach(u=>{ const im=new Image(); im.src=u; im.alt="ใบเสร็จ"; im.onclick=()=>zoom(u); $("#dnph",d).appendChild(im); });
