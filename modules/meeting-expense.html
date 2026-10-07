@@ -1554,7 +1554,22 @@ function adminRounds(body){
     <div class="glass-card"><table class="mtbl"><thead><tr><th>รอบ</th><th style="width:34%">ความคืบหน้า</th><th>สาขาที่ส่ง</th><th>ยอดจ่าย</th><th>สถานะ</th><th></th></tr></thead><tbody id="rtb"></tbody></table></div>`;
   body.querySelectorAll("[data-nid]").forEach(b=>b.onclick=()=>{ window._nrId=b.dataset.nid; adminRounds(body); });
   $("#addr",body).onclick=()=>roundForm(null);
-  const un=$("#unsent",body); if(un) un.onclick=()=>{ ATAB="bzm"; renderAdmin(); };
+  const un=$("#unsent",body); if(un) un.onclick=()=>unsentModal(cur);
+  /* รายชื่อสาขาที่ยังไม่ส่ง — เปิดเป็นหน้าต่างซ้อน ไม่ต้องไปหน้าอื่น */
+  function unsentModal(r){
+    const sent=new Set(CLAIMS().filter(c=>roundIdOf(c)===r.id&&!isRejected(c)).map(c=>c.branchCode));
+    const list=Branches.list().filter(b=>!sent.has(b.code));
+    const f=document.createElement("div");
+    f.innerHTML='<div class="muted" style="margin-bottom:10px">รอบ '+esc(roundLabel(r.id))+' · ยังไม่ส่ง <b>'+list.length+'</b> จาก '+Branches.list().length+' สาขา</div>'
+      +'<div class="sbox" style="max-width:none;margin-bottom:12px">'+mi("search",18)+'<input id="uq" placeholder="ค้นหารหัส / ชื่อสาขา / BZM"></div>'
+      +'<div class="glass-card" style="max-height:52vh;overflow:auto"><table class="mtbl"><thead><tr><th>สาขา</th><th>BZM</th><th>ผู้รับเงิน</th></tr></thead><tbody id="ub"></tbody></table></div>';
+    const draw=()=>{ const q=$("#uq",f).value.trim().toLowerCase();
+      const rows=list.filter(b=>!q||(b.code+" "+b.name+" "+bzmOf(b.code).label).toLowerCase().indexOf(q)>=0);
+      $("#ub",f).innerHTML=rows.length?rows.map(b=>'<tr><td><b>'+esc(b.code)+' '+esc(b.name)+'</b><small>'+esc(b.brandName)+'</small></td><td>'+esc(bzmOf(b.code).key||"—")+'</td><td>'+(payeeOf(b.code).name?esc(payeeOf(b.code).name):'<span class="pillg">ยังไม่มี</span>')+'</td></tr>').join(""):'<tr><td colspan="3" class="muted" style="text-align:center;padding:24px">ไม่พบสาขา</td></tr>'; };
+    modal("สาขาที่ยังไม่ส่งเอกสาร",f,null);
+    $("#uq",f).oninput=draw; draw();
+    const mb=document.querySelector("#modalHost .mask:last-child .modal"); if(mb) mb.style.maxWidth="760px";
+  }
   if(cur){ const a=$("#rcact",body);
     const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้ช่วงวันที่"}); ed.onclick=()=>roundForm(cur);
     const t=Object.assign(document.createElement("button"),{className:"ab "+(cur.open?"no":"yes"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
