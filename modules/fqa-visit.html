@@ -7085,13 +7085,12 @@ const PDF = {
     const t=m.total;
     const tone=d=>d>0?'color:#0b7a55':d<0?'color:#b42318':'color:#6b7280';
     const chgCol={worse:'#b42318',repeat:'#a16207',fail:'#b42318',better:'#0b7a55'};
+    const SHORT={worse:'แย่ลง',repeat:'ไม่ผ่านซ้ำ',fail:'ไม่ผ่าน',better:'ดีขึ้น'};
+    /* ใบสรุปทั้งเขต: แสดงเฉพาะหัวข้อที่เปลี่ยน/ไม่ผ่าน บรรทัดละหัวข้อ — ผู้ตรวจ วัตถุดิบ เมนู และหัวข้อที่ผ่านทั้งสองครั้งอยู่ในใบรายครั้งและ Excel */
     const det=x=>{ const d=x.det, ch=d.items.filter(i=>['worse','repeat','fail','better'].indexOf(i.chg)>=0)
         .sort((a,b)=>['worse','repeat','fail','better'].indexOf(a.chg)-['worse','repeat','fail','better'].indexOf(b.chg));
-      const okN=d.items.filter(i=>i.chg==='ok');
-      return `<tr><td colspan="4" style="background:#fafafa"><div class="sm">ผู้ตรวจล่าสุด ${esc(d.trainer||'—')}${x.P?' · ครั้งก่อน '+esc(d.prevTrainer||'—'):''} · วัตถุดิบที่สุ่มตรวจ ${d.mats.length?esc(d.mats.join(', ')):'—'} · เมนูที่ตรวจ ${d.menusN}${d.menusFail.length?' (ไม่ผ่าน '+d.menusFail.length+')':''}</div>
-        ${ch.length?ch.map(i=>`<div style="margin-top:3px"><b style="color:${chgCol[i.chg]}">[${CMP_LABEL[i.chg]}]</b> <b>${esc(i.item)}</b>${i.l&&i.l.detail?' — '+esc(i.l.detail):''}${i.l&&i.l.fix?' <span class="sm">(แก้ไข: '+esc(i.l.fix)+')</span>':''}</div>`).join(''):'<div class="sm" style="margin-top:3px">ไม่มีหัวข้อที่ไม่ผ่านหรือเปลี่ยนแปลง</div>'}
-        ${d.menusFail.map(mm=>`<div style="margin-top:3px"><b style="color:#b42318">[เมนูไม่ผ่าน]</b> ${esc(mm.menu)}${mm.detail?' — '+esc(mm.detail):''}${mm.fix?' <span class="sm">(แก้ไข: '+esc(mm.fix)+')</span>':''}</div>`).join('')}
-        ${okN.length?`<div class="sm" style="margin-top:3px">ผ่านทั้งสองครั้ง: ${okN.map(i=>esc(i.item)).join(' · ')}</div>`:''}</td></tr>`; };
+      if(!ch.length && !d.menusFail.length) return '';
+      return `<tr><td colspan="4" style="background:#fafafa;padding:3px 10px 6px">${ch.map(i=>`<div style="margin-top:2px;font-size:10.5px"><b style="color:${chgCol[i.chg]};display:inline-block;min-width:62px">${SHORT[i.chg]}</b>${esc(i.item)}</div>`).join('')}${d.menusFail.map(mm=>`<div style="margin-top:2px;font-size:10.5px"><b style="color:#b42318;display:inline-block;min-width:62px">เมนูไม่ผ่าน</b>${esc(mm.menu)}</div>`).join('')}</td></tr>`; };
     const body=`<div class="pdfstats"><div><b>${t.avg}%</b>เฉลี่ยผลล่าสุด</div><div><b>${t.up}</b>สาขาดีขึ้น</div><div><b>${t.dn}</b>สาขาแย่ลง</div><div><b>${t.eq}</b>เท่าเดิม</div><div><b>${t.nw}</b>ตรวจครั้งแรก</div></div>
       ${m.list.map(z=>`<div class="pdfcard" style="page-break-inside:auto;break-inside:auto"><h2 style="page-break-after:avoid;break-after:avoid">${esc(z.name)} <span style="font-weight:500;font-size:12px;color:#6b7280">· ${z.rows.length} สาขามีผลตรวจ${z.avgL!=null?' · เฉลี่ยล่าสุด '+z.avgL+'%':''}${z.dAvg!=null?' · <span style="'+tone(z.dAvg)+'">'+cmpTxt(z.dAvg)+' จุด</span>':''}</span></h2>
         <table class="pdftb"><thead><tr><th style="width:34%">สาขา</th><th>ล่าสุด</th><th>ก่อนหน้า</th><th style="width:14%">เปลี่ยน (จุด)</th></tr></thead>
