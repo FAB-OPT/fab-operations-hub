@@ -395,6 +395,18 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .dact .btn{font-size:15px}
 @media(max-width:899px){.dm{grid-template-columns:1fr}.dstep{gap:8px;padding:14px}.dstep .ln{display:none}.dtb>div{grid-template-columns:130px 1fr}.damt .abig{font-size:38px}}
 .done.sentonly{max-width:520px;margin:40px auto 0!important;padding:34px 30px}.done.sentonly b{font-size:20px}.done.sentonly>div:last-child{font-size:14.5px;margin-top:6px}
+.pcur{background:rgba(255,255,255,var(--ga));border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:var(--r);padding:22px 26px}
+.pcur small{display:block;color:var(--text3);font-size:13px}.pcur b{display:block;font-size:22px;font-weight:700;margin:4px 0 6px}
+.pcur .pl{font-size:15px;color:#555}.pcur .pm{font-size:12.5px;color:var(--text3);margin-top:10px}
+.fcard .f2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:6px}.fcard .f2 .field{margin:0 0 14px}
+.fcard .field label{margin-bottom:8px}.fcard textarea{min-height:84px}
+.fcard .muted[style*="font-size:12px"]{margin:-2px 0 14px}
+.fcard .btn.full{height:50px;border-radius:16px;font-size:16px;font-weight:800;width:100%}
+@media(min-width:900px){
+  .br-view .narrow.payee-pg{grid-template-columns:minmax(0,380px) minmax(0,640px)!important;gap:0 20px!important}
+  .br-view .narrow.payee-pg>.fcard{grid-row:1/span 4!important;margin-top:0!important;padding:26px 30px!important}
+  .br-view .narrow.payee-pg>*{margin-top:0}.br-view .narrow.payee-pg>.card:not(.fcard){margin-bottom:14px}
+}
 .dcardA{display:grid;grid-template-columns:380px minmax(0,1fr);gap:40px;align-items:start}
 .aph .rcp{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
 .aph .rcp img{width:100%;height:auto;aspect-ratio:3/4;object-fit:cover;border-radius:18px;cursor:zoom-in;box-shadow:0 8px 22px rgba(20,24,40,.14)}
@@ -966,9 +978,10 @@ function branchPayee(body){
   const cur=payeeOf(ME.code);
   const pend=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="pending");
   const last=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="rejected").sort((a,b)=>(b.reviewedAt||"").localeCompare(a.reviewedAt||""))[0];
-  w.innerHTML=`<div style="margin-top:16px">${cur.name?`<div class="bank"><small>ผู้รับเงินปัจจุบัน</small><b>${esc(cur.name)}</b><div class="ac">${esc(cur.position||"")}</div>
-      <div class="meta">${cur.empCode?"รหัสพนักงาน "+esc(cur.empCode)+" · ":""}${cur.updatedAt?"อัปเดต "+esc(dmy(cur.updatedAt))+(cur.updatedBy?" โดย "+esc(cur.updatedBy):""):""}</div></div>`
-    :`<div class="bank none"><small>ผู้รับเงินปัจจุบัน</small><b>ยังไม่มีข้อมูล</b><div class="muted">แจ้งบัญชีด้านล่าง ผู้ดูแลอนุมัติแล้วจึงส่งเอกสารเบิกได้</div></div>`}</div>`;
+  w.innerHTML=`<div class="pcur">${cur.name?`<small>ผู้รับเงินปัจจุบัน</small><b>${esc(cur.name)}</b>
+      <div class="pl">${[cur.empCode?"รหัส "+esc(cur.empCode):"",esc(cur.position||"")].filter(Boolean).join(" · ")}</div>
+      ${cur.updatedAt?`<div class="pm">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" โดย "+esc(cur.updatedBy):""}</div>`:""}`
+    :`<small>ผู้รับเงินปัจจุบัน</small><b>ยังไม่มีข้อมูล</b><div class="pl">ส่งคำขอด้านขวา ผู้ดูแลจะอนุมัติ</div>`}</div>`;
   if(pend.length){
     const p=pend[0];
     w.insertAdjacentHTML("beforeend",`<div class="card warn">${pill("รอดำเนินการ","รอผู้ดูแลอนุมัติ")}
@@ -979,10 +992,11 @@ function branchPayee(body){
   }
   if(!can("request-payee")) return;
   const f=document.createElement("div"); f.className="card fcard";
-  f.innerHTML=`<h3>${cur.name?"แจ้งเปลี่ยนผู้รับเงิน":"แจ้งผู้รับเงิน"}</h3><div class="muted" style="margin-bottom:12px">ข้อมูลใหม่จะใช้ได้หลังผู้ดูแลอนุมัติ</div>
+  f.innerHTML=`<h3 style="font-size:19px">${cur.name?"ขอเปลี่ยนผู้รับเงิน":"แจ้งผู้รับเงิน"}</h3><div class="muted" style="margin:2px 0 16px">พิมพ์ชื่อ แล้วเลือกพนักงานจากรายชื่อ</div>
     ${payeeFields(pend.length?{}:cur)}
-    <div class="field"><label>เหตุผล</label><input id="pr" placeholder="เช่น ผู้จัดการสาขาคนเดิมย้ายสาขา"></div>
-    <button class="btn full" id="preq" ${pend.length?"disabled":""}>${pend.length?"มีคำขอค้างอยู่ · รออนุมัติ":"ส่งคำขอ"}</button>`;
+    <div class="field" style="margin-top:6px"><label>เหตุผล</label><textarea id="pr" rows="3" placeholder="เช่น ผู้จัดการสาขาย้ายไปสาขาอื่น"></textarea></div>
+    <button class="btn full" id="preq" ${pend.length?"disabled":""}>${pend.length?"มีคำขอค้างอยู่ · รออนุมัติ":"ส่งคำขอเปลี่ยน"}</button>
+    <div class="muted" style="text-align:center;font-size:12.5px;margin-top:10px">มีผลหลังผู้ดูแลอนุมัติ · ระหว่างนี้ใช้ผู้รับเงินเดิม</div>`;
   w.appendChild(f); attachEmpPick(f);
   $("#preq",f).onclick=async e=>{
     const b=e.currentTarget;
@@ -996,7 +1010,7 @@ function branchPayee(body){
         reason:$("#pr",f).value.trim(),status:"pending",createdAt:nowISO(),createdBy:Hub.fullName()});
       toast("ส่งคำขอให้ผู้ดูแลแล้ว");
       renderBranch();
-    }catch(err){ toast(err.message||"ส่งคำขอไม่สำเร็จ"); b.disabled=false; b.textContent="ส่งคำขอ"; }
+    }catch(err){ toast(err.message||"ส่งคำขอไม่สำเร็จ"); b.disabled=false; b.textContent="ส่งคำขอเปลี่ยน"; }
   };
 }
 
