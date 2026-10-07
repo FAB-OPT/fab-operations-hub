@@ -1329,6 +1329,7 @@ const MIP={
   print:'<path d="M7 9V3h10v6M7 17H5a2 2 0 0 1-2-2v-4a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v4a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/>',
   warn:'<circle cx="12" cy="12" r="9"/><path d="M12 7v6M12 16.5h.01"/>',
   people:'<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.2c2.8 0 5 2.1 5 4.8"/>',
+  org:'<circle cx="12" cy="5" r="2.4"/><circle cx="5" cy="19" r="2.4"/><circle cx="19" cy="19" r="2.4"/><path d="M12 7.4V13M12 13l-6 3.8M12 13l6 3.8"/>',
   pie:'<path d="M12 3v9h9a9 9 0 1 1-9-9z"/><path d="M15 3.5A9 9 0 0 1 20.5 9H15z"/>'
 };
 const mi=(n,s)=>'<svg width="'+(s||20)+'" height="'+(s||20)+'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+(MIP[n]||"")+'</svg>';
@@ -1398,7 +1399,7 @@ function renderAdmin(){
   const nb=Branches.list().length;
   if(r&&nb){ const sent=sentBranches(r.id);
     extra=`<div class="meter" style="margin-top:8px"><i style="width:${Math.min(100,sent/nb*100)}%"></i></div><div style="margin-top:4px">ส่งแล้ว ${sent} / ${nb} สาขา</div>`; }
-  const body=frame(tabs,ATAB,k=>{ATAB=k;renderAdmin();},roundBoxHtml(r,extra));
+  const body=frame(tabs,ATAB,k=>{ATAB=k;BV.zone="";renderAdmin();},roundBoxHtml(r,extra));
   ({list:adminList,bzm:adminBzm,rpt:adminReport,rounds:adminRounds,limits:adminLimits,payees:adminPayees})[ATAB](body,r);
 }
 function adminList(body,r){
@@ -1752,8 +1753,40 @@ function bzmOf(code){
   const nm=u&&u.name?String(u.name).replace(/^(นาย|นางสาว|นาง)\s*/,"").trim():"";
   return {key:nick,label:nick+(nm?" · "+nm:"")};
 }
-let BV={mode:"round",round:"",all:false};   /* มุมมองสรุป: รอบเดียว / ทั้งปีรายเดือน */
+let BV={mode:"round",round:"",all:false,zone:""};   /* มุมมองสรุป: รอบเดียว / ทั้งปีรายเดือน */
+/* หน้ารายละเอียดของ BZM หนึ่งคน (กด "ดูรายละเอียด" ในตารางสรุป) — เป็นหน้าเต็ม มีปุ่มกลับ ไม่ใช่ป๊อปอัป */
+let ZF="all";
+function adminBzmZone(body,r){
+  const rid=BV.round, inRound=CLAIMS().filter(c=>roundIdOf(c)===rid&&!isRejected(c));
+  const list=Branches.list().filter(b=>bzmOf(b.code).label===BV.zone);
+  const rows=list.map(b=>{ const lim=limitOf(rid,b.code), cs=inRound.filter(c=>c.branchCode===b.code), sent=sumOf(cs), ok=sumOf(cs.filter(c=>statusOf(c)==="อนุมัติ"));
+    return {b,lim,sent,ok,has:cs.length>0,p:payeeOf(b.code),st:!cs.length?"ยังไม่ส่ง":ok>0?"อนุมัติ":"รอตรวจ"}; }).filter(x=>x.lim>0||x.has);
+  const T=rows.reduce((a,x)=>({lim:a.lim+x.lim,sent:a.sent+x.sent,ok:a.ok+x.ok,ns:a.ns+(x.has?0:1)}),{lim:0,sent:0,ok:0,ns:0});
+  const parts=String(BV.zone).split(" · "), noKey=!bzmOf(list[0]?list[0].code:"").key;
+  body.innerHTML=`<div class="head"><button class="tbtn" id="zback">‹ กลับ</button><h1>${noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0])}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
+    <div class="kts">${kt("org","gy","จำนวนสาขา",rows.length,"")}${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>","")}${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",rows.length-T.ns+" สาขา",true)}${kt("check","gr","อนุมัติแล้ว",baht(T.ok)+" <i>บาท</i>","ยังไม่ส่ง "+T.ns+" สาขา",true)}</div>
+    <div class="lbar"><span class="tabs2" id="zchips"></span><span style="flex:1"></span><span class="sbox">${mi("search",18)}<input id="zq" placeholder="ค้นหารหัส / ชื่อสาขา / ผู้รับเงิน"></span></div><div id="zout"></div>`;
+  $("#zback",body).onclick=()=>{ BV.zone=""; adminBzm(body,r); };
+  const out=$("#zout",body);
+  const draw=()=>{
+    const q=$("#zq",body).value.trim().toLowerCase();
+    const cnt=k=>rows.filter(x=>k==="all"||x.st===k).length;
+    $("#zchips",body).innerHTML=[["all","ทั้งหมด"],["ยังไม่ส่ง","ยังไม่ส่ง"],["รอตรวจ","รอตรวจ"],["อนุมัติ","อนุมัติ"]].map(([k,t])=>`<button class="chip ${ZF===k?"on":""}" data-zf="${esc(k)}">${esc(t)} <em>${cnt(k)}</em></button>`).join("");
+    const v=rows.filter(x=>(ZF==="all"||x.st===ZF)&&(!q||(x.b.code+" "+x.b.name+" "+(x.p.name||"")).toLowerCase().indexOf(q)>=0));
+    const pg=pager("zone",v.length,10,ZF+"|"+q+"|"+BV.zone,"r","สาขา");
+    out.innerHTML=v.length?`<div class="glass-card" style="margin-top:12px"><table class="mtbl"><thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th class="r">วงเงิน (บาท)</th><th class="r">เบิก (บาท)</th><th class="r">อนุมัติ (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>
+      ${v.slice(pg.s,pg.e).map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${x.p.name?esc(x.p.name):"<span class='muted'>—</span>"}</td>
+        <td class="r">${x.lim?baht(x.lim):"—"}</td><td class="r">${x.has?baht(x.sent):"—"}</td><td class="r">${x.ok?baht(x.ok):"—"}</td>
+        <td class="c">${x.st==="อนุมัติ"?'<span class="pillk">อนุมัติ</span>':x.st==="รอตรวจ"?'<span class="pillo">รอตรวจ</span>':'<span class="pillg">ยังไม่ส่ง</span>'}</td></tr>`).join("")}</tbody></table>${pg.html}</div>`
+      :`<div class="empty" style="margin-top:12px">ไม่พบสาขาที่ตรงกับตัวกรอง</div>`;
+  };
+  body.addEventListener("click",e=>{ const b=e.target.closest("[data-zf]"); if(b){ ZF=b.dataset.zf; draw(); } });
+  $("#zq",body).oninput=draw;
+  bindPager(out,"zone",draw);
+  draw();
+}
 function adminBzm(body,r){
+  if(BV.zone&&BV.mode==="round"){ adminBzmZone(body,r); return; }
   const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort().reverse();
   if(!BV.round||!rids.includes(BV.round)) BV.round=(r||{}).id||rids[0]||"";
   const years=[...new Set(rids.map(x=>x.slice(0,4)))];
@@ -1792,11 +1825,7 @@ function adminBzm(body,r){
       ${groups.map((z,i)=>{ const n=nm(z), noKey=!z.key; return `<tr class="${noKey?"warnrow":""}"><td>${noKey?`<span style="display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#ff6b1a;color:#fff;font-weight:800;margin-right:10px">!</span>`:""}<b>${esc(noKey?"ไม่ระบุ BZM":n.nick)}</b>${n.name?`<small style="display:inline;margin-left:8px">${esc(n.name)}</small>`:""}</td>
         <td class="r">${z.t.br}</td><td class="r">${baht(z.t.lim)}</td><td class="r" style="${z.t.sent?"color:#e8590c;font-weight:700":""}">${z.t.sent?baht(z.t.sent):"-"}</td><td class="r" style="${z.t.ok?"color:#14935a;font-weight:700":""}">${z.t.ok?baht(z.t.ok):"-"}</td>
         <td class="r">${z.t.notSent||"-"}</td><td class="r"><button class="lnk" data-zd="${i}">ดูรายละเอียด ›</button></td></tr>`;}).join("")}</tbody></table></div>`;
-    out.onclick=e=>{ const b=e.target.closest("[data-zd]"); if(!b) return; const z=window._bzmGroups[+b.dataset.zd]; if(!z) return;
-      const f=document.createElement("div");
-      f.innerHTML=`<div class="glass-card"><table class="mtbl"><thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th class="r">วงเงิน</th><th class="r">เบิก</th><th class="r">อนุมัติ</th></tr></thead><tbody>
-        ${z.rows.map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b></td><td>${x.p.name?esc(x.p.name):"—"}</td><td class="r">${x.lim?baht(x.lim):"—"}</td><td class="r">${x.has?baht(x.sent):`<span class="pillg">ยังไม่ส่ง</span>`}</td><td class="r">${x.has?baht(x.ok):"—"}</td></tr>`).join("")}</tbody></table></div>`;
-      modal("BZM · "+z.label,f,null); };
+    out.onclick=e=>{ const b=e.target.closest("[data-zd]"); if(!b) return; const z=window._bzmGroups[+b.dataset.zd]; if(!z) return; BV.zone=z.label; ZF="all"; adminBzm(body,r); };
     csvRows=[["BZM","รหัสสาขา","สาขา","ผู้รับเงิน","วงเงิน","เบิก","อนุมัติ","ยังไม่อนุมัติ"]];
     groups.forEach(z=>z.rows.forEach(x=>csvRows.push([z.label,x.b.code,x.b.name,x.p.name||"",x.lim,x.sent,x.ok,x.wait])));
   }else{
