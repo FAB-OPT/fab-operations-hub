@@ -3620,7 +3620,7 @@ const TRAINER_PARTICLE = { 'วัชระ':'ครับ', 'ไพรวัล
 const trainerParticle = name => TRAINER_PARTICLE[String(name||'').trim().split(/\s+/)[0]] || 'ค่ะ';
 /* ชื่อเรื่องในข้อความ แยกตามฟอร์ม */
 const SHARE_TOPIC = { FQA:'การตรวจ FQA และการ Re-Training', FSQ:'กรณี Complaint (FSQ)', VISIT:'การ Visit' };
-function fqaShareMsg(r){
+function fqaShareMsg(r, url){
   const nick = v => { const t=String(v||'').trim(); const m=/\(([^()]+)\)\s*$/.exec(t); return m ? m[1].trim() : t.replace(/^คุณ\s*/,'').trim(); };
   const bzmRaw = r.bzm || ((M.branchOf(r.branch)||{}).bzm) || '';
   const bz = nick(bzmRaw);
@@ -3632,13 +3632,13 @@ function fqaShareMsg(r){
   const who = String(r.trainer||'').trim(), pt = trainerParticle(who);
   const lines = [
     'เรียน พี่ปอ '+(bz?bz+' ':'')+'และทุกท่านที่เกี่ยวข้อง', '',
-    'ฝ่าย Operations Training ขอนำส่งรายงาน'+(SHARE_TOPIC[r.type]||SHARE_TOPIC.FQA)+' ร้านเจ๊แดงสามย่าน '+bName+' เมื่อวันที่ '+dateTh+' โดยมีรายละเอียดตามไฟล์แนบ'+pt, '',
+    'ฝ่าย Operations Training ขอนำส่งรายงาน'+(SHARE_TOPIC[r.type]||SHARE_TOPIC.FQA)+' ร้านเจ๊แดงสามย่าน '+bName+' เมื่อวันที่ '+dateTh+' โดยมีรายละเอียดตามลิงก์แนบ'+pt].concat(url?[url]:[]).concat(['',
     'หากมีข้อสงสัยหรือต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถาม'+(who||'ฝ่าย Operations Training ')+'ได้'+pt, '',
-    'ขอบคุณ'+pt].concat(who?[who]:[]).concat(['Operations Training']
+    'ขอบคุณ'+pt]).concat(who?[who]:[]).concat(['Operations Training']
   ).filter((x,i,a)=>!(x==='' && a[i-1]==='' ) );
   const text = lines.join('\n');
   const html = '<div style="font-family:Sarabun,Tahoma,Arial,sans-serif;font-size:14px;line-height:1.75;color:#1F2328">'
-    + lines.map(x=>x===''?'<div>&nbsp;</div>':'<div>'+esc(x)+'</div>').join('') + '</div>';
+    + lines.map(x=>x===''?'<div>&nbsp;</div>':(url&&x===url)?'<div><a href="'+attr(x)+'" style="color:#1D4ED8">'+esc(x)+'</a></div>':'<div>'+esc(x)+'</div>').join('') + '</div>';
   return { text:text, html:html };
 }
 const MGR = 'ทีมผู้จัดการ', KIT = 'พนักงานครัว', SRV = 'พนักงานบริการ';
@@ -6980,7 +6980,7 @@ const PDF = {
       /* STA — ส่งพร้อมข้อความนำส่ง ให้ดูและแก้ก่อนส่ง */
       if(r.type==='STA'){ const m=staShareMsg(r,url); return this.shareSheet(m.text, m.html); }
       /* ใบ FQA / Complaint / Visit ของเจ๊แดง — ข้อความนำส่งของฝ่าย Operations Training (แก้ได้ก่อนส่ง) */
-      if(['FQA','FSQ','VISIT'].indexOf(r.type)>=0 && (Brand.cur||'jaedaeng')==='jaedaeng'){ const m=fqaShareMsg(r); return this.shareSheet(m.text, m.html); }
+      if(['FQA','FSQ','VISIT'].indexOf(r.type)>=0 && (Brand.cur||'jaedaeng')==='jaedaeng'){ const m=fqaShareMsg(r,url); return this.shareSheet(m.text, m.html); }
       if(navigator.share){
         navigator.share({title, text:title, url}).catch(()=>{});
       }else if(navigator.clipboard && navigator.clipboard.writeText){
