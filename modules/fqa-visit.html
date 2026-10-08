@@ -2467,10 +2467,16 @@ const Cloud = {
     this.flush();
   },
 
-  post(body){
+  /* ต้องมีเวลาตัดเสมอ — หลังบ้าน (Apps Script) บางครั้งค้างเงียบไม่ตอบ
+     ของเดิมรอไม่จำกัด รูปหนึ่งรูปที่ค้างทำให้ทั้งคิวค้างตลอด ปุ่ม "ส่งเลย" กดแล้วไม่เกิดอะไร (เจอจริง 8 ต.ค. 2569) */
+  post(body, ms){
+    const lim = ms || (body && body.type==='upload-fqa-photo' ? 75000 : 90000);
+    const ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    const t = ctl ? setTimeout(()=>ctl.abort(), lim) : null;
     return fetch(this.URL, {method:'POST', mode:'cors', redirect:'follow',
-      headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body)})
-      .then(r=>r.json());
+      headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify(body), signal: ctl ? ctl.signal : undefined})
+      .then(r=>{ if(t) clearTimeout(t); return r.json(); },
+            e=>{ if(t) clearTimeout(t); throw (e && e.name==='AbortError') ? new Error('หลังบ้านตอบช้าเกิน '+Math.round(lim/1000)+' วินาที') : e; });
   },
 
   /* บันทึก 1 ใบ — full = ฉบับเต็ม (ไป Supabase) · sheet = ฉบับที่ตัดให้พอดีเซลล์ชีต */
@@ -2525,10 +2531,15 @@ const Cloud = {
 
   /* ส่งงานในคิวทีละชิ้นจนหมด · ออฟไลน์/ล้มเหลว = คงคิวไว้ ลองใหม่รอบหน้า */
   flush(){
-    if(this.syncing || !this.enabled()) return Promise.resolve();
+    if(!this.enabled()) return Promise.resolve();
+    /* รอบก่อนค้างเกิน 2.5 นาที = ถือว่าตายแล้ว ปล่อยให้เริ่มรอบใหม่ได้ (กันค้างถาวร) */
+    if(this.syncing){
+      if(Date.now() - (this._syncAt||0) > 150000){ this.syncing=false; this.upProg=null; }
+      else return Promise.resolve();
+    }
     if(!navigator.onLine){ this.setStatus('offline'); return Promise.resolve(); }
     if(!this.queue().length){ this.setStatus('synced'); return Promise.resolve(); }
-    this.syncing=true; this.setStatus('syncing');
+    this.syncing=true; this._syncAt=Date.now(); this.setStatus('syncing');
     const brand=Brand.cur;
     /* งานที่ส่งไม่ผ่านซ้ำ ๆ จะถูกย้ายไปท้ายคิวหนึ่งครั้งต่อรอบ เพื่อไม่ให้บล็อกงานที่เหลือ
        ของเดิมพอชิ้นแรกพัง ทั้งคิวหยุดหมด ใบใหม่ที่บันทึกทีหลังเลยไม่มีวันขึ้นคลาวด์
@@ -2921,6 +2932,7 @@ const Cloud = {
     if(!this.enabled()) return App.toast('ยังไม่ได้ตั้งค่าเซิร์ฟเวอร์ซิงค์');
     if(!navigator.onLine) return App.toast('อุปกรณ์ออฟไลน์ — จะซิงค์อัตโนมัติเมื่อกลับมาออนไลน์');
     this.lastErr='';
+    if(this.syncing && Date.now() - (this._syncAt||0) > 20000){ this.syncing=false; this.upProg=null; }   // รอบเดิมค้าง → กดแล้วเริ่มใหม่
     App.toast('กำลังซิงค์...');
     /* กดปุ่มเอง = ขอทั้งหมดเสมอ · เป็นทางออกเวลาข้อมูลในเครื่องเพี้ยนไปจาก cloud
        ให้เทียบกันใหม่ทั้งก้อนทีเดียว */
