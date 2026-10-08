@@ -1123,6 +1123,18 @@ html[data-brand="santafe"] #fcList .btn{min-height:36px;border-radius:999px;font
 .stasec b{font-size:19px;font-weight:800;letter-spacing:-.4px;font-variant-numeric:tabular-nums}
 .stafl .fl{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--border)}
 .stafl .fl:first-child{border-top:0}
+.stafl .fl{cursor:pointer;border-radius:10px;transition:background .12s;padding-left:6px;padding-right:6px;margin:0 -6px}
+.stafl .fl:hover,.stafl .fl:focus-visible{background:var(--bg3,#f5f6f8);outline:none}
+.stafl .fl .go{flex:none;align-self:center;color:var(--text3);font-size:20px;line-height:1;padding-left:2px}
+.sfb-t{font-size:15px;font-weight:700;line-height:1.55;margin-bottom:8px}
+.sfb-s{font-size:13.5px;margin-bottom:12px}
+.sfb{border:1px solid var(--border);border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:background .12s}
+.sfb:hover{background:var(--bg3,#f5f6f8)}
+.sfb-h{display:flex;align-items:center;gap:10px}
+.sfb-h b{font-size:15.5px}.sfb-m{font-size:12.5px;color:var(--text3)}
+.sfb-p{font-size:17px;font-weight:800}
+.sfb-h .go{color:var(--text3);font-size:20px}
+.sfb-n{margin-top:6px;font-size:13px;color:var(--text2);line-height:1.55;padding-left:10px;border-left:3px solid var(--red-light,#fde0e0)}
 .stafl .k{flex:none;font-size:11.5px;font-weight:800;color:var(--red);background:var(--red-light);border-radius:7px;padding:3px 8px;min-width:34px;text-align:center}
 .stafl .t{flex:1;min-width:0;font-size:12.5px;line-height:1.5}
 .stafl .t b{font-weight:700;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
@@ -5874,10 +5886,14 @@ const Dash = {
       </div>`).join('')}</div>`;
 
     /* หัวข้อที่ถูกหัก — นับว่ากี่สาขาตกข้อนั้น (ใบล่าสุดของแต่ละสาขา) */
-    const cnt={};
-    L.forEach(x=>Object.keys(x.r.marks||{}).forEach(k=>{ if(x.r.marks[k]==='fail') cnt[k]=(cnt[k]||0)+1; }));
+    const cnt={}, failBy={};
+    L.forEach(x=>Object.keys(x.r.marks||{}).forEach(k=>{ if(x.r.marks[k]==='fail'){
+      cnt[k]=(cnt[k]||0)+1;
+      (failBy[k]=failBy[k]||[]).push({id:x.r.id, branch:x.r.branch||'—', date:x.r.date, bzm:x.r.bzm||'', pct:x.pct, note:((x.r.notes||{})[k]||'').trim()});
+    } }));
     const meta={};
     STA_FORM.forEach(sec=>sec.items.forEach(it=>it.parts.forEach(p=>{ meta[it.no+'.'+p.k]={no:it.no, text:it.text, who:p.who||''}; })));
+    this._staFail={ by:failBy, meta:meta, n:n };
     const top=Object.keys(cnt).filter(k=>meta[k]).sort((a,b)=>cnt[b]-cnt[a] || a.localeCompare(b)).slice(0,8);
     /* เฉลี่ยตามหมวด — บอกว่าอ่อนเรื่องการสอนงานหรือเรื่องเอกสาร */
     const secAvg=STA_FORM.map(sec=>{ let g=0,t=0; L.forEach(x=>{ const s=staSectionScore(x.r,sec); g+=s.got; t+=s.total; });
@@ -5886,10 +5902,22 @@ const Dash = {
       `<div class="stasec">${secAvg.map(s=>`<div><span>${esc(s.group)}<small>${esc(s.name)}</small></span>
           <b class="${s.pct>=STA_PASS_PCT?'okc':'noc'}">${staNum(s.pct)}%</b></div>`).join('')}</div>`
       + (top.length ? `<div class="stafl">${top.map(k=>{ const m=meta[k];
-          return `<div class="fl"><span class="k">${esc(m.no)}</span>
+          return `<div class="fl" role="button" tabindex="0" onclick="Dash.staFailBranches('${attr(k)}')" onkeydown="if(event.key==='Enter')Dash.staFailBranches('${attr(k)}')" title="กดดูว่าสาขาไหนตกข้อนี้"><span class="k">${esc(m.no)}</span>
             <span class="t"><b>${esc(m.text)}</b>${m.who?`<em>${esc(m.who)}</em>`:''}</span>
-            <span class="c">${cnt[k]}<small>/${n} สาขา</small></span></div>`; }).join('')}</div>`
+            <span class="c">${cnt[k]}<small>/${n} สาขา</small></span><span class="go">›</span></div>`; }).join('')}</div>`
         : emptyBox('ไม่มีหัวข้อที่ถูกหักคะแนน'));
+  },
+  /* กดหัวข้อที่ถูกหักบ่อย → ดูว่าสาขาไหนตกข้อนี้ (จากใบล่าสุดของแต่ละสาขา · คะแนนต่ำสุดขึ้นก่อน) */
+  staFailBranches(k){
+    const d=this._staFail; if(!d||!d.meta[k]) return;
+    const m=d.meta[k], list=(d.by[k]||[]).slice().sort((a,b)=>a.pct-b.pct || String(a.branch).localeCompare(String(b.branch)));
+    const rows=list.map(x=>`<div class="sfb" onclick="Rec.view('${attr(x.id)}')" title="เปิดใบตรวจ">
+        <div class="sfb-h"><b>${esc(x.branch)}</b><span class="sfb-m">${esc(fmtDMY(x.date))}${x.bzm?' · '+esc(x.bzm):''}</span><span style="flex:1"></span>
+          <span class="sfb-p ${x.pct>=STA_PASS_PCT?'okc':'noc'}">${staNum(x.pct)}%</span><span class="go">›</span></div>
+        ${x.note?`<div class="sfb-n">สิ่งที่พบ: ${esc(x.note)}</div>`:''}</div>`).join('');
+    App.modal('ข้อ '+m.no+(m.who?' · '+m.who:''),
+      `<div class="sfb-t">${esc(m.text)}</div>
+       <div class="sfb-s"><b class="noc">${list.length}</b> จาก ${d.n} สาขา ตกข้อนี้ในใบล่าสุด <span class="mut">· เรียงคะแนนรวมต่ำสุดขึ้นก่อน · แตะสาขาเพื่อเปิดใบตรวจ</span></div>${rows}`);
   },
   /* ซ่อน/แสดงกรอบตามประเภทที่เลือก — เลือก FQA จะไม่โชว์กรอบ Complaint/Visit ฯลฯ
      และกรอบของฟอร์มที่แบรนด์นี้ไม่ได้ใช้ ต้องไม่โผล่ตั้งแต่แรกไม่ว่าเลือกอะไร
