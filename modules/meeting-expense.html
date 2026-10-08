@@ -535,6 +535,18 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
   .rhero .acts .ab{margin:0!important;height:46px;border-radius:14px;font-size:14.5px;width:100%}
   .rhero .acts .ab.no:last-child{grid-column:1/-1;height:40px;background:#f6f7f9;border-color:transparent;color:#9ca3af;font-weight:600}
 }
+.rprog{display:none}
+@media(max-width:899px){
+  .rhero .r1top{display:none}
+  .rhero .rprog{display:block}
+  .rprog .rp-h{display:flex;align-items:center;justify-content:space-between;gap:10px}
+  .rprog .rp-h small{display:block;color:#8a8f98;font-weight:600;font-size:13.5px}.rprog .rp-h b{font-size:28px;font-weight:800;letter-spacing:-.01em;line-height:1.2}
+  .rprog .rp-n{display:flex;align-items:baseline;gap:8px;margin-top:18px}
+  .rprog .rp-n b{font-size:40px;font-weight:800;color:#ff6b1a;line-height:1;font-variant-numeric:tabular-nums}.rprog .rp-n span{color:#8a8f98;font-size:17px}.rprog .rp-n em{margin-left:auto;font-style:normal;font-weight:800;color:#6b7280}
+  .rprog .rp-bar{height:12px;border-radius:99px;background:#eceff3;overflow:hidden;margin-top:10px}.rprog .rp-bar i{display:block;height:100%;border-radius:99px;background:#ff6b1a}
+  .rprog .rp-f{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-top:14px;color:#8a8f98;font-size:14px}
+  .rprog .rp-f .cd{margin:0;white-space:nowrap}
+}
 .hcnt,.fbtn,.mkp,.msq{display:none}.hqrow{display:contents}
 .slip .amt .bt{font-size:14px;font-weight:600;color:#777}
 @media(max-width:899px){
@@ -1674,6 +1686,7 @@ function adminRounds(body){
   const curClaims=cur?CLAIMS().filter(c=>roundIdOf(c)===cur.id&&!isRejected(c)):[];
   const M={lim:cur?Branches.list().reduce((a,b)=>a+limitOf(cur.id,b.code),0):0, sent:sumOf(curClaims), ok:sumOf(curClaims.filter(c=>statusOf(c)==="อนุมัติ")), wait:curClaims.filter(isWaiting).length};
   const pct=nb?Math.min(100,sentC/nb*100):0;
+  const dtxt=cur?(cur.startDate&&cur.dueDate?"ส่งได้ "+thDate(cur.startDate)+" – "+thDate(cur.dueDate):cur.dueDate?"ส่งได้ถึง "+thDate(cur.dueDate):cur.startDate?"ส่งได้ตั้งแต่ "+thDate(cur.startDate):"ยังไม่กำหนดช่วงวันที่"):"";
   const mchip=id=>`<button class="mchip ${id===nid?"on":""}" data-nid="${id}">${esc(roundLabel(id))}</button>`;
   body.innerHTML=`<div class="head"><h1>รอบเบิก</h1><span class="sp"></span><button class="tbtn pri" id="addr">+ สร้างรอบใหม่</button></div>
     <div class="rgrid">
@@ -1681,6 +1694,9 @@ function adminRounds(body){
         <div class="r1info"><span class="pill ${cur.open?"p-ok":"p-no"}">● ${cur.open?"เปิดรับเอกสาร":"ปิดรับแล้ว"}</span>
           <div class="rbig">${esc(roundLabel(cur.id))}</div>
           <div class="r1date"><span class="muted" style="font-size:14px">${cur.startDate&&cur.dueDate?"ส่งได้ "+thDate(cur.startDate)+" – "+thDate(cur.dueDate):cur.dueDate?"ส่งได้ถึง "+thDate(cur.dueDate):cur.startDate?"ส่งได้ตั้งแต่ "+thDate(cur.startDate):"ยังไม่กำหนดช่วงวันที่"}</span>${left!=null&&left>=0?`<span class="cd">⏳ เหลืออีก ${left} วัน</span>`:""}</div></div></div>
+        <div class="rprog"><div class="rp-h"><div><small>รอบเบิก</small><b>${esc(roundLabel(cur.id))}</b></div><span class="pill ${cur.open?"p-ok":"p-no"}">● ${cur.open?"เปิดรับ":"ปิดรับแล้ว"}</span></div>
+          <div class="rp-n"><b>${sentC}</b><span>/ ${nb} สาขาที่ส่ง</span><em>${Math.round(pct*10)/10}%</em></div><div class="rp-bar"><i style="width:${Math.max(pct,2)}%"></i></div>
+          <div class="rp-f"><span>${esc(dtxt)}</span>${left!=null&&left>=0?`<span class="cd">⏳ เหลือ ${left} วัน</span>`:""}</div></div>
         <div class="m4"><div><small>วงเงินรวม</small><b>${baht(M.lim)}</b></div><div><small>ส่งเบิกแล้ว</small><b style="color:#e8590c">${baht(M.sent)}</b></div><div><small>อนุมัติแล้ว</small><b style="color:#15803d">${baht(M.ok)}</b></div><div><small>รอตรวจ</small><b>${M.wait}</b></div></div>
         ${nb-sentC>0?`<div class="warnbar">${mi("warn",22)}<span>${nb-sentC} สาขายังไม่ส่งเอกสาร</span><button class="ab ghost" id="unsent">ดูรายชื่อ →</button></div>`:`<div class="warnbar ok">✓ ทุกสาขาส่งเอกสารแล้ว</div>`}
         <div class="acts" id="rcact" style="margin-top:14px"></div>`
