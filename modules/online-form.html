@@ -804,6 +804,11 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 .kind-seg{margin:0 0 12px;max-width:520px}
 .kind-frame{display:block;width:100%;border:0;background:transparent;height:calc(100vh - 100px);height:calc(100dvh - 100px);min-height:520px}
 @media(max-width:820px){ .kind-frame{height:calc(100dvh - 100px - var(--tabbar-h) - env(safe-area-inset-bottom));min-height:420px} }
+
+/* แถบกรองประเภทฟอร์ม + ปุ่มสร้างตามประเภท */
+.type-bar{margin:0 0 14px}
+.mh-new{align-items:center}
+@media(max-width:820px){ .mh{flex-wrap:wrap;gap:10px} .mh-new{width:100%} .mh-new .btn{flex:1;min-width:0} }
 </style>
 </head>
 <body>
@@ -1324,7 +1329,7 @@ function ttItemHtml(t){
   const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
   return `<div class="form-item tk ${open ? '' : 'off'}">
     <div class="tk-h">
-      <div class="tk-no"><span><em class="tk-k tr">การอบรม</em></span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
+      <div class="tk-no"><span><em class="tk-k tr">ทดสอบอบรม</em></span><span>${open ? (t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : 'เปิดอยู่') : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></div>
       <div class="tk-t"><span>${esc(t.emoji || '🎓')}</span>${esc(t.title)}</div>
       ${sub ? `<div class="tk-d">${esc(sub)}</div>` : ''}
     </div>
@@ -1371,7 +1376,7 @@ function formItemHtml(f){
   const click = open && !lock && !staff;
   return `<div class="form-item tk ${click ? 'clickable' : (!isOpen(f) || lock) ? 'off' : ''}" ${click ? `onclick="startFill('${esc(f.key)}')"` : ''}>
     <div class="tk-h">
-      <div class="tk-no"><span><em class="tk-k">แบบฟอร์ม</em>${urgent ? status : f.once_per_user ? '' : '<i class="tk-x">ตอบซ้ำได้</i>'}</span><span>${urgent ? (f.once_per_user ? '' : 'ตอบซ้ำได้') : status}</span></div>
+      <div class="tk-no"><span><em class="tk-k">แบบสอบถาม</em>${urgent ? status : f.once_per_user ? '' : '<i class="tk-x">ตอบซ้ำได้</i>'}</span><span>${urgent ? (f.once_per_user ? '' : 'ตอบซ้ำได้') : status}</span></div>
       <div class="tk-t"><span>${esc(f.emoji || '📋')}</span>${esc(f.title)}</div>
       ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
     </div>
@@ -1380,6 +1385,19 @@ function formItemHtml(f){
 }
 window.openResults = function(key){ rf = { form:key, branch:'', q:'' }; kindSel = 'gen'; go('results'); };
 window.openFollow  = function(key){ ff.form = key; ff.show = 'miss'; kindSel = 'gen'; go('followup'); };
+
+/* ประเภทฟอร์ม — ทุกชนิดอยู่ในรายการเดียว แยกด้วยป้ายประเภท */
+let listType = 'all', mgType = 'all';
+const TYPE_NAME = { gen:'แบบสอบถาม', sg:'ประเมินพนักงาน', tt:'ทดสอบอบรม' };
+const typeChip = k => `<em class="tk-k ${k === 'sg' ? 'sg' : k === 'tt' ? 'tr' : ''}">${TYPE_NAME[k]}</em>`;
+function typeBar(have, cur, fn){
+  if (have.length < 2) return '';
+  const all = have.reduce((a, x) => a + x[1], 0);
+  return `<div class="seg type-bar"><button class="${cur === 'all' ? 'on' : ''}" onclick="${fn}('all')">ทั้งหมด ${all}</button>${
+    have.map(([k, n]) => `<button class="${cur === k ? 'on' : ''}" onclick="${fn}('${k}')">${TYPE_NAME[k]} ${n}</button>`).join('')}</div>`;
+}
+window.setListType = k => { listType = k; renderList(); };
+window.setMgType = k => { mgType = k; renderForms(); };
 
 function renderList(){
   const list = forms.filter(f => visibleTo(f) && (isOpen(f) || ofCan('manage-forms')));
@@ -1412,17 +1430,22 @@ function renderList(){
     const n = todo.filter(f => !myAnswered.has(f.key)).length + sgOpen.length + ttOpen.filter(ttLeft).length;
     hero = `<div class="hero-k">สวัสดี ${esc(ME.name || '')}</div><h1>${n ? `มี <em>${n} ฟอร์ม</em> รอให้ตอบ` : 'ตอบครบทุกฟอร์มแล้ว ✓'}</h1>${n ? '' : '<p>มีฟอร์มใหม่จะขึ้นที่หน้านี้</p>'}`;
   }
+  /* กรองตามประเภท — แสดงแถบเมื่อมีมากกว่า 1 ประเภท */
+  const have = [['gen', list.length], ['sg', sg.length], ['tt', tt.length]].filter(x => x[1]);
+  if (!have.some(x => x[0] === listType)) listType = 'all';
+  const show = k => listType === 'all' || listType === k;
   $('#view').innerHTML = `
     <div class="hero">${hero}
       ${sgScores ? `<div class="row-btns"><button class="btn btn-secondary btn-sm" onclick="sgGo('tab=results')">📊 ดูคะแนนประเมินพนักงานของสาขา</button></div>` : ''}
     </div>
+    ${typeBar(have, listType, 'setListType')}
     <div class="tks">
-      ${sgOpen.map(sgItemHtml).join('')}
-      ${ttOpen.map(ttItemHtml).join('')}
-      ${todo.map(formItemHtml).join('')}
-      ${rest.map(formItemHtml).join('')}
-      ${sgRest.map(sgItemHtml).join('')}
-      ${ttRest.map(ttItemHtml).join('')}
+      ${show('sg') ? sgOpen.map(sgItemHtml).join('') : ''}
+      ${show('tt') ? ttOpen.map(ttItemHtml).join('') : ''}
+      ${show('gen') ? todo.map(formItemHtml).join('') : ''}
+      ${show('gen') ? rest.map(formItemHtml).join('') : ''}
+      ${show('sg') ? sgRest.map(sgItemHtml).join('') : ''}
+      ${show('tt') ? ttRest.map(ttItemHtml).join('') : ''}
       ${ofCan('manage-forms') ? `<div class="tk-add" onclick="go('forms').then(newForm)">+ สร้างฟอร์มใหม่</div>` : ''}
     </div>`;
 }
@@ -1986,77 +2009,73 @@ window.printResp = function(id){
    จัดการฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
 const statusPill = st => `<span class="pill ${st === 'open' ? 'open' : st === 'draft' ? 'draft' : 'closed'}">${st === 'open' ? 'เปิด' : st === 'draft' ? 'ร่าง' : 'ปิด'}</span>`;
-function sgManageHtml(){
-  if (!(sgCan('manage-forms') || sgCan('view-results') || sgCan('manage-people'))) return '';
-  return `<div class="card">
-    <h2 style="margin-bottom:10px">🥇 แบบประเมินพนักงาน Silver / Gold</h2>
-    <div class="sg-tiles">
-      ${sgCan('manage-forms')  ? `<button class="pri" onclick="sgGo('tab=forms&new=1')">+ สร้างชุดประเมิน</button>` : ''}
-      ${sgCan('view-results')  ? `<button onclick="sgGo('tab=results')">📊 ผลประเมิน</button>` : ''}
-      ${sgCan('view-followup') ? `<button onclick="sgGo('tab=followup')">🔔 ติดตาม</button>` : ''}
-      ${sgCan('manage-people') ? `<button onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
+/* การ์ดจัดการ แยกตามประเภท — หน้าตาเดียวกัน ต่างกันที่ป้ายประเภทกับปุ่ม */
+function genMfHtml(f){
+  const n = responses.filter(r => r.form_key === f.key).length;
+  return `<div class="mf">
+    <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
+      <div class="mf-t"><b>${esc(f.title)}</b>
+        ${lineHtml([typeChip('gen'), (f.questions || []).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
+      ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
+    <div class="mf-acts">
+      <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
+      <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
+      ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
     </div>
-    ${SG_FORMS.length ? `<div class="mf-grid" style="margin-top:12px">${SG_FORMS.map(f => {
-      const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
-      return `<div class="mf">
-        <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '🥇')}</span>
-          <div class="mf-t"><b>${esc(f.title)}</b>${lineHtml([f.round ? esc(f.round) : '', (f.sections || []).length + ' หมวด', nq + ' ข้อ'])}</div>
-          ${statusPill(f.status)}</div>
-        <div class="mf-acts">
-          ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
-          ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
-        </div>
-      </div>`;
-    }).join('')}</div>` : ''}
+  </div>`;
+}
+function sgMfHtml(f){
+  const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
+  return `<div class="mf">
+    <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '🥇')}</span>
+      <div class="mf-t"><b>${esc(f.title)}</b>${lineHtml([typeChip('sg'), f.round ? esc(f.round) : '', (f.sections || []).length + ' หมวด', nq + ' ข้อ'])}</div>
+      ${statusPill(f.status)}</div>
+    <div class="mf-acts">
+      ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
+      ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
+    </div>
+  </div>`;
+}
+function ttMfHtml(t){
+  return `<div class="mf">
+    <div class="mf-top"><span class="fr-emoji">${esc(t.emoji || '🎓')}</span>
+      <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([typeChip('tt'), t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttTarget(t) + ' คน'])}</div>
+      ${statusPill(t.status)}</div>
+    <div class="mf-acts">
+      ${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
+      ${t.status === 'open' && ttCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=followup')">ติดตาม</button>` : ''}
+    </div>
   </div>`;
 }
 
-function ttManageHtml(){
-  if (!(ttCan('manage-trainings') || ttCan('view-results') || ttCan('view-followup'))) return '';
-  return `<div class="card">
-    <h2 style="margin-bottom:10px">🎓 แบบทดสอบก่อน–หลังอบรม</h2>
-    <div class="sg-tiles">
-      ${ttCan('manage-trainings') ? `<button class="pri" onclick="ttGo('tab=trainings&new=1')">+ สร้างการอบรม</button>` : ''}
-      ${ttCan('view-results')     ? `<button onclick="ttGo('tab=results')">📊 ผลก่อน–หลัง</button>` : ''}
-      ${ttCan('view-results')     ? `<button onclick="ttGo('tab=report')">📄 ออกรายงาน</button>` : ''}
-      ${ttCan('view-followup')    ? `<button onclick="ttGo('tab=followup')">🔔 ติดตามคนที่ยังไม่ทำ</button>` : ''}
-    </div>
-    ${TT_LIST.length ? `<div class="mf-grid" style="margin-top:12px">${TT_LIST.map(t => `<div class="mf">
-        <div class="mf-top"><span class="fr-emoji">${esc(t.emoji || '🎓')}</span>
-          <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttTarget(t) + ' คน'])}</div>
-          ${statusPill(t.status)}</div>
-        <div class="mf-acts">
-          ${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
-          ${t.status === 'open' && ttCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=followup')">ติดตาม</button>` : ''}
-        </div>
-      </div>`).join('')}</div>` : ''}
-  </div>`;
-}
-
+/* จัดการฟอร์ม — รายการเดียวรวมทุกประเภท · ปุ่มสร้างเลือกประเภทได้ · ปุ่มลัดของแต่ละประเภทอยู่ท้ายหน้า */
 function renderForms(){
   if (editing) return renderEditor();
-  /* จัดการ Silver/Gold ได้ แต่ไม่มีสิทธิ์ฟอร์มทั่วไป → เห็นเฉพาะส่วนของ Silver/Gold */
-  if (!ofCan('manage-forms')){ $('#view').innerHTML = sgManageHtml() + ttManageHtml(); return; }
+  const canGen = ofCan('manage-forms');
+  const canSg  = sgCan('manage-forms') || sgCan('view-results') || sgCan('manage-people');
+  const canTt  = ttCan('manage-trainings') || ttCan('view-results') || ttCan('view-followup');
+  const items = { gen: canGen ? forms : [], sg: canSg ? SG_FORMS : [], tt: canTt ? TT_LIST : [] };
+  const have = ['gen','sg','tt'].map(k => [k, items[k].length]).filter(x => x[1]);
+  if (!have.some(x => x[0] === mgType)) mgType = 'all';
+  const show = k => mgType === 'all' || mgType === k;
+  const total = have.reduce((a, x) => a + x[1], 0);
+  const cards = (show('gen') ? items.gen.map(genMfHtml) : [])
+    .concat(show('sg') ? items.sg.map(sgMfHtml) : [], show('tt') ? items.tt.map(ttMfHtml) : []);
+  const links = [
+    sgCan('manage-people') ? `<button onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน (Silver / Gold)</button>` : ''
+  ].filter(Boolean).join('');
   $('#view').innerHTML = `
     <div class="mh">
-      <h2>แบบฟอร์มทั่วไป <span class="muted" style="font-size:13px;font-weight:600">${forms.length} ฟอร์ม</span></h2>
-      <button class="btn btn-primary" onclick="newForm()">+ สร้างฟอร์มใหม่</button>
+      <h2>จัดการฟอร์ม <span class="muted" style="font-size:13px;font-weight:600">${total} ฟอร์ม</span></h2>
+      <div class="seg mh-new">
+        ${canGen ? `<button class="btn btn-primary" onclick="newForm()">+ แบบสอบถาม</button>` : ''}
+        ${sgCan('manage-forms') ? `<button class="btn btn-secondary" onclick="sgGo('tab=forms&new=1')">+ ประเมินพนักงาน</button>` : ''}
+        ${ttCan('manage-trainings') ? `<button class="btn btn-secondary" onclick="ttGo('tab=trainings&new=1')">+ ทดสอบอบรม</button>` : ''}
+      </div>
     </div>
-    <div class="mf-grid">${forms.map(f => {
-      const n = responses.filter(r => r.form_key === f.key).length;
-      return `<div class="mf">
-        <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
-          <div class="mf-t"><b>${esc(f.title)}</b>
-            ${lineHtml([(f.questions || []).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
-          ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
-        <div class="mf-acts">
-          <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
-          <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
-          ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
-        </div>
-      </div>`;
-    }).join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กด "+ สร้างฟอร์มใหม่" เพื่อเริ่ม</div>'}</div>
-    <div style="margin-top:18px">${sgManageHtml()}${ttManageHtml()}</div>`;
+    ${typeBar(have, mgType, 'setMgType')}
+    <div class="mf-grid">${cards.join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กดปุ่ม "+" ด้านบนเพื่อเริ่ม</div>'}</div>
+    ${links ? `<div class="sg-tiles" style="margin-top:18px">${links}</div>` : ''}`;
 }
 
 const newKey = () => 'form-' + Date.now().toString(36);
