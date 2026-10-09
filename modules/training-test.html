@@ -1112,6 +1112,31 @@ async function loadEvalSet(){
 }
 const EVAL_LV = ['', 'ปรับปรุง', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
 const evalOn = t => !t || t.eval_enabled !== false;
+/* ── ให้ผู้ใช้กรอกชื่อเอง (self_entry) ──
+   ไม่ต้องทำรายชื่อล่วงหน้า: ผู้เข้าอบรมพิมพ์ชื่อตัวเองตอนทำแบบทดสอบ · รายชื่อ = คนที่เคยลงชื่อแล้วในผลของการอบรมนั้น
+   (ไม่เขียนรายชื่อกลับลงตารางการอบรม จึงไม่มีปัญหาหลายเครื่องเขียนทับกัน) · จำกัดจำนวนคนด้วย self_limit */
+const isSelf = t => !!t && t.self_entry === true;
+const normName = s => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+function selfPeople(t){
+  const seen = new Map();
+  attempts.forEach(a => {
+    if (a.training_key !== t.key || (a.phase !== 'pre' && a.phase !== 'post') || !a.participant_id) return;
+    if (!seen.has(a.participant_id)) seen.set(a.participant_id, { id: a.participant_id, name: a.participant_name, branch: a.participant_branch || '', position: '' });
+  });
+  return [...seen.values()].sort((x, y) => String(x.name).localeCompare(String(y.name), 'th'));
+}
+const rosterOf = t => isSelf(t) ? selfPeople(t) : ((t && t.participants) || []);
+const selfLimit = t => Math.max(0, Number(t && t.self_limit) || 0);
+const selfId = name => 'n:' + String(ME.code || '') + ':' + normName(name).toLowerCase();
+/* ลงชื่อใหม่ได้ไหม — นับคนที่ลงชื่อแล้วจากฐานข้อมูลสด (ไม่เชื่อรายการในหน้า เพราะเครื่องอื่นอาจเพิ่งลง) */
+async function selfSlotOk(t, pid){
+  const lim = selfLimit(t); if (!lim) return true;
+  await sbReady();
+  const { data, error } = await SB.from('tr_attempts').select('participant_id').eq('training_key', t.key).in('phase', ['pre','post']).range(0, 4999);
+  if (error) return true;
+  const ids = new Set((data || []).map(r => String(r.participant_id)));
+  return ids.has(String(pid)) || ids.size < lim;
+}
 const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase === 'eval');
 /* แบบประเมินไม่ระบุชื่อ จึงนับรายคนไม่ได้ · นับแยกตามบัญชีที่ทำ (สาขา) แทน
    ของเดิมนับรวมทุกสาขาแล้วเทียบกับคนของสาขาเดียว สาขาอื่นประเมินไปก่อน
@@ -1134,7 +1159,7 @@ function visibleTo(t){
 }
 /* ผู้เข้าอบรมที่ผู้ใช้คนนี้เห็น — สาขาเห็นเฉพาะคนของสาขาตัวเอง */
 function participantsFor(t){
-  const all = t.participants || [];
+  const all = rosterOf(t);
   if (!ME.isBranch) return all;
   const code = String(ME.code || '');
   return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
@@ -1289,7 +1314,7 @@ function renderList(){
   }
   /* สถานะสามขั้นของแต่ละการอบรม · ขั้นที่ต้องทำตอนนี้ = ขั้นแรกที่เปิดแล้วยังไม่ครบ */
   const steps = t => {
-    const ppl = participantsFor(t), n = ppl.length, open = t.status === 'open';
+    const ppl = participantsFor(t), n = isSelf(t) ? Math.max(selfLimit(t), ppl.length) : ppl.length, open = t.status === 'open';
     const st = [['pre','ก่อนเรียน',t.pre_open], ['post','หลังเรียน',t.post_open], ['eval','ประเมิน',t.post_open]].filter(x => x[0] !== 'eval' || evalOn(t)).map(([ph, name, on]) => ({
       ph, name, on: open && on,
       got: ph === 'eval' ? Math.min(evalsFor(t).length, n) : ppl.filter(p => attemptOf(t.key, ph, p.id)).length }));
@@ -1388,10 +1413,34 @@ window.showScores = function(key){
     </div>`;
 };
 
+function renderPickSelf(t, left){
+  const lim = selfLimit(t), reg = selfPeople(t).length, full = !!lim && reg >= lim;
+  $('#view').innerHTML = `
+    <div class="card">
+      <div class="rs-ph ${run.phase}">${esc(PHASE[run.phase])}</div>
+      <h2>${esc(t.title)}</h2>
+      ${left.length ? `
+        <label>เลือกชื่อของคุณ (ที่ลงชื่อไว้แล้ว)</label>
+        <select id="rnWho"><option value="">— เลือกชื่อของคุณ —</option>${left.map(p =>
+          `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
+        <p class="sub" style="margin:14px 0 6px">หรือ ลงชื่อใหม่</p>` : ''}
+      <label>${left.length ? 'พิมพ์ชื่อ-นามสกุลของคุณ' : 'ลงชื่อ: พิมพ์ชื่อ-นามสกุลของคุณ'}</label>
+      <input id="rnNew" placeholder="${full ? 'ลงชื่อครบจำนวนแล้ว' : 'ชื่อ-นามสกุล'}" ${full ? 'disabled' : ''} autocomplete="off" maxlength="80">
+      <p class="sub" style="margin-top:6px">${lim
+        ? (full ? 'ลงชื่อครบ ' + lim + ' คนแล้ว — ถ้าชื่อคุณลงไว้แล้ว ให้เลือกจากรายการด้านบน' : 'ลงชื่อแล้ว ' + reg + ' / ' + lim + ' คน')
+        : 'ลงชื่อแล้ว ' + reg + ' คน'} · ใช้ชื่อเดียวกันทั้งก่อนและหลังเรียน</p>
+      <div class="row-btns" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="beginRun()">เริ่มทำแบบทดสอบ</button>
+        <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
+      </div>
+    </div>${scoresHtml(t)}`;
+}
+
 function renderPick(){
   const t = run.t;
   const ppl = participantsFor(t);
   const left = ppl.filter(p => !attemptOf(t.key, run.phase, p.id));
+  if (isSelf(t)) return renderPickSelf(t, left);
   $('#view').innerHTML = `
     <div class="card">
       <div class="rs-ph ${run.phase}">${esc(PHASE[run.phase])}</div>
@@ -1410,10 +1459,21 @@ function renderPick(){
 }
 
 window.beginRun = async function(){
-  const pid = $('#rnWho').value;
-  const person = participantsFor(run.t).find(p => String(p.id) === String(pid));
-  if (!person) return msg('เลือกชื่อของคุณก่อน', 'warn');
-  if (await attemptExists(run.t.key, run.phase, person.id)){
+  const t = run.t;
+  const pid = ($('#rnWho') || {}).value, typed = normName(($('#rnNew') || {}).value);
+  let person = null;
+  if (isSelf(t) && typed){
+    if (typed.length < 2) return msg('พิมพ์ชื่อให้ครบก่อน', 'warn');
+    person = { id: selfId(typed), name: typed, branch: ME.branch || '', position: '' };
+    if (!(await selfSlotOk(t, person.id))){
+      await loadAttempts(); renderPick();
+      return msg('ลงชื่อครบ ' + selfLimit(t) + ' คนแล้ว — ชื่อนี้ยังไม่ได้ลงไว้ จึงเข้าทำไม่ได้', 'warn');
+    }
+  } else {
+    person = participantsFor(t).find(p => String(p.id) === String(pid));
+  }
+  if (!person) return msg(isSelf(t) ? 'เลือกชื่อ หรือพิมพ์ชื่อของคุณก่อน' : 'เลือกชื่อของคุณก่อน', 'warn');
+  if (await attemptExists(t.key, run.phase, person.id)){
     await loadAttempts(); renderPick();
     return msg('<b>' + esc(person.name) + '</b> ทำ' + esc(PHASE[run.phase]) + 'ไปแล้ว (อาจมีเครื่องอื่นเพิ่งส่ง) — เลือกชื่อของคุณใหม่', 'warn');
   }
@@ -1494,6 +1554,10 @@ window.submitRun = async function(){
   if (miss.length){ run.flag = true; renderRun(); return missPopup(qs, miss); }
   const score = qs.reduce((a, q) => a + (run.answers[q.id] === q.answer ? 1 : 0), 0);
   const pct = qs.length ? Math.round(score / qs.length * 1000) / 10 : 0;
+  if (isSelf(t) && !(await selfSlotOk(t, run.person.id))){
+    await loadAttempts(); run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
+    return msg('ลงชื่อครบ ' + selfLimit(t) + ' คนแล้ว (เครื่องอื่นลงชื่อก่อน) — ยังไม่ได้บันทึกคำตอบของคุณ', 'warn');
+  }
   if (await attemptExists(t.key, run.phase, run.person.id)){
     await loadAttempts(); const nm = run.person.name; run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
     return msg('<b>' + esc(nm) + '</b> ส่งคำตอบไปแล้ว (เครื่องอื่นส่งก่อน) — ไม่บันทึกซ้ำ', 'warn');
@@ -1658,7 +1722,7 @@ function ttRank(aPost, aDiff, aName, bPost, bDiff, bName){
 function resultRows(){
   const list = [];
   trainings.filter(t => !rf.training || t.key === rf.training).forEach(t => {
-    (t.participants || []).forEach(p => {
+    rosterOf(t).forEach(p => {
       const pre = attemptOf(t.key,'pre',p.id), post = attemptOf(t.key,'post',p.id);
       if (!pre && !post) return;
       list.push({ t, p, pre, post,
@@ -1674,7 +1738,7 @@ function resultRows(){
 
 function renderResults(){
   try { document.querySelector('main').classList.add('wide'); } catch (e) {}
-  const branches = [...new Set(trainings.flatMap(t => (t.participants || []).map(p => p.branch).filter(Boolean)))].sort();
+  const branches = [...new Set(trainings.flatMap(t => rosterOf(t).map(p => p.branch).filter(Boolean)))].sort();
   $('#view').innerHTML = `
     <div class="card">
       <h2>ผลก่อน–หลังอบรม</h2>
@@ -1820,7 +1884,7 @@ function paintEval(){
     return `<div class="card">
       <div class="ev-hd"><h2>ผลประเมินอบรม · ${esc(t.title)}</h2>
         <button class="btn btn-line btn-sm" onclick="evalSheets('${esc(t.key)}')">ดูรายใบ (${ev.length})</button></div>
-      <p class="sub">ประเมินแล้ว ${ev.length}${(t.participants || []).length ? ' / ' + t.participants.length : ''} คน · ไม่ระบุชื่อ
+      <p class="sub">ประเมินแล้ว ${ev.length}${rosterOf(t).length ? ' / ' + rosterOf(t).length : ''} คน · ไม่ระบุชื่อ
         ${total == null ? '' : ` · ภาพรวม <b style="color:var(--ink)">${total.toFixed(2)}%</b>`}</p>
       <div class="table-wrap"><table class="ev-tb">
         <thead><tr><th class="c">ลำดับ</th><th>หัวข้อการประเมิน</th>
@@ -1874,7 +1938,7 @@ window.delEval = async function(id, key){
 
 window.detail = function(key, pid){
   const t = trainings.find(x => x.key === key); if (!t) return;
-  const p = (t.participants || []).find(x => String(x.id) === String(pid)); if (!p) return;
+  const p = rosterOf(t).find(x => String(x.id) === String(pid)); if (!p) return;
   const pre = attemptOf(key,'pre',pid), post = attemptOf(key,'post',pid);
   const rows = (t.questions || []).map((q, i) => {
     const a = v => v == null ? '—' : esc((q.choices || [])[v] ?? '—');
@@ -2029,7 +2093,7 @@ const rpSign = () => `<div class="sign">
 <div class="foot">FAB Operations Hub · ออกรายงานเมื่อ ${esc(fmtDT(new Date()))}</div>`;
 
 function reportTestHtml(t){
-  const ppl = t.participants || [], qs = t.questions || [];
+  const ppl = rosterOf(t), qs = t.questions || [];
   const rows = ppl.map(p => {
     const pre = attemptOf(t.key,'pre',p.id), post = attemptOf(t.key,'post',p.id);
     return { p, pre, post, d: pre && post ? Number(post.score) - Number(pre.score) : null };
@@ -2088,7 +2152,7 @@ function reportTestHtml(t){
 }
 
 function reportEvalHtml(t){
-  const ev = evalsOf(t.key), ppl = (t.participants || []).length;
+  const ev = evalsOf(t.key), ppl = rosterOf(t).length;
   const stat = id => {
     const vals = ev.map(e => Number((e.answers || {})[id])).filter(v => v >= 1 && v <= 5);
     const cnt = [0,0,0,0,0,0]; vals.forEach(v => cnt[v]++);
@@ -2135,7 +2199,7 @@ function renderReport(){
   const t = trainings.find(x => x.key === rp.training);
   if (!evalOn(t)) rp.kind = 'test';
   const nEv = evalsOf(t.key).length;
-  const nBoth = (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id) && attemptOf(t.key,'post',p.id)).length;
+  const nBoth = rosterOf(t).filter(p => attemptOf(t.key,'pre',p.id) && attemptOf(t.key,'post',p.id)).length;
   $('#view').innerHTML = `
     <div class="card">
       <h2>ออกรายงาน</h2>
@@ -2171,7 +2235,7 @@ function renderFollowup(){
   }
   if (!ff.training || !list.some(t => t.key === ff.training)) ff.training = list[0].key;
   const t = list.find(x => x.key === ff.training);
-  const ppl = t.participants || [];
+  const ppl = rosterOf(t);
   const rows = ppl.map(p => ({ p, pre: !!attemptOf(t.key,'pre',p.id), post: !!attemptOf(t.key,'post',p.id) }));
   const missPre = rows.filter(r => !r.pre), missPost = rows.filter(r => !r.post);
   $('#view').innerHTML = `
@@ -2209,7 +2273,7 @@ function renderFollowup(){
 
 window.copyFollowup = function(phase){
   const t = trainings.find(x => x.key === ff.training); if (!t) return;
-  const miss = (t.participants || []).filter(p => !attemptOf(t.key, phase, p.id));
+  const miss = rosterOf(t).filter(p => !attemptOf(t.key, phase, p.id));
   if (!miss.length) return msg(`ทำ${PHASE[phase]}ครบทุกคนแล้ว`, 'ok');
   const text = `🎓 ${t.title}${t.train_date ? ' (อบรม ' + fmtD(t.train_date) + ')' : ''}\n` +
     `ยังไม่ได้ทำแบบทดสอบ${PHASE[phase]} ${miss.length} คน — รบกวนทำให้ครบด้วยครับ\n\n` +
@@ -2226,9 +2290,9 @@ window.copyFollowup = function(phase){
    ══════════════════════════════════════════════════════════════════ */
 /* การ์ดการอบรมบนมือถือ: ชื่อ + สถานะ · บรรทัดรายละเอียด · สามขั้น เปิด/ปิด + ทำแล้วกี่คน · ปุ่ม */
 function mtCard(t){
-  const ppl = (t.participants || []).length;
-  const st = [['ก่อนเรียน', t.pre_open, (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id)).length],
-              ['หลังเรียน', t.post_open, (t.participants || []).filter(p => attemptOf(t.key,'post',p.id)).length],
+  const ppl = rosterOf(t).length;
+  const st = [['ก่อนเรียน', t.pre_open, rosterOf(t).filter(p => attemptOf(t.key,'pre',p.id)).length],
+              ['หลังเรียน', t.post_open, rosterOf(t).filter(p => attemptOf(t.key,'post',p.id)).length],
               ['ประเมิน', t.post_open, evalsOf(t.key).length]].filter(x => x[0] !== 'ประเมิน' || evalOn(t));
   const stName = t.status === 'open' ? 'เปิดอยู่' : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว';
   const info = [t.trainer ? 'วิทยากร ' + t.trainer : '', t.train_date ? fmtD(t.train_date) : '', (t.questions || []).length + ' ข้อ', ppl + ' คน'].filter(Boolean);
@@ -2255,9 +2319,9 @@ function renderTrainings(){
       <div class="table-wrap"><table>
         <thead><tr><th>การอบรม</th><th>วันที่</th><th>คำถาม</th><th>ผู้เข้าอบรม</th><th>ก่อนเรียน</th><th>หลังเรียน</th><th>ประเมิน</th><th>สถานะ</th><th></th></tr></thead>
         <tbody>${trainings.map(t => {
-          const ppl = (t.participants || []).length;
-          const dP = (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id)).length;
-          const dQ = (t.participants || []).filter(p => attemptOf(t.key,'post',p.id)).length;
+          const ppl = rosterOf(t).length;
+          const dP = rosterOf(t).filter(p => attemptOf(t.key,'pre',p.id)).length;
+          const dQ = rosterOf(t).filter(p => attemptOf(t.key,'post',p.id)).length;
           return `<tr>
             <td><b>${esc(t.emoji || '🎓')} ${esc(t.title)}</b>${t.trainer ? `<br><span class="muted" style="font-size:12.5px">วิทยากร ${esc(t.trainer)}</span>` : ''}</td>
             <td>${esc(fmtD(t.train_date))}</td>
@@ -2344,6 +2408,10 @@ window.moveQuestion = function(i, d){
   editing.questions.splice(j, 0, editing.questions.splice(i,1)[0]); renderEditor();
 };
 window.setAnswer = function(i, j){ grabEditor(); editing.questions[i].answer = j; renderEditor(); };
+window.setRMode = function(m){ grabEditor(); editing._rm = m; editing.self_entry = (m === 'self'); if (m === 'self' && !editing.self_limit) editing.self_limit = 20; renderEditor(); };
+window.togBrandT = function(b){ grabEditor(); const c = editing.visible_brands || []; editing.visible_brands = c.includes(b) ? c.filter(x => x !== b) : c.concat([b]); renderEditor(); };
+window.addBranchT = function(v){ if (!v) return; grabEditor(); const c = editing.visible_branches || []; if (!c.includes(v)) editing.visible_branches = c.concat([v]); renderEditor(); };
+window.rmBranchT = function(v){ grabEditor(); editing.visible_branches = (editing.visible_branches || []).filter(x => x !== v); renderEditor(); };
 window.togOpen = function(k){ grabEditor(); editing[k] = !editing[k]; renderEditor(); };
 window.togEval = function(){ grabEditor(); editing.eval_enabled = !evalOn(editing); renderEditor(); };
 window.cancelEdit = function(){ editing = null; go('trainings'); };
@@ -2457,6 +2525,7 @@ window.evSave = async function(){
 
 function renderEditor(){
   const e = editing;
+  const rmode = e._rm || (e.self_entry ? 'self' : e.source ? 'tr' : 'manual');
   $('#view').innerHTML = `
     <div class="card">
       <h2>${e.id ? 'แก้ไขการอบรม' : 'สร้างการอบรมใหม่'}</h2>
@@ -2488,12 +2557,25 @@ function renderEditor(){
         <button type="button" class="${evalOn(e) && e.post_open?'on':''}" ${evalOn(e) ? '' : 'style="opacity:.6"'} onclick="togEval()">
           <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${!evalOn(e) ? 'ไม่ใช้ประเมิน' : e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
           <small>${evalOn(e)
-            ? EVAL_SECS.length + ' หัวข้อ ' + evalQs().length + ' ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · <u onclick="event.stopPropagation();document.getElementById(\'evEdit\').scrollIntoView({ behavior:\'smooth\', block:\'start\' })">ดู/แก้คำถาม</u> · กดการ์ดนี้เพื่อ<b>ไม่ใช้ประเมิน</b>'
-            : 'ผู้เข้าอบรมจะไม่เห็นขั้นประเมิน · กดการ์ดนี้เพื่อ<b>กลับมาใช้ประเมิน</b>'}</small></button>
+            ? EVAL_SECS.length + ' หัวข้อ ' + evalQs().length + ' ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · <u onclick="event.stopPropagation();document.getElementById(\'evEdit\').scrollIntoView({ behavior:\'smooth\', block:\'start\' })">ดู/แก้คำถาม</u> · กดการ์ดนี้เพื่อ<strong>ไม่ใช้ประเมิน</strong>'
+            : 'ผู้เข้าอบรมจะไม่เห็นขั้นประเมิน · กดการ์ดนี้เพื่อ<strong>กลับมาใช้ประเมิน</strong>'}</small></button>
       </div>
     </div>
 
     <div class="card">
+      <h2>รายชื่อผู้เข้าอบรม</h2>
+      <p class="sub">เลือกว่าจะได้รายชื่อมาแบบไหน</p>
+      <div class="st3">
+        <button type="button" class="${rmode === 'manual' ? 'on' : ''}" onclick="setRMode('manual')">
+          <i>แบบที่ 1</i><b>เพิ่มเอง</b><small>วางรายชื่อจาก Excel หรือพิมพ์เพิ่มทีละคน</small></button>
+        <button type="button" class="${rmode === 'tr' ? 'on' : ''}" onclick="setRMode('tr')">
+          <i>แบบที่ 2</i><b>ดึงจาก Training Record</b><small>เลือกรอบอบรม รายชื่อเข้ามาเอง</small></button>
+        <button type="button" class="${rmode === 'self' ? 'on' : ''}" onclick="setRMode('self')">
+          <i>แบบที่ 3</i><b>ให้ผู้ใช้กรอกเอง</b><small>ผู้เข้าอบรมพิมพ์ชื่อตัวเอง · กำหนดจำนวนคนที่ลงได้</small></button>
+      </div>
+    </div>
+
+    ${rmode === 'tr' ? `<div class="card">
       <h2>🔗 ดึงจาก Training Record</h2>
       ${e.source ? `<div class="notice ok show" style="margin:0 0 12px">
           ลิงก์กับ <b>${esc(e.source.course || '')}${e.source.batch ? ' รุ่นที่ ' + esc(e.source.batch) : ''}</b>
@@ -2518,9 +2600,15 @@ function renderEditor(){
           <button class="btn btn-primary btn-sm" onclick="pullRoster()">${e.source ? 'ดึงรายชื่อล่าสุดอีกครั้ง' : 'ดึงรายชื่อ'}</button>
         </div>`
         : `<div class="empty" style="padding:16px">ยังไม่มีรอบอบรมที่มีรายชื่อในระบบ Training Record</div>`}
-    </div>
+    </div>` : ''}
 
-    <div class="card">
+    ${rmode === 'self' ? `<div class="card">
+      <h2>ให้ผู้ใช้กรอกชื่อเอง</h2>
+      <p class="sub">ไม่ต้องทำรายชื่อล่วงหน้า — ผู้เข้าอบรมพิมพ์ชื่อตัวเองตอนทำแบบทดสอบก่อนเรียน แล้วตอนหลังเรียนเลือกชื่อที่ลงไว้ · ชื่อเดียวทำได้ครั้งเดียวต่อช่วง</p>
+      <label>จำกัดจำนวนคนที่ลงชื่อได้ (ทั้งการอบรม)</label>
+      <input type="number" min="1" max="500" data-t="self_limit" value="${esc(e.self_limit || 20)}" style="max-width:160px">
+      <p class="sub" style="margin-top:8px">ลงชื่อแล้ว <b>${selfPeople(e).length}</b> คน (นับจากผลที่โหลดไว้) · ครบจำนวนแล้วคนใหม่จะลงชื่อไม่ได้ ส่วนคนที่ลงไว้แล้วทำต่อได้ · ถ้ามีหลายเครื่องกดลงชื่อพร้อมกันเป๊ะ อาจเกินได้เล็กน้อย</p>
+    </div>` : `<div class="card">
       <h2>ผู้เข้าอบรม (${(e.participants||[]).length} คน)</h2>
       <p class="sub">วางรายชื่อจาก Excel ได้เลย บรรทัดละ 1 คน · คั่นด้วยจุลภาคหรือแท็บ: ชื่อ, สาขา, ตำแหน่ง</p>
       <textarea id="ppPaste" placeholder="สมชาย ใจดี, 5046 โลตัส บางกะปิ, พนักงานครัว"></textarea>
@@ -2531,6 +2619,25 @@ function renderEditor(){
           <td>${esc(p.name)}</td><td>${esc(p.branch || '')}</td><td>${esc(p.position || '')}</td>
           <td class="row-btns"><button class="btn btn-danger btn-sm" onclick="delPerson(${i})">ลบ</button></td>
         </tr>`).join('')}</tbody></table></div>` : ''}
+    </div>`}
+
+    <div class="card">
+      <h2>ใครเห็นการอบรมนี้</h2>
+      <p class="sub">ไม่เลือกอะไรเลย = ทุกแบรนด์ ทุกสาขาเห็น (ทีมงานที่ดูผล/จัดการได้เห็นทุกการอบรมเสมอ)</p>
+      <label>เฉพาะแบรนด์</label>
+      <div class="seg">${BRANDS.map(([, b]) =>
+        `<button type="button" class="${(e.visible_brands || []).includes(b) ? 'on' : ''}" onclick="togBrandT('${esc(b).replace(/'/g, "\\'")}')">${esc(b)}</button>`).join('')}</div>
+      <label style="margin-top:14px">เฉพาะสาขา (${(e.visible_branches || []).length} สาขา)</label>
+      <select id="edBranchPick" onchange="addBranchT(this.value)">
+        <option value="">+ เพิ่มสาขา…</option>
+        ${Object.keys(HUB_BRANCHES).sort().filter(c => !(e.visible_branches || []).includes(branchLabel(c))).map(c =>
+          `<option value="${esc(branchLabel(c))}">${esc(branchLabel(c))}</option>`).join('')}
+      </select>
+      <div class="seg" style="margin-top:8px">${(e.visible_branches || []).map(b =>
+        `<button type="button" class="on" onclick="rmBranchT('${esc(b).replace(/'/g, "\\'")}')">${esc(b)} ✕</button>`).join('')}</div>
+      <p class="sub" style="margin-top:8px">ตอนนี้: ${(e.visible_brands || []).length || (e.visible_branches || []).length
+        ? 'เห็นเฉพาะ ' + [...(e.visible_brands || []), ...(e.visible_branches || [])].map(esc).join(' · ')
+        : 'ทุกแบรนด์ ทุกสาขาเห็น'}</p>
     </div>
 
     <div class="card">
@@ -2844,11 +2951,16 @@ window.saveTraining = async function(){
     sort_order:e.sort_order || 0, updated_at:new Date().toISOString(),
     source: e.source || null
   };
+  if (e.self_entry === true && !(parseInt(e.self_limit, 10) >= 1)) return msg('โหมดให้ผู้ใช้กรอกเอง ต้องใส่จำนวนคนที่จำกัด (อย่างน้อย 1 คน)', 'warn');
+  if (e.self_entry === true || (e.id && 'self_entry' in e)){ row.self_entry = e.self_entry === true; row.self_limit = Math.max(0, parseInt(e.self_limit, 10) || 0); }
   const wantEval = e.eval_enabled === false || (e.id && 'eval_enabled' in e);
   if (wantEval) row.eval_enabled = evalOn(e);
   const put = r => e.id ? SB.from('tr_trainings').update(r).eq('id', e.id) : SB.from('tr_trainings').insert(r);
   let { error } = await put(row);
   let noLink = false;
+  if (error && /self_entry|self_limit/.test(error.message || '')){
+    return msg('ยังตั้ง "ให้ผู้ใช้กรอกเอง" ไม่ได้ — ต้องรันไฟล์ <b>supabase/training-test-self-entry.sql</b> ใน Supabase ก่อน (ครั้งเดียว) แล้วบันทึกอีกครั้ง', 'warn');
+  }
   if (error && /eval_enabled/.test(error.message || '')){
     return msg('ยังตั้ง "ไม่ใช้ประเมิน" ไม่ได้ — ต้องรันไฟล์ <b>supabase/training-test-eval-toggle.sql</b> ใน Supabase ก่อน (ครั้งเดียว) แล้วบันทึกอีกครั้ง', 'warn');
   }

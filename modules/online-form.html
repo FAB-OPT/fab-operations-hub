@@ -1078,8 +1078,16 @@ function ttVisible(t){
   if (br.length && !br.some(x => ME.branch === x || String(ME.code) === String(x).split(' ')[0])) return false;
   return true;
 }
+/* โหมดกรอกชื่อเอง: รายชื่อ = คนที่ลงชื่อไว้แล้วในผลของการอบรมนั้น · เป้าหมาย = จำนวนที่จำกัดไว้ */
+function ttSelf(t){
+  const seen = new Map();
+  TT_ATT.forEach(a => { if (a.training_key === t.key && (a.phase === 'pre' || a.phase === 'post') && a.participant_id && !seen.has(a.participant_id))
+    seen.set(a.participant_id, { id: a.participant_id, name: a.participant_name, branch: a.participant_branch || '' }); });
+  return [...seen.values()];
+}
+const ttTarget = t => t.self_entry === true ? Math.max(Number(t.self_limit) || 0, ttPeople(t).length) : ttPeople(t).length;
 function ttPeople(t){
-  const all = t.participants || [];
+  const all = t.self_entry === true ? ttSelf(t) : (t.participants || []);
   if (!ME.isBranch) return all;
   const code = String(ME.code || '');
   return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
@@ -1089,9 +1097,9 @@ const ttEvals = t => TT_ATT.filter(a => a.training_key === t.key && a.phase === 
 const ttDone = (t, ph) => ph === 'eval'
   ? Math.min(ttEvals(t).length, ttPeople(t).length)
   : ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
-const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttPeople(t).length)
-  || (t.post_open && ttDone(t, 'post') < ttPeople(t).length)
-  || (t.post_open && ttDone(t, 'eval') < ttPeople(t).length));
+const ttLeft = t => t.status === 'open' && ((t.pre_open && ttDone(t, 'pre') < ttTarget(t))
+  || (t.post_open && ttDone(t, 'post') < ttTarget(t))
+  || (t.post_open && t.eval_enabled !== false && ttDone(t, 'eval') < ttTarget(t)));
 /* ขั้นประเมินอบรมเปิดพร้อมหลังเรียน (ชุดมาตรฐาน ไม่ระบุชื่อ — ดู training-test.html) */
 const TT_STEPS = [['pre','ก่อนเรียน','pre_open'], ['post','หลังเรียน','post_open'], ['eval','ประเมินอบรม','post_open']];
 async function loadTt(){
@@ -1249,9 +1257,9 @@ function sgItemHtml(f){
 
 /* ใบของแบบทดสอบก่อน–หลังอบรม · ผู้เข้าอบรมทำสองรอบ */
 function ttItemHtml(t){
-  const open = t.status === 'open', nq = (t.questions || []).length, n = ttPeople(t).length;
+  const open = t.status === 'open', nq = (t.questions || []).length, n = ttTarget(t);
   /* แถบสามขั้น · ขั้นที่ต้องทำตอนนี้ = ขั้นแรกที่เปิดแล้วยังไม่ครบ → ปุ่มหลักท้ายใบพาไปขั้นนั้น */
-  const st = TT_STEPS.map(([ph, name, flag]) => ({ ph, name: ph === 'eval' ? 'ประเมิน' : name, on: open && t[flag], got: ttDone(t, ph) }));
+  const st = TT_STEPS.filter(x => x[0] !== 'eval' || t.eval_enabled !== false).map(([ph, name, flag]) => ({ ph, name: ph === 'eval' ? 'ประเมิน' : name, on: open && t[flag], got: ttDone(t, ph) }));
   const now = st.find(x => x.on && x.got < n);
   const go = ph => `ttGo('run=${encodeURIComponent(t.key)}&phase=${ph}')`;
   const flow = st.map((x, i) => {
@@ -1965,7 +1973,7 @@ function ttManageHtml(){
     </div>
     ${TT_LIST.length ? `<div class="mf-grid" style="margin-top:12px">${TT_LIST.map(t => `<div class="mf">
         <div class="mf-top"><span class="fr-emoji">${esc(t.emoji || '🎓')}</span>
-          <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttPeople(t).length + ' คน'])}</div>
+          <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttTarget(t) + ' คน'])}</div>
           ${statusPill(t.status)}</div>
         <div class="mf-acts">
           ${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
