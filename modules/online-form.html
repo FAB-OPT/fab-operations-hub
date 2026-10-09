@@ -1077,6 +1077,34 @@ window.sgGo = sgGo;
    ข้อมูลอยู่ตาราง tr_* เดิม · สิทธิ์เป็นชุด traintest ในฮับ ตั้งค่าแยกจากฟอร์มทั่วไป
    ⚠️ ค่าตั้งต้นต้องตรงกับ TT_PERM_DEFAULTS ใน training-test.html และ PERM_SYSTEMS.traintest ในฮับ */
 let TT_LIST = [], TT_ATT = [];
+/* ที่เก็บข้อมูลแบบทดสอบอบรม: 'tr' = ตาราง tr_* เดิม · 'fm' = รวมในตารางฟอร์มทั่วไป (fm_*, kind='quiz')
+   สลับเฉพาะเครื่องนี้ด้วย ?store=fm / ?store=tr (จำไว้ในเบราว์เซอร์) · ค่าตั้งต้นของทุกเครื่องคือ TT_STORE_DEFAULT
+   ⚠️ ต้องตรงกันทั้ง training-test.html และ online-form.html — ไฟล์ SQL: supabase/unify-quiz-step1.sql */
+const TT_STORE_DEFAULT = 'tr';
+const TT_STORE = (() => {
+  try{
+    const q = new URLSearchParams(location.search).get('store');
+    if (q === 'fm' || q === 'tr') localStorage.setItem('fab_tt_store', q);
+    return localStorage.getItem('fab_tt_store') || TT_STORE_DEFAULT;
+  }catch(e){ return TT_STORE_DEFAULT; }
+})();
+const TT_FM = TT_STORE === 'fm';
+const TT_TRAIN_T = TT_FM ? 'fm_forms' : 'tr_trainings';
+const TT_ATT_T   = TT_FM ? 'fm_responses' : 'tr_attempts';
+const TT_KEY     = TT_FM ? 'form_key' : 'training_key';
+const TT_TAKER   = TT_FM ? 'respondent_code' : 'taker_code';
+const ttTrainings = cols => { const q = SB.from(TT_TRAIN_T).select(cols); return TT_FM ? q.eq('kind', 'quiz') : q; };
+const ttAttempts  = cols => { const q = SB.from(TT_ATT_T).select(cols); return TT_FM ? q.eq('form_kind', 'quiz') : q; };
+/* แถวผลจาก fm_* → รูปเดียวกับ tr_attempts ที่โค้ดข้างล่างใช้ทั้งไฟล์ */
+const attIn = r => TT_FM ? Object.assign({}, r, { training_key:r.form_key, training_title:r.form_title,
+  taker_code:r.respondent_code, taker_name:r.respondent_name, taker_branch:r.respondent_branch }) : r;
+/* แถวที่จะบันทึก → ชื่อคอลัมน์ของตารางที่ใช้อยู่ */
+const attOut = row => { if (!TT_FM) return row;
+  const o = Object.assign({}, row, { form_kind:'quiz', form_key:row.training_key, form_title:row.training_title,
+    respondent_code:row.taker_code, respondent_name:row.taker_name, respondent_branch:row.taker_branch });
+  ['training_key','training_title','taker_code','taker_name','taker_branch'].forEach(k => delete o[k]); return o; };
+const trainOut = row => TT_FM ? Object.assign({}, row, { kind:'quiz', once_per_user:false }) : row;
+
 const TT_PERM_KEY = 'fab_perms_traintest_v1';
 const TT_PERM_DEFAULTS = {
   'view-results':    ['admin','support','coo','vp','bzm'],
@@ -1132,11 +1160,11 @@ const TT_STEPS = [['pre','ก่อนเรียน','pre_open'], ['post','ห
 async function loadTt(){
   try{
     const [tr, at] = await Promise.all([
-      SB.from('tr_trainings').select('*').order('sort_order').order('id'),
-      SB.from('tr_attempts').select('training_key,phase,participant_id,taker_code')
+      ttTrainings('*').order('sort_order').order('id'),
+      ttAttempts(TT_FM ? 'form_key,phase,participant_id,respondent_code' : 'training_key,phase,participant_id,taker_code')
     ]);
     TT_LIST = tr.error ? [] : (tr.data || []);
-    TT_ATT = at.error ? [] : (at.data || []);
+    TT_ATT = at.error ? [] : (at.data || []).map(attIn);
   }catch(e){ TT_LIST = []; TT_ATT = []; }
 }
 const ttGo = q => { location.href = 'training-test.html?' + q; };
@@ -1146,7 +1174,7 @@ async function loadForms(){
   await sbReady();
   loadSgForms();
   /* แถว kind='assess' คือแบบประเมินพนักงานที่คัดลอกเข้ามา — ไม่ใช่แบบสอบถามทั่วไป · ยังไม่รัน SQL = ไม่มีคอลัมน์ ก็ถามแบบเดิม */
-  let { data, error } = await SB.from('fm_forms').select('*').neq('kind', 'assess').order('sort_order').order('id');
+  let { data, error } = await SB.from('fm_forms').select('*').eq('kind', 'survey').order('sort_order').order('id');
   if (error && /kind/i.test(error.message)) ({ data, error } = await SB.from('fm_forms').select('*').order('sort_order').order('id'));
   if (error){
     $('#view').innerHTML = '';
@@ -1159,7 +1187,7 @@ async function loadForms(){
 }
 async function loadResponses(){
   await sbReady();
-  let { data, error } = await SB.from('fm_responses').select('*').neq('form_kind', 'assess').order('created_at', { ascending:false });
+  let { data, error } = await SB.from('fm_responses').select('*').eq('form_kind', 'survey').order('created_at', { ascending:false });
   if (error && /form_kind/i.test(error.message)) ({ data, error } = await SB.from('fm_responses').select('*').order('created_at', { ascending:false }));
   if (error){ msg('โหลดคำตอบไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
   responses = data || [];

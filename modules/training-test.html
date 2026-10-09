@@ -1073,6 +1073,34 @@ async function ttLoadPerms(){
 
 /* ── สถานะรวม ─────────────────────────────────────────────────── */
 let trainings = [], attempts = [];
+/* ที่เก็บข้อมูลแบบทดสอบอบรม: 'tr' = ตาราง tr_* เดิม · 'fm' = รวมในตารางฟอร์มทั่วไป (fm_*, kind='quiz')
+   สลับเฉพาะเครื่องนี้ด้วย ?store=fm / ?store=tr (จำไว้ในเบราว์เซอร์) · ค่าตั้งต้นของทุกเครื่องคือ TT_STORE_DEFAULT
+   ⚠️ ต้องตรงกันทั้ง training-test.html และ online-form.html — ไฟล์ SQL: supabase/unify-quiz-step1.sql */
+const TT_STORE_DEFAULT = 'tr';
+const TT_STORE = (() => {
+  try{
+    const q = new URLSearchParams(location.search).get('store');
+    if (q === 'fm' || q === 'tr') localStorage.setItem('fab_tt_store', q);
+    return localStorage.getItem('fab_tt_store') || TT_STORE_DEFAULT;
+  }catch(e){ return TT_STORE_DEFAULT; }
+})();
+const TT_FM = TT_STORE === 'fm';
+const TT_TRAIN_T = TT_FM ? 'fm_forms' : 'tr_trainings';
+const TT_ATT_T   = TT_FM ? 'fm_responses' : 'tr_attempts';
+const TT_KEY     = TT_FM ? 'form_key' : 'training_key';
+const TT_TAKER   = TT_FM ? 'respondent_code' : 'taker_code';
+const ttTrainings = cols => { const q = SB.from(TT_TRAIN_T).select(cols); return TT_FM ? q.eq('kind', 'quiz') : q; };
+const ttAttempts  = cols => { const q = SB.from(TT_ATT_T).select(cols); return TT_FM ? q.eq('form_kind', 'quiz') : q; };
+/* แถวผลจาก fm_* → รูปเดียวกับ tr_attempts ที่โค้ดข้างล่างใช้ทั้งไฟล์ */
+const attIn = r => TT_FM ? Object.assign({}, r, { training_key:r.form_key, training_title:r.form_title,
+  taker_code:r.respondent_code, taker_name:r.respondent_name, taker_branch:r.respondent_branch }) : r;
+/* แถวที่จะบันทึก → ชื่อคอลัมน์ของตารางที่ใช้อยู่ */
+const attOut = row => { if (!TT_FM) return row;
+  const o = Object.assign({}, row, { form_kind:'quiz', form_key:row.training_key, form_title:row.training_title,
+    respondent_code:row.taker_code, respondent_name:row.taker_name, respondent_branch:row.taker_branch });
+  ['training_key','training_title','taker_code','taker_name','taker_branch'].forEach(k => delete o[k]); return o; };
+const trainOut = row => TT_FM ? Object.assign({}, row, { kind:'quiz', once_per_user:false }) : row;
+
 let tab = 'list', run = null, editing = null;
 
 function msg(html, kind){
@@ -1140,7 +1168,7 @@ const selfId = name => 'n:' + String(ME.code || '') + ':' + normName(name).toLow
 async function selfSlotOk(t, pid){
   const lim = selfLimit(t); if (!lim) return true;
   await sbReady();
-  const { data, error } = await SB.from('tr_attempts').select('participant_id').eq('training_key', t.key).in('phase', ['pre','post']).range(0, 4999);
+  const { data, error } = await ttAttempts('participant_id').eq(TT_KEY, t.key).in('phase', ['pre','post']).range(0, 4999);
   if (error) return true;
   const ids = new Set((data || []).map(r => String(r.participant_id)));
   return ids.has(String(pid)) || ids.size < lim;
@@ -1180,7 +1208,7 @@ const attemptOf = (key, phase, pid) =>
    ══════════════════════════════════════════════════════════════════ */
 async function loadTrainings(){
   await sbReady();
-  const { data, error } = await SB.from('tr_trainings').select('*').order('sort_order').order('id');
+  const { data, error } = await ttTrainings('*').order('sort_order').order('id');
   if (error){
     $('#view').innerHTML = '';
     msg('โหลดการอบรมไม่สำเร็จ — ' + esc(error.message) +
@@ -1196,12 +1224,12 @@ async function loadAttempts(){
      จึงดึงทีละ 1,000 จนครบ */
   const all = [], PAGE = 1000;
   for (let from = 0; from < 50000; from += PAGE){
-    const { data, error } = await SB.from('tr_attempts').select('*').order('created_at', { ascending:false }).order('id', { ascending:false }).range(from, from + PAGE - 1);
+    const { data, error } = await ttAttempts('*').order('created_at', { ascending:false }).order('id', { ascending:false }).range(from, from + PAGE - 1);
     if (error){ msg('โหลดผลไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
     all.push(...(data || []));
     if (!data || data.length < PAGE) break;
   }
-  attempts = all;
+  attempts = all.map(attIn);
 }
 
 async function boot(){
@@ -1371,7 +1399,7 @@ function renderList(){
    จึงต้องถามฐานข้อมูลสดอีกครั้งตอนเปิดหน้าเลือกชื่อ ตอนกดเริ่ม และตอนกดส่ง */
 async function attemptExists(key, phase, pid){
   await sbReady();
-  const { data, error } = await SB.from('tr_attempts').select('id').eq('training_key', key).eq('phase', phase).eq('participant_id', String(pid)).limit(1);
+  const { data, error } = await ttAttempts('id').eq(TT_KEY, key).eq('phase', phase).eq('participant_id', String(pid)).limit(1);
   return !error && !!(data && data.length);
 }
 window.startRun = async function(key, phase){
@@ -1570,13 +1598,13 @@ window.submitRun = async function(){
     await loadAttempts(); const nm = run.person.name; run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
     return msg('<b>' + esc(nm) + '</b> ส่งคำตอบไปแล้ว (เครื่องอื่นส่งก่อน) — ไม่บันทึกซ้ำ', 'warn');
   }
-  const { error } = await SB.from('tr_attempts').insert({
+  const { error } = await SB.from(TT_ATT_T).insert(attOut({
     training_key: t.key, training_title: t.title, phase: run.phase,
     participant_id: String(run.person.id), participant_name: run.person.name,
     participant_branch: run.person.branch || ME.branch || '',
     answers: run.answers, score, total: qs.length, pct,
     taker_code: ME.code, taker_name: ME.name, taker_branch: ME.branch || ME.name
-  });
+  }));
   if (error && error.code === '23505'){
     await loadAttempts(); const nm = run.person.name; run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
     return msg('<b>' + esc(nm) + '</b> ส่งคำตอบไปแล้ว (เครื่องอื่นส่งพร้อมกัน) — ไม่บันทึกซ้ำ', 'warn');
@@ -1626,13 +1654,13 @@ window.submitEval = async function(){
   if (miss.length){ run.note = ($('#evNote') || {}).value; run.flag = true; renderEval(); return missPopup(qs, miss); }
   const note = ($('#evNote').value || '').trim();
   const score = qs.reduce((a, q) => a + run.answers[q.id], 0), total = qs.length * 5;
-  const { error } = await SB.from('tr_attempts').insert({
+  const { error } = await SB.from(TT_ATT_T).insert(attOut({
     training_key: t.key, training_title: t.title, phase: 'eval',
     participant_id: '', participant_name: '', participant_branch: ME.branch || '',
     answers: Object.assign({}, run.answers, note ? { note } : {}),
     score, total, pct: Math.round(score / total * 1000) / 10,
     taker_code: ME.code, taker_name: ME.name, taker_branch: ME.branch || ME.name
-  });
+  }));
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
   await loadAttempts();
   run = null;
@@ -1939,7 +1967,7 @@ window.evalSheets = function(key){
 window.delEval = async function(id, key){
   if (!ttCan('delete-attempt')) return msg('ไม่มีสิทธิ์ลบผล', 'warn');
   if (!await askConfirm({ title:'ลบแบบประเมินใบนี้?', text:'ลบแล้ว<b>เอาคืนไม่ได้</b> คะแนนภาพรวมจะคิดใหม่โดยไม่มีใบนี้', ok:'ลบแบบประเมิน' })) return;
-  const { error } = await SB.from('tr_attempts').delete().eq('id', id);
+  const { error } = await SB.from(TT_ATT_T).delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   await loadAttempts(); paintResults(); evalSheets(key); msg('ลบแบบประเมินแล้ว');
 };
@@ -1989,7 +2017,7 @@ window.delAttempts = async function(key, pid){
     text:'ลบแล้วคนนี้ทำใหม่ได้ แต่ผลเดิม<b>เอาคืนไม่ได้</b>', ok:'ลบผล' })) return;
   const ids = attempts.filter(a => a.training_key === key && String(a.participant_id) === String(pid)).map(a => a.id);
   for (const id of ids){
-    const { error } = await SB.from('tr_attempts').delete().eq('id', id);
+    const { error } = await SB.from(TT_ATT_T).delete().eq('id', id);
     if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   }
   closeModal(); await loadAttempts(); paintResults(); msg('ลบผลแล้ว ให้ทำใหม่ได้');
@@ -2371,7 +2399,7 @@ window.delTraining = async function(id){
   if (!await askConfirm({ title:'ลบการอบรม<br>' + esc(t.title),
     text: used ? `มีผลแบบทดสอบแล้ว <b>${used} รายการ</b> — ผลไม่ถูกลบ แต่จะไม่มีตัวการอบรมให้เทียบคำถาม` : 'ลบแล้วเอาคืนไม่ได้',
     ok:'ลบการอบรม' })) return;
-  const { error } = await SB.from('tr_trainings').delete().eq('id', id);
+  const { error } = await SB.from(TT_TRAIN_T).delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ลบเรียบร้อย'); await loadTrainings(); renderTrainings();
 };
@@ -2963,7 +2991,7 @@ window.saveTraining = async function(){
   if (e.self_entry === true || (e.id && 'self_entry' in e)){ row.self_entry = e.self_entry === true; row.self_limit = Math.max(0, parseInt(e.self_limit, 10) || 0); }
   const wantEval = e.eval_enabled === false || (e.id && 'eval_enabled' in e);
   if (wantEval) row.eval_enabled = evalOn(e);
-  const put = r => e.id ? SB.from('tr_trainings').update(r).eq('id', e.id) : SB.from('tr_trainings').insert(r);
+  const put = r => e.id ? SB.from(TT_TRAIN_T).update(trainOut(r)).eq('id', e.id) : SB.from(TT_TRAIN_T).insert(trainOut(r));
   let { error } = await put(row);
   let noLink = false;
   if (error && /self_entry|self_limit/.test(error.message || '')){
