@@ -1111,6 +1111,7 @@ async function loadEvalSet(){
   }catch(e){}
 }
 const EVAL_LV = ['', 'ปรับปรุง', 'น้อย', 'ปานกลาง', 'มาก', 'มากที่สุด'];
+const evalOn = t => !t || t.eval_enabled !== false;
 const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase === 'eval');
 /* แบบประเมินไม่ระบุชื่อ จึงนับรายคนไม่ได้ · นับแยกตามบัญชีที่ทำ (สาขา) แทน
    ของเดิมนับรวมทุกสาขาแล้วเทียบกับคนของสาขาเดียว สาขาอื่นประเมินไปก่อน
@@ -1289,13 +1290,12 @@ function renderList(){
   /* สถานะสามขั้นของแต่ละการอบรม · ขั้นที่ต้องทำตอนนี้ = ขั้นแรกที่เปิดแล้วยังไม่ครบ */
   const steps = t => {
     const ppl = participantsFor(t), n = ppl.length, open = t.status === 'open';
-    const st = [['pre','ก่อนเรียน',t.pre_open], ['post','หลังเรียน',t.post_open], ['eval','ประเมิน',t.post_open]].map(([ph, name, on]) => ({
+    const st = [['pre','ก่อนเรียน',t.pre_open], ['post','หลังเรียน',t.post_open], ['eval','ประเมิน',t.post_open]].filter(x => x[0] !== 'eval' || evalOn(t)).map(([ph, name, on]) => ({
       ph, name, on: open && on,
       got: ph === 'eval' ? Math.min(evalsFor(t).length, n) : ppl.filter(p => attemptOf(t.key, ph, p.id)).length }));
     /* ประเมินกดได้เฉพาะเมื่อมีคนทำหลังเรียนแล้วแต่ยังไม่ได้ประเมิน */
-    const ev = st[2];
-    ev.wait = ev.on && ev.got < n && !evalLeft(t);
-    if (ev.wait) ev.on = false;
+    const ev = st.find(x => x.ph === 'eval');
+    if (ev){ ev.wait = ev.on && ev.got < n && !evalLeft(t); if (ev.wait) ev.on = false; }
     return { n, open, st, now: st.find(x => x.on && x.got < n) };
   };
   const card = t => {
@@ -1343,6 +1343,7 @@ async function attemptExists(key, phase, pid){
 }
 window.startRun = async function(key, phase){
   const t = trainings.find(x => x.key === key); if (!t) return;
+  if (phase === 'eval' && !evalOn(t)) return msg('การอบรมนี้ไม่ใช้แบบประเมิน', 'warn');
   if (phase === 'eval' && ME.isBranch && !evalLeft(t))
     return msg(participantsFor(t).some(p => attemptOf(t.key, 'post', p.id)) ? 'ทุกคนที่ทำหลังเรียนแล้วประเมินครบแล้ว' : 'ต้องทำแบบทดสอบหลังเรียนก่อน ถึงจะประเมินอบรมได้', 'warn');
   if (phase === 'eval'){ run = { t, phase, answers:{} }; tab = 'run'; renderNav(); renderEval(); window.scrollTo({ top:0 }); return; }
@@ -1631,7 +1632,7 @@ function renderResult(d, extra){
     ${extra || ''}
     <div class="card">
       <div class="row-btns sub-go">
-        ${d.phase === 'post' ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินอบรมต่อ ›</button>` : ''}
+        ${d.phase === 'post' && evalOn(t) ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินอบรมต่อ ›</button>` : ''}
         ${left ? `<button class="btn ${d.phase === 'post' ? 'btn-secondary' : 'btn-primary'}" onclick="startRun('${esc(t.key)}','${d.phase}')">ทำคนถัดไป (เหลือ ${left} คน)</button>` : ''}
         <button class="btn btn-secondary" onclick="go('list')">กลับหน้าการอบรม</button>
       </div>
@@ -2132,6 +2133,7 @@ function renderReport(){
   if (!trainings.length){ $('#view').innerHTML = '<div class="card"><div class="empty">ยังไม่มีการอบรม</div></div>'; return; }
   if (!rp.training || !trainings.some(t => t.key === rp.training)) rp.training = trainings[0].key;
   const t = trainings.find(x => x.key === rp.training);
+  if (!evalOn(t)) rp.kind = 'test';
   const nEv = evalsOf(t.key).length;
   const nBoth = (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id) && attemptOf(t.key,'post',p.id)).length;
   $('#view').innerHTML = `
@@ -2143,7 +2145,7 @@ function renderReport(){
         <button class="btn btn-primary rp-print" onclick="printReport()">🖨 พิมพ์ / บันทึก PDF</button>
       <div class="rp-kind">
         <button type="button" class="${rp.kind === 'test' ? 'on' : ''}" onclick="rpKind('test')"><b>ทดสอบก่อน–หลัง เปรียบเทียบ</b></button>
-        <button type="button" class="${rp.kind === 'eval' ? 'on' : ''}" onclick="rpKind('eval')"><b>แบบประเมินอบรม</b></button>
+        ${evalOn(t) ? `<button type="button" class="${rp.kind === 'eval' ? 'on' : ''}" onclick="rpKind('eval')"><b>แบบประเมินอบรม</b></button>` : ''}
       </div>
       </div>
     </div>
@@ -2227,7 +2229,7 @@ function mtCard(t){
   const ppl = (t.participants || []).length;
   const st = [['ก่อนเรียน', t.pre_open, (t.participants || []).filter(p => attemptOf(t.key,'pre',p.id)).length],
               ['หลังเรียน', t.post_open, (t.participants || []).filter(p => attemptOf(t.key,'post',p.id)).length],
-              ['ประเมิน', t.post_open, evalsOf(t.key).length]];
+              ['ประเมิน', t.post_open, evalsOf(t.key).length]].filter(x => x[0] !== 'ประเมิน' || evalOn(t));
   const stName = t.status === 'open' ? 'เปิดอยู่' : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว';
   const info = [t.trainer ? 'วิทยากร ' + t.trainer : '', t.train_date ? fmtD(t.train_date) : '', (t.questions || []).length + ' ข้อ', ppl + ' คน'].filter(Boolean);
   return `<div class="mt-card">
@@ -2263,7 +2265,7 @@ function renderTrainings(){
             <td>${ppl} คน</td>
             <td data-l="ก่อนเรียน">${t.pre_open ? `<span class="pill open">เปิด</span> ${dP}/${ppl}` : `<span class="pill closed">ปิด</span> ${dP}/${ppl}`}</td>
             <td data-l="หลังเรียน">${t.post_open ? `<span class="pill open">เปิด</span> ${dQ}/${ppl}` : `<span class="pill closed">ปิด</span> ${dQ}/${ppl}`}</td>
-            <td data-l="ประเมิน">${t.post_open ? `<span class="pill open">เปิด</span> ${evalsOf(t.key).length}/${ppl}` : `<span class="pill closed">ปิด</span> ${evalsOf(t.key).length}/${ppl}`}</td>
+            <td data-l="ประเมิน">${!evalOn(t) ? '<span class="pill draft">ไม่ใช้</span>' : t.post_open ? `<span class="pill open">เปิด</span> ${evalsOf(t.key).length}/${ppl}` : `<span class="pill closed">ปิด</span> ${evalsOf(t.key).length}/${ppl}`}</td>
             <td><span class="pill ${t.status === 'open' ? 'open' : t.status === 'draft' ? 'draft' : 'closed'}">${
               t.status === 'open' ? 'เปิดอยู่' : t.status === 'draft' ? 'ร่าง' : 'จบแล้ว'}</span></td>
             <td class="row-btns">
@@ -2343,6 +2345,7 @@ window.moveQuestion = function(i, d){
 };
 window.setAnswer = function(i, j){ grabEditor(); editing.questions[i].answer = j; renderEditor(); };
 window.togOpen = function(k){ grabEditor(); editing[k] = !editing[k]; renderEditor(); };
+window.togEval = function(){ grabEditor(); editing.eval_enabled = !evalOn(editing); renderEditor(); };
 window.cancelEdit = function(){ editing = null; go('trainings'); };
 
 /* รายชื่อผู้เข้าอบรม — วางทีเดียวทั้งชุดจาก Excel ได้ (ชื่อ, สาขา, ตำแหน่ง) */
@@ -2482,9 +2485,11 @@ function renderEditor(){
           <i>ขั้น 1</i><b>แบบทดสอบก่อนเรียน</b><span>${e.pre_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
         <button type="button" class="${e.post_open?'on':''}" onclick="togOpen('post_open')">
           <i>ขั้น 2</i><b>แบบทดสอบหลังเรียน</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span></button>
-        <button type="button" class="${e.post_open?'on':''}" onclick="document.getElementById('evEdit').scrollIntoView({ behavior:'smooth', block:'start' })">
-          <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
-          <small>${EVAL_SECS.length} หัวข้อ ${evalQs().length} ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · กดเพื่อดู/แก้คำถาม</small></button>
+        <button type="button" class="${evalOn(e) && e.post_open?'on':''}" ${evalOn(e) ? '' : 'style="opacity:.6"'} onclick="togEval()">
+          <i>ขั้น 3</i><b>ประเมินอบรม</b><span>${!evalOn(e) ? 'ไม่ใช้ประเมิน' : e.post_open?'เปิดให้ทำ':'ปิดอยู่'}</span>
+          <small>${evalOn(e)
+            ? EVAL_SECS.length + ' หัวข้อ ' + evalQs().length + ' ข้อ · ไม่ระบุชื่อ · เปิดพร้อมหลังเรียน · <u onclick="event.stopPropagation();document.getElementById(\'evEdit\').scrollIntoView({ behavior:\'smooth\', block:\'start\' })">ดู/แก้คำถาม</u> · กดการ์ดนี้เพื่อ<b>ไม่ใช้ประเมิน</b>'
+            : 'ผู้เข้าอบรมจะไม่เห็นขั้นประเมิน · กดการ์ดนี้เพื่อ<b>กลับมาใช้ประเมิน</b>'}</small></button>
       </div>
     </div>
 
@@ -2839,9 +2844,14 @@ window.saveTraining = async function(){
     sort_order:e.sort_order || 0, updated_at:new Date().toISOString(),
     source: e.source || null
   };
+  const wantEval = e.eval_enabled === false || (e.id && 'eval_enabled' in e);
+  if (wantEval) row.eval_enabled = evalOn(e);
   const put = r => e.id ? SB.from('tr_trainings').update(r).eq('id', e.id) : SB.from('tr_trainings').insert(r);
   let { error } = await put(row);
   let noLink = false;
+  if (error && /eval_enabled/.test(error.message || '')){
+    return msg('ยังตั้ง "ไม่ใช้ประเมิน" ไม่ได้ — ต้องรันไฟล์ <b>supabase/training-test-eval-toggle.sql</b> ใน Supabase ก่อน (ครั้งเดียว) แล้วบันทึกอีกครั้ง', 'warn');
+  }
   if (error && /source/.test(error.message || '')){
     delete row.source; noLink = true;
     ({ error } = await put(row));
