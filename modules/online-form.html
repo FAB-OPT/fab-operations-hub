@@ -1274,7 +1274,7 @@ function choicesFor(t){
     forms.forEach(f => out.push({ kind:'gen', key:f.key, title:f.title }));
   if (t === 'followup' ? ttCan('view-followup') : ttCan('view-results'))
     TT_LIST.forEach(x => out.push({ kind:'tt', key:x.key, title:x.title }));
-  if (t !== 'report' && (t === 'followup' ? sgCan('view-followup') : sgCan('view-results')))
+  if (t === 'followup' ? sgCan('view-followup') : sgCan('view-results'))
     SG_FORMS.forEach(x => out.push({ kind:'sg', key:x.key, title:x.title }));
   return out;
 }
@@ -1290,7 +1290,7 @@ window.pickForm = function(v){
 };
 function pickBar(t){
   const cs = choicesFor(t), cur = curChoice(t);
-  if (cs.length < 2) return '';
+  if (!cs.length) return '';
   const groups = ['gen','tt','sg'].filter(k => cs.some(c => c.kind === k));
   return `<div class="card kind-pick"><label for="pickForm">แบบฟอร์ม</label>
     <select id="pickForm" onchange="pickForm(this.value)">${groups.map(k =>
@@ -1322,7 +1322,7 @@ function renderKind(t, genFn){
     return;
   }
   /* v=เวลา: ไม่ให้เบราว์เซอร์ใช้หน้าที่แคชไว้ (แคช 10 นาที) */
-  const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + t + '&key=' + encodeURIComponent(cur.key) + '&v=' + Date.now();
+  const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + (cur.kind === 'sg' && t === 'report' ? 'results' : t) + '&key=' + encodeURIComponent(cur.key) + '&v=' + Date.now();
   $('#view').classList.remove('has-pick');
   $('#view').innerHTML = pickBar(t) +
     `<iframe class="kind-frame" scrolling="no" src="${src}" title="${esc(cur.title)}"></iframe>`;
