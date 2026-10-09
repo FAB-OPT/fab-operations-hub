@@ -1325,14 +1325,24 @@ function renderList(){
 /* ══════════════════════════════════════════════════════════════════
    ทำแบบทดสอบ
    ══════════════════════════════════════════════════════════════════ */
-window.startRun = function(key, phase){
+/* กันชื่อซ้ำเวลาหลายเครื่องใช้บัญชีสาขาเดียวพร้อมกัน (เช่น อบรม 20 คน)
+   รายชื่อ "ที่ยังไม่ทำ" คำนวณจากผลที่โหลดไว้ตอนเปิดหน้า ซึ่งไม่อัปเดตตามเครื่องอื่น
+   จึงต้องถามฐานข้อมูลสดอีกครั้งตอนเปิดหน้าเลือกชื่อ ตอนกดเริ่ม และตอนกดส่ง */
+async function attemptExists(key, phase, pid){
+  await sbReady();
+  const { data, error } = await SB.from('tr_attempts').select('id').eq('training_key', key).eq('phase', phase).eq('participant_id', String(pid)).limit(1);
+  return !error && !!(data && data.length);
+}
+window.startRun = async function(key, phase){
   const t = trainings.find(x => x.key === key); if (!t) return;
   if (phase === 'eval' && ME.isBranch && !evalLeft(t))
     return msg(participantsFor(t).some(p => attemptOf(t.key, 'post', p.id)) ? 'ทุกคนที่ทำหลังเรียนแล้วประเมินครบแล้ว' : 'ต้องทำแบบทดสอบหลังเรียนก่อน ถึงจะประเมินอบรมได้', 'warn');
   if (phase === 'eval'){ run = { t, phase, answers:{} }; tab = 'run'; renderNav(); renderEval(); window.scrollTo({ top:0 }); return; }
   if (!(t.questions || []).length) return msg('การอบรมนี้ยังไม่มีคำถาม', 'warn');
   run = { t, phase, person:null, answers:{} };
-  tab = 'run'; renderNav(); renderPick();
+  tab = 'run'; renderNav();
+  if (phase === 'pre' || phase === 'post') { $('#view').innerHTML = '<div class="card"><div class="empty"><p class="sub">กำลังตรวจรายชื่อล่าสุด…</p></div></div>'; await loadAttempts(); }
+  renderPick();
 };
 
 /* คะแนนรายคน: ก่อนเรียน · หลังเรียน · เปลี่ยนแปลง (หลังเรียนเทียบก่อนเรียน)
@@ -1379,7 +1389,7 @@ function renderPick(){
       <h2>${esc(t.title)}</h2>
       ${left.length ? `
         <label>ผู้เข้าอบรม</label>
-        <select id="rnWho">${left.map(p =>
+        <select id="rnWho"><option value="">— เลือกชื่อของคุณ —</option>${left.map(p =>
           `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
         <div class="row-btns" style="margin-top:14px">
           <button class="btn btn-primary" onclick="beginRun()">เริ่มทำแบบทดสอบ</button>
@@ -1390,10 +1400,15 @@ function renderPick(){
     </div>${scoresHtml(t)}`;
 }
 
-window.beginRun = function(){
+window.beginRun = async function(){
   const pid = $('#rnWho').value;
-  run.person = participantsFor(run.t).find(p => String(p.id) === String(pid));
-  if (!run.person) return msg('เลือกชื่อผู้ทำก่อน', 'warn');
+  const person = participantsFor(run.t).find(p => String(p.id) === String(pid));
+  if (!person) return msg('เลือกชื่อของคุณก่อน', 'warn');
+  if (await attemptExists(run.t.key, run.phase, person.id)){
+    await loadAttempts(); renderPick();
+    return msg('<b>' + esc(person.name) + '</b> ทำ' + esc(PHASE[run.phase]) + 'ไปแล้ว (อาจมีเครื่องอื่นเพิ่งส่ง) — เลือกชื่อของคุณใหม่', 'warn');
+  }
+  run.person = person;
   run.answers = {};
   renderRun();
 };
@@ -1470,6 +1485,10 @@ window.submitRun = async function(){
   if (miss.length){ run.flag = true; renderRun(); return missPopup(qs, miss); }
   const score = qs.reduce((a, q) => a + (run.answers[q.id] === q.answer ? 1 : 0), 0);
   const pct = qs.length ? Math.round(score / qs.length * 1000) / 10 : 0;
+  if (await attemptExists(t.key, run.phase, run.person.id)){
+    await loadAttempts(); const nm = run.person.name; run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
+    return msg('<b>' + esc(nm) + '</b> ส่งคำตอบไปแล้ว (เครื่องอื่นส่งก่อน) — ไม่บันทึกซ้ำ', 'warn');
+  }
   const { error } = await SB.from('tr_attempts').insert({
     training_key: t.key, training_title: t.title, phase: run.phase,
     participant_id: String(run.person.id), participant_name: run.person.name,
