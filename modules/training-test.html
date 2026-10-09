@@ -1157,9 +1157,16 @@ async function loadTrainings(){
 }
 async function loadAttempts(){
   await sbReady();
-  const { data, error } = await SB.from('tr_attempts').select('*').order('created_at', { ascending:false });
-  if (error){ msg('โหลดผลไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
-  attempts = data || [];
+  /* Supabase ส่งกลับสูงสุด 1,000 แถวต่อคำขอ — ผลสะสมเกินนั้นแล้วรายการเก่าจะหายจากหน้าคะแนน
+     จึงดึงทีละ 1,000 จนครบ */
+  const all = [], PAGE = 1000;
+  for (let from = 0; from < 50000; from += PAGE){
+    const { data, error } = await SB.from('tr_attempts').select('*').order('created_at', { ascending:false }).order('id', { ascending:false }).range(from, from + PAGE - 1);
+    if (error){ msg('โหลดผลไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
+    all.push(...(data || []));
+    if (!data || data.length < PAGE) break;
+  }
+  attempts = all;
 }
 
 async function boot(){
@@ -1496,6 +1503,10 @@ window.submitRun = async function(){
     answers: run.answers, score, total: qs.length, pct,
     taker_code: ME.code, taker_name: ME.name, taker_branch: ME.branch || ME.name
   });
+  if (error && error.code === '23505'){
+    await loadAttempts(); const nm = run.person.name; run = { t, phase: run.phase, person:null, answers:{} }; renderPick();
+    return msg('<b>' + esc(nm) + '</b> ส่งคำตอบไปแล้ว (เครื่องอื่นส่งพร้อมกัน) — ไม่บันทึกซ้ำ', 'warn');
+  }
   if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
   await loadAttempts();
 
