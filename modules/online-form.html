@@ -813,6 +813,9 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 .kind-pick{padding:12px 16px;margin:0 0 12px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
 .kind-pick label{margin:0;font-weight:700;font-size:13.5px;color:var(--muted)}
 .kind-pick select{flex:1;min-width:220px;max-width:520px}
+
+/* มีกล่องเลือกฟอร์มรวมอยู่บนสุด — ซ่อนกล่องเลือกฟอร์มซ้ำของฟอร์มทั่วไป */
+.has-pick div:has(> select#rfForm),.has-pick .rp-sel:has(> select#rpForm),.has-pick select#ffForm,.has-pick label:has(+ select#ffForm){display:none!important}
 </style>
 </head>
 <body>
@@ -1304,9 +1307,11 @@ function renderKind(t, genFn){
     genFn();
     const bar = pickBar(t);
     if (bar) $('#view').insertAdjacentHTML('afterbegin', bar);
+    $('#view').classList.toggle('has-pick', !!bar);
     return;
   }
   const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + t + '&key=' + encodeURIComponent(cur.key);
+  $('#view').classList.remove('has-pick');
   $('#view').innerHTML = pickBar(t) +
     `<iframe class="kind-frame" src="${src}" title="${esc(cur.title)}"></iframe>`;
 }
@@ -2125,9 +2130,6 @@ function renderForms(){
   const total = have.reduce((a, x) => a + x[1], 0);
   const cards = (show('gen') ? items.gen.map(genMfHtml) : [])
     .concat(show('sg') ? items.sg.map(sgMfHtml) : [], show('tt') ? items.tt.map(ttMfHtml) : []);
-  const links = [
-    sgCan('manage-people') ? `<button onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน (Silver / Gold)</button>` : ''
-  ].filter(Boolean).join('');
   $('#view').innerHTML = `
     <div class="mh">
       <h2>จัดการฟอร์ม <span class="muted" style="font-size:13px;font-weight:600">${total} ฟอร์ม</span></h2>
@@ -2135,10 +2137,10 @@ function renderForms(){
         ${canGen ? `<button class="btn btn-primary" onclick="newForm()">+ แบบสอบถาม</button>` : ''}
         ${sgCan('manage-forms') ? `<button class="btn btn-secondary" onclick="sgGo('tab=forms&new=1')">+ ประเมินพนักงาน</button>` : ''}
         ${ttCan('manage-trainings') ? `<button class="btn btn-secondary" onclick="ttGo('tab=trainings&new=1')">+ ทดสอบอบรม</button>` : ''}
+        ${sgCan('manage-people') ? `<button class="btn btn-line" onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
       </div>
     </div>
-    <div class="mf-grid">${cards.join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กดปุ่ม "+" ด้านบนเพื่อเริ่ม</div>'}</div>
-    ${links ? `<div class="sg-tiles" style="margin-top:18px">${links}</div>` : ''}`;
+    <div class="mf-grid">${cards.join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กดปุ่ม "+" ด้านบนเพื่อเริ่ม</div>'}</div>`;
 }
 
 const newKey = () => 'form-' + Date.now().toString(36);
