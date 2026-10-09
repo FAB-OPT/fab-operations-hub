@@ -1020,6 +1020,22 @@ function audienceLabel(f){
    และพาไปหน้าประเมิน/แก้เกณฑ์/ดูผลของชุดนั้น
    ⚠️ ค่าตั้งต้นต้องตรงกับ OF_PERM_DEFAULTS ใน silver-gold.html และ PERM_SYSTEMS.silvergold ในฮับ */
 let SG_FORMS = [];
+/* ที่เก็บข้อมูลประเมินพนักงาน: 'of' = ตาราง of_* เดิม · 'fm' = รวมในตารางฟอร์มทั่วไป (fm_*, kind='assess')
+   สลับเฉพาะเครื่องนี้ด้วย ?store=fm / ?store=of (จำไว้ในเบราว์เซอร์) · ค่าตั้งต้นของทุกเครื่องคือ SG_STORE_DEFAULT
+   ⚠️ ต้องตรงกันทั้ง silver-gold.html และ online-form.html — ไฟล์ SQL: supabase/unify-assess-step1.sql */
+const SG_STORE_DEFAULT = 'of';
+const SG_STORE = (() => {
+  try{
+    const q = new URLSearchParams(location.search).get('store');
+    if (q === 'fm' || q === 'of') localStorage.setItem('fab_sg_store', q);
+    return localStorage.getItem('fab_sg_store') || SG_STORE_DEFAULT;
+  }catch(e){ return SG_STORE_DEFAULT; }
+})();
+const SG_FM = SG_STORE === 'fm';
+const SG_FORMS_T = SG_FM ? 'fm_forms' : 'of_forms';
+const SG_RESP_T  = SG_FM ? 'fm_responses' : 'of_responses';
+const SG_RATER   = SG_FM ? 'respondent_code' : 'rater_key';
+
 const SG_PERM_KEY = 'fab_perms_silvergold_v1';
 const SG_PERM_DEFAULTS = {
   'view-results':   ['admin','support','coo','vp','bzm'],
@@ -1048,7 +1064,8 @@ function sgVisible(f){
 }
 async function loadSgForms(){
   try{
-    const { data, error } = await SB.from('of_forms').select('*').order('sort_order').order('id');
+    let q = SB.from(SG_FORMS_T).select('*'); if (SG_FM) q = q.eq('kind', 'assess');
+    const { data, error } = await q.order('sort_order').order('id');
     SG_FORMS = error ? [] : (data || []);
   }catch(e){ SG_FORMS = []; }
 }
@@ -1128,7 +1145,9 @@ window.ttGo = ttGo;
 async function loadForms(){
   await sbReady();
   loadSgForms();
-  const { data, error } = await SB.from('fm_forms').select('*').order('sort_order').order('id');
+  /* แถว kind='assess' คือแบบประเมินพนักงานที่คัดลอกเข้ามา — ไม่ใช่แบบสอบถามทั่วไป · ยังไม่รัน SQL = ไม่มีคอลัมน์ ก็ถามแบบเดิม */
+  let { data, error } = await SB.from('fm_forms').select('*').neq('kind', 'assess').order('sort_order').order('id');
+  if (error && /kind/i.test(error.message)) ({ data, error } = await SB.from('fm_forms').select('*').order('sort_order').order('id'));
   if (error){
     $('#view').innerHTML = '';
     msg('โหลดแบบฟอร์มไม่สำเร็จ — ' + esc(error.message) +
@@ -1140,7 +1159,8 @@ async function loadForms(){
 }
 async function loadResponses(){
   await sbReady();
-  const { data, error } = await SB.from('fm_responses').select('*').order('created_at', { ascending:false });
+  let { data, error } = await SB.from('fm_responses').select('*').neq('form_kind', 'assess').order('created_at', { ascending:false });
+  if (error && /form_kind/i.test(error.message)) ({ data, error } = await SB.from('fm_responses').select('*').order('created_at', { ascending:false }));
   if (error){ msg('โหลดคำตอบไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
   responses = data || [];
 }

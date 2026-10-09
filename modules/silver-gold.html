@@ -620,6 +620,33 @@ let forms = [], people = [], responses = [];
    ยังไม่รัน = ซ่อนการ์ดตั้งค่าใหม่ และไม่ส่งคอลัมน์ที่ยังไม่มีไปตอนบันทึก
    (ไม่งั้นกดบันทึกฟอร์มจะพังทั้งใบ ทั้งที่แค่ยังไม่ได้อัปเดตฐานข้อมูล) */
 let VIS_READY = true;
+/* ที่เก็บข้อมูลประเมินพนักงาน: 'of' = ตาราง of_* เดิม · 'fm' = รวมในตารางฟอร์มทั่วไป (fm_*, kind='assess')
+   สลับเฉพาะเครื่องนี้ด้วย ?store=fm / ?store=of (จำไว้ในเบราว์เซอร์) · ค่าตั้งต้นของทุกเครื่องคือ SG_STORE_DEFAULT
+   ⚠️ ต้องตรงกันทั้ง silver-gold.html และ online-form.html — ไฟล์ SQL: supabase/unify-assess-step1.sql */
+const SG_STORE_DEFAULT = 'of';
+const SG_STORE = (() => {
+  try{
+    const q = new URLSearchParams(location.search).get('store');
+    if (q === 'fm' || q === 'of') localStorage.setItem('fab_sg_store', q);
+    return localStorage.getItem('fab_sg_store') || SG_STORE_DEFAULT;
+  }catch(e){ return SG_STORE_DEFAULT; }
+})();
+const SG_FM = SG_STORE === 'fm';
+const SG_FORMS_T = SG_FM ? 'fm_forms' : 'of_forms';
+const SG_RESP_T  = SG_FM ? 'fm_responses' : 'of_responses';
+const SG_RATER   = SG_FM ? 'respondent_code' : 'rater_key';
+const sgForms = cols => { const q = SB.from(SG_FORMS_T).select(cols); return SG_FM ? q.eq('kind', 'assess') : q; };
+const sgResps = cols => { const q = SB.from(SG_RESP_T).select(cols); return SG_FM ? q.eq('form_kind', 'assess') : q; };
+/* แถวผลจาก fm_* → รูปเดียวกับ of_responses ที่โค้ดข้างล่างใช้ทั้งไฟล์ (rater_*) */
+const respIn = r => SG_FM ? Object.assign({}, r, { rater_key:r.respondent_code, rater_name:r.respondent_name,
+  rater_role:r.respondent_role, rater_branch:r.respondent_branch }) : r;
+/* แถวที่จะบันทึก → ชื่อคอลัมน์ของตารางที่ใช้อยู่ */
+const respOut = row => { if (!SG_FM) return row;
+  const o = Object.assign({}, row, { form_kind:'assess', respondent_code:row.rater_key, respondent_name:row.rater_name,
+    respondent_role:row.rater_role, respondent_branch:row.rater_branch });
+  ['rater_key','rater_name','rater_role','rater_branch'].forEach(k => delete o[k]); return o; };
+const formOut = row => SG_FM ? Object.assign({}, row, { kind:'assess' }) : row;
+
 /* ที่เรากรอกไปแล้ว — คีย์คือ "form_key|round" ค่าคือชุด subject_id
    ใช้คิดความคืบหน้าบนหน้ารายการ โดยไม่ต้องโหลดคำตอบทั้งก้อน */
 let myDone = {};
@@ -894,7 +921,7 @@ async function boot(){
   }
   try{
     const [f, p] = await Promise.all([
-      SB.from('of_forms').select('*').order('sort_order').order('id'),
+      sgForms('*').order('sort_order').order('id'),
       SB.from('of_people').select('*').eq('active', true).order('branch').order('name')
     ]);
     if (f.error) throw f.error;
@@ -904,7 +931,7 @@ async function boot(){
 
     /* ถามฐานข้อมูลตรง ๆ ว่ามีคอลัมน์ใหม่ไหม — เช็กจากแถวที่โหลดมาไม่ได้
        เพราะถ้ายังไม่มีฟอร์มสักใบก็ตอบไม่ได้ */
-    const probe = await SB.from('of_forms').select('id,visible_brands').limit(1);
+    const probe = await SB.from(SG_FORMS_T).select('id,visible_brands').limit(1);
     VIS_READY = !probe.error;
   }catch(e){
     $('#view').innerHTML = '';
@@ -916,8 +943,7 @@ async function boot(){
   /* ดึงเฉพาะสามคอลัมน์ที่ใช้นับความคืบหน้า ไม่ต้องลากคำตอบทั้งก้อนมา
      ถ้าดึงไม่ได้ก็แค่ไม่มีแถบความคืบหน้า หน้าที่เหลือยังใช้ได้ปกติ */
   try{
-    const { data } = await SB.from('of_responses')
-      .select('form_key,round,subject_id').eq('rater_key', ME.code);
+    const { data } = await sgResps('form_key,round,subject_id').eq(SG_RATER, ME.code);
     myDone = {};
     (data || []).forEach(r => {
       const k = r.form_key + '|' + (r.round || '');
@@ -927,9 +953,9 @@ async function boot(){
 
   /* ยังไม่มีฟอร์มสักชุด → ใส่ชุดตั้งต้น Silver/Gold ให้ (เฉพาะทีมสำนักงาน) */
   if (!forms.length && ofCan('manage-forms')){
-    const { error } = await SB.from('of_forms').insert(SEED_FORM);
+    const { error } = await SB.from(SG_FORMS_T).insert(formOut(SEED_FORM));
     if (!error){
-      const { data } = await SB.from('of_forms').select('*').order('sort_order');
+      const { data } = await sgForms('*').order('sort_order');
       forms = data || [];
       msg('ติดตั้งแบบประเมิน Silver / Gold เป็นฟอร์มตั้งต้นให้แล้ว — แก้คำถามได้ที่แท็บ <b>จัดการฟอร์ม</b>');
     }
@@ -971,9 +997,9 @@ function tabAllowed(t){
 
 async function loadResponses(){
   await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const { data, error } = await SB.from('of_responses').select('*').order('created_at', { ascending:false });
+  const { data, error } = await sgResps('*').order('created_at', { ascending:false });
   if (error){ msg('โหลดผลไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
-  responses = data || [];
+  responses = (data || []).map(respIn);
 }
 async function loadPeople(){
   await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
@@ -983,7 +1009,7 @@ async function loadPeople(){
 }
 async function loadForms(){
   await sbReady();              // รอล็อกอิน Supabase ก่อนแตะตาราง
-  const { data, error } = await SB.from('of_forms').select('*').order('sort_order').order('id');
+  const { data, error } = await sgForms('*').order('sort_order').order('id');
   if (error){ msg('โหลดฟอร์มไม่สำเร็จ — ' + esc(error.message), 'err'); return; }
   forms = data || [];
 }
@@ -1197,9 +1223,9 @@ async function beginQuestions(){
   const btn = $('#btnBegin');
   if (btn){ btn.disabled = true; btn.textContent = 'กำลังตรวจสอบ…'; }
   try{
-    const { data, error } = await SB.from('of_responses').select('id')
+    const { data, error } = await sgResps('id')
       .eq('form_key', form.key).eq('round', form.round || '')
-      .eq('rater_key', ME.code).eq('subject_id', sub.id || 0).limit(1);
+      .eq(SG_RATER, ME.code).eq('subject_id', sub.id || 0).limit(1);
     if (error) throw error;
     if (data && data.length){
       msg(`คุณกรอกแบบฟอร์มนี้ให้ <b>${esc(sub.name || '—')}</b> ใน${esc(form.round || 'รอบนี้')}ไปแล้ว กรอกซ้ำไม่ได้` +
@@ -1382,7 +1408,7 @@ async function submit(){
     texts:fill.texts
   };
 
-  const { error } = await SB.from('of_responses').insert(row);
+  const { error } = await SB.from(SG_RESP_T).insert(respOut(row));
   if (error){
     btn.disabled = false; btn.textContent = 'ส่งแบบฟอร์ม';
     if (error.code === '23505')
@@ -1613,7 +1639,7 @@ window.delResp = async function(id){
   if (!ofCan('delete-response')) return msg('ไม่มีสิทธิ์ลบผลตอบกลับ', 'warn');
   const r = responses.find(x => x.id === id); if (!r) return;
   if (!confirm(`ลบผลของ ${r.subject_name || r.form_title} ที่กรอกโดย ${r.rater_name} ?\n\nลบแล้วผู้กรอกคนนี้จะกรอกใหม่ได้อีกครั้ง`)) return;
-  const { error } = await SB.from('of_responses').delete().eq('id', id);
+  const { error } = await SB.from(SG_RESP_T).delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ลบเรียบร้อย'); go('results');
 };
@@ -2253,7 +2279,7 @@ function renderForms(){
 }
 
 window.installSeed = async function(){
-  const { error } = await SB.from('of_forms').insert(SEED_FORM);
+  const { error } = await SB.from(SG_FORMS_T).insert(formOut(SEED_FORM));
   if (error) return msg('ติดตั้งไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ติดตั้งชุด Silver / Gold เรียบร้อย'); go('forms');
 };
@@ -2283,7 +2309,7 @@ window.dupForm = async function(id){
   copy.key   = f.key + '-copy-' + Date.now().toString(36).slice(-4);
   copy.title = f.title + ' (สำเนา)';
   copy.status = 'draft';
-  const { error } = await SB.from('of_forms').insert(copy);
+  const { error } = await SB.from(SG_FORMS_T).insert(formOut(copy));
   if (error) return msg('ทำสำเนาไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ทำสำเนาเรียบร้อย — อยู่ในสถานะ "ร่าง" แก้ให้เสร็จแล้วค่อยเปิด'); go('forms');
 };
@@ -2295,7 +2321,7 @@ window.delForm = async function(id){
   if (!confirm(`ลบแบบฟอร์ม "${f.title}" ?\n\n` +
     (used ? `มีผลที่กรอกไว้แล้ว ${used} รายการ — ผลจะไม่ถูกลบ แต่จะดูคำถามรายข้อไม่ได้อีก\n\n` : '') +
     'ยืนยันการลบ?')) return;
-  const { error } = await SB.from('of_forms').delete().eq('id', id);
+  const { error } = await SB.from(SG_FORMS_T).delete().eq('id', id);
   if (error) return msg('ลบไม่สำเร็จ — ' + esc(error.message), 'err');
   msg('ลบเรียบร้อย'); go('forms');
 };
@@ -2719,8 +2745,8 @@ window.saveForm = async function(){
       .forEach(k => delete row[k]);
   row.updated_at = new Date().toISOString();
 
-  const q = row.id ? SB.from('of_forms').update(row).eq('id', row.id)
-                   : SB.from('of_forms').insert(row);
+  const q = row.id ? SB.from(SG_FORMS_T).update(formOut(row)).eq('id', row.id)
+                   : SB.from(SG_FORMS_T).insert(formOut(row));
   const { error } = await q;
   if (error){
     if (error.code === '23505') return msg('รหัสฟอร์มนี้มีอยู่แล้ว ใช้รหัสอื่น', 'err');
