@@ -944,12 +944,13 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
    ══════════════════════════════════════════════════════════════════ */
 const SB_URL = 'https://pzspcjqlxoqnbtvlfjsy.supabase.co';
 const SB_KEY = 'sb_publishable_n1w7k8mdxGbtaHKZ4xnNWA_wxUHhEtP';
-const SB = window.supabase.createClient(SB_URL, SB_KEY);
+/* ใช้ที่เก็บเซสชันเดียวกับฮับ (โปรเจกต์เดียวกัน) — เครื่องที่ล็อกอินฮับแล้วไม่ต้องขอผู้ใช้ใหม่อีก */
+const SB = window.supabase.createClient(SB_URL, SB_KEY, { auth: { storageKey: 'sb-hubcfg-auth' } });
 
 var SB_AUTH = null;
 function sbReady(){
   if (!SB_AUTH){
-    try{ SB_AUTH = SB.auth.signInAnonymously().then(r => !(r && r.error)).catch(() => false); }
+    try{ SB_AUTH = SB.auth.getSession().then(s => (s && s.data && s.data.session) ? {} : SB.auth.signInAnonymously()).then(r => !(r && r.error)).catch(() => false); }
     catch(e){ SB_AUTH = Promise.resolve(false); }
   }
   return SB_AUTH;
@@ -966,7 +967,7 @@ const TRR = window.supabase.createClient(TRR_URL, TRR_KEY, { auth: { storageKey:
 var TRR_AUTH = null;
 function trrReady(){
   if (!TRR_AUTH){
-    try{ TRR_AUTH = TRR.auth.signInAnonymously().then(r => !(r && r.error)).catch(() => false); }
+    try{ TRR_AUTH = TRR.auth.getSession().then(s => (s && s.data && s.data.session) ? {} : TRR.auth.signInAnonymously()).then(r => !(r && r.error)).catch(() => false); }
     catch(e){ TRR_AUTH = Promise.resolve(false); }
   }
   return TRR_AUTH;
