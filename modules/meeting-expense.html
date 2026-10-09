@@ -1870,6 +1870,153 @@ function adminLimits(body,r){
    เลือกช่วงเดือน + เกณฑ์นับ → สรุปตัวเลข · กราฟรายเดือน · แยกตาม BZM / แบรนด์ / สาขา · สาขาที่ไม่เคยเบิกในช่วง · ส่งออก Excel · พิมพ์
    สาขาตามทะเบียนฮับ (ไม่รวมสาขาที่ปิด/รหัส 60) · เอกสารที่ไม่อนุมัติไม่นับ */
 let RV={from:"",to:"",basis:"ok",by:"branch",f:"all"};
+/* ═════════════ ส่งออก Excel: รายงาน 2 ฉบับ (ไฟล์ .xlsx จริง · มีสี เส้นขอบ ผสานเซลล์) ═════════════
+   1) สรุปเบิกตาม BZM  — ทั้งปี รายเดือน แยกบล็อกต่อ BZM · ไม่มีชื่อผู้รับเงิน
+   2) สรุปเบิกตามเดือน — รายสาขาของรอบเดียว มีผู้รับเงิน · จำนวนเงิน · ใช้จริง · งบในการใช้ */
+function loadExcelJs(){
+  if(window.ExcelJS) return Promise.resolve(window.ExcelJS);
+  return new Promise((ok,no)=>{ const s=document.createElement("script");
+    s.src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"; s.onload=()=>ok(window.ExcelJS);
+    s.onerror=()=>no(new Error("โหลดตัวสร้างไฟล์ Excel ไม่ได้ — ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่")); document.head.appendChild(s); });
+}
+const MONTHS_FULL=["","มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const thFullDate=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||"")); return m?(+m[3])+" "+MONTHS_FULL[+m[2]]+" "+(+m[1]+543):""; };
+const X_FONT="Tahoma", X_YEL="FFFFFF00", X_BLUE="FFB4DDEA", X_ORG="FFF8CBAD", X_GRY="FFD9D9D9", X_GRY2="FFF2F2F2";
+const X_LINE={style:"thin",color:{argb:"FF000000"}}, X_BOX={top:X_LINE,left:X_LINE,bottom:X_LINE,right:X_LINE};
+/* เขียนเซลล์ + จัดสไตล์ในที่เดียว */
+function xput(ws,r,c,v,o){ o=o||{}; const cell=ws.getCell(r,c); cell.value=v;
+  cell.font={name:X_FONT,size:o.size||12,bold:!!o.bold,italic:!!o.italic,color:{argb:o.color||"FF000000"}};
+  cell.alignment={horizontal:o.h||"left",vertical:"middle",wrapText:!!o.wrap};
+  if(o.fill) cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:o.fill}};
+  if(o.fmt) cell.numFmt=o.fmt;
+  if(o.box!==false) cell.border=X_BOX;
+  return cell; }
+const X_NUM="#,##0.00";
+/* ผสานเซลล์ + ลอกสไตล์ (เส้นขอบ/สี) ไปทุกช่อง ไม่งั้น Excel ตัดเส้นขอบด้านขวาของช่วงที่ผสาน */
+function xmerge(ws,r1,c1,r2,c2){ const m=ws.getCell(r1,c1);
+  for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){ if(r===r1&&c===c1) continue; const x=ws.getCell(r,c); x.style=Object.assign({},m.style); }
+  ws.mergeCells(r1,c1,r2,c2); }
+const firstWord=t=>String(t||"").trim().split(/\s+/)[0]||"";
+
+/* ── รายงาน 1: สรุปเบิกตาม BZM (ทั้งปี รายเดือน) ── */
+function rptBzmBuild(ExcelJS,yr,basis){
+  const pick=c=>basis==="all"?!isRejected(c):statusOf(c)==="อนุมัติ";
+  const claims=CLAIMS().filter(c=>roundIdOf(c).slice(0,4)===yr&&pick(c));
+  if(!claims.length) return null;
+  const ids=ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)).filter(id=>String(id).slice(0,4)===yr);
+  const lastM=ids.length?Math.max(...ids.map(id=>+String(id).slice(5,7))):0;
+  const byB={}; claims.forEach(c=>{ const m=+roundIdOf(c).slice(5,7); const o=byB[c.branchCode]||(byB[c.branchCode]=Array(13).fill(0)); if(m>=1&&m<=12) o[m]+=Number(c.amount)||0; });
+  const limRid=yr+"-"+String(Math.max(lastM,1)).padStart(2,"0");
+  const g={}; Branches.list().forEach(b=>{ const lim=limitOf(limRid,b.code); if(!(lim>0)&&!byB[b.code]) return;
+    const z=bzmOf(b.code); (g[z.label]=g[z.label]||{label:z.label,key:z.key,rows:[]}).rows.push({b,lim,m:byB[b.code]||Array(13).fill(0)}); });
+  const groups=Object.values(g).sort((a,b)=>a.key?(b.key?a.label.localeCompare(b.label,"th"):-1):1);
+  groups.forEach(z=>z.rows.sort((p,q)=>String(p.b.code).localeCompare(String(q.b.code),undefined,{numeric:true})));
+  const be=+yr+543, yy=String(be%100).padStart(2,"0");
+  const wb=new ExcelJS.Workbook(); wb.creator="FAB Operations Hub";
+  const ws=wb.addWorksheet("สรุปเบิกตาม BZM-"+yy,{views:[{showGridLines:false}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+  [6,13,10,32,14].concat(Array(12).fill(13.5),[15]).forEach((w,i)=>ws.getColumn(i+1).width=w);
+  const NC=18, MC=6;   /* คอลัมน์: A NO · B BZM · C รหัส · D ชื่อสาขา · E วงเงิน · F-Q เดือน · R รวม */
+  let r=1; const colTot=Array(13).fill(0); let limTot=0;
+  groups.forEach(z=>{
+    const parts=String(z.label).split(" · "), full=z.key?(parts[1]||parts[0]):"ไม่ระบุ BZM", short=z.key?(firstWord(parts[1])||parts[0]):"—";
+    xput(ws,r,1,"BZM  "+full,{bold:true,size:18,fill:X_BLUE,box:false}); xmerge(ws,r,1,r,5);
+    xput(ws,r,MC,"เบิกเงินประชุมร้าน ปี"+be,{bold:true,size:18,fill:X_ORG,h:"center",box:false}); xmerge(ws,r,MC,r,NC);
+    ws.getRow(r).height=32; r++;
+    ["NO.","BZM","สาขา","","วงเงินประชุม"].forEach((t,i)=>xput(ws,r,i+1,t,{bold:true,fill:X_YEL,h:"center"}));
+    xmerge(ws,r,3,r,4);
+    for(let m=1;m<=12;m++) xput(ws,r,MC+m-1,MONTHS_FULL[m],{bold:true,fill:X_YEL,h:"center"});
+    xput(ws,r,NC,"รวม",{bold:true,fill:X_YEL,h:"center"}); ws.getRow(r).height=22; r++;
+    const t=Array(13).fill(0); let lim=0;
+    z.rows.forEach((x,i)=>{
+      xput(ws,r,1,i+1,{h:"center"}); xput(ws,r,2,short,{h:"center"}); xput(ws,r,3,String(x.b.code),{h:"center"}); xput(ws,r,4,x.b.name);
+      xput(ws,r,5,x.lim,{fmt:X_NUM,h:"right",fill:X_ORG,bold:true});
+      let sum=0;
+      for(let m=1;m<=12;m++){ const v=x.m[m]; t[m]+=v; sum+=v;
+        xput(ws,r,MC+m-1,m<=lastM?v:null,{fmt:X_NUM,h:"right"}); }
+      xput(ws,r,NC,sum,{fmt:X_NUM,h:"right",bold:true,fill:X_GRY2});
+      lim+=x.lim; r++; });
+    xput(ws,r,1,"รวม BZM "+full+" ("+z.rows.length+" สาขา)",{bold:true,fill:X_GRY2,h:"right"}); xmerge(ws,r,1,r,4);
+    xput(ws,r,5,lim,{fmt:X_NUM,h:"right",bold:true,fill:X_GRY2});
+    for(let m=1;m<=12;m++) xput(ws,r,MC+m-1,m<=lastM?t[m]:null,{fmt:X_NUM,h:"right",bold:true,fill:X_GRY2});
+    xput(ws,r,NC,t.reduce((a,b)=>a+b,0),{fmt:X_NUM,h:"right",bold:true,fill:X_GRY2}); r+=2;
+    t.forEach((v,m)=>colTot[m]+=v); limTot+=lim; });
+  /* รวมทุก BZM */
+  xput(ws,r,1,"รวมทุก BZM ("+groups.reduce((a,z)=>a+z.rows.length,0)+" สาขา)",{bold:true,size:14,fill:X_ORG,h:"right"}); xmerge(ws,r,1,r,4);
+  xput(ws,r,5,limTot,{fmt:X_NUM,h:"right",bold:true,size:14,fill:X_ORG});
+  for(let m=1;m<=12;m++) xput(ws,r,MC+m-1,m<=lastM?colTot[m]:null,{fmt:X_NUM,h:"right",bold:true,size:14,fill:X_ORG});
+  xput(ws,r,NC,colTot.reduce((a,b)=>a+b,0),{fmt:X_NUM,h:"right",bold:true,size:14,fill:X_ORG}); ws.getRow(r).height=26; r+=2;
+  xput(ws,r,1,"เบิก"+(basis==="all"?"ทั้งหมดที่ไม่ถูกปฏิเสธ (รวมรอตรวจ)":"เฉพาะที่อนุมัติแล้ว")+" · ออกรายงาน "+thFullDate(HubMod.localDate()),{italic:true,size:11,color:"FF666666",box:false}); xmerge(ws,r,1,r,NC);
+  return {wb,name:"สรุปเบิกตาม-BZM-"+be+".xlsx"};
+}
+
+/* ── รายงาน 2: สรุปเบิกตามเดือน (รายสาขา · รอบเดียว) ── */
+function rptMonthBuild(ExcelJS,rid,basis){
+  const rd=roundOf(rid)||{}, yr=rid.slice(0,4), mo=+rid.slice(5,7), be=+yr+543;
+  const all=CLAIMS().filter(c=>roundIdOf(c)===rid&&!isRejected(c));
+  const okC=basis==="all"?all:all.filter(c=>statusOf(c)==="อนุมัติ");
+  const rows=Branches.list().map(b=>{ const lim=limitOf(rid,b.code), cs=all.filter(c=>c.branchCode===b.code), paid=okC.filter(c=>c.branchCode===b.code);
+      return {b,lim,cs,paid}; }).filter(x=>x.lim>0||x.cs.length)
+    .sort((p,q)=>String(p.b.code).localeCompare(String(q.b.code),undefined,{numeric:true}));
+  if(!rows.length) return null;
+  const wb=new ExcelJS.Workbook(); wb.creator="FAB Operations Hub";
+  const ws=wb.addWorksheet(String(mo).padStart(2,"0")+"-"+String(be%100).padStart(2,"0"),{views:[{showGridLines:false,state:"frozen",ySplit:2}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+  [6,12,12,9,30,13,28,26,14,24,14,14].forEach((w,i)=>ws.getColumn(i+1).width=w);
+  const span=(rd.startDate&&rd.dueDate)?"รอบวันที่ "+thFullDate(rd.startDate)+"  ถึง วันที่ "+thFullDate(rd.dueDate):"รอบเดือน"+MONTHS_FULL[mo]+" "+be;
+  xput(ws,1,1,"สรุปจำนวนเงินค่าอาหารในการประชุมร้าน"+span,{bold:true,size:20,h:"center",box:false}); xmerge(ws,1,1,1,12); ws.getRow(1).height=48;
+  ["NO.","แบรนด์","BZM","สาขา","ชื่อสาขา","รหัสพนักงาน","ชื่อ - สกุล","ตำแหน่ง","จำนวนเงิน","หมายเหตุ","ใช้จริง","งบในการใช้"]
+    .forEach((t,i)=>xput(ws,2,i+1,t,{bold:true,fill:i===10?X_GRY:X_YEL,h:"center"})); ws.getRow(2).height=26;
+  let r=3, tAmt=0, tReal=0, tLim=0, nSent=0;
+  rows.forEach((x,i)=>{
+    const last=x.cs.slice().sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""))[0]||null, p=payeeOf(x.b.code);
+    const name=last?(last.payeeName||last.payee||p.name||""):(p.name||""), emp=last?(last.payeeEmpCode||p.empCode||""):(p.empCode||""), pos=last?(last.payeePosition||p.position||""):(p.position||"");
+    const amt=sumOf(x.paid), real=x.cs.length?x.cs.reduce((s,c)=>s+(Number(c.claimedAmount)||Number(c.amount)||0),0):null;
+    const notes=[]; if(!x.cs.length) notes.push("ไม่ได้ส่งเบิก"); else if(!x.paid.length) notes.push("รอตรวจ");
+    x.cs.forEach(c=>{ if(c.note&&String(c.note).trim()) notes.push(String(c.note).trim()); });
+    xput(ws,r,1,i+1,{h:"center"}); xput(ws,r,2,Branches.brandName(Branches.brandOf(x.b.code)),{italic:true,size:10,h:"center"});
+    xput(ws,r,3,firstWord((bzmOf(x.b.code).label.split(" · ")[1])||bzmOf(x.b.code).key)||"—",{h:"center"});
+    xput(ws,r,4,String(x.b.code),{h:"center"}); xput(ws,r,5,x.b.name);
+    xput(ws,r,6,String(emp),{h:"center"}); xput(ws,r,7,name); xput(ws,r,8,pos,{h:"center"});
+    xput(ws,r,9,amt,{fmt:X_NUM,h:"right",bold:true,fill:amt?null:X_GRY2});
+    xput(ws,r,10,notes.join(" · "),{wrap:true,color:x.cs.length?"FF000000":"FFB91C1C"});
+    xput(ws,r,11,real,{fmt:X_NUM,h:"right",fill:X_GRY2}); xput(ws,r,12,x.lim,{fmt:X_NUM,h:"right"});
+    tAmt+=amt; tReal+=real||0; tLim+=x.lim; if(x.cs.length) nSent++; r++; });
+  xput(ws,r,1,"รวม "+rows.length+" สาขา · ส่งเบิกแล้ว "+nSent+" สาขา",{bold:true,fill:X_ORG,h:"right",size:13}); xmerge(ws,r,1,r,8);
+  xput(ws,r,9,tAmt,{fmt:X_NUM,h:"right",bold:true,fill:X_ORG,size:13}); xput(ws,r,10,"",{fill:X_ORG});
+  xput(ws,r,11,tReal,{fmt:X_NUM,h:"right",bold:true,fill:X_ORG,size:13}); xput(ws,r,12,tLim,{fmt:X_NUM,h:"right",bold:true,fill:X_ORG,size:13}); ws.getRow(r).height=24;
+  r+=2; xput(ws,r,1,"จำนวนเงิน = ยอดที่จ่ายตามวงเงิน ("+(basis==="all"?"รวมรอตรวจ":"เฉพาะที่อนุมัติแล้ว")+") · ใช้จริง = ยอดตามใบเสร็จที่สาขาขอเบิก · งบในการใช้ = วงเงินของสาขาในรอบนี้",{italic:true,size:11,color:"FF666666",box:false}); xmerge(ws,r,1,r,12);
+  return {wb,name:"สรุปเบิกตามเดือน-"+String(mo).padStart(2,"0")+"-"+String(be%100).padStart(2,"0")+".xlsx"};
+}
+
+/* หน้าต่างเลือกรายงาน → สร้างไฟล์ .xlsx แล้วดาวน์โหลด */
+function openReportExport(pref,opt){
+  opt=opt||{};
+  const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort().reverse();
+  const years=[...new Set(rids.map(x=>x.slice(0,4)))];
+  if(!rids.length) return toast("ยังไม่มีรอบเบิก");
+  const rid0=rids.includes(opt.round)?opt.round:(rids.includes(thisRoundId())?thisRoundId():rids[0]);
+  const yr0=years.includes(opt.year)?opt.year:rid0.slice(0,4);
+  const f=document.createElement("div"); let kind=pref==="month"?"month":"bzm";
+  const card=(k,no,t,d,ctl)=>`<label class="xrp" data-k="${k}" style="display:block;border:2px solid ${kind===k?"#ff6b1a":"#e6e8ec"};background:${kind===k?"#fff8f2":"#fff"};border-radius:16px;padding:14px 16px;margin-bottom:10px;cursor:pointer">
+    <div style="display:flex;gap:10px;align-items:flex-start"><input type="radio" name="xk" value="${k}" ${kind===k?"checked":""} style="width:auto;height:auto;margin-top:5px">
+    <div style="flex:1"><b style="font-size:16px">${no}. ${t}</b><div class="muted" style="font-size:13.5px;margin:3px 0 8px">${d}</div>${ctl}</div></div></label>`;
+  f.innerHTML=card("bzm","1","สรุปเบิกตาม BZM","ทั้งปี รายเดือน แยกบล็อกตาม BZM เห็นภาพรวมการเบิกทุกสาขา (ไม่มีชื่อผู้รับเงิน)",
+      `<select id="xy" style="min-width:160px">${years.map(y=>`<option value="${y}" ${y===yr0?"selected":""}>ปี ${+y+543}</option>`).join("")}</select>`)
+    +card("month","2","สรุปเบิกตามเดือน","รายสาขาของรอบเดียว พร้อมผู้รับเงิน จำนวนเงิน ใช้จริง และงบในการใช้",
+      `<select id="xr" style="min-width:200px">${rids.map(id=>`<option value="${id}" ${id===rid0?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}</select>`)
+    +`<div class="field" style="margin-top:6px"><label>นับยอดเบิก</label><select id="xb"><option value="ok">เฉพาะที่อนุมัติแล้ว</option><option value="all">รวมรอตรวจ</option></select></div>`;
+  f.querySelectorAll("input[name=xk]").forEach(i=>i.onchange=()=>{ kind=i.value; f.querySelectorAll(".xrp").forEach(l=>{ const on=l.dataset.k===kind; l.style.borderColor=on?"#ff6b1a":"#e6e8ec"; l.style.background=on?"#fff8f2":"#fff"; }); });
+  f.querySelectorAll("select").forEach(s=>s.addEventListener("focus",()=>{ const k=s.id==="xy"?"bzm":s.id==="xr"?"month":""; if(k){ kind=k; f.querySelector("input[value="+k+"]").checked=true; f.querySelector("input[value="+k+"]").onchange(); } }));
+  modal("ส่งออกรายงาน Excel",f,async()=>{
+    const basis=$("#xb",f).value, ExcelJS=await loadExcelJs();
+    const out=kind==="bzm"?rptBzmBuild(ExcelJS,$("#xy",f).value,basis):rptMonthBuild(ExcelJS,$("#xr",f).value,basis);
+    if(!out) throw new Error("ไม่มีข้อมูลในช่วงที่เลือก");
+    const buf=await out.wb.xlsx.writeBuffer();
+    const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+    a.download=out.name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+    toast("ส่งออก "+out.name+" แล้ว");
+  },"ส่งออก Excel");
+}
+
 function adminReport(body){
   const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort();
   const cur=thisRoundId();
@@ -1921,17 +2068,7 @@ function adminReport(body){
   out.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{RV.f=b.dataset.f;redo();});
   bindPager(out,"rptbr",redo);
   $("#rprt",body).onclick=()=>window.print();
-  $("#rcsv",body).onclick=()=>{
-    if(!inList.length) return toast("ไม่มีรายการให้ส่งออก");
-    const R=[["รอบ","รหัสสาขา","สาขา","แบรนด์","BZM","ผู้รับเงิน","ยอดเบิก","สถานะ"]];
-    inList.slice().sort((a,b)=>roundIdOf(a).localeCompare(roundIdOf(b))||String(a.branchCode).localeCompare(String(b.branchCode)))
-      .forEach(c=>{ const b=byCode[c.branchCode]; R.push([roundIdOf(c),b.code,b.name,b.brandName,bzmOf(b.code).label,c.payeeName||c.payee||"",Number(c.amount)||0,statusOf(c)]); });
-    const cell=v=>{ const t=String(v==null?"":v); return /[",\r\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; };
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob(["﻿"+R.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));
-    a.download="รายงานเบิกเงินประชุม-"+RV.from+"ถึง"+RV.to+".csv";
-    document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
-  };
+  $("#rcsv",body).onclick=()=>openReportExport("bzm",{year:RV.to.slice(0,4)});
 }
 
 /* ═════════════ สรุปตาม BZM ═════════════
@@ -2035,14 +2172,7 @@ function adminBzm(body,r){
     csvRows=[["BZM"].concat(MONTHS_TH.slice(1),["รวม"])];
     groups.forEach(z=>csvRows.push([z.label].concat(z.m.slice(1),[z.tot])));
   }
-  $("#bcsv",body).onclick=()=>{
-    if(csvRows.length<2) return toast("ไม่มีรายการให้ส่งออก");
-    const cell=v=>{ const t=String(v==null?"":v); return /[",\r\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t; };
-    const a=document.createElement("a");
-    a.href=URL.createObjectURL(new Blob(["﻿"+csvRows.map(r=>r.map(cell).join(",")).join("\r\n")],{type:"text/csv;charset=utf-8"}));
-    a.download="สรุปเบิกเงินประชุมตาม-BZM-"+(BV.mode==="round"?BV.round:BV.year)+".csv";
-    document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
-  };
+  $("#bcsv",body).onclick=()=>openReportExport(BV.mode==="year"?"bzm":"month",{year:BV.year,round:BV.round});
 }
 
 /* ═════════════ นำเข้ารายชื่อทีมผู้จัดการสาขา + งบต่อคน จาก Excel ═════════════
