@@ -802,8 +802,7 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 
 /* ฝังหน้าผลของระบบอื่น (แบบทดสอบอบรม / Silver-Gold) ในแท็บคำตอบ-รายงาน-ติดตาม */
 .kind-seg{margin:0 0 12px;max-width:520px}
-.kind-frame{display:block;width:100%;border:0;background:transparent;height:calc(100vh - 100px);height:calc(100dvh - 100px);min-height:520px}
-@media(max-width:820px){ .kind-frame{height:calc(100dvh - 100px - var(--tabbar-h) - env(safe-area-inset-bottom));min-height:420px} }
+.kind-frame{display:block;width:100%;border:0;background:transparent;height:520px;min-height:240px}
 
 /* แถบกรองประเภทฟอร์ม + ปุ่มสร้างตามประเภท */
 .type-bar{margin:0 0 14px}
@@ -1299,6 +1298,18 @@ function pickBar(t){
         `<option value="${k}|${esc(c.key)}" ${cur && c.kind === cur.kind && c.key === cur.key ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}</optgroup>`).join('')}
     </select></div>`;
 }
+/* หน้าที่ฝังบอกความสูงมา → ปรับกรอบให้พอดี · ส่งตำแหน่งจอที่กำลังดูอยู่ให้ใช้วางหน้าต่างเด้ง */
+window.addEventListener('message', e => {
+  const fr = document.querySelector('.kind-frame');
+  if (!fr || e.source !== fr.contentWindow || !e.data || e.data.type !== 'of-h') return;
+  fr.style.height = Math.max(240, Math.ceil(e.data.h)) + 'px';
+});
+function postView(){
+  const fr = document.querySelector('.kind-frame');
+  if (fr && fr.contentWindow) fr.contentWindow.postMessage({ type:'of-view', top:-fr.getBoundingClientRect().top }, location.origin);
+}
+window.addEventListener('scroll', postView, { passive:true });
+window.addEventListener('resize', postView);
 /* ครอบตัววาดของฟอร์มทั่วไป: ใส่กล่องเลือกฟอร์มไว้บนสุด · ฟอร์มประเภทอื่นแสดงเป็นหน้าฝัง */
 function renderKind(t, genFn){
   const cur = curChoice(t);
@@ -1310,10 +1321,11 @@ function renderKind(t, genFn){
     $('#view').classList.toggle('has-pick', !!bar);
     return;
   }
-  const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + t + '&key=' + encodeURIComponent(cur.key);
+  /* v=เวลา: ไม่ให้เบราว์เซอร์ใช้หน้าที่แคชไว้ (แคช 10 นาที) */
+  const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + t + '&key=' + encodeURIComponent(cur.key) + '&v=' + Date.now();
   $('#view').classList.remove('has-pick');
   $('#view').innerHTML = pickBar(t) +
-    `<iframe class="kind-frame" src="${src}" title="${esc(cur.title)}"></iframe>`;
+    `<iframe class="kind-frame" scrolling="no" src="${src}" title="${esc(cur.title)}"></iframe>`;
 }
 
 function renderNav(){

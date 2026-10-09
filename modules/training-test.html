@@ -3,7 +3,18 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<script>if(/[?&]embed=1/.test(location.search))document.documentElement.classList.add('embed');</script>
+<script>if(/[?&]embed=1/.test(location.search)){
+  document.documentElement.classList.add('embed');
+  /* ฝังอยู่ในหน้าแบบฟอร์มทั่วไป: บอกความสูงให้หน้าแม่ (ไม่มีแถบเลื่อนซ้อน) · รับตำแหน่งจอที่ผู้ใช้กำลังดูไว้วางหน้าต่างเด้ง */
+  addEventListener('DOMContentLoaded', function(){
+    var send = function(){ parent.postMessage({ type:'of-h', h:document.body.offsetHeight }, location.origin); };
+    new ResizeObserver(send).observe(document.body); send();
+    addEventListener('message', function(e){
+      if (e.origin === location.origin && e.data && e.data.type === 'of-view')
+        document.documentElement.style.setProperty('--vt', Math.max(0, e.data.top) + 'px');
+    });
+  });
+}</script>
 <meta name="theme-color" content="#ffffff">
 <title>แบบทดสอบก่อน–หลังอบรม — FAB Hub</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -915,6 +926,11 @@ html.embed body.has-tabbar main{padding-bottom:24px!important}
 
 /* ฝังอยู่ — ฟอร์มถูกเลือกจากกล่องของหน้าแม่แล้ว ซ่อนกล่องเลือกซ้ำ */
 html.embed div:has(> select#rfTraining),html.embed div:has(> select#ffTraining),html.embed .rp-sel:has(> select#rpTraining){display:none!important}
+
+/* ฝังอยู่ — หน้าต่างเด้ง/แจ้งเตือนวางตามตำแหน่งที่ผู้ใช้เลื่อนดูอยู่ของหน้าแม่ (--vt) */
+html.embed .modal-box{margin-top:calc(var(--vt,0px) + 18px)!important}
+html.embed .notice.show{position:absolute!important;top:calc(var(--vt,0px) + 14px)!important;left:12px!important;right:12px!important;max-width:none!important;z-index:70}
+html.embed body{overflow:hidden}
 </style>
 </head>
 <body>
