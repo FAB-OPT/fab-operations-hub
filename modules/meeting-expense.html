@@ -398,7 +398,7 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pcur{background:rgba(255,255,255,var(--ga));border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:var(--r);padding:22px 26px}
 .pcur small{display:block;color:var(--text3);font-size:13px}.pcur b{display:block;font-size:22px;font-weight:700;margin:4px 0 6px}
 /* หน้า "ผู้รับเงินของสาขา" (ฝั่งสาขา) */
-.pw{max-width:1100px}
+.pw{max-width:none}
 .pw-card{background:rgba(255,255,255,.92);border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:26px;overflow:hidden}
 .pw-cmp{display:grid;grid-template-columns:1fr 1fr}.pw-cmp.one{grid-template-columns:1fr}
 .pw-p{display:flex;gap:16px;align-items:flex-start;padding:26px 28px;min-width:0}
@@ -414,15 +414,21 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pw-flow{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:16px 28px;border-top:1px solid #eee7df;font-size:14px}
 .pw-st{display:flex;align-items:center;gap:8px;color:#9aa0ab;font-weight:700;white-space:nowrap}
 .pw-st i{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:2px solid #d7dbe2;font-style:normal;font-size:12px;color:#fff}
-.pw-st.done{color:#12804f}.pw-st.done i{background:#16a36a;border-color:#16a36a}
+.pw-st.ok{color:#12804f}.pw-st.ok i{background:#16a36a;border-color:#16a36a}
 .pw-st.cur{color:#d2510f}.pw-st.cur i{border-color:#e8751a;background:#fff}
 .pw-flow u{flex:0 1 70px;min-width:24px;height:2px;background:#e8751a;text-decoration:none}.pw-flow u.off{background:#e4e7ec}
 .pw-note{margin-left:auto;color:#6b7280;font-size:13.5px}
 .pw-cancel{border-color:#f3b9b3!important;color:#c0392b!important;background:#fff!important;height:42px;border-radius:12px;font-weight:700}
 .pw-hint{margin-top:16px;border:1.5px dashed #ddd3c6;border-radius:18px;padding:16px 22px;color:#6b7280;font-size:14.5px}
+.pw-hist{margin-top:16px;padding:22px 26px}.pw-ht{font-size:17px;font-weight:800;margin-bottom:10px}.pw-ht small{margin-left:10px;font-size:13px;font-weight:500;color:#9aa0ab}
+.pw-tb{width:100%;border-collapse:collapse}.pw-tb th{text-align:left;font-size:12px;font-weight:600;color:#9aa0ab;padding:8px 10px;border-bottom:1px solid #eee7df}
+.pw-tb td{padding:12px 10px;border-bottom:1px solid #f3eee7;font-size:14px;vertical-align:top}.pw-tb tr:last-child td{border-bottom:0}.pw-tb td small{display:block;color:#9aa0ab;font-size:12px;margin-top:2px}
+.pw-ar{color:#e8751a;width:24px;text-align:center}
+.pw-tag{display:inline-block;border-radius:99px;padding:3px 12px;font-size:12.5px;font-weight:800;background:#eceef2;color:#6b7280}.pw-tag.ok{background:#dcf3e6;color:#12804f}.pw-tag.no{background:#fbe3e6;color:#d13447}
+.pw-empty{padding:26px 0;text-align:center;color:#9aa0ab}
 .pw-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 .pw-form{margin-top:0!important;padding:24px 26px}
-@media (max-width:760px){.pw-cmp{grid-template-columns:1fr}.pw-p.new{border-left:0;border-top:1px dashed #f3c9a3}.pw-note{margin-left:0;width:100%}.pw-grid{grid-template-columns:1fr}.pw-p{padding:20px}}
+@media (max-width:760px){.pw-tb{display:block;overflow-x:auto}.pw-cmp{grid-template-columns:1fr}.pw-p.new{border-left:0;border-top:1px dashed #f3c9a3}.pw-note{margin-left:0;width:100%}.pw-grid{grid-template-columns:1fr}.pw-p{padding:20px}}
 .payee-pg>.pcur{margin-bottom:14px}
 .pcmp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:stretch;margin-bottom:14px}
 .pcmp>.pcur,.pcmp>.pnew{margin:0;padding:16px 16px}.pcmp .pcur b,.pcmp .pnew b{font-size:17px;line-height:1.3;margin:4px 0 4px}
@@ -1344,11 +1350,20 @@ function branchPayee(body){
   const person=(pp,cls,label,pillHtml,extra)=>`<div class="pw-p ${cls}"><i class="pw-av">${esc(pp&&pp.name?ini(pp.name):"–")}</i>
     <div class="pw-i"><small>${label}${pillHtml||""}</small>${pp&&pp.name?`<b>${esc(pp.name)}</b>
       <div class="pw-m">${pp.empCode?`<code>${esc(pp.empCode)}</code>`:""}${esc(pp.position||"")}</div>${extra||""}`:`<b>ยังไม่มีข้อมูล</b>`}</div></div>`;
+  const hist=()=>{
+    const L=PREQ().filter(p=>p.branchCode===ME.code&&p.status!=="pending").sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+    const st=p=>p.status==="approved"?`<span class="pw-tag ok">รับทราบแล้ว</span>${p.effectiveRound?`<small>มีผลรอบ ${esc(roundLabel(p.effectiveRound))}</small>`:`<small>มีผลตั้งแต่รอบถัดไป</small>`}`
+      :p.status==="cancelled"?`<span class="pw-tag">ยกเลิกคำขอ</span>`:`<span class="pw-tag no">ไม่อนุมัติ</span>`;
+    w.insertAdjacentHTML("beforeend",`<div class="pw-card pw-hist"><div class="pw-ht">ประวัติการเปลี่ยนผู้รับเงิน<small>${L.length?L.length+" รายการ":""}</small></div>
+      ${L.length?`<table class="pw-tb"><thead><tr><th>วันที่ส่งคำขอ</th><th>จาก</th><th></th><th>เปลี่ยนเป็น</th><th>ผลการดำเนินการ</th><th>วันที่</th></tr></thead><tbody>
+      ${L.map(p=>`<tr><td>${esc(dmyS(p.createdAt))}</td><td>${esc((p.prev&&p.prev.name)||"—")}</td><td class="pw-ar">→</td><td><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<small>${esc(p.next.position)}</small>`:""}</td><td>${st(p)}</td><td>${esc(dmyS(p.reviewedAt||p.cancelledAt)||"—")}</td></tr>`).join("")}</tbody></table>`
+      :`<div class="pw-empty">ยังไม่เคยมีการเปลี่ยนผู้รับเงินผ่านระบบ</div>`}</div>`);
+  };
   const curBox=person(cur,"cur","ผู้รับเงินปัจจุบัน","",cur.updatedAt?`<div class="pw-u">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" โดย "+esc(cur.updatedBy):""}</div>`:"");
   if(pend){
     w.innerHTML=`<div class="pw-card"><div class="pw-cmp">${curBox}
         ${person(pend.next,"new","ขอเปลี่ยนเป็น",`<span class="pw-pill">รอผู้ดูแลรับทราบ</span>`,pend.reason?`<div class="pw-u" style="color:#6b7280">เหตุผล: ${esc(pend.reason)}</div>`:"")}</div>
-      <div class="pw-flow"><div class="pw-st done"><i>✓</i>ส่งคำขอ ${esc(dmyS(pend.createdAt))}</div><u></u><div class="pw-st cur"><i></i>ผู้ดูแลรับทราบ</div><u class="off"></u><div class="pw-st"><i></i>มีผล</div>
+      <div class="pw-flow"><div class="pw-st ok"><i>✓</i>ส่งคำขอ ${esc(dmyS(pend.createdAt))}</div><u></u><div class="pw-st cur"><i></i>ผู้ดูแลรับทราบ</div><u class="off"></u><div class="pw-st"><i></i>มีผล</div>
         <span class="pw-note">ระหว่างนี้ยังจ่ายให้ผู้รับเงินเดิม</span>
         <button class="btn ghost pw-cancel" id="pcancel">ยกเลิกคำขอ</button></div></div>
       <div class="pw-hint">ส่งคำขอใหม่ไม่ได้ระหว่างที่มีคำขอค้างอยู่ ถ้าต้องการเปลี่ยนเป็นคนอื่น ให้ยกเลิกคำขอเดิมก่อน</div>`;
@@ -1360,9 +1375,9 @@ function branchPayee(body){
         toast("ยกเลิกคำขอแล้ว");
       },"ยกเลิกคำขอ",true);
     };
-    return;
+    hist(); return;
   }
-  if(!can("request-payee")){ w.innerHTML=`<div class="pw-card"><div class="pw-cmp one">${curBox}</div></div>`; return; }
+  if(!can("request-payee")){ w.innerHTML=`<div class="pw-card"><div class="pw-cmp one">${curBox}</div></div>`; hist(); return; }
   w.innerHTML=`<div class="pw-grid"><div class="pw-card"><div class="pw-cmp one">${curBox}</div></div><div class="card fcard pw-form"></div></div>`;
   const f=$(".pw-form",w);
   f.innerHTML=`<h3 style="font-size:19px">${cur.name?"ขอเปลี่ยนผู้รับเงิน":"แจ้งผู้รับเงิน"}</h3><div class="muted" style="margin:2px 0 16px">พิมพ์ชื่อ แล้วเลือกพนักงานจากรายชื่อ</div>
@@ -1370,7 +1385,7 @@ function branchPayee(body){
     <div class="field" style="margin-top:6px"><label>เหตุผล</label><textarea id="pr" rows="3" placeholder="เช่น ผู้จัดการสาขาย้ายไปสาขาอื่น"></textarea></div>
     <button class="btn full" id="preq">ส่งคำขอเปลี่ยน</button>
     <div class="muted" style="text-align:center;font-size:12.5px;margin-top:10px">มีผลเมื่อผู้ดูแลกดรับทราบ · ระหว่างนี้ใช้ผู้รับเงินเดิม</div>`;
-  attachEmpPick(f);
+  attachEmpPick(f); hist();
   $("#preq",f).onclick=async e=>{
     const b=e.currentTarget;
     try{
