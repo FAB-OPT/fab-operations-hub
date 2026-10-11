@@ -398,6 +398,30 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pcur{background:rgba(255,255,255,var(--ga));border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:var(--r);padding:22px 26px}
 .pcur small{display:block;color:var(--text3);font-size:13px}.pcur b{display:block;font-size:22px;font-weight:700;margin:4px 0 6px}
 /* หน้า "ผู้รับเงินของสาขา" (ฝั่งสาขา) */
+/* การ์ด "รอบนี้ส่งเอกสารแล้ว" */
+.sd{max-width:640px;margin:8px auto 0;background:rgba(255,255,255,.92);border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:28px;padding:26px 28px}
+.sd-top{display:flex;gap:16px;align-items:center}
+.sd-ck{flex:none;display:grid;place-items:center;width:58px;height:58px;border-radius:17px;background:linear-gradient(145deg,#2fb774,#16955a);color:#fff;font-style:normal;font-size:28px;font-weight:800;box-shadow:0 10px 22px rgba(22,149,90,.35)}
+.sd-pill{display:inline-block;background:#dcf3e6;color:#12804f;border-radius:99px;padding:2px 12px;font-size:12px;font-weight:800}
+.sd h3{margin:4px 0 2px;font-size:23px}.sd p{margin:0;color:#6b7280;font-size:14px}
+.sd-doc{margin-top:20px;border:1px solid #eee7df;border-radius:20px;background:#fff;overflow:hidden}
+.sd-r{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:18px 20px;border-bottom:1px solid #f0eae2}
+.sd-r small{display:block;color:#9aa0ab;font-size:13px}.sd-r code{display:block;font:600 19px/1.3 ui-monospace,Menlo,Consolas,monospace;letter-spacing:.02em;margin-top:4px;color:#1f2430;word-break:break-all}
+.sd-amt{white-space:nowrap;color:#6b7280}.sd-amt b{font-size:26px;color:#1f2430}
+.sd-r2{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:14px 20px;flex-wrap:wrap}
+.sd-n{display:flex;align-items:center;gap:8px;color:#6b7280;font-size:14px}.sd-n i{width:8px;height:8px;border-radius:50%;background:#e8751a}
+.sd-r2 .btn{height:44px;padding:0 22px;border-radius:14px;box-shadow:0 8px 18px rgba(232,117,26,.3)}
+.sd-next{margin-top:16px;border:1px solid #eee7df;border-radius:20px;background:#fffdf9;padding:18px 20px}
+.sd-nh{display:flex;justify-content:space-between;color:#6b7280;font-size:13.5px;gap:10px}
+.sd-nm{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-top:6px;flex-wrap:wrap}
+.sd-cnt{display:flex;align-items:baseline;gap:10px}.sd-cnt small{color:#6b7280;font-size:14px}.sd-cnt b{font-size:44px;line-height:1;color:#c2570a;font-weight:800}.sd-cnt b.w{font-size:20px}.sd-cnt em{font-style:normal;color:#c2570a;font-weight:800}
+.sd-rg{text-align:right;font-weight:800;font-size:15.5px;color:#1f2430}
+.sd-bar{position:relative;height:10px;border-radius:99px;background:#e6e7ea;margin:18px 0 8px;overflow:visible}
+.sd-bar .g{position:absolute;left:0;top:0;bottom:0;border-radius:99px 0 0 99px;background:#dcdde1}
+.sd-bar .o{position:absolute;top:0;bottom:0;right:0;border-radius:0 99px 99px 0;background:#e8751a}
+.sd-bar u{position:absolute;left:3%;top:50%;width:20px;height:20px;border-radius:50%;background:#fff;border:3px solid #1f2430;transform:translate(-50%,-50%)}
+.sd-lb{display:grid;grid-template-columns:1fr 1fr 1fr;font-size:12.5px;color:#9aa0ab}.sd-lb b{display:block;color:#1f2430;font-size:12.5px}.sd-lb b.or{color:#e8751a}
+@media (max-width:560px){.sd{padding:20px 16px;border-radius:24px}.sd-cnt b{font-size:38px}.sd-rg{text-align:left}.sd-r code{font-size:16px}}
 .pw{max-width:none}
 .pw-card{background:rgba(255,255,255,.92);border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:26px;overflow:hidden}
 .pw-cmp{display:grid;grid-template-columns:1fr 1fr}.pw-cmp.one{grid-template-columns:1fr}
@@ -874,6 +898,20 @@ function nextRoundNote(){
     return "รอบ "+roundLabel(up.id)+" ส่งได้อีกครั้งในอีก "+n+" วัน "+span(up); }
   return "ยังไม่มีรอบถัดไป · รอผู้ดูแลสร้างรอบใหม่";
 }
+/* รอบถัดไปแบบมีข้อมูลสำหรับวาดการ์ด: วันเริ่ม/สิ้นสุด · เหลืออีกกี่วัน · ตำแหน่งบนเส้นเวลา (วันนี้ → เปิดรอบ → ปิดรอบ) */
+function nextRoundInfo(){
+  const today=HubMod.localDate(), t0=Date.parse(today), D=86400000;
+  const days=ROUNDS().filter(x=>x.startDate).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const waiting=days.find(x=>!x.open&&x.startDate<=today&&(!x.dueDate||x.dueDate>=today));
+  const up=days.find(x=>x.startDate>today);
+  const nx=waiting||up; if(!nx) return null;
+  const dm=v=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v||"")); return m?(+m[3])+" "+MONTHS_TH[+m[2]]:""; };
+  const yr=v=>{ const m=/^(\d{4})/.exec(String(v||"")); return m?+m[1]+543:""; };
+  const st=Date.parse(nx.startDate), du=nx.dueDate?Date.parse(nx.dueDate):st;
+  const total=Math.max(1,Math.round((du-t0)/D)), openAt=Math.max(0,Math.round((st-t0)/D));
+  return {r:nx,waiting:!!waiting,days:Math.max(0,Math.round((st-t0)/D)),openPct:Math.min(100,openAt/total*100),
+    today:dm(today),open:dm(nx.startDate),close:dm(nx.dueDate),range:dm(nx.startDate)+" – "+dm(nx.dueDate)+" "+yr(nx.dueDate)};
+}
 const rng=r=>r.startDate&&r.dueDate?dmy(r.startDate)+" – "+dmy(r.dueDate):r.dueDate?"ถึง "+dmy(r.dueDate):r.startDate?"ตั้งแต่ "+dmy(r.startDate):"";
 const currentRound=()=>{const r=ROUNDS(), t=HubMod.localDate(); return r.find(x=>x.open)||r.find(x=>x.startDate&&x.startDate<=t)||r[r.length-1]||null;};
 const roundIdOf=c=>c.roundId||String(c.submittedAt||"").slice(0,7);
@@ -1207,10 +1245,16 @@ function branchSend(body,r,mine){
   const doneNow=activeClaim(r.id,ME.code);
   /* ส่งแล้วในรอบนี้ = แสดงแค่การ์ดนี้ · รายละเอียดดูที่เมนู "ประวัติ" */
   if(doneNow){
-    body.insertAdjacentHTML("beforeend",`<div class="done sentonly"><div class="ck">✓</div><b>รอบนี้ส่งเอกสารแล้ว</b>
-      <div>เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่<br>${esc(nextRoundNote())}</div>
-      <div style="margin-top:14px;font-size:14px">เลขที่ <b>${esc(doneNow.docNo||doneNow.id)}</b> · ${esc(baht(doneNow.amount))} บาท · ${pill(statusOf(doneNow))}</div>
-      ${statusOf(doneNow)!=="อนุมัติ"?`<div style="margin-top:14px"><button class="btn" id="editdone">แก้ไขเอกสาร</button><div style="font-size:12.5px;margin-top:6px;opacity:.8">แก้ไขได้จนกว่าผู้ดูแลจะทำเบิก</div></div>`:""}</div>`);
+    const dn=statusOf(doneNow)==="อนุมัติ", ni=nextRoundInfo();
+    const next=ni?`<div class="sd-next"><div class="sd-nh"><span>รอบถัดไป · ${esc(roundLabel(ni.r.id))}</span><span>ช่วงส่งเอกสาร</span></div>
+        <div class="sd-nm"><div class="sd-cnt">${ni.waiting?`<small>ถึงช่วงส่งแล้ว</small><b class="w">รอผู้ดูแลเปิดรับ</b>`:`<small>เปิดในอีก</small><b>${ni.days}</b><em>วัน</em>`}</div><div class="sd-rg">${esc(ni.range)}</div></div>
+        ${ni.waiting?"":`<div class="sd-bar"><i class="g" style="width:${ni.openPct.toFixed(1)}%"></i><i class="o" style="left:${ni.openPct.toFixed(1)}%"></i><u></u></div>
+        <div class="sd-lb"><span><b>วันนี้</b>${esc(ni.today)}</span><span style="text-align:center"><b class="or">เปิดรอบ</b>${esc(ni.open)}</span><span style="text-align:right"><b>ปิดรอบ</b>${esc(ni.close)}</span></div>`}</div>`
+      :`<div class="sd-next"><div class="sd-nh"><span>รอบถัดไป</span></div><div class="sd-rg" style="margin-top:6px">ยังไม่มีรอบถัดไป · รอผู้ดูแลสร้างรอบใหม่</div></div>`;
+    body.insertAdjacentHTML("beforeend",`<div class="sd"><div class="sd-top"><i class="sd-ck">✓</i><div><span class="sd-pill">${dn?"ทำเบิกแล้ว":"ส่งแล้ว"}</span><h3>รอบนี้ส่งเอกสารแล้ว</h3><p>เบิกได้รอบละ 1 ครั้ง ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</p></div></div>
+      <div class="sd-doc"><div class="sd-r"><div><small>เลขที่เอกสาร</small><code>${esc(doneNow.docNo||doneNow.id)}</code></div><div class="sd-amt"><b>${esc(baht(doneNow.amount))}</b> บาท</div></div>
+        <div class="sd-r2"><span class="sd-n"><i></i>${dn?"ผู้ดูแลทำเบิกแล้ว":"แก้ไขได้จนกว่าผู้ดูแลจะทำเบิก"}</span>${dn?"":`<button class="btn" id="editdone">แก้ไขเอกสาร</button>`}</div></div>
+      ${next}</div>`);
     { const eb=$("#editdone",body); if(eb) eb.onclick=()=>editClaim(doneNow); }
     return;
   }
