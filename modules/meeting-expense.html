@@ -812,13 +812,18 @@ const thisRoundId=()=>HubMod.localDate().slice(0,7);
 const roundLabel=id=>{const[y,m]=String(id||"").split("-");
   return (["","มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"][+m]||"")+" "+((+y||0)+543);};
 /* รอบที่สาขาส่งได้ = รอบที่เปิดล่าสุด · ไม่มีรอบเปิด = รอบล่าสุด (แสดงว่าปิดแล้ว) */
-/* บอกสาขาว่ารอบถัดไปเปิดเมื่อไหร่ — มีรอบถัดไปที่ผู้ดูแลตั้งไว้แล้วใช้วันของรอบนั้น · ไม่มีก็บอกเดือนถัดไปและว่ารอผู้ดูแลเปิด */
-function nextRoundNote(rid){
-  const nx=ROUNDS().filter(x=>x.id>String(rid||"")&&!x.open).sort((a,b)=>a.id.localeCompare(b.id))[0];
-  if(nx) return "รอบถัดไป "+roundLabel(nx.id)+(nx.startDate?" · เปิดรับตั้งแต่วันที่ "+thDate(nx.startDate)+(nx.dueDate?" ถึงวันที่ "+thDate(nx.dueDate):""):" · ผู้ดูแลเตรียมไว้แล้ว รอประกาศวันเปิดรับ");
-  const m=/^(\d{4})-(\d{2})$/.exec(String(rid||"")); if(!m) return "ยังไม่กำหนดวันเปิดรอบถัดไป";
-  const y=+m[1]+(+m[2]===12?1:0), mo=+m[2]===12?1:+m[2]+1, id=y+"-"+String(mo).padStart(2,"0");
-  return "รอบถัดไป "+roundLabel(id)+" · ยังไม่กำหนดวันเปิดรับ ผู้ดูแลจะเป็นผู้เปิดรอบ";
+/* บอกสาขาว่ารอบถัดไปเปิดเมื่อไหร่ — รอบตั้งชื่อตามเดือนที่ช่วงส่งสิ้นสุด (พฤศจิกายน = 16 ต.ค.–15 พ.ย.)
+   หารอบที่ใกล้ที่สุดจาก "วันเริ่มส่ง" เทียบกับวันนี้ ไม่ใช้เลขเดือนของรอบล่าสุด */
+function nextRoundNote(){
+  const today=HubMod.localDate(), dd=a=>{ const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(a||"")); return m?(+m[3])+" "+MONTHS_FULL[+m[2]]+" "+(+m[1]+543):""; };
+  const days=ROUNDS().filter(x=>x.startDate).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+  const span=x=>"("+dd(x.startDate)+(x.dueDate?" – "+dd(x.dueDate):"")+")";
+  const waiting=days.find(x=>!x.open&&x.startDate<=today&&(!x.dueDate||x.dueDate>=today));
+  if(waiting) return "รอบ "+roundLabel(waiting.id)+" ถึงช่วงส่งแล้ว "+span(waiting)+" · รอผู้ดูแลกดเปิดรับ";
+  const up=days.find(x=>x.startDate>today);
+  if(up){ const n=Math.round((Date.parse(up.startDate)-Date.parse(today))/86400000);
+    return "รอบ "+roundLabel(up.id)+" ส่งได้อีกครั้งในอีก "+n+" วัน "+span(up); }
+  return "ยังไม่มีรอบถัดไป · รอผู้ดูแลสร้างรอบใหม่";
 }
 const rng=r=>r.startDate&&r.dueDate?dmy(r.startDate)+" – "+dmy(r.dueDate):r.dueDate?"ถึง "+dmy(r.dueDate):r.startDate?"ตั้งแต่ "+dmy(r.startDate):"";
 const currentRound=()=>{const r=ROUNDS(); return r.find(x=>x.open)||r[0]||null;};
@@ -1123,14 +1128,14 @@ function branchSend(body,r,mine){
     body.insertAdjacentHTML("beforeend",`<div class="empty">สาขานี้ยังไม่ได้รับสิทธิ์ส่งเอกสาร<br>ติดต่อผู้ดูแลฮับ</div>`); return;
   }
   if(!r||!r.open){
-    body.insertAdjacentHTML("beforeend",`<div class="empty">${r?"รอบ "+esc(roundLabel(r.id))+" ปิดรับเอกสารแล้ว":"ยังไม่มีรอบเบิกที่เปิดอยู่"}<br>${esc(r?nextRoundNote(r.id):"รอผู้ดูแลเปิดรอบใหม่")}</div>`);
+    body.insertAdjacentHTML("beforeend",`<div class="empty">${r&&!(r.startDate&&r.startDate>HubMod.localDate())?"รอบ "+esc(roundLabel(r.id))+" ปิดรับเอกสารแล้ว":"ยังไม่มีรอบเบิกที่เปิดอยู่"}<br>${esc(nextRoundNote())}</div>`);
     return;
   }
   const doneNow=activeClaim(r.id,ME.code);
   /* ส่งแล้วในรอบนี้ = แสดงแค่การ์ดนี้ · รายละเอียดดูที่เมนู "ประวัติ" */
   if(doneNow){
     body.insertAdjacentHTML("beforeend",`<div class="done sentonly"><div class="ck">✓</div><b>รอบนี้ส่งเอกสารแล้ว</b>
-      <div>เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่<br>${esc(nextRoundNote(r&&r.id))}</div></div>`);
+      <div>เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่<br>${esc(nextRoundNote())}</div></div>`);
     return;
   }
   body.insertAdjacentHTML("beforeend",roundStrip(r,doneNow));
@@ -1147,7 +1152,7 @@ function branchSend(body,r,mine){
   if(done){
     const st=statusOf(done);
     left.insertAdjacentHTML("beforeend",`<div class="done"><div class="ck">✓</div><b>รอบนี้ส่งเอกสารแล้ว</b>
-      <div style="font-size:13.5px;margin-top:4px">เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่<br>${esc(nextRoundNote(r&&r.id))}</div></div>`);
+      <div style="font-size:13.5px;margin-top:4px">เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่<br>${esc(nextRoundNote())}</div></div>`);
     left.appendChild(slip(done,false));
     left.insertAdjacentHTML("beforeend",`<div class="steps"><div class="on"><i>1</i>ส่งแล้ว</div><div class="${st==="อนุมัติ"?"on":""}"><i>2</i>ทำเบิก / โอนเงิน</div></div>
       <div class="card" style="font-size:13.5px"><b>ต้องแก้เอกสาร?</b><div class="muted" style="margin-top:4px">ลบใบนี้ได้ก่อนผู้ดูแลทำเบิก แล้วส่งใหม่</div></div>`);
