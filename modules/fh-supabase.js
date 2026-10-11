@@ -198,7 +198,7 @@ function _sbCertIn(c) {
 }
 function _sbEmpOut(r) {
   return { _sbId: r.id, name: r.name || '', empId: r.emp_id || '', idCard: r.id_card || '',
-           branch: r.branch || '', position: r.position || '', sheet: r.sheet || '' };
+           branch: r.branch || '', position: (r.position === 'Restaurant General Manager' ? 'Restaurant Manager' : r.position) || '', sheet: r.sheet || '' };   // ชื่อเดิมที่เลิกใช้ → ชื่อใหม่
 }
 function _sbEmpIn(e) {
   return { name: e.name || '', emp_id: String(e.empId || ''), id_card: String(e.idCard || ''),

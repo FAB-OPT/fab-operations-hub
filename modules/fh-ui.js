@@ -208,7 +208,7 @@ function updateIdCard(input, i) {
    รายงานแยกตำแหน่งเดียวกันเป็นหลายอัน (ปัญหาเดียวกับชื่อสาขาที่เคยเจอ) */
 var FH_POSITIONS = [
   'Trainee Manager', 'Shift Supervisor', 'Assistant Manager',
-  'Senior Assistant Manager', 'Restaurant General Manager',
+  'Senior Assistant Manager', 'Restaurant Manager',
   'Cook Basic P/T', 'Cook Basic', 'Cook Silver P/T', 'Cook Silver', 'Cook Gold P/T', 'Cook Gold',
   'Service Basic P/T', 'Service Basic', 'Service Silver P/T', 'Service Silver',
   'Service Gold P/T', 'Service Gold'
