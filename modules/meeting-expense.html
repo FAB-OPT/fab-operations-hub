@@ -1027,6 +1027,7 @@ function renderBranch(){
   const body=frame([{k:"send",t:"ส่งเอกสาร",ic:NAVIC.doc},{k:"hist",t:"ประวัติ",ic:NAVIC.clock,n:mine.length},{k:"payee",t:"ผู้รับเงิน",ic:NAVIC.user,n:pend}],
     TAB,k=>{TAB=k;DETAIL=null;renderBranch();},roundBoxHtml(r,extra));
   body.classList.add("br-view");
+  setTimeout(payeeAckPopup,0);
   body.innerHTML=`<div class="head"><h1>${TAB==="hist"?"ประวัติการเบิก":TAB==="payee"?"ผู้รับเงิน":"ส่งเอกสาร"}</h1><span class="sp"></span><span id="hdr-r"></span></div>`;
   if(TAB==="hist"&&DETAIL){
     const x=CLAIMS().find(c=>c.id===DETAIL);
@@ -1036,6 +1037,27 @@ function renderBranch(){
   if(TAB==="hist") return branchHistory(body,mine);
   if(TAB==="payee") return branchPayee(body);
   branchSend(body,r,mine);
+}
+/* ป๊อปอัปแจ้งสาขาว่าผู้ดูแลรับทราบการเปลี่ยนผู้รับเงินแล้ว · กด "ไม่แสดงอีก" = ไม่ขึ้นอีก (จำทั้งในฐานข้อมูลและเครื่องนี้) · ปิดเฉยๆ = ขึ้นอีกตอนเปิดครั้งหน้า */
+function payeeAckPopup(){
+  if(!ME||ME.role!=="branch") return;
+  const key=id=>"mx_pr_seen_"+id, seen=id=>{ try{ return localStorage.getItem(key(id))==="1"; }catch(e){ return false; } };
+  const since=Date.now()-14*86400000;
+  const req=PREQ().filter(p=>p.branchCode===ME.code&&p.status==="approved"&&!p.seenAt&&!seen(p.id)&&Date.parse(p.reviewedAt||0)>=since)
+    .sort((a,b)=>(b.reviewedAt||"").localeCompare(a.reviewedAt||""))[0];
+  if(!req||window._prPop===req.id||document.querySelector(".mask")) return;
+  window._prPop=req.id;
+  const n=req.next||{}, f=document.createElement("div");
+  f.innerHTML=`<div class="pcur" style="box-shadow:none"><small>ผู้รับเงินใหม่</small><b>${esc(n.name||"-")}</b>
+      <div class="pl">${[n.empCode?"รหัส "+esc(n.empCode):"",esc(n.position||"")].filter(Boolean).join(" · ")}</div></div>
+    <div style="margin-top:12px;font-size:15px">ผู้ดูแลรับทราบแล้ว · <b>${req.effectiveRound?"มีผลในรอบ "+esc(roundLabel(req.effectiveRound)):"มีผลตั้งแต่รอบถัดไป"}</b></div>
+    ${req.appliedClaims?`<div class="muted" style="margin-top:6px">เอกสารที่ส่งไว้แล้วในรอบนี้ (${req.appliedClaims} ใบ) ถูกเปลี่ยนเป็นผู้รับเงินใหม่แล้ว</div>`:""}
+    <div class="muted" style="margin-top:6px">รอบก่อนหน้านี้ยังเป็นผู้รับเงินเดิม</div>`;
+  const pm=modal("ผู้ดูแลรับทราบการเปลี่ยนผู้รับเงินแล้ว",f,async()=>{
+    try{ localStorage.setItem(key(req.id),"1"); }catch(e){}
+    try{ await S.update("payeeReq",req.id,{seenAt:nowISO()}); }catch(e){}
+  },"ไม่แสดงอีก");
+  { const cb=pm.querySelector(".modal-foot .btn.ghost"); if(cb) cb.textContent="ปิด"; }
 }
 function roundStrip(r,done){
   const lim=limitOf(r.id,ME.code);
@@ -1910,9 +1932,13 @@ function adminBranches(body,r){
           y.disabled=true;
           try{
             /* expect = ยังรออยู่ · กันสองคนกดพร้อมกัน */
-            await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
+            /* มีผลในรอบที่กดรับทราบ: ใบของสาขานี้ในรอบที่เปิดอยู่ที่ยังไม่ทำเบิก เปลี่ยนเป็นผู้รับเงินใหม่ด้วย · ใบของรอบก่อนๆ คงเดิม */
+            const rr=currentRound(), eff=rr&&rr.open?rr.id:"";
+            const fix=eff?CLAIMS().filter(c=>c.branchCode===p.branchCode&&roundIdOf(c)===eff&&statusOf(c)!=="อนุมัติ"):[];
+            await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName(),effectiveRound:eff,appliedClaims:fix.length},{status:"pending"});
             await S.set("payees",p.branchCode,Object.assign({},p.next,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
-            toast("รับทราบแล้ว — เปลี่ยนผู้รับเงินเรียบร้อย");
+            for(const c of fix) await S.update("claims",c.id,{payeeName:p.next.name,payeeEmpCode:p.next.empCode||"",payeePosition:p.next.position||""});
+            toast("รับทราบแล้ว — เปลี่ยนผู้รับเงินเรียบร้อย"+(eff?" · มีผลในรอบ "+roundLabel(eff):" · มีผลตั้งแต่รอบถัดไป"));
           }catch(err){ toast(err.message||"รับทราบไม่สำเร็จ"); y.disabled=false; }
         };
         a.appendChild(y); c.appendChild(a);
