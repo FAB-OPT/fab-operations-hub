@@ -1774,7 +1774,7 @@ function renderAdmin(){
   const nb=Branches.list().length;
   if(r&&nb){ const sent=sentBranches(r.id);
     extra=`<div class="meter" style="margin-top:8px"><i style="width:${Math.min(100,sent/nb*100)}%"></i></div><div style="margin-top:4px">ส่งแล้ว ${sent} / ${nb} สาขา</div>`; }
-  const body=frame(tabs,ATAB,k=>{ATAB=k;BV.zone="";renderAdmin();},roundBoxHtml(r,extra));
+  const body=frame(tabs,ATAB,k=>{ if(k==="rpt"){ RV.from=""; RV.to=""; } ATAB=k;BV.zone="";renderAdmin();},roundBoxHtml(r,extra));
   ({list:adminList,bzm:adminBzm,rpt:adminReport,rounds:adminRounds,branches:adminBranches,io:adminIO})[ATAB](body,r);
 }
 function adminList(body,r){
@@ -2328,9 +2328,10 @@ function openReportExport(pref,opt){
 
 function adminReport(body){
   const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort();
-  const cur=thisRoundId();
-  if(!RV.to||!/^\d{4}-\d{2}$/.test(RV.to)) RV.to=rids.length?rids[rids.length-1]:cur;
-  if(!RV.from||!/^\d{4}-\d{2}$/.test(RV.from)) RV.from=RV.to.slice(0,4)+"-01";
+  /* ค่าเริ่มต้นเสมอ = รอบเบิกปัจจุบัน (รอบที่เปิดอยู่ ไม่มีก็รอบที่ใกล้วันนี้ที่สุด) — เปิดแท็บรายงานใหม่ทุกครั้งจะกลับมาที่รอบนี้ */
+  const cr=currentRound(), cur=cr&&cr.id||thisRoundId();
+  if(!RV.to||!/^\d{4}-\d{2}$/.test(RV.to)) RV.to=cur;
+  if(!RV.from||!/^\d{4}-\d{2}$/.test(RV.from)) RV.from=RV.to;
   if(RV.from>RV.to) RV.from=RV.to;
   body.innerHTML=`<div class="head"><h1>รายงานเบิกเงินประชุม</h1><span class="sp"></span>${updLabel()}</div>
     <div class="tabs2" style="align-items:flex-end"><label class="muted" style="font-size:13px;margin:0">ตั้งแต่<input type="month" id="rf" value="${esc(RV.from)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
