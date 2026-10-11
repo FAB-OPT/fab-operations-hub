@@ -825,6 +825,16 @@ const Branches = Object.assign(Object.create(HubMod.Branches), {
   list(inc){ return HubMod.Branches.list(inc).filter(b=>!String(b.code).startsWith("60")); }
 });
 const S = new HubMod.Store("mx");
+/* ไม่แสดงคำนำหน้าชื่อ (นาย/นาง/นางสาว/น.ส./Mr./Mrs./Miss …) ทั้งระบบ — ตัดตอนอ่านข้อมูล (ชื่อผู้รับเงิน · ผู้ทำการเบิก · คำขอเปลี่ยน) ข้อมูลเก่าในฐานข้อมูลไม่ต้องแก้
+   ต้องมีช่องว่างตามหลังคำนำหน้า กันตัดผิดกับชื่อที่ขึ้นต้นเหมือนกัน */
+const noTitle=t=>t==null?t:String(t).replace(/^\s*(นางสาว|น\.ส\.|นาง|นาย|เด็กชาย|เด็กหญิง|ด\.ช\.|ด\.ญ\.|Miss|Mrs\.?|Mr\.?|Ms\.?)\s+/i,"");
+{ const _get=S.get.bind(S), _all=S.all.bind(S);
+  const nr=(c,r)=>{ if(!r) return r; const o=Object.assign({},r);
+    if(c==="payees") o.name=noTitle(o.name);
+    else if(c==="claims"){ ["payeeName","payee","claimantName"].forEach(k=>{ if(o[k]) o[k]=noTitle(o[k]); }); }
+    else if(c==="payeeReq"){ ["prev","next"].forEach(k=>{ if(o[k]) o[k]=Object.assign({},o[k],{name:noTitle(o[k].name)}); }); }
+    return o; };
+  S.get=(c,id)=>nr(c,_get(c,id)); S.all=c=>_all(c).map(r=>nr(c,r)); }
 const $=(s,r=document)=>r.querySelector(s);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const money=n=>(Number(n)||0).toLocaleString("th-TH",{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -1082,17 +1092,17 @@ function attachEmpPick(f){
     const q=norm(src.value); if(!q||!EMPS||!EMPS.length) return hide();
     const hit=EMPS.filter(e=>norm(e.name).includes(q)||(e.code&&e.code.toLowerCase().includes(q))).slice(0,8);
     if(!hit.length) return hide();
-    l.innerHTML=hit.map((e,i)=>`<div data-i="${i}" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border,#eee)"><b>${esc(e.name)}</b><div class="muted" style="font-size:12px">${esc([e.code?"รหัส "+e.code:"",e.position,e.branch].filter(Boolean).join(" · "))}</div></div>`).join("");
+    l.innerHTML=hit.map((e,i)=>`<div data-i="${i}" style="padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--border,#eee)"><b>${esc(noTitle(e.name))}</b><div class="muted" style="font-size:12px">${esc([e.code?"รหัส "+e.code:"",e.position,e.branch].filter(Boolean).join(" · "))}</div></div>`).join("");
     l.style.display="block";
     l.onmousedown=ev=>{ const d=ev.target.closest("[data-i]"); if(!d) return; ev.preventDefault();
-      const e=hit[+d.dataset.i]; n.value=e.name; c.value=e.code; pp.value=e.position; hide(); };
+      const e=hit[+d.dataset.i]; n.value=noTitle(e.name); c.value=e.code; pp.value=e.position; hide(); };
   };
   loadEmps().then(()=>{ if(document.activeElement===n) show(n); else if(document.activeElement===c) show(c); });
   n.addEventListener("input",()=>show(n)); c.addEventListener("input",()=>show(c));
   n.addEventListener("blur",()=>setTimeout(hide,150)); c.addEventListener("blur",()=>setTimeout(hide,150));
 }
 function readPayee(f){
-  const v={name:$("#pn",f).value.trim(),empCode:$("#pc",f).value.trim(),position:$("#pp",f).value.trim()};
+  const v={name:noTitle($("#pn",f).value.trim()),empCode:$("#pc",f).value.trim(),position:$("#pp",f).value.trim()};
   if(!v.name) throw new Error("ใส่ชื่อ–นามสกุลผู้รับเงินก่อน");
   return v;
 }
