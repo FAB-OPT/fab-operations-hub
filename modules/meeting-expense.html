@@ -1186,7 +1186,7 @@ function payeeAckPopup(){
   f.innerHTML=`<div class="pcur" style="box-shadow:none"><small>ผู้รับเงินใหม่</small><b>${esc(n.name||"-")}</b>
       <div class="pl">${[n.empCode?"รหัส "+esc(n.empCode):"",esc(n.position||"")].filter(Boolean).join(" · ")}</div></div>
     <div style="margin-top:12px;font-size:15px">ผู้ดูแลรับทราบแล้ว · <b>${req.effectiveRound?"มีผลในรอบ "+esc(roundLabel(req.effectiveRound)):"มีผลตั้งแต่รอบถัดไป"}</b></div>
-    ${req.appliedClaims?`<div class="muted" style="margin-top:6px">เอกสารที่ส่งไว้แล้วในรอบนี้ (${req.appliedClaims} ใบ) ถูกเปลี่ยนเป็นผู้รับเงินใหม่แล้ว</div>`:""}
+    ${req.appliedClaims?`<div class="muted" style="margin-top:6px">เอกสารของรอบนี้ (${req.appliedClaims} ใบ) ถูกเปลี่ยนเป็นผู้รับเงินใหม่แล้ว</div>`:""}
     <div class="muted" style="margin-top:6px">รอบก่อนหน้านี้ยังเป็นผู้รับเงินเดิม</div>`;
   const pm=modal("ผู้ดูแลรับทราบการเปลี่ยนผู้รับเงินแล้ว",f,async()=>{
     try{ localStorage.setItem(key(req.id),"1"); }catch(e){}
@@ -1833,6 +1833,15 @@ function adminTabs(){
   if(can("view-claims")||can("update-status")||can("manage-payees")) t.push({k:"io",t:"ส่งออก / นำเข้า",ic:mi("upload")});
   return t;
 }
+/* เปลี่ยนผู้รับเงิน = มีผลทันทีกับใบเบิกของสาขานั้นในรอบที่ยังไม่สิ้นสุด (รอบที่เปิดอยู่ หรือวันสิ้นสุดยังไม่ถึง) แม้ทำเบิกแล้ว · รอบที่ผ่านไปแล้วคงเดิม */
+function claimsOfLiveRounds(code){
+  const t=HubMod.localDate(), live=new Set(ROUNDS().filter(r=>r.open||(r.dueDate&&r.dueDate>=t)).map(r=>r.id));
+  return CLAIMS().filter(c=>c.branchCode===code&&live.has(roundIdOf(c)));
+}
+async function applyPayeeToLiveClaims(list,pay){
+  for(const c of list) await S.update("claims",c.id,{payeeName:pay.name,payeeEmpCode:pay.empCode||"",payeePosition:pay.position||""});
+  return list.length;
+}
 /* ป๊อปอัปหน้าผู้ดูแล: มีคำขอเปลี่ยนผู้รับเงิน / เอกสารเบิกที่ยังค้าง (รอทำเบิก) — เด้งเมื่อมีรายการใหม่ที่ยังไม่เคยเห็นในเซสชันนี้ */
 function adminPendingPopup(){
   if(!ME||ME.role==="branch"||document.querySelector(".mask")) return;
@@ -2189,10 +2198,10 @@ function adminBranches(body,r){
             /* expect = ยังรออยู่ · กันสองคนกดพร้อมกัน */
             /* มีผลในรอบที่กดรับทราบ: ใบของสาขานี้ในรอบที่เปิดอยู่ที่ยังไม่ทำเบิก เปลี่ยนเป็นผู้รับเงินใหม่ด้วย · ใบของรอบก่อนๆ คงเดิม */
             const rr=currentRound(), eff=rr&&rr.open?rr.id:"";
-            const fix=eff?CLAIMS().filter(c=>c.branchCode===p.branchCode&&roundIdOf(c)===eff&&statusOf(c)!=="อนุมัติ"):[];
+            const fix=claimsOfLiveRounds(p.branchCode);
             await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName(),effectiveRound:eff,appliedClaims:fix.length},{status:"pending"});
             await S.set("payees",p.branchCode,Object.assign({},p.next,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
-            for(const c of fix) await S.update("claims",c.id,{payeeName:p.next.name,payeeEmpCode:p.next.empCode||"",payeePosition:p.next.position||""});
+            await applyPayeeToLiveClaims(fix,p.next);
             toast("รับทราบแล้ว — เปลี่ยนผู้รับเงินเรียบร้อย"+(eff?" · มีผลในรอบ "+roundLabel(eff):" · มีผลตั้งแต่รอบถัดไป"));
           }catch(err){ toast(err.message||"รับทราบไม่สำเร็จ"); y.disabled=false; }
         };
@@ -2208,7 +2217,8 @@ function adminBranches(body,r){
     modal("ผู้รับเงิน · "+b.code+" "+b.name,f,async()=>{
       const v=readPayee(f);
       await S.set("payees",b.code,Object.assign(cur.position?{position:cur.position}:{},v,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
-      toast("บันทึกแล้ว");
+      const n=await applyPayeeToLiveClaims(claimsOfLiveRounds(b.code),v);
+      toast("บันทึกแล้ว"+(n?" · เปลี่ยนผู้รับเงินในเอกสารรอบนี้ "+n+" ใบทันที":""));
     });
   });
   const drawHist=()=>{
