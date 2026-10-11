@@ -455,6 +455,8 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pw-hp .pw-ar{align-self:center;font-style:normal;width:auto}
 .pw-ar{color:#e8751a;width:24px;text-align:center}
 .pw-tag{display:inline-block;border-radius:99px;padding:3px 12px;font-size:12.5px;font-weight:800;background:#eceef2;color:#6b7280}.pw-tag.ok{background:#dcf3e6;color:#12804f}.pw-tag.no{background:#fbe3e6;color:#d13447}
+.pw-del{border:1px solid #f3b9b3;background:#fff;color:#c0392b;border-radius:99px;padding:2px 12px;font:700 12px inherit;font-family:inherit;cursor:pointer;margin-left:4px}.pw-del:hover{background:#fdecea}
+#phist>summary{list-style:none}#phist>summary::-webkit-details-marker{display:none}#phist[open]>summary{margin-bottom:10px}
 .pw-empty{padding:26px 0;text-align:center;color:#9aa0ab}
 .pw-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 .pw-form{margin-top:0!important;padding:24px 26px}
@@ -1402,6 +1404,24 @@ function branchHistory(body,mine){
   });
 
 }
+/* ประวัติการเปลี่ยนผู้รับเงิน (ใช้ทั้งหน้าสาขาและหน้าผู้ดูแล) · ผู้ดูแลที่มีสิทธิ์จัดการผู้รับเงินลบรายการได้ */
+const payeeDmy=v=>{ const d=new Date(v); if(isNaN(d)) return ""; const z=n=>String(n).padStart(2,"0"); return z(d.getDate())+"/"+z(d.getMonth()+1)+"/"+(d.getFullYear()+543); };
+function payeeHistList(L,o){
+  o=o||{};
+  const st=p=>p.status==="approved"?`<span class="pw-tag ok">รับทราบแล้ว</span>${p.effectiveRound?`<small>มีผลรอบ ${esc(roundLabel(p.effectiveRound))}</small>`:`<small>มีผลตั้งแต่รอบถัดไป</small>`}`
+    :p.status==="cancelled"?`<span class="pw-tag">ยกเลิกคำขอ</span>`:`<span class="pw-tag no">ไม่อนุมัติ</span>`;
+  const del=o.del&&can("manage-payees");
+  return `<div class="pw-hl">${L.map(p=>`<div class="pw-hi"><div class="pw-hd"><span class="pw-hdt">${o.branch?`<b>${esc(Branches.label(p.branchCode,p.branchName))}</b> · `:""}ส่งคำขอ ${esc(payeeDmy(p.createdAt))}</span><span class="pw-hr">${st(p)}${p.reviewedAt||p.cancelledAt?`<small>${esc(payeeDmy(p.reviewedAt||p.cancelledAt))}</small>`:""}${del?`<button class="pw-del" data-pdel="${esc(p.id)}" title="ลบประวัติรายการนี้">ลบ</button>`:""}</span></div>
+    <div class="pw-hp"><div class="o"><small>เดิม</small><span>${esc((p.prev&&p.prev.name)||"—")}</span></div><i class="pw-ar">→</i><div class="n"><small>ใหม่</small><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<em>${esc(p.next.position)}</em>`:""}</div></div></div>`).join("")}</div>`;
+}
+function bindPayeeHistDel(root){
+  root.querySelectorAll("[data-pdel]").forEach(b=>b.onclick=()=>{
+    const id=b.dataset.pdel, p=S.get("payeeReq",id); if(!p) return;
+    const f=document.createElement("div");
+    f.innerHTML=`<div style="font-size:15px">ลบประวัติการเปลี่ยนผู้รับเงินรายการนี้ ?</div><div class="muted" style="margin-top:6px">${esc(Branches.label(p.branchCode,p.branchName))} · ${esc((p.prev&&p.prev.name)||"—")} → ${esc((p.next&&p.next.name)||"—")}<br>ลบเฉพาะประวัติ ไม่กระทบผู้รับเงินปัจจุบัน · เรียกคืนไม่ได้</div>`;
+    modal("ลบประวัติ",f,async()=>{ await S.remove("payeeReq",id); toast("ลบประวัติแล้ว"); },"ลบ",true);
+  });
+}
 function branchPayee(body){
   const w=document.createElement("div"); w.className="pw"; body.appendChild(w);
   const cur=payeeOf(ME.code);
@@ -1414,12 +1434,9 @@ function branchPayee(body){
       <div class="pw-m">${pp.empCode?`<code>${esc(pp.empCode)}</code>`:""}${esc(pp.position||"")}</div>${extra||""}`:`<b>ยังไม่มีข้อมูล</b>`}</div></div>`;
   const hist=()=>{
     const L=PREQ().filter(p=>p.branchCode===ME.code&&p.status!=="pending").sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
-    const st=p=>p.status==="approved"?`<span class="pw-tag ok">รับทราบแล้ว</span>${p.effectiveRound?`<small>มีผลรอบ ${esc(roundLabel(p.effectiveRound))}</small>`:`<small>มีผลตั้งแต่รอบถัดไป</small>`}`
-      :p.status==="cancelled"?`<span class="pw-tag">ยกเลิกคำขอ</span>`:`<span class="pw-tag no">ไม่อนุมัติ</span>`;
     w.insertAdjacentHTML("beforeend",`<div class="pw-card pw-hist"><div class="pw-ht">ประวัติการเปลี่ยนผู้รับเงิน<small>${L.length?L.length+" รายการ":""}</small></div>
-      ${L.length?`<div class="pw-hl">${L.map(p=>`<div class="pw-hi"><div class="pw-hd"><span class="pw-hdt">ส่งคำขอ ${esc(dmyS(p.createdAt))}</span><span class="pw-hr">${st(p)}${p.reviewedAt||p.cancelledAt?`<small>${esc(dmyS(p.reviewedAt||p.cancelledAt))}</small>`:""}</span></div>
-        <div class="pw-hp"><div class="o"><small>เดิม</small><span>${esc((p.prev&&p.prev.name)||"—")}</span></div><i class="pw-ar">→</i><div class="n"><small>ใหม่</small><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<em>${esc(p.next.position)}</em>`:""}</div></div></div>`).join("")}</div>`
-      :`<div class="pw-empty">ยังไม่เคยมีการเปลี่ยนผู้รับเงินผ่านระบบ</div>`}</div>`);
+      ${L.length?payeeHistList(L,{del:true}):`<div class="pw-empty">ยังไม่เคยมีการเปลี่ยนผู้รับเงินผ่านระบบ</div>`}</div>`);
+    bindPayeeHistDel(w);
   };
   const curBox=person(cur,"cur","ผู้รับเงินปัจจุบัน","",cur.updatedAt?`<div class="pw-u">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" โดย "+esc(cur.updatedBy):""}</div>`:"");
   if(pend){
@@ -2029,7 +2046,7 @@ function adminBranches(body,r){
   body.innerHTML=`<div class="head"><h1>วงเงินสาขา & ผู้รับเงิน</h1><span class="sp"></span>
       <span class="sbox" style="min-width:260px;max-width:300px">${mi("search",18)}<input id="lq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
     <div class="lmain"><aside class="glass-card lside" id="lside"></aside>
-      <div style="min-width:0;display:flex;flex-direction:column;gap:14px"><div id="reqs" class="rqlist"></div><div class="glass-card"><div class="bc tabs2" style="padding:14px 18px;border-bottom:1px solid #eef0f4">${brandChips()}<span class="sp"></span><span class="muted" id="lpend" style="font-size:13.5px"></span><button class="tbtn pri" id="lall" disabled>บันทึกทั้งหมด</button></div><div id="out"></div></div></div></div>`;
+      <div style="min-width:0;display:flex;flex-direction:column;gap:14px"><div id="reqs" class="rqlist"></div><details class="pw-card pw-hist" id="phist" style="display:none"><summary class="pw-ht" style="cursor:pointer"></summary><div id="phl"></div></details><div class="glass-card"><div class="bc tabs2" style="padding:14px 18px;border-bottom:1px solid #eef0f4">${brandChips()}<span class="sp"></span><span class="muted" id="lpend" style="font-size:13.5px"></span><button class="tbtn pri" id="lall" disabled>บันทึกทั้งหมด</button></div><div id="out"></div></div></div></div>`;
   const all=Branches.list(), out=$("#out",body), side=$("#lside",body);
   const PEND=(window._limPend=window._limPend||{});
   const limitsNow=()=>CFG().limits||{};
@@ -2120,6 +2137,14 @@ function adminBranches(body,r){
       toast("บันทึกแล้ว");
     });
   });
+  const drawHist=()=>{
+    const L=PREQ().filter(p=>p.status!=="pending").sort((a,b)=>(b.createdAt||"").localeCompare(a.createdAt||""));
+    const box=$("#phist",body); if(!box) return;
+    if(!L.length){ box.style.display="none"; return; }
+    box.style.display=""; box.querySelector("summary").innerHTML=`ประวัติการเปลี่ยนผู้รับเงิน<small>${L.length} รายการ · กดเพื่อดู</small>`;
+    $("#phl",body).innerHTML=payeeHistList(L,{branch:true,del:true}); bindPayeeHistDel(box);
+  };
+  drawHist();
   drawReqs();
   bindPager(out,"lim",draw);
   wireTools(body,"lq",draw);
