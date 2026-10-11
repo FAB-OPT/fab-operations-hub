@@ -838,10 +838,15 @@ let DRAFT={claimant:"", amount:"", note:"", photos:[]};   /* ฟอร์มท�
    rounds/ปปปป-ดด = open · limitDefault · dueDate
    claims/เลขเอกสาร · payees/รหัสสาขา (ผู้รับเงิน) · payeeReq/id (คำขอเปลี่ยน รอผู้ดูแลอนุมัติ) */
 const CLAIMS=()=>S.all("claims");
-const ROUNDS=()=>S.all("rounds").sort((a,b)=>b.id.localeCompare(a.id));
+/* รอบที่มีวันเริ่ม–วันสิ้นสุด เปิด/ปิดเองตามวันที่ (ถึงวันเริ่ม = เปิดรับ · พ้นวันสิ้นสุด = ปิด) · ผู้ดูแลกด "ปิดรับ" ก่อนกำหนดได้ (closed) แล้วกด "เปิดรับอีกครั้ง" ได้
+   รอบเก่าที่ไม่มีวันที่ ยังใช้สวิตช์ open แบบเดิม */
+const withOpen=x=>{ if(!x) return x;
+  if(x.startDate&&x.dueDate){ const t=HubMod.localDate(), inWin=x.startDate<=t&&t<=x.dueDate; return Object.assign({},x,{open:inWin&&!x.closed,inWin,auto:true}); }
+  return x; };
+const ROUNDS=()=>S.all("rounds").map(withOpen).sort((a,b)=>b.id.localeCompare(a.id));
 const PREQ=()=>S.all("payeeReq");
 const CFG=()=>S.get("config","main")||{};
-const roundOf=id=>S.get("rounds",id);
+const roundOf=id=>withOpen(S.get("rounds",id));
 const payeeOf=c=>S.get("payees",c)||{};
 const byTime=(a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||"");
 const sumOf=list=>list.reduce((s,c)=>s+(Number(c.amount)||0),0);
@@ -863,7 +868,7 @@ function nextRoundNote(){
   return "ยังไม่มีรอบถัดไป · รอผู้ดูแลสร้างรอบใหม่";
 }
 const rng=r=>r.startDate&&r.dueDate?dmy(r.startDate)+" – "+dmy(r.dueDate):r.dueDate?"ถึง "+dmy(r.dueDate):r.startDate?"ตั้งแต่ "+dmy(r.startDate):"";
-const currentRound=()=>{const r=ROUNDS(); return r.find(x=>x.open)||r[0]||null;};
+const currentRound=()=>{const r=ROUNDS(), t=HubMod.localDate(); return r.find(x=>x.open)||r.find(x=>x.startDate&&x.startDate<=t)||r[r.length-1]||null;};
 const roundIdOf=c=>c.roundId||String(c.submittedAt||"").slice(0,7);
 const isRejected=c=>statusOf(c)==="ไม่อนุมัติ";
 /* เบิกได้ 1 ครั้งต่อรอบ · ใบที่ไม่อนุมัติไม่นับ (สาขาส่งใหม่แทนได้) */
@@ -1843,10 +1848,11 @@ function adminRounds(body){
   }
   if(cur){ const a=$("#rcact",body);
     const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้ช่วงวันที่"}); ed.onclick=()=>roundForm(cur);
-    const t=Object.assign(document.createElement("button"),{className:"ab "+(cur.open?"no":"yes"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
-    t.onclick=()=>toggle(cur,t);
     const dl=Object.assign(document.createElement("button"),{className:"ab no",textContent:"ลบรอบ"}); dl.onclick=()=>delRound(cur);
-    a.append(ed,t,dl); }
+    a.append(ed);
+    if(!cur.auto||cur.inWin){ const t=Object.assign(document.createElement("button"),{className:"ab "+(cur.open?"no":"yes"),textContent:cur.open?"ปิดรับเอกสาร":"เปิดรับอีกครั้ง"});
+      t.onclick=()=>toggle(cur,t); a.append(t); }
+    a.append(dl); }
   /* ลบรอบ — ลบได้เฉพาะรอบที่ยังไม่มีเอกสารเบิก (มีแล้วให้ปิดรับแทน เอกสารเดิมจะได้ไม่เสียรอบอ้างอิง) */
   function delRound(r){
     const n=CLAIMS().filter(c=>roundIdOf(c)===r.id).length;
@@ -1860,7 +1866,7 @@ function adminRounds(body){
       toast("ลบรอบแล้ว");
     },"ลบรอบ",true);
   }
-  async function toggle(r,b){ b.disabled=true; try{ await S.update("rounds",r.id,{open:!r.open},{open:r.open}); toast(r.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว"); }catch(e){ toast(e.message||"ทำรายการไม่สำเร็จ"); b.disabled=false; } }
+  async function toggle(r,b){ b.disabled=true; try{ if(r.auto) await S.update("rounds",r.id,{closed:!!r.open}); else await S.update("rounds",r.id,{open:!r.open},{open:r.open}); toast(r.open?"ปิดรอบแล้ว":"เปิดรอบแล้ว"); }catch(e){ toast(e.message||"ทำรายการไม่สำเร็จ"); b.disabled=false; } }
   $("#nrsave",body).onclick=async e=>{
     const st=$("#nrs",body).value, du=$("#nrd",body).value, b=e.currentTarget;
     if(!st||!du) return toast("ใส่วันที่ให้ครบ");
@@ -1877,7 +1883,7 @@ function adminRounds(body){
   const all=rounds.slice().sort((a,b)=>b.id.localeCompare(a.id)).map(rowOf);
   if(!all.length) tb.innerHTML=`<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">ยังไม่มีรอบเบิก</td></tr>`;
   all.forEach(({r,n,tot,has})=>{
-    const state=r.open?["pillk","เปิดรับ"]:r.id>base?["pilly","ยังไม่เปิด"]:["pillg","ปิดแล้ว"];
+    const state=r.open?["pillk","เปิดรับ"]:(r.auto?r.startDate>HubMod.localDate():r.id>base)?["pilly","ยังไม่เปิด"]:["pillg",r.auto&&r.inWin&&r.closed?"ปิดรับก่อนกำหนด":"ปิดแล้ว"];
     const p=nb?Math.min(100,n/nb*100):0;
     const tr=document.createElement("tr");
     tr.innerHTML=`<td><b>${esc(roundLabel(r.id))}</b><small>${r.startDate||r.dueDate?esc((thDate(r.startDate)||"…")+" – "+(thDate(r.dueDate)||"…")):"ยังไม่กำหนดวันที่"}</small></td>
@@ -1886,9 +1892,11 @@ function adminRounds(body){
       <td style="text-align:right;white-space:nowrap"></td>`;
     const c=tr.lastElementChild;
     const ed=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"แก้วันที่"}); ed.onclick=()=>roundForm(r);
-    const t=Object.assign(document.createElement("button"),{className:"ab "+(r.open?"no":"yes"),textContent:r.open?"ปิดรับ":"เปิดรับ"}); t.onclick=()=>toggle(r,t);
     const dl=Object.assign(document.createElement("button"),{className:"ab no",textContent:"ลบ"}); dl.onclick=()=>delRound(r);
-    c.append(ed,t,dl); tb.appendChild(tr);
+    c.append(ed);
+    /* รอบที่ตั้งวันที่ไว้ เปิด/ปิดเองตามวัน → มีปุ่มเฉพาะช่วงที่อยู่ในวันส่ง (ปิดก่อนกำหนด / เปิดอีกครั้ง) · ยังไม่ถึงวัน/พ้นวันแล้ว ไม่ต้องมีปุ่ม */
+    if(!r.auto||r.inWin){ const t=Object.assign(document.createElement("button"),{className:"ab "+(r.open?"no":"yes"),textContent:r.open?"ปิดรับ":(r.auto?"เปิดรับอีกครั้ง":"เปิดรับ")}); t.onclick=()=>toggle(r,t); c.append(t); }
+    c.append(dl); tb.appendChild(tr);
   });
 }
 
