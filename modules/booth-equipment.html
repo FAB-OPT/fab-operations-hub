@@ -349,16 +349,15 @@ function catForm(){
   modal("จัดการหมวดอุปกรณ์",b,async()=>{ await S.set("meta","categories",{items:cats}); toast("บันทึกหมวดแล้ว"); });
 }
 function loanForm(){
-  if(!EQ().length){ toast("ยังไม่มีอุปกรณ์ในคลัง"); return; }
   const b=document.createElement("div");
   b.innerHTML=`<div class="field"><label>ชื่องาน / บูธ</label><input id="lE" placeholder="เช่น งานเซ็นทรัลพระราม 2"></div>
     <div class="f2"><div class="field"><label>ผู้ยืม</label><input id="lB" value="${esc(ME())}"></div>
       <div class="field"><label>วันที่เอาออก</label><input id="lD" type="date" value="${today()}"></div></div>
     <div class="field"><label>กำหนดคืน</label><input id="lU" type="date"></div>
-    <label>เลือกอุปกรณ์</label>`;
+    <label>เลือกอุปกรณ์</label><input id="lS" type="search" placeholder="🔍 พิมพ์ค้นหาอุปกรณ์" style="margin-bottom:8px" autocomplete="off">`;
   const picker=document.createElement("div"); picker.className="picker"; const chosen={};
   EQ().sort((a,b2)=>a.name.localeCompare(b2.name,"th")).forEach(e=>{
-    const a=avail(e); const r=document.createElement("div"); r.className="pick"+(a?"":" off");
+    const a=avail(e); const r=document.createElement("div"); r.className="pick"+(a?"":" off"); r.dataset.n=(e.name+" "+(e.category||"")).toLowerCase();
     r.innerHTML=`<div class="grow"><div style="font-size:14.5px">${esc(e.name)}</div>
       <div class="eq-sub">${esc(e.category||"ไม่ระบุหมวด")} · ว่าง ${a}</div></div>`;
     const q=document.createElement("div"); q.className="qty";
@@ -369,6 +368,29 @@ function loanForm(){
     pl.onclick=()=>{const n=(chosen[e.id]||0)+1; if(n>a){toast("เกินจำนวนที่ว่าง");return;} chosen[e.id]=n; nu.textContent=n;};
     q.append(mi,nu,pl); r.append(q); picker.appendChild(r); });
   b.appendChild(picker);
+  { const q=$("#lS",b), none=document.createElement("div"); none.className="muted"; none.style.cssText="padding:14px;text-align:center;display:none"; none.textContent="ไม่พบอุปกรณ์ที่ค้นหา · เพิ่มเป็นอุปกรณ์ใหม่ได้ด้านล่าง"; picker.appendChild(none);
+    q.oninput=()=>{ const t=q.value.trim().toLowerCase(); let n=0;
+      picker.querySelectorAll(".pick").forEach(r=>{ const show=!t||(r.dataset.n||"").includes(t); r.style.display=show?"":"none"; if(show) n++; });
+      none.style.display=n?"none":"block"; if(t&&!n){ const ni=b.querySelector("#nN"); if(ni&&!ni.value) ni.value=q.value.trim(); } }; }
+  /* เพิ่มอุปกรณ์ใหม่จากหน้ายืมได้เลย — เก็บเป็นรายการรอ แล้วระบบเพิ่มเข้าคลังให้ตอนกดบันทึกการยืม (ยกเลิกฟอร์ม = ไม่เพิ่มอะไร) */
+  const newItems=[];
+  const nw=document.createElement("div"); nw.className="field";
+  nw.innerHTML=`<label>ไม่มีในรายการ? เพิ่มอุปกรณ์ใหม่</label>
+    <div class="row"><input id="nN" class="grow" placeholder="ชื่ออุปกรณ์"><input id="nQ" type="number" min="1" value="1" style="width:84px" aria-label="จำนวน"><button class="btn sm" id="nA" type="button">+ เพิ่ม</button></div>
+    <div class="muted" style="font-size:12.5px;margin-top:4px">ระบบจะเพิ่มเข้าคลังให้เองตอนกดบันทึกการยืม · จำนวนที่ใส่ = จำนวนที่มีและยืมออกไป</div><div id="nL"></div>`;
+  b.appendChild(nw);
+  const drawNew=()=>{ const L=$("#nL",nw); L.innerHTML="";
+    newItems.forEach((it,i)=>{ const r=document.createElement("div"); r.className="pick";
+      r.innerHTML=`<div class="grow"><div style="font-size:14.5px">${esc(it.name)}</div><div class="eq-sub">ใหม่ · เพิ่มเข้าคลังตอนบันทึก</div></div><b style="margin-right:8px">× ${it.qty}</b>`;
+      const x=Object.assign(document.createElement("button"),{className:"btn sm danger",type:"button",textContent:"เอาออก"}); x.onclick=()=>{newItems.splice(i,1);drawNew();};
+      r.appendChild(x); L.appendChild(r); }); };
+  const addNew=()=>{ const name=$("#nN",nw).value.trim(), qty=Math.max(1,Math.floor(Number($("#nQ",nw).value)||1));
+    if(!name) return toast("ใส่ชื่ออุปกรณ์ก่อน");
+    const key=name.toLowerCase();
+    if(EQ().some(e=>String(e.name||"").trim().toLowerCase()===key)) return toast("มี “"+name+"” ในคลังแล้ว เลือกจากรายการด้านบนได้เลย");
+    if(newItems.some(x=>x.name.toLowerCase()===key)) return toast("เพิ่มชื่อนี้ไว้แล้ว");
+    newItems.push({name,qty}); $("#nN",nw).value=""; $("#nQ",nw).value="1"; drawNew(); };
+  $("#nA",nw).onclick=addNew; $("#nN",nw).onkeydown=ev=>{ if(ev.key==="Enter"){ ev.preventDefault(); addNew(); } };
   const pf=photoField("รูปตอนเอาของออก"); b.appendChild(pf);
   const nt=document.createElement("div"); nt.className="field";
   nt.innerHTML=`<label>หมายเหตุ</label><textarea id="lN" placeholder="สภาพของ / ของที่ต้องระวัง"></textarea>`;
@@ -387,7 +409,15 @@ function loanForm(){
       if(q>avail(e)) throw new Error("“"+e.name+"” เหลือว่างแค่ "+avail(e)+" ชิ้น");
       return {eqId:id,name:e.name,qty:q};
     });
-    if(!items.length) throw new Error("เลือกอุปกรณ์อย่างน้อย 1 รายการ");
+    if(!items.length&&!newItems.length) throw new Error("เลือกอุปกรณ์อย่างน้อย 1 รายการ");
+    /* อุปกรณ์ใหม่ → เพิ่มเข้าคลังก่อน แล้วนับเป็นรายการยืมด้วย */
+    for(const it of newItems){
+      if(S.all("equipment").some(e=>String(e.name||"").trim().toLowerCase()===it.name.toLowerCase())) throw new Error("มี “"+it.name+"” ในคลังแล้ว ปิดฟอร์มแล้วเลือกจากรายการ");
+      const id=uid();
+      await S.set("equipment",id,{name:it.name,category:"",total:it.qty,note:"เพิ่มจากหน้ายืมอุปกรณ์",createdAt:new Date().toISOString(),createdBy:ME()});
+      items.push({eqId:id,name:it.name,qty:it.qty});
+    }
+    newItems.length=0;
     await S.set("loans",uid(),{eventName,borrower,borrowDate,dueDate,items,outPhotos:pf.urls,returnPhotos:[],
       note:$("#lN",b).value.trim(),status:"out",createdAt:new Date().toISOString(),createdBy:ME()});
     toast("บันทึกการยืมแล้ว");
