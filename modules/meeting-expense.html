@@ -1406,11 +1406,14 @@ function branchHistory(body,mine){
 }
 /* ประวัติการเปลี่ยนผู้รับเงิน (ใช้ทั้งหน้าสาขาและหน้าผู้ดูแล) · ผู้ดูแลที่มีสิทธิ์จัดการผู้รับเงินลบรายการได้ */
 const payeeDmy=v=>{ const d=new Date(v); if(isNaN(d)) return ""; const z=n=>String(n).padStart(2,"0"); return z(d.getDate())+"/"+z(d.getMonth()+1)+"/"+(d.getFullYear()+543); };
+/* ผู้ดูแลที่กำลังสวมมุมมองสาขาอยู่ (view-as) — session ตอนนี้เป็นของสาขา แต่ตัวจริงที่เก็บไว้เป็น admin ก็ลบประวัติได้ */
+function realIsAdmin(){ try{ const r=JSON.parse(localStorage.getItem("fab_view_as_real")||"null"); return !!(r&&r.role==="admin"); }catch(e){ return false; } }
+const canDelPayeeHist=()=>can("manage-payees")||realIsAdmin();
 function payeeHistList(L,o){
   o=o||{};
   const st=p=>p.status==="approved"?`<span class="pw-tag ok">รับทราบแล้ว</span>${p.effectiveRound?`<small>มีผลรอบ ${esc(roundLabel(p.effectiveRound))}</small>`:`<small>มีผลตั้งแต่รอบถัดไป</small>`}`
     :p.status==="cancelled"?`<span class="pw-tag">ยกเลิกคำขอ</span>`:`<span class="pw-tag no">ไม่อนุมัติ</span>`;
-  const del=o.del&&can("manage-payees");
+  const del=o.del&&canDelPayeeHist();
   return `<div class="pw-hl">${L.map(p=>`<div class="pw-hi"><div class="pw-hd"><span class="pw-hdt">${o.branch?`<b>${esc(Branches.label(p.branchCode,p.branchName))}</b> · `:""}ส่งคำขอ ${esc(payeeDmy(p.createdAt))}</span><span class="pw-hr">${st(p)}${p.reviewedAt||p.cancelledAt?`<small>${esc(payeeDmy(p.reviewedAt||p.cancelledAt))}</small>`:""}${del?`<button class="pw-del" data-pdel="${esc(p.id)}" title="ลบประวัติรายการนี้">ลบ</button>`:""}</span></div>
     <div class="pw-hp"><div class="o"><small>เดิม</small><span>${esc((p.prev&&p.prev.name)||"—")}</span></div><i class="pw-ar">→</i><div class="n"><small>ใหม่</small><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<em>${esc(p.next.position)}</em>`:""}</div></div></div>`).join("")}</div>`;
 }
