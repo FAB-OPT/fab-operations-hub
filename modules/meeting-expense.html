@@ -1373,7 +1373,7 @@ function rowAct(id,to,btn){
 function statusSelect(x){
   const st=statusOf(x);
   const sel=document.createElement("select"); sel.setAttribute("aria-label","สถานะเอกสาร "+(x.docNo||x.id));
-  sel.innerHTML=STATUSES.filter(v=>v!=="รอดำเนินการ"||v===st).map(v=>`<option value="${esc(v)}" ${v===st?"selected":""}>${esc(LBL(v))}</option>`).join("");
+  sel.innerHTML=STATUSES.filter(v=>(v!=="รอดำเนินการ"&&v!=="ไม่อนุมัติ")||v===st).map(v=>`<option value="${esc(v)}" ${v===st?"selected":""}>${esc(LBL(v))}</option>`).join("");
   sel.onchange=async()=>{
     const to=sel.value;
     sel.blur(); sel.disabled=true;
@@ -1516,7 +1516,7 @@ function openRowMenu(btn){
   const st=statusOf(x), items=[];
   if(can("update-status")){
     if(st==="อนุมัติ"||st==="ไม่อนุมัติ") items.push(["ส่งแล้ว","ยกเลิกผล",""]);
-    else{ items.push(["อนุมัติ","ทำเบิก","ok"]); items.push(["ไม่อนุมัติ","ส่งกลับสาขา (ไม่อนุมัติ)","no"]); }
+    else{ items.push(["อนุมัติ","ทำเบิก","ok"]); }
   }
   if(can("delete-claims")) items.push(["_del","ลบเอกสาร","no"]);
   if(!items.length) return;
@@ -1589,7 +1589,7 @@ function adminList(body,r){
     $("#kamt",body).textContent=baht(sumOf(ok))+" ฿";
     { const k2=$("#kamt2",body); if(k2) k2.textContent=baht(sumOf(ok))+" ฿"; const kw=$("#kwait",body); if(kw) kw.textContent=sc.filter(isWaiting).length+" ใบ"; }
     { const hc=$("#hcnt",body); if(hc) hc.textContent=list.length; const fd=$("#fdot",body); if(fd) fd.style.display=F.status?"block":"none"; }
-    $("#chips",body).innerHTML=[["","ทั้งหมด","doc",sc.length,"or"],["_wait","รอทำเบิก","clock",sc.filter(isWaiting).length,"am"],["อนุมัติ","ทำเบิกแล้ว","check",sc.filter(c=>statusOf(c)==="อนุมัติ").length,"gr"],["ไม่อนุมัติ","ส่งกลับ","ban",sc.filter(c=>statusOf(c)==="ไม่อนุมัติ").length,"rd"]].map(([k,t,ic,n,tone])=>`<div class="vkrow btn-st t-${tone} ${F.status===k?"on":""}" data-st="${esc(k)}"><i class="vi">${mi(ic,20)}</i><small>${esc(t)}</small><b>${n}</b></div>`).join("");
+    $("#chips",body).innerHTML=[["","ทั้งหมด","doc",sc.length,"or"],["_wait","รอทำเบิก","clock",sc.filter(isWaiting).length,"am"],["อนุมัติ","ทำเบิกแล้ว","check",sc.filter(c=>statusOf(c)==="อนุมัติ").length,"gr"],["ไม่อนุมัติ","ส่งกลับ","ban",sc.filter(c=>statusOf(c)==="ไม่อนุมัติ").length,"rd"]].filter(x=>x[0]!=="ไม่อนุมัติ"||x[3]>0).map(([k,t,ic,n,tone])=>`<div class="vkrow btn-st t-${tone} ${F.status===k?"on":""}" data-st="${esc(k)}"><i class="vi">${mi(ic,20)}</i><small>${esc(t)}</small><b>${n}</b></div>`).join("");
     /* ตัดตัวที่เลือกซึ่งไม่อยู่ในรายการแล้ว */
     const ids=new Set(list.map(c=>c.id)); [...SEL].forEach(id=>{ if(!ids.has(id)) SEL.delete(id); });
     if(!list.length) out.innerHTML=`<div class="empty">ไม่มีรายการ</div>`;
