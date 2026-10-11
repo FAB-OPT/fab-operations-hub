@@ -398,6 +398,11 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pcur{background:rgba(255,255,255,var(--ga));border:var(--gl-bd);box-shadow:var(--gl-sh);border-radius:var(--r);padding:22px 26px}
 .pcur small{display:block;color:var(--text3);font-size:13px}.pcur b{display:block;font-size:22px;font-weight:700;margin:4px 0 6px}
 .payee-pg>.pcur{margin-bottom:14px}
+.pcmp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:stretch;margin-bottom:14px}
+.pcmp>.pcur,.pcmp>.pnew{margin:0;padding:16px 16px}.pcmp .pcur b,.pcmp .pnew b{font-size:17px;line-height:1.3;margin:4px 0 4px}
+.pcmp .pcur .pl,.pcmp .pnew .pl{font-size:13px;color:#555}.pcmp .pcur .pm,.pcmp .pnew .pm{font-size:12px;color:var(--text3);margin-top:8px}
+.pcmp .pnew small{display:block;color:var(--text3);font-size:13px;margin-top:8px}.pcmp .pnew .pill{font-size:12px}
+.pcmp .parr{align-self:center;font-size:22px;color:var(--gold)}
 .rqlist{display:flex;flex-direction:column;gap:12px}.rqlist:empty{display:none}
 .rq{display:grid;grid-template-columns:minmax(170px,.8fr) minmax(0,2.6fr) auto;gap:18px;align-items:center;padding:16px 20px;margin-top:0}
 .rq .cmp{margin-top:0}.rqh b{display:block;font-size:16px}.rqh .muted{font-size:12.5px}
@@ -1292,8 +1297,14 @@ function branchPayee(body){
     :`<small>ผู้รับเงินปัจจุบัน</small><b>ยังไม่มีข้อมูล</b><div class="pl">ส่งคำขอด้านขวา ผู้ดูแลจะรับทราบ</div>`}</div>`;
   if(pend.length){
     const p=pend[0];
-    w.insertAdjacentHTML("beforeend",`<div class="card warn">${pill("รอดำเนินการ","รอผู้ดูแลรับทราบ")}
-      <div style="margin-top:8px">ขอเปลี่ยนเป็น <b>${esc(p.next.name)}</b></div><div class="muted num">${esc(p.next.position||"")}${p.reason?" · เหตุผล: "+esc(p.reason):""}</div></div>`);
+    /* ผู้รับเงินปัจจุบัน → ผู้รับเงินที่ขอเปลี่ยน วางเรียงแนวนอนในแถวเดียว */
+    const cmp=document.createElement("div"); cmp.className="pcmp";
+    const pc=w.querySelector(".pcur");
+    const nw=document.createElement("div"); nw.className="card warn pnew";
+    nw.innerHTML=`${pill("รอดำเนินการ","รอผู้ดูแลรับทราบ")}<small>ขอเปลี่ยนเป็น</small><b>${esc(p.next.name)}</b>
+      <div class="pl">${[p.next.empCode?"รหัส "+esc(p.next.empCode):"",esc(p.next.position||"")].filter(Boolean).join(" · ")}</div>
+      ${p.reason?`<div class="pm">เหตุผล: ${esc(p.reason)}</div>`:""}`;
+    pc.before(cmp); cmp.append(pc); cmp.insertAdjacentHTML("beforeend",'<span class="parr">→</span>'); cmp.append(nw);
   }else if(last&&(!cur.updatedAt||last.reviewedAt>cur.updatedAt)){
     w.insertAdjacentHTML("beforeend",`<div class="card bad">${pill("ไม่อนุมัติ","คำขอล่าสุดไม่ได้รับอนุมัติ")}
       ${last.reviewNote?`<div style="margin-top:8px;font-size:14px">${esc(last.reviewNote)}</div>`:""}</div>`);
