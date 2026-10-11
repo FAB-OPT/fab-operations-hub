@@ -589,6 +589,22 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
   .mtbl.mz td.r[data-l="รายละเอียด"]::before{display:none}
   .mtbl.mz .lnk{display:block;width:100%;height:42px;border:1px solid #f3c9a3;border-radius:12px;background:#fff6ee;color:#e8590c;font:800 14px inherit;font-family:inherit}
 }
+/* ===== มือถือ: หน้ารายงานเบิกเงินประชุม ===== */
+@media(max-width:899px){
+  .rflt{display:grid!important;grid-template-columns:1fr 1fr;gap:10px;align-items:end}
+  .rflt label{display:block;margin:0}.rflt input{width:100%;min-width:0!important;height:46px;margin-top:4px!important}
+  .rflt .chip{width:100%;justify-content:center;height:44px}
+  .mtbl.rp tr{grid-template-columns:1fr 1fr 1fr;gap:8px;padding:14px 14px 16px}
+  .mtbl.rp td.ttl{grid-column:1/-1;padding:0 0 2px!important}
+  .mtbl.rp td.ttl small{display:block!important;margin:2px 0 0!important;font-size:12.5px;color:#8a8f98}
+  .mtbl.rp td[data-l]{display:block;grid-column:auto;background:#f6f7f9;border-radius:12px;padding:8px 10px!important;font-size:15.5px;font-weight:800;font-variant-numeric:tabular-nums;min-width:0;overflow-wrap:anywhere}
+  .mtbl.rp td[data-l]::before{display:block;font-size:11.5px;margin-bottom:2px}
+  .mtbl.rp td[data-l="ยอดเบิก"]{background:#fff1e8;color:#c2570a}
+  .mtbl.rp td[data-l="สัดส่วน"]{grid-column:1/-1;background:none;padding:2px 0 0!important;font-weight:600}
+  .mtbl.rp td[data-l="สัดส่วน"]::before{display:none}
+  .mtbl.rp .pillg{font-size:11.5px;white-space:nowrap;padding:2px 8px}
+  .mtbl.rp td[data-l="สัดส่วน"]:not(:has(.bar-s)){display:none}
+}
 .mtop,.bnav{display:none}.mfoot{display:none!important}
 .bnav .bt[data-k="list"] .bi,.bnav .bt[data-k="send"] .bi{color:#ff6b1a}.bnav .bt[data-k="rounds"] .bi,.bnav .bt[data-k="hist"] .bi{color:#2f6fe0}
 .bnav .bt[data-k="bzm"] .bi{color:#8b5cf6}.bnav .bt[data-k="rpt"] .bi{color:#14935a}.bnav .bt[data-k="limits"] .bi{color:#e0a21a}.bnav .bt[data-k="payee"] .bi,.bnav .bt[data-k="payees"] .bi{color:#e0457b}
@@ -2390,7 +2406,7 @@ function adminReport(body){
   if(!RV.from||!/^\d{4}-\d{2}$/.test(RV.from)) RV.from=RV.to;
   if(RV.from>RV.to) RV.from=RV.to;
   body.innerHTML=`<div class="head"><h1>รายงานเบิกเงินประชุม</h1><span class="sp"></span>${updLabel()}</div>
-    <div class="tabs2" style="align-items:flex-end"><label class="muted" style="font-size:13px;margin:0">ตั้งแต่<input type="month" id="rf" value="${esc(RV.from)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
+    <div class="tabs2 rflt" style="align-items:flex-end"><label class="muted" style="font-size:13px;margin:0">ตั้งแต่<input type="month" id="rf" value="${esc(RV.from)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
       <label class="muted" style="font-size:13px;margin:0">ถึง<input type="month" id="rt" value="${esc(RV.to)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
       <button class="chip ${RV.basis==="ok"?"on":""}" data-b="ok">เฉพาะทำเบิกแล้ว</button><button class="chip ${RV.basis==="all"?"on":""}" data-b="all">รวมรอทำเบิก</button></div>
     <div id="rout" style="display:flex;flex-direction:column;gap:16px"></div>`;
@@ -2424,7 +2440,7 @@ function adminReport(body){
   const shown=all.filter(x=>flt==="all"||(flt==="sent"?x.n>0:!x.n));
   const pg=pager("rptbr",shown.length,10,RV.from+RV.to+RV.basis+flt,"r","สาขา");
   const tbl=`<div class="glass-card"><div class="utabs">${[["all","ทุกสาขา"],["sent","เบิกแล้ว"],["none","ไม่มีการเบิกในช่วงนี้"]].map(([k,t])=>`<button class="${flt===k?"on":""}" data-f="${k}">${t} <span class="cn ${k==="none"?"o":""}">${cntF[k]}</span></button>`).join("")}</div>
-    ${shown.length?`<table class="mtbl"><thead><tr><th>สาขา</th><th>BZM</th><th class="c">ใบเบิก</th><th class="r">ยอดเบิก</th><th style="width:26%">สัดส่วน</th></tr></thead><tbody>
+    ${shown.length?`<table class="mtbl rp"><thead><tr><th>สาขา</th><th>BZM</th><th class="c">ใบเบิก</th><th class="r">ยอดเบิก</th><th style="width:26%">สัดส่วน</th></tr></thead><tbody>
     ${shown.slice(pg.s,pg.e).map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${esc(bzmOf(x.b.code).key||"—")}</td><td class="c">${x.n||"—"}</td>
       <td class="r">${x.n?`<b>${baht(x.sum)}</b>`:`<span class="pillg">ไม่มีการเบิก</span>`}</td>
       <td>${x.n?`<div class="bar-s"><div class="bar"><i style="width:${tot?x.sum/tot*100:0}%"></i></div><b>${tot?(x.sum/tot*100).toFixed(1):0}%</b></div>`:"—"}</td></tr>`).join("")}</tbody></table>${pg.html}`:`<div class="empty" style="margin:14px">ไม่มีสาขาที่ตรงกับตัวกรอง</div>`}</div>`;
