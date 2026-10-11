@@ -421,14 +421,20 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .pw-cancel{border-color:#f3b9b3!important;color:#c0392b!important;background:#fff!important;height:42px;border-radius:12px;font-weight:700}
 .pw-hint{margin-top:16px;border:1.5px dashed #ddd3c6;border-radius:18px;padding:16px 22px;color:#6b7280;font-size:14.5px}
 .pw-hist{margin-top:16px;padding:22px 26px}.pw-ht{font-size:17px;font-weight:800;margin-bottom:10px}.pw-ht small{margin-left:10px;font-size:13px;font-weight:500;color:#9aa0ab}
-.pw-tb{width:100%;border-collapse:collapse}.pw-tb th{text-align:left;font-size:12px;font-weight:600;color:#9aa0ab;padding:8px 10px;border-bottom:1px solid #eee7df}
-.pw-tb td{padding:12px 10px;border-bottom:1px solid #f3eee7;font-size:14px;vertical-align:top}.pw-tb tr:last-child td{border-bottom:0}.pw-tb td small{display:block;color:#9aa0ab;font-size:12px;margin-top:2px}
+.pw-hl{display:flex;flex-direction:column}
+.pw-hi{padding:14px 0;border-top:1px solid #f0eae2}.pw-hi:first-child{border-top:0}
+.pw-hd{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.pw-hdt{font-size:13px;color:#9aa0ab;font-weight:600}.pw-hr{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.pw-hr small{color:#9aa0ab;font-size:12px}
+.pw-hp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:10px;align-items:stretch}
+.pw-hp>div{background:#f6f4f0;border-radius:12px;padding:10px 12px;min-width:0;overflow-wrap:anywhere}.pw-hp>div.n{background:#fff3ea}
+.pw-hp small{display:block;font-size:11.5px;color:#9aa0ab;font-weight:700;margin-bottom:2px}.pw-hp b,.pw-hp span{font-size:14.5px;line-height:1.35}.pw-hp em{display:block;font-style:normal;font-size:12.5px;color:#6b7280;margin-top:2px}
+.pw-hp .pw-ar{align-self:center;font-style:normal;width:auto}
 .pw-ar{color:#e8751a;width:24px;text-align:center}
 .pw-tag{display:inline-block;border-radius:99px;padding:3px 12px;font-size:12.5px;font-weight:800;background:#eceef2;color:#6b7280}.pw-tag.ok{background:#dcf3e6;color:#12804f}.pw-tag.no{background:#fbe3e6;color:#d13447}
 .pw-empty{padding:26px 0;text-align:center;color:#9aa0ab}
 .pw-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:18px;align-items:start}
 .pw-form{margin-top:0!important;padding:24px 26px}
-@media (max-width:760px){.pw-tb{display:block;overflow-x:auto}.pw-cmp{grid-template-columns:1fr}.pw-p.new{border-left:0;border-top:1px dashed #f3c9a3}.pw-note{margin-left:0;width:100%}.pw-grid{grid-template-columns:1fr}.pw-p{padding:20px}}
+@media (max-width:760px){.pw-cmp{grid-template-columns:1fr}.pw-p.new{border-left:0;border-top:1px dashed #f3c9a3}.pw-note{margin-left:0;width:100%}.pw-grid{grid-template-columns:1fr}.pw-p{padding:20px}}
 .payee-pg>.pcur{margin-bottom:14px}
 .pcmp{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:stretch;margin-bottom:14px}
 .pcmp>.pcur,.pcmp>.pnew{margin:0;padding:16px 16px}.pcmp .pcur b,.pcmp .pnew b{font-size:17px;line-height:1.3;margin:4px 0 4px}
@@ -1360,8 +1366,8 @@ function branchPayee(body){
     const st=p=>p.status==="approved"?`<span class="pw-tag ok">รับทราบแล้ว</span>${p.effectiveRound?`<small>มีผลรอบ ${esc(roundLabel(p.effectiveRound))}</small>`:`<small>มีผลตั้งแต่รอบถัดไป</small>`}`
       :p.status==="cancelled"?`<span class="pw-tag">ยกเลิกคำขอ</span>`:`<span class="pw-tag no">ไม่อนุมัติ</span>`;
     w.insertAdjacentHTML("beforeend",`<div class="pw-card pw-hist"><div class="pw-ht">ประวัติการเปลี่ยนผู้รับเงิน<small>${L.length?L.length+" รายการ":""}</small></div>
-      ${L.length?`<table class="pw-tb"><thead><tr><th>วันที่ส่งคำขอ</th><th>จาก</th><th></th><th>เปลี่ยนเป็น</th><th>ผลการดำเนินการ</th><th>วันที่</th></tr></thead><tbody>
-      ${L.map(p=>`<tr><td>${esc(dmyS(p.createdAt))}</td><td>${esc((p.prev&&p.prev.name)||"—")}</td><td class="pw-ar">→</td><td><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<small>${esc(p.next.position)}</small>`:""}</td><td>${st(p)}</td><td>${esc(dmyS(p.reviewedAt||p.cancelledAt)||"—")}</td></tr>`).join("")}</tbody></table>`
+      ${L.length?`<div class="pw-hl">${L.map(p=>`<div class="pw-hi"><div class="pw-hd"><span class="pw-hdt">ส่งคำขอ ${esc(dmyS(p.createdAt))}</span><span class="pw-hr">${st(p)}${p.reviewedAt||p.cancelledAt?`<small>${esc(dmyS(p.reviewedAt||p.cancelledAt))}</small>`:""}</span></div>
+        <div class="pw-hp"><div class="o"><small>เดิม</small><span>${esc((p.prev&&p.prev.name)||"—")}</span></div><i class="pw-ar">→</i><div class="n"><small>ใหม่</small><b>${esc((p.next&&p.next.name)||"—")}</b>${p.next&&p.next.position?`<em>${esc(p.next.position)}</em>`:""}</div></div></div>`).join("")}</div>`
       :`<div class="pw-empty">ยังไม่เคยมีการเปลี่ยนผู้รับเงินผ่านระบบ</div>`}</div>`);
   };
   const curBox=person(cur,"cur","ผู้รับเงินปัจจุบัน","",cur.updatedAt?`<div class="pw-u">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" โดย "+esc(cur.updatedBy):""}</div>`:"");
