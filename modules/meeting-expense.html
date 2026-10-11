@@ -655,12 +655,12 @@ label{font-size:15px;font-weight:600;color:#2b2b2b}
 .tabs2 .sp{flex:1}
 .tbtn{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 18px;border-radius:14px;border:var(--gl-bd);background:rgba(255,255,255,.92);box-shadow:var(--gl-sh);font:700 14px inherit;font-family:inherit;color:#2b2b2b;cursor:pointer;white-space:nowrap}
 .tbtn:hover{border-color:var(--ac);color:var(--acd)}
-.xdd{position:relative}.xcar{font-size:11px;opacity:.7;margin-left:2px}
-.xmenu{display:none;position:absolute;right:0;top:calc(100% + 8px);min-width:200px;padding:6px;border-radius:14px;border:var(--gl-bd);background:#fff;box-shadow:0 18px 40px -12px rgba(30,20,10,.28);z-index:30}
-.xdd.open .xmenu{display:block}
-.xmenu button{display:flex;align-items:center;gap:10px;width:100%;height:42px;padding:0 14px;border:0;border-radius:10px;background:transparent;font:700 14px inherit;font-family:inherit;color:#2b2b2b;cursor:pointer;text-align:left}
-.xmenu button:hover{background:#FFF3EA;color:var(--acd)}
-@media print{.xdd{display:none!important}}
+.iog{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start}
+.ioc{padding:22px 24px}.ioc h3{display:flex;align-items:center;gap:10px;margin:0 0 6px;font-size:19px}
+.ior{display:flex;align-items:center;gap:14px;padding:16px 0;border-top:1px solid #eef0f4;flex-wrap:wrap}.ioc h3+.ior{border-top:0}
+.ioi{display:grid;place-items:center;width:44px;height:44px;border-radius:14px;background:#fff1e4;color:#e8590c;flex:none}
+.iot{flex:1 1 200px;min-width:0}.iot b{display:block;font-size:15.5px}.iot small{display:block;color:#6b7280;font-size:13px;margin-top:2px;line-height:1.45}
+.ioa{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.ioa select{height:42px;min-width:150px}
 .tbtn.pri{background:var(--ac);border-color:var(--ac);color:#fff;box-shadow:0 8px 18px var(--acs)}
 .tbtn svg{flex:none}
 .main>.head .tbtn{height:42px}
@@ -770,7 +770,8 @@ const STATUSES=["ส่งแล้ว","รอดำเนินการ","อ
 const OLD_STATUS={pending:"ส่งแล้ว",approved:"อนุมัติ",rejected:"ไม่อนุมัติ"};
 const statusOf=x=>OLD_STATUS[x.status]||x.status||"ส่งแล้ว";
 const pillOf=s=>s==="อนุมัติ"?["p-ok","st-ok"]:s==="ไม่อนุมัติ"?["p-no","st-no"]:s==="รอดำเนินการ"?["p-wait","st-wait"]:["p-sent","st-sent"];
-const pill=(s,label)=>`<span class="pill ${pillOf(s)[0]}">${esc(label||s)}</span>`;
+const LBL=s=>s==="อนุมัติ"?"ทำเบิกแล้ว":s;   /* สถานะที่เก็บยังเป็น "อนุมัติ" (ข้อมูลเดิม/รายงานใช้ต่อได้) แต่ที่แสดงเรียก "ทำเบิกแล้ว" */
+const pill=(s,label)=>`<span class="pill ${pillOf(s)[0]}">${esc(label||LBL(s))}</span>`;
 const isWaiting=c=>{const s=statusOf(c);return s==="ส่งแล้ว"||s==="รอดำเนินการ";};
 const MAX_PHOTOS=3;
 
@@ -1048,7 +1049,7 @@ function liveAside(r){
     <div class="pnote">เงินโอนเข้าบัญชีเงินเดือนของผู้รับเงิน ไม่ต้องกรอกเลขบัญชี</div>`
     :`<b style="display:block;margin-top:12px">ยังไม่มีผู้รับเงิน</b><div class="pnote">แจ้งเพิ่มผู้รับเงินที่เมนู “ผู้รับเงิน” ก่อนส่งเอกสาร</div>`}
     <a id="pchg">${pay.name?"ขอเปลี่ยนผู้รับเงิน →":"แจ้งเพิ่มผู้รับเงิน →"}</a></div>
-    <div class="card"><h3>หลังส่งเอกสาร</h3><div class="flowc">${pill("ส่งแล้ว")}<span class="ar">→</span>${pill("รอดำเนินการ")}<span class="ar">→</span>${pill("อนุมัติ")}<span class="muted">หรือ</span>${pill("ไม่อนุมัติ")}</div></div>`;
+    <div class="card"><h3>หลังส่งเอกสาร</h3><div class="flowc">${pill("ส่งแล้ว")}<span class="ar">→</span>${pill("อนุมัติ")}</div></div>`;
   $("#pchg",d).onclick=()=>{TAB="payee";renderBranch();};
   return d;
 }
@@ -1067,12 +1068,11 @@ function doneWide(x){
   const ICON_CHK='<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
   const steps=[
     {c:"ok",t:"ส่งเอกสาร",d:stamp(x.submittedAt)},
-    {c:idx>=1?(idx===1?"cur":"ok"):"cur",t:idx>=1?"รับเรื่องแล้ว":"รอรับเรื่อง",d:""},
-    idx===2?{c:rej?"bad":"ok",t:rej?"ไม่อนุมัติ":"อนุมัติแล้ว",d:stamp(x.statusAt)}:{c:"idle",t:"รออนุมัติ",d:""}];
-  const bn=ok?'<div class="dnote ok">'+ICON_CHK+'<span>รายการนี้ได้รับการอนุมัติแล้ว ไม่สามารถแก้ไขได้</span></div>'
+    ok?{c:"ok",t:"ทำเบิกแล้ว",d:stamp(x.statusAt)}:rej?{c:"bad",t:"ส่งกลับ (ไม่อนุมัติ)",d:stamp(x.statusAt)}:{c:"cur",t:"รอผู้ดูแลทำเบิก",d:""}];
+  const bn=ok?'<div class="dnote ok">'+ICON_CHK+'<span>ผู้ดูแลทำเบิกแล้ว ไม่สามารถแก้ไขได้</span></div>'
     :rej?'<div class="dnote bad"><span>ไม่อนุมัติ'+(x.reason?" · เหตุผล: "+esc(x.reason):"")+' — สาขาส่งใหม่ได้</span></div>'
-    :'<div class="dnote wait"><span>รอผู้ดูแลตรวจสอบ · ลบใบนี้แล้วส่งใหม่ได้จนกว่าจะอนุมัติ</span></div>';
-  d.innerHTML=`<div class="dstep">${steps.map((n,i)=>`<div class="ds ${n.c}"><span class="dot">${n.c==="ok"?"✓":n.c==="bad"?"✕":""}</span><span><b>${n.t}</b>${n.d?`<small>${esc(n.d)}</small>`:""}</span></div>${i<2?`<i class="ln ${steps[i+1].c==="idle"||steps[i+1].c==="cur"?"":"on"}"></i>`:""}`).join("")}</div>
+    :'<div class="dnote wait"><span>รอผู้ดูแลทำเบิก · ลบใบนี้แล้วส่งใหม่ได้จนกว่าจะทำเบิก</span></div>';
+  d.innerHTML=`<div class="dstep">${steps.map((n,i)=>`<div class="ds ${n.c}"><span class="dot">${n.c==="ok"?"✓":n.c==="bad"?"✕":""}</span><span><b>${n.t}</b>${n.d?`<small>${esc(n.d)}</small>`:""}</span></div>${i<1?`<i class="ln ${steps[i+1].c==="idle"||steps[i+1].c==="cur"?"":"on"}"></i>`:""}`).join("")}</div>
     <div class="dm"><div class="card dml">
       <div class="damt"><i class="orb">${ICON_WAL}</i><div><small>ยอดเงินที่ขอเบิก</small><div class="abig">${baht(x.amount)} บาท</div></div></div>
       <div class="dtb"><div><span>ผู้ทำรายการ</span><b>${esc(x.claimantName||"-")}</b></div>
@@ -1081,7 +1081,7 @@ function doneWide(x){
         ${x.payeePosition?`<div><span>ตำแหน่ง</span><b>${esc(x.payeePosition)}</b></div>`:""}
         ${x.note?`<div><span>หมายเหตุ</span><b>${esc(x.note)}</b></div>`:""}
         <div><span>วันที่ส่งเอกสาร</span><b>${esc(stamp(x.submittedAt))}</b></div>
-        <div><span>สถานะ</span><b>${pill(st,ok?"✓ อนุมัติแล้ว":st)}</b></div></div>
+        <div><span>สถานะ</span><b>${pill(st,ok?"✓ ทำเบิกแล้ว":st)}</b></div></div>
       ${bn}
       <div class="dact"><button class="btn ghost" id="dnhist">${DETAIL?"← กลับประวัติ":"ดูประวัติรายการ"}</button>${mayDelete?'<button class="btn sm danger" id="dndel">ลบใบนี้แล้วส่งใหม่</button>':""}</div></div>
     <div class="card dmr"><div class="dmh"><span class="clip">📎</span><h3>เอกสารแนบ</h3><span class="cnt">${ph} ไฟล์</span></div>
@@ -1089,7 +1089,7 @@ function doneWide(x){
   /* หัวรายการ */
   { const h=document.querySelector(".main>.head h1"); if(h) h.innerHTML=`${DETAIL?"รายละเอียดการเบิกเงินประชุมร้าน":"ส่งเอกสารในรอบนี้แล้ว"}<small class="hsub">รอบเดือน${esc(monthFull(roundIdOf(x)))}</small>`;
     const hr=document.getElementById("hdr-r");
-    if(hr) hr.innerHTML=`<div class="hmeta"><span class="pill ${pillOf(st)[0]} big">${ok?"✓ ":""}${esc(ok?"อนุมัติแล้ว":st)}</span><i></i><div><small>เลขที่เอกสาร</small><b>${esc(x.docNo||x.id)}</b></div></div>`; }
+    if(hr) hr.innerHTML=`<div class="hmeta"><span class="pill ${pillOf(st)[0]} big">${ok?"✓ ":""}${esc(ok?"ทำเบิกแล้ว":st)}</span><i></i><div><small>เลขที่เอกสาร</small><b>${esc(x.docNo||x.id)}</b></div></div>`; }
   (x.photos||[]).forEach((u,i)=>{
     const w=document.createElement("div"); w.className="dpic";
     const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(i+1); im.onclick=()=>zoom(u);
@@ -1135,8 +1135,8 @@ function branchSend(body,r,mine){
     left.insertAdjacentHTML("beforeend",`<div class="done"><div class="ck">✓</div><b>รอบนี้ส่งเอกสารแล้ว</b>
       <div style="font-size:13.5px;margin-top:4px">เบิกได้รอบละ 1 ครั้ง · ส่งครั้งถัดไปได้เมื่อเปิดรอบใหม่</div></div>`);
     left.appendChild(slip(done,false));
-    left.insertAdjacentHTML("beforeend",`<div class="steps"><div class="on"><i>1</i>ส่งแล้ว</div><div class="${st!=="ส่งแล้ว"?"on":""}"><i>2</i>รอดำเนินการ</div><div class="${st==="อนุมัติ"?"on":""}"><i>3</i>อนุมัติ / โอนเงิน</div></div>
-      <div class="card" style="font-size:13.5px"><b>ต้องแก้เอกสาร?</b><div class="muted" style="margin-top:4px">ลบใบนี้ได้ก่อนผู้ดูแลอนุมัติ แล้วส่งใหม่ · ถ้าผู้ดูแลไม่อนุมัติ ระบบเปิดให้ส่งใหม่เอง</div></div>`);
+    left.insertAdjacentHTML("beforeend",`<div class="steps"><div class="on"><i>1</i>ส่งแล้ว</div><div class="${st==="อนุมัติ"?"on":""}"><i>2</i>ทำเบิก / โอนเงิน</div></div>
+      <div class="card" style="font-size:13.5px"><b>ต้องแก้เอกสาร?</b><div class="muted" style="margin-top:4px">ลบใบนี้ได้ก่อนผู้ดูแลทำเบิก แล้วส่งใหม่</div></div>`);
     return;
   }
 
@@ -1150,7 +1150,7 @@ function branchSend(body,r,mine){
     <div class="field"><label>แนบรูปใบเสร็จ <span style="color:var(--gold)">*</span> <span class="muted" style="font-weight:500">1–${MAX_PHOTOS} รูป</span></label><input id="ph" type="file" accept="image/*" multiple style="display:none">
       <div class="slots" id="strip"></div></div>
     <div class="payline">${pay.name?`ผู้รับเงิน: <b>${esc(pay.name)}</b>${pay.empCode?" · "+esc(pay.empCode):""}${pay.position?" · "+esc(pay.position):""}`:`ผู้รับเงิน: <b>ยังไม่มี</b> · แจ้งเพิ่มที่เมนู “ผู้รับเงิน”`}</div>
-    <div class="sendrow"><button class="btn" id="send">ส่งเอกสาร</button><span class="sendnote">ส่งแล้วลบและส่งใหม่ได้จนกว่าผู้ดูแลจะอนุมัติ</span></div><div class="fmsg" id="msg"></div>`; }
+    <div class="sendrow"><button class="btn" id="send">ส่งเอกสาร</button><span class="sendnote">ส่งแล้วลบและส่งใหม่ได้จนกว่าผู้ดูแลจะทำเบิก</span></div><div class="fmsg" id="msg"></div>`; }
   left.appendChild(f);
   const msg=(t,cls)=>{const m=$("#msg",f); m.textContent=t||""; m.className="fmsg"+(cls?" "+cls:"");};
   ["cn","am","nt"].forEach((id,i)=>$("#"+id,f).oninput=e=>{DRAFT[["claimant","amount","note"][i]]=e.target.value;});
@@ -1241,7 +1241,7 @@ function branchHistory(body,mine){
   const y=String(new Date().getFullYear());
   const okYear=mine.filter(c=>statusOf(c)==="อนุมัติ"&&roundIdOf(c).slice(0,4)===y);
   const nRounds=new Set(okYear.map(roundIdOf)).size;
-  w.innerHTML=`<div class="sum2"><div><small>อนุมัติปีนี้</small><b>${baht(sumOf(okYear))} ฿</b></div><div><small>เฉลี่ยต่อรอบ</small><b>${nRounds?baht(Math.round(sumOf(okYear)/nRounds)):"0"} ฿</b></div></div>`;
+  w.innerHTML=`<div class="sum2"><div><small>ทำเบิกปีนี้</small><b>${baht(sumOf(okYear))} ฿</b></div><div><small>เฉลี่ยต่อรอบ</small><b>${nRounds?baht(Math.round(sumOf(okYear)/nRounds)):"0"} ฿</b></div></div>`;
   const g={}; mine.forEach(x=>(g[roundIdOf(x)]=g[roundIdOf(x)]||[]).push(x));
   const cards=document.createElement("div"); cards.className="hist-cards"; w.appendChild(cards);
   Object.keys(g).sort().reverse().forEach(rid=>{
@@ -1270,10 +1270,10 @@ function branchPayee(body){
   w.innerHTML=`<div class="pcur">${cur.name?`<small>ผู้รับเงินปัจจุบัน</small><b>${esc(cur.name)}</b>
       <div class="pl">${[cur.empCode?"รหัส "+esc(cur.empCode):"",esc(cur.position||"")].filter(Boolean).join(" · ")}</div>
       ${cur.updatedAt?`<div class="pm">อัปเดต ${esc(dmy(cur.updatedAt))}${cur.updatedBy?" โดย "+esc(cur.updatedBy):""}</div>`:""}`
-    :`<small>ผู้รับเงินปัจจุบัน</small><b>ยังไม่มีข้อมูล</b><div class="pl">ส่งคำขอด้านขวา ผู้ดูแลจะอนุมัติ</div>`}</div>`;
+    :`<small>ผู้รับเงินปัจจุบัน</small><b>ยังไม่มีข้อมูล</b><div class="pl">ส่งคำขอด้านขวา ผู้ดูแลจะรับทราบ</div>`}</div>`;
   if(pend.length){
     const p=pend[0];
-    w.insertAdjacentHTML("beforeend",`<div class="card warn">${pill("รอดำเนินการ","รอผู้ดูแลอนุมัติ")}
+    w.insertAdjacentHTML("beforeend",`<div class="card warn">${pill("รอดำเนินการ","รอผู้ดูแลรับทราบ")}
       <div style="margin-top:8px">ขอเปลี่ยนเป็น <b>${esc(p.next.name)}</b></div><div class="muted num">${esc(p.next.position||"")}${p.reason?" · เหตุผล: "+esc(p.reason):""}</div></div>`);
   }else if(last&&(!cur.updatedAt||last.reviewedAt>cur.updatedAt)){
     w.insertAdjacentHTML("beforeend",`<div class="card bad">${pill("ไม่อนุมัติ","คำขอล่าสุดไม่ได้รับอนุมัติ")}
@@ -1284,8 +1284,8 @@ function branchPayee(body){
   f.innerHTML=`<h3 style="font-size:19px">${cur.name?"ขอเปลี่ยนผู้รับเงิน":"แจ้งผู้รับเงิน"}</h3><div class="muted" style="margin:2px 0 16px">พิมพ์ชื่อ แล้วเลือกพนักงานจากรายชื่อ</div>
     ${payeeFields({})}
     <div class="field" style="margin-top:6px"><label>เหตุผล</label><textarea id="pr" rows="3" placeholder="เช่น ผู้จัดการสาขาย้ายไปสาขาอื่น"></textarea></div>
-    <button class="btn full" id="preq" ${pend.length?"disabled":""}>${pend.length?"มีคำขอค้างอยู่ · รออนุมัติ":"ส่งคำขอเปลี่ยน"}</button>
-    <div class="muted" style="text-align:center;font-size:12.5px;margin-top:10px">มีผลหลังผู้ดูแลอนุมัติ · ระหว่างนี้ใช้ผู้รับเงินเดิม</div>`;
+    <button class="btn full" id="preq" ${pend.length?"disabled":""}>${pend.length?"มีคำขอค้างอยู่ · รอรับทราบ":"ส่งคำขอเปลี่ยน"}</button>
+    <div class="muted" style="text-align:center;font-size:12.5px;margin-top:10px">มีผลเมื่อผู้ดูแลกดรับทราบ · ระหว่างนี้ใช้ผู้รับเงินเดิม</div>`;
   w.appendChild(f); attachEmpPick(f);
   $("#preq",f).onclick=async e=>{
     const b=e.currentTarget;
@@ -1293,7 +1293,7 @@ function branchPayee(body){
       const next=readPayee(f);
       b.disabled=true; b.textContent="กำลังส่ง…";
       await S.refresh().catch(()=>{});
-      if(PREQ().some(p=>p.branchCode===ME.code&&p.status==="pending")) throw new Error("มีคำขอค้างอยู่แล้ว รอผู้ดูแลอนุมัติก่อน");
+      if(PREQ().some(p=>p.branchCode===ME.code&&p.status==="pending")) throw new Error("มีคำขอค้างอยู่แล้ว รอผู้ดูแลรับทราบก่อน");
       await S.set("payeeReq","PR-"+Date.now().toString(36)+Math.random().toString(36).slice(2,5),{branchCode:ME.code,branchName:ME.name,
         prev:{name:cur.name||"",empCode:cur.empCode||"",position:cur.position||""},next,
         reason:$("#pr",f).value.trim(),status:"pending",createdAt:nowISO(),createdBy:Hub.fullName()});
@@ -1322,7 +1322,7 @@ function slip(x,admin,compact){
     if(manage){
       const open=(st==="อนุมัติ"||st==="ไม่อนุมัติ");
       const a=document.createElement("div"); a.className="mact";
-      a.innerHTML=open?`<button class="ab ghost" data-act="รอดำเนินการ" data-id="${esc(x.id)}">ยกเลิกผล</button>`:`<button class="ab no" data-act="ไม่อนุมัติ" data-id="${esc(x.id)}">ไม่อนุมัติ</button><button class="ab yes" data-act="อนุมัติ" data-id="${esc(x.id)}">อนุมัติ</button>`;
+      a.innerHTML=open?`<button class="ab ghost" data-act="ส่งแล้ว" data-id="${esc(x.id)}">ยกเลิกผล</button>`:`<button class="ab yes" data-act="อนุมัติ" data-id="${esc(x.id)}">ทำเบิก</button>`;
       if(open){ const dv=document.createElement("button"); dv.className="ab yes"; dv.textContent="รายละเอียด"; dv.onclick=()=>detail(x); a.appendChild(dv); }
       s.appendChild(a);
     }
@@ -1347,7 +1347,7 @@ function slip(x,admin,compact){
   if(ph.children.length) s.appendChild(ph);
   const a=document.createElement("div"); a.className="acts";
   if(manage) a.appendChild(statusSelect(x));
-  /* สาขาลบได้เฉพาะใบที่ยังไม่อนุมัติ — ใบที่อนุมัติแล้วเป็นหลักฐานการจ่ายเงิน */
+  /* สาขาลบได้เฉพาะใบที่ยังไม่ทำเบิก — ใบที่ทำเบิกแล้วเป็นหลักฐานการจ่ายเงิน */
   const mayDelete=admin?can("delete-claims"):(can("delete-own")&&ME.role==="branch"&&x.branchCode===ME.code&&st!=="อนุมัติ");
   if(mayDelete){
     const d=Object.assign(document.createElement("button"),{className:"btn sm danger push",textContent:"ลบ"});
@@ -1360,7 +1360,7 @@ function slip(x,admin,compact){
 /* ปุ่มในแถว: อนุมัติ / ไม่อนุมัติ (ถามเหตุผล) / ยกเลิกผล */
 function rowAct(id,to,btn){
   const x=S.get("claims",id); if(!x) return;
-  const go=async reason=>{ await changeStatus(x,to,reason?{reason}:null); toast("อัปเดตสถานะเป็น “"+to+"” แล้ว"); };
+  const go=async reason=>{ await changeStatus(x,to,reason?{reason}:null); toast("อัปเดตสถานะเป็น “"+LBL(to)+"” แล้ว"); };
   if(to==="ไม่อนุมัติ"){
     const f=document.createElement("div");
     f.innerHTML=`<div class="field"><label>เหตุผลที่ไม่อนุมัติ</label><textarea id="rsn" placeholder="เช่น ใบเสร็จไม่ชัด มองไม่เห็นยอดเงิน"></textarea></div><div class="muted">สาขาจะเห็นเหตุผลนี้ในประวัติ แล้วส่งใหม่ได้</div>`;
@@ -1373,11 +1373,11 @@ function rowAct(id,to,btn){
 function statusSelect(x){
   const st=statusOf(x);
   const sel=document.createElement("select"); sel.setAttribute("aria-label","สถานะเอกสาร "+(x.docNo||x.id));
-  sel.innerHTML=STATUSES.map(v=>`<option ${v===st?"selected":""}>${esc(v)}</option>`).join("");
+  sel.innerHTML=STATUSES.filter(v=>v!=="รอดำเนินการ"||v===st).map(v=>`<option value="${esc(v)}" ${v===st?"selected":""}>${esc(LBL(v))}</option>`).join("");
   sel.onchange=async()=>{
     const to=sel.value;
     sel.blur(); sel.disabled=true;
-    try{ await changeStatus(x,to); toast("อัปเดตสถานะเป็น “"+to+"” แล้ว"); }
+    try{ await changeStatus(x,to); toast("อัปเดตสถานะเป็น “"+LBL(to)+"” แล้ว"); }
     catch(e){ toast(e.message||"อัปเดตสถานะไม่สำเร็จ"); sel.value=st; sel.disabled=false; }
   };
   return sel;
@@ -1405,7 +1405,7 @@ function removeClaim(x){
     await S.refresh().catch(()=>{});
     const cur=S.get("claims",x.id);
     if(!cur) throw new Error("เอกสารนี้ถูกลบไปแล้ว");
-    if(ME.role==="branch"&&statusOf(cur)==="อนุมัติ") throw new Error("เอกสารนี้อนุมัติแล้ว ลบไม่ได้");
+    if(ME.role==="branch"&&statusOf(cur)==="อนุมัติ") throw new Error("เอกสารนี้ทำเบิกแล้ว ลบไม่ได้");
     await S.remove("claims",x.id,{status:cur.status});
     SEL.delete(x.id);
     toast("ลบเอกสารแล้ว");
@@ -1417,10 +1417,9 @@ function detail(x){
   const who=x.statusBy?" · โดย "+esc(x.statusBy):"";
   const steps=[
     {c:"ok",t:"ส่งเอกสาร",d:stamp(x.submittedAt)},
-    {c:idx>=1?(idx===1?"cur":"ok"):"cur",t:idx>=1?"รับเรื่องแล้ว":"รอรับเรื่อง",d:""},
-    idx===2?{c:rej?"bad":"ok",t:rej?"ไม่อนุมัติ":"อนุมัติแล้ว",d:stamp(x.statusAt)+who}:{c:"idle",t:"รออนุมัติ",d:""}];
+    ok?{c:"ok",t:"ทำเบิกแล้ว",d:stamp(x.statusAt)+who}:rej?{c:"bad",t:"ส่งกลับ (ไม่อนุมัติ)",d:stamp(x.statusAt)+who}:{c:"cur",t:"รอผู้ดูแลทำเบิก",d:""}];
   const d=document.createElement("div"); d.className="adet";
-  d.innerHTML=`<div class="dstep" style="padding:14px 18px;gap:14px;box-shadow:none;background:#f7f8fa">${steps.map((n,k)=>`<div class="ds ${n.c}"><span class="dot" style="width:30px;height:30px;font-size:15px">${n.c==="ok"?"✓":n.c==="bad"?"✕":""}</span><span><b style="font-size:15px">${n.t}</b>${n.d?`<small style="font-size:12px">${esc(n.d)}</small>`:""}</span></div>${k<2?`<i class="ln ${steps[k+1].c==="idle"||steps[k+1].c==="cur"?"":"on"}"></i>`:""}`).join("")}</div>
+  d.innerHTML=`<div class="dstep" style="padding:14px 18px;gap:14px;box-shadow:none;background:#f7f8fa">${steps.map((n,k)=>`<div class="ds ${n.c}"><span class="dot" style="width:30px;height:30px;font-size:15px">${n.c==="ok"?"✓":n.c==="bad"?"✕":""}</span><span><b style="font-size:15px">${n.t}</b>${n.d?`<small style="font-size:12px">${esc(n.d)}</small>`:""}</span></div>${k<1?`<i class="ln ${steps[k+1].c==="idle"||steps[k+1].c==="cur"?"":"on"}"></i>`:""}`).join("")}</div>
     <div class="adg"><div>
       <div class="damt" style="padding:14px 18px"><i class="orb">${mi("wallet",26)}</i><div><small>ยอดเงินที่ขอเบิก</small><div class="abig" style="font-size:38px">${baht(x.amount)} บาท</div></div></div>
       <div class="dtb">
@@ -1452,8 +1451,8 @@ function detail(x){
   const act=$("#adAct",d);
   if(can("update-status")){
     const mk=(to,t,cls)=>{ const b=Object.assign(document.createElement("button"),{className:"ab "+cls,textContent:t}); b.style.margin="0"; b.onclick=()=>{ rowAct(x.id,to,b); if(to!=="ไม่อนุมัติ" && box) box.remove(); }; act.appendChild(b); };
-    if(ok||rej) mk("รอดำเนินการ","ยกเลิกผล","ghost");
-    else{ mk("อนุมัติ","อนุมัติ","yes"); mk("ไม่อนุมัติ","ไม่อนุมัติ","no"); }
+    if(ok||rej) mk("ส่งแล้ว","ยกเลิกผล","ghost");
+    else mk("อนุมัติ","ทำเบิก","yes");
   }
   box=modal("รายละเอียดเอกสาร",d,null);
   const mb=box.querySelector(".modal"); if(mb) mb.style.maxWidth="980px";
@@ -1516,8 +1515,8 @@ function openRowMenu(btn){
   const id=btn.dataset.menu, x=S.get("claims",id); if(!x) return;
   const st=statusOf(x), items=[];
   if(can("update-status")){
-    if(st==="อนุมัติ"||st==="ไม่อนุมัติ") items.push(["รอดำเนินการ","ยกเลิกผล",""]);
-    else{ items.push(["อนุมัติ","อนุมัติ","ok"]); items.push(["ไม่อนุมัติ","ไม่อนุมัติ","no"]); }
+    if(st==="อนุมัติ"||st==="ไม่อนุมัติ") items.push(["ส่งแล้ว","ยกเลิกผล",""]);
+    else{ items.push(["อนุมัติ","ทำเบิก","ok"]); items.push(["ไม่อนุมัติ","ส่งกลับสาขา (ไม่อนุมัติ)","no"]); }
   }
   if(can("delete-claims")) items.push(["_del","ลบเอกสาร","no"]);
   if(!items.length) return;
@@ -1548,8 +1547,8 @@ function adminTabs(){
   if(can("manage-rounds")) t.push({k:"rounds",t:"รอบเบิก",ic:mi("cal")});
   if(can("view-claims")||can("update-status")) t.push({k:"bzm",t:"สรุปตาม BZM",ic:mi("pie")});
   if(can("view-claims")||can("update-status")) t.push({k:"rpt",t:"รายงาน",ic:mi("bars")});
-  if(can("manage-limits")) t.push({k:"limits",t:"วงเงินสาขา",ic:mi("coins")});
-  if(can("manage-payees")) t.push({k:"payees",t:"ผู้รับเงิน",ic:mi("people"),n:PREQ().filter(p=>p.status==="pending").length});
+  if(can("manage-limits")||can("manage-payees")) t.push({k:"branches",t:"วงเงิน & ผู้รับเงิน",ic:mi("coins"),n:PREQ().filter(p=>p.status==="pending").length});
+  if(can("view-claims")||can("update-status")||can("manage-payees")) t.push({k:"io",t:"ส่งออก / นำเข้า",ic:mi("upload")});
   return t;
 }
 function renderAdmin(){
@@ -1563,7 +1562,7 @@ function renderAdmin(){
   if(r&&nb){ const sent=sentBranches(r.id);
     extra=`<div class="meter" style="margin-top:8px"><i style="width:${Math.min(100,sent/nb*100)}%"></i></div><div style="margin-top:4px">ส่งแล้ว ${sent} / ${nb} สาขา</div>`; }
   const body=frame(tabs,ATAB,k=>{ATAB=k;BV.zone="";renderAdmin();},roundBoxHtml(r,extra));
-  ({list:adminList,bzm:adminBzm,rpt:adminReport,rounds:adminRounds,limits:adminLimits,payees:adminPayees})[ATAB](body,r);
+  ({list:adminList,bzm:adminBzm,rpt:adminReport,rounds:adminRounds,branches:adminBranches,io:adminIO})[ATAB](body,r);
 }
 function adminList(body,r){
   const manage=can("update-status");
@@ -1572,9 +1571,8 @@ function adminList(body,r){
   body.innerHTML=`<div class="head hdq"><h1>${manage?"เอกสารเบิก":"ภาพรวมการเบิก"}<i class="hcnt" id="hcnt"></i></h1><span class="sp"></span>
       <div class="hqrow"><input id="fq" class="hq" value="${esc(F.q)}" placeholder="ค้นหารหัส / ชื่อสาขา"><button class="fbtn" id="fbtn" aria-label="ตัวกรองสถานะ">${mi("filter",22)}<i id="fdot"></i></button></div>
       <select id="fr" class="hs" aria-label="รอบ">${rids.map(id=>`<option value="${esc(id)}" ${F.round===id?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}
-        <option value="_all" ${F.round==="_all"?"selected":""}>ทุกรอบ</option></select>
-      <button class="tbtn" id="csv" aria-label="ส่งออก Excel">${mi("excel",18)}<span>Excel</span></button></div>
-    <div class="adsplit"><aside class="glass-card vk" id="vk"><div class="mkp"><div class="kw"><small>รอตรวจ</small><b id="kwait"></b></div><div class="ka"><small>ยอดอนุมัติ</small><b id="kamt2"></b></div></div><div id="chips"></div><div class="msq"><input id="fq2" class="hq" value="${esc(F.q)}" placeholder="ค้นหารหัส / ชื่อสาขา"></div><hr><div class="vkrow t-yl"><i class="vi">${mi("coins",20)}</i><small>ยอดอนุมัติ</small><b id="kamt"></b></div></aside>
+        <option value="_all" ${F.round==="_all"?"selected":""}>ทุกรอบ</option></select></div>
+    <div class="adsplit"><aside class="glass-card vk" id="vk"><div class="mkp"><div class="kw"><small>รอทำเบิก</small><b id="kwait"></b></div><div class="ka"><small>ยอดทำเบิก</small><b id="kamt2"></b></div></div><div id="chips"></div><div class="msq"><input id="fq2" class="hq" value="${esc(F.q)}" placeholder="ค้นหารหัส / ชื่อสาขา"></div><hr><div class="vkrow t-yl"><i class="vi">${mi("coins",20)}</i><small>ยอดทำเบิก</small><b id="kamt"></b></div></aside>
       <div style="min-width:0"><div id="out"></div><div id="bulk"></div></div></div>`;
   const out=$("#out",body);
   const scope=()=>CLAIMS().filter(c=>(F.round==="_all"||!F.round||roundIdOf(c)===F.round));
@@ -1591,7 +1589,7 @@ function adminList(body,r){
     $("#kamt",body).textContent=baht(sumOf(ok))+" ฿";
     { const k2=$("#kamt2",body); if(k2) k2.textContent=baht(sumOf(ok))+" ฿"; const kw=$("#kwait",body); if(kw) kw.textContent=sc.filter(isWaiting).length+" ใบ"; }
     { const hc=$("#hcnt",body); if(hc) hc.textContent=list.length; const fd=$("#fdot",body); if(fd) fd.style.display=F.status?"block":"none"; }
-    $("#chips",body).innerHTML=[["","ทั้งหมด","doc",sc.length,"or"],["_wait","รอตรวจ","clock",sc.filter(isWaiting).length,"am"],["อนุมัติ","อนุมัติ","check",sc.filter(c=>statusOf(c)==="อนุมัติ").length,"gr"],["ไม่อนุมัติ","ไม่อนุมัติ","ban",sc.filter(c=>statusOf(c)==="ไม่อนุมัติ").length,"rd"]].map(([k,t,ic,n,tone])=>`<div class="vkrow btn-st t-${tone} ${F.status===k?"on":""}" data-st="${esc(k)}"><i class="vi">${mi(ic,20)}</i><small>${esc(t)}</small><b>${n}</b></div>`).join("");
+    $("#chips",body).innerHTML=[["","ทั้งหมด","doc",sc.length,"or"],["_wait","รอทำเบิก","clock",sc.filter(isWaiting).length,"am"],["อนุมัติ","ทำเบิกแล้ว","check",sc.filter(c=>statusOf(c)==="อนุมัติ").length,"gr"],["ไม่อนุมัติ","ส่งกลับ","ban",sc.filter(c=>statusOf(c)==="ไม่อนุมัติ").length,"rd"]].map(([k,t,ic,n,tone])=>`<div class="vkrow btn-st t-${tone} ${F.status===k?"on":""}" data-st="${esc(k)}"><i class="vi">${mi(ic,20)}</i><small>${esc(t)}</small><b>${n}</b></div>`).join("");
     /* ตัดตัวที่เลือกซึ่งไม่อยู่ในรายการแล้ว */
     const ids=new Set(list.map(c=>c.id)); [...SEL].forEach(id=>{ if(!ids.has(id)) SEL.delete(id); });
     if(!list.length) out.innerHTML=`<div class="empty">ไม่มีรายการ</div>`;
@@ -1605,7 +1603,7 @@ function adminList(body,r){
     const chosen=list.filter(c=>SEL.has(c.id));
     if(!manage||!chosen.length){ box.innerHTML=""; return; }
     box.innerHTML=`<div class="bulk"><b>เลือก ${chosen.length} ใบ · ${money(sumOf(chosen))} บาท</b><span class="sp"></span>
-      <button class="btn sm ok" data-to="อนุมัติ">อนุมัติที่เลือก</button><button class="btn sm ghost" data-to="รอดำเนินการ">รอดำเนินการ</button>
+      <button class="btn sm ok" data-to="อนุมัติ">ทำเบิกที่เลือก</button>
       <button class="btn sm ghost" data-clear="1">ยกเลิกเลือก</button></div>`;
     box.querySelectorAll("button").forEach(b=>b.onclick=async()=>{
       if(b.dataset.clear){ SEL.clear(); draw(); return; }
@@ -1616,7 +1614,7 @@ function adminList(body,r){
         catch(e){ errs.push((x.docNo||x.id)+" · "+(e.message||"ไม่สำเร็จ")); }
       }
       SEL.clear();
-      toast(`อัปเดตเป็น “${to}” ${okN} ใบ`+(skip?` · ข้าม ${skip} ใบ (สถานะเดิม)`:"")+(errs.length?` · ไม่สำเร็จ ${errs.length} ใบ`:""));
+      toast(`อัปเดตเป็น “${LBL(to)}” ${okN} ใบ`+(skip?` · ข้าม ${skip} ใบ (สถานะเดิม)`:"")+(errs.length?` · ไม่สำเร็จ ${errs.length} ใบ`:""));
       renderAdmin();
       if(errs.length){ const f=document.createElement("div"); f.innerHTML=errs.map(e=>`<div class="lead"><span>${esc(e)}</span></div>`).join(""); modal("อัปเดตไม่สำเร็จบางใบ",f,null); }
     });
@@ -1638,7 +1636,6 @@ function adminList(body,r){
   
   $("#fq",body).oninput=e=>{F.q=e.target.value;{const o=$("#fq2",body); if(o) o.value=F.q;}draw();};
   $("#fq2",body).oninput=e=>{F.q=e.target.value;{const o=$("#fq",body); if(o) o.value=F.q;}draw();};
-  $("#csv",body).onclick=()=>exportCsv(listNow());
   $("#fbtn",body).onclick=()=>{ body.querySelector(".adsplit").classList.toggle("fopen"); };
   draw();
 }
@@ -1659,7 +1656,7 @@ function tableHtml(list,manage){
       <td style="white-space:nowrap"><button class="ab ghost view" data-open="${esc(c.id)}">${mi("eye",18)} ดูรายละเอียด</button>${(manage||del)?`<button class="ab ghost ico" data-menu="${esc(c.id)}" title="เพิ่มเติม" aria-label="เพิ่มเติม">⋯</button>`:""}</td>
     </tr>`;}).join("")}</tbody></table></div>`;
 }
-function exportCsv(list){
+function exportCsv(list,tag){
   if(!list.length) return toast("ไม่มีรายการให้ส่งออก");
   const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด (จ่ายตามวงเงิน)","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย"]]
     .concat(list.map(c=>[c.docNo||c.id,roundLabel(roundIdOf(c)),c.branchCode,Branches.nameOf(c.branchCode)||c.branchName||"",
@@ -1671,7 +1668,7 @@ function exportCsv(list){
   const csv="﻿"+rows.map(r=>r.map(cell).join(",")).join("\r\n");
   const a=document.createElement("a");
   a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"}));
-  a.download="เบิกเงินประชุม-"+(F.round&&F.round!=="_all"?F.round:"ทุกรอบ")+".csv";
+  a.download="เบิกเงินประชุม-"+(tag||(F.round&&F.round!=="_all"?F.round:"ทุกรอบ"))+".csv";
   document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},500);
 }
 function roundForm(r){
@@ -1717,7 +1714,7 @@ function adminRounds(body){
         <div class="rprog"><div class="rp-h"><div><small>รอบเบิก</small><b>${esc(roundLabel(cur.id))}</b></div><span class="pill ${cur.open?"p-ok":"p-no"}">● ${cur.open?"เปิดรับ":"ปิดรับแล้ว"}</span></div>
           <div class="rp-n"><b>${sentC}</b><span>/ ${nb} สาขาที่ส่ง</span><em>${Math.round(pct*10)/10}%</em></div><div class="rp-bar"><i style="width:${Math.max(pct,2)}%"></i></div>
           <div class="rp-f"><span>${esc(dtxt)}</span>${left!=null&&left>=0?`<span class="cd">⏳ เหลือ ${left} วัน</span>`:""}</div></div>
-        <div class="m4"><div><small>วงเงินรวม</small><b>${baht(M.lim)}</b></div><div><small>ส่งเบิกแล้ว</small><b style="color:#e8590c">${baht(M.sent)}</b></div><div><small>อนุมัติแล้ว</small><b style="color:#15803d">${baht(M.ok)}</b></div><div><small>รอตรวจ</small><b>${M.wait}</b></div></div>
+        <div class="m4"><div><small>วงเงินรวม</small><b>${baht(M.lim)}</b></div><div><small>ส่งเบิกแล้ว</small><b style="color:#e8590c">${baht(M.sent)}</b></div><div><small>ทำเบิกแล้ว</small><b style="color:#15803d">${baht(M.ok)}</b></div><div><small>รอทำเบิก</small><b>${M.wait}</b></div></div>
         ${nb-sentC>0?`<div class="warnbar">${mi("warn",22)}<span>${nb-sentC} สาขายังไม่ส่งเอกสาร</span><button class="ab ghost" id="unsent">ดูรายชื่อ →</button></div>`:`<div class="warnbar ok">✓ ทุกสาขาส่งเอกสารแล้ว</div>`}
         <div class="acts" id="rcact" style="margin-top:14px"></div>`
         :`<div class="muted" style="grid-column:1/-1">ยังไม่มีรอบเปิดอยู่ กด "สร้างรอบใหม่"</div>`}</div>
@@ -1810,15 +1807,13 @@ function wireTools(body,idQ,draw){
     bc.querySelectorAll(".chip").forEach(x=>x.classList.toggle("on",x===b)); draw(); };
   $("#"+idQ,body).oninput=e=>{F.q=e.target.value;draw();};
 }
-function adminLimits(body,r){
+function adminBranches(body,r){
   const cfg=CFG();
   const BC=["#ff7a1a","#3b82f6","#8b5cf6","#14935a","#e0457b","#e0a21a"];
-  body.innerHTML=`<div class="head"><h1>วงเงินสาขา</h1><span class="sp"></span>
-      ${can("manage-payees")?`<button class="tbtn" id="imp" title="นำเข้ารายชื่อทีมผู้จัดการสาขา + งบต่อคน จากไฟล์ Excel">${mi("upload",18)} นำเข้า Excel</button>`:""}
+  body.innerHTML=`<div class="head"><h1>วงเงินสาขา & ผู้รับเงิน</h1><span class="sp"></span>
       <span class="sbox" style="min-width:260px;max-width:300px">${mi("search",18)}<input id="lq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
     <div class="lmain"><aside class="glass-card lside" id="lside"></aside>
-      <div style="min-width:0"><div class="glass-card"><div class="bc tabs2" style="padding:14px 18px;border-bottom:1px solid #eef0f4">${brandChips()}<span class="sp"></span><span class="muted" id="lpend" style="font-size:13.5px"></span><button class="tbtn pri" id="lall" disabled>บันทึกทั้งหมด</button></div><div id="out"></div></div></div></div>`;
-  if($("#imp",body)) $("#imp",body).onclick=openImport;
+      <div style="min-width:0;display:flex;flex-direction:column;gap:14px"><div id="reqs" class="grid2" style="margin:0"></div><div class="glass-card"><div class="bc tabs2" style="padding:14px 18px;border-bottom:1px solid #eef0f4">${brandChips()}<span class="sp"></span><span class="muted" id="lpend" style="font-size:13.5px"></span><button class="tbtn pri" id="lall" disabled>บันทึกทั้งหมด</button></div><div id="out"></div></div></div></div>`;
   const all=Branches.list(), out=$("#out",body), side=$("#lside",body);
   const PEND=(window._limPend=window._limPend||{});
   const limitsNow=()=>CFG().limits||{};
@@ -1839,12 +1834,13 @@ function adminLimits(body,r){
     const list=all.filter(matchBranch), limits=limitsNow();
     if(!list.length){ out.innerHTML=`<div class="empty" style="margin:14px">ไม่พบสาขาที่ค้นหา</div>`; return; }
     const pg=pager("lim",list.length,20,F.brand+"|"+F.q,"per","สาขา");
-    out.innerHTML=`<table class="mtbl"><thead><tr><th>สาขา</th><th class="r">วงเงินต่อรอบ</th><th>ใช้ไปแล้ว</th><th class="r"></th></tr></thead><tbody>
-      ${list.slice(pg.s,pg.e).map(b=>{ const own=Number(limits[b.code])>0, lim=effLim(b), u=r?used(r.id,b.code):0, p=lim?Math.min(100,u/lim*100):0;
+    out.innerHTML=`<table class="mtbl"><thead><tr><th>สาขา</th><th class="r">วงเงินต่อรอบ</th><th>ใช้ไปแล้ว</th><th>ผู้รับเงิน</th><th class="r"></th></tr></thead><tbody>
+      ${list.slice(pg.s,pg.e).map(b=>{ const py=payeeOf(b.code), own=Number(limits[b.code])>0, lim=effLim(b), u=r?used(r.id,b.code):0, p=lim?Math.min(100,u/lim*100):0;
         return `<tr data-code="${esc(b.code)}"><td><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)} · ${own?"เฉพาะสาขา":"ตามค่ากลาง/รอบ"}</small></td>
         <td class="r"><input class="lin" type="number" min="0" step="1" value="${PEND[b.code]!=null?(PEND[b.code]||""):(lim||"")}" placeholder="0" data-orig="${lim||0}"> บาท</td>
         <td>${u?`<div class="bar-s"><div class="bar"><i class="${u>lim?"over":""}" style="width:${p}%"></i></div></div><small>${baht(u)} / ${lim?baht(lim):"—"}</small>`:`<span class="pillg">ยังไม่ส่ง</span>`}</td>
-        <td class="r"><button class="ab ${PEND[b.code]!=null?"yes":"ghost"} lsv" ${PEND[b.code]!=null?"":"disabled"}>บันทึก</button></td></tr>`;}).join("")}</tbody></table>${pg.html}`;
+        <td>${py.name?`<b>${esc(py.name)}</b><small>${esc([py.position,py.empCode?"รหัส "+py.empCode:""].filter(Boolean).join(" · "))}</small>`:`<span class="pillg">ยังไม่มีผู้รับเงิน</span>`}</td>
+        <td class="r" style="white-space:nowrap"><button class="ab ${PEND[b.code]!=null?"yes":"ghost"} lsv" ${PEND[b.code]!=null?"":"disabled"}>บันทึก</button> <button class="ab ghost view" data-pay="${esc(b.code)}">${mi("pen",16)} ผู้รับเงิน</button></td></tr>`;}).join("")}</tbody></table>${pg.html}`;
     paintPend();
   };
   out.addEventListener("input",e=>{ const i=e.target.closest(".lin"); if(!i) return; const tr=i.closest("tr"), b=tr.querySelector(".lsv"); const dirty=Number(i.value||0)!==Number(i.dataset.orig); b.disabled=!dirty; b.classList.toggle("yes",dirty); b.classList.toggle("ghost",!dirty);
@@ -1868,6 +1864,44 @@ function adminLimits(body,r){
       codes.forEach(c=>{ const v=PEND[c]; if(v>0) limits[c]=v; else delete limits[c]; });
       await saveCfg({limits}); codes.forEach(c=>delete PEND[c]); toast("บันทึกวงเงิน "+codes.length+" สาขาแล้ว"); }
     catch(err){ toast(err.message||"บันทึกไม่สำเร็จ"); } draw(); };
+  /* ผู้รับเงิน: คำขอจากสาขา → ผู้ดูแลกด "รับทราบ" ก็เปลี่ยนให้เลย · ผู้ดูแลแก้เองได้ทันที */
+  const drawReqs=()=>{
+    const rq=$("#reqs",body); if(!rq) return;
+    const pend=PREQ().filter(p=>p.status==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
+    rq.innerHTML=""; rq.style.display=pend.length?"":"none";
+    pend.forEach(p=>{
+      const c=document.createElement("div"); c.className="card hl";
+      c.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(Branches.label(p.branchCode,p.branchName))}</b><span class="muted">${esc(stamp(p.createdAt))}</span></div>
+        <div class="cmp"><div>${payeeMini(p.prev,"เดิม")}</div><span class="arr">→</span><div class="new">${payeeMini(p.next,"ขอเปลี่ยนเป็น")}</div></div>
+        ${p.reason?`<div class="muted" style="margin-top:8px">เหตุผล: ${esc(p.reason)}</div>`:""}`;
+      if(can("manage-payees")){
+        const a=document.createElement("div"); a.className="acts";
+        const y=Object.assign(document.createElement("button"),{className:"btn sm ok",textContent:"รับทราบ"});
+        y.onclick=async()=>{
+          y.disabled=true;
+          try{
+            /* expect = ยังรออยู่ · กันสองคนกดพร้อมกัน */
+            await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
+            await S.set("payees",p.branchCode,Object.assign({},p.next,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
+            toast("รับทราบแล้ว — เปลี่ยนผู้รับเงินเรียบร้อย");
+          }catch(err){ toast(err.message||"รับทราบไม่สำเร็จ"); y.disabled=false; }
+        };
+        a.appendChild(y); c.appendChild(a);
+      }
+      rq.appendChild(c);
+    });
+  };
+  out.addEventListener("click",e=>{ const btn=e.target.closest("[data-pay]"); if(!btn||!can("manage-payees")) return;
+    const b=all.find(x=>x.code===btn.dataset.pay), cur=payeeOf(b.code);
+    const f=document.createElement("div");
+    f.innerHTML=payeeFields(cur)+`<div class="muted" style="margin-top:6px">ผู้ดูแลแก้ได้ทันที ไม่ต้องรอใคร</div>`; attachEmpPick(f);
+    modal("ผู้รับเงิน · "+b.code+" "+b.name,f,async()=>{
+      const v=readPayee(f);
+      await S.set("payees",b.code,Object.assign(cur.position?{position:cur.position}:{},v,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
+      toast("บันทึกแล้ว");
+    });
+  });
+  drawReqs();
   bindPager(out,"lim",draw);
   wireTools(body,"lq",draw);
   draw();
@@ -1926,7 +1960,7 @@ function rptBzmData(yr,basis){
     z.tot=z.t.reduce((a,b)=>a+b,0); z.t.forEach((v,m)=>colTot[m]+=v); limTot+=z.lim; nBr+=z.rows.length; });
   const be=+yr+543;
   return {yr,be,yy:String(be%100).padStart(2,"0"),lastM,groups,colTot,limTot,nBr,basis,
-    foot:"เบิก"+(basis==="all"?"ทั้งหมดที่ไม่ถูกปฏิเสธ (รวมรอตรวจ)":"เฉพาะที่อนุมัติแล้ว")+" · ออกรายงาน "+thFullDate(HubMod.localDate())};
+    foot:"เบิก"+(basis==="all"?"ทั้งหมดที่ไม่ถูกปฏิเสธ (รวมรอทำเบิก)":"เฉพาะที่ทำเบิกแล้ว")+" · ออกรายงาน "+thFullDate(HubMod.localDate())};
 }
 /* ── ข้อมูลรายงาน 2: สรุปเบิกตามเดือน (รายสาขา · รอบเดียว) ── */
 function rptMonthData(rid,basis){
@@ -1940,7 +1974,7 @@ function rptMonthData(rid,basis){
   const rows=list.map((x,i)=>{
     const last=x.cs.slice().sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""))[0]||null, p=payeeOf(x.b.code), z=bzmOf(x.b.code);
     const amt=sumOf(x.paid), real=x.cs.length?x.cs.reduce((s,c)=>s+(Number(c.claimedAmount)||Number(c.amount)||0),0):null;
-    const notes=[]; if(!x.cs.length) notes.push("ไม่ได้ส่งเบิก"); else if(!x.paid.length) notes.push("รอตรวจ");
+    const notes=[]; if(!x.cs.length) notes.push("ไม่ได้ส่งเบิก"); else if(!x.paid.length) notes.push("รอทำเบิก");
     x.cs.forEach(c=>{ if(c.note&&String(c.note).trim()) notes.push(String(c.note).trim()); });
     tAmt+=amt; tReal+=real||0; tLim+=x.lim; if(x.cs.length) nSent++;
     return {no:i+1,brand:Branches.brandName(Branches.brandOf(x.b.code)),bzm:firstWord(z.label.split(" · ")[1])||z.key||"—",code:String(x.b.code),name:x.b.name,
@@ -1948,7 +1982,7 @@ function rptMonthData(rid,basis){
       amt,real,lim:x.lim,note:notes.join(" · "),sent:x.cs.length>0}; });
   const span=(rd.startDate&&rd.dueDate)?"รอบวันที่ "+thFullDate(rd.startDate)+"  ถึง วันที่ "+thFullDate(rd.dueDate):"รอบเดือน"+MONTHS_FULL[mo]+" "+be;
   return {rid,mo,be,rows,tAmt,tReal,tLim,nSent,basis,title:"สรุปจำนวนเงินค่าอาหารในการประชุมร้าน"+span,
-    foot:"จำนวนเงิน = ยอดที่จ่ายตามวงเงิน ("+(basis==="all"?"รวมรอตรวจ":"เฉพาะที่อนุมัติแล้ว")+") · ใช้จริง = ยอดตามใบเสร็จที่สาขาขอเบิก · งบในการใช้ = วงเงินของสาขาในรอบนี้"};
+    foot:"จำนวนเงิน = ยอดที่จ่ายตามวงเงิน ("+(basis==="all"?"รวมรอทำเบิก":"เฉพาะที่ทำเบิกแล้ว")+") · ใช้จริง = ยอดตามใบเสร็จที่สาขาขอเบิก · งบในการใช้ = วงเงินของสาขาในรอบนี้"};
 }
 
 /* ── Excel ── */
@@ -2053,7 +2087,7 @@ function openReportExport(pref,opt){
       `<select id="xy" style="min-width:160px">${years.map(y=>`<option value="${y}" ${y===yr0?"selected":""}>ปี ${+y+543}</option>`).join("")}</select>`)
     +card("month","2","สรุปเบิกตามเดือน","รายสาขาของรอบเดียว พร้อมผู้รับเงิน จำนวนเงิน ใช้จริง และงบในการใช้",
       `<select id="xr" style="min-width:200px">${rids.map(id=>`<option value="${id}" ${id===rid0?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}</select>`)
-    +`<div class="f2"><div class="field" style="margin-top:6px"><label>นับยอดเบิก</label><select id="xb"><option value="ok">เฉพาะที่อนุมัติแล้ว</option><option value="all">รวมรอตรวจ</option></select></div>
+    +`<div class="f2"><div class="field" style="margin-top:6px"><label>นับยอดเบิก</label><select id="xb"><option value="ok">เฉพาะที่ทำเบิกแล้ว</option><option value="all">รวมรอทำเบิก</option></select></div>
       <div class="field" style="margin-top:6px"><label>รูปแบบไฟล์</label><select id="xf"><option value="xlsx">Excel (.xlsx)</option><option value="pdf">PDF (พิมพ์ A4 แนวนอน)</option></select></div></div>
       <div class="muted" id="xhint" style="font-size:12.5px;margin-top:6px"></div>`;
   const hint=()=>{ $("#xhint",f).textContent=$("#xf",f).value==="pdf"?"PDF: จะเปิดหน้าต่างพิมพ์ ให้เลือกเครื่องพิมพ์เป็น “บันทึกเป็น PDF” (Save as PDF)":""; };
@@ -2079,10 +2113,10 @@ function adminReport(body){
   if(!RV.to||!/^\d{4}-\d{2}$/.test(RV.to)) RV.to=rids.length?rids[rids.length-1]:cur;
   if(!RV.from||!/^\d{4}-\d{2}$/.test(RV.from)) RV.from=RV.to.slice(0,4)+"-01";
   if(RV.from>RV.to) RV.from=RV.to;
-  body.innerHTML=`<div class="head"><h1>รายงานเบิกเงินประชุม</h1><span class="sp"></span>${updLabel()}<div class="xdd" id="xdd"><button class="tbtn" id="xbtn" aria-haspopup="menu" aria-expanded="false">${mi("excel",18)} ส่งออก <span class="xcar">▾</span></button><div class="xmenu" role="menu"><button id="rcsv" role="menuitem">${mi("excel",18)} ส่งออก Excel</button><button id="rprt" role="menuitem">${mi("print",18)} พิมพ์</button></div></div></div>
+  body.innerHTML=`<div class="head"><h1>รายงานเบิกเงินประชุม</h1><span class="sp"></span>${updLabel()}</div>
     <div class="tabs2" style="align-items:flex-end"><label class="muted" style="font-size:13px;margin:0">ตั้งแต่<input type="month" id="rf" value="${esc(RV.from)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
       <label class="muted" style="font-size:13px;margin:0">ถึง<input type="month" id="rt" value="${esc(RV.to)}" style="margin-top:4px;min-width:190px;border-radius:12px"></label>
-      <button class="chip ${RV.basis==="ok"?"on":""}" data-b="ok">เฉพาะอนุมัติแล้ว</button><button class="chip ${RV.basis==="all"?"on":""}" data-b="all">รวมรอตรวจ</button></div>
+      <button class="chip ${RV.basis==="ok"?"on":""}" data-b="ok">เฉพาะทำเบิกแล้ว</button><button class="chip ${RV.basis==="all"?"on":""}" data-b="all">รวมรอทำเบิก</button></div>
     <div id="rout" style="display:flex;flex-direction:column;gap:16px"></div>`;
   const redo=()=>adminReport(body);
   $("#rf",body).onchange=e=>{RV.from=e.target.value||RV.from;redo();};
@@ -2118,18 +2152,11 @@ function adminReport(body){
     ${shown.slice(pg.s,pg.e).map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${esc(bzmOf(x.b.code).key||"—")}</td><td class="c">${x.n||"—"}</td>
       <td class="r">${x.n?`<b>${baht(x.sum)}</b>`:`<span class="pillg">ไม่มีการเบิก</span>`}</td>
       <td>${x.n?`<div class="bar-s"><div class="bar"><i style="width:${tot?x.sum/tot*100:0}%"></i></div><b>${tot?(x.sum/tot*100).toFixed(1):0}%</b></div>`:"—"}</td></tr>`).join("")}</tbody></table>${pg.html}`:`<div class="empty" style="margin:14px">ไม่มีสาขาที่ตรงกับตัวกรอง</div>`}</div>`;
-  out.innerHTML=`<div class="kts">${kt("coins","gr","ยอดเบิกรวม",baht(tot)+" <i>บาท</i>",(okOnly?"อนุมัติแล้ว":"รวมรอตรวจ")+" · "+months.length+" เดือน",true)}
+  out.innerHTML=`<div class="kts">${kt("coins","gr","ยอดเบิกรวม",baht(tot)+" <i>บาท</i>",(okOnly?"ทำเบิกแล้ว":"รวมรอทำเบิก")+" · "+months.length+" เดือน",true)}
       ${kt("doc","gy","จำนวนใบเบิก",inList.length,nb+" สาขา")}${kt("receipt","gy","เฉลี่ยต่อใบ",inList.length?baht(Math.round(tot/inList.length))+" <i>บาท</i>":"—","")}
       ${kt("ban","or","ไม่มีการเบิก",none.length,"จาก "+all.length+" สาขา",true)}</div>${chart}${tbl}`;
   out.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{RV.f=b.dataset.f;redo();});
   bindPager(out,"rptbr",redo);
-  { const dd=$("#xdd",body), xb=$("#xbtn",body);
-    const close=()=>{ dd.classList.remove("open"); xb.setAttribute("aria-expanded","false"); };
-    xb.onclick=e=>{ e.stopPropagation(); const o=dd.classList.toggle("open"); xb.setAttribute("aria-expanded",o); };
-    dd.querySelectorAll(".xmenu button").forEach(b=>b.addEventListener("click",close));
-    document.addEventListener("click",function f(e){ if(!document.body.contains(dd)){ document.removeEventListener("click",f); return; } if(!dd.contains(e.target)) close(); }); }
-  $("#rprt",body).onclick=()=>window.print();
-  $("#rcsv",body).onclick=()=>openReportExport("bzm",{year:RV.to.slice(0,4)});
 }
 
 /* ═════════════ สรุปตาม BZM ═════════════
@@ -2150,11 +2177,11 @@ function adminBzmZone(body,r){
   const rid=BV.round, inRound=CLAIMS().filter(c=>roundIdOf(c)===rid&&!isRejected(c));
   const list=Branches.list().filter(b=>bzmOf(b.code).label===BV.zone);
   const rows=list.map(b=>{ const lim=limitOf(rid,b.code), cs=inRound.filter(c=>c.branchCode===b.code), sent=sumOf(cs), ok=sumOf(cs.filter(c=>statusOf(c)==="อนุมัติ"));
-    return {b,lim,sent,ok,has:cs.length>0,p:payeeOf(b.code),st:!cs.length?"ยังไม่ส่ง":ok>0?"อนุมัติ":"รอตรวจ"}; }).filter(x=>x.lim>0||x.has);
+    return {b,lim,sent,ok,has:cs.length>0,p:payeeOf(b.code),st:!cs.length?"ยังไม่ส่ง":ok>0?"อนุมัติ":"รอทำเบิก"}; }).filter(x=>x.lim>0||x.has);
   const T=rows.reduce((a,x)=>({lim:a.lim+x.lim,sent:a.sent+x.sent,ok:a.ok+x.ok,ns:a.ns+(x.has?0:1)}),{lim:0,sent:0,ok:0,ns:0});
   const parts=String(BV.zone).split(" · "), noKey=!bzmOf(list[0]?list[0].code:"").key;
   body.innerHTML=`<div class="head"><h1>${noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0])}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
-    <div class="kts">${kt("org","gy","จำนวนสาขา",rows.length,"")}${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>","")}${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",rows.length-T.ns+" สาขา",true)}${kt("check","gr","อนุมัติแล้ว",baht(T.ok)+" <i>บาท</i>","ยังไม่ส่ง "+T.ns+" สาขา",true)}</div>
+    <div class="kts">${kt("org","gy","จำนวนสาขา",rows.length,"")}${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>","")}${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",rows.length-T.ns+" สาขา",true)}${kt("check","gr","ทำเบิกแล้ว",baht(T.ok)+" <i>บาท</i>","ยังไม่ส่ง "+T.ns+" สาขา",true)}</div>
     <div class="lbar"><span class="tabs2" id="zchips"></span><span style="flex:1"></span><span class="sbox">${mi("search",18)}<input id="zq" placeholder="ค้นหารหัส / ชื่อสาขา / ผู้รับเงิน"></span></div><div id="zout"></div>
     <div style="display:flex;justify-content:center;margin-top:6px"><button class="tbtn" id="zback">‹ กลับไปหน้าสรุปตาม BZM</button></div>`;
   $("#zback",body).onclick=()=>{ BV.zone=""; adminBzm(body,r); };
@@ -2162,13 +2189,13 @@ function adminBzmZone(body,r){
   const draw=()=>{
     const q=$("#zq",body).value.trim().toLowerCase();
     const cnt=k=>rows.filter(x=>k==="all"||x.st===k).length;
-    $("#zchips",body).innerHTML=[["all","ทั้งหมด"],["ยังไม่ส่ง","ยังไม่ส่ง"],["รอตรวจ","รอตรวจ"],["อนุมัติ","อนุมัติ"]].map(([k,t])=>`<button class="chip ${ZF===k?"on":""}" data-zf="${esc(k)}">${esc(t)} <em>${cnt(k)}</em></button>`).join("");
+    $("#zchips",body).innerHTML=[["all","ทั้งหมด"],["ยังไม่ส่ง","ยังไม่ส่ง"],["รอทำเบิก","รอทำเบิก"],["อนุมัติ","ทำเบิกแล้ว"]].map(([k,t])=>`<button class="chip ${ZF===k?"on":""}" data-zf="${esc(k)}">${esc(t)} <em>${cnt(k)}</em></button>`).join("");
     const v=rows.filter(x=>(ZF==="all"||x.st===ZF)&&(!q||(x.b.code+" "+x.b.name+" "+(x.p.name||"")).toLowerCase().indexOf(q)>=0));
     const cntTxt=`<div class="pgbar"><div>แสดง ${v.length} จาก ${rows.length} สาขา</div></div>`;
-    out.innerHTML=v.length?`<div class="glass-card" style="margin-top:12px"><table class="mtbl"><thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th class="r">วงเงิน (บาท)</th><th class="r">เบิก (บาท)</th><th class="r">อนุมัติ (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>
+    out.innerHTML=v.length?`<div class="glass-card" style="margin-top:12px"><table class="mtbl"><thead><tr><th>สาขา</th><th>ผู้รับเงิน</th><th class="r">วงเงิน (บาท)</th><th class="r">เบิก (บาท)</th><th class="r">ทำเบิก (บาท)</th><th class="c">สถานะ</th></tr></thead><tbody>
       ${v.map(x=>`<tr><td><b>${esc(x.b.code)} ${esc(x.b.name)}</b><small>${esc(x.b.brandName)}</small></td><td>${x.p.name?esc(x.p.name):"<span class='muted'>—</span>"}</td>
         <td class="r">${x.lim?baht(x.lim):"—"}</td><td class="r">${x.has?baht(x.sent):"—"}</td><td class="r">${x.ok?baht(x.ok):"—"}</td>
-        <td class="c">${x.st==="อนุมัติ"?'<span class="pillk">อนุมัติ</span>':x.st==="รอตรวจ"?'<span class="pillo">รอตรวจ</span>':'<span class="pillg">ยังไม่ส่ง</span>'}</td></tr>`).join("")}</tbody></table>${cntTxt}</div>`
+        <td class="c">${x.st==="อนุมัติ"?'<span class="pillk">ทำเบิกแล้ว</span>':x.st==="รอทำเบิก"?'<span class="pillo">รอทำเบิก</span>':'<span class="pillg">ยังไม่ส่ง</span>'}</td></tr>`).join("")}</tbody></table>${cntTxt}</div>`
       :`<div class="empty" style="margin-top:12px">ไม่พบสาขาที่ตรงกับตัวกรอง</div>`;
   };
   body.addEventListener("click",e=>{ const b=e.target.closest("[data-zf]"); if(b){ ZF=b.dataset.zf; draw(); } });
@@ -2181,12 +2208,12 @@ function adminBzm(body,r){
   if(!BV.round||!rids.includes(BV.round)) BV.round=(r||{}).id||rids[0]||"";
   const years=[...new Set(rids.map(x=>x.slice(0,4)))];
   if(!BV.year||!years.includes(BV.year)) BV.year=(BV.round||thisRoundId()).slice(0,4);
-  body.innerHTML=`<div class="head"><h1>สรุปตาม BZM</h1><span class="sp"></span>${updLabel()}<button class="tbtn" id="bcsv">${mi("excel",18)} ส่งออก Excel</button></div>
+  body.innerHTML=`<div class="head"><h1>สรุปตาม BZM</h1><span class="sp"></span>${updLabel()}</div>
     <div class="tabs2"><button class="chip ${BV.mode==="round"?"on":""}" data-m="round">รายรอบ</button><button class="chip ${BV.mode==="year"?"on":""}" data-m="year">ทั้งปี รายเดือน</button>
       ${BV.mode==="round"
         ?`<select id="brd" class="on" aria-label="รอบ">${rids.map(id=>`<option value="${esc(id)}" ${BV.round===id?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}</select>`
         :`<select id="byr" class="on" aria-label="ปี">${years.map(y=>`<option value="${y}" ${BV.year===y?"selected":""}>ปี ${+y+543}</option>`).join("")}</select>
-          <label class="muted" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="ball" ${BV.all?"checked":""} style="width:auto;height:auto"> นับรวมที่ยังไม่อนุมัติ</label>`}
+          <label class="muted" style="display:inline-flex;gap:6px;align-items:center"><input type="checkbox" id="ball" ${BV.all?"checked":""} style="width:auto;height:auto"> นับรวมที่ยังไม่ทำเบิก</label>`}
     </div><div id="bout" style="margin-top:16px"></div>`;
   body.querySelectorAll("[data-m]").forEach(b=>b.onclick=()=>{BV.mode=b.dataset.m;adminBzm(body,r);});
   if($("#brd",body)) $("#brd",body).onchange=e=>{BV.round=e.target.value;adminBzm(body,r);};
@@ -2196,7 +2223,7 @@ function adminBzm(body,r){
   const grp=(fn)=>{ const g={}; Branches.list().forEach(b=>{ const z=bzmOf(b.code); (g[z.label]=g[z.label]||{label:z.label,key:z.key,list:[]}).list.push(b); }); return Object.values(g).sort((a,b)=>a.key?(b.key?a.label.localeCompare(b.label,"th"):-1):1).map(x=>(fn&&fn(x),x)); };
   if(BV.mode==="round"){
     const rid=BV.round;
-    if(!rid){ out.innerHTML=`<div class="empty">ยังไม่มีรอบเบิก</div>`; $("#bcsv",body).onclick=()=>toast("ไม่มีรายการให้ส่งออก"); return; }
+    if(!rid){ out.innerHTML=`<div class="empty">ยังไม่มีรอบเบิก</div>`; return; }
     const inRound=CLAIMS().filter(c=>roundIdOf(c)===rid&&!isRejected(c));
     const groups=grp(z=>{
       z.rows=z.list.map(b=>{ const lim=limitOf(rid,b.code), cs=inRound.filter(c=>c.branchCode===b.code), sent=sumOf(cs), ok=sumOf(cs.filter(c=>statusOf(c)==="อนุมัติ"));
@@ -2209,14 +2236,14 @@ function adminBzm(body,r){
     const nm=z=>{ const p=String(z.label).split(" · "); return {nick:p[0],name:p[1]||""}; };
     out.innerHTML=`<div class="kts">${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>",T.br+" สาขา")}
         ${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",(T.br-T.notSent)+" สาขา",true)}
-        ${kt("check","gr","อนุมัติแล้ว",baht(T.ok)+" <i>บาท</i>","รอตรวจ <b style='display:inline;font-size:13px;color:#14935a'>"+baht(T.wait)+"</b>",true)}
+        ${kt("check","gr","ทำเบิกแล้ว",baht(T.ok)+" <i>บาท</i>","รอทำเบิก <b style='display:inline;font-size:13px;color:#14935a'>"+baht(T.wait)+"</b>",true)}
         ${kt("doc","gy","ยังไม่ส่ง",T.notSent+" <i>สาขา</i>","")}</div>
-      <div class="glass-card" style="margin-top:16px"><table class="mtbl"><thead><tr><th>BZM</th><th class="r">จำนวนสาขา</th><th class="r">วงเงิน (บาท)</th><th class="r">ส่งเบิก (บาท)</th><th class="r">อนุมัติ (บาท)</th><th class="r">ยังไม่ส่ง (สาขา)</th><th class="r">รายละเอียด</th></tr></thead><tbody>
+      <div class="glass-card" style="margin-top:16px"><table class="mtbl"><thead><tr><th>BZM</th><th class="r">จำนวนสาขา</th><th class="r">วงเงิน (บาท)</th><th class="r">ส่งเบิก (บาท)</th><th class="r">ทำเบิก (บาท)</th><th class="r">ยังไม่ส่ง (สาขา)</th><th class="r">รายละเอียด</th></tr></thead><tbody>
       ${groups.map((z,i)=>{ const n=nm(z), noKey=!z.key; return `<tr class="${noKey?"warnrow":""}"><td>${noKey?`<span style="display:inline-grid;place-items:center;width:26px;height:26px;border-radius:50%;background:#ff6b1a;color:#fff;font-weight:800;margin-right:10px">!</span>`:""}<b>${esc(noKey?"ไม่ระบุ BZM":n.nick)}</b>${n.name?`<small style="display:inline;margin-left:8px">${esc(n.name)}</small>`:""}</td>
         <td class="r">${z.t.br}</td><td class="r">${baht(z.t.lim)}</td><td class="r" style="${z.t.sent?"color:#e8590c;font-weight:700":""}">${z.t.sent?baht(z.t.sent):"-"}</td><td class="r" style="${z.t.ok?"color:#14935a;font-weight:700":""}">${z.t.ok?baht(z.t.ok):"-"}</td>
         <td class="r">${z.t.notSent||"-"}</td><td class="r"><button class="lnk" data-zd="${i}">ดูรายละเอียด ›</button></td></tr>`;}).join("")}</tbody></table></div>`;
     out.onclick=e=>{ const b=e.target.closest("[data-zd]"); if(!b) return; const z=window._bzmGroups[+b.dataset.zd]; if(!z) return; BV.zone=z.label; ZF="all"; adminBzm(body,r); };
-    csvRows=[["BZM","รหัสสาขา","สาขา","ผู้รับเงิน","วงเงิน","เบิก","อนุมัติ","ยังไม่อนุมัติ"]];
+    csvRows=[["BZM","รหัสสาขา","สาขา","ผู้รับเงิน","วงเงิน","เบิก","อนุมัติ","ยังไม่ทำเบิก"]];
     groups.forEach(z=>z.rows.forEach(x=>csvRows.push([z.label,x.b.code,x.b.name,x.p.name||"",x.lim,x.sent,x.ok,x.wait])));
   }else{
     const yr=BV.year, pick=c=>BV.all?!isRejected(c):statusOf(c)==="อนุมัติ";
@@ -2225,7 +2252,7 @@ function adminBzm(body,r){
       claims.forEach(c=>{ if(codes.has(c.branchCode)){ const m=+roundIdOf(c).slice(5,7); if(m>=1&&m<=12) z.m[m]+=Number(c.amount)||0; } });
       z.tot=z.m.reduce((a,b)=>a+b,0); }).filter(z=>z.tot>0);
     const colT=Array(13).fill(0); groups.forEach(z=>z.m.forEach((v,i)=>colT[i]+=v));
-    out.innerHTML=groups.length?`<div class="muted" style="margin:0 2px 8px">เบิก${BV.all?"ทั้งหมดที่ไม่ถูกปฏิเสธ":"ที่อนุมัติแล้ว"} ปี ${+yr+543} · ${groups.length} BZM · รวม ${baht(colT.reduce((a,b)=>a+b,0))} ฿</div>
+    out.innerHTML=groups.length?`<div class="muted" style="margin:0 2px 8px">เบิก${BV.all?"ทั้งหมดที่ไม่ถูกปฏิเสธ":"ที่ทำเบิกแล้ว"} ปี ${+yr+543} · ${groups.length} BZM · รวม ${baht(colT.reduce((a,b)=>a+b,0))} ฿</div>
       <div class="glass-card"><table class="mtbl"><thead><tr><th>BZM</th>${MONTHS_TH.slice(1).map(m=>`<th class="r">${m}</th>`).join("")}<th class="r">รวม</th></tr></thead><tbody>
       ${groups.map(z=>`<tr><td><b>${esc(z.label)}</b></td>${z.m.slice(1).map(v=>`<td class="r num">${v?baht(v):"—"}</td>`).join("")}<td class="r num"><b>${baht(z.tot)}</b></td></tr>`).join("")}
       <tr><td><b>รวมทุก BZM</b></td>${colT.slice(1).map(v=>`<td class="r num"><b>${v?baht(v):"—"}</b></td>`).join("")}<td class="r num"><b>${baht(colT.reduce((a,b)=>a+b,0))}</b></td></tr></tbody></table></div>`
@@ -2233,7 +2260,6 @@ function adminBzm(body,r){
     csvRows=[["BZM"].concat(MONTHS_TH.slice(1),["รวม"])];
     groups.forEach(z=>csvRows.push([z.label].concat(z.m.slice(1),[z.tot])));
   }
-  $("#bcsv",body).onclick=()=>openReportExport(BV.mode==="year"?"bzm":"month",{year:BV.year,round:BV.round});
 }
 
 /* ═════════════ นำเข้ารายชื่อทีมผู้จัดการสาขา + งบต่อคน จาก Excel ═════════════
@@ -2339,84 +2365,26 @@ function limitForm(b){
     await saveCfg({limits}); toast("บันทึกแล้ว");
   });
 }
-let PAYF="all";
-function adminPayees(body){
-  const pend=PREQ().filter(p=>p.status==="pending").sort((a,b)=>(a.createdAt||"").localeCompare(b.createdAt||""));
-  PAYF=PAYF||"all";
-  body.innerHTML=`<div class="head"><h1>ผู้รับเงิน</h1><span class="sp"></span><span class="sbox" style="min-width:300px;max-width:360px">${mi("search",18)}<input id="pq" value="${esc(F.q)}" placeholder="ค้นหาสาขา รหัส หรือชื่อ"></span></div>
-    <div class="adsplit"><aside class="glass-card vk" id="pside"></aside>
-      <div style="min-width:0;display:flex;flex-direction:column;gap:14px"><div id="reqs" class="grid2" style="margin:0"></div><div id="out"></div></div></div>`;
-  const rq=$("#reqs",body);
-
-  pend.forEach(p=>{
-    const c=document.createElement("div"); c.className="card hl";
-    c.innerHTML=`<div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(Branches.label(p.branchCode,p.branchName))}</b><span class="muted">${esc(stamp(p.createdAt))}</span></div>
-      <div class="cmp"><div>${payeeMini(p.prev,"เดิม")}</div><span class="arr">→</span><div class="new">${payeeMini(p.next,"ขอเปลี่ยนเป็น")}</div></div>
-      ${p.reason?`<div class="muted" style="margin-top:8px">เหตุผล: ${esc(p.reason)}</div>`:""}`;
-    const a=document.createElement("div"); a.className="acts";
-    const y=Object.assign(document.createElement("button"),{className:"btn sm ok",textContent:"อนุมัติเปลี่ยน"});
-    const n=Object.assign(document.createElement("button"),{className:"btn sm no",textContent:"ไม่อนุมัติ"});
-    y.onclick=()=>{
-      const f=document.createElement("div");
-      f.innerHTML=`<div class="muted" style="margin-bottom:12px">${esc(Branches.label(p.branchCode,p.branchName))}</div><div class="cmp" style="grid-template-columns:1fr;margin:0"><div class="new">${payeeMini(p.next,"บัญชีใหม่")}</div></div>`;
-      modal("อนุมัติเปลี่ยนผู้รับเงิน",f,async()=>{
-        /* expect = ยังรออยู่ · กันสองคนกดพร้อมกัน */
-        await S.update("payeeReq",p.id,{status:"approved",reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
-        await S.set("payees",p.branchCode,Object.assign({},p.next,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
-        toast("เปลี่ยนผู้รับเงินแล้ว");
-      },"อนุมัติ");
-    };
-    n.onclick=()=>{
-      const f=document.createElement("div");
-      f.innerHTML=`<div class="field"><label>เหตุผลที่ไม่อนุมัติ</label><textarea id="rn" placeholder="แจ้งสาขาว่าต้องแก้อะไร"></textarea></div>`;
-      modal("ไม่อนุมัติคำขอ",f,async()=>{
-        const note=$("#rn",f).value.trim(); if(!note) throw new Error("ใส่เหตุผลให้สาขารู้ว่าต้องแก้อะไร");
-        await S.update("payeeReq",p.id,{status:"rejected",reviewNote:note,reviewedAt:nowISO(),reviewedBy:Hub.fullName()},{status:"pending"});
-        toast("บันทึกแล้ว");
-      },"ยืนยัน",true);
-    };
-    a.append(y,n); c.appendChild(a); rq.appendChild(c);
-  });
-  if(!pend.length) rq.remove();
-  const all=Branches.list(), out=$("#out",body), side=$("#pside",body);
-  const drawSide=()=>{
-    const nm=b=>payeeOf(b.code).name, inBrand=all.filter(b=>!F.brand||b.brand===F.brand);
-    const rowB=(k,t,n,on)=>`<div class="vkrow btn-st ${on?"on":""}" data-pb="${esc(k)}"><small>${esc(t)}</small><b>${n}</b></div>`;
-    const rowS=(k,t,n,tone,ic)=>`<div class="vkrow btn-st ${tone} ${PAYF===k?"on":""}" data-ps="${k}"><i class="vi">${mi(ic,20)}</i><small>${t}</small><b>${n}</b></div>`;
-    side.innerHTML=rowB("","ทุกแบรนด์",all.length,!F.brand)+Branches.brands().map(k=>rowB(k,Branches.brandName(k),all.filter(b=>b.brand===k).length,F.brand===k)).join("")
-      +`<hr>`+rowS("all","ทั้งหมด",inBrand.length,"t-or","doc")+rowS("has","มีผู้รับเงิน",inBrand.filter(nm).length,"t-gr","check")+rowS("no","ยังไม่มีผู้รับเงิน",inBrand.filter(b=>!nm(b)).length,"t-am","warn")
-      +`<hr><div class="vkrow t-yl" id="preqrow" style="cursor:${pend.length?"pointer":"default"}"><i class="vi">${mi("clock",20)}</i><small>คำขอรออนุมัติ</small><b>${pend.length}</b></div>`;
-  };
-  side.onclick=e=>{ const b=e.target.closest("[data-pb]"), st=e.target.closest("[data-ps]"), rr=e.target.closest("#preqrow");
-    if(b){ F.brand=b.dataset.pb; draw(); } else if(st){ PAYF=st.dataset.ps; draw(); } else if(rr&&pend.length){ const r0=$("#reqs",body); if(r0) r0.scrollIntoView({behavior:"smooth",block:"start"}); } };
-  const draw=()=>{
-    drawSide();
-    const qq=F.q.trim().toLowerCase();
-    const base=all.filter(b=>(!F.brand||b.brand===F.brand)&&(!qq||(b.code+" "+b.name+" "+(payeeOf(b.code).name||"")+" "+(payeeOf(b.code).empCode||"")).toLowerCase().indexOf(qq)>=0));
-    const list=PAYF==="has"?base.filter(b=>payeeOf(b.code).name):PAYF==="no"?base.filter(b=>!payeeOf(b.code).name):base;
-    if(!list.length){ out.innerHTML=`<div class="empty">ไม่พบสาขาที่ตรงกับตัวกรอง</div>`; return; }
-    const pg=pager("pay",list.length,10,F.brand+"|"+F.q+"|"+PAYF,"per","รายการ");
-    out.innerHTML=`<div class="glass-card"><table class="mtbl"><thead><tr><th>สาขา</th><th>พนักงานผู้รับเงิน</th><th>ตำแหน่ง</th><th>อัปเดตล่าสุด</th><th class="r">จัดการ</th></tr></thead><tbody>
-      ${list.slice(pg.s,pg.e).map(b=>{ const p=payeeOf(b.code);
-        return `<tr><td><b>${esc(b.code)} ${esc(b.name)}</b><small>${esc(b.brandName)}</small></td>
-        <td>${p.name?`<b>${esc(p.name)}</b>${p.empCode?`<small>รหัส ${esc(p.empCode)}</small>`:""}`:`<span class="pillg">ยังไม่มีผู้รับเงิน</span>`}</td>
-        <td>${p.name&&p.position?esc(p.position):"—"}</td>
-        <td style="color:#6b7280">${p.updatedAt?esc(dmy(p.updatedAt)):"—"}</td>
-        <td class="r"><button class="ab ghost view" data-pay="${esc(b.code)}">${mi("pen",16)} แก้ไข</button></td></tr>`;}).join("")}</tbody></table>${pg.html}</div>`;
-  };
-  out.onclick=e=>{ const btn=e.target.closest("[data-pay]"); if(!btn) return;
-    const b=all.find(x=>x.code===btn.dataset.pay), cur=payeeOf(b.code);
-    const f=document.createElement("div");
-    f.innerHTML=payeeFields(cur)+`<div class="muted" style="margin-top:6px">ผู้ดูแลแก้ได้ทันที ไม่ต้องรออนุมัติ</div>`; attachEmpPick(f);
-    modal("ผู้รับเงิน · "+b.code+" "+b.name,f,async()=>{
-      const v=readPayee(f);
-      await S.set("payees",b.code,Object.assign(cur.position?{position:cur.position}:{},v,{updatedAt:nowISO(),updatedBy:Hub.fullName()}));
-      toast("บันทึกแล้ว");
-    });
-  };
-  bindPager(out,"pay",draw);
-  $("#pq",body).oninput=e=>{F.q=e.target.value;draw();};
-  draw();
+/* ═════════════ ส่งออก / นำเข้า — รวมปุ่มส่งออก/นำเข้าที่เคยกระจายตามหน้าต่างๆ ไว้ที่เดียว ═════════════ */
+function adminIO(body){
+  const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort().reverse();
+  const canExp=can("view-claims")||can("update-status"), canImp=can("manage-payees");
+  const row=(ic,t,d,ctl)=>`<div class="ior"><i class="ioi">${mi(ic,22)}</i><div class="iot"><b>${t}</b><small>${d}</small></div><div class="ioa">${ctl}</div></div>`;
+  body.innerHTML=`<div class="head"><h1>ส่งออก / นำเข้า</h1><span class="sp"></span>${updLabel()}</div>
+    <div class="iog">
+      <div class="glass-card ioc"><h3>${mi("excel",22)} ส่งออก</h3>${canExp?
+        row("bars","รายงานเบิกเงินประชุม","สรุปตาม BZM ทั้งปี หรือรายสาขารายเดือน · เลือกไฟล์ Excel หรือ PDF (พิมพ์) ได้",`<button class="tbtn pri" id="xrep">ส่งออกรายงาน</button>`)
+        +row("doc","รายการเอกสารเบิก (CSV)","ทุกใบของรอบที่เลือก พร้อมผู้ทำการเบิก ผู้รับเงิน และสถานะ",`<select id="xcr" aria-label="รอบ">${rids.map(id=>`<option value="${esc(id)}" ${F.round===id?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}<option value="_all">ทุกรอบ</option></select><button class="tbtn" id="xcsv">ส่งออก</button>`)
+        :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์ส่งออก</div>`}</div>
+      <div class="glass-card ioc"><h3>${mi("upload",22)} นำเข้า</h3>${canImp?
+        row("people","รายชื่อทีมผู้จัดการสาขา + วงเงิน","จากไฟล์ Excel รายเดือน (ชีตเช่น 10-69) · ดูตัวอย่างและเลือกก่อนบันทึก",`<button class="tbtn pri" id="ximp">นำเข้า Excel</button>`)
+        :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์นำเข้า (ต้องมีสิทธิ์จัดการผู้รับเงิน)</div>`}</div>
+    </div>`;
+  const g=id=>body.querySelector("#"+id);
+  if(g("xrep")) g("xrep").onclick=()=>openReportExport("bzm");
+  if(g("xcsv")) g("xcsv").onclick=()=>{ const v=g("xcr").value;
+    exportCsv(CLAIMS().filter(c=>v==="_all"||roundIdOf(c)===v).sort(byTime),v==="_all"?"ทุกรอบ":v); };
+  if(g("ximp")) g("ximp").onclick=openImport;
 }
 
 /* ═════════════ เริ่มต้น ═════════════ */
