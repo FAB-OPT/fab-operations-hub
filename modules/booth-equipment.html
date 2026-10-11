@@ -154,6 +154,8 @@ function renderEq(){
     const b1=Object.assign(document.createElement("button"),{className:"btn sm",textContent:"+ เพิ่มอุปกรณ์"});
     const b2=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"จัดการหมวด"});
     b1.onclick=()=>eqForm(null); b2.onclick=catForm; bar.append(b1,b2);
+    if(SEED_EQ.some(x=>!eqs.some(e=>String(e.name||"").trim().toLowerCase()===x[0].trim().toLowerCase()))){
+      const b3=Object.assign(document.createElement("button"),{className:"btn sm ghost",textContent:"นำเข้ารายการตั้งต้น"}); b3.onclick=seedForm; bar.append(b3); }
   }
   v.appendChild(bar);
   if(!eqs.length){ v.insertAdjacentHTML("beforeend",
@@ -299,6 +301,36 @@ function eqForm(e){
     }
     toast("บันทึกแล้ว");
   });
+}
+/* รายการอุปกรณ์ตั้งต้น (ส่งมา 11 ต.ค. 2569) — กด "นำเข้ารายการตั้งต้น" ที่หน้าคลัง แล้วดูตัวอย่างก่อนบันทึก · ชื่อที่มีอยู่แล้วในคลังจะข้าม (ไม่ซ้ำ) */
+const SEED_EQ=[
+  ["เตาแก๊ส",1],["แผ่นแร็พ",1,"ไม่ได้ระบุจำนวนมา · ตั้งต้น 1"],["ถาดไม้มิกซ์ girl",6],
+  ["กล่องพลาสติก",11,"10+1 · ฝา 10+2"],["ไมโครเวฟ",3],["เตาทอดไฟฟ้า 4 ลิตร",4],["เตาทอดไฟฟ้า 6 ลิตร",1],["ปลั๊กไฟ",2],
+  ["แพนกลาง",10,"9+1 · ฝา 8"],["แพนเล็ก",2,"มีฝา (ไม่ได้ระบุจำนวน)"],["ฝาแพนใหญ่",1],["กะกะมังไม้",2],["ช้อนไม้/ส้อม",4],["กระบะเทา",2],
+  ["ถาดอะลูมิเนียม",19,"4+15"],["ถาดสแตนเลส",1],["ตองคีบเขียว",5],["ตองคีบแดง",2],["ตองคีบสแตนเลส",2],["กระปุกพลาสลี่ สแตนเลส",1],
+  ["สกุ๊ป",1],["ช้อนงวง",9],["ที่ตีซุป",1],["กระชอนรู",1],["เกียง",6],["นาฬิกาจับเวลาสีขาว",4],["ที่เปิดกระป๋อง",1],
+  ["ตะแกรงเฟรนช์ฟรายส์",1],["ทัพพี",5],["วอร์มเมอร์ เฟรนช์ฟรายส์",2],["ถาดอุ่นอาหาร",2,"2 ชุด"],["เตาไฟฟ้าสีดำ",2],["เขียงพลาสติก",1],
+  ["ถานสแตนเลสตื้น",3],["เตา CG.",2,"1 ตัวอยู่ที่พี่เอ็ม"],["ตราชั่งเขียว",1],["ขวดบีบซอส",1],["หม้อสตู 26 cm",1,"มีฝา"],["หม้อสตู 24 cm",1,"มีฝา"],
+  ["กรรไกร",2],["มีด",1],["เตาไฟฟ้า",2]
+];
+function seedForm(){
+  const have=new Set(EQ().map(e=>String(e.name||"").trim().toLowerCase()));
+  const todo=SEED_EQ.filter(x=>!have.has(x[0].trim().toLowerCase()));
+  const skip=SEED_EQ.length-todo.length;
+  const b=document.createElement("div");
+  b.innerHTML=`<div class="muted" style="margin-bottom:10px">ทั้งหมด ${SEED_EQ.length} รายการ · จะเพิ่มใหม่ <b>${todo.length}</b>${skip?` · มีในคลังแล้วข้าม ${skip}`:""}</div>
+    <div style="max-height:46vh;overflow:auto;border:1px solid var(--border,#e5e7eb);border-radius:12px">
+    ${todo.length?todo.map(x=>`<div style="display:flex;gap:10px;align-items:center;padding:9px 12px;border-bottom:1px solid var(--border,#eee)"><div style="flex:1;min-width:0"><b>${esc(x[0])}</b>${x[2]?`<div class="eq-sub">${esc(x[2])}</div>`:""}</div><span style="font-weight:800">${x[1]}</span></div>`).join(""):`<div class="muted" style="padding:16px;text-align:center">มีครบทุกรายการแล้ว</div>`}</div>
+    <div class="muted" style="margin-top:8px;font-size:12.5px">เพิ่มแล้วแก้ชื่อ จำนวน หมวด และใส่รูปทีหลังได้ที่การ์ดแต่ละรายการ</div>`;
+  modal("นำเข้ารายการตั้งต้น",b,async()=>{
+    if(!todo.length) throw new Error("ไม่มีรายการใหม่ให้เพิ่ม");
+    await S.refresh().catch(()=>{});
+    const now=new Date().toISOString();
+    for(const x of todo){
+      await S.set("equipment",uid(),{name:x[0],category:"",total:x[1],note:x[2]||"",createdAt:now,createdBy:ME()});
+    }
+    toast("เพิ่มอุปกรณ์ "+todo.length+" รายการแล้ว");
+  },"เพิ่ม "+todo.length+" รายการ");
 }
 function catForm(){
   const cats=CATS().slice();
