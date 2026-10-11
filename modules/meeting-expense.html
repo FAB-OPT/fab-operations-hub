@@ -2594,7 +2594,7 @@ function adminIO(body){
     <div class="iog">
       <div class="glass-card ioc"><h3>${mi("excel",22)} ส่งออก</h3>${canExp?
         row("bars","รายงานเบิกเงินประชุม","สรุปตาม BZM ทั้งปี หรือรายสาขารายเดือน · เลือกไฟล์ Excel หรือ PDF (พิมพ์) ได้",`<button class="tbtn pri" id="xrep">ส่งออกรายงาน</button>`)
-        +row("doc","รายการเอกสารเบิก (CSV)","ทุกใบของรอบที่เลือก พร้อมผู้ทำการเบิก ผู้รับเงิน และสถานะ",`<select id="xcr" aria-label="รอบ">${rids.map(id=>`<option value="${esc(id)}" ${F.round===id?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}<option value="_all">ทุกรอบ</option></select><button class="tbtn" id="xcsv">ส่งออก</button>`)
+        +row("doc","ข้อมูลเอกสารเบิก (CSV)","ทุกใบของรอบที่เลือก พร้อมผู้ทำการเบิก ผู้รับเงิน และสถานะ · กดส่งออกแล้วเลือกรอบ",`<button class="tbtn" id="xcsv">ส่งออก</button>`)
         :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์ส่งออก</div>`}</div>
       <div class="glass-card ioc"><h3>${mi("upload",22)} นำเข้า</h3>${canImp?
         row("people","รายชื่อทีมผู้จัดการสาขา + วงเงิน","จากไฟล์ Excel รายเดือน (ชีตเช่น 10-69) · ดูตัวอย่างและเลือกก่อนบันทึก",`<button class="tbtn pri" id="ximp">นำเข้า Excel</button>`)
@@ -2602,8 +2602,18 @@ function adminIO(body){
     </div>`;
   const g=id=>body.querySelector("#"+id);
   if(g("xrep")) g("xrep").onclick=()=>openReportExport("bzm");
-  if(g("xcsv")) g("xcsv").onclick=()=>{ const v=g("xcr").value;
-    exportCsv(CLAIMS().filter(c=>v==="_all"||roundIdOf(c)===v).sort(byTime),v==="_all"?"ทุกรอบ":v); };
+  if(g("xcsv")) g("xcsv").onclick=()=>{
+    if(!rids.length) return toast("ยังไม่มีรอบเบิก");
+    const cr=currentRound(), def=cr&&rids.includes(cr.id)?cr.id:rids[0];
+    const f=document.createElement("div");
+    f.innerHTML=`<div class="field"><label>เลือกรอบที่จะส่งออก</label><select id="xr">${rids.map(id=>`<option value="${esc(id)}" ${id===def?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}<option value="_all">ทุกรอบ</option></select></div>
+      <div class="muted">ได้ไฟล์ .csv เปิดด้วย Excel ได้</div>`;
+    modal("ส่งออกข้อมูลเอกสารเบิก",f,async()=>{
+      const v=$("#xr",f).value, list=CLAIMS().filter(c=>v==="_all"||roundIdOf(c)===v).sort(byTime);
+      if(!list.length) throw new Error("ไม่มีเอกสารในรอบที่เลือก");
+      exportCsv(list,v==="_all"?"ทุกรอบ":v);
+    },"ส่งออก");
+  };
   if(g("ximp")) g("ximp").onclick=openImport;
 }
 
