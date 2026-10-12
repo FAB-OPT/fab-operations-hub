@@ -1484,7 +1484,7 @@ window.showScores = function(key){
 };
 
 function renderPickSelf(t, left){
-  const lim = selfLimit(t), reg = selfPeople(t).length, full = !!lim && reg >= lim;
+  const post = run.phase === 'post', lim = selfLimit(t), reg = selfPeople(t).length, full = !!lim && reg >= lim;
   $('#view').innerHTML = `
     <div class="card">
       <div class="rs-ph ${run.phase}">${esc(PHASE[run.phase])}</div>
@@ -1496,14 +1496,14 @@ function renderPickSelf(t, left){
         <label>เลือกชื่อของคุณ (ที่ลงชื่อไว้แล้ว)</label>
         <select id="rnWho"><option value="">— เลือกชื่อของคุณ —</option>${left.map(p =>
           `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select>
-        <p class="sub" style="margin:14px 0 6px">หรือ ลงชื่อใหม่</p>` : ''}
-      <label>${left.length ? 'พิมพ์ชื่อ-นามสกุลของคุณ' : 'ลงชื่อ: พิมพ์ชื่อ-นามสกุลของคุณ'}</label>
+        ${post ? '' : `<p class="sub" style="margin:14px 0 6px">หรือ ลงชื่อใหม่</p>`}` : ''}
+      ${post ? (left.length ? '' : `<div class="notice ok show" style="margin:0">ไม่มีชื่อที่ต้องทำหลังเรียน — ต้องทำก่อนเรียนก่อน หรือทุกคนทำหลังเรียนครบแล้ว</div>`) : `<label>${left.length ? 'พิมพ์ชื่อ-นามสกุลของคุณ' : 'ลงชื่อ: พิมพ์ชื่อ-นามสกุลของคุณ'}</label>
       <input id="rnNew" placeholder="${full ? 'ลงชื่อครบจำนวนแล้ว' : 'ชื่อ-นามสกุล'}" ${full ? 'disabled' : ''} autocomplete="off" maxlength="80">
       <p class="sub" style="margin-top:6px">${lim
         ? (full ? 'ลงชื่อครบ ' + lim + ' คนแล้ว — ถ้าชื่อคุณลงไว้แล้ว ให้เลือกจากรายการด้านบน' : 'ลงชื่อแล้ว ' + reg + ' / ' + lim + ' คน')
-        : 'ลงชื่อแล้ว ' + reg + ' คน'} · ใช้ชื่อเดียวกันทั้งก่อนและหลังเรียน</p>
+        : 'ลงชื่อแล้ว ' + reg + ' คน'} · ใช้ชื่อเดียวกันทั้งก่อนและหลังเรียน</p>`}
       <div class="row-btns" style="margin-top:14px">
-        <button class="btn btn-primary" onclick="beginRun()">เริ่มทำแบบทดสอบ</button>
+        ${post && !left.length ? '' : `<button class="btn btn-primary" onclick="beginRun()">เริ่มทำแบบทดสอบ</button>`}
         <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
       </div>
     </div>${scoresHtml(t)}`;
