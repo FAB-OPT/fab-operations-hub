@@ -7518,7 +7518,8 @@ const IO = {
           /* วันที่เก็บเป็นวันที่จริง ไม่ใช่ข้อความ — คนเปิดไฟล์จะได้เรียงและกรองช่วงวันได้
              ซึ่งเป็นเหตุผลหลักที่ขอเป็น Excel ไม่ใช่ภาพหน้าจอ */
           if((k===iDate||k===iOn) && v){
-            cell.value=new Date(v+'T00:00:00');
+            { /* ExcelJS เขียนวันที่เป็น UTC — ถ้าสร้างเป็นเที่ยงคืนเวลาไทยจะถอยไป 1 วันในไฟล์ (นัด 2 ต.ค. ขึ้น 1 ต.ค.) · ใช้ UTC เที่ยงคืนของวันนั้นตรงๆ */
+              const dm=/^(\d{4})-(\d{2})-(\d{2})/.exec(String(v)); cell.value=dm?new Date(Date.UTC(+dm[1],+dm[2]-1,+dm[3])):String(v); }
             cell.numFmt='dd/mm/yyyy';
           } else cell.value=v;
           cell.font={name:'Tahoma',size:10,color:{argb:INK}};
