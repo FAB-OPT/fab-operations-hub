@@ -2647,6 +2647,7 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
     <div class="adm-modal-body">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
         <div style="font-size:12px;color:var(--text2);">จำนวนผู้ใช้: <span id="userMgmtCount" style="color:var(--gold);font-weight:700;">0</span> คน · Santa Fe <span id="userMgmtCountSantaFe">0</span> · เจ๊แดง <span id="userMgmtCountJaedaeng">0</span></div>
+        <button type="button" onclick="bzmNickFix()" title="ตั้งชื่อเล่นของ BZM ให้ตรงกับที่สาขาใช้อยู่ (ทำครั้งเดียว)" style="padding:8px 14px;font-size:13px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;cursor:pointer;margin-left:auto;margin-right:8px;">จับคู่ชื่อเล่น BZM</button>
         <button class="adm-btn-primary" onclick="openUserEditModal(null)" style="padding:8px 14px;font-size:13px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มผู้ใช้ใหม่</button>
       </div>
       <div style="border:1px solid var(--border);border-radius:10px;overflow:hidden;">
@@ -6167,6 +6168,65 @@ function propagateBzmRename(oldU, newU) {
   if (nSf) { saveBranchesLocal(); saveBranchesToCloud().catch(function(e){ console.warn('[bzm-rename] บันทึกสาขาซานตาเฟ่ขึ้น Cloud ไม่ได้', e); }); }
   if (nJd) { saveJdBranchesLocal(); saveJdBranchesToCloud().catch(function(e){ console.warn('[bzm-rename] บันทึกสาขาเจ๊แดงขึ้น Cloud ไม่ได้', e); }); }
   return nSf + nJd;
+}
+/* ── จับคู่ชื่อเล่น BZM (ครั้งเดียว) ──
+   ผู้ใช้ BZM บางคนมีชื่อเล่นเป็นอังกฤษ (P'Nop) แต่สาขาเก็บ BZM เป็นชื่อไทย (พี่นพ) → รายการซ้ำ/จับคู่ไม่ได้
+   ปุ่มนี้ตั้งชื่อเล่นของผู้ใช้ให้เป็นชื่อไทยตามคู่ด้านล่าง · สะกดไม่ตรงเป๊ะกับที่สาขาใช้ (พี่กัส ↔ พี่กั๊ส) ใช้ตัวที่สาขามีอยู่จริงให้ */
+var BZM_NICK_PAIRS = [
+  ['Nattakorn Ersathaporn','พี่ปอ'],['Phimphitcha Chatchawan','พี่อ้อย'],['Khwandao Boonruang','พี่ดาว'],['Jureeporn Thong-ach','พี่อีฟ'],
+  ['Khanatwan Imsamran','พี่เฟิร์น'],['Nuchjarin Chaiyod','พี่กั๊ส'],['Watchara Areeaua','ฟาง'],['Phaiwan Kingthum','หนิง'],
+  ['Areeya Sunteh','พี่ก๊ะ'],['Angkana Nilkumnerd','พี่อิ๊ว'],['Natawat Sirimettanon','พี่บิ๊ก'],['Seewika Songdoung','พี่เจี๊ยบ'],
+  ['Anurak Sronpukdee','พี่เอ็ม'],['Noppachai Chanrung','พี่นพ'],['Phatthadon Watthanayut','พี่ปิ๊ก'],['Nirut Jaroensin','พี่รุต'],
+  ['Sooksang Wattanafungcharoen','พี่หยี'],['Luksika','เบนซ์']
+];
+function _thNorm(t, lvl) {
+  var x = String(t || '').replace(/\s+/g, '').replace(/[\u0E48-\u0E4B]/g, '');          // ตัดวรรณยุกต์
+  if (lvl >= 1) x = x.replace(/\u0E4C/g, '');                                              // ตัดการันต์
+  if (lvl >= 2) x = x.replace(/[\u0E31\u0E34-\u0E3A]/g, '');                              // ตัดสระบน/ล่าง
+  return x.toLowerCase();
+}
+function _bzmKnownNicks() {
+  var set = {};
+  Object.keys(BRANCH_BZM_MAP).forEach(function(c){ if (BRANCH_BZM_MAP[c]) set[BRANCH_BZM_MAP[c]] = 1; });
+  JAEDAENG_BRANCHES.forEach(function(b){ if (b.managerNick) set[b.managerNick] = 1; });
+  return Object.keys(set);
+}
+function _bestKnownNick(thai) {
+  var known = _bzmKnownNicks();
+  for (var lvl = 0; lvl <= 2; lvl++) {
+    var hit = known.filter(function(k){ return _thNorm(k, lvl) === _thNorm(thai, lvl); });
+    if (hit.length === 1) return hit[0];
+  }
+  return thai;
+}
+function _findUserByEnName(en) {
+  var n = String(en).replace(/\s+/g, '').toLowerCase();
+  return USERS.find(function(u){ var un = String(u.name || '').replace(/\s+/g, '').toLowerCase(); return un === n || (n.length >= 6 && un.indexOf(n) === 0); });
+}
+function bzmNickFix() {
+  var plan = [], missing = [];
+  BZM_NICK_PAIRS.forEach(function(pr){
+    var u = _findUserByEnName(pr[0]);
+    if (!u) { missing.push(pr[0]); return; }
+    var target = _bestKnownNick(pr[1]);
+    if ((u.nick || '') !== target) plan.push({ en: pr[0], name: u.name, from: u.nick || '(ว่าง)', to: target });
+  });
+  if (!plan.length && !missing.length) { showInfo('✓ ไม่ต้องจับคู่', 'ชื่อเล่น BZM ตรงกับที่สาขาใช้ครบแล้ว'); return; }
+  var msg = 'จะตั้งชื่อเล่นผู้ใช้ ' + plan.length + ' คน:\n\n' + plan.map(function(x){ return '• ' + x.name + ':  ' + x.from + '  →  ' + x.to; }).join('\n')
+    + (missing.length ? '\n\nไม่พบผู้ใช้ชื่อ (ข้าม): ' + missing.join(', ') : '') + '\n\nสาขาที่ถือชื่อเล่นอังกฤษเดิมจะถูกแก้ให้ตามด้วย · ยืนยันไหม?';
+  if (!plan.length || !confirm(msg)) return;
+  _syncUsersSync('กำลังจับคู่ชื่อเล่น BZM...', 'var(--text2)');
+  var apply = function(){
+    plan.forEach(function(x){
+      var u = _findUserByEnName(x.en); if (!u) return;
+      var oldSnap = { name: u.name, nick: u.nick, role: u.role }, nu = Object.assign({}, u, { nick: x.to });
+      propagateBzmRename(oldSnap, nu);
+      u.nick = x.to;
+    });
+  };
+  _usersMutateFresh(apply)
+    .then(function(){ renderUserMgmtList(); showInfo('✓ จับคู่ชื่อเล่น BZM แล้ว', 'อัปเดต ' + plan.length + ' คน · รายการ BZM ในหน้าแก้ไขสาขาควรเหลือคนละรายการ'); _syncUsersSync('✓ บันทึกขึ้น Cloud แล้ว · ' + new Date().toLocaleTimeString('th-TH'), 'var(--good)'); })
+    .catch(function(err){ _syncUsersSync('⚠ ยังไม่ได้บันทึกขึ้น Cloud: ' + err.message, '#B45309'); });
 }
 function saveUserEdit() {
   var code = document.getElementById('userEditCode').value.trim();
