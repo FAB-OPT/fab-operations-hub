@@ -1020,7 +1020,21 @@ async function loadHubBranches(){
     const out = {};
     (data || []).forEach(row => {
       const v = row.value || {}, map = v.branches || v || {};
-      Object.keys(map).forEach(code => { out[code] = String(map[code] || ''); });
+      if (Array.isArray(map)) {            // เจ๊แดง: ลิสต์ของออบเจ็กต์ {code,name}
+        map.forEach(b => {                 // เจ๊แดงไม่มีรหัส ใช้ชื่อสาขาเป็นคีย์ (ป้ายแสดงเป็นชื่ออย่างเดียว)
+          if (!b) return;
+          if (b.code) out[b.code] = String(b.name || '');
+          else if (b.name) out[b.name] = '';
+        });
+        return;
+      }
+      Object.keys(map).forEach(code => {
+        const x = map[code];
+        if (x && typeof x === 'object') {
+          const c = x.code || code;
+          if (!/^\d+$/.test(code) || x.code) out[c] = String(x.name || x.nameTh || x.branchName || '');
+        } else out[code] = String(x || '');
+      });
     });
     HUB_BRANCHES = out;
   }catch(e){}
