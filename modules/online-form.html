@@ -1280,11 +1280,11 @@ function choicesFor(t){
 }
 function curChoice(t){
   const cs = choicesFor(t);
-  return cs.find(c => c.kind === kindSel && c.key === pickKey) || cs[0] || null;
+  return cs.find(c => c.kind === kindSel && c.key === pickKey) || null;   // ยังไม่เลือก = null → หน้าว่างรอเลือก
 }
 const kindFor = t => (curChoice(t) || { kind:'gen' }).kind;
 window.pickForm = function(v){
-  const i = v.indexOf('|');
+  const i = v.indexOf('|'); if (i < 0) return;
   kindSel = v.slice(0, i); pickKey = v.slice(i + 1);
   go(tab);
 };
@@ -1293,7 +1293,7 @@ function pickBar(t){
   if (!cs.length) return '';
   const groups = ['gen','tt','sg'].filter(k => cs.some(c => c.kind === k));
   return `<div class="card kind-pick"><label for="pickForm">แบบฟอร์ม</label>
-    <select id="pickForm" onchange="pickForm(this.value)">${groups.map(k =>
+    <select id="pickForm" onchange="pickForm(this.value)">${cur ? '' : '<option value="" selected disabled>— เลือกแบบฟอร์ม —</option>'}${groups.map(k =>
       `<optgroup label="${esc(KIND_LABEL[k])}">${cs.filter(c => c.kind === k).map(c =>
         `<option value="${k}|${esc(c.key)}" ${cur && c.kind === cur.kind && c.key === cur.key ? 'selected' : ''}>${esc(c.title)}</option>`).join('')}</optgroup>`).join('')}
     </select></div>`;
@@ -1313,7 +1313,12 @@ window.addEventListener('resize', postView);
 /* ครอบตัววาดของฟอร์มทั่วไป: ใส่กล่องเลือกฟอร์มไว้บนสุด · ฟอร์มประเภทอื่นแสดงเป็นหน้าฝัง */
 function renderKind(t, genFn){
   const cur = curChoice(t);
-  if (!cur || cur.kind === 'gen'){
+  if (!cur){
+    $('#view').classList.remove('has-pick');
+    $('#view').innerHTML = pickBar(t) + `<div class="card"><div class="empty"><p class="sub" style="margin:0">เลือกแบบฟอร์มด้านบน เพื่อดูข้อมูล</p></div></div>`;
+    return;
+  }
+  if (cur.kind === 'gen'){
     if (cur){ rf.form = cur.key; ff.form = cur.key; rpo.form = cur.key; }
     genFn();
     const bar = pickBar(t);
