@@ -6265,7 +6265,10 @@ var BZM_ZONE_NICK = { 'นพชัย':'พี่นพ', 'พัทธดน�
 function bzmZoneFix() {
   var NL = String.fromCharCode(10), plan = [], unknown = [];
   Object.keys(BZM_ZONE_PLAN).forEach(function(who){
-    var nick = _bestKnownNick(BZM_ZONE_NICK[who]);
+    /* ใช้ชื่อเล่นที่ผู้ใช้ BZM คนนั้นถืออยู่ในทะเบียนผู้ใช้ตอนนี้ (อาจเป็น P'Nop หรือ พี่นพ) — สาขาต้องเก็บตัวเดียวกับผู้ใช้ จึงจะจับคู่กันได้ */
+    var thai = BZM_ZONE_NICK[who], pr = BZM_NICK_PAIRS.filter(function(q){ return q[1] === thai; })[0];
+    var usr = pr && _findUserByEnName(pr[0]);
+    var nick = (usr && usr.nick && usr.nick !== '-') ? usr.nick : _bestKnownNick(thai);
     BZM_ZONE_PLAN[who].forEach(function(code){
       if (!BRANCHES[code]) { unknown.push(code); return; }
       if ((BRANCH_BZM_MAP[code] || '') !== nick) plan.push({ code: code, name: BRANCHES[code], from: BRANCH_BZM_MAP[code] || '(ว่าง)', to: nick });
