@@ -878,8 +878,24 @@ select,.tabs2 select,.main>.head select{padding-top:0!important;padding-bottom:6
 const {Hub, Cfg} = HubMod;
 /* ระบบนี้ไม่ใช้กับสาขารหัส 60 (ยามะจัง) — ซ่อนจากทุกหน้าของโมดูลนี้ (โมดูลอื่นยังเห็นตามปกติ) */
 const Branches = Object.assign(Object.create(HubMod.Branches), {
-  list(inc){ return HubMod.Branches.list(inc).filter(b=>!String(b.code).startsWith("60")); }
+  list(inc){ const l=HubMod.Branches.list(inc).filter(b=>!String(b.code).startsWith("60")), sc=myBzmCodes(); return sc?l.filter(b=>sc.has(String(b.code))):l; }
 });
+/* BZM เห็นเฉพาะสาขาในเขตที่รับผิดชอบ (ตามแผนที่ BZM ของสาขาในฮับ) — role อื่น (admin/coo/vp/บัญชี ฯลฯ) เห็นทั้งหมด
+   ยึด nick ของผู้ใช้เทียบ bzmMap ของสาขา · จับคู่ไม่ได้ = ไม่กรอง (แบบเดียวกับระบบ Visit สาขา) · จำผลตามผู้ใช้+ทะเบียนสาขา */
+let _bzmMemo={key:null,val:null};
+function myBzmCodes(){
+  const s=Hub.session()||{};
+  if(String(s.role||"").toLowerCase()!=="bzm") return null;
+  const raw=HubMod.Branches.raw(), key=String(s.code||"")+"|"+String(s.nick||"")+"|"+(raw&&raw.bzmMap?Object.keys(raw.bzmMap).length:0);
+  if(_bzmMemo.key===key&&_bzmMemo.raw===raw) return _bzmMemo.val;
+  let nick=String(s.nick||"").trim();
+  if(!nick){ const u=((Cfg.data&&Cfg.data.users)||[]).find(x=>x&&String(x.code)===String(s.code)); nick=u&&u.nick?String(u.nick).trim():""; }
+  const map=(raw&&raw.bzmMap)||{};
+  const set=nick?new Set(Object.keys(map).filter(c=>map[c]===nick)):null;
+  const val=set&&set.size?set:null;
+  _bzmMemo={key,raw,val}; return val;
+}
+const inMyZone=x=>{ const sc=myBzmCodes(); return !sc||sc.has(String(x.branchCode)); };
 const S = new HubMod.Store("mx");
 /* ไม่แสดงคำนำหน้าชื่อ (นาย/นาง/นางสาว/น.ส./Mr./Mrs./Miss …) ทั้งระบบ — ตัดตอนอ่านข้อมูล (ชื่อผู้รับเงิน · ผู้ทำการเบิก · คำขอเปลี่ยน) ข้อมูลเก่าในฐานข้อมูลไม่ต้องแก้
    คำนำหน้าไทยตัดทั้งแบบมีและไม่มีเว้นวรรค (นายกฤษ → กฤษ) · คำนำหน้าอังกฤษต้องมีเว้นวรรคตามหลัง */
@@ -936,14 +952,14 @@ let DRAFT={claimant:"", amount:"", note:"", photos:[]};   /* ฟอร์มท�
    config/main   = defaultLimit · limits{รหัสสาขา: วงเงินเฉพาะสาขา}
    rounds/ปปปป-ดด = open · limitDefault · dueDate
    claims/เลขเอกสาร · payees/รหัสสาขา (ผู้รับเงิน) · payeeReq/id (คำขอเปลี่ยน รอผู้ดูแลอนุมัติ) */
-const CLAIMS=()=>S.all("claims");
+const CLAIMS=()=>S.all("claims").filter(inMyZone);
 /* รอบที่มีวันเริ่ม–วันสิ้นสุด เปิด/ปิดเองตามวันที่ (ถึงวันเริ่ม = เปิดรับ · พ้นวันสิ้นสุด = ปิด) · ผู้ดูแลกด "ปิดรับ" ก่อนกำหนดได้ (closed) แล้วกด "เปิดรับอีกครั้ง" ได้
    รอบเก่าที่ไม่มีวันที่ ยังใช้สวิตช์ open แบบเดิม */
 const withOpen=x=>{ if(!x) return x;
   if(x.startDate&&x.dueDate){ const t=HubMod.localDate(), inWin=x.startDate<=t&&t<=x.dueDate; return Object.assign({},x,{open:inWin&&!x.closed,inWin,auto:true}); }
   return x; };
 const ROUNDS=()=>S.all("rounds").map(withOpen).sort((a,b)=>b.id.localeCompare(a.id));
-const PREQ=()=>S.all("payeeReq");
+const PREQ=()=>S.all("payeeReq").filter(inMyZone);
 const CFG=()=>S.get("config","main")||{};
 const roundOf=id=>withOpen(S.get("rounds",id));
 const payeeOf=c=>S.get("payees",c)||{};
