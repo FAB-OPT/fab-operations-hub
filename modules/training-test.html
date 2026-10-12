@@ -1782,7 +1782,7 @@ function renderResult(d, extra){
 /* ══════════════════════════════════════════════════════════════════
    ผลก่อน–หลัง
    ══════════════════════════════════════════════════════════════════ */
-let rf = { training:'', branch:'', q:'' };
+let rf = { training:'', branch:'', q:'', show:false };   // show = เลือกตัวกรองอะไรแล้ว (ก่อนนั้นหน้าว่าง)
 
 /* 1 แถว = 1 คน พร้อมคะแนนก่อนและหลังของการอบรมนั้น */
 /* กติกาเรียงเดียวกันทั้งระบบ: คะแนนหลังเรียนมากไปน้อย · เท่ากันดูที่พัฒนาขึ้น · เท่ากันอีกเรียงชื่อ
@@ -1819,7 +1819,8 @@ function renderResults(){
       <h2>ผลก่อน–หลังอบรม</h2>
       <div class="rf-row">
         <div><label>การอบรม</label><select id="rfTraining">
-          <option value="">ทุกการอบรม</option>
+          ${rf.show || rf.training ? '' : '<option value="" selected>— เลือกการอบรม —</option>'}
+          <option value="*all" ${rf.show && !rf.training ? 'selected' : ''}>ทุกการอบรม</option>
           ${trainings.map(t => `<option value="${esc(t.key)}" ${rf.training===t.key?'selected':''}>${esc(t.title)}</option>`).join('')}
         </select></div>
         <div><label>สาขา</label><select id="rfBranch">
@@ -1830,6 +1831,8 @@ function renderResults(){
         <button class="btn btn-secondary rf-print" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
       </div>
     </div>
+    <div class="card" id="rHint" style="display:none"><div class="empty"><p class="sub" style="margin:0">เลือกการอบรมหรือสาขาด้านบน เพื่อดูผลก่อน–หลังอบรม</p></div></div>
+    <div id="rWrap">
     <div class="stats rs" id="rStats"></div>
     <div id="rChart"></div>
     <div class="card" style="padding:0;overflow:hidden">
@@ -1839,10 +1842,11 @@ function renderResults(){
       </table></div>
       <div class="empty" id="rEmpty" style="display:none">ยังไม่มีผลตามเงื่อนไขนี้</div>
     </div>
-    <div id="rEval"></div>`;
+    <div id="rEval"></div></div>`;
   ['rfTraining','rfBranch'].forEach(id => $('#'+id).onchange = () => {
-    rf[id === 'rfTraining' ? 'training' : 'branch'] = $('#'+id).value; paintResults(); });
-  $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; paintResults(); };
+    const v = $('#'+id).value; rf.show = true;
+    rf[id === 'rfTraining' ? 'training' : 'branch'] = v === '*all' ? '' : v; paintResults(); });
+  $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; if (rf.q.trim()) rf.show = true; paintResults(); };
   paintResults();
 }
 
@@ -1851,6 +1855,11 @@ const diffCell = d => d == null ? '<span class="muted">—</span>'
   : `<b style="color:${d > 0 ? 'var(--green)' : d < 0 ? 'var(--red)' : 'inherit'}">${d > 0 ? '▲ +' : d < 0 ? '▼ ' : ''}${d}%</b>`;
 
 function paintResults(){
+  const none = !rf.show && !rf.training && !rf.branch && !rf.q.trim();
+  const h = $('#rHint'), w = $('#rWrap');
+  if (h) h.style.display = none ? '' : 'none';
+  if (w) w.style.display = none ? 'none' : '';
+  if (none) return;
   const rows = resultRows();
   const both = rows.filter(r => r.diff != null);
   const avgPre  = both.length ? (both.reduce((a,r) => a + Number(r.pre.pct), 0) / both.length).toFixed(1) : '—';
