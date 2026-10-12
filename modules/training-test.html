@@ -2701,7 +2701,13 @@ function renderEditor(){
       <label style="margin-top:14px">เฉพาะสาขา (${(e.visible_branches || []).length} สาขา)</label>
       <select id="edBranchPick" onchange="addBranchT(this.value)">
         <option value="">+ เพิ่มสาขา…</option>
-        ${Object.keys(HUB_BRANCHES).sort().filter(c => !(e.visible_branches || []).includes(branchLabel(c))).map(c =>
+        ${Object.keys(HUB_BRANCHES).sort().filter(c => {
+          if ((e.visible_branches || []).includes(branchLabel(c))) return false;
+          const vb = e.visible_brands || [];
+          if (!vb.length) return true;                       // ไม่เลือกแบรนด์ = แสดงทุกสาขา
+          const b = brandOfCode(c) || (/^\d/.test(c) ? '' : 'เจ๊แดง จุ่มนัวร์');   // เจ๊แดงบางรายการไม่มีรหัส
+          return vb.includes(b);
+        }).map(c =>
           `<option value="${esc(branchLabel(c))}">${esc(branchLabel(c))}</option>`).join('')}
       </select>
       <div class="seg" style="margin-top:8px">${(e.visible_branches || []).map(b =>
