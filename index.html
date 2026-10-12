@@ -6151,6 +6151,23 @@ function closeUserEditModal() {
   _editingUserCode = null;
 }
 
+/* เปลี่ยนชื่อ/ชื่อเล่นของ BZM แล้วต้องตามไปแก้ที่สาขาด้วย — สาขาเก็บ BZM เป็น "ชื่อเล่น" (ซานตาเฟ่: BRANCH_BZM_MAP · เจ๊แดง: manager/managerNick)
+   เดิมแก้ผู้ใช้อย่างเดียว สาขายังถือชื่อเก่า → รายการ BZM ซ้ำ (ชื่อใหม่ + ชื่อเก่าที่ค้าง) และระบบที่จับคู่ด้วยชื่อ (สรุปตาม BZM · กรองสาขาตามเขต) หาไม่เจอ */
+function propagateBzmRename(oldU, newU) {
+  if (!oldU || !newU) return 0;
+  var oldKeys = [oldU.nick, oldU.name].filter(Boolean), newNick = newU.nick || newU.name;
+  if (!oldKeys.length || !newNick) return 0;
+  var hit = function(v){ return v && oldKeys.indexOf(v) >= 0; };
+  var nSf = 0, nJd = 0;
+  Object.keys(BRANCH_BZM_MAP).forEach(function(c){ if (hit(BRANCH_BZM_MAP[c]) && BRANCH_BZM_MAP[c] !== newNick) { BRANCH_BZM_MAP[c] = newNick; nSf++; } });
+  JAEDAENG_BRANCHES.forEach(function(b){
+    if (hit(b.managerNick) || hit(b.manager)) {
+      if (b.managerNick !== newU.nick || b.manager !== newU.name) { b.managerNick = newU.nick || ''; b.manager = newU.name || ''; nJd++; }
+    } });
+  if (nSf) { saveBranchesLocal(); saveBranchesToCloud().catch(function(e){ console.warn('[bzm-rename] บันทึกสาขาซานตาเฟ่ขึ้น Cloud ไม่ได้', e); }); }
+  if (nJd) { saveJdBranchesLocal(); saveJdBranchesToCloud().catch(function(e){ console.warn('[bzm-rename] บันทึกสาขาเจ๊แดงขึ้น Cloud ไม่ได้', e); }); }
+  return nSf + nJd;
+}
 function saveUserEdit() {
   var code = document.getElementById('userEditCode').value.trim();
   var name = document.getElementById('userEditName').value.trim();
@@ -6178,6 +6195,8 @@ function saveUserEdit() {
   if (brands.length > 1) newUser.crossBrand = true;
 
   var _origCode = _editingUserCode;
+  var _oldUser = _origCode ? USERS.find(function(u){ return u.code === _origCode; }) : null;
+  var _oldSnap = _oldUser ? { name: _oldUser.name, nick: _oldUser.nick, role: _oldUser.role } : null;
   var _applyUser = function(){
     if (_origCode) {
       var idx = USERS.findIndex(function(u){ return u.code === _origCode; });
@@ -6186,6 +6205,8 @@ function saveUserEdit() {
       USERS.push(newUser);
     }
   };
+  var _moved = (_oldSnap && (_oldSnap.role === 'bzm' || role === 'bzm') && (_oldSnap.name !== name || (_oldSnap.nick || '') !== nick)) ? propagateBzmRename(_oldSnap, newUser) : 0;
+  if (_moved) console.log('[bzm-rename] อัปเดตชื่อ BZM ที่สาขา ' + _moved + ' รายการ');
   _applyUser();   // แสดงผลทันทีในเครื่อง · ตอนบันทึกขึ้น Cloud จะอ่านของล่าสุดมาแก้ซ้ำเฉพาะคนนี้
 
   saveUsersLocal();
