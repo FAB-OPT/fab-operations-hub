@@ -1860,7 +1860,7 @@ function adminTabs(){
   const t=[];
   if(can("view-claims")||can("update-status")) t.push({k:"list",t:"เอกสารเบิก",ic:mi("doc"),n:CLAIMS().filter(isWaiting).length});
   if(can("manage-rounds")) t.push({k:"rounds",t:"รอบเบิก",ic:mi("cal")});
-  if(can("view-claims")||can("update-status")) t.push({k:"bzm",t:"สรุปตาม BZM",ic:mi("pie")});
+  if(can("view-claims")||can("update-status")) t.push({k:"bzm",t:myBzmCodes()?"สรุปสาขาในโซน":"สรุปตาม BZM",ic:mi("pie")});
   if(can("view-claims")||can("update-status")) t.push({k:"rpt",t:"รายงาน",ic:mi("bars")});
   if(can("manage-limits")||can("manage-payees")) t.push({k:"branches",t:"วงเงิน & ผู้รับเงิน",ic:mi("coins"),n:PREQ().filter(p=>p.status==="pending").length});
   if(can("view-claims")||can("update-status")||can("manage-payees")) t.push({k:"io",t:"ส่งออก / นำเข้า",ic:mi("upload")});
@@ -2557,11 +2557,12 @@ function adminBzmZone(body,r){
     return {b,lim,sent,ok,has:cs.length>0,p:payeeOf(b.code),st:!cs.length?"ยังไม่ส่ง":ok>0?"อนุมัติ":"รอทำเบิก"}; }).filter(x=>x.lim>0||x.has);
   const T=rows.reduce((a,x)=>({lim:a.lim+x.lim,sent:a.sent+x.sent,ok:a.ok+x.ok,ns:a.ns+(x.has?0:1)}),{lim:0,sent:0,ok:0,ns:0});
   const parts=String(BV.zone).split(" · "), noKey=!bzmOf(list[0]?list[0].code:"").key;
-  body.innerHTML=`<div class="head"><h1>${noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0])}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
+  const mineZone=!!myBzmCodes();
+  body.innerHTML=`<div class="head"><h1>${mineZone?"สรุปสาขาในโซน":(noKey?"ไม่ระบุ BZM":"BZM · "+esc(parts[0]))}${parts[1]?` <small class="muted" style="font-size:14px;font-weight:500">${esc(parts[1])}</small>`:""}</h1><span class="sp"></span><span class="muted">รอบ ${esc(roundLabel(rid))}</span></div>
     <div class="kts">${kt("org","gy","จำนวนสาขา",rows.length,"")}${kt("wallet","gy","วงเงินรวม",baht(T.lim)+" <i>บาท</i>","")}${kt("send","or","ส่งเบิกแล้ว",baht(T.sent)+" <i>บาท</i>",rows.length-T.ns+" สาขา",true)}${kt("check","gr","ทำเบิกแล้ว",baht(T.ok)+" <i>บาท</i>","ยังไม่ส่ง "+T.ns+" สาขา",true)}</div>
     <div class="lbar"><span class="tabs2" id="zchips"></span><span style="flex:1"></span><span class="sbox">${mi("search",18)}<input id="zq" placeholder="ค้นหารหัส / ชื่อสาขา / ผู้รับเงิน"></span></div><div id="zout"></div>
-    <div style="display:flex;justify-content:center;margin-top:6px"><button class="tbtn" id="zback">‹ กลับไปหน้าสรุปตาม BZM</button></div>`;
-  $("#zback",body).onclick=()=>{ BV.zone=""; adminBzm(body,r); };
+    ${mineZone?"":`<div style="display:flex;justify-content:center;margin-top:6px"><button class="tbtn" id="zback">‹ กลับไปหน้าสรุปตาม BZM</button></div>`}`;
+  { const zb=$("#zback",body); if(zb) zb.onclick=()=>{ BV.zone=""; adminBzm(body,r); }; }
   const out=$("#zout",body);
   const draw=()=>{
     const q=$("#zq",body).value.trim().toLowerCase();
@@ -2580,6 +2581,8 @@ function adminBzmZone(body,r){
   draw();
 }
 function adminBzm(body,r){
+  /* BZM เห็นโซนเดียว (เขตตัวเอง) → ข้ามตารางสรุปรายกลุ่ม ไปที่ "สรุปสาขาในโซน" เลย */
+  if(myBzmCodes()&&BV.mode==="round"&&!BV.zone){ const f=Branches.list()[0]; if(f) BV.zone=bzmOf(f.code).label; }
   if(BV.zone&&BV.mode==="round"){ adminBzmZone(body,r); return; }
   const rids=[...new Set(ROUNDS().map(x=>x.id).concat(CLAIMS().map(roundIdOf)))].filter(Boolean).sort().reverse();
   if(!BV.round||!rids.includes(BV.round)) BV.round=(r||{}).id||rids[0]||"";
