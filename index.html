@@ -2740,7 +2740,6 @@ catch (e) { console.warn('Hub Firebase init failed', e); }
     <div class="adm-modal-body">
       <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:12px;flex-wrap:wrap;">
         <div style="font-size:12px;color:var(--text2);">จำนวนสาขา: <span id="branchMgmtCount" style="color:var(--gold);font-weight:700;">0</span> สาขา</div>
-        <button type="button" onclick="bzmZoneFix()" title="จัดโซน BZM ของสาขาซานตาเฟ่ตามตารางที่กำหนด (ดูตัวอย่างและยืนยันก่อนบันทึก)" style="padding:8px 14px;font-size:13px;border:1px solid var(--border);background:transparent;color:var(--text);border-radius:10px;cursor:pointer;margin-right:8px;">จัดโซน BZM ใหม่</button>
         <button class="adm-btn-primary" onclick="openBranchEditModal(null)" style="padding:8px 14px;font-size:13px;"><svg class="ico"><use href="#i-plus"/></svg> เพิ่มสาขาใหม่</button>
       </div>
       <div style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap;align-items:center;">
@@ -6250,42 +6249,6 @@ function bzmNickAutoOnce() {
   _bzmNickApply(plan)
     .then(function(){ done(); renderUserMgmtList(); _syncUsersSync('✓ ตั้งชื่อเล่น BZM ' + plan.length + ' คนแล้ว และบันทึกขึ้น Cloud · ' + new Date().toLocaleTimeString('th-TH'), 'var(--text2)'); })
     .catch(function(err){ _syncUsersSync('⚠ ตั้งชื่อเล่น BZM ไม่สำเร็จ (จะลองใหม่ครั้งหน้า): ' + err.message, '#B45309'); });
-}
-/* ── จัดโซน BZM ตามตารางที่ผู้ดูแลกำหนด (59 สาขา) ──
-   รหัสสาขา → ชื่อจริง BZM · แปลงเป็นชื่อเล่นที่สาขาเก็บอยู่จริง · สาขาที่ไม่อยู่ในตาราง (ปิดแล้ว/Easy/อื่น ๆ) ไม่แตะ */
-var BZM_ZONE_PLAN = {
-  'นพชัย':['5001','5002','5016','5045','5069','5072','5084','5085','5087','5091'],
-  'พัทธดนย์':['5003','5017','5021','5024','5031','5034','5040','5054','5071'],
-  'นิรุต':['5005','5010','5019','5038','5046','5055','5065','5080','5088','5092'],
-  'สิวิกา':['5007','5011','5033','5036','5042','5052','5057','5066','5076','5082'],
-  'อนุรักษ์':['5012','5018','5026','5028','5030','5050','5068','5073','5089','5090'],
-  'ศุกร์แสง':['5014','5015','5023','5035','5039','5049','5061','5062','5063','5064']
-};
-var BZM_ZONE_NICK = { 'นพชัย':'พี่นพ', 'พัทธดนย์':'พี่ปิ๊ก', 'นิรุต':'พี่รุต', 'สิวิกา':'พี่เจี๊ยบ', 'อนุรักษ์':'พี่เอ็ม', 'ศุกร์แสง':'พี่หยี' };
-function bzmZoneFix() {
-  var NL = String.fromCharCode(10), plan = [], unknown = [];
-  Object.keys(BZM_ZONE_PLAN).forEach(function(who){
-    /* ใช้ชื่อเล่นที่ผู้ใช้ BZM คนนั้นถืออยู่ในทะเบียนผู้ใช้ตอนนี้ (อาจเป็น P'Nop หรือ พี่นพ) — สาขาต้องเก็บตัวเดียวกับผู้ใช้ จึงจะจับคู่กันได้ */
-    var thai = BZM_ZONE_NICK[who], pr = BZM_NICK_PAIRS.filter(function(q){ return q[1] === thai; })[0];
-    var usr = pr && _findUserByEnName(pr[0]);
-    var nick = (usr && usr.nick && usr.nick !== '-') ? usr.nick : _bestKnownNick(thai);
-    BZM_ZONE_PLAN[who].forEach(function(code){
-      if (!BRANCHES[code]) { unknown.push(code); return; }
-      if ((BRANCH_BZM_MAP[code] || '') !== nick) plan.push({ code: code, name: BRANCHES[code], from: BRANCH_BZM_MAP[code] || '(ว่าง)', to: nick });
-    });
-  });
-  if (!plan.length && !unknown.length) { showInfo('✓ โซนตรงตามตารางแล้ว', 'สาขาทั้ง 59 แห่งอยู่ในโซนที่กำหนดครบ ไม่ต้องแก้'); return; }
-  var msg = 'จะย้ายโซน ' + plan.length + ' สาขา:' + NL + NL + plan.map(function(x){ return '• ' + x.code + ' ' + x.name + ':  ' + x.from + '  →  ' + x.to; }).join(NL)
-    + (unknown.length ? NL + NL + 'ไม่พบรหัสในทะเบียน (ข้าม): ' + unknown.join(', ') : '')
-    + NL + NL + 'สาขาที่ไม่อยู่ในตารางจะไม่ถูกแตะ · ยืนยันไหม?';
-  if (!plan.length || !confirm(msg)) return;
-  plan.forEach(function(x){ BRANCH_BZM_MAP[x.code] = x.to; });
-  saveBranchesLocal();
-  try { renderBranchMgmtList(); } catch (e) {}
-  _syncBranchesSync('กำลังซิงค์ Cloud...', 'var(--text2)');
-  saveBranchesToCloud()
-    .then(function(){ showInfo('✓ จัดโซนแล้ว', 'ย้าย ' + plan.length + ' สาขา · ระบบอื่น (เบิกเงินประชุม · Training · ฯลฯ) จะเห็นโซนใหม่เมื่อโหลดหน้าใหม่'); _syncBranchesSync('✓ ซิงค์ Cloud สำเร็จ · ' + new Date().toLocaleTimeString('th-TH'), 'var(--green)'); })
-    .catch(function(err){ _syncBranchesSync('⚠ บันทึกในเครื่องแล้ว · Cloud sync: ' + err.message, 'var(--text3)'); });
 }
 function saveUserEdit() {
   var code = document.getElementById('userEditCode').value.trim();
