@@ -6115,6 +6115,7 @@ function openUserMgmtModal() {
     if (res && res.ok && Array.isArray(res.users) && res.users.length) {
       USERS = res.users; saveUsersLocal();
       renderUserMgmtList();
+      bzmNickAutoOnce();
       _syncUsersSync('✓ แสดงรายชื่อล่าสุดจาก Cloud (' + (res.source === 'supabase' ? 'Supabase' : 'Google Sheets') + ')', 'var(--green)');
     } else {
       _syncUsersSync('⚠ ยังไม่มีรายชื่อบน Cloud — กำลังแสดงข้อมูลในเครื่อง', '#B45309');
@@ -6203,7 +6204,7 @@ function _findUserByEnName(en) {
   var n = String(en).replace(/\s+/g, '').toLowerCase();
   return USERS.find(function(u){ var un = String(u.name || '').replace(/\s+/g, '').toLowerCase(); return un === n || (n.length >= 6 && un.indexOf(n) === 0); });
 }
-function bzmNickFix() {
+function _bzmNickPlan() {
   var plan = [], missing = [];
   BZM_NICK_PAIRS.forEach(function(pr){
     var u = _findUserByEnName(pr[0]);
@@ -6211,22 +6212,43 @@ function bzmNickFix() {
     var target = _bestKnownNick(pr[1]);
     if ((u.nick || '') !== target) plan.push({ en: pr[0], name: u.name, from: u.nick || '(ว่าง)', to: target });
   });
-  if (!plan.length && !missing.length) { showInfo('✓ ไม่ต้องจับคู่', 'ชื่อเล่น BZM ตรงกับที่สาขาใช้ครบแล้ว'); return; }
-  var msg = 'จะตั้งชื่อเล่นผู้ใช้ ' + plan.length + ' คน:\n\n' + plan.map(function(x){ return '• ' + x.name + ':  ' + x.from + '  →  ' + x.to; }).join('\n')
-    + (missing.length ? '\n\nไม่พบผู้ใช้ชื่อ (ข้าม): ' + missing.join(', ') : '') + '\n\nสาขาที่ถือชื่อเล่นอังกฤษเดิมจะถูกแก้ให้ตามด้วย · ยืนยันไหม?';
-  if (!plan.length || !confirm(msg)) return;
-  _syncUsersSync('กำลังจับคู่ชื่อเล่น BZM...', 'var(--text2)');
-  var apply = function(){
+  return { plan: plan, missing: missing };
+}
+function _bzmNickApply(plan) {
+  return _usersMutateFresh(function(){
     plan.forEach(function(x){
       var u = _findUserByEnName(x.en); if (!u) return;
-      var oldSnap = { name: u.name, nick: u.nick, role: u.role }, nu = Object.assign({}, u, { nick: x.to });
-      propagateBzmRename(oldSnap, nu);
+      propagateBzmRename({ name: u.name, nick: u.nick, role: u.role }, Object.assign({}, u, { nick: x.to }));
       u.nick = x.to;
     });
-  };
-  _usersMutateFresh(apply)
-    .then(function(){ renderUserMgmtList(); showInfo('✓ จับคู่ชื่อเล่น BZM แล้ว', 'อัปเดต ' + plan.length + ' คน · รายการ BZM ในหน้าแก้ไขสาขาควรเหลือคนละรายการ'); _syncUsersSync('✓ บันทึกขึ้น Cloud แล้ว · ' + new Date().toLocaleTimeString('th-TH'), 'var(--good)'); })
+  });
+}
+/* ปุ่มกดเอง: แสดงตัวอย่างและถามยืนยันก่อน */
+function bzmNickFix() {
+  var r = _bzmNickPlan(), plan = r.plan, missing = r.missing;
+  if (!plan.length && !missing.length) { showInfo('✓ ไม่ต้องจับคู่', 'ชื่อเล่น BZM ตรงกับที่สาขาใช้ครบแล้ว'); return; }
+  var NL = String.fromCharCode(10);
+  var msg = 'จะตั้งชื่อเล่นผู้ใช้ ' + plan.length + ' คน:' + NL + NL
+    + plan.map(function(x){ return '• ' + x.name + ':  ' + x.from + '  →  ' + x.to; }).join(NL)
+    + (missing.length ? NL + NL + 'ไม่พบผู้ใช้ชื่อ (ข้าม): ' + missing.join(', ') : '')
+    + NL + NL + 'สาขาที่ถือชื่อเล่นอังกฤษเดิมจะถูกแก้ให้ตามด้วย · ยืนยันไหม?';
+  if (!plan.length || !confirm(msg)) return;
+  _syncUsersSync('กำลังจับคู่ชื่อเล่น BZM...', 'var(--text2)');
+  _bzmNickApply(plan)
+    .then(function(){ renderUserMgmtList(); showInfo('✓ จับคู่ชื่อเล่น BZM แล้ว', 'อัปเดต ' + plan.length + ' คน · รายการ BZM ในหน้าแก้ไขสาขาควรเหลือคนละรายการ'); _syncUsersSync('✓ บันทึกขึ้น Cloud แล้ว · ' + new Date().toLocaleTimeString('th-TH'), 'var(--text2)'); })
     .catch(function(err){ _syncUsersSync('⚠ ยังไม่ได้บันทึกขึ้น Cloud: ' + err.message, '#B45309'); });
+}
+/* อัตโนมัติครั้งเดียว: ตอนผู้ดูแลเปิดหน้าจัดการผู้ใช้ (โหลดรายชื่อจาก Cloud แล้ว) ตั้งชื่อเล่นตามคู่ด้านบนให้เลย ไม่ต้องกดปุ่ม
+   ทำเฉพาะเครื่องที่ยังไม่เคยทำ · ถ้าไม่มีอะไรต้องเปลี่ยน/สำเร็จแล้ว ตั้งธงไว้ไม่ทำซ้ำ (ปุ่ม "จับคู่ชื่อเล่น BZM" ยังกดซ้ำเองได้) */
+var BZM_NICK_FLAG = 'fab_bzm_nick_pairs_v1';
+function bzmNickAutoOnce() {
+  try { if (localStorage.getItem(BZM_NICK_FLAG)) return; } catch (e) {}
+  var plan = _bzmNickPlan().plan, done = function(){ try { localStorage.setItem(BZM_NICK_FLAG, '1'); } catch (e) {} };
+  if (!plan.length) { done(); return; }
+  _syncUsersSync('กำลังตั้งชื่อเล่น BZM ' + plan.length + ' คนให้ตรงกับที่สาขาใช้...', 'var(--text2)');
+  _bzmNickApply(plan)
+    .then(function(){ done(); renderUserMgmtList(); _syncUsersSync('✓ ตั้งชื่อเล่น BZM ' + plan.length + ' คนแล้ว และบันทึกขึ้น Cloud · ' + new Date().toLocaleTimeString('th-TH'), 'var(--text2)'); })
+    .catch(function(err){ _syncUsersSync('⚠ ตั้งชื่อเล่น BZM ไม่สำเร็จ (จะลองใหม่ครั้งหน้า): ' + err.message, '#B45309'); });
 }
 function saveUserEdit() {
   var code = document.getElementById('userEditCode').value.trim();
