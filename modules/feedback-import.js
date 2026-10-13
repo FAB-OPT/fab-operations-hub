@@ -184,6 +184,61 @@
     return { rows: rows, csat: csat, stats: st };
   }
 
+
+  /* ───────── Facebook: ไฟล์ "สรุป_Complain_FB" (ชีต "รายละเอียด Complaint" + ชีต "สาขา") ─────────
+     1 เคส = 1 แถว (ประเภท ไม่พอใจ = ข้อร้องเรียน) · หมวดตามช่องที่ทำเครื่องหมายในไฟล์ (คุณภาพ/บริการ/ความสะอาด/ความเร็ว/อื่นๆ)
+     มีวันที่ปิดเคส = ปิดเรื่องแล้ว · สถานะ/ผู้รับผิดชอบ/ค่าใช้จ่าย/เลขที่เอกสาร เก็บใน extra */
+  var FB_CATS = [['คุณภาพ', 'คุณภาพอาหาร'], ['บริการ', 'การบริการ'], ['ความสะอาด', 'ความสะอาด'], ['ความเร็ว', 'ความเร็ว'], ['อื่นๆ', 'อื่นๆ']];
+  function hash(str) { var h = 5381; for (var i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+  function parseFb(aoa, branchAoa, opts) {
+    opts = opts || {};
+    var hi = -1;
+    for (var i = 0; i < Math.min(aoa.length, 12); i++) {
+      var h = (aoa[i] || []).map(clean);
+      if (h.indexOf('complain') >= 0 && h.indexOf('รหัส') >= 0) { hi = i; break; }
+    }
+    if (hi < 0) throw new Error('ไม่พบหัวคอลัมน์ complain / รหัส — ต้องเป็นชีต "รายละเอียด Complaint" จากไฟล์สรุป Complain FB');
+    var H = aoa[hi].map(clean), ix = function (n) { return H.indexOf(n); };
+    var C = { brand: ix('แบรนด์'), d: ix('วันที่'), code: ix('รหัส'), br: ix('สาขา'), t: ix('complain'), cost: ix('ค่าใช้จ่าย'), doc: ix('เลขที่เอกสาร'), sev: ix('ระดับความรุนแรง'), closed: ix('วันที่ปิดเคส'), days: ix('จำนวนวันรวม'), note: ix('หมายเหตุ'), raw: ix('สเต๊กไม่สุก') };
+    var cats = FB_CATS.map(function (c) { return [ix(c[0]), c[1]]; }).filter(function (c) { return c[0] >= 0; });
+    var reg = {};
+    (branchAoa || []).forEach(function (r, k) { if (k && r && /^\d{4}$/.test(clean(r[0]))) reg[clean(r[0])] = { name: clean(r[1]), bzm: clean(r[2]) }; });
+    var skip = opts.skipSrc || {}, st = { cases: 0, dupSrc: 0, noBrand: 0, noDate: 0, dmin: '9999', dmax: '0000', byBrand: { KT: 0, FS: 0, JD: 0 }, closed: 0, nocat: 0 };
+    var rows = [], seen = {};
+    for (var r = hi + 1; r < aoa.length; r++) {
+      var a = aoa[r]; if (!a) continue;
+      var text = clean(a[C.t]); if (!text) continue;
+      st.cases++;
+      var code = clean(a[C.code]), b = brandOf(a[C.brand], '') || (/^8/.test(code) ? 'FS' : /^5/.test(code) ? 'KT' : '');
+      if (!b) { st.noBrand++; continue; }
+      var dt = parseDT(a[C.d]); if (!dt) { st.noDate++; continue; }
+      if (dt.d < st.dmin) st.dmin = dt.d; if (dt.d > st.dmax) st.dmax = dt.d;
+      var m = maskPii(text), c = [];
+      cats.forEach(function (k) { var v = a[k[0]]; if (v != null && clean(v) !== '' && clean(v) !== '0') c.push(k[1]); });
+      var raw = C.raw >= 0 && a[C.raw] != null && clean(a[C.raw]) !== '' && clean(a[C.raw]) !== '0';
+      if (!c.length) st.nocat++;
+      var info = reg[code] || {}, closed = C.closed >= 0 ? parseDT(a[C.closed]) : null;
+      if (!closed && C.closed >= 0 && clean(a[C.closed])) closed = { d: clean(a[C.closed]) };
+      var extra = { status: closed ? 'done' : 'new' };
+      if (closed) { extra.closedAt = closed.d; st.closed++; }
+      if (C.cost >= 0 && clean(a[C.cost])) extra.cost = clean(a[C.cost]);
+      if (C.doc >= 0 && clean(a[C.doc])) extra.docNo = clean(a[C.doc]);
+      if (C.sev >= 0 && clean(a[C.sev])) extra.severity = clean(a[C.sev]);
+      if (C.days >= 0 && clean(a[C.days])) extra.days = clean(a[C.days]);
+      if (C.note >= 0 && clean(a[C.note])) extra.note = clean(a[C.note]);
+      if (raw) extra.undercooked = true;
+      if (c.length > 1) extra.cats = c.slice(1);
+      if (m.masked) extra.masked = true;
+      var src = 'fb|' + dt.d + '|' + code + '|' + hash(m.text.toLowerCase()), n = (seen[src] = (seen[src] || 0) + 1);
+      if (n > 1) src += '#' + n;
+      if (skip[src]) { st.dupSrc++; continue; }
+      var nm = info.name || clean(a[C.br]);
+      rows.push({ src_id: src, state: 'staging', b: b, d: dt.d, t: '', ty: 'ไม่พอใจ', br: (code + ' ' + nm).trim(), z: info.bzm || '', o: '', s: null, c: m.text, sub: c[0] || '', main: '', extra: extra, edited: false });
+      st.byBrand[b]++;
+    }
+    return { rows: rows, csat: [], stats: st };
+  }
+
   /* ธงที่คำนวณสดจากเนื้อหาปัจจุบันของแถว (แก้แล้วธงหายเอง) */
   var FLAG_LABEL = {
     pii: 'อาจมีข้อมูลส่วนตัว', noise: 'ข้อความไม่มีเนื้อหา', nosub: 'ไม่มีหัวข้อ', nobranch: 'สาขาไม่อยู่ในทะเบียนฮับ',
@@ -203,6 +258,6 @@
     return f;
   }
 
-  var api = { parseRaw: parseRaw, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  var api = { parseRaw: parseRaw, parseFb: parseFb, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

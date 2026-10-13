@@ -1,5 +1,5 @@
 -- ════════════════════════════════════════════════════════════════════
--- Customer Feedback Collection — ที่เก็บกลาง (ช่องทาง VOC · Facebook ภายหลัง)
+-- Customer Feedback Collection — ที่เก็บกลาง (ช่องทาง VOC · Facebook)
 --
 -- โปรเจกต์: FAB HUB (pzspcjqlxoqnbtvlfjsy)
 -- วิธีใช้: Supabase → SQL Editor → วางทั้งไฟล์ → Run (รันซ้ำได้ ไม่พัง)
@@ -186,13 +186,40 @@ begin
   return jsonb_build_object('ok', true);
 end $$;
 
+
+-- ── ติดตามเคส Facebook ที่ลงระบบแล้ว: อัปเดตสถานะ/ผู้รับผิดชอบ/หมายเหตุ/ลิงก์/วันที่ปิดเคส ──
+-- (เนื้อหาเคสแก้ไม่ได้ — แก้ได้เฉพาะช่องติดตาม · ใครมีสิทธิ์จัดการในฮับทำได้ ตรวจสิทธิ์ที่หน้าจอ)
+create or replace function public.fb_row_extra(p_id bigint, p_extra jsonb, p_by text default '')
+returns jsonb language plpgsql as $$
+declare
+  v_keep jsonb := '{}'::jsonb;
+  k text;
+begin
+  if p_extra is null or jsonb_typeof(p_extra) <> 'object' then return jsonb_build_object('ok', false, 'error', 'invalid'); end if;
+  for k in select jsonb_object_keys(p_extra) loop
+    if k in ('status', 'owner', 'note', 'link', 'closedAt') then
+      v_keep := v_keep || jsonb_build_object(k, left(p_extra ->> k, 300));
+    end if;
+  end loop;
+  if v_keep ? 'status' and (v_keep ->> 'status') not in ('new', 'doing', 'done') then
+    return jsonb_build_object('ok', false, 'error', 'status ไม่ถูกต้อง');
+  end if;
+  v_keep := v_keep || jsonb_build_object('updatedBy', left(coalesce(p_by, ''), 80), 'updatedAt', now());
+  update public.fb_rows set extra = extra || v_keep, updated_at = now()
+   where id = p_id and state = 'live' and channel = 'facebook';
+  if not found then return jsonb_build_object('ok', false, 'error', 'ไม่พบเคสที่ลงระบบแล้ว'); end if;
+  return jsonb_build_object('ok', true);
+end $$;
+
 revoke all on function public.fb_rows_set(uuid, bigint[], jsonb) from public, anon;
 revoke all on function public.fb_csat_set(uuid, bigint[], jsonb) from public, anon;
 revoke all on function public.fb_approve(uuid, text)             from public, anon;
 revoke all on function public.fb_revoke(uuid)                    from public, anon;
+revoke all on function public.fb_row_extra(bigint, jsonb, text)  from public, anon;
 grant execute on function public.fb_rows_set(uuid, bigint[], jsonb) to authenticated;
 grant execute on function public.fb_csat_set(uuid, bigint[], jsonb) to authenticated;
 grant execute on function public.fb_approve(uuid, text)             to authenticated;
 grant execute on function public.fb_revoke(uuid)                    to authenticated;
+grant execute on function public.fb_row_extra(bigint, jsonb, text)  to authenticated;
 
 notify pgrst, 'reload schema';

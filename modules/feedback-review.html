@@ -121,8 +121,8 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
       <div class="st"><b>4</b><span>ข้อมูลลงในระบบ</span></div>
     </div>
     <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
-      <div class="t">นำเข้าไฟล์ดิบ (rawdata_….xlsx)</div>
-      <div class="s">ลากไฟล์มาวาง หรือแตะเพื่อเลือก · ไฟล์จะยังไม่ลงระบบ — สร้างเป็น “ชุดตรวจสอบ” ให้กรองและแก้ไขก่อน</div>
+      <div class="t">นำเข้าไฟล์ดิบ</div>
+      <div class="s"><b>VOC</b>: rawdata_….xlsx จากแพลตฟอร์มแบบสำรวจ · <b>Facebook</b>: สรุป_Complain_FB….xlsx<br>ลากไฟล์มาวาง หรือแตะเพื่อเลือก · ไฟล์จะยังไม่ลงระบบ — สร้างเป็น “ชุดตรวจสอบ” ให้กรองและแก้ไขก่อน</div>
       <input type="file" id="file" accept=".xlsx,.xls" class="hide">
     </div>
     <div class="sec" style="margin:18px 0 0;font-weight:800;font-size:15px">ชุดข้อมูลที่นำเข้า</div>
@@ -282,14 +282,14 @@ function wire() {
 async function showList() {
   S.cur = null; $("#vBatch").classList.add("hide"); $("#gate").classList.add("hide"); $("#vList").classList.remove("hide");
   const box = $("#bcards"); box.innerHTML = `<div class="muted">กำลังโหลด…</div>`;
-  try { S.batches = await FBStore.batches("voc"); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
+  try { S.batches = await FBStore.batches(); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
   if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
   box.innerHTML = S.batches.map(b => {
     const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
     return `<div class="bcard" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
-        <div class="ct"><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span><span class="chip num">${fmt(b.n_rows)} คอมเมนต์</span><span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span></div></div>
+        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span><span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
       <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
   }).join("");
   box.onclick = async e => {
@@ -305,21 +305,51 @@ function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-he
 /* ═════════ นำเข้าไฟล์ ═════════ */
 async function importFile(file) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
-  let aoa;
+  let kind = "", aoa = null, branchAoa = null;
   try {
     const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type: "array", dense: true});
-    const name = wb.SheetNames.find(n => /raw\s*data/i.test(n)) || wb.SheetNames.find(n => !/dictionary/i.test(n));
-    aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: true, defval: null});
-  } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx จากแพลตฟอร์มแบบสำรวจ"); }
+    const toAoa = n => XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: null});
+    const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n));
+    const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
+    if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
+    else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; }
+    else { const n = wb.SheetNames.find(x => !/dictionary/i.test(x)); kind = "voc"; aoa = toAoa(n); }
+  } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx"); }
+  const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip}) : I.parseRaw(aoa, {skipSrc: skip});
   let first;
-  try { first = I.parseRaw(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
-  if (!first.rows.length && !first.csat.length) { busy(false); return modal("ไม่พบข้อมูล", "ไม่พบใบสำรวจที่ใช้ได้ในไฟล์นี้"); }
+  try { first = parse(); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
+  if (!first.rows.length && !first.csat.length) { busy(false); return modal("ไม่พบข้อมูล", "ไม่พบแถวที่ใช้ได้ในไฟล์นี้"); }
   busy(true, "ตรวจว่าเคยนำเข้าแล้วหรือยัง…"); await tick();
   let skip = {};
-  try { skip = await FBStore.existingSrc("voc", first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
-  const res = I.parseRaw(aoa, {skipSrc: skip});
+  try { skip = await FBStore.existingSrc(kind, first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
+  const res = parse(skip);
+  if (kind === "facebook") res.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; });   // ชื่อสาขาตามทะเบียนของฮับ
   busy(false);
-  previewImport(file.name, res);
+  if (kind === "facebook") previewImportFb(file.name, res); else previewImport(file.name, res);
+}
+
+function previewImportFb(fileName, res) {
+  const st = res.stats, n = res.rows.length;
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="note" style="margin-bottom:8px">${esc(fileName)} · เคสวันที่ ${esc(fmtD(st.dmin))} – ${esc(fmtD(st.dmax))} · อ่านได้ ${fmt(st.cases)} เคส</div>
+    <table class="mtab"><tr><th>แบรนด์</th><th class="r">เคส</th></tr>
+      <tr><td>Santa Fe KT</td><td class="r">${fmt(st.byBrand.KT)}</td></tr><tr><td>Santa Fe FS</td><td class="r">${fmt(st.byBrand.FS)}</td></tr>
+      <tr><td><b>รวมที่เข้าชุดตรวจสอบ</b></td><td class="r"><b>${fmt(n)}</b></td></tr></table>
+    <ul class="note" style="padding-left:18px">
+      <li>ทุกเคสเป็นข้อร้องเรียน (ประเภท “ไม่พอใจ”) · หมวดตามช่องที่ทำเครื่องหมายในไฟล์ · มีวันที่ปิดเคส = ปิดเรื่องแล้ว (ปิดแล้ว ${fmt(st.closed)} เคส)</li>
+      <li>ชื่อสาขาและ BZM ตามชีต “สาขา” ในไฟล์ — ตรวจ/แก้ในขั้นถัดไปได้</li>
+      <li>เคยนำเข้าแล้ว ข้ามให้: <b>${fmt(st.dupSrc)}</b>${st.nocat ? ` · ไม่มีหมวด ${fmt(st.nocat)}` : ""}${st.noBrand ? ` · ไม่รู้แบรนด์ ข้าม ${fmt(st.noBrand)}` : ""}</li>
+    </ul>`;
+  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ (Facebook)", body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+    if (!n) { toast("ไม่มีเคสใหม่ให้นำเข้า"); return false; }
+    busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
+    try {
+      const id = await FBStore.createBatch({channel: "facebook", file_name: fileName, d_from: st.dmin, d_to: st.dmax, by: who()}, res.rows, [], (a, b) => busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", a / b));
+      busy(false); toast("สร้างชุดตรวจสอบแล้ว");
+      const bs = await FBStore.batches(); S.batches = bs; openBatch(bs.find(x => x.id === id));
+    } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
+  }}]);
 }
 
 function previewImport(fileName, res) {
@@ -354,7 +384,7 @@ function previewImport(fileName, res) {
     try {
       const id = await FBStore.createBatch({channel: "voc", file_name: fileName, d_from: st.dmin, d_to: st.dmax, by: who()}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
       busy(false); toast("สร้างชุดตรวจสอบแล้ว");
-      const bs = await FBStore.batches("voc"); const b = bs.find(x => x.id === id); S.batches = bs; openBatch(b);
+      const bs = await FBStore.batches(); const b = bs.find(x => x.id === id); S.batches = bs; openBatch(b);
     } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
   }}]);
 }
@@ -370,8 +400,9 @@ async function openBatch(b) {
     S.rows = rows.map(r => { r.extra = r.extra || {}; r.d = String(r.d || "").slice(0, 10); return calc(r); }); S.csat = csat;
   } catch (e) { busy(false); toast("โหลดไม่ได้: " + e.message); return showList(); }
   busy(false);
-  S.subMain = {}; Object.values(I.CAT).forEach(v => S.subMain[v[0]] = v[1]); S.rows.forEach(r => { if (r.sub && r.main && !S.subMain[r.sub]) S.subMain[r.sub] = r.main; });
+  S.subMain = {}; if (b.channel !== "facebook") Object.values(I.CAT).forEach(v => S.subMain[v[0]] = v[1]); else I.FB_CATS.forEach(c => S.subMain[c[1]] = ""); S.rows.forEach(r => { if (r.sub && !(r.sub in S.subMain)) S.subMain[r.sub] = r.main || ""; });
   $("#bnm").textContent = b.file_name || "ชุดข้อมูล";
+  $("#tCsat").classList.toggle("hide", b.channel === "facebook");
   buildFilters(); setTab("rows"); renderHead();
 }
 const locked = () => !S.cur || S.cur.status !== "staging";
@@ -400,16 +431,16 @@ function counts() {
 function renderKpi() {
   const c = counts(), live = S.cur.status === "approved", cs = S.csat.filter(x => x.state !== "drop").length;
   $("#kp").innerHTML = `
-    <div class="k"><div class="l">คอมเมนต์ในชุด</div><div class="n num">${fmt(c.all)}</div><div class="d">${fmt(S.csat.length)} รายการ CSAT/NPS</div></div>
-    <div class="k go"><div class="l">${live ? "อยู่ในระบบ" : "จะลงระบบเมื่ออนุมัติ"}</div><div class="n num">${fmt(live ? c.live : c.go)}</div><div class="d">CSAT/NPS ${fmt(cs)} รายการ</div></div>
-    <div class="k sk"><div class="l">ข้าม / ไม่ลงระบบ</div><div class="n num">${fmt(c.skip)}</div><div class="d">รวมข้อเสนอแนะที่ยังไม่จัดประเภท</div></div>
+    <div class="k"><div class="l">${S.cur.channel === "facebook" ? "เคสในชุด" : "คอมเมนต์ในชุด"}</div><div class="n num">${fmt(c.all)}</div><div class="d">${S.cur.channel === "facebook" ? "Facebook" : fmt(S.csat.length) + " รายการ CSAT/NPS"}</div></div>
+    <div class="k go"><div class="l">${live ? "อยู่ในระบบ" : "จะลงระบบเมื่ออนุมัติ"}</div><div class="n num">${fmt(live ? c.live : c.go)}</div><div class="d">${S.cur.channel === "facebook" ? "&nbsp;" : "CSAT/NPS " + fmt(cs) + " รายการ"}</div></div>
+    <div class="k sk"><div class="l">ข้าม / ไม่ลงระบบ</div><div class="n num">${fmt(c.skip)}</div><div class="d">${S.cur.channel === "facebook" ? "&nbsp;" : "รวมข้อเสนอแนะที่ยังไม่จัดประเภท"}</div></div>
     <div class="k wn"><div class="l">ควรตรวจ</div><div class="n num">${fmt(c.warn)}</div><div class="d">หมวดใหม่ · ไม่มีหัวข้อ · ข้อมูลส่วนตัว…</div></div>
     <div class="k"><div class="l">ข้อมูลช่วง</div><div class="n" style="font-size:16px;padding-top:6px">${esc(fmtD(S.cur.d_from))} – ${esc(fmtD(S.cur.d_to))}</div><div class="d">&nbsp;</div></div>`;
 }
 function renderBar() {
   const c = counts(), live = S.cur.status === "approved";
-  if (live) { $("#bar").innerHTML = `<div class="tx">ชุดนี้อนุมัติแล้ว เมื่อ ${esc(new Date(S.cur.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(S.cur.approved_by || "—")}</div><button class="btn ghost" id="bRevoke">ถอนการอนุมัติ</button>`; $("#bRevoke").onclick = () => confirmBox("ถอนการอนุมัติ?", `ข้อมูลของชุดนี้จะ<b>ออกจากระบบ</b> และกลับไปรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(S.cur.id); } finally { busy(false); } toast("ถอนแล้ว"); notifyParent(); const bs = await FBStore.batches("voc"); S.batches = bs; await openBatch(bs.find(x => x.id === S.cur.id)); }); return; }
-  $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> คอมเมนต์ · ข้าม <b>${fmt(c.skip)}</b> · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ</div><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
+  if (live) { $("#bar").innerHTML = `<div class="tx">ชุดนี้อนุมัติแล้ว เมื่อ ${esc(new Date(S.cur.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(S.cur.approved_by || "—")}</div><button class="btn ghost" id="bRevoke">ถอนการอนุมัติ</button>`; $("#bRevoke").onclick = () => confirmBox("ถอนการอนุมัติ?", `ข้อมูลของชุดนี้จะ<b>ออกจากระบบ</b> และกลับไปรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(S.cur.id); } finally { busy(false); } toast("ถอนแล้ว"); notifyParent(); const bs = await FBStore.batches(); S.batches = bs; await openBatch(bs.find(x => x.id === S.cur.id)); }); return; }
+  $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"} · ข้าม <b>${fmt(c.skip)}</b>${S.cur.channel === "facebook" ? "" : ` · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ`}</div><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
   $("#bApprove").onclick = approveDialog;
 }
 
@@ -505,7 +536,8 @@ function editRow(r) {
     <div class="g2"><div class="fld"><label>BZM</label><input id="eZ" value="${esc(r.z)}"></div><div class="fld"><label>Owner (FS)</label><input id="eO" value="${esc(r.o)}"></div></div>
     <div class="fld"><label>หัวข้อ</label><select id="eSub"><option value="">(ไม่มีหัวข้อ)</option>${subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select></div>
     <div class="fld"><label>ข้อความ</label><textarea id="eC">${esc(r.c)}</textarea></div>
-    ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}`;
+    ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}
+    ${r.extra && (r.extra.docNo || r.extra.cost || r.extra.severity || r.extra.note || r.extra.closedAt) ? `<div class="note">${["docNo|เลขที่เอกสาร", "cost|ค่าใช้จ่าย", "severity|ระดับความรุนแรง", "closedAt|ปิดเคส", "note|หมายเหตุ"].map(x => { const [k, l] = x.split("|"); return r.extra[k] ? l + ": " + esc(r.extra[k]) : ""; }).filter(Boolean).join(" · ")}</div>` : ""}`;
   const m = modal("แก้ไขคอมเมนต์", body, ro ? [] : [{text: "บันทึก", fn: async () => {
     const patch = {state: $("#eSt", body).value, ty: $("#eTy", body).value, br: $("#eBr", body).value.trim(), z: $("#eZ", body).value.trim(), o: $("#eO", body).value.trim(), sub: $("#eSub", body).value, c: $("#eC", body).value.trim()};
     patch.main = patch.sub ? (S.subMain[patch.sub] || r.main) : "";
@@ -554,17 +586,17 @@ function approveDialog() {
   const sug = S.rows.filter(r => r.state === "staging" && r.ty === "ข้อเสนอแนะ").length;
   const bn = {KT: "Santa Fe KT", FS: "Santa Fe FS", JD: "เจ๊แดง"};
   modal("อนุมัติข้อมูลลงระบบ", `
-    <table class="mtab"><tr><th>แบรนด์</th><th class="r">พอใจ</th><th class="r">ไม่พอใจ</th></tr>
+    <table class="mtab"><tr><th>แบรนด์</th><th class="r">${S.cur.channel === "facebook" ? "คำชม" : "พอใจ"}</th><th class="r">${S.cur.channel === "facebook" ? "ข้อร้องเรียน" : "ไม่พอใจ"}</th></tr>
     ${Object.keys(by).map(k => `<tr><td>${bn[k]}</td><td class="r">${fmt(by[k].p)}</td><td class="r">${fmt(by[k].n)}</td></tr>`).join("")}
-    <tr><td><b>รวม</b></td><td class="r" colspan="2"><b>${fmt(go.length)} คอมเมนต์</b></td></tr></table>
-    <div style="line-height:1.8">CSAT / NPS: <b class="num">${fmt(csat.length)}</b> รายการ · ข้าม: <b class="num">${fmt(skip)}</b> แถว${sug ? ` (รวมข้อเสนอแนะที่ยังไม่เปลี่ยนประเภท ${fmt(sug)})` : ""}</div>
+    <tr><td><b>รวม</b></td><td class="r" colspan="2"><b>${fmt(go.length)} ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"}</b></td></tr></table>
+    <div style="line-height:1.8">${S.cur.channel === "facebook" ? "" : `CSAT / NPS: <b class="num">${fmt(csat.length)}</b> รายการ · `}ข้าม: <b class="num">${fmt(skip)}</b> แถว${sug ? ` (รวมข้อเสนอแนะที่ยังไม่เปลี่ยนประเภท ${fmt(sug)})` : ""}</div>
     ${Object.keys(warn).length ? `<div class="warn"><b>ยังมีแถวที่ติดธงและจะลงระบบด้วย</b><br>${Object.keys(warn).map(f => `${esc(I.FLAG_LABEL[f])} ${fmt(warn[f])}`).join(" · ")}</div>` : ""}
-    <div class="note">เมื่ออนุมัติ ทุกคนที่มีสิทธิ์จะเห็นข้อมูลนี้ในแดชบอร์ด VOC ตามสิทธิ์ของตน · CSAT/NPS เดือน-BZM เดียวกันที่เคยอนุมัติไว้จะถูกแทนที่ · ถอนการอนุมัติได้ภายหลัง</div>`,
+    <div class="note">เมื่ออนุมัติ ทุกคนที่มีสิทธิ์จะเห็นข้อมูลนี้ใน${S.cur.channel === "facebook" ? "ช่องทาง Facebook" : "แดชบอร์ด VOC"}ตามสิทธิ์ของตน${S.cur.channel === "facebook" ? "" : " · CSAT/NPS เดือน-BZM เดียวกันที่เคยอนุมัติไว้จะถูกแทนที่"} · ถอนการอนุมัติได้ภายหลัง</div>`,
     [{text: "อนุมัติ → ลงระบบ", cls: "ok", fn: async () => {
       busy(true, "กำลังอนุมัติ…");
       let r; try { r = await FBStore.approve(S.cur.id, who()); } finally { busy(false); }
       toast(`ลงระบบแล้ว ${fmt(r.rows)} คอมเมนต์ · CSAT/NPS ${fmt(r.csat)} รายการ`); notifyParent();
-      const bs = await FBStore.batches("voc"); S.batches = bs; const b = bs.find(x => x.id === S.cur.id); await openBatch(b);
+      const bs = await FBStore.batches(); S.batches = bs; const b = bs.find(x => x.id === S.cur.id); await openBatch(b);
     }}]);
 }
 

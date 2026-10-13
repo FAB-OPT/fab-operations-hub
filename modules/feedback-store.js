@@ -34,7 +34,8 @@
     retry: function () { state.p = null; return this.ready(); },
 
     batches: function (channel) {
-      return sb().from('fb_batches').select('*').eq('channel', channel || 'voc').order('created_at', { ascending: false }).then(ok);
+      var q = sb().from('fb_batches').select('*'); if (channel) q = q.eq('channel', channel);
+      return q.order('created_at', { ascending: false }).then(ok);
     },
 
     /* ดึงทีละหน้า (PostgREST ตอบสูงสุด 1,000 แถวต่อครั้ง) แล้วรวม */
@@ -58,8 +59,8 @@
     },
 
     /* แถวที่ลงระบบแล้วของช่องทางนั้น — สำหรับแดชบอร์ด */
-    liveRows: function (channel, onProgress) {
-      var cols = 'b,d,t,ty,br,z,o,s,c,sub,main';
+    liveRows: function (channel, onProgress, cols) {
+      cols = cols || 'b,d,t,ty,br,z,o,s,c,sub,main';
       return this._all(function (from, to, countOnly) {
         var q = sb().from('fb_rows');
         if (countOnly) return q.select('id', { head: true, count: 'exact' }).eq('channel', channel).eq('state', 'live').then(function (r) { if (r.error) throw fail(r.error); return r.count; });
@@ -134,6 +135,10 @@
     },
     revoke: function (batchId) {
       return sb().rpc('fb_revoke', { p_batch: batchId }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
+    },
+    /* ช่องติดตามของเคส Facebook ที่ลงระบบแล้ว */
+    setExtra: function (rowId, extra, by) {
+      return sb().rpc('fb_row_extra', { p_id: rowId, p_extra: extra, p_by: by || '' }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
     },
     removeBatch: function (batchId) {
       return sb().from('fb_batches').delete().eq('id', batchId).eq('status', 'staging').then(ok);
