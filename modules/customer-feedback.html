@@ -10,6 +10,23 @@
 <link rel="stylesheet" href="hub-mod.css">
 <style>
 /* เฉพาะระบบ Customer Feedback Collection — ส่วนกลางอยู่ที่ hub-mod.css */
+.home{display:flex;flex-direction:column;align-items:center;text-align:center;padding:40px 0 60px}
+.home h1{font-size:clamp(28px,5vw,46px);font-weight:800;letter-spacing:-.025em;line-height:1.15;margin:0 0 6px}
+.home .hs{color:var(--text3);font-size:16px;margin-bottom:38px}
+.tiles{display:flex;gap:clamp(22px,5vw,64px);flex-wrap:wrap;justify-content:center}
+.tile{display:flex;flex-direction:column;align-items:center;gap:14px;cursor:pointer;background:none;border:0;font-family:inherit;color:inherit;-webkit-tap-highlight-color:transparent}
+.tile .ic{position:relative;width:176px;height:176px;border-radius:40px;display:grid;place-items:center;box-shadow:0 18px 40px -16px rgba(15,23,42,.45);transition:transform .18s,box-shadow .18s}
+.tile:hover .ic{transform:translateY(-4px) scale(1.02);box-shadow:0 26px 48px -16px rgba(15,23,42,.5)}
+.tile:active .ic{transform:scale(.98)}
+.tile:focus-visible .ic{outline:3px solid var(--gold);outline-offset:4px}
+.tile .ic.voc{background:linear-gradient(160deg,#ff8a3d,#f26a10)}
+.tile .ic.fb{background:linear-gradient(160deg,#2f8bff,#1366e0)}
+.tile .ic svg{width:96px;height:96px;fill:none;stroke:#fff;stroke-width:0}
+.tile .bd{position:absolute;right:-6px;bottom:-4px;background:#111827;color:#fff;border-radius:999px;padding:3px 12px;font-size:13px;font-weight:800;letter-spacing:.02em}
+.tile .bd.n{background:#e11d48}
+.tile .nm{font-size:26px;font-weight:800;letter-spacing:-.01em}
+.tile .ds{font-size:13px;color:var(--text3);margin-top:-8px}
+.homebtn{margin:0}
 .chbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
 .chbar .segbar{margin:0}
 .tab .ch-dot{width:9px;height:9px;border-radius:50%;flex:none}
@@ -65,6 +82,21 @@
 </div>
 
 <div class="shell">
+  <div id="home" class="home hide">
+    <h1>Customer Feedback Collection</h1>
+    <div class="hs">แตะไอคอนเพื่อเลือกช่องทาง</div>
+    <div class="tiles">
+      <button class="tile" id="tileVoc" type="button" aria-label="เปิดช่องทาง VOC">
+        <span class="ic voc"><svg viewBox="0 0 96 96"><path d="M8 24h54a10 10 0 0 1 10 10v26a10 10 0 0 1-10 10H38L22 84V70H8A10 10 0 0 1-2 60V34A10 10 0 0 1 8 24z" transform="translate(6 -2)" fill="#fff" fill-opacity=".97"/><path d="M22 42h34M22 54h22" stroke="#f26a10" stroke-width="5" stroke-linecap="round"/><path d="M76 6l5.2 10.6 11.6 1.7-8.4 8.2 2 11.6L76 32.6l-10.4 5.5 2-11.6-8.4-8.2 11.6-1.7z" fill="#fff" stroke="#f26a10" stroke-width="3.5" stroke-linejoin="round" paint-order="stroke" transform="translate(-4 2) scale(.95)"/></svg><span class="bd">VOC</span></span>
+        <span class="nm">VOC</span><span class="ds">แบบสำรวจความพึงพอใจ</span>
+      </button>
+      <button class="tile" id="tileFb" type="button" aria-label="เปิดช่องทาง Facebook">
+        <span class="ic fb"><svg viewBox="0 0 96 96"><path d="M54 90V54h12l2-14H54v-9c0-4 1.6-7 7-7h8V11c-1.4-.2-6-.6-11.4-.6C47 10.4 40 16.6 40 28v12H28v14h12v36z" fill="#fff"/></svg><span class="bd n hide" id="fbBadge">0</span><span class="bd" id="fbTag">FB</span></span>
+        <span class="nm">Facebook</span><span class="ds" id="fbDs">คอมเมนต์ชมและข้อร้องเรียน</span>
+      </button>
+    </div>
+  </div>
+  <div id="main" class="hide">
   <div class="pagehead">
     <div class="ph-eyebrow">รวมคำชมและข้อร้องเรียนจากลูกค้า</div>
     <div class="ph-title">Customer Feedback Collection</div>
@@ -72,6 +104,7 @@
   </div>
 
   <div class="chbar">
+    <button class="btn-back homebtn" id="homeBtn" type="button" title="กลับไปเลือกช่องทาง"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">เลือกช่องทาง</span></button>
     <div class="segbar" role="tablist" aria-label="ช่องทาง">
       <button class="tab" id="tabVoc" role="tab" aria-selected="true"><i class="ch-dot voc"></i>VOC</button>
       <button class="tab" id="tabFb" role="tab" aria-selected="false"><i class="ch-dot fb"></i>Facebook</button>
@@ -112,6 +145,7 @@
     <div class="fbhint" id="fbHint">ข้อมูลช่องทาง Facebook เก็บในเบราว์เซอร์เครื่องนี้ (เหมือนช่องทาง VOC) — ใช้ “ส่งออก CSV” เพื่อสำรองหรือส่งต่อให้ทีมอื่น</div>
     <div id="fbList"></div>
     <button class="btn ghost more hide" id="bMore">แสดงเพิ่ม</button>
+  </div>
   </div>
 </div>
 
@@ -325,12 +359,22 @@ function exportCsv(){
 function refresh(){ fillFilters(); renderFb(); }
 
 /* ───── ช่องทาง ───── */
-function setCh(c,keep){ CH=c;
+function showHome(){
+  $("#main").classList.add("hide"); $("#home").classList.remove("hide");
+  const open=DATA.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
+  $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
+  $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
+  try{ history.replaceState(null,"",location.pathname); }catch(e){}
+  window.scrollTo({top:0}); }
+function setCh(c,keep){ CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook");
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook");
   if(c==="voc"&&!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html");
   $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
   if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
+$("#tileVoc").onclick=()=>setCh("voc");
+$("#tileFb").onclick=()=>{ setCh("facebook"); refresh(); };
+$("#homeBtn").onclick=showHome;
 $("#tabVoc").onclick=()=>setCh("voc");
 $("#tabFb").onclick=()=>setCh("facebook");
 $("#backBtn").onclick=()=>Hub.back();
@@ -345,10 +389,10 @@ $("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
 (async()=>{
   if(!Hub.guard()) return;
   $("#me").textContent=Hub.fullName();
-  const first=new URLSearchParams(location.search).get("ch")||(location.hash||"").replace("#","")||localStorage.getItem("hub_cf_ch")||"voc";
-  setCh(first==="facebook"?"facebook":"voc",true);          /* แสดงช่องทางทันที ไม่รอเครือข่าย */
+  const first=new URLSearchParams(location.search).get("ch")||(location.hash||"").replace("#","");
+  if(first==="facebook"||first==="voc") setCh(first,true); else $("#home").classList.remove("hide");   /* ไม่ระบุช่องทาง = หน้าเลือกช่องทาง (ไอคอนใหญ่) */
   try{ await DB.open(); DATA=await DB.all(); }catch(e){ console.error(e); DATA=[]; }
-  refresh();
+  refresh(); if(!$("#home").classList.contains("hide")) showHome();
   await Promise.race([Cfg.load().catch(()=>null),new Promise(r=>setTimeout(r,8000))]);
   const gate=()=>{ const g=document.createElement("div"); g.className="gate"; g.innerHTML=`<div class="box"><div class="em-ic">🔒</div><h2>ไม่มีสิทธิ์เข้าระบบนี้</h2><p>บัญชีนี้ยังไม่ได้รับสิทธิ์ใน Customer Feedback Collection — ติดต่อผู้ดูแลระบบ</p><button class="btn full">กลับหน้าหลัก</button></div>`; $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g); };
   if(!can("view")) return gate();
