@@ -71,6 +71,8 @@ h1 .brand{white-space:nowrap}
 .h .v{font-size:clamp(52px,6vw,76px);font-weight:800;line-height:.95;letter-spacing:-.03em;font-variant-numeric:tabular-nums}
 .h .r{text-align:right;font-size:15.5px;opacity:.85;line-height:1.5}
 .h .r b{display:block;font-size:21px}
+.zonenote{display:flex;align-items:center;gap:10px;background:#eff6ff;border:1px solid #bfdbfe;color:#1e40af;border-radius:14px;padding:10px 16px;font-size:15.5px;font-weight:600}
+.zonenote i{flex:none;display:grid;place-items:center;width:22px;height:22px;border-radius:50%;background:#1e40af;color:#fff;font:700 13px/1 var(--f-body);font-style:normal}
 .strip{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 22px;display:flex;align-items:center;gap:12px 22px;flex-wrap:wrap}
 .strip .tot{display:flex;align-items:baseline;gap:10px;font-weight:600;color:var(--muted);font-size:16.5px}
 .strip .tot b{font-size:32px;color:var(--fg);font-weight:800;font-variant-numeric:tabular-nums}
@@ -187,6 +189,7 @@ h1 .brand{white-space:nowrap}
       <div class="h dk"><div><div class="l">CSAT</div><div class="v" id="kCsat">–</div></div><div class="r"><b>ความพึงพอใจ</b>เต็ม 100</div></div>
       <div class="h or"><div><div class="l">NPS</div><div class="v" id="kNps">–</div></div><div class="r"><b>Net Promoter</b>ช่วง -100 ถึง +100</div></div>
     </div>
+    <div class="zonenote" id="zoneNote" hidden><i aria-hidden="true">i</i><span>CSAT/NPS เป็นค่าระดับเขต (BZM) ที่สาขาของคุณสังกัด</span></div>
     <div class="strip">
       <div class="tot">ความเห็นทั้งหมด <b id="kAll">0</b></div>
       <div class="bar" aria-hidden="true"><i class="g" id="barG" style="width:0"></i><i class="r" id="barR" style="width:0"></i></div>
@@ -459,6 +462,7 @@ function renderAll(){
   const [cs,np]=csatNps(); $('kCsat').textContent=cs; $('kNps').textContent=np;
   $('barG').style.width = rows.length ? (pos/rows.length*100)+'%' : '0%';
   $('barR').style.width = rows.length ? (neg ? Math.max(1.2, neg/rows.length*100) : 0)+'%' : '0%';
+  $('zoneNote').hidden = !(SCOPE.csat && !SCOPE.all);
   const rt = rangeText();
   $('eyebrow').textContent = 'VOICE OF THE CUSTOMER · '+rt;
 
@@ -540,7 +544,7 @@ renderStatus = function(extra=''){
   const total = Object.values(byBrand).reduce((a,x)=>a+x.length,0);
   const pill = DATA.meta.source==='sample' ? 'ข้อมูลตัวอย่าง' : 'ข้อมูลล่าสุด';
   const when = DATA.meta.updated ? ' · นำเข้าโดยผู้ดูแล '+new Date(DATA.meta.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
-  setStatus(`<span class="pill">${pill}</span> ${SCOPE.all?'ทุกสาขา':'<strong>'+esc(SCOPE.label)+'</strong>'} · ${fmtN(total)} แถว${when}${!SCOPE.all&&!total?'<br>ไม่มีคอมเมนต์ในสิทธิ์ของคุณในช่วงข้อมูลที่โหลดไว้':''}${SCOPE.csat&&!SCOPE.all?'<br>CSAT/NPS เป็นค่าระดับเขต (BZM) ที่สาขาของคุณสังกัด':''}`);
+  setStatus(`<span class="pill">${pill}</span> ${SCOPE.all?'ทุกสาขา':'<strong>'+esc(SCOPE.label)+'</strong>'} · ${fmtN(total)} แถว${when}${!SCOPE.all&&!total?'<br>ไม่มีคอมเมนต์ในสิทธิ์ของคุณในช่วงข้อมูลที่โหลดไว้':''}`);
 };
 /* ---------- ข้อมูลกลาง (Supabase FAB HUB) ----------
    หน้าฮับดึงชุดที่แอดมินอนุมัติแล้วมาส่งให้ทาง postMessage · เดือนไหนมีในข้อมูลกลางแล้ว ใช้ของกลางแทนข้อมูลตั้งต้น/ที่นำเข้าในเครื่อง
