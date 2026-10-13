@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Customer Feedback Collection · FAB Operations Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="hub-mod.css">
+<style>
+/* เฉพาะระบบ Customer Feedback Collection — ส่วนกลางอยู่ที่ hub-mod.css */
+.chbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
+.chbar .segbar{margin:0}
+.tab .ch-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.tab .ch-dot.voc{background:#f59e0b}.tab .ch-dot.fb{background:#1877f2}
+.chnote{font-size:13px;color:var(--text3)}
+.vocwrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
+.vocwrap iframe{display:block;width:100%;height:calc(100vh - 250px);min-height:620px;border:0;background:#f3f1ee}
+.vochead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)}
+.vochead a{color:var(--gold-ink);font-weight:700;text-decoration:none}
+/* Facebook */
+.kpis.k4{grid-template-columns:repeat(4,1fr)}@media(max-width:860px){.kpis.k4{grid-template-columns:repeat(2,1fr)}}
+.fbtools{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:4px 0 12px}
+.fbtools .grow{min-width:140px}
+.fbfilters{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 14px}
+.fbfilters select{width:auto;flex:0 1 170px}.fbfilters select,.fbfilters input{padding:9px 12px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:14px;min-height:40px;color:var(--text)}
+.fbfilters input[type=search]{flex:1;min-width:180px}
+.cmt{position:relative;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 18px 14px 22px;margin:10px 0;cursor:pointer;overflow:hidden;transition:border-color .15s,box-shadow .15s}
+.cmt:hover{border-color:var(--border2);box-shadow:var(--shadow-sm)}
+.cmt::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--text3)}
+.cmt.good::before{background:var(--green)}.cmt.bad::before{background:var(--red)}
+.cmt-top{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.cmt-top b{font-size:14.5px}
+.cmt-sub{font-size:12.5px;color:var(--text3)}
+.cmt-text{font-size:15px;line-height:1.6;white-space:pre-wrap;word-break:break-word}
+.cmt-foot{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:9px;font-size:12.5px;color:var(--text3)}
+.cmt-foot a{color:var(--gold-ink);font-weight:700;text-decoration:none}
+.chip2{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--border);background:var(--bg3);color:var(--text2)}
+.chip2.good{background:var(--green-soft);border-color:var(--green-line);color:var(--green-ink)}
+.chip2.bad{background:var(--red-soft);border-color:var(--red-line);color:var(--red-ink)}
+.chip2.st-new{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.chip2.st-doing{background:var(--gold-soft);border-color:var(--gold-line);color:var(--gold-ink)}
+.chip2.st-done{background:var(--green-soft);border-color:var(--green-line);color:var(--green-ink)}
+.chip2.auto{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
+.more{display:block;margin:12px auto 0}
+.fbhint{background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold-ink);border-radius:var(--radius);padding:11px 14px;font-size:13px;margin:0 0 12px}
+.fbgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media(max-width:560px){.fbgrid{grid-template-columns:1fr}}
+.field textarea{width:100%;min-height:96px;padding:10px 12px;border:1px solid var(--border2);border-radius:10px;font-size:15px;resize:vertical}
+.field input,.field select{width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:10px;font-size:15px;min-height:42px;background:var(--bg2)}
+.field label{display:block;font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.field{margin-bottom:10px}
+.impnote{font-size:12.5px;color:var(--text3);line-height:1.7;margin-top:8px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
+    <div class="brand-text"><div class="t-title">Customer Feedback Collection</div><div class="t-sub">FAB Operations &amp; Training Hub</div></div></div>
+  <div class="spacer"></div>
+  <span class="userchip admin" id="me">—</span>
+  <button class="btn-back" id="backBtn" title="กลับหน้าหลัก"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับหน้าหลัก</span></button>
+</div>
+
+<div class="shell">
+  <div class="pagehead">
+    <div class="ph-eyebrow">รวมคำชมและข้อร้องเรียนจากลูกค้า</div>
+    <div class="ph-title">Customer Feedback Collection</div>
+    <div class="ph-sub">แยกตามช่องทาง · เลือกช่องทางด้านล่าง</div>
+  </div>
+
+  <div class="chbar">
+    <div class="segbar" role="tablist" aria-label="ช่องทาง">
+      <button class="tab" id="tabVoc" role="tab" aria-selected="true"><i class="ch-dot voc"></i>VOC</button>
+      <button class="tab" id="tabFb" role="tab" aria-selected="false"><i class="ch-dot fb"></i>Facebook</button>
+    </div>
+    <div class="chnote" id="chnote"></div>
+  </div>
+
+  <!-- ช่องทาง VOC: แดชบอร์ดเดิม (voc-snapshot.html) -->
+  <div id="viewVoc" class="vocwrap">
+    <div class="vochead"><span>แบบสำรวจ VOC (Voice of the Customer) · นำเข้าไฟล์ Excel จาก Google Sheet ได้ในหน้านี้</span><a href="voc-snapshot.html" target="_blank" rel="noopener">เปิดแยกหน้าต่าง ↗</a></div>
+    <iframe id="vocFrame" title="VOC Survey Snapshot" loading="lazy"></iframe>
+  </div>
+
+  <!-- ช่องทาง Facebook -->
+  <div id="viewFb" class="hide">
+    <div class="kpis k4">
+      <div class="kpi"><div class="k-l">คอมเมนต์ทั้งหมด</div><div class="k-n" id="f1">–</div><div class="k-d">รายการ</div></div>
+      <div class="kpi b"><div class="k-l">คำชม</div><div class="k-n" id="f2">–</div><div class="k-d" id="f2d">&nbsp;</div></div>
+      <div class="kpi warn"><div class="k-l">ข้อร้องเรียน</div><div class="k-n" id="f3">–</div><div class="k-d" id="f3d">&nbsp;</div></div>
+      <div class="kpi a" id="k4"><div class="k-l">ร้องเรียนที่ยังไม่ปิดเรื่อง</div><div class="k-n" id="f4">–</div><div class="k-d">รายการ</div></div>
+    </div>
+    <div class="fbtools">
+      <div class="grow muted" id="fbcount"></div>
+      <button class="btn sm" id="bAdd">+ เพิ่มคอมเมนต์</button>
+      <button class="btn sm ghost" id="bPaste">วางหลายรายการ</button>
+      <button class="btn sm ghost" id="bImp">นำเข้าไฟล์</button>
+      <button class="btn sm ghost" id="bExp">ส่งออก CSV</button>
+      <input type="file" id="impFile" accept=".csv,.xlsx,.xls" class="hide">
+    </div>
+    <div class="fbfilters">
+      <input type="search" id="fQ" placeholder="ค้นหาข้อความ / ชื่อ / สาขา" aria-label="ค้นหา">
+      <select id="fMonth" aria-label="เดือน"></select>
+      <select id="fBrand" aria-label="แบรนด์"></select>
+      <select id="fBranch" aria-label="สาขา"></select>
+      <select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option><option value="good">คำชม</option><option value="complaint">ข้อร้องเรียน</option><option value="neutral">ทั่วไป</option></select>
+      <select id="fStatus" aria-label="สถานะติดตาม"><option value="">ทุกสถานะ</option><option value="new">ใหม่</option><option value="doing">กำลังติดตาม</option><option value="done">ปิดเรื่องแล้ว</option></select>
+    </div>
+    <div class="fbhint" id="fbHint">ข้อมูลช่องทาง Facebook เก็บในเบราว์เซอร์เครื่องนี้ (เหมือนช่องทาง VOC) — ใช้ “ส่งออก CSV” เพื่อสำรองหรือส่งต่อให้ทีมอื่น</div>
+    <div id="fbList"></div>
+    <button class="btn ghost more hide" id="bMore">แสดงเพิ่ม</button>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
+<script src="hub-docstore.js?v=20261006b"></script>
+<script>
+"use strict";
+const {Hub, Cfg} = HubMod;
+const $=(s,r=document)=>r.querySelector(s);
+const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const today=()=>HubMod.localDate();
+function toast(t){document.querySelectorAll(".toast").forEach(x=>x.remove());
+  const e=document.createElement("div");e.className="toast";e.textContent=t;document.body.appendChild(e);setTimeout(()=>e.remove(),2600);}
+
+/* สิทธิ์ — ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.feedback ในฮับ */
+const PERM_KEY="feedback";
+const TEAM=["admin","coo","vp","bzm","support"];
+const PERM_DEFAULTS={ "view":TEAM, "manage":["admin","coo","vp","bzm","support"], "export":TEAM, "delete":["admin"] };
+const can=a=>HubMod.can(PERM_KEY,a,PERM_DEFAULTS);
+
+const TYPES={good:"คำชม",complaint:"ข้อร้องเรียน",neutral:"ทั่วไป"};
+const STATUS={new:"ใหม่",doing:"กำลังติดตาม",done:"ปิดเรื่องแล้ว"};
+const CATS=["อาหาร/รสชาติ","บริการ/พนักงาน","ความสะอาด","ราคา/โปรโมชัน","รอนาน/คิว","บรรยากาศ/สถานที่","อื่น ๆ"];
+
+/* ───── ที่เก็บข้อมูล Facebook: IndexedDB (ตกไป localStorage ถ้าเปิดไม่ได้) ───── */
+const DB={ db:null, mem:null,
+  open(){ return new Promise(res=>{
+    const t=setTimeout(()=>res(false),2500);      // เปิด IndexedDB ไม่ได้/ค้าง → ใช้ localStorage แทน
+    try{ const r=indexedDB.open("hub-customer-feedback",1);
+      r.onupgradeneeded=()=>{ r.result.createObjectStore("fb",{keyPath:"id"}); };
+      r.onsuccess=()=>{ clearTimeout(t); this.db=r.result; res(true); }; r.onerror=()=>{ clearTimeout(t); res(false); }; r.onblocked=()=>{ clearTimeout(t); res(false); };
+    }catch(e){ clearTimeout(t); res(false); } }); },
+  all(){ const ls=()=>{ try{ return JSON.parse(localStorage.getItem("hub_cf_fb")||"[]"); }catch(e){ return []; } };
+    if(!this.db) return Promise.resolve(ls());
+    return new Promise(res=>{ const t=setTimeout(()=>{ this.db=null; res(ls()); },2500);
+      try{ const q=this.db.transaction("fb").objectStore("fb").getAll(); q.onsuccess=()=>{ clearTimeout(t); res(q.result||[]); }; q.onerror=()=>{ clearTimeout(t); this.db=null; res(ls()); }; }
+      catch(e){ clearTimeout(t); this.db=null; res(ls()); } }); },
+  put(rows){ rows=[].concat(rows); if(!this.db){ const m=new Map(DATA.map(x=>[x.id,x])); rows.forEach(x=>m.set(x.id,x)); localStorage.setItem("hub_cf_fb",JSON.stringify([...m.values()])); return Promise.resolve(); }
+    return new Promise(res=>{ const t=this.db.transaction("fb","readwrite"), s=t.objectStore("fb"); rows.forEach(x=>s.put(x)); t.oncomplete=()=>res(); t.onerror=()=>res(); }); },
+  del(id){ if(!this.db){ localStorage.setItem("hub_cf_fb",JSON.stringify(DATA.filter(x=>x.id!==id))); return Promise.resolve(); }
+    return new Promise(res=>{ const t=this.db.transaction("fb","readwrite"); t.objectStore("fb").delete(id); t.oncomplete=()=>res(); t.onerror=()=>res(); }); }
+};
+let DATA=[], SHOWN=40, CH="voc";
+
+/* ───── จัดประเภทอัตโนมัติจากคำสำคัญ (ผู้ใช้แก้ได้ทุกรายการ) ───── */
+const BAD=["ช้า","แย่","ไม่อร่อย","เค็ม","จืด","ผม","แมลง","หนอน","ปวดท้อง","ท้องเสีย","ไม่พอใจ","ร้องเรียน","ผิดหวัง","สกปรก","เหม็น","หยาบ","ไม่สุภาพ","รอนาน","คืนเงิน","แพง","ไม่ได้รับ","ผิดออเดอร์","เย็นชืด","ไม่สด","ขาด","พนักงานไม่","ไม่ให้","ไม่ดี","ห่วย","แย่มาก","ไม่ประทับใจ","ต้องรอ"];
+const GOOD=["อร่อย","ดีมาก","ประทับใจ","ชอบ","บริการดี","สะอาด","ขอบคุณ","เยี่ยม","คุ้ม","น่ารัก","แนะนำ","สุดยอด","ดีเลย","สุภาพ","เป็นกันเอง","ใส่ใจ","รวดเร็ว","ประทับใจมาก","เลิศ","ดีครับ","ดีค่ะ"];
+function classify(t){ t=String(t||""); let b=0,g=0; BAD.forEach(k=>{ if(t.includes(k)) b++; }); GOOD.forEach(k=>{ if(t.includes(k)) g++; });
+  return b>g?"complaint":g>b?"good":"neutral"; }
+function guessCat(t){ t=String(t||"");
+  if(/อร่อย|รสชาติ|เค็ม|จืด|เย็น|ไม่สด|อาหาร|เนื้อ|สเต็ก|ผม|แมลง/.test(t)) return CATS[0];
+  if(/พนักงาน|บริการ|สุภาพ|หยาบ|เสิร์ฟ|ใส่ใจ/.test(t)) return CATS[1];
+  if(/สะอาด|สกปรก|เหม็น|ห้องน้ำ|โต๊ะ/.test(t)) return CATS[2];
+  if(/ราคา|แพง|โปร|คุ้ม|คืนเงิน/.test(t)) return CATS[3];
+  if(/ช้า|รอ|คิว|นาน/.test(t)) return CATS[4];
+  if(/บรรยากาศ|เสียง|ร้อน|แอร์|ที่นั่ง/.test(t)) return CATS[5];
+  return ""; }
+
+/* ───── วันที่: รองรับเลข serial Excel · ISO · d/m/yyyy · ปี พ.ศ. ───── */
+function toISO(v){
+  if(v==null||v==="") return "";
+  if(typeof v==="number"&&v>20000&&v<80000){ const d=XLSX.SSF.parse_date_code(v); return d?`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`:""; }
+  if(v instanceof Date&&!isNaN(v)) return `${v.getFullYear()}-${String(v.getMonth()+1).padStart(2,"0")}-${String(v.getDate()).padStart(2,"0")}`;
+  const s=String(v).trim(); let m;
+  if((m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return `${m[1]}-${m[2].padStart(2,"0")}-${m[3].padStart(2,"0")}`;
+  if((m=s.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})/))){ let y=+m[3]; if(y<100) y+=2000; if(y>2400) y-=543; return `${y}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`; }
+  return ""; }
+
+/* ───── สาขา/แบรนด์ จากทะเบียนของฮับ ───── */
+const BR=()=>HubMod.Branches.list();
+function matchBranch(txt){ txt=String(txt||"").trim(); if(!txt) return null;
+  const code=(txt.match(/\b(\d{4})\b/)||[])[1], L=BR();
+  if(code){ const b=L.find(x=>x.code===code); if(b) return b; }
+  const n=txt.replace(/\s+/g,"");
+  return L.find(x=>x.name&&(n.includes(x.name.replace(/\s+/g,""))||x.name.replace(/\s+/g,"").includes(n)&&n.length>=3))||null; }
+const brandOf=r=>r.brand||"";
+
+/* ───── วาด ───── */
+const fmtD=d=>{ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${+dd}/${+m}/${+y+543}`; };
+function filtered(){
+  const q=($("#fQ").value||"").trim().toLowerCase(), mo=$("#fMonth").value, br=$("#fBrand").value, bc=$("#fBranch").value, ty=$("#fType").value, st=$("#fStatus").value;
+  return DATA.filter(r=>(!mo||(r.date||"").slice(0,7)===mo)&&(!br||r.brand===br)&&(!bc||r.branchCode===bc)&&(!ty||r.type===ty)&&(!st||(r.status||"new")===st)
+    &&(!q||[r.text,r.who,r.branchLabel,r.cat,r.note,r.owner].join(" ").toLowerCase().includes(q)))
+    .sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||"").localeCompare(a.createdAt||"")); }
+function fillFilters(){
+  const keep={mo:$("#fMonth").value,br:$("#fBrand").value,bc:$("#fBranch").value};
+  const months=[...new Set(DATA.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+  $("#fMonth").innerHTML=`<option value="">ทุกเดือน</option>`+months.map(m=>{ const [y,mm]=m.split("-"); return `<option value="${m}">${["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+mm-1]} ${+y+543}</option>`; }).join("");
+  const brands=[...new Set(DATA.map(r=>r.brand).filter(Boolean))].sort();
+  $("#fBrand").innerHTML=`<option value="">ทุกแบรนด์</option>`+brands.map(b=>`<option>${esc(b)}</option>`).join("");
+  const brs=[...new Map(DATA.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
+  $("#fBranch").innerHTML=`<option value="">ทุกสาขา</option>`+brs.map(([c,l])=>`<option value="${c}">${esc(l)}</option>`).join("");
+  $("#fMonth").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
+function stat(){
+  const g=DATA.filter(r=>r.type==="good").length, c=DATA.filter(r=>r.type==="complaint").length, open=DATA.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
+  $("#f1").textContent=DATA.length; $("#f2").textContent=g; $("#f3").textContent=c; $("#f4").textContent=open;
+  const t=DATA.length||1; $("#f2d").textContent=DATA.length?Math.round(g/t*100)+"% ของทั้งหมด":" "; $("#f3d").textContent=DATA.length?Math.round(c/t*100)+"% ของทั้งหมด":" ";
+  $("#k4").classList.toggle("warn",open>0); $("#k4").classList.toggle("calm",open===0); }
+function renderFb(){
+  stat();
+  const L=filtered(), show=L.slice(0,SHOWN);
+  $("#fbcount").textContent=`แสดง ${show.length} จาก ${L.length} รายการ`;
+  $("#bMore").classList.toggle("hide",L.length<=SHOWN);
+  const box=$("#fbList"); box.innerHTML="";
+  if(!DATA.length){ box.innerHTML=`<div class="empty">ยังไม่มีคอมเมนต์จาก Facebook<br>กด “เพิ่มคอมเมนต์” “วางหลายรายการ” หรือ “นำเข้าไฟล์” เพื่อเริ่ม</div>`; return; }
+  if(!L.length){ box.innerHTML=`<div class="empty">ไม่พบรายการตามตัวกรอง</div>`; return; }
+  show.forEach(r=>{
+    const cls=r.type==="good"?"good":r.type==="complaint"?"bad":"";
+    const el=document.createElement("div"); el.className="cmt "+cls;
+    const st=r.type==="complaint"||r.status?`<span class="chip2 st-${r.status||"new"}">${STATUS[r.status||"new"]}</span>`:"";
+    el.innerHTML=`<div class="cmt-top"><span class="chip2 ${cls}">${TYPES[r.type]||"ทั่วไป"}</span>${r.cat?`<span class="chip2">${esc(r.cat)}</span>`:""}${st}${r.auto?`<span class="chip2 auto" title="ระบบจัดประเภทให้อัตโนมัติ ตรวจและแก้ได้">จัดอัตโนมัติ</span>`:""}
+      <b>${esc(r.who||"ไม่ระบุชื่อ")}</b><span class="cmt-sub">${fmtD(r.date)}${r.branchLabel?" · "+esc(r.branchLabel):""}${r.brand?" · "+esc(r.brand):""}</span></div>
+      <div class="cmt-text">${esc(r.text)}</div>
+      <div class="cmt-foot">${r.owner?`<span>ผู้รับผิดชอบ: <b>${esc(r.owner)}</b></span>`:""}${r.note?`<span>หมายเหตุ: ${esc(r.note)}</span>`:""}${r.link?`<a href="${esc(r.link)}" target="_blank" rel="noopener">เปิดโพสต์ ↗</a>`:""}</div>`;
+    const a=$("a",el); if(a) a.onclick=e=>e.stopPropagation();
+    el.onclick=()=>form(r); box.appendChild(el); }); }
+
+/* ───── หน้าต่างกรอก/แก้ ───── */
+function modal(title,body,onSave,saveTxt="บันทึก",extra){
+  const m=document.createElement("div");m.className="mask";
+  const box=document.createElement("div");box.className="modal";
+  box.innerHTML=`<div class="modal-head"><h3>${esc(title)}</h3><button class="modal-x" type="button" aria-label="ปิด">×</button></div>`;
+  const bd=document.createElement("div");bd.className="modal-body";bd.appendChild(body);box.appendChild(bd);
+  const act=document.createElement("div");act.className="modal-foot actions";
+  if(onSave){ const s=Object.assign(document.createElement("button"),{className:"btn",textContent:saveTxt}); s.onclick=async()=>{ s.disabled=true; try{ const ok=await onSave(); if(ok!==false) m.remove(); }finally{ s.disabled=false; } }; act.appendChild(s); }
+  const c=Object.assign(document.createElement("button"),{className:"btn ghost",textContent:"ยกเลิก"}); c.onclick=()=>m.remove(); act.appendChild(c);
+  if(extra) act.appendChild(extra);
+  $(".modal-x",box).onclick=()=>m.remove(); box.appendChild(act); m.appendChild(box); m.onclick=e=>{ if(e.target===m) m.remove(); };
+  $("#modalHost").appendChild(m); return m; }
+function sel(id,opts,val){ return `<select id="${id}">${opts.map(([v,t])=>`<option value="${esc(v)}" ${String(v)===String(val)?"selected":""}>${esc(t)}</option>`).join("")}</select>`; }
+function form(r){
+  if(!can("manage")){ if(r){ viewOnly(r); } else toast("ไม่มีสิทธิ์เพิ่มข้อมูล"); return; }
+  const isNew=!r; r=r||{id:uid(),date:today(),type:"neutral",status:"new",createdAt:new Date().toISOString()};
+  const brs=BR().filter(b=>!b.closed), b0=r.branchCode||"";
+  const wrap=document.createElement("div");
+  wrap.innerHTML=`<div class="fbgrid"><div class="field"><label>วันที่คอมเมนต์</label><input type="date" id="x_date" value="${esc(r.date||today())}"></div>
+    <div class="field"><label>ผู้แสดงความคิดเห็น (ชื่อบน Facebook)</label><input id="x_who" value="${esc(r.who||"")}" maxlength="80"></div></div>
+    <div class="field"><label>สาขา</label>${sel("x_branch",[["","— ไม่ระบุ —"]].concat(brs.map(b=>[b.code,b.code+" "+b.name+(b.brandName?" · "+b.brandName:"")])),b0)}</div>
+    <div class="field"><label>ข้อความ</label><textarea id="x_text" maxlength="3000">${esc(r.text||"")}</textarea></div>
+    <div class="fbgrid"><div class="field"><label>ประเภท</label>${sel("x_type",Object.entries(TYPES),r.type||"neutral")}</div>
+    <div class="field"><label>หมวดเรื่อง</label>${sel("x_cat",[["","— ไม่ระบุ —"]].concat(CATS.map(c=>[c,c])),r.cat||"")}</div></div>
+    <div class="fbgrid"><div class="field"><label>สถานะติดตาม</label>${sel("x_status",Object.entries(STATUS),r.status||"new")}</div>
+    <div class="field"><label>ผู้รับผิดชอบ</label><input id="x_owner" value="${esc(r.owner||"")}" maxlength="60"></div></div>
+    <div class="field"><label>ลิงก์โพสต์ / คอมเมนต์</label><input id="x_link" type="url" placeholder="https://facebook.com/…" value="${esc(r.link||"")}"></div>
+    <div class="field"><label>หมายเหตุ / การแก้ไข</label><input id="x_note" value="${esc(r.note||"")}" maxlength="300"></div>`;
+  let del=null;
+  if(!isNew&&can("delete")){ del=Object.assign(document.createElement("button"),{className:"btn no",textContent:"ลบ",type:"button",style:"margin-left:auto"});
+    del.onclick=async()=>{ if(!confirm("ลบรายการนี้?")) return; await DB.del(r.id); DATA=DATA.filter(x=>x.id!==r.id); mm.remove(); refresh(); toast("ลบแล้ว"); }; }
+  const mm=modal(isNew?"เพิ่มคอมเมนต์ Facebook":"แก้ไขคอมเมนต์",wrap,async()=>{
+    const text=$("#x_text",wrap).value.trim(); if(!text){ toast("ใส่ข้อความคอมเมนต์ก่อน"); return false; }
+    const bc=$("#x_branch",wrap).value, b=bc?BR().find(x=>x.code===bc):null;
+    const typeNow=$("#x_type",wrap).value, auto=(r.auto&&typeNow===r.type&&text===r.text);
+    const rec=Object.assign({},r,{date:$("#x_date",wrap).value||today(),who:$("#x_who",wrap).value.trim(),text,type:typeNow,cat:$("#x_cat",wrap).value,status:$("#x_status",wrap).value,
+      owner:$("#x_owner",wrap).value.trim(),link:$("#x_link",wrap).value.trim(),note:$("#x_note",wrap).value.trim(),
+      branchCode:b?b.code:"",branchLabel:b?(b.code+" "+b.name):"",brand:b?b.brandName:"",auto,updatedAt:new Date().toISOString(),updatedBy:Hub.fullName()});
+    await DB.put(rec); const i=DATA.findIndex(x=>x.id===rec.id); if(i>=0) DATA[i]=rec; else DATA.push(rec); refresh(); toast("บันทึกแล้ว"); },"บันทึก",del); }
+function viewOnly(r){ const w=document.createElement("div"); w.innerHTML=`<div class="cmt-top"><span class="chip2 ${r.type==="good"?"good":r.type==="complaint"?"bad":""}">${TYPES[r.type]||"ทั่วไป"}</span><b>${esc(r.who||"ไม่ระบุชื่อ")}</b><span class="cmt-sub">${fmtD(r.date)}${r.branchLabel?" · "+esc(r.branchLabel):""}</span></div><div class="cmt-text" style="margin-top:8px">${esc(r.text)}</div>`; modal("คอมเมนต์",w,null); }
+
+/* วางหลายรายการ: บรรทัดละคอมเมนต์ (ใส่ชื่อ | ข้อความ ได้) */
+function pasteForm(){
+  if(!can("manage")) return toast("ไม่มีสิทธิ์เพิ่มข้อมูล");
+  const wrap=document.createElement("div");
+  wrap.innerHTML=`<div class="field"><label>วันที่ของคอมเมนต์เหล่านี้</label><input type="date" id="p_date" value="${today()}"></div>
+    <div class="field"><label>สาขา (ถ้าเป็นสาขาเดียวกันทั้งชุด)</label>${sel("p_branch",[["","— ไม่ระบุ —"]].concat(BR().filter(b=>!b.closed).map(b=>[b.code,b.code+" "+b.name])),"")}</div>
+    <div class="field"><label>คอมเมนต์ (บรรทัดละ 1 รายการ · ถ้ามีชื่อให้พิมพ์ “ชื่อ | ข้อความ”)</label><textarea id="p_text" style="min-height:180px"></textarea></div>
+    <div class="impnote">ระบบจะจัดประเภท (คำชม / ข้อร้องเรียน / ทั่วไป) และหมวดให้จากคำสำคัญ — ตรวจและแก้ได้ทีหลังทุกรายการ</div>`;
+  modal("วางคอมเมนต์หลายรายการ",wrap,async()=>{
+    const lines=$("#p_text",wrap).value.split(/\r?\n/).map(x=>x.trim()).filter(Boolean); if(!lines.length){ toast("ยังไม่ได้ใส่คอมเมนต์"); return false; }
+    const bc=$("#p_branch",wrap).value, b=bc?BR().find(x=>x.code===bc):null, d=$("#p_date",wrap).value||today(), now=new Date().toISOString();
+    const rows=lines.map(l=>{ let who="",text=l; const m=l.match(/^(.{1,60}?)\s*\|\s*(.+)$/); if(m){ who=m[1]; text=m[2]; }
+      return {id:uid(),date:d,who,text,type:classify(text),cat:guessCat(text),status:"new",branchCode:b?b.code:"",branchLabel:b?b.code+" "+b.name:"",brand:b?b.brandName:"",auto:true,createdAt:now,createdBy:Hub.fullName()}; });
+    await DB.put(rows); DATA=DATA.concat(rows); refresh(); toast(`เพิ่ม ${rows.length} รายการ`); },"เพิ่มทั้งหมด"); }
+
+/* นำเข้าไฟล์ (CSV / Excel): หาหัวคอลัมน์ในไม่เกิน 10 แถวแรก */
+const COLS={date:/วันที่|date|time|created|เวลา/i,branch:/สาขา|branch|page|เพจ|store/i,who:/ชื่อ|name|ผู้แสดง|user|from|โปรไฟล์|profile/i,
+  text:/ข้อความ|คอมเม|comment|message|ความคิดเห็น|content|รีวิว|review/i,type:/ประเภท|type|sentiment|ความรู้สึก/i,link:/ลิงก์|link|url|permalink/i,cat:/หมวด|category/i,status:/สถานะ|status/i,owner:/ผู้รับผิดชอบ|owner/i,note:/หมายเหตุ|note/i};
+function parseSheet(rows){
+  let h=-1,map={}; for(let i=0;i<Math.min(10,rows.length);i++){ const m={}; (rows[i]||[]).forEach((c,j)=>{ const s=String(c||""); Object.keys(COLS).forEach(k=>{ if(m[k]==null&&COLS[k].test(s)) m[k]=j; }); }); if(m.text!=null){ h=i; map=m; break; } }
+  if(h<0) return null; const out=[], now=new Date().toISOString();
+  rows.slice(h+1).forEach(r=>{ const text=String((r[map.text]??"")).trim(); if(!text) return;
+    const typeRaw=String(map.type!=null?(r[map.type]??""):"").trim(); let type=/ชม|good|positive|พอใจ/i.test(typeRaw)&&!/ไม่พอใจ/.test(typeRaw)?"good":/ร้องเรียน|complain|negative|ไม่พอใจ|แย่/i.test(typeRaw)?"complaint":"";
+    const auto=!type; if(!type) type=classify(text);
+    const b=matchBranch(map.branch!=null?r[map.branch]:""), stRaw=String(map.status!=null?(r[map.status]??""):"");
+    out.push({id:uid(),date:toISO(map.date!=null?r[map.date]:"")||today(),who:String(map.who!=null?(r[map.who]??""):"").trim(),text,type,cat:String(map.cat!=null?(r[map.cat]??""):"").trim()||guessCat(text),
+      status:/ปิด|done|เรียบร้อย/i.test(stRaw)?"done":/ติดตาม|doing|กำลัง/i.test(stRaw)?"doing":"new",
+      owner:String(map.owner!=null?(r[map.owner]??""):"").trim(),note:String(map.note!=null?(r[map.note]??""):"").trim(),link:String(map.link!=null?(r[map.link]??""):"").trim(),
+      branchCode:b?b.code:"",branchLabel:b?b.code+" "+b.name:String(map.branch!=null?(r[map.branch]??""):"").trim(),brand:b?b.brandName:"",auto,createdAt:now,createdBy:Hub.fullName(),src:"import"}); });
+  return out; }
+async function importFile(f){
+  if(!can("manage")) return toast("ไม่มีสิทธิ์นำเข้าข้อมูล");
+  try{ const wb=XLSX.read(await f.arrayBuffer(),{type:"array",cellDates:false}); let all=[],ok=0;
+    wb.SheetNames.forEach(n=>{ const rows=XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:""}); const r=parseSheet(rows); if(r){ ok++; all=all.concat(r); } });
+    if(!all.length) return toast("ไม่พบคอลัมน์ “ข้อความ/คอมเมนต์” ในไฟล์ (หัวตารางต้องอยู่ใน 10 แถวแรก)");
+    /* กันซ้ำ: วันที่+ชื่อ+ข้อความเหมือนเดิม */
+    const key=r=>[r.date,r.who,r.text].join("|"), have=new Set(DATA.map(key)); const fresh=all.filter(r=>!have.has(key(r)));
+    if(!fresh.length) return toast("ข้อมูลในไฟล์มีอยู่แล้วทั้งหมด");
+    await DB.put(fresh); DATA=DATA.concat(fresh); refresh(); toast(`นำเข้า ${fresh.length} รายการ${all.length-fresh.length?` (ข้ามซ้ำ ${all.length-fresh.length})`:""}`);
+  }catch(e){ console.error(e); toast("อ่านไฟล์ไม่สำเร็จ"); } }
+function exportCsv(){
+  if(!can("export")) return toast("ไม่มีสิทธิ์ส่งออก");
+  const L=filtered(); if(!L.length) return toast("ไม่มีข้อมูลให้ส่งออก");
+  const head=["วันที่","สาขา","แบรนด์","ผู้แสดงความคิดเห็น","ข้อความ","ประเภท","หมวด","สถานะ","ผู้รับผิดชอบ","ลิงก์","หมายเหตุ"];
+  const q=v=>'"'+String(v==null?"":v).replace(/"/g,'""')+'"';
+  const csv="﻿"+[head.map(q).join(",")].concat(L.map(r=>[r.date,r.branchLabel,r.brand,r.who,r.text,TYPES[r.type],r.cat,STATUS[r.status||"new"],r.owner,r.link,r.note].map(q).join(","))).join("\r\n");
+  const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=`facebook-feedback-${today()}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
+
+function refresh(){ fillFilters(); renderFb(); }
+
+/* ───── ช่องทาง ───── */
+function setCh(c,keep){ CH=c;
+  $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook");
+  $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook");
+  if(c==="voc"&&!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html");
+  $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
+  if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
+$("#tabVoc").onclick=()=>setCh("voc");
+$("#tabFb").onclick=()=>setCh("facebook");
+$("#backBtn").onclick=()=>Hub.back();
+$("#bAdd").onclick=()=>form(null);
+$("#bPaste").onclick=pasteForm;
+$("#bImp").onclick=()=>{ if(!can("manage")) return toast("ไม่มีสิทธิ์นำเข้าข้อมูล"); $("#impFile").click(); };
+$("#impFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) importFile(f); };
+$("#bExp").onclick=exportCsv;
+$("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
+["fQ","fMonth","fBrand","fBranch","fType","fStatus"].forEach(id=>{ const e=$("#"+id); e.addEventListener(id==="fQ"?"input":"change",()=>{ SHOWN=40; renderFb(); }); });
+
+(async()=>{
+  if(!Hub.guard()) return;
+  $("#me").textContent=Hub.fullName();
+  const first=new URLSearchParams(location.search).get("ch")||(location.hash||"").replace("#","")||localStorage.getItem("hub_cf_ch")||"voc";
+  setCh(first==="facebook"?"facebook":"voc",true);          /* แสดงช่องทางทันที ไม่รอเครือข่าย */
+  try{ await DB.open(); DATA=await DB.all(); }catch(e){ console.error(e); DATA=[]; }
+  refresh();
+  await Promise.race([Cfg.load().catch(()=>null),new Promise(r=>setTimeout(r,8000))]);
+  const gate=()=>{ const g=document.createElement("div"); g.className="gate"; g.innerHTML=`<div class="box"><div class="em-ic">🔒</div><h2>ไม่มีสิทธิ์เข้าระบบนี้</h2><p>บัญชีนี้ยังไม่ได้รับสิทธิ์ใน Customer Feedback Collection — ติดต่อผู้ดูแลระบบ</p><button class="btn full">กลับหน้าหลัก</button></div>`; $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g); };
+  if(!can("view")) return gate();
+  if(!can("manage")){ $("#bAdd").classList.add("hide"); $("#bPaste").classList.add("hide"); $("#bImp").classList.add("hide"); }
+  if(!can("export")) $("#bExp").classList.add("hide");
+  refresh();
+})();
+</script>
+<script src="view-as.js"></script>
+</body>
+</html>
