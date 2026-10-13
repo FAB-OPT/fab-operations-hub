@@ -32,6 +32,12 @@
 .tab .ch-dot{width:9px;height:9px;border-radius:50%;flex:none}
 .tab .ch-dot.voc{background:#f59e0b}.tab .ch-dot.fb{background:#1877f2}
 .chnote{font-size:13px;color:var(--text3)}
+/* VOC แบบเต็มหน้า: ซ่อนหัวเรื่องของฮับ ให้แดชบอร์ดกว้างเต็มจอ เลื่อนทั้งหน้าครั้งเดียว (ไม่มีแถบเลื่อนซ้อนในกรอบ) */
+body.vocfull .shell{max-width:none;padding:10px 12px 40px}
+body.vocfull .pagehead,body.vocfull .vochead,body.vocfull #chnote{display:none}
+body.vocfull .chbar{margin:0 0 8px}
+body.vocfull .vocwrap{border:0;border-radius:0;box-shadow:none;background:transparent;overflow:visible}
+body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 150px);background:transparent}
 .vocwrap{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);overflow:hidden;box-shadow:var(--shadow-sm)}
 .vocwrap iframe{display:block;width:100%;height:calc(100vh - 250px);min-height:620px;border:0;background:#f3f1ee}
 .vochead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-bottom:1px solid var(--border);font-size:13px;color:var(--text2)}
@@ -359,14 +365,19 @@ function exportCsv(){
 function refresh(){ fillFilters(); renderFb(); }
 
 /* ───── ช่องทาง ───── */
-function showHome(){
+function fitVoc(){ const f=$("#vocFrame"); try{ const d=f.contentDocument; if(!d||!d.documentElement) return;
+    const h=Math.max(d.documentElement.scrollHeight,d.body?d.body.scrollHeight:0); if(h>200) f.style.height=h+"px"; }catch(e){ /* คนละ origin: ใช้ความสูงเต็มจอ */ } }
+$("#vocFrame").addEventListener("load",()=>{ fitVoc();
+  try{ const d=$("#vocFrame").contentDocument; if(d&&window.ResizeObserver) new ResizeObserver(fitVoc).observe(d.documentElement); }catch(e){}
+  setTimeout(fitVoc,600); setTimeout(fitVoc,2000); });
+function showHome(){ document.body.classList.remove("vocfull");
   $("#main").classList.add("hide"); $("#home").classList.remove("hide");
   const open=DATA.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
   $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
   $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   window.scrollTo({top:0}); }
-function setCh(c,keep){ CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide");
+function setCh(c,keep){ CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook");
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook");
   if(c==="voc"&&!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html");
