@@ -32,6 +32,10 @@ create table if not exists public.fb_batches (
   approved_by text not null default '',
   approved_at timestamptz
 );
+-- โหมดนำเข้า: add = เพิ่มเฉพาะใบใหม่ · replace = แทนที่ข้อมูลช่วงวันที่/แบรนด์ในไฟล์ด้วยไฟล์นี้ทั้งชุด (มีผลตอนอนุมัติ)
+alter table public.fb_batches add column if not exists mode text not null default 'add';
+alter table public.fb_batches drop constraint if exists fb_batches_mode_check;
+alter table public.fb_batches add constraint fb_batches_mode_check check (mode in ('add', 'replace'));
 
 create table if not exists public.fb_rows (
   id          bigint generated always as identity primary key,
@@ -54,7 +58,9 @@ create table if not exists public.fb_rows (
   edited      boolean not null default false,
   updated_at  timestamptz not null default now()
 );
-create unique index if not exists fb_rows_src on public.fb_rows (channel, src_id);
+-- กันซ้ำภายในชุดเดียวกัน (ข้ามชุดกันซ้ำที่ฝั่งหน้าจอ · โหมด "แทนที่เดือนนี้" ต้องมีแถวเดียวกันอยู่ได้ 2 ชุดชั่วคราวจนกว่าจะอนุมัติ)
+drop index if exists public.fb_rows_src;
+create unique index if not exists fb_rows_src_batch on public.fb_rows (channel, src_id, batch_id);
 create index if not exists fb_rows_batch on public.fb_rows (batch_id, state);
 create index if not exists fb_rows_live  on public.fb_rows (state, d);
 
@@ -146,10 +152,25 @@ end $$;
 create or replace function public.fb_approve(p_batch uuid, p_by text default '')
 returns jsonb language plpgsql as $$
 declare
-  v_rows int; v_csat int; v_replaced int := 0;
+  v_rows int; v_csat int; v_replaced int := 0; v_removed int := 0; v_removed_csat int := 0;
+  v_b public.fb_batches%rowtype; v_brands text[];
 begin
-  if not exists (select 1 from public.fb_batches where id = p_batch and status = 'staging' for update) then
+  select * into v_b from public.fb_batches where id = p_batch and status = 'staging' for update;
+  if not found then
     return jsonb_build_object('ok', false, 'error', 'ชุดนี้อนุมัติแล้วหรือไม่พบ');
+  end if;
+
+  -- โหมดแทนที่: ลบข้อมูลที่ลงระบบแล้วของแบรนด์ในไฟล์ + ช่วงวันที่ของไฟล์ (จากชุดอื่น) ก่อน แล้วใช้ไฟล์นี้แทนทั้งชุด
+  if v_b.mode = 'replace' then
+    select array_agg(distinct b) into v_brands from public.fb_rows where batch_id = p_batch;
+    delete from public.fb_rows
+     where channel = v_b.channel and state = 'live' and batch_id <> p_batch
+       and b = any(coalesce(v_brands, '{}')) and d between v_b.d_from and v_b.d_to;
+    get diagnostics v_removed = row_count;
+    delete from public.fb_csat
+     where channel = v_b.channel and state = 'live' and batch_id <> p_batch
+       and b = any(coalesce(v_brands, '{}')) and d_from <= v_b.d_to and d_to >= v_b.d_from;
+    get diagnostics v_removed_csat = row_count;
   end if;
 
   -- CSAT/NPS เดือนเดียวกัน + BZM/Owner เดียวกัน ที่เคยอนุมัติไว้ → แทนที่ด้วยของชุดนี้
@@ -170,7 +191,8 @@ begin
 
   update public.fb_batches set status = 'approved', approved_by = left(coalesce(p_by, ''), 80), approved_at = now()
    where id = p_batch;
-  return jsonb_build_object('ok', true, 'rows', v_rows, 'csat', v_csat, 'csatReplaced', v_replaced);
+  return jsonb_build_object('ok', true, 'rows', v_rows, 'csat', v_csat, 'csatReplaced', v_replaced,
+                            'removedRows', v_removed, 'removedCsat', v_removed_csat);
 end $$;
 
 -- ── ถอนการอนุมัติ: ข้อมูลของชุดนี้ออกจากระบบ กลับไปรอตรวจสอบ ──

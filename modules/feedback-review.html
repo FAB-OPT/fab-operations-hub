@@ -97,6 +97,12 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.g2{grid-template-columns:1fr}}
 .note{font-size:12.5px;color:var(--text3);line-height:1.7}
 .warn{background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold-ink);border-radius:12px;padding:10px 12px;font-size:13px;margin:8px 0}
+.modeopt{display:grid;gap:8px;margin-bottom:10px}
+.modeopt label{margin:0;font-size:15px;font-weight:400;color:var(--text);display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border2);border-radius:12px;padding:10px 12px;cursor:pointer;background:var(--bg2)}
+.modeopt label:has(input:checked){border-color:var(--gold);background:var(--gold-soft)}
+.modeopt input[type=radio]{margin:3px 0 0;width:18px!important;min-height:0!important;height:18px;padding:0!important;flex:none;box-shadow:none}
+.modeopt label>span{flex:1;min-width:0}
+.modeopt small{display:block;color:var(--text2);font-size:13px;line-height:1.5;margin-top:2px}
 </style>
 </head>
 <body>
@@ -289,7 +295,7 @@ async function showList() {
     return `<div class="bcard" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
-        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span><span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
+        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
       <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
   }).join("");
   box.onclick = async e => {
@@ -322,16 +328,15 @@ async function importFile(file) {
   busy(true, "ตรวจว่าเคยนำเข้าแล้วหรือยัง…"); await tick();
   let skip = {};
   try { skip = await FBStore.existingSrc(kind, first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
-  const res = parse(skip);
-  if (kind === "facebook") res.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; });   // ชื่อสาขาตามทะเบียนของฮับ
+  const res = parse(skip), resAll = parse();
+  if (kind === "facebook") [res, resAll].forEach(x => x.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; }));   // ชื่อสาขาตามทะเบียนของฮับ
   busy(false);
-  if (kind === "facebook") previewImportFb(file.name, res); else previewImport(file.name, res);
+  previewImport(kind, file.name, res, resAll);
 }
 
-function previewImportFb(fileName, res) {
+function htmlFb(fileName, res) {
   const st = res.stats, n = res.rows.length;
-  const body = document.createElement("div");
-  body.innerHTML = `
+  return `
     <div class="note" style="margin-bottom:8px">${esc(fileName)} · เคสวันที่ ${esc(fmtD(st.dmin))} – ${esc(fmtD(st.dmax))} · อ่านได้ ${fmt(st.cases)} เคส</div>
     <table class="mtab"><tr><th>แบรนด์</th><th class="r">เคส</th></tr>
       <tr><td>Santa Fe KT</td><td class="r">${fmt(st.byBrand.KT)}</td></tr><tr><td>Santa Fe FS</td><td class="r">${fmt(st.byBrand.FS)}</td></tr>
@@ -341,22 +346,11 @@ function previewImportFb(fileName, res) {
       <li>ชื่อสาขาและ BZM ตามชีต “สาขา” ในไฟล์ — ตรวจ/แก้ในขั้นถัดไปได้</li>
       <li>เคยนำเข้าแล้ว ข้ามให้: <b>${fmt(st.dupSrc)}</b>${st.nocat ? ` · ไม่มีหมวด ${fmt(st.nocat)}` : ""}${st.noBrand ? ` · ไม่รู้แบรนด์ ข้าม ${fmt(st.noBrand)}` : ""}</li>
     </ul>`;
-  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ (Facebook)", body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
-    if (!n) { toast("ไม่มีเคสใหม่ให้นำเข้า"); return false; }
-    busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
-    try {
-      const id = await FBStore.createBatch({channel: "facebook", file_name: fileName, d_from: st.dmin, d_to: st.dmax, by: who()}, res.rows, [], (a, b) => busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", a / b));
-      busy(false); toast("สร้างชุดตรวจสอบแล้ว");
-      const bs = await FBStore.batches(); S.batches = bs; openBatch(bs.find(x => x.id === id));
-    } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
-  }}]);
 }
-
-function previewImport(fileName, res) {
+function htmlVoc(fileName, res) {
   const st = res.stats, keep = res.rows.filter(r => r.state === "staging").length, drop = res.rows.length - keep;
   const nc = Object.keys(st.newcat).length;
-  const body = document.createElement("div");
-  body.innerHTML = `
+  return `
     <div class="note" style="margin-bottom:8px">${esc(fileName)} · ข้อมูลวันที่ ${esc(fmtD(st.dmin))} – ${esc(fmtD(st.dmax))} · ใบสำรวจ ${fmt(st.responses)} ใบ</div>
     <table class="mtab">
       <tr><th>จากไฟล์ได้</th><th class="r">แถว</th></tr>
@@ -377,15 +371,51 @@ function previewImport(fileName, res) {
       <li>เคยนำเข้าแล้ว ข้ามให้: <b>${fmt(st.dupSrc)}</b> แถว${st.noBrand ? ` · ไม่รู้แบรนด์ ข้าม ${fmt(st.noBrand)}` : ""}</li>
       <li>หมวดหัวข้อที่แดชบอร์ดเดิมไม่เคยมี (ติดธง “หมวดใหม่” ให้ตรวจ): ${nc} หมวด</li>
     </ul>`;
-  const stamp = Date.now();
-  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ", body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+}
+
+/* หน้าต่างตรวจไฟล์ก่อนสร้างชุด · เลือกโหมด: เพิ่มเฉพาะใบใหม่ / แทนที่ข้อมูลช่วงเดียวกันด้วยไฟล์นี้ทั้งชุด */
+function previewImport(kind, fileName, resAdd, resAll) {
+  let mode = "add", existing = null;
+  const isFb = kind === "facebook", unit = isFb ? "เคส" : "คอมเมนต์";
+  const cur = () => mode === "replace" ? resAll : resAdd;
+  const brandsIn = r => Object.keys(r.stats.byBrand).filter(k => r.stats.byBrand[k] > 0);
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="modeopt">
+      <label><input type="radio" name="imode" value="add" checked><span><b>เพิ่มเฉพาะใบใหม่</b> (แนะนำ)<small>ข้ามใบที่เคยนำเข้าแล้ว · สิ่งที่แอดมินแก้ไว้ไม่ถูกเขียนทับ · ใบที่แพลตฟอร์มแก้ภายหลังจะไม่เข้า</small></span></label>
+      <label><input type="radio" name="imode" value="replace"><span><b>แทนที่ข้อมูลช่วงนี้ — ให้ไฟล์นี้ชนะทั้งชุด</b><small>เมื่ออนุมัติ ${unit}เดิมที่ลงระบบแล้วในช่วงวันที่และแบรนด์ของไฟล์นี้จะถูกลบ แล้วใช้ไฟล์นี้แทน · ที่แก้ไว้ในชุดเก่าจะหาย</small></span></label>
+    </div>
+    <div class="warn hide" id="repWarn"></div>
+    <div id="pv"></div>`;
+  const draw = () => {
+    const r = cur();
+    $("#pv", body).innerHTML = isFb ? htmlFb(fileName, r) : htmlVoc(fileName, r);
+    const w = $("#repWarn", body);
+    w.classList.toggle("hide", mode !== "replace");
+    if (mode === "replace") w.innerHTML = existing == null ? "กำลังนับข้อมูลเดิมที่จะถูกแทนที่…" : `เมื่ออนุมัติ จะลบ${unit}เดิมที่ลงระบบแล้ว <b class="num">${fmt(existing)}</b> แถว (ช่วง ${esc(fmtD(r.stats.dmin))} – ${esc(fmtD(r.stats.dmax))} · แบรนด์ ${esc(brandsIn(r).join(", "))})${isFb ? "" : " และ CSAT/NPS ของช่วงนั้น"} แล้วใช้ข้อมูลจากไฟล์นี้แทน — ถอนการอนุมัติแล้วข้อมูลเดิมไม่กลับมา (ต้องนำเข้าไฟล์เดิมใหม่)`;
+  };
+  body.addEventListener("change", e => {
+    if (e.target.name !== "imode") return;
+    mode = e.target.value; draw();
+    if (mode === "replace" && existing == null) {
+      const r = resAll;
+      FBStore.countLive(kind, r.stats.dmin, r.stats.dmax, brandsIn(r)).then(n => { existing = n; draw(); }).catch(() => { existing = 0; draw(); });
+    }
+  });
+  draw();
+  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ" + (isFb ? " (Facebook)" : ""), body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+    const res = cur();
     if (!res.rows.length && !res.csat.length) { toast("ไม่มีแถวใหม่ให้นำเข้า"); return false; }
     busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
     try {
-      const id = await FBStore.createBatch({channel: "voc", file_name: fileName, d_from: st.dmin, d_to: st.dmax, by: who()}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
+      const id = await FBStore.createBatch({channel: kind, file_name: fileName, d_from: res.stats.dmin, d_to: res.stats.dmax, by: who(), mode}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
       busy(false); toast("สร้างชุดตรวจสอบแล้ว");
-      const bs = await FBStore.batches(); const b = bs.find(x => x.id === id); S.batches = bs; openBatch(b);
-    } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
+      const bs = await FBStore.batches(); S.batches = bs; openBatch(bs.find(x => x.id === id));
+    } catch (e) {
+      busy(false);
+      toast(/mode/.test(String(e.message)) ? "ต้องรัน supabase/feedback.sql ฉบับล่าสุดก่อนจึงใช้โหมดแทนที่ได้" : "สร้างชุดไม่สำเร็จ: " + (e.message || e));
+      return false;
+    }
   }}]);
 }
 
@@ -590,12 +620,13 @@ function approveDialog() {
     ${Object.keys(by).map(k => `<tr><td>${bn[k]}</td><td class="r">${fmt(by[k].p)}</td><td class="r">${fmt(by[k].n)}</td></tr>`).join("")}
     <tr><td><b>รวม</b></td><td class="r" colspan="2"><b>${fmt(go.length)} ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"}</b></td></tr></table>
     <div style="line-height:1.8">${S.cur.channel === "facebook" ? "" : `CSAT / NPS: <b class="num">${fmt(csat.length)}</b> รายการ · `}ข้าม: <b class="num">${fmt(skip)}</b> แถว${sug ? ` (รวมข้อเสนอแนะที่ยังไม่เปลี่ยนประเภท ${fmt(sug)})` : ""}</div>
+    ${S.cur.mode === "replace" ? `<div class="warn" style="background:var(--red-soft);border-color:var(--red-line);color:var(--red-ink)"><b>โหมดแทนที่ช่วงนี้</b> — เมื่ออนุมัติ ข้อมูลเดิมที่ลงระบบแล้วในช่วง ${esc(fmtD(S.cur.d_from))} – ${esc(fmtD(S.cur.d_to))} ของแบรนด์ในชุดนี้จะถูกลบ และถอนการอนุมัติแล้วไม่กลับมา</div>` : ""}
     ${Object.keys(warn).length ? `<div class="warn"><b>ยังมีแถวที่ติดธงและจะลงระบบด้วย</b><br>${Object.keys(warn).map(f => `${esc(I.FLAG_LABEL[f])} ${fmt(warn[f])}`).join(" · ")}</div>` : ""}
     <div class="note">เมื่ออนุมัติ ทุกคนที่มีสิทธิ์จะเห็นข้อมูลนี้ใน${S.cur.channel === "facebook" ? "ช่องทาง Facebook" : "แดชบอร์ด VOC"}ตามสิทธิ์ของตน${S.cur.channel === "facebook" ? "" : " · CSAT/NPS เดือน-BZM เดียวกันที่เคยอนุมัติไว้จะถูกแทนที่"} · ถอนการอนุมัติได้ภายหลัง</div>`,
     [{text: "อนุมัติ → ลงระบบ", cls: "ok", fn: async () => {
       busy(true, "กำลังอนุมัติ…");
       let r; try { r = await FBStore.approve(S.cur.id, who()); } finally { busy(false); }
-      toast(`ลงระบบแล้ว ${fmt(r.rows)} คอมเมนต์ · CSAT/NPS ${fmt(r.csat)} รายการ`); notifyParent();
+      toast(`ลงระบบแล้ว ${fmt(r.rows)} รายการ${S.cur.channel === "facebook" ? "" : ` · CSAT/NPS ${fmt(r.csat)} รายการ`}${r.removedRows ? ` · ลบข้อมูลเดิมที่ถูกแทนที่ ${fmt(r.removedRows)} แถว` : ""}`); notifyParent();
       const bs = await FBStore.batches(); S.batches = bs; const b = bs.find(x => x.id === S.cur.id); await openBatch(b);
     }}]);
 }
