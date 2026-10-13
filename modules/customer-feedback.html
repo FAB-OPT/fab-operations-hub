@@ -27,6 +27,13 @@
 .tile .nm{font-size:26px;font-weight:800;letter-spacing:-.01em}
 .tile .ds{font-size:13px;color:var(--text3);margin-top:-8px}
 .homebtn{margin:0}
+.topbar .chnav{display:flex;align-items:center;gap:10px;min-width:0}
+.topbar .chnav .segbar{margin:0;width:max-content;max-width:none;padding:3px}
+.topbar .chnav .tab{padding:7px 14px}
+.topbar .chnav .btn-back{padding:7px 12px}
+body.onhome .chnav{display:none}
+@media(max-width:900px){.topbar .brand-text{display:none}.topbar .chnav .btn-back .bt-label{display:none}}
+@media(max-width:640px){.topbar #me{display:none}.topbar .chnav .tab{padding:7px 10px;font-size:13px}.topbar .chnav .segbar{width:auto}}
 .chbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
 .chbar .segbar{margin:0}
 .tab .ch-dot{width:9px;height:9px;border-radius:50%;flex:none}
@@ -78,11 +85,20 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
 .impnote{font-size:12.5px;color:var(--text3);line-height:1.7;margin-top:8px}
 </style>
 </head>
-<body>
+<body class="onhome">
 
 <div class="topbar">
   <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
     <div class="brand-text"><div class="t-title">Customer Feedback Collection</div><div class="t-sub">FAB Operations &amp; Training Hub</div></div></div>
+  <div class="spacer"></div>
+  <div class="chnav">
+    <button class="btn-back homebtn" id="homeBtn" type="button" title="กลับไปเลือกช่องทาง"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">เลือกช่องทาง</span></button>
+    <div class="segbar" role="tablist" aria-label="ช่องทาง">
+      <button class="tab" id="tabVoc" role="tab" aria-selected="true"><i class="ch-dot voc"></i>VOC</button>
+      <button class="tab" id="tabFb" role="tab" aria-selected="false"><i class="ch-dot fb"></i>Facebook</button>
+      <button class="tab hide" id="tabRv" role="tab" aria-selected="false"><i class="ch-dot rv"></i>นำเข้า &amp; อนุมัติ<span class="tabn hide" id="rvN">0</span></button>
+    </div>
+  </div>
   <div class="spacer"></div>
   <span class="userchip admin" id="me">—</span>
   <button class="btn-back" id="backBtn" title="กลับหน้าหลัก"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับหน้าหลัก</span></button>
@@ -110,15 +126,7 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
     <div class="ph-sub">แยกตามช่องทาง · เลือกช่องทางด้านล่าง</div>
   </div>
 
-  <div class="chbar">
-    <button class="btn-back homebtn" id="homeBtn" type="button" title="กลับไปเลือกช่องทาง"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">เลือกช่องทาง</span></button>
-    <div class="segbar" role="tablist" aria-label="ช่องทาง">
-      <button class="tab" id="tabVoc" role="tab" aria-selected="true"><i class="ch-dot voc"></i>VOC</button>
-      <button class="tab" id="tabFb" role="tab" aria-selected="false"><i class="ch-dot fb"></i>Facebook</button>
-      <button class="tab hide" id="tabRv" role="tab" aria-selected="false"><i class="ch-dot rv"></i>นำเข้า &amp; อนุมัติ<span class="tabn hide" id="rvN">0</span></button>
-    </div>
-    <div class="chnote" id="chnote"></div>
-  </div>
+  <span id="chnote" hidden></span>
 
   <!-- ช่องทาง VOC: แดชบอร์ดเดิม (voc-snapshot.html) -->
   <div id="viewVoc" class="vocwrap">
@@ -426,7 +434,7 @@ function fitVoc(){ const f=$("#vocFrame"); try{ const d=f.contentDocument; if(!d
 $("#vocFrame").addEventListener("load",()=>{ fitVoc();
   try{ const d=$("#vocFrame").contentDocument; if(d&&window.ResizeObserver) new ResizeObserver(fitVoc).observe(d.documentElement); }catch(e){}
   setTimeout(fitVoc,600); setTimeout(fitVoc,2000); });
-function showHome(){ document.body.classList.remove("vocfull");
+function showHome(){ document.body.classList.remove("vocfull"); document.body.classList.add("onhome");
   $("#main").classList.add("hide"); $("#home").classList.remove("hide");
   const open=ALL().filter(inScope).filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
   $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
@@ -434,7 +442,7 @@ function showHome(){ document.body.classList.remove("vocfull");
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   window.scrollTo({top:0}); }
 function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
-  CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc"||c==="review");
+  CH=c; document.body.classList.remove("onhome"); $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc"||c==="review");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook"); $("#tabRv").setAttribute("aria-selected",c==="review");
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook"); $("#viewRv").classList.toggle("hide",c!=="review");
   if(c==="review"&&!$("#rvFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#rvFrame").getAttribute("src")) $("#rvFrame").setAttribute("src","feedback-review.html"); });
