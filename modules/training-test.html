@@ -1392,7 +1392,8 @@ function pendingList(){
 
 function renderList(){
   try { document.querySelector('main').classList.remove('wide'); } catch (e) {}
-  const list = trainings.filter(t => visibleTo(t) && (t.status === 'open' || ttCan('manage-trainings')));
+  const byNewest = (a, b) => String(b.train_date || '').localeCompare(String(a.train_date || ''));   // อบรมล่าสุดอยู่บนสุด · ไม่มีวันที่ไว้ท้าย (Array.sort เสถียร วันเดียวกันคงลำดับเดิม)
+  const list = trainings.filter(t => visibleTo(t) && (t.status === 'open' || ttCan('manage-trainings'))).sort(byNewest);
   const staff = ttCan('view-results');
   if (!list.length){
     $('#view').innerHTML = `<div class="card"><div class="empty">
@@ -2511,6 +2512,26 @@ window.moveQuestion = function(i, d){
 };
 window.setAnswer = function(i, j){ grabEditor(); editing.questions[i].answer = j; renderEditor(); };
 window.setRMode = function(m){ grabEditor(); editing._rm = m; editing.self_entry = (m === 'self'); if (m === 'self' && !editing.self_limit) editing.self_limit = 20; renderEditor(); };
+/* สาขาของผู้เข้าอบรมในรายชื่อ → ป้ายสาขาแบบที่ช่อง "เฉพาะสาขา" ใช้ (รหัส + ชื่อตามทะเบียนฮับ) */
+function pplBranches(e){
+  const seen = new Set(), labels = []; let none = 0;
+  (e.participants || []).forEach(p => {
+    const raw = String(p.branch || '').trim(); if (!raw){ none++; return; }
+    let code = (raw.match(/^(\d{4})/) || [])[1] || '';
+    if (!code) code = Object.keys(HUB_BRANCHES).find(c => HUB_BRANCHES[c] && (HUB_BRANCHES[c] === raw || raw.includes(HUB_BRANCHES[c]))) || '';
+    const lab = code && HUB_BRANCHES[code] != null ? branchLabel(code) : raw;
+    if (!seen.has(lab)){ seen.add(lab); labels.push(lab); }
+  });
+  return { labels: labels.sort(), none };
+}
+window.setBranchesFromPpl = function(){
+  grabEditor();
+  const r = pplBranches(editing);
+  if (!r.labels.length) return msg('ผู้เข้าอบรมยังไม่มีสาขา — ใส่สาขาในรายชื่อก่อน', 'warn');
+  editing.visible_branches = r.labels;
+  renderEditor();
+  msg(`ตั้งให้เห็นเฉพาะ ${r.labels.length} สาขา ตามผู้เข้าอบรม ${(editing.participants || []).length} คน${r.none ? ` (${r.none} คนไม่ระบุสาขา จึงไม่ถูกนับ)` : ''} — กดบันทึกเพื่อใช้จริง`);
+};
 window.togBrandT = function(b){ grabEditor(); const c = editing.visible_brands || []; editing.visible_brands = c.includes(b) ? c.filter(x => x !== b) : c.concat([b]); renderEditor(); };
 window.addBranchT = function(v){ if (!v) return; grabEditor(); const c = editing.visible_branches || []; if (!c.includes(v)) editing.visible_branches = c.concat([v]); renderEditor(); };
 window.rmBranchT = function(v){ grabEditor(); editing.visible_branches = (editing.visible_branches || []).filter(x => x !== v); renderEditor(); };
@@ -2731,6 +2752,7 @@ function renderEditor(){
       <div class="seg">${BRANDS.map(([, b]) =>
         `<button type="button" class="${(e.visible_brands || []).includes(b) ? 'on' : ''}" onclick="togBrandT('${esc(b).replace(/'/g, "\\'")}')">${esc(b)}</button>`).join('')}</div>
       <label style="margin-top:14px">เฉพาะสาขา (${(e.visible_branches || []).length} สาขา)</label>
+      ${(rmode !== 'self' && (e.participants || []).length) ? `<div class="row-btns" style="margin:2px 0 8px"><button type="button" class="btn btn-secondary btn-sm" onclick="setBranchesFromPpl()">ตั้งให้เห็นตามผู้เข้าอบรม (${(e.participants || []).length} คน · ${pplBranches(e).labels.length} สาขา)</button></div>` : ''}
       <select id="edBranchPick" onchange="addBranchT(this.value)">
         <option value="">+ เพิ่มสาขา…</option>
         ${Object.keys(HUB_BRANCHES).sort().filter(c => {
