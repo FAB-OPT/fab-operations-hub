@@ -148,6 +148,7 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
       <select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option><option value="good">คำชม</option><option value="complaint">ข้อร้องเรียน</option><option value="neutral">ทั่วไป</option></select>
       <select id="fStatus" aria-label="สถานะติดตาม"><option value="">ทุกสถานะ</option><option value="new">ใหม่</option><option value="doing">กำลังติดตาม</option><option value="done">ปิดเรื่องแล้ว</option></select>
     </div>
+    <div class="fbhint hide" id="fbScope"></div>
     <div class="fbhint" id="fbHint">ข้อมูลช่องทาง Facebook เก็บในเบราว์เซอร์เครื่องนี้ (เหมือนช่องทาง VOC) — ใช้ “ส่งออก CSV” เพื่อสำรองหรือส่งต่อให้ทีมอื่น</div>
     <div id="fbList"></div>
     <button class="btn ghost more hide" id="bMore">แสดงเพิ่ม</button>
@@ -198,7 +199,7 @@ const DB={ db:null, mem:null,
   del(id){ if(!this.db){ localStorage.setItem("hub_cf_fb",JSON.stringify(DATA.filter(x=>x.id!==id))); return Promise.resolve(); }
     return new Promise(res=>{ const t=this.db.transaction("fb","readwrite"); t.objectStore("fb").delete(id); t.oncomplete=()=>res(); t.onerror=()=>res(); }); }
 };
-let DATA=[], SHOWN=40, CH="voc";
+let DATA=[], SHOWN=40, CH="voc", CFG_READY=Promise.resolve();
 
 /* ───── จัดประเภทอัตโนมัติจากคำสำคัญ (ผู้ใช้แก้ได้ทุกรายการ) ───── */
 const BAD=["ช้า","แย่","ไม่อร่อย","เค็ม","จืด","ผม","แมลง","หนอน","ปวดท้อง","ท้องเสีย","ไม่พอใจ","ร้องเรียน","ผิดหวัง","สกปรก","เหม็น","หยาบ","ไม่สุภาพ","รอนาน","คืนเงิน","แพง","ไม่ได้รับ","ผิดออเดอร์","เย็นชืด","ไม่สด","ขาด","พนักงานไม่","ไม่ให้","ไม่ดี","ห่วย","แย่มาก","ไม่ประทับใจ","ต้องรอ"];
@@ -233,26 +234,47 @@ function matchBranch(txt){ txt=String(txt||"").trim(); if(!txt) return null;
   return L.find(x=>x.name&&(n.includes(x.name.replace(/\s+/g,""))||x.name.replace(/\s+/g,"").includes(n)&&n.length>=3))||null; }
 const brandOf=r=>r.brand||"";
 
+/* ───── ขอบเขตการมองเห็น: admin/support/coo/vp = ทั้งหมด · bzm = สาขาในเขต · สาขา = ของตัวเอง ───── */
+let _bz={key:null,val:null};
+function myBzmCodes(){
+  const s=Hub.session()||{}; if(String(s.role||"").toLowerCase()!=="bzm") return null;
+  const raw=HubMod.Branches.raw(), key=String(s.code||"")+"|"+String(s.nick||"")+"|"+(raw&&raw.bzmMap?Object.keys(raw.bzmMap).length:0);
+  if(_bz.key===key) return _bz.val;
+  let nick=String(s.nick||"").trim();
+  if(!nick){ const u=((Cfg.data&&Cfg.data.users)||[]).find(x=>x&&String(x.code)===String(s.code)); nick=u&&u.nick?String(u.nick).trim():""; }
+  const map=(raw&&raw.bzmMap)||{}, set=new Set(nick?Object.keys(map).filter(c=>map[c]===nick):[]);
+  _bz={key,val:set}; return set; }
+function scopeCodes(){            /* null = เห็นทั้งหมด · Set = เฉพาะรหัสสาขาใน Set */
+  const r=String(Hub.userRole()||"").toLowerCase();
+  if(["admin","support","coo","vp"].includes(r)) return null;
+  if(r==="bzm") return myBzmCodes()||new Set();
+  if(r==="branch"||Hub.isBranch()) return new Set([Hub.branchCode()].filter(Boolean));
+  return new Set(); }
+const inScope=r=>{ const sc=scopeCodes(); return !sc||sc.has(String(r.branchCode||"")); };
+const isAdmin=()=>String(Hub.userRole()||"").toLowerCase()==="admin";
+
 /* ───── วาด ───── */
 const fmtD=d=>{ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${+dd}/${+m}/${+y+543}`; };
 function filtered(){
   const q=($("#fQ").value||"").trim().toLowerCase(), mo=$("#fMonth").value, br=$("#fBrand").value, bc=$("#fBranch").value, ty=$("#fType").value, st=$("#fStatus").value;
-  return DATA.filter(r=>(!mo||(r.date||"").slice(0,7)===mo)&&(!br||r.brand===br)&&(!bc||r.branchCode===bc)&&(!ty||r.type===ty)&&(!st||(r.status||"new")===st)
+  return DATA.filter(inScope).filter(r=>(!mo||(r.date||"").slice(0,7)===mo)&&(!br||r.brand===br)&&(!bc||r.branchCode===bc)&&(!ty||r.type===ty)&&(!st||(r.status||"new")===st)
     &&(!q||[r.text,r.who,r.branchLabel,r.cat,r.note,r.owner].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||"").localeCompare(a.createdAt||"")); }
 function fillFilters(){
   const keep={mo:$("#fMonth").value,br:$("#fBrand").value,bc:$("#fBranch").value};
-  const months=[...new Set(DATA.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
+  const V0=DATA.filter(inScope);
+  const months=[...new Set(V0.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
   $("#fMonth").innerHTML=`<option value="">ทุกเดือน</option>`+months.map(m=>{ const [y,mm]=m.split("-"); return `<option value="${m}">${["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+mm-1]} ${+y+543}</option>`; }).join("");
-  const brands=[...new Set(DATA.map(r=>r.brand).filter(Boolean))].sort();
+  const brands=[...new Set(V0.map(r=>r.brand).filter(Boolean))].sort();
   $("#fBrand").innerHTML=`<option value="">ทุกแบรนด์</option>`+brands.map(b=>`<option>${esc(b)}</option>`).join("");
-  const brs=[...new Map(DATA.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
+  const brs=[...new Map(V0.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
   $("#fBranch").innerHTML=`<option value="">ทุกสาขา</option>`+brs.map(([c,l])=>`<option value="${c}">${esc(l)}</option>`).join("");
   $("#fMonth").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
 function stat(){
-  const g=DATA.filter(r=>r.type==="good").length, c=DATA.filter(r=>r.type==="complaint").length, open=DATA.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
-  $("#f1").textContent=DATA.length; $("#f2").textContent=g; $("#f3").textContent=c; $("#f4").textContent=open;
-  const t=DATA.length||1; $("#f2d").textContent=DATA.length?Math.round(g/t*100)+"% ของทั้งหมด":" "; $("#f3d").textContent=DATA.length?Math.round(c/t*100)+"% ของทั้งหมด":" ";
+  const V=DATA.filter(inScope);
+  const g=V.filter(r=>r.type==="good").length, c=V.filter(r=>r.type==="complaint").length, open=V.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
+  $("#f1").textContent=V.length; $("#f2").textContent=g; $("#f3").textContent=c; $("#f4").textContent=open;
+  const t=V.length||1; $("#f2d").textContent=V.length?Math.round(g/t*100)+"% ของทั้งหมด":" "; $("#f3d").textContent=V.length?Math.round(c/t*100)+"% ของทั้งหมด":" ";
   $("#k4").classList.toggle("warn",open>0); $("#k4").classList.toggle("calm",open===0); }
 function renderFb(){
   stat();
@@ -260,7 +282,7 @@ function renderFb(){
   $("#fbcount").textContent=`แสดง ${show.length} จาก ${L.length} รายการ`;
   $("#bMore").classList.toggle("hide",L.length<=SHOWN);
   const box=$("#fbList"); box.innerHTML="";
-  if(!DATA.length){ box.innerHTML=`<div class="empty">ยังไม่มีคอมเมนต์จาก Facebook<br>กด “เพิ่มคอมเมนต์” “วางหลายรายการ” หรือ “นำเข้าไฟล์” เพื่อเริ่ม</div>`; return; }
+  if(!DATA.filter(inScope).length){ box.innerHTML=`<div class="empty">ยังไม่มีคอมเมนต์จาก Facebook<br>กด “เพิ่มคอมเมนต์” “วางหลายรายการ” หรือ “นำเข้าไฟล์” เพื่อเริ่ม</div>`; return; }
   if(!L.length){ box.innerHTML=`<div class="empty">ไม่พบรายการตามตัวกรอง</div>`; return; }
   show.forEach(r=>{
     const cls=r.type==="good"?"good":r.type==="complaint"?"bad":"";
@@ -289,7 +311,7 @@ function sel(id,opts,val){ return `<select id="${id}">${opts.map(([v,t])=>`<opti
 function form(r){
   if(!can("manage")){ if(r){ viewOnly(r); } else toast("ไม่มีสิทธิ์เพิ่มข้อมูล"); return; }
   const isNew=!r; r=r||{id:uid(),date:today(),type:"neutral",status:"new",createdAt:new Date().toISOString()};
-  const brs=BR().filter(b=>!b.closed), b0=r.branchCode||"";
+  const sc0=scopeCodes(), brs=BR().filter(b=>!b.closed&&(!sc0||sc0.has(b.code))), b0=r.branchCode||"";
   const wrap=document.createElement("div");
   wrap.innerHTML=`<div class="fbgrid"><div class="field"><label>วันที่คอมเมนต์</label><input type="date" id="x_date" value="${esc(r.date||today())}"></div>
     <div class="field"><label>ผู้แสดงความคิดเห็น (ชื่อบน Facebook)</label><input id="x_who" value="${esc(r.who||"")}" maxlength="80"></div></div>
@@ -319,7 +341,7 @@ function pasteForm(){
   if(!can("manage")) return toast("ไม่มีสิทธิ์เพิ่มข้อมูล");
   const wrap=document.createElement("div");
   wrap.innerHTML=`<div class="field"><label>วันที่ของคอมเมนต์เหล่านี้</label><input type="date" id="p_date" value="${today()}"></div>
-    <div class="field"><label>สาขา (ถ้าเป็นสาขาเดียวกันทั้งชุด)</label>${sel("p_branch",[["","— ไม่ระบุ —"]].concat(BR().filter(b=>!b.closed).map(b=>[b.code,b.code+" "+b.name])),"")}</div>
+    <div class="field"><label>สาขา (ถ้าเป็นสาขาเดียวกันทั้งชุด)</label>${sel("p_branch",[["","— ไม่ระบุ —"]].concat(BR().filter(b=>!b.closed&&(!scopeCodes()||scopeCodes().has(b.code))).map(b=>[b.code,b.code+" "+b.name])),"")}</div>
     <div class="field"><label>คอมเมนต์ (บรรทัดละ 1 รายการ · ถ้ามีชื่อให้พิมพ์ “ชื่อ | ข้อความ”)</label><textarea id="p_text" style="min-height:180px"></textarea></div>
     <div class="impnote">ระบบจะจัดประเภท (คำชม / ข้อร้องเรียน / ทั่วไป) และหมวดให้จากคำสำคัญ — ตรวจและแก้ได้ทีหลังทุกรายการ</div>`;
   modal("วางคอมเมนต์หลายรายการ",wrap,async()=>{
@@ -372,7 +394,7 @@ $("#vocFrame").addEventListener("load",()=>{ fitVoc();
   setTimeout(fitVoc,600); setTimeout(fitVoc,2000); });
 function showHome(){ document.body.classList.remove("vocfull");
   $("#main").classList.add("hide"); $("#home").classList.remove("hide");
-  const open=DATA.filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
+  const open=DATA.filter(inScope).filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
   $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
   $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
@@ -380,7 +402,8 @@ function showHome(){ document.body.classList.remove("vocfull");
 function setCh(c,keep){ CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook");
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook");
-  if(c==="voc"&&!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html");
+  /* หน้า VOC อ่านสิทธิ์/ทะเบียนสาขาจากแคชของฮับ จึงรอโหลด config ก่อนค่อยเปิด */
+  if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html"); });
   $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
   if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
 $("#tileVoc").onclick=()=>setCh("voc");
@@ -400,16 +423,18 @@ $("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
 (async()=>{
   if(!Hub.guard()) return;
   $("#me").textContent=Hub.fullName();
+  CFG_READY=Promise.race([Cfg.load().catch(()=>null),new Promise(r=>setTimeout(r,8000))]);
   const first=new URLSearchParams(location.search).get("ch")||(location.hash||"").replace("#","");
   if(first==="facebook"||first==="voc") setCh(first,true); else $("#home").classList.remove("hide");   /* ไม่ระบุช่องทาง = หน้าเลือกช่องทาง (ไอคอนใหญ่) */
   try{ await DB.open(); DATA=await DB.all(); }catch(e){ console.error(e); DATA=[]; }
   refresh(); if(!$("#home").classList.contains("hide")) showHome();
-  await Promise.race([Cfg.load().catch(()=>null),new Promise(r=>setTimeout(r,8000))]);
+  await CFG_READY;
   const gate=()=>{ const g=document.createElement("div"); g.className="gate"; g.innerHTML=`<div class="box"><div class="em-ic">🔒</div><h2>ไม่มีสิทธิ์เข้าระบบนี้</h2><p>บัญชีนี้ยังไม่ได้รับสิทธิ์ใน Customer Feedback Collection — ติดต่อผู้ดูแลระบบ</p><button class="btn full">กลับหน้าหลัก</button></div>`; $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g); };
   if(!can("view")) return gate();
   if(!can("manage")){ $("#bAdd").classList.add("hide"); $("#bPaste").classList.add("hide"); $("#bImp").classList.add("hide"); }
   if(!can("export")) $("#bExp").classList.add("hide");
   refresh();
+  { const sc=scopeCodes(), e=$("#fbScope"); if(sc){ e.classList.remove("hide"); e.textContent=Hub.isBranch()||String(Hub.userRole()).toLowerCase()==="branch"?"แสดงเฉพาะคอมเมนต์ของสาขาคุณ":(sc.size?"แสดงเฉพาะสาขาในเขตที่คุณรับผิดชอบ ("+sc.size+" สาขา)":"ยังจับคู่เขตของคุณไม่ได้ — ติดต่อผู้ดูแลระบบ"); } }
 })();
 </script>
 <script src="view-as.js"></script>

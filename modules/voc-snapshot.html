@@ -201,6 +201,32 @@ function mkRow(b,d,t,ty,br,z,o,s,c,sub,main){
   return {b, d, t:t||'', ty:typeName(ty), br:clean(br), z:person(z), o:clean(o), s:(s===null||s===''||s===undefined)?'':Number(s), c:clean(c), sub:subName(sub), main:mainName(main)};
 }
 
+/* ---------- สิทธิ์การมองเห็น (อ่านจาก session ของฮับ) ----------
+   admin = เห็นทั้งหมด + นำเข้าไฟล์ได้ · support / coo / vp = เห็นทั้งหมด · bzm = เฉพาะสาขาในเขตที่รับผิดชอบ · สาขา = เฉพาะสาขาตัวเอง
+   เปิดไฟล์นี้ตรง ๆ โดยไม่มี session ของฮับ = เปิดให้ครบ (ใช้งานในเครื่องตัวเอง)
+   หมายเหตุ: กรองฝั่งหน้าจอ — ความลับจริงต้องเก็บข้อมูลกลางฝั่งเซิร์ฟเวอร์ */
+const SCOPE = (()=>{
+  const ls = k => { try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } };
+  const sess = ls('fab_session'), role = String((sess&&sess.role)||'').toLowerCase();
+  if(!sess || !role) return {all:true, imp:true, csat:true, label:''};
+  if(role==='admin') return {all:true, imp:true, csat:true, label:''};
+  if(['support','coo','vp'].includes(role)) return {all:true, imp:false, csat:true, label:''};
+  const cfg = ls('hubmod_config_v1')||{}, raw = (cfg.branches)||{};
+  if(role==='branch'){
+    const c = String(sess.branchCode||sess.code||'');
+    return {all:false, imp:false, csat:false, codes:new Set(c?[c]:[]), label:'สาขา '+c+' '+String(sess.branchName||sess.name||'').trim()};
+  }
+  if(role==='bzm'){
+    let nick = String(sess.nick||'').trim();
+    if(!nick){ const u=((cfg.users)||[]).find(x=>x&&String(x.code)===String(sess.code)); nick=u&&u.nick?String(u.nick).trim():''; }
+    const map = raw.bzmMap||{}, codes = new Set(nick?Object.keys(map).filter(c=>map[c]===nick):[]);
+    return {all:false, imp:false, csat:true, codes, label:codes.size?('เขต '+nick+' · '+codes.size+' สาขา'):'ยังจับคู่เขตของคุณไม่ได้ — ติดต่อผู้ดูแลระบบ'};
+  }
+  return {all:false, imp:false, csat:false, codes:new Set(), label:'บัญชีนี้ยังไม่มีสิทธิ์ดูข้อมูล'};
+})();
+const rowCode = r => (String(r.br||'').match(/^(\d{4})/)||[])[1]||'';
+const inScope = r => SCOPE.all || SCOPE.codes.has(rowCode(r));
+
 /* ---------- state ---------- */
 let DATA = {rows:[], csat:[], meta:{source:'sample', updated:null, files:[]}};
 let byBrand = {};
@@ -215,7 +241,7 @@ function loadSample(){
 }
 function index(){
   byBrand = {};
-  for(const r of DATA.rows){ (byBrand[r.b] ||= []).push(r); }
+  for(const r of DATA.rows){ if(inScope(r)) (byBrand[r.b] ||= []).push(r); }
   // fill missing main from sub when another row knows it
   const map = {};
   for(const r of DATA.rows) if(r.sub && MAINS.some(m=>m[0]===r.main)) map[r.sub]=r.main;
@@ -354,7 +380,9 @@ function refreshDropdowns(){
 function csatNps(){
   const f=$('dFrom').value, t=$('dTo').value;
   const key = ui.brand==='FS' ? $('fOwner').value : $('fBzm').value;
-  const list = DATA.csat.filter(c=>c.b===ui.brand && (!f||c.d>=f) && (!t||c.d<=t) && (!key||c.k===key) && !isNaN(c.cs));
+  /* CSAT/NPS ในไฟล์เป็นค่าระดับเขต (BZM/Owner): สาขาไม่เห็น · BZM เห็นเฉพาะเขตตัวเอง */
+  const okK = SCOPE.all ? null : new Set((byBrand[ui.brand]||[]).map(r=>ui.brand==='FS'?r.o:r.z));
+  const list = DATA.csat.filter(c=>c.b===ui.brand && (SCOPE.csat) && (!okK||okK.has(c.k)) && (!f||c.d>=f) && (!t||c.d<=t) && (!key||c.k===key) && !isNaN(c.cs));
   if(!list.length) return ['–','–'];
   const avg = k => list.reduce((s,c)=>s+(isNaN(c[k])?0:c[k]),0)/list.length;
   return [avg('cs').toFixed(2), avg('np').toFixed(2)];
@@ -407,15 +435,26 @@ $('chips').addEventListener('click', e=>{ if(e.target.id==='clrSub'){ ui.sub='';
 $('detHead').addEventListener('click', e=>{ const k=e.target.closest('th')?.dataset.k; if(!k) return; if(ui.sortKey===k) ui.sortDir*=-1; else { ui.sortKey=k; ui.sortDir=1; } ui.page=0; renderDetail(filtered()); });
 $('pgPrev').addEventListener('click',()=>{ ui.page--; renderDetail(filtered()); });
 $('pgNext').addEventListener('click',()=>{ ui.page++; renderDetail(filtered()); });
-$('btnUpload').addEventListener('click',()=>$('file').click());
+$('btnUpload').addEventListener('click',()=>{ if(SCOPE.imp) $('file').click(); });
 $('file').addEventListener('change',e=>{ if(e.target.files.length) importFiles([...e.target.files]); e.target.value=''; });
 const bar=$('databar');
-['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); bar.classList.add('drag'); }));
+['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); if(SCOPE.imp) bar.classList.add('drag'); }));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); if(t==='drop'||!e.relatedTarget) bar.classList.remove('drag'); }));
-document.addEventListener('drop',e=>{ const f=[...(e.dataTransfer?.files||[])].filter(f=>/\.xls[xm]?$/i.test(f.name)); if(f.length) importFiles(f); });
+document.addEventListener('drop',e=>{ if(!SCOPE.imp) return; const f=[...(e.dataTransfer?.files||[])].filter(f=>/\.xls[xm]?$/i.test(f.name)); if(f.length) importFiles(f); });
 $('btnReset').addEventListener('click', async ()=>{ await wipe(); loadSample(); index(); ui.brand='KT'; resetFilters(true); renderAll(); renderStatus(); });
 
 /* ---------- boot ---------- */
+if(!SCOPE.imp){ $('btnUpload').hidden=true; $('btnUpload').style.display='none'; }
+const _renderStatus = renderStatus;
+renderStatus = function(extra=''){
+  _renderStatus(extra);
+  if(SCOPE.imp) return;
+  $('btnReset').hidden=true;
+  const total = Object.values(byBrand).reduce((a,x)=>a+x.length,0);
+  const pill = DATA.meta.source==='sample' ? 'ข้อมูลตัวอย่าง' : 'ข้อมูลล่าสุด';
+  const when = DATA.meta.updated ? ' · นำเข้าโดยผู้ดูแล '+new Date(DATA.meta.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
+  setStatus(`<span class="pill">${pill}</span> ${SCOPE.all?'ทุกสาขา':'<strong>'+esc(SCOPE.label)+'</strong>'} · ${fmtN(total)} แถว${when}${!SCOPE.all&&!total?'<br>ไม่มีคอมเมนต์ในสิทธิ์ของคุณในช่วงข้อมูลที่โหลดไว้':''}${!SCOPE.all&&!SCOPE.csat?'<br>CSAT/NPS เป็นค่าระดับเขต — แสดงเฉพาะผู้ดูแลเขตขึ้นไป':''}`);
+};
 (async ()=>{
   loadSample(); index(); resetFilters(true); renderAll(); renderStatus();
   const saved = await load();
