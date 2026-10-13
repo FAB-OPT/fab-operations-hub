@@ -803,6 +803,8 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 /* ฝังหน้าผลของระบบอื่น (แบบทดสอบอบรม / Silver-Gold) ในแท็บคำตอบ-รายงาน-ติดตาม */
 .kind-seg{margin:0 0 12px;max-width:520px}
 .kind-frame{display:block;width:100%;border:0;background:transparent;height:520px;min-height:240px}
+/* หน้าต่างเด้งในหน้าฝังเปิดอยู่: ขยายกรอบเต็มจอเพื่อให้ฉากหลังมืดคลุมทั้งหน้า */
+.kind-frame.pop{position:fixed;inset:0;width:100vw;height:100vh!important;min-height:0;z-index:300}
 
 /* แถบกรองประเภทฟอร์ม + ปุ่มสร้างตามประเภท */
 .type-bar{margin:0 0 14px}
@@ -948,6 +950,10 @@ async function loadHubBranches(){
     const out = [];
     (data || []).forEach(row => {
       const v = row.value || {};
+      if (Array.isArray(v)) {              // เจ๊แดง: ลิสต์ของออบเจ็กต์ {code?, name} — ไม่มีรหัสก็ใช้ชื่อสาขาเป็นรหัส
+        v.forEach(b => { if (!b) return; const nm = String(b.name || ''); const code = String(b.code || nm); if (code) out.push({ code, name: nm, label: b.code ? code + ' ' + nm : nm, jd: !b.code }); });
+        return;
+      }
       const map = v.branches || v || {};
       const st = v.statusMap || {};
       Object.keys(map).forEach(code => {
@@ -1301,8 +1307,13 @@ function pickBar(t){
 /* หน้าที่ฝังบอกความสูงมา → ปรับกรอบให้พอดี · ส่งตำแหน่งจอที่กำลังดูอยู่ให้ใช้วางหน้าต่างเด้ง */
 window.addEventListener('message', e => {
   const fr = document.querySelector('.kind-frame');
-  if (!fr || e.source !== fr.contentWindow || !e.data || e.data.type !== 'of-h') return;
-  fr.style.height = Math.max(240, Math.ceil(e.data.h)) + 'px';
+  if (!fr || e.source !== fr.contentWindow || !e.data) return;
+  if (e.data.type === 'of-h'){ if (!fr.classList.contains('pop')) fr.style.height = Math.max(240, Math.ceil(e.data.h)) + 'px'; return; }
+  if (e.data.type === 'of-modal'){
+    const view = $('#view');
+    if (e.data.open){ if (view) view.style.minHeight = view.offsetHeight + 'px'; fr.classList.add('pop'); }   // กันหน้าเด้งเมื่อกรอบหลุดจากการจัดวางปกติ
+    else { fr.classList.remove('pop'); if (view) view.style.minHeight = ''; postView(); }
+  }
 });
 function postView(){
   const fr = document.querySelector('.kind-frame');
@@ -1328,7 +1339,7 @@ function renderKind(t, genFn){
   }
   /* v=เวลา: ไม่ให้เบราว์เซอร์ใช้หน้าที่แคชไว้ (แคช 10 นาที) */
   const src = (cur.kind === 'tt' ? 'training-test.html' : 'silver-gold.html') + '?embed=1&tab=' + (cur.kind === 'sg' && t === 'report' ? 'results' : t) + '&key=' + encodeURIComponent(cur.key) + '&v=' + Date.now();
-  $('#view').classList.remove('has-pick');
+  $('#view').classList.remove('has-pick'); $('#view').style.minHeight = '';
   $('#view').innerHTML = pickBar(t) +
     `<iframe class="kind-frame" scrolling="no" src="${src}" title="${esc(cur.title)}"></iframe>`;
 }
@@ -2258,7 +2269,12 @@ function renderEditor(){
         <div><label>เฉพาะสาขา (${(e.visible_branches||[]).length} สาขา)</label>
           <select id="edBranchPick" onchange="addBranch(this.value)">
             <option value="">+ เพิ่มสาขา…</option>
-            ${HUB_BRANCHES.filter(b => !(e.visible_branches||[]).includes(b.name)).map(b =>
+            ${HUB_BRANCHES.filter(b => {
+              if ((e.visible_branches||[]).includes(b.name)) return false;
+              const vb = e.visible_brands || [];
+              if (!vb.length) return true;                       // ไม่เลือกแบรนด์ = แสดงทุกสาขา
+              return vb.includes(brandOfCode(b.code) || (b.jd ? 'เจ๊แดง จุ่มนัวร์' : ''));
+            }).map(b =>
               `<option value="${esc(b.name)}">${esc(b.label)}</option>`).join('')}
           </select>
           <div class="seg" style="margin-top:8px">${(e.visible_branches||[]).map(b =>

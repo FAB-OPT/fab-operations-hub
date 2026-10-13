@@ -9,6 +9,14 @@
   addEventListener('DOMContentLoaded', function(){
     var send = function(){ parent.postMessage({ type:'of-h', h:document.body.offsetHeight }, location.origin); };
     new ResizeObserver(send).observe(document.body); send();
+    /* มีหน้าต่างเด้งเปิด/ปิด → บอกหน้าแม่ให้ขยายกรอบเต็มจอ (ฉากหลังมืดคลุมทั้งหน้าแทนที่จะคลุมแค่ในกรอบ) */
+    var mo = false, chk = function(){
+      var o = !!document.querySelector('.modal.show');
+      if (o === mo) return; mo = o;
+      document.documentElement.classList.toggle('mopen', o);
+      parent.postMessage({ type:'of-modal', open:o }, location.origin);
+    };
+    new MutationObserver(chk).observe(document.body, { subtree:true, attributes:true, attributeFilter:['class'] });
     addEventListener('message', function(e){
       if (e.origin === location.origin && e.data && e.data.type === 'of-view')
         document.documentElement.style.setProperty('--vt', Math.max(0, e.data.top) + 'px');
@@ -447,6 +455,10 @@ html.embed div:has(> select#rfForm),html.embed div:has(> select#ffForm){display:
 html.embed .modal-box{margin-top:calc(var(--vt,0px) + 18px)!important}
 html.embed .notice.show{position:absolute!important;top:calc(var(--vt,0px) + 14px)!important;left:12px!important;right:12px!important;max-width:none!important;z-index:70}
 html.embed body{overflow:hidden}
+/* ฝังอยู่ + มีหน้าต่างเด้ง: หน้าแม่ขยายกรอบเต็มจอ → ซ่อนเนื้อหาในกรอบ ให้เห็นหน้าแม่ผ่านฉากหลังมืดแทน */
+html.embed.mopen main,html.embed.mopen .notice{visibility:hidden}
+html.embed.mopen .modal-box{margin-top:18px!important}
+
 </style>
 </head>
 <body>
