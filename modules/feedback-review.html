@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>นำเข้า & ตรวจสอบข้อมูล · Customer Feedback Collection</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="hub-mod.css">
+<style>
+/* นำเข้า → กรอง/แก้ไข → อนุมัติ — เฉพาะแอดมิน · โทน Instrument: แน่น อ่านตัวเลขง่าย */
+body.embed .topbar{display:none}
+body.embed .shell{padding-top:14px;max-width:none}
+.num{font-variant-numeric:tabular-nums}
+.steps{display:flex;gap:0;margin:2px 0 16px;border:1px solid var(--border);border-radius:14px;background:var(--bg2);overflow:hidden}
+.steps .st{flex:1;padding:11px 14px;display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text3);border-right:1px solid var(--border);min-width:0}
+.steps .st:last-child{border-right:0}
+.steps .st b{display:grid;place-items:center;width:24px;height:24px;border-radius:50%;background:var(--bg3);border:1px solid var(--border2);font-size:12px;color:var(--text2);flex:none}
+.steps .st span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.steps .st.on{color:var(--text);font-weight:700;background:var(--gold-soft)}
+.steps .st.on b{background:var(--gold);border-color:var(--gold);color:#fff}
+.steps .st.done b{background:var(--green);border-color:var(--green);color:#fff}
+@media(max-width:640px){.steps .st span{display:none}.steps .st{justify-content:center}}
+.drop{border:2px dashed var(--border2);border-radius:18px;background:var(--bg2);padding:26px 20px;text-align:center;cursor:pointer;transition:border-color .15s,background .15s}
+.drop:hover,.drop.over{border-color:var(--gold);background:var(--gold-soft)}
+.drop .t{font-size:17px;font-weight:800}.drop .s{font-size:13px;color:var(--text3);margin-top:4px}
+.bcards{display:grid;gap:10px;margin-top:14px}
+.bcard{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px 16px;display:grid;grid-template-columns:1fr auto;gap:8px 14px;align-items:center}
+.bcard .nm{font-weight:800;font-size:15.5px;overflow-wrap:anywhere}
+.bcard .mt{font-size:12.5px;color:var(--text3);margin-top:2px}
+.bcard .ct{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.bcard .ac{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}
+@media(max-width:620px){.bcard{grid-template-columns:1fr}.bcard .ac{justify-content:flex-start}}
+.chip{display:inline-flex;align-items:center;gap:5px;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700;border:1px solid var(--border);background:var(--bg3);color:var(--text2);white-space:nowrap}
+.chip.wait{background:var(--gold-soft);border-color:var(--gold-line);color:var(--gold-ink)}
+.chip.live{background:var(--green-soft);border-color:var(--green-line);color:var(--green-ink)}
+.chip.bad{background:var(--red-soft);border-color:var(--red-line);color:var(--red-ink)}
+.chip.info{background:#eff6ff;border-color:#bfdbfe;color:#1d4ed8}
+.chip.vio{background:#f5f3ff;border-color:#ddd6fe;color:#6d28d9}
+.gatebox{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:26px;max-width:640px;margin:30px auto;line-height:1.8}
+.gatebox h3{font-size:18px;margin-bottom:6px}
+.gatebox code{background:var(--bg3);border:1px solid var(--border);border-radius:6px;padding:1px 6px;font-size:13px}
+.bhead{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.bhead .nm{font-weight:800;font-size:18px;overflow-wrap:anywhere}
+.kp{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:0 0 14px}
+@media(max-width:900px){.kp{grid-template-columns:repeat(2,1fr)}}
+.kp .k{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:10px 14px}
+.kp .k .l{font-size:12px;color:var(--text3);font-weight:700}
+.kp .k .n{font-size:24px;font-weight:800;letter-spacing:-.02em;line-height:1.2}
+.kp .k .d{font-size:12px;color:var(--text3)}
+.kp .k.go .n{color:var(--green-ink)}.kp .k.sk .n{color:var(--text2)}.kp .k.wn .n{color:var(--gold-ink)}
+.tabs2{display:flex;gap:6px;margin:0 0 10px;border-bottom:1px solid var(--border)}
+.tabs2 button{padding:9px 16px;font-weight:700;font-size:14px;color:var(--text3);border-bottom:3px solid transparent;margin-bottom:-1px}
+.tabs2 button[aria-selected=true]{color:var(--text);border-color:var(--gold)}
+.flt{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}
+.shell{max-width:1320px}
+.flt select{width:auto;flex:0 1 190px}
+.flt select,.flt input{padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:13.5px;min-height:38px;color:var(--text);max-width:100%}
+.flt input[type=search]{flex:1 1 220px;min-width:170px;width:auto}
+.fchips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
+.fchips button{padding:4px 11px;border-radius:999px;border:1px solid var(--border2);background:var(--bg2);font-size:12.5px;font-weight:600;color:var(--text2)}
+.fchips button[aria-pressed=true]{background:var(--text);border-color:var(--text);color:#fff}
+.fchips button b{font-variant-numeric:tabular-nums;margin-left:4px;opacity:.75}
+.bulk{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:10px 12px;margin:0 0 10px}
+.bulk summary{cursor:pointer;font-weight:700;font-size:13.5px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;list-style:none}
+.bulk summary::-webkit-details-marker{display:none}
+.bulk summary .tg{color:var(--gold-ink)}
+.bulk .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:10px;margin-top:10px}
+.bulk .cell{border:1px solid var(--border);border-radius:11px;padding:9px 10px;background:var(--bg3)}
+.bulk .cell label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:5px}
+.bulk .cell .r{display:flex;gap:6px;flex-wrap:wrap}
+.bulk .cell select,.bulk .cell input{flex:1;min-width:0;width:auto;padding:7px 9px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);font-size:13.5px;min-height:36px}
+.tbwrap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:auto;max-height:calc(100vh - 330px);min-height:220px}
+table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
+.tb th{position:sticky;top:0;z-index:2;background:var(--bg3);text-align:left;font-size:12px;color:var(--text2);padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.tb td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.tb tr.rw{cursor:pointer}.tb tr.rw:hover td{background:#fffaf5}
+.tb tr.drp td{opacity:.55}
+.tb td.cm{min-width:280px;max-width:520px;line-height:1.5}
+.tb td.cm .tx{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
+.tb td.cm .tx2{margin-top:3px;display:flex;gap:4px;flex-wrap:wrap}
+.tb .bt{white-space:nowrap}
+.pg{display:flex;gap:8px;align-items:center;justify-content:space-between;margin:10px 0 0;font-size:13px;color:var(--text2);flex-wrap:wrap}
+.bar{position:sticky;bottom:0;z-index:30;margin:14px -4px -8px;padding:12px 14px;background:rgba(255,255,255,.96);backdrop-filter:blur(10px);border:1px solid var(--border);border-radius:16px;box-shadow:var(--shadow-lg);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.bar .tx{flex:1;min-width:220px;font-size:14px}
+.bar .tx b{font-variant-numeric:tabular-nums}
+.ovl{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:200;color:#fff;font-weight:700;text-align:center;padding:20px}
+.ovl .bx{background:#111827;border-radius:16px;padding:18px 24px;min-width:240px}
+.ovl .pb{height:6px;border-radius:4px;background:#374151;margin-top:10px;overflow:hidden}.ovl .pb i{display:block;height:100%;background:var(--gold);width:0}
+.mtab{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+.mtab td,.mtab th{padding:6px 8px;border-bottom:1px solid var(--border);text-align:left}
+.mtab td.r,.mtab th.r{text-align:right;font-variant-numeric:tabular-nums}
+.fld{margin-bottom:10px}.fld label{display:block;font-size:12.5px;font-weight:700;color:var(--text2);margin-bottom:4px}
+.fld input,.fld select,.fld textarea{width:100%;padding:9px 12px;border:1px solid var(--border2);border-radius:10px;font-size:15px;min-height:42px;background:var(--bg2)}
+.fld textarea{min-height:130px;resize:vertical;line-height:1.6}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}@media(max-width:520px){.g2{grid-template-columns:1fr}}
+.note{font-size:12.5px;color:var(--text3);line-height:1.7}
+.warn{background:var(--gold-soft);border:1px solid var(--gold-line);color:var(--gold-ink);border-radius:12px;padding:10px 12px;font-size:13px;margin:8px 0}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
+    <div class="brand-text"><div class="t-title">นำเข้า &amp; ตรวจสอบข้อมูล</div><div class="t-sub">Customer Feedback Collection</div></div></div>
+  <div class="spacer"></div>
+  <span class="userchip admin" id="me">—</span>
+  <button class="btn-back" id="backBtn" type="button"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับ</span></button>
+</div>
+
+<div class="shell">
+  <div id="gate" class="gatebox hide"></div>
+
+  <!-- รายการชุดข้อมูลที่นำเข้า -->
+  <div id="vList" class="hide">
+    <div class="steps" aria-label="ขั้นตอน">
+      <div class="st on"><b>1</b><span>นำเข้าไฟล์ดิบ</span></div>
+      <div class="st"><b>2</b><span>กรอง / แก้ไขโดยแอดมิน</span></div>
+      <div class="st"><b>3</b><span>แอดมินอนุมัติ</span></div>
+      <div class="st"><b>4</b><span>ข้อมูลลงในระบบ</span></div>
+    </div>
+    <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
+      <div class="t">นำเข้าไฟล์ดิบ (rawdata_….xlsx)</div>
+      <div class="s">ลากไฟล์มาวาง หรือแตะเพื่อเลือก · ไฟล์จะยังไม่ลงระบบ — สร้างเป็น “ชุดตรวจสอบ” ให้กรองและแก้ไขก่อน</div>
+      <input type="file" id="file" accept=".xlsx,.xls" class="hide">
+    </div>
+    <div class="sec" style="margin:18px 0 0;font-weight:800;font-size:15px">ชุดข้อมูลที่นำเข้า</div>
+    <div class="bcards" id="bcards"></div>
+  </div>
+
+  <!-- ตรวจสอบชุดข้อมูล -->
+  <div id="vBatch" class="hide">
+    <div class="steps" id="bsteps"></div>
+    <div class="bhead">
+      <button class="btn-back" id="toList" type="button"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">ทุกชุด</span></button>
+      <div class="nm" id="bnm"></div><span id="bchip"></span>
+    </div>
+    <div class="kp" id="kp"></div>
+    <div class="tabs2" role="tablist">
+      <button id="tRows" role="tab" aria-selected="true">คอมเมนต์</button>
+      <button id="tCsat" role="tab" aria-selected="false">CSAT / NPS</button>
+    </div>
+
+    <div id="pRows">
+      <div class="flt">
+        <input type="search" id="fQ" placeholder="ค้นหาข้อความ / สาขา / BZM" aria-label="ค้นหา">
+        <select id="fB" aria-label="แบรนด์"></select>
+        <select id="fTy" aria-label="ประเภท"></select>
+        <select id="fSt" aria-label="สถานะ"></select>
+        <select id="fSub" aria-label="หัวข้อ"></select>
+        <select id="fBr" aria-label="สาขา"></select>
+      </div>
+      <div class="fchips" id="fchips"></div>
+      <details class="bulk" id="bulk">
+        <summary><span class="tg">▸ แก้ทีละกลุ่ม</span><span id="bulkT" class="muted"></span></summary>
+        <div class="grid">
+          <div class="cell"><label>คงไว้ / ข้าม (ไม่ลงระบบ)</label><div class="r"><button class="btn sm ok" data-bk="keep">คงไว้</button><button class="btn sm no" data-bk="skip">ข้าม</button></div></div>
+          <div class="cell"><label>ประเภท</label><div class="r"><select id="bTy"><option value="พอใจ">พอใจ</option><option value="ไม่พอใจ">ไม่พอใจ</option><option value="ข้อเสนอแนะ">ข้อเสนอแนะ</option></select><button class="btn sm" data-bk="ty">ตั้ง</button></div></div>
+          <div class="cell"><label>หัวข้อ (ย่อย → หลักตามอัตโนมัติ)</label><div class="r"><select id="bSub"></select><button class="btn sm" data-bk="sub">ตั้ง</button></div></div>
+          <div class="cell"><label>BZM</label><div class="r"><input id="bZ" placeholder="เช่น นิรุต (รุต)"><button class="btn sm" data-bk="z">ตั้ง</button></div></div>
+          <div class="cell"><label>Owner (FS)</label><div class="r"><input id="bO" placeholder="ชื่อ Owner"><button class="btn sm" data-bk="o">ตั้ง</button></div></div>
+        </div>
+        <div class="note" style="margin-top:8px">ใช้กับ “ทุกแถวที่กรองอยู่” — หรือเฉพาะแถวที่ติ๊กเลือก (ถ้ามี) · ตัวอย่าง: กรอง “สาขาไม่อยู่ในทะเบียนฮับ” แล้วกดข้าม, หรือกรองสาขาเดียวแล้วตั้ง BZM ทั้งสาขา</div>
+      </details>
+      <div class="tbwrap"><table class="tb"><thead><tr>
+        <th><input type="checkbox" id="selAll" aria-label="เลือกทั้งหน้า"></th><th>สถานะ</th><th>วันที่</th><th>แบรนด์</th><th>สาขา</th><th>BZM / Owner</th><th>ประเภท</th><th>หัวข้อ</th><th>ข้อความ</th>
+      </tr></thead><tbody id="tbody"></tbody></table></div>
+      <div class="pg"><span id="pgInfo"></span><span><button class="btn sm ghost" id="pgPrev">ก่อนหน้า</button> <button class="btn sm ghost" id="pgNext">ถัดไป</button></span></div>
+    </div>
+
+    <div id="pCsat" class="hide">
+      <div class="note" style="margin:0 0 8px">CSAT = คะแนนเฉลี่ยทุกใบสำรวจ ×10 · NPS = %ให้ 9–10 − %ให้ 0–6 · คำนวณจากแบบสำรวจ <b>ทุกใบ</b> ในไฟล์ (ไม่ใช่เฉพาะที่มีคอมเมนต์) · รายการที่ n น้อยมากควรข้าม</div>
+      <div class="tbwrap"><table class="tb"><thead><tr><th>สถานะ</th><th>แบรนด์</th><th>BZM / Owner</th><th>ช่วงวันที่</th><th class="r" style="text-align:right">ใบสำรวจ</th><th style="text-align:right">CSAT</th><th style="text-align:right">NPS</th><th></th></tr></thead><tbody id="cbody"></tbody></table></div>
+    </div>
+
+    <div class="bar" id="bar"></div>
+  </div>
+</div>
+
+<div id="modalHost"></div>
+<div class="ovl hide" id="ovl"><div class="bx"><div id="ovlT">กำลังทำงาน…</div><div class="pb"><i id="ovlP"></i></div></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
+<script src="hub-docstore.js?v=20261006b"></script>
+<script src="feedback-store.js?v=1"></script>
+<script src="feedback-import.js?v=1"></script>
+<script>
+"use strict";
+const {Hub, Cfg, Branches} = HubMod;
+const I = FBImport;
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"}[c]));
+const fmt = n => Number(n || 0).toLocaleString("en-US");
+const TH_M = ["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."];
+const fmtD = iso => { if (!iso) return ""; const [y, m, d] = String(iso).slice(0, 10).split("-"); return `${+d} ${TH_M[+m - 1]} ${y}`; };
+const EMBED = window.parent !== window;
+if (EMBED) document.body.classList.add("embed");
+const isAdmin = () => String(Hub.userRole() || "").toLowerCase() === "admin";
+const who = () => Hub.fullName() || "admin";
+function toast(t) { document.querySelectorAll(".toast").forEach(x => x.remove()); const e = document.createElement("div"); e.className = "toast"; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3200); }
+function busy(on, msg, pct) { $("#ovl").classList.toggle("hide", !on); if (msg) $("#ovlT").textContent = msg; $("#ovlP").style.width = (pct == null ? 0 : Math.round(pct * 100)) + "%"; }
+const tick = () => new Promise(r => setTimeout(r, 20));
+function notifyParent() { try { if (EMBED) parent.postMessage({type: "fb-changed"}, (/^https?:/.test(location.protocol) ? location.origin : "*")); } catch (e) {} }
+
+/* ───── หน้าต่าง ───── */
+function modal(title, body, buttons) {
+  const m = document.createElement("div"); m.className = "mask";
+  const box = document.createElement("div"); box.className = "modal";
+  box.innerHTML = `<div class="modal-head"><h3>${esc(title)}</h3><button class="modal-x" type="button" aria-label="ปิด">×</button></div>`;
+  const bd = document.createElement("div"); bd.className = "modal-body"; if (typeof body === "string") bd.innerHTML = body; else bd.appendChild(body); box.appendChild(bd);
+  const ft = document.createElement("div"); ft.className = "modal-foot actions";
+  (buttons || []).forEach(b => {
+    const x = Object.assign(document.createElement("button"), {className: "btn " + (b.cls || ""), textContent: b.text});
+    x.onclick = async () => { x.disabled = true; try { const r = b.fn ? await b.fn() : true; if (r !== false) m.remove(); } catch (e) { toast("ไม่สำเร็จ: " + (e.message || e)); } finally { x.disabled = false; } };
+    ft.appendChild(x);
+  });
+  const c = Object.assign(document.createElement("button"), {className: "btn ghost", textContent: buttons && buttons.length ? "ยกเลิก" : "ปิด"}); c.onclick = () => m.remove(); ft.appendChild(c);
+  $(".modal-x", box).onclick = () => m.remove(); box.appendChild(ft); m.appendChild(box); m.onclick = e => { if (e.target === m) m.remove(); };
+  $("#modalHost").appendChild(m); return m;
+}
+
+/* ───── state ───── */
+const S = {batches: [], cur: null, rows: [], csat: [], tab: "rows", f: {q: "", b: "", ty: "", st: "", sub: "", br: "", flag: ""}, page: 0, sel: new Set(), hub: null, subMain: {}};
+const PAGE = 100;
+const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "dup", "sug"];
+const STATE_TH = {staging: "คงไว้", drop: "ข้าม", live: "ลงระบบแล้ว"};
+
+function hubCodes() {
+  try { const r = Branches.raw(); return r && r.branches ? new Set(Object.keys(r.branches)) : null; } catch (e) { return null; }
+}
+function calc(r) { r._f = I.flagsOf(r, S.hub); return r; }
+function branchCode(r) { return (String(r.br).match(/^(\d{4})/) || [])[1] || ""; }
+const goes = r => r.state === "staging" && (r.ty === "พอใจ" || r.ty === "ไม่พอใจ") && String(r.c).trim() !== "";
+
+/* ═════════ เริ่มต้น ═════════ */
+function gate(html) { ["vList", "vBatch"].forEach(i => $("#" + i).classList.add("hide")); const g = $("#gate"); g.innerHTML = html; g.classList.remove("hide"); }
+async function boot() {
+  $("#backBtn").onclick = () => Hub.back();
+  const s = Hub.session();
+  if (!s) return gate(`<h3>ยังไม่ได้เข้าสู่ระบบ</h3>เปิดจากหน้าหลักของฮับ แล้วเลือก Customer Feedback Collection`);
+  $("#me").textContent = Hub.fullName() || "admin";
+  if (!isAdmin()) return gate(`<h3>เฉพาะแอดมิน</h3>การนำเข้า กรอง แก้ไข และอนุมัติข้อมูลทำได้เฉพาะบัญชีผู้ดูแลระบบ`);
+  try { await Promise.race([Cfg.load().catch(() => null), new Promise(r => setTimeout(r, 6000))]); } catch (e) {}
+  S.hub = hubCodes();
+  const st = await FBStore.ready();
+  if (!st.ok) {
+    if (st.why === "nosql") return gate(`<h3>ยังไม่ได้สร้างตารางเก็บข้อมูล</h3>ให้ผู้ดูแลระบบเปิด Supabase โปรเจกต์ <b>FAB HUB</b> → SQL Editor → วางไฟล์ <code>supabase/feedback.sql</code> ทั้งไฟล์ แล้วกด Run (รันซ้ำได้ ไม่พัง) จากนั้นรีเฟรชหน้านี้<br><br><button class="btn sm" onclick="location.reload()">ลองอีกครั้ง</button>`);
+    return gate(`<h3>ต่อฐานข้อมูลไม่ได้</h3>${esc(st.err || "")}<br><br><button class="btn sm" onclick="location.reload()">ลองอีกครั้ง</button>`);
+  }
+  wire();
+  await showList();
+}
+
+function wire() {
+  const dz = $("#drop"), fi = $("#file");
+  dz.onclick = () => fi.click();
+  dz.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fi.click(); } };
+  fi.onchange = () => { if (fi.files[0]) importFile(fi.files[0]); fi.value = ""; };
+  ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("over"); }));
+  ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("over"); }));
+  dz.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) importFile(f); });
+  $("#toList").onclick = showList;
+  $("#tRows").onclick = () => setTab("rows"); $("#tCsat").onclick = () => setTab("csat");
+  $("#fQ").oninput = () => { S.f.q = $("#fQ").value.trim().toLowerCase(); S.page = 0; renderRows(); };
+  [["fB", "b"], ["fTy", "ty"], ["fSt", "st"], ["fSub", "sub"], ["fBr", "br"]].forEach(([id, k]) => $("#" + id).onchange = () => { S.f[k] = $("#" + id).value; S.page = 0; S.sel.clear(); renderRows(); });
+  $("#pgPrev").onclick = () => { S.page = Math.max(0, S.page - 1); renderRows(); $(".tbwrap").scrollTop = 0; };
+  $("#pgNext").onclick = () => { S.page++; renderRows(); $(".tbwrap").scrollTop = 0; };
+  $("#selAll").onchange = e => { pageRows().forEach(r => e.target.checked ? S.sel.add(r.id) : S.sel.delete(r.id)); renderRows(); };
+  $("#bulk").addEventListener("click", e => { const b = e.target.closest("[data-bk]"); if (b) bulk(b.dataset.bk); });
+  $("#tbody").addEventListener("click", e => {
+    const tr = e.target.closest("tr.rw"); if (!tr) return;
+    const id = +tr.dataset.id;
+    if (e.target.matches("input[type=checkbox]")) { e.target.checked ? S.sel.add(id) : S.sel.delete(id); updateBulkT(); return; }
+    editRow(S.rows.find(r => r.id === id));
+  });
+  window.addEventListener("message", () => {});
+}
+
+/* ═════════ รายการชุด ═════════ */
+async function showList() {
+  S.cur = null; $("#vBatch").classList.add("hide"); $("#gate").classList.add("hide"); $("#vList").classList.remove("hide");
+  const box = $("#bcards"); box.innerHTML = `<div class="muted">กำลังโหลด…</div>`;
+  try { S.batches = await FBStore.batches("voc"); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
+  if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
+  box.innerHTML = S.batches.map(b => {
+    const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
+    return `<div class="bcard" data-id="${b.id}">
+      <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
+        <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
+        <div class="ct"><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span><span class="chip num">${fmt(b.n_rows)} คอมเมนต์</span><span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span></div></div>
+      <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
+  }).join("");
+  box.onclick = async e => {
+    const bt = e.target.closest("[data-a]"); if (!bt) return;
+    const b = S.batches.find(x => x.id === bt.closest(".bcard").dataset.id);
+    if (bt.dataset.a === "open") openBatch(b);
+    if (bt.dataset.a === "del") confirmBox("ลบชุดนี้?", `ลบ “${esc(b.file_name)}” พร้อมแถวทั้งหมด (${fmt(b.n_rows)} คอมเมนต์) — ยังไม่เคยลงระบบ ลบได้ และนำเข้าไฟล์เดิมใหม่ได้`, "ลบชุด", async () => { await FBStore.removeBatch(b.id); toast("ลบชุดแล้ว"); showList(); });
+    if (bt.dataset.a === "revoke") confirmBox("ถอนการอนุมัติ?", `ข้อมูลของ “${esc(b.file_name)}” จะ<b>ออกจากระบบ</b> (ทุกคนจะไม่เห็นในแดชบอร์ด) และกลับไปเป็นชุดรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(b.id); } finally { busy(false); } toast("ถอนแล้ว — ข้อมูลออกจากระบบ"); notifyParent(); showList(); });
+  };
+}
+function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-height:1.8">${html}</div>`, [{text: okText, cls: "no", fn}]); }
+
+/* ═════════ นำเข้าไฟล์ ═════════ */
+async function importFile(file) {
+  busy(true, "กำลังอ่านไฟล์…"); await tick();
+  let aoa;
+  try {
+    const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type: "array", dense: true});
+    const name = wb.SheetNames.find(n => /raw\s*data/i.test(n)) || wb.SheetNames.find(n => !/dictionary/i.test(n));
+    aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header: 1, raw: true, defval: null});
+  } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx จากแพลตฟอร์มแบบสำรวจ"); }
+  let first;
+  try { first = I.parseRaw(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
+  if (!first.rows.length && !first.csat.length) { busy(false); return modal("ไม่พบข้อมูล", "ไม่พบใบสำรวจที่ใช้ได้ในไฟล์นี้"); }
+  busy(true, "ตรวจว่าเคยนำเข้าแล้วหรือยัง…"); await tick();
+  let skip = {};
+  try { skip = await FBStore.existingSrc("voc", first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
+  const res = I.parseRaw(aoa, {skipSrc: skip});
+  busy(false);
+  previewImport(file.name, res);
+}
+
+function previewImport(fileName, res) {
+  const st = res.stats, keep = res.rows.filter(r => r.state === "staging").length, drop = res.rows.length - keep;
+  const nc = Object.keys(st.newcat).length;
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="note" style="margin-bottom:8px">${esc(fileName)} · ข้อมูลวันที่ ${esc(fmtD(st.dmin))} – ${esc(fmtD(st.dmax))} · ใบสำรวจ ${fmt(st.responses)} ใบ</div>
+    <table class="mtab">
+      <tr><th>จากไฟล์ได้</th><th class="r">แถว</th></tr>
+      <tr><td>Santa Fe KT</td><td class="r">${fmt(st.byBrand.KT)}</td></tr>
+      <tr><td>Santa Fe FS</td><td class="r">${fmt(st.byBrand.FS)}</td></tr>
+      <tr><td>เจ๊แดง</td><td class="r">${fmt(st.byBrand.JD)}</td></tr>
+      <tr><td><b>รวมคอมเมนต์</b></td><td class="r"><b>${fmt(res.rows.length)}</b></td></tr>
+      <tr><td>&nbsp;&nbsp;คำชม (csat_pos)</td><td class="r">${fmt(st.types["พอใจ"])}</td></tr>
+      <tr><td>&nbsp;&nbsp;ไม่พอใจ (csat_neg)</td><td class="r">${fmt(st.types["ไม่พอใจ"])}</td></tr>
+      <tr><td>&nbsp;&nbsp;ข้อเสนอแนะ (ข้ามไว้ก่อน)</td><td class="r">${fmt(st.types["ข้อเสนอแนะ"])}</td></tr>
+      <tr><td>CSAT / NPS รายเดือนต่อ BZM·Owner</td><td class="r">${fmt(res.csat.length)}</td></tr>
+    </table>
+    <div style="margin:8px 0;line-height:1.8">เข้าชุดตรวจสอบ: <b class="num">${fmt(keep)}</b> แถวตั้งเป็น “คงไว้” · <b class="num">${fmt(drop)}</b> แถวตั้งเป็น “ข้าม”</div>
+    <ul class="note" style="padding-left:18px">
+      <li>ช่องข้อเสนอแนะที่ตอบแค่ “ไม่มี / - / ไม่มีค่ะ” ไม่สร้างแถว: <b>${fmt(st.sugEmpty)}</b></li>
+      <li>ข้อความว่าง/ไม่มีเนื้อหาในคำชม-ร้องเรียน (ตั้งข้าม): <b>${fmt(st.noise)}</b> · ข้อความซ้ำสาขา-วัน (ตั้งข้าม): <b>${fmt(st.dupText)}</b></li>
+      <li>ปิดบังเบอร์โทร/อีเมลในข้อความอัตโนมัติ: <b>${fmt(st.masked)}</b> แถว · ชื่อ-เบอร์-อีเมลลูกค้า (คอลัมน์ customer_*) <b>ไม่ถูกนำเข้า</b></li>
+      <li>เคยนำเข้าแล้ว ข้ามให้: <b>${fmt(st.dupSrc)}</b> แถว${st.noBrand ? ` · ไม่รู้แบรนด์ ข้าม ${fmt(st.noBrand)}` : ""}</li>
+      <li>หมวดหัวข้อที่แดชบอร์ดเดิมไม่เคยมี (ติดธง “หมวดใหม่” ให้ตรวจ): ${nc} หมวด</li>
+    </ul>`;
+  const stamp = Date.now();
+  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ", body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+    if (!res.rows.length && !res.csat.length) { toast("ไม่มีแถวใหม่ให้นำเข้า"); return false; }
+    busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
+    try {
+      const id = await FBStore.createBatch({channel: "voc", file_name: fileName, d_from: st.dmin, d_to: st.dmax, by: who()}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
+      busy(false); toast("สร้างชุดตรวจสอบแล้ว");
+      const bs = await FBStore.batches("voc"); const b = bs.find(x => x.id === id); S.batches = bs; openBatch(b);
+    } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
+  }}]);
+}
+
+/* ═════════ ตรวจสอบชุด ═════════ */
+async function openBatch(b) {
+  S.cur = b; S.hub = hubCodes(); S.sel.clear(); S.page = 0; S.tab = "rows";
+  S.f = {q: "", b: "", ty: "", st: "", sub: "", br: "", flag: ""}; $("#fQ").value = "";
+  $("#vList").classList.add("hide"); $("#vBatch").classList.remove("hide");
+  busy(true, "กำลังโหลดชุดข้อมูล…", 0);
+  try {
+    const [rows, csat] = await Promise.all([FBStore.batchRows(b.id, (a, n) => busy(true, "กำลังโหลดชุดข้อมูล…", a / n)), FBStore.batchCsat(b.id)]);
+    S.rows = rows.map(r => { r.extra = r.extra || {}; r.d = String(r.d || "").slice(0, 10); return calc(r); }); S.csat = csat;
+  } catch (e) { busy(false); toast("โหลดไม่ได้: " + e.message); return showList(); }
+  busy(false);
+  S.subMain = {}; Object.values(I.CAT).forEach(v => S.subMain[v[0]] = v[1]); S.rows.forEach(r => { if (r.sub && r.main && !S.subMain[r.sub]) S.subMain[r.sub] = r.main; });
+  $("#bnm").textContent = b.file_name || "ชุดข้อมูล";
+  buildFilters(); setTab("rows"); renderHead();
+}
+const locked = () => !S.cur || S.cur.status !== "staging";
+
+function setTab(t) {
+  S.tab = t; $("#tRows").setAttribute("aria-selected", t === "rows"); $("#tCsat").setAttribute("aria-selected", t === "csat");
+  $("#pRows").classList.toggle("hide", t !== "rows"); $("#pCsat").classList.toggle("hide", t !== "csat");
+  if (t === "rows") renderRows(); else renderCsat();
+}
+function renderHead() {
+  const live = S.cur.status === "approved";
+  $("#bchip").innerHTML = `<span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว (ดูอย่างเดียว — ถอนการอนุมัติก่อนจึงแก้ได้)" : "รอตรวจสอบ/อนุมัติ"}</span>`;
+  const step = live ? 4 : 2;
+  $("#bsteps").innerHTML = ["นำเข้าไฟล์ดิบ", "กรอง / แก้ไขโดยแอดมิน", "แอดมินอนุมัติ", "ข้อมูลลงในระบบ"].map((t, i) => `<div class="st ${i + 1 < step ? "done" : i + 1 === step ? "on" : ""}"><b>${i + 1 < step ? "✓" : i + 1}</b><span>${t}</span></div>`).join("");
+  renderKpi(); renderBar();
+}
+function counts() {
+  const c = {all: S.rows.length, go: 0, skip: 0, live: 0, warn: 0, sug: 0};
+  S.rows.forEach(r => {
+    if (r.state === "live") c.live++; else if (goes(r)) c.go++; else c.skip++;
+    if (r.state !== "drop" && r.ty === "ข้อเสนอแนะ") c.sug++;
+    if ((r.state === "staging" || r.state === "live") && r._f.some(f => ["pii", "nosub", "nobranch", "noz", "newcat"].includes(f))) c.warn++;
+  });
+  return c;
+}
+function renderKpi() {
+  const c = counts(), live = S.cur.status === "approved", cs = S.csat.filter(x => x.state !== "drop").length;
+  $("#kp").innerHTML = `
+    <div class="k"><div class="l">คอมเมนต์ในชุด</div><div class="n num">${fmt(c.all)}</div><div class="d">${fmt(S.csat.length)} รายการ CSAT/NPS</div></div>
+    <div class="k go"><div class="l">${live ? "อยู่ในระบบ" : "จะลงระบบเมื่ออนุมัติ"}</div><div class="n num">${fmt(live ? c.live : c.go)}</div><div class="d">CSAT/NPS ${fmt(cs)} รายการ</div></div>
+    <div class="k sk"><div class="l">ข้าม / ไม่ลงระบบ</div><div class="n num">${fmt(c.skip)}</div><div class="d">รวมข้อเสนอแนะที่ยังไม่จัดประเภท</div></div>
+    <div class="k wn"><div class="l">ควรตรวจ</div><div class="n num">${fmt(c.warn)}</div><div class="d">หมวดใหม่ · ไม่มีหัวข้อ · ข้อมูลส่วนตัว…</div></div>
+    <div class="k"><div class="l">ข้อมูลช่วง</div><div class="n" style="font-size:16px;padding-top:6px">${esc(fmtD(S.cur.d_from))} – ${esc(fmtD(S.cur.d_to))}</div><div class="d">&nbsp;</div></div>`;
+}
+function renderBar() {
+  const c = counts(), live = S.cur.status === "approved";
+  if (live) { $("#bar").innerHTML = `<div class="tx">ชุดนี้อนุมัติแล้ว เมื่อ ${esc(new Date(S.cur.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(S.cur.approved_by || "—")}</div><button class="btn ghost" id="bRevoke">ถอนการอนุมัติ</button>`; $("#bRevoke").onclick = () => confirmBox("ถอนการอนุมัติ?", `ข้อมูลของชุดนี้จะ<b>ออกจากระบบ</b> และกลับไปรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(S.cur.id); } finally { busy(false); } toast("ถอนแล้ว"); notifyParent(); const bs = await FBStore.batches("voc"); S.batches = bs; await openBatch(bs.find(x => x.id === S.cur.id)); }); return; }
+  $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> คอมเมนต์ · ข้าม <b>${fmt(c.skip)}</b> · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ</div><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
+  $("#bApprove").onclick = approveDialog;
+}
+
+/* ───── ตัวกรอง ───── */
+function opt(sel, items, all) { sel.innerHTML = `<option value="">${all}</option>` + items.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join(""); }
+const uniq = a => [...new Set(a.filter(Boolean))].sort((x, y) => String(x).localeCompare(String(y), "th"));
+function buildFilters() {
+  opt($("#fB"), [["KT", "Santa Fe KT"], ["FS", "Santa Fe FS"], ["JD", "เจ๊แดง"]].filter(([k]) => S.rows.some(r => r.b === k)), "ทุกแบรนด์");
+  opt($("#fTy"), [["พอใจ", "พอใจ"], ["ไม่พอใจ", "ไม่พอใจ"], ["ข้อเสนอแนะ", "ข้อเสนอแนะ"]], "ทุกประเภท");
+  opt($("#fSt"), [["staging", "คงไว้"], ["drop", "ข้าม"], ["live", "ลงระบบแล้ว"]], "ทุกสถานะ");
+  opt($("#fSub"), [["__none", "(ไม่มีหัวข้อ)"], ...uniq(S.rows.map(r => r.sub)).map(x => [x, x])], "ทุกหัวข้อ");
+  opt($("#fBr"), uniq(S.rows.map(r => r.br)).map(x => [x, x]), "ทุกสาขา");
+  const subs = uniq([...Object.keys(S.subMain)]);
+  $("#bSub").innerHTML = subs.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+}
+function matches(r, skipFlag) {
+  const f = S.f;
+  if (f.b && r.b !== f.b) return false; if (f.ty && r.ty !== f.ty) return false; if (f.st && r.state !== f.st) return false;
+  if (f.sub && (f.sub === "__none" ? r.sub : r.sub !== f.sub)) return false; if (f.br && r.br !== f.br) return false;
+  if (!skipFlag && f.flag && !r._f.includes(f.flag)) return false;
+  if (f.q && !(r.c + " " + r.br + " " + r.z + " " + r.o + " " + r.sub).toLowerCase().includes(f.q)) return false;
+  return true;
+}
+let _view = null;
+function filtered() { return _view || (_view = S.rows.filter(r => matches(r))); }
+function pageRows() { const v = filtered(), max = Math.max(0, Math.ceil(v.length / PAGE) - 1); if (S.page > max) S.page = max; return v.slice(S.page * PAGE, S.page * PAGE + PAGE); }
+
+function renderChips() {
+  const base = S.rows.filter(r => matches(r, true)), n = {};
+  base.forEach(r => r._f.forEach(f => n[f] = (n[f] || 0) + 1));
+  $("#fchips").innerHTML = `<button aria-pressed="${!S.f.flag}" data-f="">ทั้งหมด<b>${fmt(base.length)}</b></button>` +
+    FLAG_ORDER.filter(f => n[f]).map(f => `<button aria-pressed="${S.f.flag === f}" data-f="${f}">${esc(I.FLAG_LABEL[f])}<b>${fmt(n[f])}</b></button>`).join("");
+  $("#fchips").onclick = e => { const b = e.target.closest("button"); if (!b) return; S.f.flag = b.dataset.f; S.page = 0; S.sel.clear(); renderRows(); };
+}
+function chipFor(f) {
+  const cls = {pii: "bad", noise: "", nosub: "wait", nobranch: "wait", noz: "wait", newcat: "vio", dup: "", sug: "info"}[f] || "";
+  return `<span class="chip ${cls}">${esc(I.FLAG_LABEL[f])}</span>`;
+}
+function renderRows() {
+  _view = null;
+  renderChips();
+  const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
+  $("#tbody").innerHTML = rows.map(r => `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
+    <td><input type="checkbox" ${S.sel.has(r.id) ? "checked" : ""} ${live ? "disabled" : ""} aria-label="เลือก"></td>
+    <td class="bt"><span class="chip ${r.state === "live" ? "live" : r.state === "staging" ? "wait" : ""}">${STATE_TH[r.state]}</span></td>
+    <td class="bt num">${esc(r.d)}<div class="muted">${esc(r.t)}</div></td>
+    <td class="bt">${esc(r.b)}</td>
+    <td>${esc(r.br)}</td>
+    <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
+    <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
+    <td style="min-width:150px">${esc(r.sub || "—")}<div class="muted">${esc(r.main)}</div></td>
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
+  const from = v.length ? S.page * PAGE + 1 : 0;
+  $("#pgInfo").textContent = `แสดง ${fmt(from)}–${fmt(from + rows.length - (v.length ? 1 : 0))} จาก ${fmt(v.length)} แถว`;
+  $("#pgPrev").disabled = S.page === 0; $("#pgNext").disabled = (S.page + 1) * PAGE >= v.length;
+  $("#selAll").checked = rows.length > 0 && rows.every(r => S.sel.has(r.id)); $("#selAll").disabled = live;
+  $("#bulk").classList.toggle("hide", live);
+  updateBulkT();
+}
+function updateBulkT() { const n = S.sel.size; $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
+
+/* ───── แก้ทีละกลุ่ม ───── */
+function targetIds() { return S.sel.size ? [...S.sel] : filtered().filter(r => r.state !== "live").map(r => r.id); }
+async function bulk(kind) {
+  if (locked()) return toast("ชุดนี้อนุมัติแล้ว — ถอนการอนุมัติก่อนจึงแก้ได้");
+  let patch, label;
+  if (kind === "keep") { patch = {state: "staging"}; label = "ตั้งเป็น “คงไว้”"; }
+  else if (kind === "skip") { patch = {state: "drop"}; label = "ตั้งเป็น “ข้าม”"; }
+  else if (kind === "ty") { patch = {ty: $("#bTy").value}; label = `ตั้งประเภท “${patch.ty}”`; }
+  else if (kind === "sub") { const s = $("#bSub").value; if (!s) return; patch = {sub: s, main: S.subMain[s] || ""}; label = `ตั้งหัวข้อ “${s}”`; }
+  else if (kind === "z") { const v = $("#bZ").value.trim(); if (!v) return toast("พิมพ์ชื่อ BZM ก่อน"); patch = {z: v}; label = `ตั้ง BZM “${v}”`; }
+  else if (kind === "o") { const v = $("#bO").value.trim(); if (!v) return toast("พิมพ์ชื่อ Owner ก่อน"); patch = {o: v}; label = `ตั้ง Owner “${v}”`; }
+  const ids = targetIds(); if (!ids.length) return toast("ไม่มีแถวให้แก้");
+  confirmBox("แก้ทีละกลุ่ม", `${esc(label)} กับ <b class="num">${fmt(ids.length)}</b> แถว${S.sel.size ? " ที่เลือก" : " ที่กรองอยู่"}?`, "ยืนยัน", async () => {
+    busy(true, "กำลังบันทึก…");
+    try { await FBStore.setRows(S.cur.id, ids, patch); } finally { busy(false); }
+    const set = new Set(ids); S.rows.forEach(r => { if (set.has(r.id)) { Object.assign(r, patch); r.edited = true; calc(r); } });
+    S.sel.clear(); renderRows(); renderKpi(); renderBar(); toast(`บันทึกแล้ว ${fmt(ids.length)} แถว`);
+  });
+}
+
+/* ───── แก้ทีละแถว ───── */
+function editRow(r) {
+  if (!r) return;
+  const ro = locked();
+  const subs = uniq(Object.keys(S.subMain));
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="note" style="margin-bottom:8px">${esc(r.d)} ${esc(r.t)} · ${esc(r.b)}${r.s != null ? " · คะแนน " + esc(r.s) : ""}${r._f.length ? "<br>" + r._f.map(chipFor).join(" ") : ""}</div>
+    <div class="g2"><div class="fld"><label>สถานะ</label><select id="eSt"><option value="staging">คงไว้ (ลงระบบเมื่ออนุมัติ)</option><option value="drop">ข้าม (ไม่ลงระบบ)</option></select></div>
+    <div class="fld"><label>ประเภท</label><select id="eTy"><option>พอใจ</option><option>ไม่พอใจ</option><option>ข้อเสนอแนะ</option></select></div></div>
+    <div class="fld"><label>สาขา</label><input id="eBr" value="${esc(r.br)}"></div>
+    <div class="g2"><div class="fld"><label>BZM</label><input id="eZ" value="${esc(r.z)}"></div><div class="fld"><label>Owner (FS)</label><input id="eO" value="${esc(r.o)}"></div></div>
+    <div class="fld"><label>หัวข้อ</label><select id="eSub"><option value="">(ไม่มีหัวข้อ)</option>${subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select></div>
+    <div class="fld"><label>ข้อความ</label><textarea id="eC">${esc(r.c)}</textarea></div>
+    ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}`;
+  const m = modal("แก้ไขคอมเมนต์", body, ro ? [] : [{text: "บันทึก", fn: async () => {
+    const patch = {state: $("#eSt", body).value, ty: $("#eTy", body).value, br: $("#eBr", body).value.trim(), z: $("#eZ", body).value.trim(), o: $("#eO", body).value.trim(), sub: $("#eSub", body).value, c: $("#eC", body).value.trim()};
+    patch.main = patch.sub ? (S.subMain[patch.sub] || r.main) : "";
+    await FBStore.setRows(S.cur.id, [r.id], patch);
+    Object.assign(r, patch); r.edited = true; calc(r); renderRows(); renderKpi(); renderBar(); toast("บันทึกแล้ว");
+  }}]);
+  $("#eSt", body).value = r.state === "live" ? "staging" : r.state; $("#eTy", body).value = r.ty; $("#eSub", body).value = r.sub;
+  if (ro) body.querySelectorAll("input,select,textarea").forEach(x => x.disabled = true);
+}
+
+/* ───── CSAT / NPS ───── */
+function renderCsat() {
+  const live = locked();
+  $("#cbody").innerHTML = S.csat.map(x => `<tr class="${x.state === "drop" ? "drp" : ""}" data-id="${x.id}">
+    <td><span class="chip ${x.state === "live" ? "live" : x.state === "staging" ? "wait" : ""}">${STATE_TH[x.state]}</span></td>
+    <td>${esc(x.b)}</td><td>${esc(x.k)}</td><td class="num bt">${esc(fmtD(x.d_from))} – ${esc(fmtD(x.d_to))}</td>
+    <td class="num" style="text-align:right">${fmt(x.n)}${x.n < 10 ? ` <span class="chip wait">น้อย</span>` : ""}</td>
+    <td class="num" style="text-align:right">${esc(x.cs)}</td><td class="num" style="text-align:right">${esc(x.np)}</td>
+    <td class="bt">${live ? "" : `<button class="btn sm ghost" data-c="edit">แก้</button> <button class="btn sm ghost" data-c="${x.state === "drop" ? "keep" : "skip"}">${x.state === "drop" ? "คงไว้" : "ข้าม"}</button>`}</td></tr>`).join("");
+  $("#cbody").onclick = async e => {
+    const bt = e.target.closest("[data-c]"); if (!bt) return;
+    const x = S.csat.find(y => y.id === +bt.closest("tr").dataset.id);
+    if (bt.dataset.c === "edit") return editCsat(x);
+    const state = bt.dataset.c === "skip" ? "drop" : "staging";
+    await FBStore.setCsat(S.cur.id, [x.id], {state}); x.state = state; renderCsat(); renderKpi(); renderBar();
+  };
+}
+function editCsat(x) {
+  const body = document.createElement("div");
+  body.innerHTML = `<div class="note" style="margin-bottom:8px">${esc(x.b)} · ${esc(fmtD(x.d_from))} – ${esc(fmtD(x.d_to))} · ${fmt(x.n)} ใบสำรวจ</div>
+    <div class="fld"><label>ชื่อ BZM / Owner (ต้องตรงกับชื่อในคอมเมนต์ จึงจะแสดงในแดชบอร์ด)</label><input id="cK" value="${esc(x.k)}"></div>
+    <div class="g2"><div class="fld"><label>CSAT (0–100)</label><input id="cC" type="number" step="0.1" value="${esc(x.cs)}"></div><div class="fld"><label>NPS (−100 ถึง 100)</label><input id="cN" type="number" step="0.1" value="${esc(x.np)}"></div></div>`;
+  modal("แก้ CSAT / NPS", body, [{text: "บันทึก", fn: async () => {
+    const k = $("#cK", body).value.trim(), cs = +$("#cC", body).value, np = +$("#cN", body).value;
+    if (!k || !isFinite(cs) || !isFinite(np)) { toast("กรอกให้ครบ"); return false; }
+    await FBStore.setCsat(S.cur.id, [x.id], {k, cs, np}); Object.assign(x, {k, cs, np, edited: true}); renderCsat(); toast("บันทึกแล้ว");
+  }}]);
+}
+
+/* ───── อนุมัติ ───── */
+function approveDialog() {
+  const go = S.rows.filter(goes), by = {};
+  go.forEach(r => { const o = by[r.b] || (by[r.b] = {p: 0, n: 0}); r.ty === "พอใจ" ? o.p++ : o.n++; });
+  const skip = S.rows.length - go.length, csat = S.csat.filter(x => x.state !== "drop");
+  const warn = {}; go.forEach(r => r._f.forEach(f => { if (["pii", "nosub", "nobranch", "noz", "newcat"].includes(f)) warn[f] = (warn[f] || 0) + 1; }));
+  const sug = S.rows.filter(r => r.state === "staging" && r.ty === "ข้อเสนอแนะ").length;
+  const bn = {KT: "Santa Fe KT", FS: "Santa Fe FS", JD: "เจ๊แดง"};
+  modal("อนุมัติข้อมูลลงระบบ", `
+    <table class="mtab"><tr><th>แบรนด์</th><th class="r">พอใจ</th><th class="r">ไม่พอใจ</th></tr>
+    ${Object.keys(by).map(k => `<tr><td>${bn[k]}</td><td class="r">${fmt(by[k].p)}</td><td class="r">${fmt(by[k].n)}</td></tr>`).join("")}
+    <tr><td><b>รวม</b></td><td class="r" colspan="2"><b>${fmt(go.length)} คอมเมนต์</b></td></tr></table>
+    <div style="line-height:1.8">CSAT / NPS: <b class="num">${fmt(csat.length)}</b> รายการ · ข้าม: <b class="num">${fmt(skip)}</b> แถว${sug ? ` (รวมข้อเสนอแนะที่ยังไม่เปลี่ยนประเภท ${fmt(sug)})` : ""}</div>
+    ${Object.keys(warn).length ? `<div class="warn"><b>ยังมีแถวที่ติดธงและจะลงระบบด้วย</b><br>${Object.keys(warn).map(f => `${esc(I.FLAG_LABEL[f])} ${fmt(warn[f])}`).join(" · ")}</div>` : ""}
+    <div class="note">เมื่ออนุมัติ ทุกคนที่มีสิทธิ์จะเห็นข้อมูลนี้ในแดชบอร์ด VOC ตามสิทธิ์ของตน · CSAT/NPS เดือน-BZM เดียวกันที่เคยอนุมัติไว้จะถูกแทนที่ · ถอนการอนุมัติได้ภายหลัง</div>`,
+    [{text: "อนุมัติ → ลงระบบ", cls: "ok", fn: async () => {
+      busy(true, "กำลังอนุมัติ…");
+      let r; try { r = await FBStore.approve(S.cur.id, who()); } finally { busy(false); }
+      toast(`ลงระบบแล้ว ${fmt(r.rows)} คอมเมนต์ · CSAT/NPS ${fmt(r.csat)} รายการ`); notifyParent();
+      const bs = await FBStore.batches("voc"); S.batches = bs; const b = bs.find(x => x.id === S.cur.id); await openBatch(b);
+    }}]);
+}
+
+boot();
+</script>
+</body>
+</html>

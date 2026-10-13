@@ -30,6 +30,7 @@
 .chbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:6px 0 14px}
 .chbar .segbar{margin:0}
 .tab .ch-dot{width:9px;height:9px;border-radius:50%;flex:none}
+.tab .ch-dot.rv{background:#10b981}.tabn{margin-left:7px;background:#e11d48;color:#fff;border-radius:999px;font-size:11.5px;font-weight:800;padding:0 7px;line-height:18px}
 .tab .ch-dot.voc{background:#f59e0b}.tab .ch-dot.fb{background:#1877f2}
 .chnote{font-size:13px;color:var(--text3)}
 /* VOC แบบเต็มหน้า: ซ่อนหัวเรื่องของฮับ ให้แดชบอร์ดกว้างเต็มจอ เลื่อนทั้งหน้าครั้งเดียว (ไม่มีแถบเลื่อนซ้อนในกรอบ) */
@@ -114,6 +115,7 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
     <div class="segbar" role="tablist" aria-label="ช่องทาง">
       <button class="tab" id="tabVoc" role="tab" aria-selected="true"><i class="ch-dot voc"></i>VOC</button>
       <button class="tab" id="tabFb" role="tab" aria-selected="false"><i class="ch-dot fb"></i>Facebook</button>
+      <button class="tab hide" id="tabRv" role="tab" aria-selected="false"><i class="ch-dot rv"></i>นำเข้า &amp; อนุมัติ<span class="tabn hide" id="rvN">0</span></button>
     </div>
     <div class="chnote" id="chnote"></div>
   </div>
@@ -123,6 +125,9 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
     <div class="vochead"><span>แบบสำรวจ VOC (Voice of the Customer) · นำเข้าไฟล์ Excel จาก Google Sheet ได้ในหน้านี้</span><a href="voc-snapshot.html" target="_blank" rel="noopener">เปิดแยกหน้าต่าง ↗</a></div>
     <iframe id="vocFrame" title="VOC Survey Snapshot" loading="lazy"></iframe>
   </div>
+
+  <!-- นำเข้า → กรอง/แก้ไข → อนุมัติ (เฉพาะแอดมิน) -->
+  <div id="viewRv" class="vocwrap hide"><iframe id="rvFrame" title="นำเข้าและตรวจสอบข้อมูล"></iframe></div>
 
   <!-- ช่องทาง Facebook -->
   <div id="viewFb" class="hide">
@@ -161,6 +166,7 @@ body.vocfull .vocwrap iframe{min-height:calc(100vh - 150px);height:calc(100vh - 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
+<script src="feedback-store.js?v=1"></script>
 <script>
 "use strict";
 const {Hub, Cfg} = HubMod;
@@ -399,18 +405,21 @@ function showHome(){ document.body.classList.remove("vocfull");
   $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   window.scrollTo({top:0}); }
-function setCh(c,keep){ CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc");
-  $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook");
-  $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook");
+function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
+  CH=c; $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc"||c==="review");
+  $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook"); $("#tabRv").setAttribute("aria-selected",c==="review");
+  $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook"); $("#viewRv").classList.toggle("hide",c!=="review");
+  if(c==="review"&&!$("#rvFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#rvFrame").getAttribute("src")) $("#rvFrame").setAttribute("src","feedback-review.html"); });
   /* หน้า VOC อ่านสิทธิ์/ทะเบียนสาขาจากแคชของฮับ จึงรอโหลด config ก่อนค่อยเปิด */
   if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html"); });
-  $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
+  $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":c==="review"?"นำเข้าไฟล์ดิบ → กรอง/แก้ไข → อนุมัติ → ข้อมูลลงระบบ":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
   if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
 $("#tileVoc").onclick=()=>setCh("voc");
 $("#tileFb").onclick=()=>{ setCh("facebook"); refresh(); };
 $("#homeBtn").onclick=showHome;
 $("#tabVoc").onclick=()=>setCh("voc");
 $("#tabFb").onclick=()=>setCh("facebook");
+$("#tabRv").onclick=()=>setCh("review");
 $("#backBtn").onclick=()=>Hub.back();
 $("#bAdd").onclick=()=>form(null);
 $("#bPaste").onclick=pasteForm;
@@ -420,17 +429,47 @@ $("#bExp").onclick=exportCsv;
 $("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
 ["fQ","fMonth","fBrand","fBranch","fType","fStatus"].forEach(id=>{ const e=$("#"+id); e.addEventListener(id==="fQ"?"input":"change",()=>{ SHOWN=40; renderFb(); }); });
 
+/* ───── ข้อมูลกลาง VOC (Supabase FAB HUB) → ส่งเข้าแดชบอร์ดใน iframe ───── */
+const sameOrigin=e=>e.origin===location.origin||e.origin==="null";
+let LIVE=null;
+async function loadLive(force){
+  const st=await FBStore.ready(); if(!st.ok) return {off:st.why};
+  const stamp=await FBStore.liveStamp("voc");
+  if(!force&&LIVE&&LIVE.stamp===stamp) return LIVE;
+  const [rows,csat]=await Promise.all([FBStore.liveRows("voc"),FBStore.liveCsat("voc")]);
+  return LIVE={rows,csat,stamp};
+}
+async function pushVoc(force){
+  const w=$("#vocFrame").contentWindow; if(!w) return;
+  let msg; try{ const L=await loadLive(force); msg=L.off?{type:"voc-data",off:L.off}:{type:"voc-data",rows:L.rows,csat:L.csat}; }
+  catch(e){ console.error(e); msg={type:"voc-data",off:"error"}; }
+  try{ w.postMessage(msg,(/^https?:/.test(location.protocol)?location.origin:"*")); }catch(e){}
+}
+async function updateRvBadge(){
+  if(!isAdmin()) return;
+  try{ const st=await FBStore.ready(); if(!st.ok) return; const b=await FBStore.batches("voc"); const n=b.filter(x=>x.status==="staging").length;
+    $("#rvN").textContent=n; $("#rvN").classList.toggle("hide",!n); }catch(e){}
+}
+window.addEventListener("message",e=>{
+  if(!sameOrigin(e)||!e.data) return;
+  const t=e.data.type;
+  if(t==="voc-ready"&&e.source===$("#vocFrame").contentWindow) pushVoc();
+  else if(t==="voc-open-review") setCh("review");
+  else if(t==="fb-changed"&&e.source===$("#rvFrame").contentWindow){ LIVE=null; pushVoc(true); updateRvBadge(); }
+});
+
 (async()=>{
   if(!Hub.guard()) return;
   $("#me").textContent=Hub.fullName();
   CFG_READY=Promise.race([Cfg.load().catch(()=>null),new Promise(r=>setTimeout(r,8000))]);
   const first=new URLSearchParams(location.search).get("ch")||(location.hash||"").replace("#","");
-  if(first==="facebook"||first==="voc") setCh(first,true); else $("#home").classList.remove("hide");   /* ไม่ระบุช่องทาง = หน้าเลือกช่องทาง (ไอคอนใหญ่) */
+  if(first==="facebook"||first==="voc"||first==="review") setCh(first,true); else $("#home").classList.remove("hide");   /* ไม่ระบุช่องทาง = หน้าเลือกช่องทาง (ไอคอนใหญ่) */
   try{ await DB.open(); DATA=await DB.all(); }catch(e){ console.error(e); DATA=[]; }
   refresh(); if(!$("#home").classList.contains("hide")) showHome();
   await CFG_READY;
   const gate=()=>{ const g=document.createElement("div"); g.className="gate"; g.innerHTML=`<div class="box"><div class="em-ic">🔒</div><h2>ไม่มีสิทธิ์เข้าระบบนี้</h2><p>บัญชีนี้ยังไม่ได้รับสิทธิ์ใน Customer Feedback Collection — ติดต่อผู้ดูแลระบบ</p><button class="btn full">กลับหน้าหลัก</button></div>`; $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g); };
   if(!can("view")) return gate();
+  if(isAdmin()){ $("#tabRv").classList.remove("hide"); updateRvBadge(); }
   if(!can("manage")){ $("#bAdd").classList.add("hide"); $("#bPaste").classList.add("hide"); $("#bImp").classList.add("hide"); }
   if(!can("export")) $("#bExp").classList.add("hide");
   refresh();

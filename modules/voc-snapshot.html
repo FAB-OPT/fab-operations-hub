@@ -452,19 +452,29 @@ $('chips').addEventListener('click', e=>{ if(e.target.id==='clrSub'){ ui.sub='';
 $('detHead').addEventListener('click', e=>{ const k=e.target.closest('th')?.dataset.k; if(!k) return; if(ui.sortKey===k) ui.sortDir*=-1; else { ui.sortKey=k; ui.sortDir=1; } ui.page=0; renderDetail(filtered()); });
 $('pgPrev').addEventListener('click',()=>{ ui.page--; renderDetail(filtered()); });
 $('pgNext').addEventListener('click',()=>{ ui.page++; renderDetail(filtered()); });
-$('btnUpload').addEventListener('click',()=>{ if(SCOPE.imp) $('file').click(); });
+const HUBMODE = window.parent!==window;      // เปิดในหน้า Customer Feedback Collection ของฮับ → ข้อมูลกลาง + นำเข้า/อนุมัติที่หน้าตรวจสอบ
+$('btnUpload').addEventListener('click',()=>{ if(!SCOPE.imp) return; if(HUBMODE){ try{ parent.postMessage({type:'voc-open-review'}, (/^https?:/.test(location.protocol)?location.origin:'*')); }catch(e){} } else $('file').click(); });
+if(HUBMODE && SCOPE.imp) $('btnUpload').textContent='นำเข้า & ตรวจสอบข้อมูล';
 $('file').addEventListener('change',e=>{ if(e.target.files.length) importFiles([...e.target.files]); e.target.value=''; });
 const bar=$('databar');
 ['dragenter','dragover'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); if(SCOPE.imp) bar.classList.add('drag'); }));
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); if(t==='drop'||!e.relatedTarget) bar.classList.remove('drag'); }));
-document.addEventListener('drop',e=>{ if(!SCOPE.imp) return; const f=[...(e.dataTransfer?.files||[])].filter(f=>/\.xls[xm]?$/i.test(f.name)); if(f.length) importFiles(f); });
+document.addEventListener('drop',e=>{ if(!SCOPE.imp||HUBMODE) return; const f=[...(e.dataTransfer?.files||[])].filter(f=>/\.xls[xm]?$/i.test(f.name)); if(f.length) importFiles(f); });
 $('btnReset').addEventListener('click', async ()=>{ await wipe(); loadSample(); index(); ui.brand='KT'; resetFilters(true); renderAll(); renderStatus(); });
 
 /* ---------- boot ---------- */
 if(!SCOPE.imp){ $('btnUpload').hidden=true; $('btnUpload').style.display='none'; }
 const _renderStatus = renderStatus;
+const sameOrigin=e=>e.origin===location.origin||e.origin==='null';
+let BASEDATA=null, CENTRAL=null, CENTRALNOTE='';
 renderStatus = function(extra=''){
-  _renderStatus(extra);
+  if(DATA.meta.source==='hub'){
+    $('btnReset').hidden=true;
+    const parts = Object.keys(BRANDS).filter(b=>byBrand[b]).map(b=>{ const a=byBrand[b]; let mn='9999',mx='0000'; for(const r of a){ if(r.d<mn) mn=r.d; if(r.d>mx) mx=r.d; } return `<strong>${b}</strong> ${fmtN(a.length)} แถว (${fmtD(mn)} – ${fmtD(mx)})`; });
+    setStatus(`<span class="pill">ข้อมูลกลาง</span> ${SCOPE.all?'ทุกสาขา':'<strong>'+esc(SCOPE.label)+'</strong>'} · ${parts.join(' · ')}${!SCOPE.all&&!parts.length?'<br>ไม่มีคอมเมนต์ในสิทธิ์ของคุณในช่วงข้อมูลที่โหลดไว้':''}`);
+    return;
+  }
+  _renderStatus(extra+CENTRALNOTE);
   if(SCOPE.imp) return;
   $('btnReset').hidden=true;
   const total = Object.values(byBrand).reduce((a,x)=>a+x.length,0);
@@ -472,10 +482,36 @@ renderStatus = function(extra=''){
   const when = DATA.meta.updated ? ' · นำเข้าโดยผู้ดูแล '+new Date(DATA.meta.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
   setStatus(`<span class="pill">${pill}</span> ${SCOPE.all?'ทุกสาขา':'<strong>'+esc(SCOPE.label)+'</strong>'} · ${fmtN(total)} แถว${when}${!SCOPE.all&&!total?'<br>ไม่มีคอมเมนต์ในสิทธิ์ของคุณในช่วงข้อมูลที่โหลดไว้':''}${SCOPE.csat&&!SCOPE.all?'<br>CSAT/NPS เป็นค่าระดับเขต (BZM) ที่สาขาของคุณสังกัด':''}`);
 };
+/* ---------- ข้อมูลกลาง (Supabase FAB HUB) ----------
+   หน้าฮับดึงชุดที่แอดมินอนุมัติแล้วมาส่งให้ทาง postMessage · เดือนไหนมีในข้อมูลกลางแล้ว ใช้ของกลางแทนข้อมูลตั้งต้น/ที่นำเข้าในเครื่อง
+   เดือนที่ยังไม่มีในข้อมูลกลาง (เช่น พ.ค. 2026 ที่ฝังไว้) ยังแสดงต่อ */
+function daysBetween(from,to){ const out=[]; for(let t=Date.parse(from+'T00:00:00Z'), e=Date.parse(to+'T00:00:00Z'); t<=e; t+=864e5) out.push(new Date(t).toISOString().slice(0,10)); return out; }
+function applyCentral(){
+  const m=CENTRAL; if(!BASEDATA) return;
+  if(!m || m.off){ CENTRALNOTE = m&&m.off ? ' · <span style="color:var(--bad)">ยังเชื่อมฐานข้อมูลกลางไม่ได้'+(m.off==='nosql'?' (ยังไม่ได้สร้างตาราง)':'')+' — แสดงข้อมูลในเครื่อง</span>' : ''; renderStatus(); return; }
+  if(!m.rows.length && !m.csat.length){ CENTRALNOTE=''; renderStatus(); return; }
+  CENTRALNOTE='';
+  const mk=(b,d)=>b+'|'+String(d).slice(0,7);
+  const cov=new Set(m.rows.map(r=>mk(r.b,r.d)));
+  const csatRows=[]; for(const x of m.csat){ const k=person(x.k); for(const d of daysBetween(String(x.d_from).slice(0,10),String(x.d_to).slice(0,10))) csatRows.push({b:x.b,d,k,cs:+x.cs,np:+x.np}); }
+  const ccov=new Set(csatRows.map(r=>mk(r.b,r.d)));
+  DATA={
+    rows: BASEDATA.rows.filter(r=>!cov.has(mk(r.b,r.d))).concat(m.rows.map(x=>mkRow(x.b,String(x.d).slice(0,10),x.t,x.ty,x.br,x.z,x.o,x.s,x.c,x.sub,x.main))),
+    csat: BASEDATA.csat.filter(r=>!ccov.has(mk(r.b,r.d))).concat(csatRows),
+    meta:{source:'hub',updated:null,files:[]}
+  };
+  index(); if(!byBrand[ui.brand]) ui.brand=Object.keys(byBrand)[0]||ui.brand; resetFilters(true); renderAll(); renderStatus();
+}
+window.addEventListener('message',e=>{
+  if(!HUBMODE || e.source!==parent || !sameOrigin(e) || !e.data || e.data.type!=='voc-data') return;
+  CENTRAL=e.data; applyCentral();
+});
 (async ()=>{
   loadSample(); index(); resetFilters(true); renderAll(); renderStatus();
   const saved = await load();
   if(saved && saved.rows && saved.rows.length){ DATA=saved; index(); if(!byBrand[ui.brand]) ui.brand=Object.keys(byBrand)[0]; resetFilters(true); renderAll(); renderStatus(); }
+  BASEDATA=DATA;
+  if(HUBMODE){ if(CENTRAL) applyCentral(); try{ parent.postMessage({type:'voc-ready'}, (/^https?:/.test(location.protocol)?location.origin:'*')); }catch(e){} }
 })();
 </script>
 </body>
