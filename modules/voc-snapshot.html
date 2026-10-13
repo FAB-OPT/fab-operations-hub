@@ -34,7 +34,7 @@ button,select,input{font:inherit;color:inherit}
 h1{font-family:var(--f-display);font-weight:800;font-size:clamp(26px,3.2vw,38px);letter-spacing:-.01em;line-height:1.05;margin:0;text-wrap:balance}
 h1 b{color:var(--accent);font-weight:700}
 h1 .brand{white-space:nowrap}
-.topr{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.topr{display:flex;align-items:center;gap:10px;flex-wrap:wrap;position:relative}
 .tabs{display:flex;gap:2px;background:var(--card);border:1px solid var(--line);border-radius:999px;padding:4px}
 .tabs button{border:0;background:none;padding:7px 18px;border-radius:999px;cursor:pointer;font-weight:600;font-size:16px;color:var(--muted);min-height:34px}
 .tabs button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
@@ -44,8 +44,6 @@ h1 .brand{white-space:nowrap}
 .btn:hover:not(:disabled){filter:brightness(1.12)}
 
 /* แถบสถานะข้อมูล */
-.databar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 14px;border-radius:12px;padding:2px 0}
-.databar.drag{outline:2px dashed var(--accent);outline-offset:4px;background:color-mix(in srgb,var(--accent) 8%,transparent)}
 .status{flex:1;min-width:220px;color:var(--muted);font-size:15.5px;line-height:1.6}
 .status strong{color:var(--fg)}
 .pill{display:inline-block;padding:1px 9px;border-radius:999px;font-size:14px;font-weight:700;background:color-mix(in srgb,var(--accent) 14%,transparent);color:var(--accent)}
@@ -159,6 +157,15 @@ h1 .brand{white-space:nowrap}
 .cpills{flex:none;margin-left:auto;gap:5px}
 .cpills span{font-size:12.5px;padding:5px 8px}
 
+
+/* ข้อมูลที่แสดง + วิธีนำเข้า — อยู่ในป๊อปโอเวอร์ใต้ปุ่มนำเข้า (เอาเมาส์ชี้ / กดปุ่ม i) */
+.btn.info{width:36px;height:36px;padding:0;border-radius:50%;font:700 15px/1 var(--f-body);color:var(--muted);display:grid;place-items:center}
+.topr.open .btn.info{background:var(--ink);color:#fff;border-color:var(--ink)}
+.databar{display:none;position:absolute;top:calc(100% + 10px);right:0;z-index:40;width:min(640px,92vw);background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 40px -12px rgb(15 23 42 / .28);padding:14px 18px;flex-wrap:wrap;align-items:center;gap:8px 14px}
+.databar::before{content:"";position:absolute;left:0;right:0;top:-12px;height:12px}
+.topr.open .databar,.databar.drag{display:flex}
+.databar.drag{outline:2px dashed var(--accent);outline-offset:-6px}
+.status{min-width:0}
 </style>
 </head>
 <body>
@@ -171,14 +178,15 @@ h1 .brand{white-space:nowrap}
     <div class="topr">
       <div class="tabs" id="tabs" role="group" aria-label="แบรนด์"></div>
       <button class="btn primary" id="btnUpload">↓ นำเข้า .xlsx</button>
+      <button class="btn info" id="btnInfo" type="button" aria-label="ข้อมูลที่แสดงอยู่" aria-expanded="false" title="ข้อมูลที่แสดงอยู่">i</button>
+      <div class="databar" id="databar">
+        <input type="file" id="file" accept=".xlsx,.xls,.xlsm" hidden multiple>
+        <div class="status" id="status"></div>
+        <button class="btn" id="btnReset" hidden>ล้างข้อมูลที่นำเข้า</button>
+      </div>
     </div>
   </header>
 
-  <div class="databar" id="databar">
-    <input type="file" id="file" accept=".xlsx,.xls,.xlsm" hidden multiple>
-    <div class="status" id="status"></div>
-    <button class="btn" id="btnReset" hidden>ล้างข้อมูลที่นำเข้า</button>
-  </div>
 
   <div class="filters">
     <div class="f range">
@@ -543,6 +551,18 @@ const bar=$('databar');
 ['dragleave','drop'].forEach(t=>document.addEventListener(t,e=>{ e.preventDefault(); if(t==='drop'||!e.relatedTarget) bar.classList.remove('drag'); }));
 document.addEventListener('drop',e=>{ if(!SCOPE.imp||HUBMODE) return; const f=[...(e.dataTransfer?.files||[])].filter(f=>/\.xls[xm]?$/i.test(f.name)); if(f.length) importFiles(f); });
 $('btnReset').addEventListener('click', async ()=>{ await wipe(); loadSample(); index(); ui.brand='KT'; resetFilters(true); renderAll(); renderStatus(); });
+
+/* ---------- ป๊อปโอเวอร์ข้อมูล ---------- */
+(function(){
+  const box=document.querySelector('.topr'), info=$('btnInfo'); let pinned=false, tm=null;
+  const set=o=>{ box.classList.toggle('open',o); info.setAttribute('aria-expanded',o); };
+  const open=()=>{ clearTimeout(tm); set(true); }, soon=()=>{ clearTimeout(tm); tm=setTimeout(()=>{ if(!pinned) set(false); },250); };
+  info.addEventListener('click',e=>{ e.stopPropagation(); pinned=!pinned; set(pinned); });
+  [info,$('btnUpload'),$('databar')].forEach(el=>{ el.addEventListener('mouseenter',open); el.addEventListener('mouseleave',soon); });
+  $('btnUpload').addEventListener('focus',open); $('btnUpload').addEventListener('blur',soon);
+  document.addEventListener('click',e=>{ if(pinned&&!box.contains(e.target)){ pinned=false; set(false); } });
+  document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ pinned=false; set(false); } });
+})();
 
 /* ---------- boot ---------- */
 if(!SCOPE.imp){ $('btnUpload').hidden=true; $('btnUpload').style.display='none'; }
