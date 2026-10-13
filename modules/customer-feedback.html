@@ -655,12 +655,25 @@ $("#viewFb").addEventListener("click",e=>{
 /* ───── ข้อมูลกลาง VOC (Supabase FAB HUB) → ส่งเข้าแดชบอร์ดใน iframe ───── */
 const sameOrigin=e=>e.origin===location.origin||e.origin==="null";
 let LIVE=null;
+/* แคชข้อมูลกลางในเบราว์เซอร์ (IndexedDB) — ข้อมูล VOC หลายหมื่นแถว โหลดครั้งแรกใช้เวลาสักพัก ครั้งต่อไปใช้ของเดิมถ้าไม่มีชุดใหม่อนุมัติ */
+const LC={ db:null,
+  open(){ return new Promise(res=>{ const t=setTimeout(()=>res(null),2500);
+    try{ const r=indexedDB.open("hub-cf-live",1); r.onupgradeneeded=()=>r.result.createObjectStore("kv");
+      r.onsuccess=()=>{ clearTimeout(t); res(r.result); }; r.onerror=()=>{ clearTimeout(t); res(null); }; r.onblocked=()=>{ clearTimeout(t); res(null); };
+    }catch(e){ clearTimeout(t); res(null); } }); },
+  async get(k){ const db=this.db||(this.db=await this.open()); if(!db) return null;
+    return new Promise(res=>{ const t=setTimeout(()=>res(null),8000); try{ const q=db.transaction("kv").objectStore("kv").get(k); q.onsuccess=()=>{ clearTimeout(t); res(q.result||null); }; q.onerror=()=>{ clearTimeout(t); res(null); }; }catch(e){ clearTimeout(t); res(null); } }); },
+  async put(k,v){ const db=this.db||(this.db=await this.open()); if(!db) return;
+    return new Promise(res=>{ const t=setTimeout(()=>res(),8000); try{ const tx=db.transaction("kv","readwrite"); tx.objectStore("kv").put(v,k); tx.oncomplete=()=>{ clearTimeout(t); res(); }; tx.onerror=()=>{ clearTimeout(t); res(); }; }catch(e){ clearTimeout(t); res(); } }); }
+};
+function vocProgress(p){ try{ const w=$("#vocFrame").contentWindow; if(w) w.postMessage({type:"voc-progress",p},(/^https?:/.test(location.protocol)?location.origin:"*")); }catch(e){} }
 async function loadLive(force){
   const st=await FBStore.ready(); if(!st.ok) return {off:st.why};
   const stamp=await FBStore.liveStamp("voc");
   if(!force&&LIVE&&LIVE.stamp===stamp) return LIVE;
-  const [rows,csat]=await Promise.all([FBStore.liveRows("voc"),FBStore.liveCsat("voc")]);
-  return LIVE={rows,csat,stamp};
+  if(!force){ const c=await LC.get("voc"); if(c&&c.stamp===stamp&&c.rows) return LIVE=c; }
+  const [rows,csat]=await Promise.all([FBStore.liveRows("voc",(a,n)=>vocProgress(a/n)),FBStore.liveCsat("voc")]);
+  LIVE={rows,csat,stamp}; LC.put("voc",LIVE); return LIVE;
 }
 async function pushVoc(force){
   const w=$("#vocFrame").contentWindow; if(!w) return;

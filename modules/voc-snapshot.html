@@ -185,6 +185,7 @@ h1 .brand{white-space:nowrap}
 </style>
 </head>
 <body>
+<div id="ldbar" style="position:fixed;top:0;left:0;height:3px;width:0;background:#f26a10;opacity:0;transition:width .3s,opacity .4s;z-index:60"></div>
 <div class="sheet">
   <header class="top">
     <div>
@@ -620,9 +621,14 @@ function applyCentral(){
   };
   index(); if(!byBrand[ui.brand]) ui.brand=Object.keys(byBrand)[0]||ui.brand; resetFilters(true); renderAll(); renderStatus();
 }
+let LOADP=null;
+function showLoad(p){ LOADP=p; const b=$('ldbar'); if(b){ b.style.width=(p==null?0:Math.round(p*100))+'%'; b.style.opacity=p==null?0:1; }
+  const eb=$('eyebrow'); if(eb && p!=null){ const base=eb.textContent.replace(/ · กำลังโหลดข้อมูลกลาง.*$/,''); eb.textContent=base+' · กำลังโหลดข้อมูลกลาง '+Math.round(p*100)+'%'; } }
 window.addEventListener('message',e=>{
-  if(!HUBMODE || e.source!==parent || !sameOrigin(e) || !e.data || e.data.type!=='voc-data') return;
-  CENTRAL=e.data; applyCentral();
+  if(!HUBMODE || e.source!==parent || !sameOrigin(e) || !e.data) return;
+  if(e.data.type==='voc-progress'){ showLoad(e.data.p); return; }
+  if(e.data.type!=='voc-data') return;
+  showLoad(null); CENTRAL=e.data; applyCentral();
 });
 (async ()=>{
   loadSample(); index(); resetFilters(true); renderAll(); renderStatus();
