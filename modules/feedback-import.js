@@ -177,6 +177,9 @@
         var m = maskPii(text); if (m.masked) st.masked++;
         var c = catOf(kd[2].map(function (j) { return a[j]; }));
         if (c.newcat) st.newcat[c.sub] = (st.newcat[c.sub] || 0) + 1;
+        /* หัวข้อนอกรายการที่กำหนด/ไม่มีหัวข้อ → วางไว้ในหัวข้อที่กำหนดที่ใกล้ที่สุดตามข้อความ (ติดธง "หัวข้อแนะนำ" แอดมินเปลี่ยนได้) */
+        var g0 = (c.newcat || !c.sub) ? suggestSub(m.text, { cats: c.more }) : null;
+        if (g0) c = { sub: g0.sub, main: g0.main, newcat: false, more: c.more, sug: g0.sub, was: c.sub };
         var key = b + '|' + dt.d + '|' + code + '|' + kd[0] + '|' + m.text.toLowerCase();
         var dup = !!seen[key]; seen[key] = 1; if (dup) st.dupText++;
         if (noise && !isSug) st.noise++;
@@ -184,6 +187,7 @@
         var extra = {};
         if (m.masked) extra.masked = true; if (c.newcat) extra.newcat = true; if (dup) extra.dup = true; if (noise) extra.noise = true;
         if (c.more.length) extra.cats = c.more;
+        if (c.sug) { extra.sug = c.sug; extra.was = c.was; }
         rows.push({ src_id: src, state: state, b: b, d: dt.d, t: dt.t, ty: kd[3], br: br, z: z, o: o, s: score, c: m.text, sub: c.sub, main: c.main, extra: extra, edited: false });
         st.byBrand[b]++; st.types[kd[3]]++;
       });
@@ -360,7 +364,7 @@
   /* ธงที่คำนวณสดจากเนื้อหาปัจจุบันของแถว (แก้แล้วธงหายเอง) */
   var FLAG_LABEL = {
     pii: 'อาจมีข้อมูลส่วนตัว', noise: 'ข้อความไม่มีเนื้อหา', nosub: 'ไม่มีหัวข้อ', nobranch: 'สาขาไม่อยู่ในทะเบียนฮับ',
-    noz: 'ไม่มี BZM', newcat: 'หมวดใหม่', dup: 'ซ้ำ', sug: 'ข้อเสนอแนะ', badty: 'ประเภทไม่ถูกต้อง'
+    noz: 'ไม่มี BZM', newcat: 'หมวดใหม่', sugtopic: 'หัวข้อแนะนำ (เปลี่ยนได้)', dup: 'ซ้ำ', sug: 'ข้อเสนอแนะ', badty: 'ประเภทไม่ถูกต้อง'
   };
   function flagsOf(r, hubCodes) {
     var f = [], ex = r.extra || {};
@@ -370,6 +374,7 @@
     if (r.b === 'KT' && hubCodes && hubCodes.size) { var m = String(r.br).match(/^(\d{4})/); if (!m || !hubCodes.has(m[1])) f.push('nobranch'); }
     if (!r.z && !r.o) f.push('noz');      /* FS: ไฟล์ดิบมีชื่อผู้ติดต่อของโซน (ใส่ช่อง Owner ให้แล้ว) แต่ไม่มี BZM */
     if (ex.newcat && r.sub && !KNOWN_SUB[r.sub]) f.push('newcat');
+    if (ex.sug && r.sub === ex.sug) f.push('sugtopic');
     if (ex.dup) f.push('dup');
     if (r.ty === 'ข้อเสนอแนะ') f.push('sug');
     else if (r.ty !== 'พอใจ' && r.ty !== 'ไม่พอใจ') f.push('badty');

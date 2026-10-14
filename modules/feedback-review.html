@@ -82,6 +82,7 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .tb td.no{color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.tb th.no{text-align:right}
 .tb select.rsub{width:100%;min-width:230px;padding:6px 28px 6px 9px;font-size:13px;min-height:34px;background-color:var(--bg2);border-radius:9px;text-overflow:ellipsis}
 .tb select.rsub.out{border-color:#c4b5fd;background-color:#faf5ff}
+.tb .sgb{display:block;margin:5px 0 0;padding:4px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:999px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-align:left;max-width:100%}.tb .sgb:hover{background:#fef3c7}
 .tb td.cm{min-width:280px;max-width:520px;line-height:1.5}
 .tb td.cm .tx{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .tb td.cm .tx2{margin-top:3px;display:flex;gap:4px;flex-wrap:wrap}
@@ -250,7 +251,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014c"></script>
+<script src="feedback-import.js?v=20261014d"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -289,7 +290,7 @@ function modal(title, body, buttons) {
 /* ───── state ───── */
 const S = {batches: [], cur: null, rows: [], csat: [], tab: "rows", f: {q: "", b: "", ty: "", st: "", sub: "", br: "", flag: ""}, page: 0, sel: new Set(), hub: null, subMain: {}};
 const PAGE = 100;
-const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "dup", "sug"];
+const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "sugtopic", "dup", "sug"];
 const STATE_TH = {staging: "คงไว้", drop: "ข้าม", live: "ลงระบบแล้ว"};
 
 function hubCodes() {
@@ -343,6 +344,7 @@ function wire() {
     const tr = e.target.closest("tr.rw"); if (!tr) return;
     const id = +tr.dataset.id;
     if (e.target.matches("input[type=checkbox]")) { e.target.checked ? S.sel.add(id) : S.sel.delete(id); updateBulkT(); return; }
+    const sg = e.target.closest("button.sgb"); if (sg) { setRowSub(id, sg.dataset.sg); return; }
     if (e.target.closest("select")) return;                 // ดรอปดาวน์หัวข้อในแถว ไม่เปิดหน้าต่างแก้ไข
     editRow(S.rows.find(r => r.id === id));
   });
@@ -764,7 +766,7 @@ function renderChips() {
   $("#fchips").onclick = e => { const b = e.target.closest("button"); if (!b) return; S.f.flag = b.dataset.f; S.page = 0; S.sel.clear(); renderRows(); };
 }
 function chipFor(f) {
-  const cls = {pii: "bad", noise: "", nosub: "wait", nobranch: "wait", noz: "wait", newcat: "vio", dup: "", sug: "info"}[f] || "";
+  const cls = {pii: "bad", noise: "", nosub: "wait", nobranch: "wait", noz: "wait", newcat: "vio", sugtopic: "info", dup: "", sug: "info"}[f] || "";
   return `<span class="chip ${cls}">${esc(I.FLAG_LABEL[f])}</span>`;
 }
 function renderRows() {
@@ -781,7 +783,7 @@ function renderRows() {
     <td>${esc(r.br)}</td>
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
-    <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select>`}<div class="muted">${esc(r.main)}</div></td>
+    <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
     <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="10" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
   $("#tbody").querySelectorAll("select.rsub").forEach(x => { x.value = x.dataset.v; });
   const from = v.length ? S.page * PAGE + 1 : 0;
@@ -858,6 +860,12 @@ function suggestTopics() {
   }}]);
 }
 
+/* ปุ่ม "แนะนำ" ใต้ดรอปดาวน์ — แถวที่หัวข้ออยู่นอกรายการที่กำหนด/ว่าง เสนอหัวข้อที่กำหนดจากข้อความ กดครั้งเดียวใช้ได้ (ยังเปลี่ยนเองได้) */
+function sugBtn(r) {
+  if (isFb() || (r.sub && DEFSET.has(r.sub))) return "";
+  const g = I.suggestSub(r.c, r.extra); if (!g || g.sub === r.sub) return "";
+  return `<button type="button" class="sgb" data-sg="${esc(g.sub)}" title="${esc(g.how)}">💡 แนะนำ: ${esc(g.sub.replace(/\s*\(.*$/, ""))} · ใช้</button>`;
+}
 /* เปลี่ยนหัวข้อจากดรอปดาวน์ในตารางได้เลย (บันทึกทันที · หัวข้อหลักตามอัตโนมัติ) */
 async function setRowSub(id, sub) {
   const r = S.rows.find(x => x.id === id); if (!r || locked() || r.sub === sub) return;
@@ -881,6 +889,7 @@ function editRow(r) {
     <div class="g2"><div class="fld"><label>BZM</label><input id="eZ" value="${esc(r.z)}"></div><div class="fld"><label>Owner (FS)</label><input id="eO" value="${esc(r.o)}"></div></div>
     <div class="fld"><label>หัวข้อ</label><select id="eSub"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select></div>
     <div class="fld"><label>ข้อความ</label><textarea id="eC">${esc(r.c)}</textarea></div>
+    ${r.extra && r.extra.was ? `<div class="note">หัวข้อเดิมจากแพลตฟอร์ม: ${esc(r.extra.was)} — ระบบแนะนำให้อยู่ในหัวข้อที่กำหนด เปลี่ยนได้</div>` : ""}
     ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}
     ${r.extra && (r.extra.docNo || r.extra.cost || r.extra.severity || r.extra.note || r.extra.closedAt) ? `<div class="note">${["docNo|เลขที่เอกสาร", "cost|ค่าใช้จ่าย", "severity|ระดับความรุนแรง", "closedAt|ปิดเคส", "note|หมายเหตุ"].map(x => { const [k, l] = x.split("|"); return r.extra[k] ? l + ": " + esc(r.extra[k]) : ""; }).filter(Boolean).join(" · ")}</div>` : ""}`;
   const m = modal("แก้ไขคอมเมนต์", body, ro ? [] : [{text: "บันทึก", fn: async () => {
