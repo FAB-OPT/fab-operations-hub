@@ -220,6 +220,7 @@ body{zoom:1}
     <div class="f" id="wOwner"><label for="fOwner">Owner</label><select id="fOwner"></select></div>
     <div class="f"><label for="fBranch">สาขา</label><select id="fBranch"></select></div>
     <div class="f"><label for="fType">ประเภท</label><select id="fType"><option value="">ทั้งหมด</option><option>พอใจ</option><option>ไม่พอใจ</option></select></div>
+    <div class="f"><label for="fMain">หัวข้อหลัก</label><select id="fMain"><option value="">ทั้งหมด</option><option>หมวดคุณภาพ</option><option>หมวดพนักงานและการบริการ</option><option>หมวดอื่นๆ</option></select></div>
     <div class="f search"><label for="fSearch">ค้นหาคอมเมนต์</label><input type="search" id="fSearch" placeholder="เช่น เค็ม, รอนาน"></div>
   </div>
 
@@ -455,7 +456,7 @@ function resetFilters(toLatest){
   const months = uniq(rows.map(r=>r.d.slice(0,7))).reverse();
   $('fMonth').innerHTML = `<option value="">กำหนดเอง</option><option value="all">ทั้งหมด</option>` + months.map(m=>`<option value="${m}">${TH_M[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   if(toLatest && months[0]) { $('fMonth').value=months[0]; applyMonth(); }
-  ['fBzm','fOwner','fBranch','fType'].forEach(id=>$(id).value='');
+  ['fBzm','fOwner','fBranch','fType','fMain'].forEach(id=>$(id).value='');
   $('fSearch').value=''; ui.sub=''; ui.page=0;
 }
 function applyMonth(){
@@ -467,8 +468,8 @@ function applyMonth(){
 /* ---------- compute + render ---------- */
 function filtered(){
   const rows = byBrand[ui.brand]||[];
-  const f=$('dFrom').value, t=$('dTo').value, z=$('fBzm').value, o=$('fOwner').value, br=$('fBranch').value, ty=$('fType').value, q=$('fSearch').value.trim().toLowerCase();
-  return rows.filter(r => (!f||r.d>=f) && (!t||r.d<=t) && (!z||r.z===z) && (!o||ui.brand!=='FS'||r.o===o) && (!br||r.br===br) && (!ty||r.ty===ty) && (!q||r.c.toLowerCase().includes(q)));
+  const f=$('dFrom').value, t=$('dTo').value, z=$('fBzm').value, o=$('fOwner').value, br=$('fBranch').value, ty=$('fType').value, mn=$('fMain').value, q=$('fSearch').value.trim().toLowerCase();
+  return rows.filter(r => (!f||r.d>=f) && (!t||r.d<=t) && (!z||r.z===z) && (!o||ui.brand!=='FS'||r.o===o) && (!br||r.br===br) && (!ty||r.ty===ty) && (!mn||r.main===mn) && (!q||r.c.toLowerCase().includes(q)));
 }
 function refreshDropdowns(){
   const rows = byBrand[ui.brand]||[];
@@ -567,7 +568,7 @@ $('tabs').addEventListener('click', e=>{ const b=e.target.closest('button')?.dat
 ['dFrom','dTo'].forEach(id=>$(id).addEventListener('change',()=>{ $('fMonth').value=''; ui.page=0; renderAll(); }));
 $('fMonth').addEventListener('change',()=>{ applyMonth(); ui.page=0; renderAll(); });
 ['fBzm','fOwner'].forEach(id=>$(id).addEventListener('change',()=>{ $('fBranch').value=''; ui.page=0; renderAll(); }));
-['fBranch','fType'].forEach(id=>$(id).addEventListener('change',()=>{ ui.page=0; renderAll(); }));
+['fBranch','fType','fMain'].forEach(id=>$(id).addEventListener('change',()=>{ ui.page=0; renderAll(); }));
 let st; $('fSearch').addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(()=>{ ui.page=0; renderAll(); },250); });
 document.querySelector('.cats').addEventListener('click', e=>{ const tr=e.target.closest('tr[data-sub]'); if(!tr) return; ui.sub = ui.sub===tr.dataset.sub ? '' : tr.dataset.sub; ui.page=0; renderAll(); });
 $('chips').addEventListener('click', e=>{ if(e.target.id==='clrSub'){ ui.sub=''; ui.page=0; renderAll(); } });
