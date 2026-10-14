@@ -65,6 +65,17 @@
   var KNOWN_SUB = {};
   Object.keys(CAT).forEach(function (k) { if (!CAT[k][2]) KNOWN_SUB[CAT[k][0]] = 1; });
 
+  /* Location_Meta6 (Branch Zone) ของไฟล์แพลตฟอร์ม: FS เป็นป้ายชื่อผู้ติดต่อ → แมปเป็น Owner (กำหนดโดยผู้ใช้)
+     SKF Cuisine มี 2 ป้าย: CSAT/NPS = เฉลี่ยค่าของสองป้าย (รวมกันหาร 2) · KT "คุณบิ๊ก" = สาขา 5077 ของ BZM ณธวรรท (บิ๊ก) */
+  var OWNER_OF = {
+    'คุณพล, คุณจันทร์': 'Nopparod', 'คุณอ๋อ, คุณกวง': 'LS Food', 'คุณตู่': 'Watthawee Food', 'คุณอาร์ม': 'Surat&Nakhon',
+    'คุณมั้น': 'Priyasit', 'คุณโอ, หลุยส์': 'Suwanphulae', 'คุณก๊ะ': 'Eastwins', 'คุณเหมียว': 'M.A Food',
+    'คุณปุ้ย, คุณยอด': 'Attachairungjaroensuk', 'คุณนก, คุณโท': 'SKF Cuisine', 'พี่นก, พี่โท, พี่หลุยส์': 'SKF Cuisine'
+  };
+  /* ป้าย BZM ที่สะกดต่างจากข้อมูลย้อนหลัง → ชื่อเดียวกับของเดิม (เพื่อให้ CSAT/NPS ต่อเนื่อง) */
+  var KT_LABEL = { 'คุณบิ๊ก': 'ณธวรรท (บิ๊ก)', 'พัธนดลย์ (ปิ๊ก)': 'พัทธดนย์ (ปิ๊ก)', 'พี่อีฟ': 'จุรีพร (อีฟ)', 'พี่อ้อย': 'พิมพ์พิชชา (อ้อย)' };
+  var normLab = function (z) { return clean(z).replace(/\s*,\s*/g, ', '); };
+
   var NOISE = /^(?:[-.\s_/\\]*|ไม่มี(?:ค่ะ|ครับ|คะ|ครับผม|อะไร|ละ|แล้ว)?|ยังไม่มี|ไม่|ไม่ค่ะ|ไม่ครับ|no|none|n\/a|na|nil|ok|-+)$/i;
   var PHONE = /(?<![\d])(?:\+?66|0)\d{1,2}[-\s.]?\d{3}[-\s.]?\d{3,4}(?![\d])/g;
   var EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
@@ -141,13 +152,15 @@
       if (dt.d < st.dmin) st.dmin = dt.d; if (dt.d > st.dmax) st.dmax = dt.d;
       var code = clean(a[C.bid]), br = (code + ' ' + clean(C.bname >= 0 ? a[C.bname] : '')).trim();
       var zone = clean(C.zone >= 0 ? a[C.zone] : '');
-      var z = b === 'FS' ? '' : person(zone), o = b === 'FS' ? zone : '';
+      var lab = normLab(zone), owner = b === 'FS' ? (OWNER_OF[lab] || zone) : '';
+      var z = b === 'FS' ? '' : KT_LABEL[lab] || KT_LABEL[person(zone)] || person(zone), o = owner;
       var score = a[C.csat] === '' || a[C.csat] == null || isNaN(+a[C.csat]) ? null : +a[C.csat];
 
       /* CSAT / NPS รายเดือน — นับทุกใบสำรวจ ไม่ว่าจะมีคอมเมนต์หรือไม่ */
-      var k = b === 'FS' ? zone : person(zone);
+      var k = b === 'FS' ? owner : z;                                   // FS = Owner (แมปจากป้าย Location_Meta6) · KT/JD = BZM
       if (k && score != null) {
-        var ak = b + '|' + k + '|' + dt.d.slice(0, 7), g = agg[ak] || (agg[ak] = { b: b, k: k, n: 0, sum: 0, nn: 0, pro: 0, det: 0, d1: dt.d, d2: dt.d });
+        var mk = b + '|' + k + '|' + dt.d.slice(0, 7), ak = b === 'FS' ? mk + '|' + lab : mk;   // FS แยกตามป้าย เพื่อเฉลี่ยของ Owner ที่มีหลายป้าย
+        var g = agg[ak] || (agg[ak] = { mk: mk, b: b, k: k, n: 0, sum: 0, nn: 0, pro: 0, det: 0, d1: dt.d, d2: dt.d });
         g.n++; g.sum += score;
         var np = a[C.nps] === '' || a[C.nps] == null || isNaN(+a[C.nps]) ? null : +a[C.nps];
         if (np != null) { g.nn++; if (np >= 9) g.pro++; else if (np <= 6) g.det++; }
@@ -176,9 +189,17 @@
       });
     }
 
-    var csat = Object.keys(agg).map(function (key) {
+    var byMk = {};
+    Object.keys(agg).forEach(function (key) {
       var g = agg[key];
-      return { state: 'staging', b: g.b, k: g.k, d_from: g.d1, d_to: g.d2, n: g.n, cs: r1(g.sum / g.n * 10), np: g.nn ? r1((g.pro - g.det) / g.nn * 100) : 0, edited: false };
+      (byMk[g.mk] = byMk[g.mk] || []).push({ b: g.b, k: g.k, d1: g.d1, d2: g.d2, n: g.n, cs: g.sum / g.n * 10, np: g.nn ? (g.pro - g.det) / g.nn * 100 : 0 });
+    });
+    var csat = Object.keys(byMk).map(function (mk) {
+      var L = byMk[mk], f = L[0];
+      /* Owner ที่มีหลายป้าย (SKF Cuisine): เฉลี่ยค่าของแต่ละป้าย (รวมกันหาร จำนวนป้าย) */
+      var cs = L.reduce(function (a, x) { return a + x.cs; }, 0) / L.length, np = L.reduce(function (a, x) { return a + x.np; }, 0) / L.length;
+      return { state: 'staging', b: f.b, k: f.k, d_from: L.reduce(function (a, x) { return x.d1 < a ? x.d1 : a; }, f.d1), d_to: L.reduce(function (a, x) { return x.d2 > a ? x.d2 : a; }, f.d2),
+               n: L.reduce(function (a, x) { return a + x.n; }, 0), cs: r1(cs), np: r1(np), edited: false };
     }).sort(function (x, y) { return (x.b + x.k + x.d_from).localeCompare(y.b + y.k + y.d_from, 'th'); });
 
     return { rows: rows, csat: csat, stats: st };
