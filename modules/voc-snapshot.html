@@ -131,6 +131,7 @@ td.ty{white-space:nowrap}
 .det td{text-align:center}.det td.c{text-align:left}.det td.sb{text-align:left}.det td.no{color:var(--muted);font-variant-numeric:tabular-nums}.det td.mn{white-space:nowrap}
 .det td.dt{text-align:center}
 .det td.nw{white-space:nowrap}
+body.scope-branch #wBzm,body.scope-branch #wBranch,body.scope-branch #wOwner{display:none!important}
 .det th[aria-sort]{color:var(--fg)}
 .det th[aria-sort]::after{content:" ▲";font-size:13.5px}
 .det th[aria-sort="descending"]::after{content:" ▼"}
@@ -216,9 +217,9 @@ body{zoom:1}
       <div class="two"><input type="date" id="dFrom"><span>–</span><input type="date" id="dTo"></div>
     </div>
     <div class="f"><label for="fMonth">เดือน</label><select id="fMonth"></select></div>
-    <div class="f"><label for="fBzm">BZM</label><select id="fBzm"></select></div>
+    <div class="f" id="wBzm"><label for="fBzm">BZM</label><select id="fBzm"></select></div>
     <div class="f" id="wOwner"><label for="fOwner">Owner</label><select id="fOwner"></select></div>
-    <div class="f"><label for="fBranch">สาขา</label><select id="fBranch"></select></div>
+    <div class="f" id="wBranch"><label for="fBranch">สาขา</label><select id="fBranch"></select></div>
     <div class="f"><label for="fType">ประเภท</label><select id="fType"><option value="">ทั้งหมด</option><option>พอใจ</option><option>ไม่พอใจ</option></select></div>
     <div class="f"><label for="fMain">หัวข้อหลัก</label><select id="fMain"><option value="">ทั้งหมด</option><option>หมวดคุณภาพ</option><option>หมวดพนักงานและการบริการ</option><option>หมวดอื่นๆ</option></select></div>
     <div class="f search"><label for="fSearch">ค้นหาคอมเมนต์</label><input type="search" id="fSearch" placeholder="เช่น เค็ม, รอนาน"></div>
@@ -296,7 +297,7 @@ const SCOPE = (()=>{
   const cfg = ls('hubmod_config_v1')||{}, raw = (cfg.branches)||{};
   if(role==='branch'){
     const c = String(sess.branchCode||sess.code||'');
-    return {all:false, imp:false, csat:true, codes:new Set(c?[c]:[]), label:'สาขา '+c+' '+String(sess.branchName||sess.name||'').trim()};
+    return {all:false, branch:true, imp:false, csat:true, codes:new Set(c?[c]:[]), label:'สาขา '+c+' '+String(sess.branchName||sess.name||'').trim()};
   }
   if(role==='bzm'){
     let nick = String(sess.nick||'').trim();
@@ -306,6 +307,8 @@ const SCOPE = (()=>{
   }
   return {all:false, imp:false, csat:false, codes:new Set(), label:'บัญชีนี้ยังไม่มีสิทธิ์ดูข้อมูล'};
 })();
+/* หน้าของสาขา: เห็นสาขาเดียว → ไม่ต้องมีตัวกรอง BZM / Owner / สาขา */
+if(SCOPE.branch) document.body.classList.add('scope-branch');
 const rowCode = r => (String(r.br||'').match(/^(\d{4})/)||[])[1]||'';
 const inScope = r => SCOPE.all || SCOPE.codes.has(rowCode(r));
 
