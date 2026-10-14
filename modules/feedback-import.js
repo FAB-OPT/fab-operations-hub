@@ -70,7 +70,7 @@
   var OWNER_OF = {
     'คุณพล, คุณจันทร์': 'Nopparod', 'คุณอ๋อ, คุณกวง': 'LS Food', 'คุณตู่': 'Watthawee Food', 'คุณอาร์ม': 'Surat&Nakhon',
     'คุณมั้น': 'Priyasit', 'คุณโอ, หลุยส์': 'Suwanphulae', 'คุณก๊ะ': 'Eastwins', 'คุณเหมียว': 'M.A Food',
-    'คุณปุ้ย, คุณยอด': 'Attachairungjaroensuk', 'คุณนก, คุณโท': 'SKF Cuisine', 'พี่นก, พี่โท, พี่หลุยส์': 'SKF Cuisine'
+    'คุณปุ้ย, คุณยอด': 'Attachairungjaroensuk', 'คุณนุ่น, เปรี้ยว': 'M.A Food', 'คุณนก, คุณโท': 'SKF Cuisine', 'พี่นก, พี่โท, พี่หลุยส์': 'SKF Cuisine'
   };
   /* ป้าย BZM ที่สะกดต่างจากข้อมูลย้อนหลัง → ชื่อเดียวกับของเดิม (เพื่อให้ CSAT/NPS ต่อเนื่อง) */
   var KT_LABEL = { 'คุณบิ๊ก': 'ณธวรรท (บิ๊ก)', 'พัธนดลย์ (ปิ๊ก)': 'พัทธดนย์ (ปิ๊ก)', 'พี่อีฟ': 'จุรีพร (อีฟ)', 'พี่อ้อย': 'พิมพ์พิชชา (อ้อย)' };
@@ -81,7 +81,7 @@
       ['พลเดช (หลุยส์)', 'Suwanphulae', '8002 8029 8053 8065'],
       ['ปราณี (เปรี้ยว)', 'Nopparod', '8001 8013 8015 8016 8019 8033'],
       ['ปราณี (เปรี้ยว)', 'Surat&Nakhon', '8010 8021 8035 8045 8059'],
-      ['ปราณี (เปรี้ยว)', 'M.A Food', '8036'],
+      ['ปราณี (เปรี้ยว)', 'M.A Food', '8036 8037'],
       ['คณสวรรณ (เฟิร์น)', 'Watthawee Food', '8051 8055 8061'],
       ['ณธวรรท (บิ๊ก)', 'Eastwins', '8004 8018'],
       ['ณธวรรท (บิ๊ก)', 'Priyasit', '8006 8008 8020 8043'],
@@ -406,6 +406,6 @@
     return f;
   }
 
-  var api = { FS_ZONE: FS_ZONE, DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  var api = { OWNER_OF: OWNER_OF, FS_ZONE: FS_ZONE, DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
