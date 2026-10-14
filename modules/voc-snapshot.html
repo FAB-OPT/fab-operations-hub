@@ -111,6 +111,9 @@ h1 .brand{white-space:nowrap}
 .cat tbody tr:hover .trk,.cat tbody tr.sel .trk{background:#fff}
 .npill{display:inline-block;min-width:26px;text-align:center;font:700 14px/1 var(--f-body);padding:4px 8px;border-radius:999px;background:var(--bad);color:#fff}
 .npill.sm{font-size:13.5px;padding:2px 8px;margin-right:6px;vertical-align:1px}
+.ppill{display:inline-block;min-width:26px;text-align:center;font:700 14px/1 var(--f-body);padding:4px 8px;border-radius:999px;background:var(--good-soft);color:var(--good-ink)}
+.ppill.sm{font-size:13.5px;padding:2px 8px;margin-right:6px;vertical-align:1px}
+td.ty{white-space:nowrap}
 .dash{color:var(--muted)}
 .empty{padding:14px;color:var(--muted);text-align:center}
 
@@ -527,7 +530,7 @@ function renderAll(){
   }
   renderDetail(rows);
 }
-const COLS = [['s','คะแนน'],['c','คอมเมนต์'],['sub','หัวข้อ'],['br','สาขา'],['z','BZM'],['o','Owner'],['d','วันเวลา']];
+const COLS = [['s','คะแนน'],['ty','ประเภท'],['c','คอมเมนต์'],['sub','หัวข้อ'],['br','สาขา'],['z','BZM'],['o','Owner'],['d','วันเวลา']];
 function renderDetail(rows){
   const cols = COLS.filter(c=>c[0]!=='o'||ui.brand==='FS');
   $('detHead').innerHTML = cols.map(([k,l])=>`<th data-k="${k}" ${ui.sortKey===k?`aria-sort="${ui.sortDir>0?'ascending':'descending'}"`:''}>${l}</th>`).join('');
@@ -538,7 +541,8 @@ function renderDetail(rows){
   const start=ui.page*per, slice=list.slice(start,start+per);
   const cell = (r,k)=>{
     if(k==='s'){ const n=r.s; const c = n===''||n==null ? '' : n>=10?'s10':n>=9?'s9':n>=8?'s8':n>=7?'s7':'lo'; return `<td><span class="sc ${c}">${n===''||n==null?'–':esc(n)}</span></td>`; }
-    if(k==='c') return `<td class="c">${r.ty==='ไม่พอใจ'?'<span class="npill sm">ไม่พอใจ</span>':''}${esc(r.c)}</td>`;
+    if(k==='ty') return `<td class="ty">${r.ty==='ไม่พอใจ'?'<span class="npill sm">ไม่พอใจ</span>':'<span class="ppill sm">พอใจ</span>'}</td>`;
+    if(k==='c') return `<td class="c">${esc(r.c)}</td>`;
     if(k==='sub') return `<td class="sb"><i class="d ${mainCls(r.main)}"></i>${esc(splitSub(r.sub)[0])}</td>`;
     if(k==='d') return `<td class="dt">${esc(fmtShort(r.d))}${r.t?' · '+esc(r.t):''}</td>`;
     return `<td>${esc(r[k])}</td>`;
