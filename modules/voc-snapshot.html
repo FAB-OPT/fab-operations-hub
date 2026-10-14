@@ -119,15 +119,18 @@ td.ty{white-space:nowrap}
 
 /* รายละเอียดคอมเมนต์ */
 .detcard{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px 20px 14px}
-.dethead{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;margin-bottom:10px}
+.dethead{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;justify-content:center;margin-bottom:12px}
 .dethead h2{font-family:var(--f-display);font-size:20px;font-weight:700;margin:0}
 .dethead .sub{color:var(--muted);font-size:15.5px}
 .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:3px 6px 3px 12px;font-size:15.5px}
 .chip button{border:0;background:var(--line);border-radius:999px;width:22px;height:22px;cursor:pointer;line-height:1}
 .tw{overflow-x:auto}
-.det{width:100%;border-collapse:collapse;min-width:1000px;font-size:16px}
-.det th{background:var(--soft);padding:9px 10px;font:600 14px/1 var(--f-body);color:var(--muted);text-align:left;white-space:nowrap;cursor:pointer;user-select:none}
-.det th:first-child{border-radius:10px 0 0 10px;padding-left:14px}.det th:last-child{border-radius:0 10px 10px 0;text-align:right;padding-right:14px}
+.det{width:100%;border-collapse:collapse;min-width:1180px;font-size:16px}
+.det th{background:#F4CCCC;padding:11px 10px;font:700 15px/1.2 var(--f-body);color:#1a1a1a;text-align:center;white-space:nowrap;cursor:pointer;user-select:none;border:1px solid #fff}
+.det th:first-child{cursor:default;width:56px}
+.det td{text-align:center}.det td.c{text-align:left}.det td.sb{text-align:left}.det td.no{color:var(--muted);font-variant-numeric:tabular-nums}.det td.mn{white-space:nowrap}
+.det td.dt{text-align:center}
+.det td.nw{white-space:nowrap}
 .det th[aria-sort]{color:var(--fg)}
 .det th[aria-sort]::after{content:" ▲";font-size:13.5px}
 .det th[aria-sort="descending"]::after{content:" ▼"}
@@ -136,7 +139,7 @@ td.ty{white-space:nowrap}
 .det tbody tr:hover td{background:#fbfaf8}
 .det td:first-child{padding-left:14px;width:56px}
 .det td.c{min-width:260px;max-width:520px;line-height:1.5}
-.det td.dt{text-align:right;white-space:nowrap;font:500 15px var(--f-body);color:var(--muted);padding-right:14px;font-variant-numeric:tabular-nums}
+.det td.dt{white-space:nowrap;font:500 15px var(--f-body);color:var(--muted);font-variant-numeric:tabular-nums}
 .det td.sb{white-space:nowrap;font-size:15.5px}
 .det td.sb .d{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
 .d.q{background:var(--q)}.d.s{background:var(--s)}.d.o{background:var(--o)}
@@ -242,7 +245,7 @@ body{zoom:1}
   <p class="note">คลิกหัวข้อย่อยในการ์ด เพื่อดูเฉพาะคอมเมนต์ของหัวข้อนั้นด้านล่าง</p>
 
   <section class="detcard">
-    <div class="dethead"><h2>รายละเอียดคอมเมนต์</h2><span class="sub" id="detSub"></span><span id="chips"></span></div>
+    <div class="dethead"><h2>รายละเอียด Comment ต่างๆ</h2><span class="sub" id="detSub"></span><span id="chips"></span></div>
     <div class="tw">
       <table class="det">
         <thead><tr id="detHead"></tr></thead>
@@ -530,7 +533,8 @@ function renderAll(){
   }
   renderDetail(rows);
 }
-const COLS = [['s','คะแนน'],['ty','ประเภท'],['c','คอมเมนต์'],['sub','หัวข้อ'],['br','สาขา'],['z','BZM'],['o','Owner'],['d','วันเวลา']];
+/* หัวตารางแบบรายงาน "รายละเอียด Comment ต่างๆ": ลำดับ · ประเภท · สาขา · BZM · (Owner) · วันที่ · เวลา · คะแนน · คอมเมนต์ · หัวข้อย่อย · หัวข้อหลัก */
+const COLS = [['no',''],['ty','ประเภท'],['br','สาขา'],['z','BZM'],['o','Owner'],['d','วันที่'],['t','เวลา'],['s','คะแนน'],['c','คอมเมนต์'],['sub','หัวข้อย่อย'],['main','หัวข้อหลัก']];
 function renderDetail(rows){
   const cols = COLS.filter(c=>c[0]!=='o'||ui.brand==='FS');
   $('detHead').innerHTML = cols.map(([k,l])=>`<th data-k="${k}" ${ui.sortKey===k?`aria-sort="${ui.sortDir>0?'ascending':'descending'}"`:''}>${l}</th>`).join('');
@@ -539,19 +543,22 @@ function renderDetail(rows){
   list = list.slice().sort((a,b)=>{ const x=a[k], y=b[k]; const c = (typeof x==='number'&&typeof y==='number') ? x-y : String(x).localeCompare(String(y),'th'); return c*d || (a.d+a.t).localeCompare(b.d+b.t)*-1; });
   const per=25, pages=Math.max(1,Math.ceil(list.length/per)); ui.page=Math.min(ui.page,pages-1);
   const start=ui.page*per, slice=list.slice(start,start+per);
-  const cell = (r,k)=>{
+  const cell = (r,k,i)=>{
+    if(k==='no') return `<td class="no">${start+i+1}.</td>`;
     if(k==='s'){ const n=r.s; const c = n===''||n==null ? '' : n>=10?'s10':n>=9?'s9':n>=8?'s8':n>=7?'s7':'lo'; return `<td><span class="sc ${c}">${n===''||n==null?'–':esc(n)}</span></td>`; }
     if(k==='ty') return `<td class="ty">${r.ty==='ไม่พอใจ'?'<span class="npill sm">ไม่พอใจ</span>':'<span class="ppill sm">พอใจ</span>'}</td>`;
     if(k==='c') return `<td class="c">${esc(r.c)}</td>`;
-    if(k==='sub') return `<td class="sb"><i class="d ${mainCls(r.main)}"></i>${esc(splitSub(r.sub)[0])}</td>`;
-    if(k==='d') return `<td class="dt">${esc(fmtShort(r.d))}${r.t?' · '+esc(r.t):''}</td>`;
-    return `<td>${esc(r[k])}</td>`;
+    if(k==='sub') return `<td class="sb"><i class="d ${mainCls(r.main)}"></i>${esc(r.sub)}</td>`;
+    if(k==='main') return `<td class="mn">${esc(r.main)}</td>`;
+    if(k==='d') return `<td class="dt">${esc(fmtShort(r.d))}</td>`;
+    if(k==='t') return `<td class="dt">${esc(r.t||'')}</td>`;
+    return `<td class="nw">${esc(r[k])}</td>`;
   };
-  $('detBody').innerHTML = slice.length ? slice.map(r=>`<tr>${cols.map(([k])=>cell(r,k)).join('')}</tr>`).join('')
+  $('detBody').innerHTML = slice.length ? slice.map((r,i)=>`<tr>${cols.map(([k])=>cell(r,k,i)).join('')}</tr>`).join('')
     : `<tr><td colspan="${cols.length}" class="empty">ไม่พบคอมเมนต์ตามตัวกรอง</td></tr>`;
   $('pgInfo').textContent = list.length ? `${fmtN(start+1)}–${fmtN(start+slice.length)} / ${fmtN(list.length)}` : '0 / 0';
   $('pgPrev').disabled = ui.page===0; $('pgNext').disabled = ui.page>=pages-1;
-  $('detSub').textContent = ui.sortKey==='d' ? (ui.sortDir<0?'· ล่าสุดก่อน':'· เก่าสุดก่อน') : '';
+  $('detSub').textContent = (ui.sortKey==='d'||ui.sortKey==='t') ? (ui.sortDir<0?'· ล่าสุดก่อน':'· เก่าสุดก่อน') : '';
   $('chips').innerHTML = ui.sub ? `<span class="chip">หัวข้อย่อย: ${esc(ui.sub)} <button id="clrSub" aria-label="ล้างตัวกรองหัวข้อย่อย">✕</button></span>` : '';
 }
 
@@ -564,7 +571,7 @@ $('fMonth').addEventListener('change',()=>{ applyMonth(); ui.page=0; renderAll()
 let st; $('fSearch').addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(()=>{ ui.page=0; renderAll(); },250); });
 document.querySelector('.cats').addEventListener('click', e=>{ const tr=e.target.closest('tr[data-sub]'); if(!tr) return; ui.sub = ui.sub===tr.dataset.sub ? '' : tr.dataset.sub; ui.page=0; renderAll(); });
 $('chips').addEventListener('click', e=>{ if(e.target.id==='clrSub'){ ui.sub=''; ui.page=0; renderAll(); } });
-$('detHead').addEventListener('click', e=>{ const k=e.target.closest('th')?.dataset.k; if(!k) return; if(ui.sortKey===k) ui.sortDir*=-1; else { ui.sortKey=k; ui.sortDir=1; } ui.page=0; renderDetail(filtered()); });
+$('detHead').addEventListener('click', e=>{ const k=e.target.closest('th')?.dataset.k; if(!k||k==='no') return; if(ui.sortKey===k) ui.sortDir*=-1; else { ui.sortKey=k; ui.sortDir=1; } ui.page=0; renderDetail(filtered()); });
 $('pgPrev').addEventListener('click',()=>{ ui.page--; renderDetail(filtered()); });
 $('pgNext').addEventListener('click',()=>{ ui.page++; renderDetail(filtered()); });
 const HUBMODE = window.parent!==window;      // เปิดในหน้า Customer Feedback Collection ของฮับ → ข้อมูลกลาง + นำเข้า/อนุมัติที่หน้าตรวจสอบ
