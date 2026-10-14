@@ -79,6 +79,9 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .tb td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 .tb tr.rw{cursor:pointer}.tb tr.rw:hover td{background:#fffaf5}
 .tb tr.drp td{opacity:.55}
+.tb td.no{color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.tb th.no{text-align:right}
+.tb select.rsub{width:100%;min-width:230px;padding:6px 28px 6px 9px;font-size:13px;min-height:34px;background-color:var(--bg2);border-radius:9px;text-overflow:ellipsis}
+.tb select.rsub.out{border-color:#c4b5fd;background-color:#faf5ff}
 .tb td.cm{min-width:280px;max-width:520px;line-height:1.5}
 .tb td.cm .tx{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;overflow-wrap:anywhere}
 .tb td.cm .tx2{margin-top:3px;display:flex;gap:4px;flex-wrap:wrap}
@@ -226,7 +229,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
         <div class="note" style="margin-top:8px">ใช้กับ “ทุกแถวที่กรองอยู่” — หรือเฉพาะแถวที่ติ๊กเลือก (ถ้ามี) · ตัวอย่าง: กรอง “สาขาไม่อยู่ในทะเบียนฮับ” แล้วกดข้าม, หรือกรองสาขาเดียวแล้วตั้ง BZM ทั้งสาขา</div>
       </details>
       <div class="tbwrap"><table class="tb"><thead><tr>
-        <th><input type="checkbox" id="selAll" aria-label="เลือกทั้งหน้า"></th><th>สถานะ</th><th>วันที่</th><th>แบรนด์</th><th>สาขา</th><th>BZM / Owner</th><th>ประเภท</th><th>หัวข้อ</th><th>ข้อความ</th>
+        <th><input type="checkbox" id="selAll" aria-label="เลือกทั้งหน้า"></th><th class="no">ลำดับ</th><th>สถานะ</th><th>วันที่</th><th>แบรนด์</th><th>สาขา</th><th>BZM / Owner</th><th>ประเภท</th><th>หัวข้อ</th><th>ข้อความ</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
       <div class="pg"><span id="pgInfo"></span><span><button class="btn sm ghost" id="pgPrev">ก่อนหน้า</button> <button class="btn sm ghost" id="pgNext">ถัดไป</button></span></div>
     </div>
@@ -340,7 +343,12 @@ function wire() {
     const tr = e.target.closest("tr.rw"); if (!tr) return;
     const id = +tr.dataset.id;
     if (e.target.matches("input[type=checkbox]")) { e.target.checked ? S.sel.add(id) : S.sel.delete(id); updateBulkT(); return; }
+    if (e.target.closest("select")) return;                 // ดรอปดาวน์หัวข้อในแถว ไม่เปิดหน้าต่างแก้ไข
     editRow(S.rows.find(r => r.id === id));
+  });
+  $("#tbody").addEventListener("change", e => {
+    const sel = e.target.closest("select.rsub"); if (!sel) return;
+    setRowSub(+sel.closest("tr.rw").dataset.id, sel.value);
   });
   window.addEventListener("message", () => {});
 }
@@ -763,16 +771,19 @@ function renderRows() {
   _view = null;
   renderChips();
   const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
-  $("#tbody").innerHTML = rows.map(r => `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
+  const no0 = S.page * PAGE;
+  $("#tbody").innerHTML = rows.map((r, i) => `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
     <td><input type="checkbox" ${S.sel.has(r.id) ? "checked" : ""} ${live ? "disabled" : ""} aria-label="เลือก"></td>
+    <td class="no">${fmt(no0 + i + 1)}</td>
     <td class="bt"><span class="chip ${r.state === "live" ? "live" : r.state === "staging" ? "wait" : ""}">${STATE_TH[r.state]}</span></td>
     <td class="bt num">${esc(r.d)}<div class="muted">${esc(r.t)}</div></td>
     <td class="bt">${esc(r.b)}</td>
     <td>${esc(r.br)}</td>
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
-    <td style="min-width:150px">${esc(r.sub || "—")}<div class="muted">${esc(r.main)}</div></td>
-    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="9" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
+    <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select>`}<div class="muted">${esc(r.main)}</div></td>
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="10" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
+  $("#tbody").querySelectorAll("select.rsub").forEach(x => { x.value = x.dataset.v; });
   const from = v.length ? S.page * PAGE + 1 : 0;
   $("#pgInfo").textContent = `แสดง ${fmt(from)}–${fmt(from + rows.length - (v.length ? 1 : 0))} จาก ${fmt(v.length)} แถว`;
   $("#pgPrev").disabled = S.page === 0; $("#pgNext").disabled = (S.page + 1) * PAGE >= v.length;
@@ -845,6 +856,16 @@ function suggestTopics() {
     busy(false); S.sel.clear(); buildFilters(); renderRows(); renderKpi(); renderBar();
     toast(`ตั้งหัวข้อแล้ว ${fmt(L.reduce((a, p) => a + p.ids.length, 0))} แถว`);
   }}]);
+}
+
+/* เปลี่ยนหัวข้อจากดรอปดาวน์ในตารางได้เลย (บันทึกทันที · หัวข้อหลักตามอัตโนมัติ) */
+async function setRowSub(id, sub) {
+  const r = S.rows.find(x => x.id === id); if (!r || locked() || r.sub === sub) return;
+  const patch = {sub, main: sub ? (S.subMain[sub] || "") : ""};
+  try { await FBStore.setRows(S.cur.id, [id], patch); }
+  catch (e) { toast("บันทึกหัวข้อไม่สำเร็จ: " + (e.message || e)); return renderRows(); }
+  Object.assign(r, patch); r.edited = true; calc(r);
+  renderRows(); renderKpi(); renderBar();
 }
 
 /* ───── แก้ทีละแถว ───── */
