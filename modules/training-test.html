@@ -1082,6 +1082,7 @@ const ME = (function(){
     ok: !!code, code, role, isBranch,
     name: (s && s.name) || branch || '',
     nick: (s && s.nick) || '',
+    sbrands: ((s && (Array.isArray(s.brands) && s.brands.length ? s.brands : [s.brand])) || []).filter(Boolean),
     title: (s && s.title) || (isBranch ? 'สาขา' : role.toUpperCase()),
     branch: isBranch ? branch : ((s && s.branchName) || ''),
     brand: brandOfCode(code)
@@ -1235,6 +1236,14 @@ function codeOfBranch(b){
   if (!c) c = Object.keys(HUB_BRANCHES).find(k => HUB_BRANCHES[k] && (HUB_BRANCHES[k] === raw || raw.includes(HUB_BRANCHES[k]))) || '';
   return (_codeMemo[raw] = c);
 }
+/* แบรนด์ของ BZM คนนี้ = แบรนด์ในบัญชี + แบรนด์ของสาขาในเขต (ใช้เทียบกับปุ่ม "เฉพาะแบรนด์" ของการอบรม) */
+const KEY_BRANDS = { santafe:['Santa Fe','Santa Fe Easy'], jaedaeng:['เจ๊แดง จุ่มนัวร์'], yamachan:['ยามะจัง'] };
+function myBrands(){
+  const out = new Set();
+  (ME.sbrands || []).forEach(k => (KEY_BRANDS[String(k).toLowerCase()] || []).forEach(b => out.add(b)));
+  const z = bzmCodes(); if (z) z.forEach(c => { const b = brandOfCode(c); if (b) out.add(b); });
+  return out;
+}
 const inMyZone = p => { const s = bzmCodes(); if (!s) return true; const c = codeOfBranch(p.branch); return !!c && s.has(c); };
 const rosterOf = t => {
   const all = isSelf(t) ? selfPeople(t) : ((t && t.participants) || []);
@@ -1268,10 +1277,11 @@ const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', mont
 
 function visibleTo(t){
   const zone = bzmCodes();
-  if (zone && !ttCan('manage-trainings')){        // BZM: เห็นเฉพาะการอบรมที่เกี่ยวกับสาขาในเขตของตัวเอง
-    const vb = t.visible_branches || [];
-    if (vb.length && !vb.some(x => zone.has(codeOfBranch(x)))) return false;
-    if (!isSelf(t) && (t.participants || []).length && !rosterOf(t).length) return false;
+  if (zone && !ttCan('manage-trainings')){        // BZM: เห็นตามปุ่ม "ใครเห็นการอบรมนี้" (แบรนด์/สาขา) · รายชื่อคนจำกัดเฉพาะเขตตัวเองที่ rosterOf
+    const vb = t.visible_brands || [], vbr = t.visible_branches || [];
+    if (vb.length){ const mine = myBrands(); if (!vb.some(b => mine.has(b))) return false; }
+    if (vbr.length && !vbr.some(x => zone.has(codeOfBranch(x)))) return false;
+    if (!vb.length && !isSelf(t) && (t.participants || []).length && !rosterOf(t).length) return false;   // ไม่ได้จำกัดแบรนด์: ซ่อนถ้าไม่มีคนของเขต
     return true;
   }
   if (ttCan('manage-trainings') || ttCan('view-results')) return true;
