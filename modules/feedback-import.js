@@ -188,9 +188,9 @@
         if (m.masked) extra.masked = true; if (c.newcat) extra.newcat = true; if (dup) extra.dup = true; if (noise) extra.noise = true;
         if (c.more.length) extra.cats = c.more;
         if (c.sug) { extra.sug = c.sug; extra.was = c.was; }
-        /* ประเภทมีแค่ พอใจ / ไม่พอใจ ตัดจากคะแนน: ≥ 8 = พอใจ (เกณฑ์บวกของแพลตฟอร์ม) นอกนั้น = ไม่พอใจ · ไม่มีคะแนน = ตามช่องที่ตอบ (ข้อเสนอแนะ → พอใจ) */
+        /* ประเภทมีแค่ พอใจ / ไม่พอใจ ตัดจากคะแนน: 0–4 = ไม่พอใจ · 5–10 = พอใจ · ไม่มีคะแนน = ตามช่องที่ตอบ (ข้อเสนอแนะ → พอใจ) */
         var ty = kd[3];
-        if (score != null) ty = score >= 8 ? 'พอใจ' : 'ไม่พอใจ'; else if (isSug) ty = 'พอใจ';
+        if (score != null) ty = score <= 4 ? 'ไม่พอใจ' : 'พอใจ'; else if (isSug) ty = 'พอใจ';
         if (isSug) st.sugRows = (st.sugRows || 0) + 1;
         rows.push({ src_id: src, state: state, b: b, d: dt.d, t: dt.t, ty: ty, br: br, z: z, o: o, s: score, c: m.text, sub: c.sub, main: c.main, extra: extra, edited: false });
         st.byBrand[b]++; st.types[ty]++;

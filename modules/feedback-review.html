@@ -258,7 +258,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014f"></script>
+<script src="feedback-import.js?v=20261014g"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -709,12 +709,14 @@ async function openBatch(b) {
   restoreView();
 }
 async function autoTypes() {
-  if (locked()) return;
+  /* ประเภทมีแค่ พอใจ / ไม่พอใจ ตัดจากคะแนน: 0–4 = ไม่พอใจ · 5–10 = พอใจ — แถวที่ประเภทไม่ตรงคะแนนจะถูกแก้ให้ตรง */
+  if (locked() || isFb()) return;
   const to = {"พอใจ": [], "ไม่พอใจ": []};
   S.rows.forEach(r => {
-    if (r.state === "live" || r.ty === "พอใจ" || r.ty === "ไม่พอใจ") return;
+    if (r.state === "live") return;
     const sc = r.s == null || r.s === "" ? null : +r.s;
-    to[sc != null && !isNaN(sc) && sc < 8 ? "ไม่พอใจ" : "พอใจ"].push(r.id);
+    const want = sc != null && !isNaN(sc) ? (sc <= 4 ? "ไม่พอใจ" : "พอใจ") : ((r.ty === "พอใจ" || r.ty === "ไม่พอใจ") ? r.ty : "พอใจ");
+    if (r.ty !== want) to[want].push(r.id);
   });
   const n = to["พอใจ"].length + to["ไม่พอใจ"].length; if (!n) return;
   busy(true, `กำลังจัดประเภทตามคะแนน ${fmt(n)} แถว…`, 0);
@@ -723,7 +725,7 @@ async function autoTypes() {
   const byId = new Map(S.rows.map(r => [r.id, r]));
   Object.keys(to).forEach(ty => to[ty].forEach(id => { const r = byId.get(id); if (r) { r.ty = ty; r.edited = true; calc(r); } }));
   busy(false); renderRows(); renderKpi(); renderBar();
-  toast(`จัดประเภทตามคะแนนแล้ว ${fmt(n)} แถว (≥ 8 = พอใจ · ต่ำกว่า = ไม่พอใจ)`);
+  toast(`จัดประเภทตามคะแนนแล้ว ${fmt(n)} แถว (0–4 = ไม่พอใจ · 5–10 = พอใจ)`);
 }
 /* ธง "แก้หัวข้อให้แล้ว": ชุดที่นำเข้าใหม่เก็บใน extra (ถาวร) · แถวที่แก้ตอนเปิดชุด จำไว้ในเครื่องนี้ (กลุ่มละคู่ หัวข้อใหม่/หัวข้อเดิม) */
 const sugKey = () => "fbsug:" + S.cur.id;
