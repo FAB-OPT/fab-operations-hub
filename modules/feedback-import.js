@@ -307,6 +307,56 @@
     return y + '-' + pad(mo);
   }
 
+
+  /* ───────── หัวข้อที่กำหนด (ตามรายงานสรุป Comment ของ Looker) — ใช้เป็นตัวเลือกในดรอปดาวน์ ───────── */
+  var DEFINED_ORDER = [
+    'Food Taste', 'Food Waiting Time', 'Cooked Food Quality', 'Food Variety', 'Food Ingredient', 'Food Freshness', 'Food Portion', 'Food Hygiene',
+    'Staff Manner', 'Staff Service Quality', 'Overall Service', 'Staff Attentiveness', 'Staff Recommendation', 'Staff Speed', 'Staff Knowledge and Competency',
+    'Cleanliness', 'Price', 'Promotion', 'Dining Facility', 'Restaurant Policy'
+  ];
+  var DEFINED_SUBS = DEFINED_ORDER.map(function (k) { return [CAT[k][0], CAT[k][1]]; });
+
+  /* แนะนำหัวข้อจากข้อความ — เลือกได้เฉพาะ "หัวข้อที่กำหนด" · กติกาเรียงตามลำดับ ตัวแรกที่ตรงชนะ
+     1) หัวข้ออื่นในใบสำรวจเดียวกันที่แพลตฟอร์มติดไว้ (extra.cats) ถ้าเป็นหัวข้อที่กำหนด  2) คำสำคัญในข้อความ */
+  var RULES = [
+    ['Food Hygiene', /แมลง|เส้นผม|ผมใน|มีผม|ขนใน|หนอน|สิ่งแปลกปลอม|ท้องเสีย|ท้องร่วง|อาหารเป็นพิษ|ปวดท้อง|เศษพลาสติก|เศษกระดูก|เศษแก้ว|ลวด|อาหารสกปรก/],
+    ['Food Freshness', /ไม่สด|ความสด|สดใหม่|หมดอายุ|บูด|เน่า|หืน|ค้างคืน|อาหารเก่า|ไม่ใหม่/],
+    ['Food Waiting Time', /รอ.{0,8}(?:นาน|ช้า)|อาหาร.{0,6}(?:ช้า|นาน)|(?:ช้า|นาน).{0,6}อาหาร|กว่าจะได้|รอ\s*\d+\s*นาที|ออกช้า|เสิร์ฟช้า|ทำช้า|รอนาน/],
+    ['Cooked Food Quality', /ไม่สุก|ดิบ|สุกเกิน|สุกไป|สุกพอดี|ไหม้|แห้ง|แข็ง|เหนียว|ชืด|อาหารเย็น|ไม่ร้อน|ร้อนๆ|นุ่ม|ฉ่ำ|กรอบ|เละ|คุณภาพอาหาร|คุณภาพของอาหาร|มาตรฐานอาหาร/],
+    ['Food Taste', /อร่อย|รสชาติ|รสจัด|เค็ม|หวาน|จืด|เผ็ด|เปรี้ยว|กลมกล่อม|หอม|ถูกปาก|แซ่บ|ปรุงรส|เลิศรส|น้ำซุป|น้ำจิ้ม|ซอส/],
+    ['Food Variety', /หลากหลาย|เมนู(?:น้อย|เยอะ|ใหม่|เพิ่ม)|เพิ่มเมนู|อยากให้มีเมนู|ตัวเลือก|เมนูให้เลือก/],
+    ['Food Ingredient', /วัตถุดิบ|ส่วนผสม|เนื้อสัตว์|ผัก/],
+    ['Food Portion', /ปริมาณ|น้อยไป|น้อยมาก|เยอะ|จานเล็ก|ชิ้นเล็ก|ชิ้นใหญ่|ไม่อิ่ม|ให้น้อย|ให้เยอะ|พอดีคำ|ขนาด/],
+    ['Price', /ราคา|แพง|ถูก(?!ปาก)|คุ้ม|ค่าใช้จ่าย|ค่าบริการ|vat|service\s*charge|บาท/i],
+    ['Promotion', /โปร|ส่วนลด|คูปอง|แถม|แต้ม|สมาชิก|voucher|ดีล|promotion|บัตรกำนัล/i],
+    ['Restaurant Policy', /นโยบาย|กฎ|ระเบียบ|จองโต๊ะ|การจอง|เวลา(?:เปิด|ปิด)|ปิดร้าน|ไม่รับ|ขั้นต่ำ|ต้องสั่ง|บัตรเครดิต|โอนเงิน|ใบเสร็จ|ใบกำกับ/],
+    ['Staff Speed', /รวดเร็ว|ทันใจ|ฉับไว|บริการเร็ว|เร็วมาก/],
+    ['Cleanliness', /สะอาด|สกปรก|เลอะ|ฝุ่น|เหม็น|คราบ/],
+    ['Dining Facility', /แอร์|โต๊ะ|เก้าอี้|ที่นั่ง|จอดรถ|ห้องน้ำ|เสียงดัง|เพลง|wifi|ไวไฟ|ปลั๊ก|ชาร์จ|บรรยากาศ|แสง|พื้นที่|ตกแต่ง|ลิฟต์|สิ่งอำนวย/i],
+    ['Staff Manner', /สุภาพ|ยิ้ม|มารยาท|พูดจา|พูดไม่ดี|หน้าบึ้ง|น่ารัก|ใจดี|เป็นกันเอง|กิริยา|อัธยาศัย|หยาบ|ตวาด|ใจเย็น|ใจร้อน|ทัศนคติ|น้ำเสียง|ท่าทาง|ไหว้|ต้อนรับ|ทักทาย/],
+    ['Staff Attentiveness', /เอาใจใส่|ใส่ใจ|ดูแล|เติมน้ำ|ถามไถ่|ไม่สนใจ|ไม่มาดู|เรียก(?:แล้ว)?ไม่|เช็คโต๊ะ|เก็บจาน|กระตือรือร้น/],
+    ['Staff Knowledge and Competency', /ความรู้|รู้เมนู|ไม่รู้|อธิบาย|ตอบคำถาม|ชำนาญ|เก่ง|เชี่ยวชาญ|ให้ข้อมูล|ไม่เข้าใจ|ตอบไม่ได้/],
+    ['Staff Recommendation', /พนักงาน.{0,8}แนะนำ|แนะนำ(?:เมนู|อาหาร|สินค้า)/],
+    ['Staff Speed', /รวดเร็ว|เร็ว|ทันใจ|ฉับไว|ช้า|นาน/],
+    ['Staff Service Quality', /บริการ|พนักงาน|service|เสิร์ฟ|แคชเชียร์|ผู้จัดการ|น้อง/i],
+    ['Overall Service', /ทุกอย่าง|โดยรวม|ประทับใจ|เยี่ยม|ดีมาก|ชอบ|โอเค|เหมือนเดิม|ดีเลย|ดีค่ะ|ดีครับ|\bgood\b|excellent/i]
+  ];
+  /* → { sub, main, how } หรือ null ถ้าไม่เข้ากติกาใดเลย (how = ที่มาของคำแนะนำ ไว้โชว์ในหน้าตรวจ) */
+  function suggestSub(text, extra) {
+    var cats = extra && extra.cats || [];
+    for (var i = 0; i < cats.length; i++) {
+      var h = CAT[clean(cats[i])];
+      if (h && !h[2]) return { sub: h[0], main: h[1], how: 'หัวข้ออื่นในใบสำรวจเดียวกัน' };
+    }
+    var t = clean(text).toLowerCase(); if (!t) return null;
+    /* ข้อความพูดหลายเรื่อง → เอากติกาที่ตรงก่อนตามลำดับด้านบน (เฉพาะเจาะจงมาก่อน กว้างไว้ท้าย) */
+    for (var j = 0; j < RULES.length; j++) {
+      var m = RULES[j][1].exec(t);
+      if (m) { var c = CAT[RULES[j][0]]; return { sub: c[0], main: c[1], how: 'พบคำว่า “' + m[0] + '”' }; }
+    }
+    return null;
+  }
+
   /* ธงที่คำนวณสดจากเนื้อหาปัจจุบันของแถว (แก้แล้วธงหายเอง) */
   var FLAG_LABEL = {
     pii: 'อาจมีข้อมูลส่วนตัว', noise: 'ข้อความไม่มีเนื้อหา', nosub: 'ไม่มีหัวข้อ', nobranch: 'สาขาไม่อยู่ในทะเบียนฮับ',
@@ -326,6 +376,6 @@
     return f;
   }
 
-  var api = { parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  var api = { DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

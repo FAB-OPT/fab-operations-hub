@@ -70,7 +70,9 @@ body.embed .shell{padding-top:14px;max-width:none}
 .bulk .cell{border:1px solid var(--border);border-radius:11px;padding:9px 10px;background:var(--bg3)}
 .bulk .cell label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:5px}
 .bulk .cell .r{display:flex;gap:6px;flex-wrap:wrap}
-.bulk .cell select,.bulk .cell input{flex:1;min-width:0;width:auto;padding:7px 9px;border:1px solid var(--border2);border-radius:9px;background:var(--bg2);font-size:13.5px;min-height:36px}
+.bulk .cell select,.bulk .cell input{flex:1;min-width:0;width:auto;padding:7px 9px;border:1px solid var(--border2);border-radius:9px;background-color:var(--bg2);font-size:13.5px;min-height:36px}
+.bulk .cell select{padding-right:30px;text-overflow:ellipsis}
+.sgt{margin:6px 0 0}.sgt th,.sgt td{vertical-align:top}.sgt .ex{color:var(--text3);font-size:12px;line-height:1.5}
 .tbwrap{background:var(--bg2);border:1px solid var(--border);border-radius:14px;overflow:auto;max-height:calc(100vh - 330px);min-height:220px}
 table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .tb th{position:sticky;top:0;z-index:2;background:var(--bg3);text-align:left;font-size:12px;color:var(--text2);padding:9px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
@@ -217,6 +219,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
           <div class="cell"><label>คงไว้ / ข้าม (ไม่ลงระบบ)</label><div class="r"><button class="btn sm ok" data-bk="keep">คงไว้</button><button class="btn sm no" data-bk="skip">ข้าม</button></div></div>
           <div class="cell"><label>ประเภท</label><div class="r"><select id="bTy"><option value="พอใจ">พอใจ</option><option value="ไม่พอใจ">ไม่พอใจ</option><option value="ข้อเสนอแนะ">ข้อเสนอแนะ</option></select><button class="btn sm" data-bk="ty">ตั้ง</button></div></div>
           <div class="cell"><label>หัวข้อ (ย่อย → หลักตามอัตโนมัติ)</label><div class="r"><select id="bSub"></select><button class="btn sm" data-bk="sub">ตั้ง</button></div></div>
+          <div class="cell" id="bSugCell"><label>แนะนำหัวข้อจากข้อความ (เฉพาะหัวข้อที่กำหนด)</label><div class="r"><button class="btn sm" data-bk="suggest">ดูตัวอย่างก่อนตั้ง…</button></div></div>
           <div class="cell"><label>BZM</label><div class="r"><input id="bZ" placeholder="เช่น นิรุต (รุต)"><button class="btn sm" data-bk="z">ตั้ง</button></div></div>
           <div class="cell"><label>Owner (FS)</label><div class="r"><input id="bO" placeholder="ชื่อ Owner"><button class="btn sm" data-bk="o">ตั้ง</button></div></div>
         </div>
@@ -244,7 +247,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014b"></script>
+<script src="feedback-import.js?v=20261014c"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -669,7 +672,7 @@ async function openBatch(b) {
   S.subMain = {}; if (b.channel !== "facebook") Object.values(I.CAT).forEach(v => S.subMain[v[0]] = v[1]); else I.FB_CATS.forEach(c => S.subMain[c[1]] = ""); S.rows.forEach(r => { if (r.sub && !(r.sub in S.subMain)) S.subMain[r.sub] = r.main || ""; });
   $("#bnm").textContent = b.file_name || "ชุดข้อมูล";
   $("#tCsat").classList.toggle("hide", b.channel === "facebook");
-  buildFilters(); setTab("rows"); renderHead();
+  DEFSET = DEF(); buildFilters(); setTab("rows"); renderHead();
 }
 const locked = () => !S.cur || S.cur.status !== "staging";
 
@@ -713,19 +716,30 @@ function renderBar() {
 /* ───── ตัวกรอง ───── */
 function opt(sel, items, all) { sel.innerHTML = `<option value="">${all}</option>` + items.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join(""); }
 const uniq = a => [...new Set(a.filter(Boolean))].sort((x, y) => String(x).localeCompare(String(y), "th"));
+/* ตัวเลือกหัวข้อในดรอปดาวน์ = เฉพาะหัวข้อที่กำหนด (VOC: จัดกลุ่มตามหมวด · Facebook: หมวดของไฟล์) */
+const isFb = () => S.cur && S.cur.channel === "facebook";
+const DEF = () => isFb() ? new Set(I.FB_CATS.map(c => c[1])) : new Set(I.DEFINED_SUBS.map(x => x[0]));
+function subOptionsHtml(extraSub) {
+  let h = "";
+  if (isFb()) h = I.FB_CATS.map(c => `<option value="${esc(c[1])}">${esc(c[1])}</option>`).join("");
+  else I.MAINS.forEach(m => { const L = I.DEFINED_SUBS.filter(x => x[1] === m); if (L.length) h += `<optgroup label="${esc(m)}">${L.map(x => `<option value="${esc(x[0])}">${esc(x[0])}</option>`).join("")}</optgroup>`; });
+  if (extraSub && !DEF().has(extraSub)) h += `<optgroup label="นอกรายการที่กำหนด (ค่าเดิม)"><option value="${esc(extraSub)}">${esc(extraSub)}</option></optgroup>`;
+  return h;
+}
 function buildFilters() {
   opt($("#fB"), [["KT", "Santa Fe KT"], ["FS", "Santa Fe FS"], ["JD", "เจ๊แดง"]].filter(([k]) => S.rows.some(r => r.b === k)), "ทุกแบรนด์");
   opt($("#fTy"), [["พอใจ", "พอใจ"], ["ไม่พอใจ", "ไม่พอใจ"], ["ข้อเสนอแนะ", "ข้อเสนอแนะ"]], "ทุกประเภท");
   opt($("#fSt"), [["staging", "คงไว้"], ["drop", "ข้าม"], ["live", "ลงระบบแล้ว"]], "ทุกสถานะ");
-  opt($("#fSub"), [["__none", "(ไม่มีหัวข้อ)"], ...uniq(S.rows.map(r => r.sub)).map(x => [x, x])], "ทุกหัวข้อ");
+  opt($("#fSub"), [["__none", "(ไม่มีหัวข้อ)"], ...(isFb() ? [] : [["__out", "(นอกรายการที่กำหนด)"]]), ...uniq(S.rows.map(r => r.sub)).map(x => [x, x])], "ทุกหัวข้อ");
   opt($("#fBr"), uniq(S.rows.map(r => r.br)).map(x => [x, x]), "ทุกสาขา");
-  const subs = uniq([...Object.keys(S.subMain)]);
-  $("#bSub").innerHTML = subs.map(x => `<option value="${esc(x)}">${esc(x)}</option>`).join("");
+  $("#bSub").innerHTML = `<option value="">— เลือกหัวข้อ —</option>` + subOptionsHtml();
+  $("#bSugCell").classList.toggle("hide", isFb());
 }
+let DEFSET = new Set();
 function matches(r, skipFlag) {
   const f = S.f;
   if (f.b && r.b !== f.b) return false; if (f.ty && r.ty !== f.ty) return false; if (f.st && r.state !== f.st) return false;
-  if (f.sub && (f.sub === "__none" ? r.sub : r.sub !== f.sub)) return false; if (f.br && r.br !== f.br) return false;
+  if (f.sub && (f.sub === "__none" ? r.sub : f.sub === "__out" ? (!r.sub || DEFSET.has(r.sub)) : r.sub !== f.sub)) return false; if (f.br && r.br !== f.br) return false;
   if (!skipFlag && f.flag && !r._f.includes(f.flag)) return false;
   if (f.q && !(r.c + " " + r.br + " " + r.z + " " + r.o + " " + r.sub).toLowerCase().includes(f.q)) return false;
   return true;
@@ -776,7 +790,8 @@ async function bulk(kind) {
   if (kind === "keep") { patch = {state: "staging"}; label = "ตั้งเป็น “คงไว้”"; }
   else if (kind === "skip") { patch = {state: "drop"}; label = "ตั้งเป็น “ข้าม”"; }
   else if (kind === "ty") { patch = {ty: $("#bTy").value}; label = `ตั้งประเภท “${patch.ty}”`; }
-  else if (kind === "sub") { const s = $("#bSub").value; if (!s) return; patch = {sub: s, main: S.subMain[s] || ""}; label = `ตั้งหัวข้อ “${s}”`; }
+  else if (kind === "sub") { const s = $("#bSub").value; if (!s) return toast("เลือกหัวข้อก่อน"); patch = {sub: s, main: S.subMain[s] || ""}; label = `ตั้งหัวข้อ “${s}”`; }
+  else if (kind === "suggest") return suggestTopics();
   else if (kind === "z") { const v = $("#bZ").value.trim(); if (!v) return toast("พิมพ์ชื่อ BZM ก่อน"); patch = {z: v}; label = `ตั้ง BZM “${v}”`; }
   else if (kind === "o") { const v = $("#bO").value.trim(); if (!v) return toast("พิมพ์ชื่อ Owner ก่อน"); patch = {o: v}; label = `ตั้ง Owner “${v}”`; }
   const ids = targetIds(); if (!ids.length) return toast("ไม่มีแถวให้แก้");
@@ -788,11 +803,54 @@ async function bulk(kind) {
   });
 }
 
+/* ───── แนะนำหัวข้อจากข้อความ — เลือกได้เฉพาะหัวข้อที่กำหนด · ดูตัวอย่างก่อน · ที่ไม่เข้ากติกาไม่ถูกแตะ ───── */
+function suggestTopics() {
+  if (locked()) return toast("ชุดนี้อนุมัติแล้ว — ถอนการอนุมัติก่อนจึงแก้ได้");
+  const idSet = new Set(targetIds());
+  if (!idSet.size) return toast("ไม่มีแถวให้แก้");
+  const def = DEFSET, body = document.createElement("div");
+  body.innerHTML = `<div class="note" style="margin-bottom:8px">ดูข้อความของ${S.sel.size ? "แถวที่เลือก" : "ทุกแถวที่กรองอยู่"} แล้วเสนอหัวข้อ <b>เฉพาะในรายการที่กำหนด</b> (${I.DEFINED_SUBS.length} หัวข้อ) — ข้อความที่ไม่เข้ากติกาจะไม่ถูกแตะ</div>
+    <label style="display:flex;gap:8px;align-items:center;margin:0 0 8px;font-size:13.5px"><input type="checkbox" id="sgAll" style="width:auto"> รวมแถวที่มีหัวข้อที่กำหนดอยู่แล้ว (ตั้งใหม่ตามข้อความ)</label>
+    <div id="sgBody"></div>`;
+  let plan = {};
+  const draw = () => {
+    const all = $("#sgAll", body).checked; plan = {}; let miss = 0, keep = 0, n = 0;
+    S.rows.forEach(r => {
+      if (!idSet.has(r.id) || r.state === "live") return;
+      if (!all && r.sub && def.has(r.sub)) { keep++; return; }
+      n++;
+      const g = I.suggestSub(r.c, r.extra);
+      if (!g) { miss++; return; }
+      if (g.sub === r.sub) { keep++; return; }
+      const p = plan[g.sub] || (plan[g.sub] = {sub: g.sub, main: g.main, ids: [], ex: []});
+      p.ids.push(r.id); if (p.ex.length < 2) p.ex.push({c: r.c, how: g.how, from: r.sub});
+    });
+    const L = Object.values(plan).sort((a, b) => b.ids.length - a.ids.length), tot = L.reduce((a, p) => a + p.ids.length, 0);
+    $("#sgBody", body).innerHTML = `<div style="margin:0 0 6px">จะเปลี่ยน <b class="num">${fmt(tot)}</b> แถว · ไม่เข้ากติกา (ไม่แตะ) <b class="num">${fmt(miss)}</b> · ไม่ต้องเปลี่ยน/ข้าม <b class="num">${fmt(keep)}</b></div>` +
+      (L.length ? `<table class="mtab sgt"><tr><th>เปลี่ยนเป็นหัวข้อ</th><th class="r">แถว</th><th>ตัวอย่าง</th></tr>${L.map(p => `<tr><td><b>${esc(p.sub)}</b><div class="ex">${esc(p.main)}</div></td><td class="r num">${fmt(p.ids.length)}</td>
+        <td>${p.ex.map(e => `<div class="ex">“${esc(e.c.length > 70 ? e.c.slice(0, 70) + "…" : e.c)}” — ${esc(e.how)}${e.from ? ` · เดิม: ${esc(e.from)}` : ""}</div>`).join("")}</td></tr>`).join("")}</table>` : `<div class="empty" style="padding:14px;color:var(--text3)">ไม่มีแถวที่แนะนำเปลี่ยนได้</div>`);
+  };
+  body.addEventListener("change", e => { if (e.target.id === "sgAll") draw(); });
+  draw();
+  modal("แนะนำหัวข้อจากข้อความ", body, [{text: "ตั้งหัวข้อตามนี้", fn: async () => {
+    const L = Object.values(plan); if (!L.length) { toast("ไม่มีรายการให้ตั้ง"); return false; }
+    busy(true, "กำลังบันทึกหัวข้อ…", 0);
+    try {
+      for (let i = 0; i < L.length; i++) {
+        const p = L[i]; await FBStore.setRows(S.cur.id, p.ids, {sub: p.sub, main: p.main});
+        const set = new Set(p.ids); S.rows.forEach(r => { if (set.has(r.id)) { r.sub = p.sub; r.main = p.main; r.edited = true; calc(r); } });
+        busy(true, "กำลังบันทึกหัวข้อ…", (i + 1) / L.length);
+      }
+    } catch (e) { busy(false); toast("บันทึกไม่สำเร็จ: " + (e.message || e)); return false; }
+    busy(false); S.sel.clear(); buildFilters(); renderRows(); renderKpi(); renderBar();
+    toast(`ตั้งหัวข้อแล้ว ${fmt(L.reduce((a, p) => a + p.ids.length, 0))} แถว`);
+  }}]);
+}
+
 /* ───── แก้ทีละแถว ───── */
 function editRow(r) {
   if (!r) return;
   const ro = locked();
-  const subs = uniq(Object.keys(S.subMain));
   const body = document.createElement("div");
   body.innerHTML = `
     <div class="note" style="margin-bottom:8px">${esc(r.d)} ${esc(r.t)} · ${esc(r.b)}${r.s != null ? " · คะแนน " + esc(r.s) : ""}${r._f.length ? "<br>" + r._f.map(chipFor).join(" ") : ""}</div>
@@ -800,13 +858,13 @@ function editRow(r) {
     <div class="fld"><label>ประเภท</label><select id="eTy"><option>พอใจ</option><option>ไม่พอใจ</option><option>ข้อเสนอแนะ</option></select></div></div>
     <div class="fld"><label>สาขา</label><input id="eBr" value="${esc(r.br)}"></div>
     <div class="g2"><div class="fld"><label>BZM</label><input id="eZ" value="${esc(r.z)}"></div><div class="fld"><label>Owner (FS)</label><input id="eO" value="${esc(r.o)}"></div></div>
-    <div class="fld"><label>หัวข้อ</label><select id="eSub"><option value="">(ไม่มีหัวข้อ)</option>${subs.map(s => `<option value="${esc(s)}">${esc(s)}</option>`).join("")}</select></div>
+    <div class="fld"><label>หัวข้อ</label><select id="eSub"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select></div>
     <div class="fld"><label>ข้อความ</label><textarea id="eC">${esc(r.c)}</textarea></div>
     ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}
     ${r.extra && (r.extra.docNo || r.extra.cost || r.extra.severity || r.extra.note || r.extra.closedAt) ? `<div class="note">${["docNo|เลขที่เอกสาร", "cost|ค่าใช้จ่าย", "severity|ระดับความรุนแรง", "closedAt|ปิดเคส", "note|หมายเหตุ"].map(x => { const [k, l] = x.split("|"); return r.extra[k] ? l + ": " + esc(r.extra[k]) : ""; }).filter(Boolean).join(" · ")}</div>` : ""}`;
   const m = modal("แก้ไขคอมเมนต์", body, ro ? [] : [{text: "บันทึก", fn: async () => {
     const patch = {state: $("#eSt", body).value, ty: $("#eTy", body).value, br: $("#eBr", body).value.trim(), z: $("#eZ", body).value.trim(), o: $("#eO", body).value.trim(), sub: $("#eSub", body).value, c: $("#eC", body).value.trim()};
-    patch.main = patch.sub ? (S.subMain[patch.sub] || r.main) : "";
+    patch.main = patch.sub ? (S.subMain[patch.sub] || (patch.sub === r.sub ? r.main : "")) : "";
     await FBStore.setRows(S.cur.id, [r.id], patch);
     Object.assign(r, patch); r.edited = true; calc(r); renderRows(); renderKpi(); renderBar(); toast("บันทึกแล้ว");
   }}]);
