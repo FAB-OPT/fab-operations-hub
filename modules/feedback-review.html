@@ -81,6 +81,8 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .tb tr.drp td{opacity:.55}
 .tb td.no{color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.tb th.no{text-align:right}
 .tb select.rsub{width:100%;min-width:230px;padding:6px 28px 6px 9px;font-size:13px;min-height:34px;background-color:var(--bg2);border-radius:9px;text-overflow:ellipsis}
+.tb select.rst{width:auto;min-width:96px;padding:5px 28px 5px 12px;font-size:12.5px;font-weight:800;min-height:32px;border-radius:999px;text-overflow:clip}
+.tb select.rst.staging{background-color:#FFF1E6;border-color:#FDBA74;color:#C2410C}.tb select.rst.drop{background-color:#F3F4F6;border-color:#D1D5DB;color:#6B7280}
 .tb select.rsub.out{border-color:#c4b5fd;background-color:#faf5ff}
 .tb .sgb{display:block;margin:5px 0 0;padding:4px 10px;border:1px solid #fcd34d;background:#fffbeb;color:#92400e;border-radius:999px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-align:left;max-width:100%}.tb .sgb:hover{background:#fef3c7}
 .tb td.cm{min-width:280px;max-width:520px;line-height:1.5}
@@ -232,7 +234,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
       <div class="tbwrap"><table class="tb"><thead><tr>
         <th><input type="checkbox" id="selAll" aria-label="เลือกทั้งหน้า"></th><th class="no">ลำดับ</th><th>สถานะ</th><th>วันที่</th><th>แบรนด์</th><th>สาขา</th><th>BZM / Owner</th><th>ประเภท</th><th>หัวข้อ</th><th>ข้อความ</th>
       </tr></thead><tbody id="tbody"></tbody></table></div>
-      <div class="pg"><span id="pgInfo"></span><span><button class="btn sm ghost" id="pgPrev">ก่อนหน้า</button> <button class="btn sm ghost" id="pgNext">ถัดไป</button></span></div>
+      <div class="pg"><span id="pgInfo"></span><span><select id="pgSize" aria-label="แถวต่อหน้า" style="width:auto;display:inline-block;padding:5px 28px 5px 10px;min-height:32px;font-size:13px"><option value="100">100 แถว/หน้า</option><option value="500">500 แถว/หน้า</option><option value="1000" selected>1,000 แถว/หน้า</option></select> <button class="btn sm ghost" id="pgPrev">ก่อนหน้า</button> <button class="btn sm ghost" id="pgNext">ถัดไป</button></span></div>
     </div>
 
     <div id="pCsat" class="hide">
@@ -289,7 +291,7 @@ function modal(title, body, buttons) {
 
 /* ───── state ───── */
 const S = {batches: [], cur: null, rows: [], csat: [], tab: "rows", f: {q: "", b: "", ty: "", st: "", sub: "", br: "", flag: ""}, page: 0, sel: new Set(), hub: null, subMain: {}};
-const PAGE = 100;
+let PAGE = 1000;   // แถวต่อหน้า (เลือก 100 / 500 / 1000 ได้ที่ท้ายตาราง)
 const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "sugtopic", "dup", "sug"];
 const STATE_TH = {staging: "คงไว้", drop: "ข้าม", live: "ลงระบบแล้ว"};
 
@@ -336,6 +338,7 @@ function wire() {
   $("#tRows").onclick = () => setTab("rows"); $("#tCsat").onclick = () => setTab("csat");
   $("#fQ").oninput = () => { S.f.q = $("#fQ").value.trim().toLowerCase(); S.page = 0; renderRows(); };
   [["fB", "b"], ["fTy", "ty"], ["fSt", "st"], ["fSub", "sub"], ["fBr", "br"]].forEach(([id, k]) => $("#" + id).onchange = () => { S.f[k] = $("#" + id).value; S.page = 0; S.sel.clear(); renderRows(); });
+  $("#pgSize").onchange = e => { PAGE = +e.target.value || 1000; S.page = 0; renderRows(); $(".tbwrap").scrollTop = 0; };
   $("#pgPrev").onclick = () => { S.page = Math.max(0, S.page - 1); renderRows(); $(".tbwrap").scrollTop = 0; };
   $("#pgNext").onclick = () => { S.page++; renderRows(); $(".tbwrap").scrollTop = 0; };
   $("#selAll").onchange = e => { pageRows().forEach(r => e.target.checked ? S.sel.add(r.id) : S.sel.delete(r.id)); renderRows(); };
@@ -349,6 +352,8 @@ function wire() {
     editRow(S.rows.find(r => r.id === id));
   });
   $("#tbody").addEventListener("change", e => {
+    const st = e.target.closest("select.rst");
+    if (st) return setRowState(+st.closest("tr.rw").dataset.id, st.value);
     const sel = e.target.closest("select.rsub"); if (!sel) return;
     setRowSub(+sel.closest("tr.rw").dataset.id, sel.value);
   });
@@ -769,29 +774,49 @@ function chipFor(f) {
   const cls = {pii: "bad", noise: "", nosub: "wait", nobranch: "wait", noz: "wait", newcat: "vio", sugtopic: "info", dup: "", sug: "info"}[f] || "";
   return `<span class="chip ${cls}">${esc(I.FLAG_LABEL[f])}</span>`;
 }
-function renderRows() {
-  _view = null;
-  renderChips();
-  const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
-  const no0 = S.page * PAGE;
-  $("#tbody").innerHTML = rows.map((r, i) => `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
+let _OPT = "";
+/* แถวหนึ่งของตาราง · สถานะและหัวข้อเป็นดรอปดาวน์ (ชุดที่อนุมัติแล้วเป็นข้อความอย่างเดียว) */
+function rowHtml(r, noTxt, live) {
+  const sub = r.sub && !DEFSET.has(r.sub) ? subOptionsHtml(r.sub) : _OPT;
+  const stCell = live || r.state === "live"
+    ? `<span class="chip ${r.state === "live" ? "live" : r.state === "staging" ? "wait" : ""}">${STATE_TH[r.state]}</span>`
+    : `<select class="rst ${r.state}" data-v="${r.state}" aria-label="สถานะ"><option value="staging">คงไว้</option><option value="drop">ข้าม</option></select>`;
+  return `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
     <td><input type="checkbox" ${S.sel.has(r.id) ? "checked" : ""} ${live ? "disabled" : ""} aria-label="เลือก"></td>
-    <td class="no">${fmt(no0 + i + 1)}</td>
-    <td class="bt"><span class="chip ${r.state === "live" ? "live" : r.state === "staging" ? "wait" : ""}">${STATE_TH[r.state]}</span></td>
+    <td class="no">${noTxt}</td>
+    <td class="bt">${stCell}</td>
     <td class="bt num">${esc(r.d)}<div class="muted">${esc(r.t)}</div></td>
     <td class="bt">${esc(r.b)}</td>
     <td>${esc(r.br)}</td>
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
-    <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${subOptionsHtml(r.sub)}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
-    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`).join("") || `<tr><td colspan="10" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
-  $("#tbody").querySelectorAll("select.rsub").forEach(x => { x.value = x.dataset.v; });
+    <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${sub}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`;
+}
+function syncSelects(root) { root.querySelectorAll("select.rsub,select.rst").forEach(x => { x.value = x.dataset.v; }); }
+function renderRows() {
+  _view = null;
+  renderChips();
+  const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
+  const no0 = S.page * PAGE;
+  _OPT = subOptionsHtml();
+  $("#tbody").innerHTML = rows.map((r, i) => rowHtml(r, fmt(no0 + i + 1), live)).join("") || `<tr><td colspan="10" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
+  syncSelects($("#tbody"));
   const from = v.length ? S.page * PAGE + 1 : 0;
   $("#pgInfo").textContent = `แสดง ${fmt(from)}–${fmt(from + rows.length - (v.length ? 1 : 0))} จาก ${fmt(v.length)} แถว`;
   $("#pgPrev").disabled = S.page === 0; $("#pgNext").disabled = (S.page + 1) * PAGE >= v.length;
   $("#selAll").checked = rows.length > 0 && rows.every(r => S.sel.has(r.id)); $("#selAll").disabled = live;
   $("#bulk").classList.toggle("hide", live);
   updateBulkT();
+}
+/* แก้ทีละแถวจากดรอปดาวน์: ถ้าแถวยังอยู่ในตัวกรองเดิม วาดใหม่เฉพาะแถวนั้น (หน้า 1,000 แถวจะได้ไม่กระตุก) ไม่งั้นวาดทั้งตาราง */
+function afterRowEdit(r) {
+  _view = null;
+  const tr = $("#tbody").querySelector(`tr.rw[data-id="${r.id}"]`);
+  if (!tr || !matches(r)) return renderRows();
+  tr.outerHTML = rowHtml(r, tr.querySelector("td.no").textContent, false);
+  syncSelects($("#tbody").querySelector(`tr.rw[data-id="${r.id}"]`));
+  renderChips(); updateBulkT();
 }
 function updateBulkT() { const n = S.sel.size; $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
 
@@ -873,7 +898,14 @@ async function setRowSub(id, sub) {
   try { await FBStore.setRows(S.cur.id, [id], patch); }
   catch (e) { toast("บันทึกหัวข้อไม่สำเร็จ: " + (e.message || e)); return renderRows(); }
   Object.assign(r, patch); r.edited = true; calc(r);
-  renderRows(); renderKpi(); renderBar();
+  afterRowEdit(r); renderKpi(); renderBar();
+}
+async function setRowState(id, state) {
+  const r = S.rows.find(x => x.id === id); if (!r || locked() || r.state === state) return;
+  try { await FBStore.setRows(S.cur.id, [id], {state}); }
+  catch (e) { toast("บันทึกสถานะไม่สำเร็จ: " + (e.message || e)); return renderRows(); }
+  r.state = state; r.edited = true; calc(r);
+  afterRowEdit(r); renderKpi(); renderBar();
 }
 
 /* ───── แก้ทีละแถว ───── */
