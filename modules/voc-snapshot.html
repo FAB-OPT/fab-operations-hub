@@ -289,6 +289,7 @@ const MAINS = [['หมวดคุณภาพ','catQ'],['หมวดพนั
 const MAIN_ALIAS = {'คุณภาพอาหาร':'หมวดคุณภาพ','หมวดคุณภาพอาหาร':'หมวดคุณภาพ','การบริการ':'หมวดพนักงานและการบริการ','หมวดอื่น ๆ':'หมวดอื่นๆ','อื่นๆ':'หมวดอื่นๆ'};
 const SUB_ALIAS = {'Restaurant Policy (นโยบายของร้าน)':'Restaurant Policy (นโยบายร้าน)'};
 const TH_M = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+const TH_MF = ['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 const clean = s => s==null ? '' : String(s).replace(/\s+/g,' ').trim();
 const person = s => clean(s).replace(/\s*\(\s*/,' (').replace(/\s*\)/,')');
@@ -479,7 +480,7 @@ function renderTabs(){
 function resetFilters(toLatest){
   const rows = byBrand[ui.brand]||[];
   const months = uniq(rows.map(r=>r.d.slice(0,7))).reverse();
-  $('fMonth').innerHTML = `<option value="">กำหนดเอง</option><option value="all">ทั้งหมด</option>` + months.map(m=>`<option value="${m}">${TH_M[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
+  $('fMonth').innerHTML = `<option value="" hidden>กำหนดช่วงเอง</option><option value="all">ทั้งหมด</option>` + months.map(m=>`<option value="${m}">${TH_MF[+m.slice(5)-1]} ${m.slice(0,4)}</option>`).join('');
   if(toLatest && months[0]) { $('fMonth').value=months[0]; applyMonth(); }
   ['fBzm','fOwner','fBranch','fType','fMain'].forEach(id=>$(id).value='');
   $('fSearch').value=''; ui.sub=''; ui.page=0;
@@ -698,14 +699,14 @@ window.addEventListener('message',e=>{
     sel.parentNode.insertBefore(btn,sel.nextSibling);
     const pop=document.createElement('div'); pop.className='ddp'; pop.hidden=true; pop.setAttribute('role','listbox'); wrap.appendChild(pop);
     let act=-1, q='';
-    const opts=()=>[...sel.options].map(o=>({v:o.value,t:o.textContent}));
+    const opts=()=>[...sel.options].filter(o=>!o.hidden).map(o=>({v:o.value,t:o.textContent}));
     function sync(){
       const o=sel.options[sel.selectedIndex]; btn.firstChild.textContent=o?o.textContent:'';
       wrap.classList.toggle('has-val',sel.value!=='');
     }
     function render(keepFocus){
       const list=opts().filter(o=>!q||o.t.toLowerCase().includes(q));
-      const long=sel.options.length>8;
+      const long=opts().length>8;
       pop.innerHTML=(long?'<div class="sr"><input type="search" placeholder="พิมพ์เพื่อค้นหา" aria-label="ค้นหา" value="'+escH(q)+'"></div>':'')+
         (list.length?list.map((o,i)=>'<div class="op'+(i===act?' act':'')+'" role="option" data-i="'+i+'" aria-selected="'+(o.v===sel.value)+'"><span>'+escH(o.t)+'</span>'+(o.v===sel.value?CHECK:'')+'</div>').join(''):'<div class="none">ไม่พบรายการ</div>');
       pop._list=list;
