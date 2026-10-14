@@ -155,6 +155,7 @@ body.scope-branch #wBzm,body.scope-branch #wBranch,body.scope-branch #wOwner{dis
 .ddp .op[aria-selected="true"]{background:#fff1e6;color:#b24a05;font-weight:700}
 .ddp .op svg{flex:none;width:16px;height:16px;color:var(--accent)}
 .ddp .none{padding:14px 12px;color:var(--muted);font-size:15px}
+.f.dd-locked{background:var(--soft)}.f.dd-locked .ddb{color:var(--muted);cursor:not-allowed}.f.dd-locked label::after{content:"  \1F512";font-size:12px}
 
 .det th[aria-sort]{color:var(--fg)}
 .det th[aria-sort]::after{content:" ▲";font-size:13.5px}
@@ -506,8 +507,18 @@ function filtered(){
 }
 function refreshDropdowns(){
   const rows = byBrand[ui.brand]||[];
-  opts($('fBzm'), uniq(rows.map(r=>r.z)));
-  opts($('fOwner'), uniq(rows.map(r=>r.o)));
+  const zs = uniq(rows.map(r=>r.z));
+  opts($('fBzm'), zs);
+  if(ui.brand==='FS'){
+    /* FS: เลือก BZM ก่อน → Owner ล็อกอยู่จนกว่าจะเลือก แล้วโชว์เฉพาะ Owner ที่ BZM คนนั้นรับผิดชอบ (เขตเดียว เลือกให้เลย) */
+    if(zs.length===1 && !$('fBzm').value) $('fBzm').value = zs[0];
+    const zz = $('fBzm').value;
+    opts($('fOwner'), uniq(rows.filter(r=>r.z===zz).map(r=>r.o)), zz ? 'ทั้งหมด' : 'เลือก BZM ก่อน');
+    $('fOwner').disabled = !zz;
+  } else {
+    opts($('fOwner'), uniq(rows.map(r=>r.o)));
+    $('fOwner').disabled = false;
+  }
   const z=$('fBzm').value, o=$('fOwner').value;
   opts($('fBranch'), uniq(rows.filter(r=>(!z||r.z===z)&&(!o||ui.brand!=='FS'||r.o===o)).map(r=>r.br)));
 }
@@ -710,6 +721,7 @@ window.addEventListener('message',e=>{
     function sync(){
       const o=sel.options[sel.selectedIndex]; btn.firstChild.textContent=o?o.textContent:'';
       wrap.classList.toggle('has-val',sel.value!=='');
+      btn.disabled=sel.disabled; wrap.classList.toggle('dd-locked',sel.disabled);
     }
     function render(keepFocus){
       const list=opts().filter(o=>!q||o.t.toLowerCase().includes(q));
