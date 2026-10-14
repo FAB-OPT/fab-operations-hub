@@ -244,7 +244,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014a"></script>
+<script src="feedback-import.js?v=20261014b"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -514,10 +514,16 @@ async function importFile(file) {
     const toAoa = n => XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: null});
     const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n));
     const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
-    if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
+    const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
+    if (csName) { kind = "csat"; aoa = toAoa(csName); }
+    else if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
     else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; }
     else { const n = wb.SheetNames.find(x => !/dictionary/i.test(x)); kind = "voc"; aoa = toAoa(n); }
   } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx"); }
+  if (kind === "csat") {                       // ไฟล์สรุป CSAT/NPS ตามป้าย (เช่น csat 6.69.xlsx)
+    let r; try { r = I.parseCsatSummary(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
+    busy(false); return previewCsat(file.name, r);
+  }
   const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip}) : I.parseRaw(aoa, {skipSrc: skip});
   let first;
   try { first = parse(); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
@@ -529,6 +535,39 @@ async function importFile(file) {
   if (kind === "facebook") [res, resAll].forEach(x => x.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; }));   // ชื่อสาขาตามทะเบียนของฮับ
   busy(false);
   previewImport(kind, file.name, res, resAll);
+}
+
+/* ไฟล์สรุป CSAT/NPS ตามป้าย: เลือกเดือนของข้อมูล → สร้างชุดตรวจสอบเฉพาะ CSAT/NPS (ไม่มีคอมเมนต์) */
+function previewCsat(fileName, res) {
+  const guess = I.monthFromName(fileName);
+  const BN = {KT: "KT", FS: "FS", JD: "เจ๊แดง"};
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="note" style="margin-bottom:8px">${esc(fileName)} · ไฟล์สรุป CSAT/NPS ตามป้าย Location_Meta6 (${fmt(res.csat.length)} รายการ)</div>
+    <div style="margin:8px 0"><label><b>ข้อมูลเดือนไหน</b> <input type="month" id="csMonth" value="${esc(guess)}" style="width:auto;max-width:200px"></label>${guess ? "" : ` <span class="note">เดาจากชื่อไฟล์ไม่ได้ — เลือกเอง</span>`}</div>
+    <table class="mtab"><tr><th>แบรนด์</th><th>BZM / Owner</th><th class="r">ใบสำรวจ</th><th class="r">CSAT</th><th class="r">NPS</th></tr>
+      ${res.csat.map(x => `<tr><td>${BN[x.b]}</td><td>${esc(x.k)}${x.labels > 1 ? ` <span class="note">(${x.b === "FS" ? "เฉลี่ยหาร" : "ถ่วงน้ำหนัก"} ${x.labels} ป้าย)</span>` : ""}</td><td class="r">${fmt(x.n)}${x.n < 10 ? ` <span class="chip wait">น้อย</span>` : ""}</td><td class="r">${x.cs}</td><td class="r">${x.np}</td></tr>`).join("")}
+    </table>
+    ${res.unknown.length ? `<div class="warn">ป้ายที่ระบบไม่รู้จัก (ข้าม): <b>${res.unknown.map(esc).join(" · ")}</b> — ต้องเพิ่มการแมปก่อนจึงนำเข้าได้</div>` : ""}
+    <ul class="note" style="padding-left:18px">
+      <li>FS แมปป้ายผู้ติดต่อเป็นชื่อ Owner · Owner ที่มีหลายป้าย (SKF Cuisine) เฉลี่ยค่าของแต่ละป้าย · BZM ที่ซ้ำหลายแถวถ่วงน้ำหนักด้วยจำนวนใบ</li>
+      <li>เมื่ออนุมัติ ค่าของเดือน/BZM/Owner เดียวกันที่เคยลงระบบไว้จะถูกแทนที่ด้วยไฟล์นี้</li>${res.blank ? `<li>แถวไม่มีป้าย/ไม่มีคะแนน ข้าม ${res.blank} แถว</li>` : ""}
+    </ul>`;
+  modal("ตรวจไฟล์สรุป CSAT / NPS", body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+    const ym = $("#csMonth", body).value;
+    if (!/^\d{4}-\d{2}$/.test(ym)) { toast("เลือกเดือนก่อน"); return false; }
+    if (!res.csat.length) { toast("ไม่มีรายการให้นำเข้า"); return false; }
+    const [y, m] = ym.split("-").map(Number), last = new Date(y, m, 0).getDate();
+    const d1 = ym + "-01", d2 = ym + "-" + String(last).padStart(2, "0");
+    const rows = res.csat.map(x => ({state: "staging", b: x.b, k: x.k, d_from: d1, d_to: d2, n: x.n, cs: x.cs, np: x.np, edited: false}));
+    busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
+    try {
+      const id = await FBStore.createBatch({channel: "voc", file_name: fileName, d_from: d1, d_to: d2, by: who(), note: "สรุป CSAT/NPS ตามป้าย Location_Meta6"}, [], rows);
+      busy(false); toast("สร้างชุดตรวจสอบแล้ว — ตรวจที่แท็บ CSAT / NPS");
+      const bs = await FBStore.batches(); S.batches = bs;
+      await openBatch(bs.find(x => x.id === id)); setTab("csat");
+    } catch (e) { busy(false); toast("สร้างชุดไม่สำเร็จ: " + (e.message || e)); return false; }
+  }}]);
 }
 
 function htmlFb(fileName, res) {

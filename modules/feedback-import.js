@@ -260,6 +260,53 @@
     return { rows: rows, csat: [], stats: st };
   }
 
+
+  /* ───────── ไฟล์สรุป CSAT/NPS ตามป้าย Location_Meta6 (เช่น "csat 6.69.xlsx") ─────────
+     คอลัมน์: Location_Meta6 · csat_score · nps_score · n  → CSAT/NPS รายเดือนต่อ BZM (KT/เจ๊แดง) หรือ Owner (FS)
+     FS แมปป้ายผู้ติดต่อเป็น Owner · Owner ที่มีหลายป้าย (SKF Cuisine) เฉลี่ยค่าของแต่ละป้าย (รวมกันหาร จำนวนป้าย)
+     BZM ที่ซ้ำหลายแถว (เช่น นพชัย) รวมโดยถ่วงน้ำหนักด้วยจำนวนใบ */
+  var JD_NAMES = /จุรีพร|พิมพ์พิชชา|พิมพ์พัชชา|^พี่อีฟ$|^พี่อ้อย$/;
+  function parseCsatSummary(aoa) {
+    var hi = -1;
+    for (var i = 0; i < Math.min(aoa.length, 10); i++) {
+      var h = (aoa[i] || []).map(clean);
+      if (h.indexOf('Location_Meta6') >= 0 && h.indexOf('csat_score') >= 0) { hi = i; break; }
+    }
+    if (hi < 0) throw new Error('ไม่พบหัวคอลัมน์ Location_Meta6 / csat_score');
+    var H = aoa[hi].map(clean), iL = H.indexOf('Location_Meta6'), iC = H.indexOf('csat_score'), iN = H.indexOf('nps_score'), iNn = H.indexOf('n');
+    var groups = {}, unknown = [], blank = 0;
+    for (var r = hi + 1; r < aoa.length; r++) {
+      var a = aoa[r]; if (!a) continue;
+      var lab = normLab(a[iL]), has = a[iC] != null && a[iC] !== '' && !isNaN(+a[iC]);
+      if (!lab || !has) { if (lab || a[iC] != null) blank++; continue; }
+      var b, k;
+      if (OWNER_OF[lab]) { b = 'FS'; k = OWNER_OF[lab]; }
+      else if (KT_LABEL[lab] || KT_LABEL[person(lab)] || /\(.+\)/.test(lab)) { k = KT_LABEL[lab] || KT_LABEL[person(lab)] || person(lab); b = JD_NAMES.test(k) ? 'JD' : 'KT'; }
+      else { unknown.push(lab); continue; }
+      var key = b + '|' + k;
+      (groups[key] = groups[key] || { b: b, k: k, list: [] }).list.push({
+        cs: +a[iC], np: iN >= 0 && a[iN] != null && !isNaN(+a[iN]) ? +a[iN] : 0, n: iNn >= 0 ? (parseInt(a[iNn], 10) || 0) : 0 });
+    }
+    var csat = Object.keys(groups).sort().map(function (key) {
+      var g = groups[key], L = g.list, n = L.reduce(function (x, y) { return x + y.n; }, 0), cs, np;
+      if (g.b === 'FS' && L.length > 1) {
+        cs = L.reduce(function (x, y) { return x + y.cs; }, 0) / L.length; np = L.reduce(function (x, y) { return x + y.np; }, 0) / L.length;
+      } else {
+        var w = n || L.length;
+        cs = L.reduce(function (x, y) { return x + y.cs * (n ? y.n : 1); }, 0) / w; np = L.reduce(function (x, y) { return x + y.np * (n ? y.n : 1); }, 0) / w;
+      }
+      return { b: g.b, k: g.k, n: n, cs: r1(cs), np: r1(np), labels: L.length };
+    });
+    return { csat: csat, unknown: unknown, blank: blank };
+  }
+  /* เดาเดือนจากชื่อไฟล์ เช่น "csat 6.69" = มิ.ย. 2569 → 2026-06 (ไม่เจอ = ว่าง) */
+  function monthFromName(name) {
+    var m = String(name || '').match(/(\d{1,2})[.\-\/](\d{2,4})/); if (!m) return '';
+    var mo = +m[1], y = +m[2]; if (mo < 1 || mo > 12) return '';
+    if (y < 100) y += 2500; if (y > 2400) y -= 543;
+    return y + '-' + pad(mo);
+  }
+
   /* ธงที่คำนวณสดจากเนื้อหาปัจจุบันของแถว (แก้แล้วธงหายเอง) */
   var FLAG_LABEL = {
     pii: 'อาจมีข้อมูลส่วนตัว', noise: 'ข้อความไม่มีเนื้อหา', nosub: 'ไม่มีหัวข้อ', nobranch: 'สาขาไม่อยู่ในทะเบียนฮับ',
@@ -279,6 +326,6 @@
     return f;
   }
 
-  var api = { parseRaw: parseRaw, parseFb: parseFb, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  var api = { parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
