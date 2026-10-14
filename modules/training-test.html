@@ -1028,7 +1028,7 @@ async function loadRosters(){
 }
 
 /* ทะเบียนสาขาจากฮับ — ใบรายชื่อเก็บแค่รหัสสาขา ต้องแปลงเป็นชื่อให้คนอ่านออก */
-let HUB_BRANCHES = {};
+let HUB_BRANCHES = {}, HUB_BZM = {};      // HUB_BZM: รหัสสาขา → ชื่อเล่น BZM ตามทะเบียนฮับ
 async function loadHubBranches(){
   try{
     await sbReady();
@@ -1036,6 +1036,7 @@ async function loadHubBranches(){
     const out = {};
     (data || []).forEach(row => {
       const v = row.value || {}, map = v.branches || v || {};
+      if (row.key === 'branches' && v.bzmMap) HUB_BZM = v.bzmMap;
       if (Array.isArray(map)) {            // เจ๊แดง: ลิสต์ของออบเจ็กต์ {code,name}
         map.forEach(b => {                 // เจ๊แดงไม่มีรหัส ใช้ชื่อสาขาเป็นคีย์ (ป้ายแสดงเป็นชื่ออย่างเดียว)
           if (!b) return;
@@ -1080,6 +1081,7 @@ const ME = (function(){
   return {
     ok: !!code, code, role, isBranch,
     name: (s && s.name) || branch || '',
+    nick: (s && s.nick) || '',
     title: (s && s.title) || (isBranch ? 'สาขา' : role.toUpperCase()),
     branch: isBranch ? branch : ((s && s.branchName) || ''),
     brand: brandOfCode(code)
@@ -1212,7 +1214,32 @@ function selfPeople(t){
   });
   return [...seen.values()].sort((x, y) => String(x.name).localeCompare(String(y.name), 'th'));
 }
-const rosterOf = t => isSelf(t) ? selfPeople(t) : ((t && t.participants) || []);
+/* ── BZM เห็นเฉพาะสาขาที่รับผิดชอบ (ตาม bzmMap ของทะเบียนฮับ) ──
+   ทะเบียนฮับเก็บชื่อเล่นเป็นอังกฤษ (P'Rut) แต่บัญชีผู้ใช้เป็นไทย (พี่รุต) จึงเทียบผ่านตารางแปลง */
+const NICK_EN = { 'รุต':'rut', 'นพ':'nop', 'ปิ๊ก':'pik', 'เจี๊ยบ':'jeb', 'หยี':'yee', 'เอ็ม':'m', 'บิ๊ก':'big', 'อีฟ':'eve', 'อ้อย':'aoy', 'อาร์ม':'arm' };
+const nickKey = n => { const x = String(n || '').replace(/^พี่\s*/, '').replace(/^P['’]?\s*/i, '').replace(/[\s'’`.()]/g, '').toLowerCase(); return NICK_EN[x] || x; };
+let _bzmSet = null, _bzmKey = '';
+function bzmCodes(){            // null = ไม่ใช่ BZM (ไม่จำกัด) · Set = รหัสสาขาที่รับผิดชอบ
+  if (String(ME.role || '').toLowerCase() !== 'bzm') return null;
+  const key = ME.nick + '|' + Object.keys(HUB_BZM).length;
+  if (_bzmSet && _bzmKey === key) return _bzmSet;
+  const k = nickKey(ME.nick);
+  _bzmSet = new Set(k ? Object.keys(HUB_BZM).filter(c => nickKey(HUB_BZM[c]) === k) : []); _bzmKey = key;
+  return _bzmSet;
+}
+const _codeMemo = {};
+function codeOfBranch(b){
+  const raw = String(b || '').trim(); if (!raw) return '';
+  if (raw in _codeMemo) return _codeMemo[raw];
+  let c = (raw.match(/^(\d{4})/) || [])[1] || '';
+  if (!c) c = Object.keys(HUB_BRANCHES).find(k => HUB_BRANCHES[k] && (HUB_BRANCHES[k] === raw || raw.includes(HUB_BRANCHES[k]))) || '';
+  return (_codeMemo[raw] = c);
+}
+const inMyZone = p => { const s = bzmCodes(); if (!s) return true; const c = codeOfBranch(p.branch); return !!c && s.has(c); };
+const rosterOf = t => {
+  const all = isSelf(t) ? selfPeople(t) : ((t && t.participants) || []);
+  return bzmCodes() ? all.filter(inMyZone) : all;
+};
 const selfLimit = t => Math.max(0, Number(t && t.self_limit) || 0);
 const selfId = name => 'n:' + String(ME.code || '') + ':' + normName(name).toLowerCase();
 /* ลงชื่อใหม่ได้ไหม — นับคนที่ลงชื่อแล้วจากฐานข้อมูลสด (ไม่เชื่อรายการในหน้า เพราะเครื่องอื่นอาจเพิ่งลง) */
@@ -1228,7 +1255,9 @@ const evalsOf = key => attempts.filter(a => a.training_key === key && a.phase ==
 /* แบบประเมินไม่ระบุชื่อ จึงนับรายคนไม่ได้ · นับแยกตามบัญชีที่ทำ (สาขา) แทน
    ของเดิมนับรวมทุกสาขาแล้วเทียบกับคนของสาขาเดียว สาขาอื่นประเมินไปก่อน
    สาขานี้เลยขึ้น "ครบแล้ว" ทั้งที่ยังไม่มีใครประเมินสักคน */
-const evalsFor = t => ME.isBranch ? evalsOf(t.key).filter(a => String(a.taker_code) === String(ME.code)) : evalsOf(t.key);
+const evalsFor = t => { const z = bzmCodes();
+  return ME.isBranch ? evalsOf(t.key).filter(a => String(a.taker_code) === String(ME.code))
+    : z ? evalsOf(t.key).filter(a => z.has(String(a.taker_code))) : evalsOf(t.key); };
 /* ประเมินได้กี่ครั้ง = คนที่ทำหลังเรียนแล้ว ลบด้วยที่ประเมินไปแล้ว — ต้องทำหลังเรียนก่อนถึงจะประเมินได้ */
 function evalLeft(t){
   const done = participantsFor(t).filter(p => attemptOf(t.key, 'post', p.id)).length;
@@ -1238,6 +1267,13 @@ const fmtD = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', m
 const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '—';
 
 function visibleTo(t){
+  const zone = bzmCodes();
+  if (zone && !ttCan('manage-trainings')){        // BZM: เห็นเฉพาะการอบรมที่เกี่ยวกับสาขาในเขตของตัวเอง
+    const vb = t.visible_branches || [];
+    if (vb.length && !vb.some(x => zone.has(codeOfBranch(x)))) return false;
+    if (!isSelf(t) && (t.participants || []).length && !rosterOf(t).length) return false;
+    return true;
+  }
   if (ttCan('manage-trainings') || ttCan('view-results')) return true;
   const bd = t.visible_brands || [], br = t.visible_branches || [];
   if (bd.length && !bd.includes(ME.brand)) return false;
@@ -1294,7 +1330,7 @@ async function boot(){
     </div></div>`;
     return;
   }
-  const okLoad = await loadTrainings();
+  const [okLoad] = await Promise.all([loadTrainings(), loadHubBranches()]);   // ทะเบียนฮับ: ชื่อสาขา + เขตของ BZM
   await loadEvalSet();
   await loadAttempts();
   renderNav();
@@ -1367,11 +1403,11 @@ window.go = async function(t){
   if (t !== 'run') run = null;
   if (t !== 'trainings') editing = null;
   tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
-  if (t === 'list'){ await loadTrainings(); await loadAttempts(); return renderList(); }
+  if (t === 'list'){ await Promise.all([loadTrainings(), loadHubBranches()]); await loadAttempts(); return renderList(); }
   if (t === 'results'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadAttempts(); return renderResults(); }
   if (t === 'followup'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadAttempts(); return renderFollowup(); }
   if (t === 'report'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await loadAttempts(); return renderReport(); }
-  if (t === 'trainings'){ await loadTrainings(); loadHubBranches(); if (ROSTERS == null) loadRosters().catch(() => {}); return renderTrainings(); }
+  if (t === 'trainings'){ await Promise.all([loadTrainings(), loadHubBranches()]); if (ROSTERS == null) loadRosters().catch(() => {}); return renderTrainings(); }
 };
 
 /* ══════════════════════════════════════════════════════════════════

@@ -278,6 +278,9 @@ function mkRow(b,d,t,ty,br,z,o,s,c,sub,main){
    admin = เห็นทั้งหมด + นำเข้าไฟล์ได้ · support / coo / vp = เห็นทั้งหมด · bzm = เฉพาะสาขาในเขตที่รับผิดชอบ · สาขา = เฉพาะสาขาตัวเอง
    เปิดไฟล์นี้ตรง ๆ โดยไม่มี session ของฮับ = เปิดให้ครบ (ใช้งานในเครื่องตัวเอง)
    หมายเหตุ: กรองฝั่งหน้าจอ — ความลับจริงต้องเก็บข้อมูลกลางฝั่งเซิร์ฟเวอร์ */
+const NICK_EN={'รุต':'rut','นพ':'nop','ปิ๊ก':'pik','เจี๊ยบ':'jeb','หยี':'yee','เอ็ม':'m','บิ๊ก':'big','อีฟ':'eve','อ้อย':'aoy','อาร์ม':'arm'};
+/* ชื่อเล่น BZM: ทะเบียนฮับเป็นอังกฤษ (P'Rut) บัญชีผู้ใช้เป็นไทย (พี่รุต) → แปลงเป็นกุญแจเดียวกันก่อนเทียบ */
+const nickNorm = n => { const x = String(n||'').replace(/^พี่\s*/,'').replace(/^P['’]?\s*/i,'').replace(/[\s'’`.()]/g,'').toLowerCase(); return NICK_EN[x]||x; };
 const SCOPE = (()=>{
   const ls = k => { try{ return JSON.parse(localStorage.getItem(k)||'null'); }catch(e){ return null; } };
   const sess = ls('fab_session'), role = String((sess&&sess.role)||'').toLowerCase();
@@ -292,7 +295,7 @@ const SCOPE = (()=>{
   if(role==='bzm'){
     let nick = String(sess.nick||'').trim();
     if(!nick){ const u=((cfg.users)||[]).find(x=>x&&String(x.code)===String(sess.code)); nick=u&&u.nick?String(u.nick).trim():''; }
-    const map = raw.bzmMap||{}, codes = new Set(nick?Object.keys(map).filter(c=>map[c]===nick):[]);
+    const map = raw.bzmMap||{}, nk = nickNorm(nick), codes = new Set(nk?Object.keys(map).filter(c=>nickNorm(map[c])===nk):[]);
     return {all:false, imp:false, csat:true, codes, label:codes.size?('เขต '+nick+' · '+codes.size+' สาขา'):'ยังจับคู่เขตของคุณไม่ได้ — ติดต่อผู้ดูแลระบบ'};
   }
   return {all:false, imp:false, csat:false, codes:new Set(), label:'บัญชีนี้ยังไม่มีสิทธิ์ดูข้อมูล'};
@@ -304,7 +307,7 @@ const inScope = r => SCOPE.all || SCOPE.codes.has(rowCode(r));
    ชื่อสาขา = ตามฮับ · BZM = ตามแผนที่ BZM ของฮับ (จับคู่กับป้ายชื่อ BZM ในไฟล์ด้วยชื่อเล่น เพื่อให้ CSAT/NPS ที่ผูกกับชื่อ BZM ยังตรงกัน)
    จับคู่ไม่ได้/สาขาไม่อยู่ในทะเบียน = คงค่าตามไฟล์ */
 const HUBCFG = (()=>{ try{ return (JSON.parse(localStorage.getItem('hubmod_config_v1')||'null')||{}).branches||{}; }catch(e){ return {}; } })();
-const nickKey = t => String(t||'').replace(/^พี่/,'').replace(/[\s'’`.()]/g,'').toLowerCase();
+const nickKey = nickNorm;
 function hubRows(rows){
   const names=HUBCFG.branches||{}, bz=HUBCFG.bzmMap||{};
   if(!Object.keys(names).length) return rows;

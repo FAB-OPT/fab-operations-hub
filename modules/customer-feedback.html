@@ -366,13 +366,16 @@ const brandOf=r=>r.brand||"";
 
 /* ───── ขอบเขตการมองเห็น: admin/support/coo/vp = ทั้งหมด · bzm = สาขาในเขต · สาขา = ของตัวเอง ───── */
 let _bz={key:null,val:null};
+const NICK_EN={'รุต':'rut','นพ':'nop','ปิ๊ก':'pik','เจี๊ยบ':'jeb','หยี':'yee','เอ็ม':'m','บิ๊ก':'big','อีฟ':'eve','อ้อย':'aoy','อาร์ม':'arm'};
+/* ชื่อเล่น BZM: ทะเบียนฮับเป็นอังกฤษ (P'Rut) บัญชีผู้ใช้เป็นไทย (พี่รุต) → แปลงเป็นกุญแจเดียวกันก่อนเทียบ */
+const nickNorm=n=>{ const x=String(n||'').replace(/^พี่\s*/,'').replace(/^P['’]?\s*/i,'').replace(/[\s'’`.()]/g,'').toLowerCase(); return NICK_EN[x]||x; };
 function myBzmCodes(){
   const s=Hub.session()||{}; if(String(s.role||"").toLowerCase()!=="bzm") return null;
   const raw=HubMod.Branches.raw(), key=String(s.code||"")+"|"+String(s.nick||"")+"|"+(raw&&raw.bzmMap?Object.keys(raw.bzmMap).length:0);
   if(_bz.key===key) return _bz.val;
   let nick=String(s.nick||"").trim();
   if(!nick){ const u=((Cfg.data&&Cfg.data.users)||[]).find(x=>x&&String(x.code)===String(s.code)); nick=u&&u.nick?String(u.nick).trim():""; }
-  const map=(raw&&raw.bzmMap)||{}, set=new Set(nick?Object.keys(map).filter(c=>map[c]===nick):[]);
+  const map=(raw&&raw.bzmMap)||{}, nk=nickNorm(nick), set=new Set(nk?Object.keys(map).filter(c=>nickNorm(map[c])===nk):[]);
   _bz={key,val:set}; return set; }
 function scopeCodes(){            /* null = เห็นทั้งหมด · Set = เฉพาะรหัสสาขาใน Set */
   const r=String(Hub.userRole()||"").toLowerCase();
