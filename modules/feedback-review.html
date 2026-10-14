@@ -79,8 +79,12 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .tb td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
 .tb tr.rw{cursor:pointer}.tb tr.rw:hover td{background:#fffaf5}
 .tb tr.drp td{opacity:.55}
+.selbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:0 0 10px;padding:8px 12px;border:1px solid var(--gold-line);background:var(--gold-soft);border-radius:12px;font-size:13.5px}.selbar.hide{display:none}.selbar b{color:var(--gold-ink)}
 .tb td.no{color:var(--text3);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}.tb th.no{text-align:right}
 .tb select.rsub{width:100%;min-width:230px;padding:6px 28px 6px 9px;font-size:13px;min-height:34px;background-color:var(--bg2);border-radius:9px;text-overflow:ellipsis}
+.tb .rstb{display:inline-flex;align-items:center;gap:6px;padding:5px 12px;border-radius:999px;border:1px solid;font:inherit;font-size:12.5px;font-weight:800;cursor:pointer;white-space:nowrap}
+.tb .rstb i{font-style:normal;opacity:.55;font-size:11px}.tb .rstb:hover i{opacity:1}
+.tb .rstb.staging{background:#FFF1E6;border-color:#FDBA74;color:#C2410C}.tb .rstb.drop{background:#F3F4F6;border-color:#D1D5DB;color:#6B7280}
 .tb select.rst{width:auto;min-width:96px;padding:5px 28px 5px 12px;font-size:12.5px;font-weight:800;min-height:32px;border-radius:999px;text-overflow:clip}
 .tb select.rst.staging{background-color:#FFF1E6;border-color:#FDBA74;color:#C2410C}.tb select.rst.drop{background-color:#F3F4F6;border-color:#D1D5DB;color:#6B7280}
 .tb select.rsub.out{border-color:#c4b5fd;background-color:#faf5ff}
@@ -219,6 +223,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
         <select id="fBr" aria-label="สาขา"></select>
       </div>
       <div class="fchips" id="fchips"></div>
+      <div class="selbar hide" id="selbar"><span id="selN"></span><button class="btn sm ok" data-bk="keep">คงไว้ทั้งหมด</button><button class="btn sm no" data-bk="skip">ข้ามทั้งหมด</button><button class="btn sm ghost" id="selClear">ล้างการเลือก</button><span class="muted">Shift + คลิก = เลือกเป็นช่วง</span></div>
       <details class="bulk" id="bulk">
         <summary><span class="tg">▸ แก้ทีละกลุ่ม</span><span id="bulkT" class="muted"></span></summary>
         <div class="grid">
@@ -253,7 +258,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014d"></script>
+<script src="feedback-import.js?v=20261014e"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -292,7 +297,7 @@ function modal(title, body, buttons) {
 /* ───── state ───── */
 const S = {batches: [], cur: null, rows: [], csat: [], tab: "rows", f: {q: "", b: "", ty: "", st: "", sub: "", br: "", flag: ""}, page: 0, sel: new Set(), hub: null, subMain: {}};
 let PAGE = 1000;   // แถวต่อหน้า (เลือก 100 / 500 / 1000 ได้ที่ท้ายตาราง)
-const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "sugtopic", "dup", "sug"];
+const FLAG_ORDER = ["pii", "noise", "nosub", "nobranch", "noz", "newcat", "sugtopic", "dup"];
 const STATE_TH = {staging: "คงไว้", drop: "ข้าม", live: "ลงระบบแล้ว"};
 
 function hubCodes() {
@@ -343,11 +348,17 @@ function wire() {
   $("#pgNext").onclick = () => { S.page++; renderRows(); $(".tbwrap").scrollTop = 0; };
   $("#selAll").onchange = e => { pageRows().forEach(r => e.target.checked ? S.sel.add(r.id) : S.sel.delete(r.id)); renderRows(); };
   $("#bulk").addEventListener("click", e => { const b = e.target.closest("[data-bk]"); if (b) bulk(b.dataset.bk); });
+  $("#selbar").addEventListener("click", e => { const b = e.target.closest("[data-bk]"); if (b) return bulk(b.dataset.bk); if (e.target.id === "selClear") { S.sel.clear(); renderRows(); } });
   $("#tbody").addEventListener("click", e => {
     const tr = e.target.closest("tr.rw"); if (!tr) return;
     const id = +tr.dataset.id;
-    if (e.target.matches("input[type=checkbox]")) { e.target.checked ? S.sel.add(id) : S.sel.delete(id); updateBulkT(); return; }
+    if (e.target.matches("input[type=checkbox]")) {
+      const ids = pageRows().map(r => r.id), a = ids.indexOf(S.lastSel), b = ids.indexOf(id);
+      if (e.shiftKey && a >= 0 && b >= 0) { const [i, j] = a < b ? [a, b] : [b, a]; ids.slice(i, j + 1).forEach(x => e.target.checked ? S.sel.add(x) : S.sel.delete(x)); renderRows(); }
+      else { e.target.checked ? S.sel.add(id) : S.sel.delete(id); updateBulkT(); }
+      S.lastSel = id; return; }
     const sg = e.target.closest("button.sgb"); if (sg) { setRowSub(id, sg.dataset.sg); return; }
+    const tg = e.target.closest("button.rstb"); if (tg) { setRowState(id, tg.dataset.st === "drop" ? "staging" : "drop"); return; }
     if (e.target.closest("select")) return;                 // ดรอปดาวน์หัวข้อในแถว ไม่เปิดหน้าต่างแก้ไข
     editRow(S.rows.find(r => r.id === id));
   });
@@ -687,7 +698,46 @@ async function openBatch(b) {
   S.subMain = {}; if (b.channel !== "facebook") Object.values(I.CAT).forEach(v => S.subMain[v[0]] = v[1]); else I.FB_CATS.forEach(c => S.subMain[c[1]] = ""); S.rows.forEach(r => { if (r.sub && !(r.sub in S.subMain)) S.subMain[r.sub] = r.main || ""; });
   $("#bnm").textContent = b.file_name || "ชุดข้อมูล";
   $("#tCsat").classList.toggle("hide", b.channel === "facebook");
-  DEFSET = DEF(); buildFilters(); setTab("rows"); renderHead();
+  DEFSET = DEF(); loadSugMarks(); buildFilters(); setTab("rows"); renderHead();
+  await autoTopics();
+}
+/* ธง "แก้หัวข้อให้แล้ว": ชุดที่นำเข้าใหม่เก็บใน extra (ถาวร) · แถวที่แก้ตอนเปิดชุด จำไว้ในเครื่องนี้ (กลุ่มละคู่ หัวข้อใหม่/หัวข้อเดิม) */
+const sugKey = () => "fbsug:" + S.cur.id;
+function loadSugMarks() {
+  let m = null; try { m = JSON.parse(localStorage.getItem(sugKey())); } catch (e) {}
+  if (!m || !m.g) return;
+  const byId = new Map(S.rows.map(r => [r.id, r]));
+  m.g.forEach(([si, wi, ids]) => ids.forEach(id => { const r = byId.get(id), sub = m.s[si]; if (r && r.sub === sub) { r.extra = r.extra || {}; r.extra.sug = sub; r.extra.was = m.s[wi] || ""; calc(r); } }));
+}
+function saveSugMarks(groups) {   // groups: [[sub, was, ids]]
+  let m = null; try { m = JSON.parse(localStorage.getItem(sugKey())); } catch (e) {}
+  m = m && m.g ? m : {s: [], g: []};
+  const ix = v => { let i = m.s.indexOf(v); if (i < 0) { m.s.push(v); i = m.s.length - 1; } return i; };
+  groups.forEach(([sub, was, ids]) => m.g.push([ix(sub), ix(was || ""), ids]));
+  try { localStorage.setItem(sugKey(), JSON.stringify(m)); } catch (e) { console.warn("sugmarks", e); }
+}
+async function autoTopics() {
+  if (locked() || isFb()) return;
+  const groups = {};
+  S.rows.forEach(r => {
+    if (r.state === "live" || (r.sub && DEFSET.has(r.sub))) return;
+    const g = I.suggestSub(r.c, r.extra); if (!g || g.sub === r.sub) return;
+    const k = g.sub + "\u0001" + (r.sub || "");
+    (groups[k] = groups[k] || {sub: g.sub, main: g.main, was: r.sub || "", ids: []}).ids.push(r.id);
+  });
+  const L = Object.values(groups), n = L.reduce((a, g) => a + g.ids.length, 0); if (!n) return;
+  busy(true, `กำลังแก้หัวข้อให้ ${fmt(n)} แถวตามข้อความ…`, 0);
+  try {
+    const bySub = {};   // รวมกลุ่มที่หัวข้อใหม่เดียวกัน (ต่างกันที่หัวข้อเดิม) เป็นคำสั่งเดียว
+    L.forEach(g => { (bySub[g.sub] = bySub[g.sub] || {main: g.main, ids: []}).ids.push(...g.ids); });
+    const subs = Object.keys(bySub);
+    for (let i = 0; i < subs.length; i++) { await FBStore.setRows(S.cur.id, bySub[subs[i]].ids, {sub: subs[i], main: bySub[subs[i]].main}); busy(true, `กำลังแก้หัวข้อให้ ${fmt(n)} แถวตามข้อความ…`, (i + 1) / subs.length); }
+  } catch (e) { busy(false); toast("แก้หัวข้ออัตโนมัติไม่สำเร็จ: " + (e.message || e)); return; }
+  const byId = new Map(S.rows.map(r => [r.id, r]));
+  L.forEach(g => g.ids.forEach(id => { const r = byId.get(id); if (!r) return; r.sub = g.sub; r.main = g.main; r.edited = true; r.extra = r.extra || {}; r.extra.sug = g.sub; r.extra.was = g.was; calc(r); }));
+  saveSugMarks(L.map(g => [g.sub, g.was, g.ids]));
+  busy(false); buildFilters(); renderRows(); renderKpi(); renderBar();
+  toast(`แก้หัวข้อให้แล้ว ${fmt(n)} แถว — กรอง “แก้หัวข้อให้แล้ว” เพื่อตรวจ เปลี่ยนได้ทุกแถว`);
 }
 const locked = () => !S.cur || S.cur.status !== "staging";
 
@@ -780,7 +830,7 @@ function rowHtml(r, noTxt, live) {
   const sub = r.sub && !DEFSET.has(r.sub) ? subOptionsHtml(r.sub) : _OPT;
   const stCell = live || r.state === "live"
     ? `<span class="chip ${r.state === "live" ? "live" : r.state === "staging" ? "wait" : ""}">${STATE_TH[r.state]}</span>`
-    : `<select class="rst ${r.state}" data-v="${r.state}" aria-label="สถานะ"><option value="staging">คงไว้</option><option value="drop">ข้าม</option></select>`;
+    : `<button type="button" class="rstb ${r.state}" data-st="${r.state}" title="กดเพื่อสลับ ${r.state === "drop" ? "เป็น คงไว้" : "เป็น ข้าม"}" aria-label="สถานะ ${STATE_TH[r.state]} (กดเพื่อสลับ)">${STATE_TH[r.state]}<i>⇄</i></button>`;
   return `<tr class="rw ${r.state === "drop" ? "drp" : ""}" data-id="${r.id}">
     <td><input type="checkbox" ${S.sel.has(r.id) ? "checked" : ""} ${live ? "disabled" : ""} aria-label="เลือก"></td>
     <td class="no">${noTxt}</td>
@@ -791,7 +841,7 @@ function rowHtml(r, noTxt, live) {
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
     <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${sub}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
-    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.length ? `<div class="tx2">${r._f.map(chipFor).join("")}</div>` : ""}</td></tr>`;
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.some(f => f !== "sug") ? `<div class="tx2">${r._f.filter(f => f !== "sug").map(chipFor).join("")}</div>` : ""}</td></tr>`;
 }
 function syncSelects(root) { root.querySelectorAll("select.rsub,select.rst").forEach(x => { x.value = x.dataset.v; }); }
 function renderRows() {
@@ -818,7 +868,8 @@ function afterRowEdit(r) {
   syncSelects($("#tbody").querySelector(`tr.rw[data-id="${r.id}"]`));
   renderChips(); updateBulkT();
 }
-function updateBulkT() { const n = S.sel.size; $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
+function updateBulkT() { const n = S.sel.size;
+  const sb = $("#selbar"); if (sb) { sb.classList.toggle("hide", !n || locked()); $("#selN").innerHTML = `เลือกไว้ <b>${fmt(n)}</b> แถว`; } $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
 
 /* ───── แก้ทีละกลุ่ม ───── */
 function targetIds() { return S.sel.size ? [...S.sel] : filtered().filter(r => r.state !== "live").map(r => r.id); }
