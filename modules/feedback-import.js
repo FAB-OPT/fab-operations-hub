@@ -74,6 +74,24 @@
   };
   /* ป้าย BZM ที่สะกดต่างจากข้อมูลย้อนหลัง → ชื่อเดียวกับของเดิม (เพื่อให้ CSAT/NPS ต่อเนื่อง) */
   var KT_LABEL = { 'คุณบิ๊ก': 'ณธวรรท (บิ๊ก)', 'พัธนดลย์ (ปิ๊ก)': 'พัทธดนย์ (ปิ๊ก)', 'พี่อีฟ': 'จุรีพร (อีฟ)', 'พี่อ้อย': 'พิมพ์พิชชา (อ้อย)' };
+  /* Business Zone (Santa Fe FS) Ver.25/8/2026: รหัสสาขา → Owner + BZM (ใช้เป็นหลักแทนป้ายผู้ติดต่อจากแพลตฟอร์ม) */
+  var FS_ZONE = (function () {
+    var G = [
+      ['พลเดช (หลุยส์)', 'SKF Cuisine', '8009 8017 8025 8027 8032 8034 8058 8063 8068 8069'],
+      ['พลเดช (หลุยส์)', 'Suwanphulae', '8002 8029 8053 8065'],
+      ['ปราณี (เปรี้ยว)', 'Nopparod', '8001 8013 8015 8016 8019 8033'],
+      ['ปราณี (เปรี้ยว)', 'Surat&Nakhon', '8010 8021 8035 8045 8059'],
+      ['ปราณี (เปรี้ยว)', 'M.A Food', '8036'],
+      ['คณสวรรณ (เฟิร์น)', 'Watthawee Food', '8051 8055 8061'],
+      ['ณธวรรท (บิ๊ก)', 'Eastwins', '8004 8018'],
+      ['ณธวรรท (บิ๊ก)', 'Priyasit', '8006 8008 8020 8043'],
+      ['ณธวรรท (บิ๊ก)', 'Attachairungjaroensuk', '8062 8067'],
+      ['ณธวรรท (บิ๊ก)', 'LS Food', '8011 8014 8054 8056 8066'],
+      ['ณธวรรท (บิ๊ก)', 'กันกานต์', '8070']
+    ], out = {};
+    G.forEach(function (g) { g[2].split(' ').forEach(function (c) { out[c] = { z: g[0], o: g[1] }; }); });
+    return out;
+  })();
   var normLab = function (z) { return clean(z).replace(/\s*,\s*/g, ', '); };
 
   var NOISE = /^(?:[-.\s_/\\]*|ไม่มี(?:ค่ะ|ครับ|คะ|ครับผม|อะไร|ละ|แล้ว)?|ยังไม่มี|ไม่|ไม่ค่ะ|ไม่ครับ|no|none|n\/a|na|nil|ok|-+)$/i;
@@ -152,8 +170,11 @@
       if (dt.d < st.dmin) st.dmin = dt.d; if (dt.d > st.dmax) st.dmax = dt.d;
       var code = clean(a[C.bid]), br = (code + ' ' + clean(C.bname >= 0 ? a[C.bname] : '')).trim();
       var zone = clean(C.zone >= 0 ? a[C.zone] : '');
-      var lab = normLab(zone), owner = b === 'FS' ? (OWNER_OF[lab] || zone) : '';
-      var z = b === 'FS' ? '' : KT_LABEL[lab] || KT_LABEL[person(zone)] || person(zone), o = owner;
+      var lab = normLab(zone), fz = b === 'FS' ? FS_ZONE[code] : null;
+      /* FS: ตามตารางเขตตามรหัสสาขาก่อน · ไม่มีในตาราง → แมปป้ายผู้ติดต่อ · ป้ายที่เป็นชื่อ BZM (มีวงเล็บ) นับเป็น BZM ไม่ใช่ Owner */
+      var asBzm = b === 'FS' && !fz && !OWNER_OF[lab] && /\(.+\)/.test(lab);
+      var owner = b === 'FS' ? (fz ? fz.o : asBzm ? '' : (OWNER_OF[lab] || zone)) : '';
+      var z = b === 'FS' ? (fz ? fz.z : asBzm ? (KT_LABEL[lab] || KT_LABEL[person(zone)] || person(zone)) : '') : KT_LABEL[lab] || KT_LABEL[person(zone)] || person(zone), o = owner;
       var score = a[C.csat] === '' || a[C.csat] == null || isNaN(+a[C.csat]) ? null : +a[C.csat];
 
       /* CSAT / NPS รายเดือน — นับทุกใบสำรวจ ไม่ว่าจะมีคอมเมนต์หรือไม่ */
@@ -385,6 +406,6 @@
     return f;
   }
 
-  var api = { DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  var api = { FS_ZONE: FS_ZONE, DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);

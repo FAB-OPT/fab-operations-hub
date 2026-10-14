@@ -258,7 +258,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261014g"></script>
+<script src="feedback-import.js?v=20261015a"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -705,6 +705,7 @@ async function openBatch(b) {
   $("#tCsat").classList.toggle("hide", b.channel === "facebook");
   DEFSET = DEF(); loadSugMarks(); buildFilters(); setTab("rows"); renderHead();
   await autoTypes();
+  await autoFsZones();
   await autoTopics();
   restoreView();
 }
@@ -741,6 +742,26 @@ function saveSugMarks(groups) {   // groups: [[sub, was, ids]]
   const ix = v => { let i = m.s.indexOf(v); if (i < 0) { m.s.push(v); i = m.s.length - 1; } return i; };
   groups.forEach(([sub, was, ids]) => m.g.push([ix(sub), ix(was || ""), ids]));
   try { localStorage.setItem(sugKey(), JSON.stringify(m)); } catch (e) { console.warn("sugmarks", e); }
+}
+/* แถว FS: Owner/BZM ตามตารางเขต (Business Zone) ของรหัสสาขา — แก้แถวที่ Owner เป็นป้ายดิบ/ชื่อ BZM หรือ BZM ว่าง */
+async function autoFsZones() {
+  if (locked() || isFb() || !I.FS_ZONE) return;
+  const groups = {};
+  S.rows.forEach(r => {
+    if (r.b !== "FS" || r.state === "live") return;
+    const fz = I.FS_ZONE[(String(r.br).match(/^(\d{4})/) || [])[1]]; if (!fz) return;
+    if (r.o === fz.o && r.z === fz.z) return;
+    const k = fz.o + "\u0001" + fz.z;
+    (groups[k] = groups[k] || {o: fz.o, z: fz.z, ids: []}).ids.push(r.id);
+  });
+  const L = Object.values(groups), n = L.reduce((a, g) => a + g.ids.length, 0); if (!n) return;
+  busy(true, `กำลังจัด Owner / BZM ของสาขา FS ตามตารางเขต ${fmt(n)} แถว…`, 0);
+  try { for (let i = 0; i < L.length; i++) { await FBStore.setRows(S.cur.id, L[i].ids, {o: L[i].o, z: L[i].z}); busy(true, `กำลังจัด Owner / BZM ของสาขา FS ตามตารางเขต ${fmt(n)} แถว…`, (i + 1) / L.length); } }
+  catch (e) { busy(false); toast("จัด Owner/BZM อัตโนมัติไม่สำเร็จ: " + (e.message || e)); return; }
+  const byId = new Map(S.rows.map(r => [r.id, r]));
+  L.forEach(g => g.ids.forEach(id => { const r = byId.get(id); if (r) { r.o = g.o; r.z = g.z; r.edited = true; calc(r); } }));
+  busy(false); buildFilters(); renderRows(); renderKpi(); renderBar();
+  toast(`จัด Owner / BZM ของสาขา FS ตามตารางเขต (25/8/2026) แล้ว ${fmt(n)} แถว`);
 }
 async function autoTopics() {
   if (locked() || isFb()) return;
