@@ -893,6 +893,8 @@ const ME = (function(){
   return {
     ok: !!code, code, role, isBranch,
     name: (s && s.name) || branch || '',
+    nick: (s && s.nick) || '',
+    sbrands: ((s && (Array.isArray(s.brands) && s.brands.length ? s.brands : [s.brand])) || []).filter(Boolean),
     title: (s && s.title) || (isBranch ? 'สาขา' : role.toUpperCase()),
     branch: isBranch ? branch : ((s && s.branchName) || ''),
     brand: brandOfCode(code)
@@ -942,7 +944,7 @@ async function ofLoadPerms(){
 
 /* ทะเบียนสาขาเอามาจากฮับเสมอ (ห้ามฝังรายชื่อไว้เอง) — ใช้ทั้งช่องเลือกกลุ่มเป้าหมาย
    และหน้าติดตามว่าสาขาไหนยังไม่ตอบ · สาขาที่ปิดไปแล้วไม่นับ */
-let HUB_BRANCHES = [], HUB_READY = Promise.resolve();
+let HUB_BRANCHES = [], HUB_BZM = {}, HUB_READY = Promise.resolve();   // HUB_BZM: รหัสสาขา → ชื่อเล่น BZM
 async function loadHubBranches(){
   try{
     await sbReady();
@@ -956,6 +958,7 @@ async function loadHubBranches(){
       }
       const map = v.branches || v || {};
       const st = v.statusMap || {};
+      if (row.key === 'branches' && v.bzmMap) HUB_BZM = v.bzmMap;
       Object.keys(map).forEach(code => {
         if (String(st[code] || '') === 'closed') return;
         out.push({ code, name: String(map[code] || ''), label: code + ' ' + String(map[code] || '') });
@@ -1137,8 +1140,37 @@ function ttCan(action){
   if (code && (p.allow || []).includes(code)) return true;
   return (p.roles || []).includes(ME.role);
 }
-/* กติกาเดียวกับใน training-test.html */
+/* ── BZM เห็นการอบรมตามปุ่มแบรนด์ + เห็นรายชื่อเฉพาะสาขาในเขต (กติกาเดียวกับ training-test.html) ──
+   ทะเบียนฮับเก็บชื่อเล่นเป็นอังกฤษ (P'Rut) แต่บัญชีเป็นไทย (พี่รุต) จึงเทียบผ่านตารางแปลง */
+const NICK_EN = { 'รุต':'rut', 'นพ':'nop', 'ปิ๊ก':'pik', 'เจี๊ยบ':'jeb', 'หยี':'yee', 'เอ็ม':'m', 'บิ๊ก':'big', 'อีฟ':'eve', 'อ้อย':'aoy', 'อาร์ม':'arm' };
+const nickKey = n => { const x = String(n || '').replace(/^พี่\s*/, '').replace(/^P['’]?\s*/i, '').replace(/[\s'’`.()]/g, '').toLowerCase(); return NICK_EN[x] || x; };
+function bzmCodes(){            // null = ไม่ใช่ BZM · Set = รหัสสาขาที่รับผิดชอบ
+  if (String(ME.role || '').toLowerCase() !== 'bzm') return null;
+  const k = nickKey(ME.nick);
+  return new Set(k ? Object.keys(HUB_BZM).filter(c => nickKey(HUB_BZM[c]) === k) : []);
+}
+function codeOfBranch(b){
+  const raw = String(b || '').trim(); if (!raw) return '';
+  const m = raw.match(/^(\d{4})/); if (m) return m[1];
+  const hit = HUB_BRANCHES.find(x => x.name && (x.name === raw || raw.includes(x.name)));
+  return hit ? hit.code : '';
+}
+const KEY_BRANDS = { santafe:['Santa Fe','Santa Fe Easy'], jaedaeng:['เจ๊แดง จุ่มนัวร์'], yamachan:['ยามะจัง'] };
+function myBrands(){
+  const out = new Set();
+  (ME.sbrands || []).forEach(k => (KEY_BRANDS[String(k).toLowerCase()] || []).forEach(b => out.add(b)));
+  const z = bzmCodes(); if (z) z.forEach(c => { const b = brandOfCode(c); if (b) out.add(b); });
+  return out;
+}
 function ttVisible(t){
+  const zone = bzmCodes();
+  if (zone && !ttCan('manage-trainings')){
+    const vb = t.visible_brands || [], vbr = t.visible_branches || [];
+    if (vb.length){ const mine = myBrands(); if (!vb.some(b => mine.has(b))) return false; }
+    if (vbr.length && !vbr.some(x => zone.has(codeOfBranch(x)))) return false;
+    if (!vb.length && t.self_entry !== true && (t.participants || []).length && !ttPeople(t).length) return false;
+    return true;
+  }
   if (ttCan('manage-trainings') || ttCan('view-results')) return true;
   const bd = t.visible_brands || [], br = t.visible_branches || [];
   if (bd.length && !bd.includes(ME.brand)) return false;
@@ -1155,12 +1187,14 @@ function ttSelf(t){
 const ttTarget = t => t.self_entry === true ? Math.max(Number(t.self_limit) || 0, ttPeople(t).length) : ttPeople(t).length;
 function ttPeople(t){
   const all = t.self_entry === true ? ttSelf(t) : (t.participants || []);
+  const zone = bzmCodes();
+  if (zone) return all.filter(p => { const c = codeOfBranch(p.branch); return !!c && zone.has(c); });
   if (!ME.isBranch) return all;
   const code = String(ME.code || '');
   return all.filter(p => !p.branch || p.branch === ME.branch || String(p.branch).split(' ')[0] === code);
 }
-const ttEvals = t => TT_ATT.filter(a => a.training_key === t.key && a.phase === 'eval' &&
-  (!ME.isBranch || String(a.taker_code) === String(ME.code)));
+const ttEvals = t => { const zone = bzmCodes(); return TT_ATT.filter(a => a.training_key === t.key && a.phase === 'eval' &&
+  (zone ? zone.has(String(a.taker_code)) : (!ME.isBranch || String(a.taker_code) === String(ME.code)))); };
 const ttDone = (t, ph) => ph === 'eval'
   ? Math.min(ttEvals(t).length, ttPeople(t).length)
   : ttPeople(t).filter(p => TT_ATT.some(a => a.training_key === t.key && a.phase === ph && String(a.participant_id) === String(p.id))).length;
@@ -1364,7 +1398,7 @@ window.go = async function(t){
   if (t !== 'fill') fill = null;
   if (t !== 'forms') editing = null;
   tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
-  if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms(), loadTt(), ofCan('view-followup') ? loadResponses().then(() => HUB_READY) : null]); return renderList(); }
+  if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms(), loadTt(), ofCan('view-followup') ? loadResponses().then(() => HUB_READY) : null, HUB_READY]); return renderList(); }
   /* คำตอบ / รายงาน / ติดตาม: มีให้เลือกชนิดฟอร์ม — ชนิดอื่นฝังหน้าของระบบนั้นมาแสดงในนี้เลย (ไม่ต้องกดเข้าไปอีกชั้น) */
   if (t === 'results' || t === 'followup' || t === 'report'){
     $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>';
