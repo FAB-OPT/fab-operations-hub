@@ -513,6 +513,7 @@ function covDetail(id, m) {
 
 /* ═════════ รายการชุด ═════════ */
 async function showList() {
+  saveView();
   S.cur = null; COV.cells = {}; $("#vBatch").classList.add("hide"); $("#gate").classList.add("hide"); $("#vList").classList.remove("hide");
   const box = $("#bcards"); box.innerHTML = `<div class="muted">กำลังโหลด…</div>`;
   try { S.batches = await FBStore.batches(); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
@@ -520,10 +521,12 @@ async function showList() {
   if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
   box.innerHTML = S.batches.map(b => {
     const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
+    let sv = null; try { sv = !live && JSON.parse(localStorage.getItem(viewKey(b.id))); } catch (e) {}
+    const svChip = sv && sv.at ? `<span class="chip info" title="ตรวจค้างไว้ในเครื่องนี้ — เปิดชุดแล้วจะกลับไปตำแหน่งเดิม">ตรวจค้างไว้ที่แถว ${fmt(sv.at_row || 1)} · ${esc(new Date(sv.at).toLocaleString("th-TH", {dateStyle: "short", timeStyle: "short"}))}</span>` : "";
     return `<div class="bcard" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
-        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
+        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${svChip}${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
       <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
   }).join("");
   box.onclick = async e => {
@@ -703,6 +706,7 @@ async function openBatch(b) {
   DEFSET = DEF(); loadSugMarks(); buildFilters(); setTab("rows"); renderHead();
   await autoTypes();
   await autoTopics();
+  restoreView();
 }
 async function autoTypes() {
   if (locked()) return;
@@ -794,9 +798,37 @@ function renderKpi() {
 function renderBar() {
   const c = counts(), live = S.cur.status === "approved";
   if (live) { $("#bar").innerHTML = `<div class="tx">ชุดนี้อนุมัติแล้ว เมื่อ ${esc(new Date(S.cur.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(S.cur.approved_by || "—")}</div><button class="btn ghost" id="bRevoke">ถอนการอนุมัติ</button>`; $("#bRevoke").onclick = () => confirmBox("ถอนการอนุมัติ?", `ข้อมูลของชุดนี้จะ<b>ออกจากระบบ</b> และกลับไปรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(S.cur.id); } finally { busy(false); } toast("ถอนแล้ว"); notifyParent(); const bs = await FBStore.batches(); S.batches = bs; await openBatch(bs.find(x => x.id === S.cur.id)); }); return; }
-  $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"} · ข้าม <b>${fmt(c.skip)}</b>${S.cur.channel === "facebook" ? "" : ` · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ`}</div><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
+  $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"} · ข้าม <b>${fmt(c.skip)}</b>${S.cur.channel === "facebook" ? "" : ` · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ`}</div><button class="btn" id="bSave" title="การแก้ไขบันทึกลงฐานข้อมูลทุกครั้งอยู่แล้ว — ปุ่มนี้จำตำแหน่งที่ตรวจค้างไว้ แล้วกลับไปรายการชุด">💾 บันทึกไว้ · ตรวจต่อภายหลัง</button><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
   $("#bApprove").onclick = approveDialog;
+  $("#bSave").onclick = () => { saveView(); toast("บันทึกไว้แล้ว — กลับมาตรวจต่อที่ชุดนี้ได้ทุกเมื่อ (ตำแหน่ง/ตัวกรองที่ค้างไว้จะกลับมาให้)"); showList(); };
 }
+
+/* ───── จำตำแหน่งที่ตรวจค้างไว้ (ตัวกรอง · หน้า · ตำแหน่งเลื่อน) แล้วคืนให้ตอนเปิดชุดนี้อีกครั้ง ───── */
+const viewKey = id => "fbview:" + id;
+function saveView() {
+  if (!S.cur || locked()) return;
+  const wrap = $(".tbwrap"), first = pageRows()[0];
+  try {
+    localStorage.setItem(viewKey(S.cur.id), JSON.stringify({
+      f: S.f, page: S.page, size: PAGE, tab: S.tab, scroll: wrap ? wrap.scrollTop : 0, at: Date.now(),
+      at_row: S.page * PAGE + 1, total: filtered().length, first: first ? first.id : null }));
+  } catch (e) { console.warn("saveView", e); }
+}
+function restoreView() {
+  let v = null; try { v = JSON.parse(localStorage.getItem(viewKey(S.cur.id))); } catch (e) {}
+  if (!v || !v.f) return;
+  const set = (id, val) => { const el = $("#" + id); el.value = val || ""; return el.value; };
+  S.f.b = set("fB", v.f.b); S.f.ty = set("fTy", v.f.ty); S.f.st = set("fSt", v.f.st); S.f.sub = set("fSub", v.f.sub); S.f.br = set("fBr", v.f.br);
+  S.f.q = v.f.q || ""; $("#fQ").value = S.f.q; S.f.flag = v.f.flag || "";
+  if (v.size && [100, 500, 1000].includes(+v.size)) { PAGE = +v.size; $("#pgSize").value = String(PAGE); }
+  S.page = Math.max(0, +v.page || 0);
+  if (v.tab === "csat" && !isFb()) setTab("csat"); else renderRows();
+  const wrap = $(".tbwrap"); if (wrap && v.scroll) setTimeout(() => { wrap.scrollTop = v.scroll; }, 30);
+  const when = new Date(v.at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"});
+  toast(`กลับมาตรวจต่อจากที่ค้างไว้ (บันทึกเมื่อ ${when} · แถวที่ ${fmt(v.at_row || 1)})`);
+}
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden") saveView(); });
+window.addEventListener("pagehide", saveView);
 
 /* ───── ตัวกรอง ───── */
 function opt(sel, items, all) { sel.innerHTML = `<option value="">${all}</option>` + items.map(([v, t]) => `<option value="${esc(v)}">${esc(t)}</option>`).join(""); }
