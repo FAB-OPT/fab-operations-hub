@@ -36,6 +36,47 @@
   } catch (e) {}
 })();
 </script>
+<script>
+/* ══════ Android: เปิดมาจากแอปอื่น (เช่น ไลน์ที่ใช้หน้าต่าง Chrome Custom Tab) → ขึ้นแถบให้กด "เปิดใน Chrome" ══════
+   หน้าต่างแบบนี้ UA เหมือน Chrome ปกติ ไม่มีคำว่า Line/ จึงเด้งออกเองอัตโนมัติไม่ได้ (ต้องมีผู้ใช้กด)
+   ตรวจจากที่มา (document.referrer = android-app://แพ็กเกจแอป) · ไม่ใช่ Chrome/โหมดแอปบนหน้าจอโฮม · กดปิดแล้วจำไว้ 7 วัน
+   ปุ่มใช้ intent:// สั่งเปิดแอป Chrome · ไม่มี Chrome ในเครื่อง → ตกกลับไปเปิดลิงก์เดิมตามปกติ */
+(function () {
+  try {
+    var ua = navigator.userAgent || '', ref = document.referrer || '';
+    if (!/Android/i.test(ua)) return;
+    var standalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || window.navigator.standalone;
+    if (standalone) return;
+    var m = ref.match(/^android-app:\/\/([^\/]+)/);
+    var fromApp = !!m && m[1] !== 'com.android.chrome';
+    if (!fromApp && !/\bLine\//i.test(ua)) return;
+    try { if (Number(localStorage.getItem('fab_chrome_bar_off') || 0) > Date.now()) return; } catch (e) {}
+    var show = function () {
+      if (document.getElementById('chromeBar')) return;
+      var url = location.href.replace(/[?&]openExternalBrowser=1/, '');
+      var intent = 'intent://' + url.replace(/^https?:\/\//, '').replace(/#.*$/, '') +
+        '#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=' + encodeURIComponent(url) + ';end';
+      var b = document.createElement('div');
+      b.id = 'chromeBar';
+      b.setAttribute('style', 'position:fixed;left:0;right:0;top:0;z-index:99998;background:#1f2937;color:#fff;' +
+        'font:600 13px/1.5 Sarabun,sans-serif;padding:8px 12px;' +
+        'display:flex;align-items:center;gap:10px;box-shadow:0 6px 20px rgba(0,0,0,.25);');
+      b.innerHTML = '<span style="flex:1;min-width:0">เปิดใน Chrome จะโหลดข้อมูลครบและไม่ต้องล็อกอินใหม่ทุกครั้ง</span>' +
+        '<a href="' + intent.replace(/"/g, '&quot;') + '" style="flex:none;background:#f26a10;color:#fff;text-decoration:none;' +
+        'padding:8px 14px;border-radius:10px;font-weight:800">เปิดใน Chrome</a>' +
+        '<span id="chromeBarX" style="flex:none;padding:6px 8px;opacity:.7;cursor:pointer" aria-label="ปิด">✕</span>';
+      document.body.appendChild(b);
+      document.getElementById('chromeBarX').onclick = function () {
+        try { localStorage.setItem('fab_chrome_bar_off', String(Date.now() + 7 * 864e5)); } catch (e) {}
+        b.remove();
+      };
+    };
+    window.__fabShowChromeBar = show;
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', show);
+    else show();
+  } catch (e) {}
+})();
+</script>
 <!-- PWA: เพิ่มลงหน้าจอโฮม → เปิดแบบเต็มจอ (ไม่มีแถบเบราว์เซอร์) -->
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#ea580c">
