@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="hub-mod.css">
+<link rel="stylesheet" href="hub-mod.css?v=20261020a">
 <style>
 /* ระบบเบิกเงินประชุม — โครงแบบ "ตารางบัญชี" (เมนูซ้าย + ตาราง) ในสีส้มของฮับ
    ส่วนกลาง (ปุ่ม ช่องกรอก กล่องหน้าต่าง แจ้งเตือน) อยู่ที่ hub-mod.css
@@ -883,7 +883,7 @@ select,.tabs2 select,.main>.head select{padding-top:0!important;padding-bottom:6
 <div id="modalHost"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
-<script src="hub-docstore.js?v=20261006b"></script>
+<script src="hub-docstore.js?v=20261020a"></script>
 <script>
 "use strict";
 const {Hub, Cfg} = HubMod;
@@ -1031,10 +1031,7 @@ function newDocNo(){
 }
 
 /* ───── รูป ───── */
-function zoom(src){
-  const m=document.createElement("div");m.className="zoom";
-  m.innerHTML=`<img src="${esc(src)}" alt="รูปเอกสารขยาย">`;
-  m.onclick=()=>m.remove();document.body.appendChild(m);}
+function zoom(src){ HubMod.zoomPhoto(src,"เอกสาร-"+Date.now().toString(36)+".jpg"); }   /* ขยาย + หมุน + ดาวน์โหลดตามที่หมุน */
 function photoStrip(urls){
   const ph=document.createElement("div"); ph.className="photos";
   (urls||[]).forEach(u=>{const i=new Image();i.src=u;i.alt="รูปเอกสาร";i.loading="lazy";i.onclick=()=>zoom(u);ph.appendChild(i);});
@@ -1317,11 +1314,11 @@ function doneWide(x){
     if(hr) hr.innerHTML=`<div class="hmeta"><span class="pill ${pillOf(st)[0]} big">${ok?"✓ ":""}${esc(ok?"ทำเบิกแล้ว":st)}</span><i></i><div><small>เลขที่เอกสาร</small><b>${esc(x.docNo||x.id)}</b></div></div>`; }
   (x.photos||[]).forEach((u,i)=>{
     const w=document.createElement("div"); w.className="dpic";
-    const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(i+1); im.onclick=()=>zoom(u);
+    const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(i+1); im.onclick=()=>HubMod.zoomPhoto(im.src,(x.docNo||x.id)+"-"+(i+1)+".jpg");
     const bt=document.createElement("div"); bt.className="dpb";
-    const z=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"🔍 ขยายภาพ"}); z.onclick=()=>zoom(u);
+    const z=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"🔍 ขยายภาพ"}); z.onclick=()=>HubMod.zoomPhoto(im.src,(x.docNo||x.id)+"-"+(i+1)+".jpg");
     const dl=Object.assign(document.createElement("a"),{className:"btn ghost sm",textContent:"⬇ ดาวน์โหลด",href:u,download:(x.docNo||x.id)+"-"+(i+1)+".jpg",target:"_blank",rel:"noopener"});
-    bt.append(z,dl);
+    bt.append(...HubMod.photoRotateButtons(u,im,dl,(x.docNo||x.id)+"-"+(i+1)+".jpg"),z,dl);
     const cap=document.createElement("div"); cap.className="dcap"; cap.textContent="หลักฐานแนบ "+(i+1);
     w.append(im,cap,bt); $("#dnph",d).appendChild(w);
   });
@@ -1766,12 +1763,12 @@ function detail(x){
   let box;
   photos.forEach((u,k)=>{
     const w=document.createElement("div"); w.className="dpic";
-    const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(k+1); im.onclick=()=>zoom(u);
+    const im=new Image(); im.src=u; im.alt="หลักฐานแนบ "+(k+1); im.onclick=()=>HubMod.zoomPhoto(im.src,(x.docNo||x.id)+"-"+(k+1)+".jpg");
     const cap=document.createElement("div"); cap.className="dcap"; cap.textContent="หลักฐานแนบ "+(k+1);
     const bt=document.createElement("div"); bt.className="dpb";
-    const z=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"🔍 ขยาย"}); z.onclick=()=>zoom(u);
+    const z=Object.assign(document.createElement("button"),{className:"btn ghost sm",textContent:"🔍 ขยาย"}); z.onclick=()=>HubMod.zoomPhoto(im.src,(x.docNo||x.id)+"-"+(k+1)+".jpg");
     const dl=Object.assign(document.createElement("a"),{className:"btn ghost sm",textContent:"⬇ ดาวน์โหลด",href:u,download:(x.docNo||x.id)+"-"+(k+1)+".jpg",target:"_blank",rel:"noopener"});
-    bt.append(z,dl); w.append(im,cap,bt); $("#adPics",d).appendChild(w);
+    bt.append(...HubMod.photoRotateButtons(u,im,dl,(x.docNo||x.id)+"-"+(k+1)+".jpg"),z,dl); w.append(im,cap,bt); $("#adPics",d).appendChild(w);
   });
   /* ปุ่มตัดสินในกล่องนี้เลย ไม่ต้องปิดไปกดที่ตาราง */
   const act=$("#adAct",d);

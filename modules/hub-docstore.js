@@ -356,9 +356,90 @@
     return m ? (m[3] + '/' + m[2] + '/' + (Number(m[1]) + 543)) : String(v || '');
   }
 
+
+  /* ── รูปแนบ: หมุน · ขยาย · ดาวน์โหลด (ใช้ร่วมกันทุกโมดูล) ──
+     รูปเก็บเป็นลิงก์ Drive (drive.google.com/thumbnail?id=…) ซึ่งเด้งต่อไป lh3.googleusercontent.com
+     ลิงก์แรกไม่ส่งหัว CORS ทำให้วาดลง canvas ไม่ได้ → แปลงเป็นลิงก์ lh3 ตรง ๆ (ส่ง CORS ให้) ก่อนหมุน
+     หมุนจริงที่ตัวรูป (canvas → ไฟล์ jpg) จึงตรงกันทั้งตอนดู ตอนขยาย และตอนดาวน์โหลด */
+  function corsPhotoUrl(u) {
+    var m = String(u || '').match(/drive\.google\.com\/thumbnail\?id=([\w-]+)(?:&sz=(\w+))?/);
+    return m ? ('https://lh3.googleusercontent.com/d/' + m[1] + '=' + (m[2] || 'w1200')) : u;
+  }
+  function rotatedPhotoUrl(src, deg) {
+    return new Promise(function (resolve, reject) {
+      var im = new Image();
+      if (!/^(blob:|data:)/.test(src)) im.crossOrigin = 'anonymous';
+      im.onload = function () {
+        try {
+          var sw = Math.abs(deg) % 180 !== 0, w = im.naturalWidth, h = im.naturalHeight;
+          var c = document.createElement('canvas'); c.width = sw ? h : w; c.height = sw ? w : h;
+          var g = c.getContext('2d'); g.translate(c.width / 2, c.height / 2); g.rotate(deg * Math.PI / 180);
+          g.drawImage(im, -w / 2, -h / 2);
+          c.toBlob(function (b) { b ? resolve(URL.createObjectURL(b)) : reject(new Error('toBlob')); }, 'image/jpeg', 0.92);
+        } catch (e) { reject(e); }
+      };
+      im.onerror = function () { reject(new Error('load')); };
+      im.src = /^(blob:|data:)/.test(src) ? src : corsPhotoUrl(src);
+    });
+  }
+  function saveBlobUrl(url, name) {
+    var a = document.createElement('a'); a.href = url; a.download = name || 'photo.jpg';
+    document.body.appendChild(a); a.click(); a.remove();
+  }
+  /* หน้าต่างขยายรูป: มีปุ่มหมุนซ้าย/ขวา + ดาวน์โหลด (ไฟล์ที่ได้ = ภาพตามที่หมุนอยู่) */
+  function zoomPhoto(src, name) {
+    var m = document.createElement('div'); m.className = 'zoom';
+    var im = new Image(); im.alt = 'รูปขยาย'; im.src = src;
+    var cur = src, blob = null;
+    var bar = document.createElement('div'); bar.className = 'zbar';
+    function mk(t, title, fn) {
+      var b = document.createElement('button'); b.type = 'button'; b.textContent = t; b.title = title;
+      b.onclick = function (e) { e.stopPropagation(); fn(b); }; return b;
+    }
+    function rot(d) {
+      rotatedPhotoUrl(cur, d).then(function (u) { if (blob) URL.revokeObjectURL(blob); blob = u; cur = u; im.src = u; })
+        .catch(function () { alert('หมุนรูปนี้ไม่ได้'); });
+    }
+    bar.appendChild(mk('↺ หมุนซ้าย', 'หมุนซ้าย 90°', function () { rot(-90); }));
+    bar.appendChild(mk('↻ หมุนขวา', 'หมุนขวา 90°', function () { rot(90); }));
+    bar.appendChild(mk('⬇ ดาวน์โหลด', 'ดาวน์โหลดรูปตามที่เห็น', function () {
+      if (/^blob:/.test(cur)) { saveBlobUrl(cur, name); return; }
+      rotatedPhotoUrl(cur, 0).then(function (u) { saveBlobUrl(u, name); }).catch(function () { window.open(cur, '_blank'); });
+    }));
+    bar.appendChild(mk('✕ ปิด', 'ปิด', function () { m.remove(); }));
+    im.onclick = function (e) { e.stopPropagation(); };
+    m.onclick = function () { if (blob) URL.revokeObjectURL(blob); m.remove(); };
+    m.appendChild(im); m.appendChild(bar); document.body.appendChild(m);
+  }
+  /* ปุ่มหมุนใต้รูปในการ์ดเอกสาร: หมุนที่ตัวรูปและเปลี่ยนลิงก์ดาวน์โหลดให้เป็นไฟล์ที่หมุนแล้ว
+     คืน [ปุ่มซ้าย, ปุ่มขวา] — origUrl = ลิงก์รูปเดิม · im = <img> · dl = <a> ปุ่มดาวน์โหลด */
+  function photoRotateButtons(origUrl, im, dl, name) {
+    var deg = 0, want = 0, cur = null, chain = Promise.resolve(), orig = { href: dl.href, target: dl.getAttribute('target') };
+    function render() {
+      var nd = want;
+      if (nd === deg) return Promise.resolve();
+      if (nd === 0) {
+        deg = 0; if (cur) { URL.revokeObjectURL(cur); cur = null; }
+        im.src = origUrl; dl.href = orig.href; if (orig.target) dl.setAttribute('target', orig.target); return Promise.resolve();
+      }
+      return rotatedPhotoUrl(origUrl, nd).then(function (u) {
+        if (cur) URL.revokeObjectURL(cur);
+        cur = u; deg = nd; im.src = u; dl.href = u; dl.setAttribute('download', name); dl.removeAttribute('target');
+      }).catch(function () { want = deg; alert('หมุนรูปนี้ไม่ได้'); });
+    }
+    /* กดรัว ๆ ได้: องศาที่ต้องการนับทันที แล้วต่อคิววาดทีละรอบ */
+    function apply(d) { want = ((want + d) % 360 + 360) % 360; chain = chain.then(render); }
+    function mk(t, title, d) {
+      var b = document.createElement('button'); b.type = 'button'; b.className = 'btn ghost sm'; b.textContent = t; b.title = title;
+      b.onclick = function () { apply(d); }; return b;
+    }
+    return [mk('↺', 'หมุนซ้าย 90°', -90), mk('↻', 'หมุนขวา 90°', 90)];
+  }
+
   global.HubMod = {
     SCRIPT_URL: SCRIPT_URL, MIN_BACKEND: MIN_BACKEND, SB: SB,
     Hub: Hub, Cfg: Cfg, Branches: Branches, can: can, Store: Store,
-    compressImage: compressImage, localDate: localDate, fmtDMY: fmtDMY
+    compressImage: compressImage, localDate: localDate, fmtDMY: fmtDMY,
+    rotatedPhotoUrl: rotatedPhotoUrl, zoomPhoto: zoomPhoto, photoRotateButtons: photoRotateButtons
   };
 })(window);
