@@ -1032,6 +1032,27 @@ select.txt{appearance:none;-webkit-appearance:none;
 .sw input:checked+.track::before{transform:translateX(18px)}
 /* แบ่งส่วน บริการ / ครัว ในตัวแก้ */
 .part-row{margin-top:12px;border:1px solid var(--border);border-radius:12px}
+/* สัดส่วนข้อสอบตามหมวด */
+.cat-row{margin-top:12px;border:1px solid var(--border);border-radius:12px}
+.cat-box{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:15px;background:var(--bg3)}
+.cat-note{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6}
+.cat-tbl{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:10px;overflow:hidden}
+.cat-tbl th{text-align:left;font-size:11.5px;font-weight:700;color:var(--text3);padding:8px 10px;border-bottom:1px solid var(--border);background:#faf8f5}
+.cat-tbl td{padding:8px 10px;border-bottom:1px solid var(--border)}
+.cat-tbl .n{text-align:right;white-space:nowrap}
+.cat-tbl .cn{font-weight:700}
+.cat-tbl .cn.nocat{color:var(--text3);font-weight:600}
+.cat-tbl input{width:84px;border:1.5px solid var(--border2);border-radius:8px;padding:7px 9px;font:inherit;text-align:right;background:#fff}
+.cat-tbl .get{font-size:12px;color:var(--text3);margin-left:8px}
+.cat-sum{margin-top:10px;font-weight:800;font-size:14px}
+.cat-sum small{font-weight:500;color:var(--text3);margin-left:6px}
+.q-cat{flex:0 1 150px;min-width:96px;border:1px solid var(--border);border-radius:8px;padding:6px 8px;font:inherit;font-size:12.5px;background:#fff}
+.res-cats{margin:14px 0 0;display:grid;gap:6px}
+.res-cats .rc-h{font-size:12px;font-weight:800;color:var(--text3);letter-spacing:.02em}
+.res-cats .rc{display:grid;grid-template-columns:minmax(80px,1.2fr) 1fr auto;gap:10px;align-items:center;font-size:13.5px}
+.res-cats .rc .bar{height:8px;border-radius:99px;background:#eceae5;overflow:hidden}
+.res-cats .rc .bar i{display:block;height:100%;background:#10b981;border-radius:99px}
+.res-cats .rc b{font-weight:700}
 .part-pass{margin-top:10px}
 .part-pass[hidden]{display:none}
 .num-fld.off{opacity:.4;pointer-events:none}
@@ -2424,6 +2445,14 @@ label.fld>span>b{font-weight:800}
               <span class="pos-sug" id="edPosSug"></span>
             </div>
           </div>
+              <!-- สัดส่วนข้อสอบตามหมวด: ตั้งหมวดให้แต่ละข้อ แล้วกำหนดว่าแต่ละหมวดสุ่มมากี่ข้อ -->
+              <div class="switch-row cat-row"><div><div class="sw-t">สัดส่วนข้อสอบตามหมวด</div><div class="sw-d">ตั้งหมวดให้แต่ละข้อ แล้วกำหนดว่าแต่ละหมวดสุ่มมาออกสอบกี่ข้อ เช่น ครัว 50 จาก 100 · บริการ 20 จาก 50</div></div><label class="sw"><input type="checkbox" id="edCatMode" onchange="oeCatModeToggle()"><span class="track"></span></label></div>
+              <div class="cat-box" id="edCatBox" hidden>
+                <div class="cat-note">ตั้งหมวดของแต่ละข้อในแท็บ <b>คำถาม</b> (ช่อง "หมวด" ที่หัวการ์ด หรือเลือกหลายข้อแล้วกด "ตั้งหมวดที่เลือก" หรือใส่คอลัมน์ "หมวด" ในไฟล์ Excel) · <b>สุ่มมาออกสอบ 0 = ใช้ทุกข้อของหมวดนั้น</b> · ผู้สอบแต่ละคนได้ข้อไม่เหมือนกัน แต่จำนวนต่อหมวดเท่ากัน</div>
+                <table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">สุ่มมาออกสอบ</th></tr></thead><tbody id="edCatRows"></tbody></table>
+                <div class="cat-sum" id="edCatSum"></div>
+                <datalist id="oeCats"></datalist>
+              </div>
               <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
@@ -2522,6 +2551,7 @@ label.fld>span>b{font-weight:800}
           <span class="q-selnum" id="qSelNum">ยังไม่ได้เลือก</span>
           <div class="q-selops">
             <button type="button" class="btn btn-danger btn-sm" id="qDelSel" onclick="removeSelected()" disabled><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg> ลบที่เลือก</button>
+            <button type="button" class="btn btn-soft btn-sm" id="qCatSel" onclick="qSetCatSelected()" hidden>🏷 ตั้งหมวดที่เลือก</button>
             <button type="button" class="btn btn-danger btn-sm" onclick="removeAllQuestions()">ลบคำถามทั้งหมด</button>
           </div>
         </div>
@@ -2751,6 +2781,7 @@ label.fld>span>b{font-weight:800}
             </div>
             <div class="verdict"><h2 id="resHead"></h2><p id="resSub"></p></div>
           </div>
+          <div class="res-cats" id="resCats" hidden></div>
           <div class="res-note" id="resNote" hidden></div>
           <div id="resRules"></div>
           <div id="saveState"></div>
@@ -3592,6 +3623,44 @@ function oeResPassMark(r, ex){
   if(r && r.passMark != null && isFinite(Number(r.passMark))) return Number(r.passMark);
   if(ex && oePosMode(ex)) return oePassForPos(ex, r && r.position);
   return (ex && ex.passingScorePercent != null) ? Number(ex.passingScorePercent) : null;
+}
+/* ── หมวดข้อสอบ + สัดส่วนการออกต่อหมวด ──
+   ข้อละหนึ่งหมวด (q.cat · ว่าง = "ไม่ระบุหมวด") · ชุดที่เปิดโหมดนี้ (catMode) ตั้งจำนวนที่สุ่มของแต่ละหมวดไว้ใน catDraw: [{name, n}]
+   n = 0 หรือมากกว่าคลังของหมวด = ใช้ทุกข้อของหมวดนั้น · จำนวนข้อรวมที่ผู้สอบได้ = ผลรวมของทุกหมวด */
+var OE_NOCAT = 'ไม่ระบุหมวด';
+function oeQCat(q){ return String((q && q.cat) || '').trim(); }
+function oeCatMode(ex){ return !!(ex && ex.catMode); }
+function oeCatRows(ex, drawMap){
+  var order = [], pool = {};
+  ((ex && ex.questions) || []).forEach(function(q){
+    if(!q || !String(q.q || '').trim()) return;
+    var c = oeQCat(q);
+    if(!(c in pool)){ pool[c] = 0; order.push(c); }
+    pool[c]++;
+  });
+  var dr = {};
+  if(drawMap) Object.keys(drawMap).forEach(function(k){ dr[k] = Math.max(0, parseInt(drawMap[k], 10) || 0); });
+  else ((ex && ex.catDraw) || []).forEach(function(x){ if(x) dr[String(x.name || '').trim()] = Math.max(0, parseInt(x.n, 10) || 0); });
+  return order.map(function(c){
+    var n = pool[c], d = dr[c] || 0;
+    return { name: c, label: c || OE_NOCAT, pool: n, draw: d, take: (d > 0 && d < n) ? d : n };
+  });
+}
+function oeCatTake(ex, name){
+  var r = oeCatRows(ex).filter(function(x){ return x.name === name; })[0];
+  return r ? r.take : 0;
+}
+/* สุ่มข้อตามสัดส่วนหมวด: แต่ละหมวดสลับก่อนแล้วหยิบตามจำนวน · ถ้าไม่ได้สลับลำดับข้อ ให้เรียงกลับตามลำดับในคลัง */
+function oeCatPick(ex, qs){
+  var by = {};
+  qs.forEach(function(o){ var c = o.cat || ''; (by[c] = by[c] || []).push(o); });
+  var out = [];
+  oeCatRows(ex).forEach(function(r){
+    var g = by[r.name] || [];
+    out = out.concat(r.take < g.length ? shuffle(g).slice(0, r.take) : g);
+  });
+  if(!ex.shuffleQuestions) out.sort(function(a, b){ return a.origIndex - b.origIndex; });
+  return out;
 }
 function oeQPart(q){ var p = q && q.part; return (p === 'service' || p === 'kitchen') ? p : 'common'; }
 function oeInPart(q, partKey){ var p = oeQPart(q); return p === 'common' || p === partKey; }
@@ -4571,6 +4640,7 @@ function renderAdminExams(){
 /* จำนวนข้อที่ผู้สอบ "ได้จริง" · drawCount ว่าง/0/มากกว่าคลัง = ใช้ทั้งคลัง
    ตรงนี้เป็นแหล่งความจริงแหล่งเดียว หน้าไหนจะโชว์เลขข้อก็เรียกตัวนี้ ตัวเลขจะได้ไม่ขัดกันเอง */
 function examDrawCount(ex){
+  if(oeCatMode(ex)) return oeCatRows(ex).reduce(function(a, r){ return a + r.take; }, 0);
   var total=((ex&&ex.questions)||[]).length;
   var n=parseInt(ex&&ex.drawCount)||0;
   return (n>0 && n<total) ? n : total;
@@ -4596,6 +4666,7 @@ function updateDrawHint(){
     note.innerHTML = '<b>แบ่งส่วนอยู่</b> · ตั้งส่วนของแต่ละข้อในแท็บคำถาม · ข้อ "ใช้ร่วม" อยู่ในคลังของทั้งบริการและครัว';
     return;
   }
+  if(_oeEdCatMode()){ note.innerHTML = '<b>แบ่งสัดส่วนตามหมวดอยู่</b> · จำนวนข้อดูที่ตารางสัดส่วนหมวดด้านล่าง'; return; }
   var pool=draftQuestions.length;
   var want=parseInt($('edDraw') && $('edDraw').value)||0;
   if(!pool){ note.innerHTML='ยังไม่มีคำถามในคลัง — เพิ่มคำถามก่อนแล้วค่อยตั้งจำนวนที่จะสุ่ม'; return; }
@@ -4651,6 +4722,8 @@ function openExamEditor(id){
   $('edViol').value = ex ? ex.maxViolations : 3;
   $('edDraw').value = ex ? (parseInt(ex.drawCount) || 0) : 0;
   $('edPartMode').checked = !!(ex && ex.partMode);
+  $('edCatMode').checked = oeCatMode(ex);
+  _oeCatN = {}; ((ex && ex.catDraw) || []).forEach(function(x){ if(x) _oeCatN[String(x.name || '').trim()] = Math.max(0, parseInt(x.n, 10) || 0); });
   $('edPosMode').checked = oePosMode(ex);
   _oePosPaintRows(oePosList(ex));
   _oePosBoxPaint();
@@ -4686,6 +4759,7 @@ function openExamEditor(id){
   draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
   _qOpen = {};
   renderQEditor();
+  _oeCatBoxPaint();
   _fileParsed=[];
   var _fi=$('fileImportInput'); if(_fi) _fi.value='';
   var _fc=$('fileImportCount'); if(_fc){ _fc.textContent='พบ 0 ข้อ'; _fc.style.color='var(--text2)'; }
@@ -4746,6 +4820,83 @@ function syncDraftFromDOM(){
     var i = +el.getAttribute('data-i');
     if(draftQuestions[i]) draftQuestions[i].part = el.value;
   });
+  [].forEach.call(box.querySelectorAll('.q-cat'), function(el){
+    var i = +el.getAttribute('data-i');
+    if(draftQuestions[i]) draftQuestions[i].cat = el.value.trim();
+  });
+}
+/* ── หมวดข้อสอบในตัวแก้ไข ── */
+var _oeCatN = {};   // จำนวนที่สุ่มของแต่ละหมวด (ชื่อหมวด → n) เก็บไว้ข้ามการวาดตารางใหม่
+function _oeEdCatMode(){ var el = $('edCatMode'); return !!(el && el.checked); }
+function _oeCatReadInputs(){
+  [].forEach.call(document.querySelectorAll('#edCatRows input[data-cat]'), function(el){
+    _oeCatN[el.getAttribute('data-cat')] = Math.max(0, parseInt(el.value, 10) || 0);
+  });
+}
+function _oeCatListPaint(){
+  var dl = $('oeCats'); if(!dl) return;
+  var seen = {};
+  draftQuestions.forEach(function(q){ var c = oeQCat(q); if(c) seen[c] = 1; });
+  dl.innerHTML = Object.keys(seen).map(function(c){ return '<option value="' + esc(c) + '">'; }).join('');
+}
+function _oeCatBoxPaint(){
+  _oeCatReadInputs();
+  _oeCatListPaint();
+  var on = _oeEdCatMode();
+  var box = $('edCatBox'); if(box) box.hidden = !on;
+  var dr = $('edDraw'), row = (dr && dr.closest) ? dr.closest('.p-row') : null;
+  if(row) row.classList.toggle('off', on || _oeEdPartMode());
+  if(!on) return;
+  var rows = oeCatRows({ questions: draftQuestions }, _oeCatN);
+  var body = $('edCatRows'), sum = $('edCatSum'); if(!body || !sum) return;
+  if(!rows.length){
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px">ยังไม่มีคำถาม — เพิ่มคำถามแล้วตั้งหมวดในแท็บคำถาม</td></tr>';
+    sum.textContent = ''; return;
+  }
+  body.innerHTML = rows.map(function(r){
+    return '<tr><td class="cn' + (r.name ? '' : ' nocat') + '">' + esc(r.label) + '</td><td class="n">' + r.pool + ' ข้อ</td>' +
+      '<td class="n"><input type="number" min="0" max="' + r.pool + '" value="' + (r.draw || 0) + '" data-cat="' + esc(r.name) + '" oninput="_oeCatSumPaint()">' +
+      '<span class="get" data-get="' + esc(r.name) + '"></span></td></tr>';
+  }).join('');
+  _oeCatSumPaint();
+}
+function _oeCatSumPaint(){
+  _oeCatReadInputs();
+  var rows = oeCatRows({ questions: draftQuestions }, _oeCatN);
+  var tot = 0, pool = 0;
+  rows.forEach(function(r){
+    tot += r.take; pool += r.pool;
+    var g = document.querySelector('#edCatRows .get[data-get="' + (window.CSS && CSS.escape ? CSS.escape(r.name) : r.name.replace(/"/g, '\"')) + '"]');
+    if(g) g.textContent = 'ออก ' + r.take + ' ข้อ' + (r.take < r.pool ? ' (สุ่ม)' : '');
+  });
+  var sum = $('edCatSum');
+  if(sum) sum.innerHTML = 'ผู้สอบได้ ' + tot + ' ข้อ <small>จากคลัง ' + pool + ' ข้อ · ' + rows.length + ' หมวด' +
+    (rows.length === 1 && rows[0].name === '' ? ' · ยังไม่ได้ตั้งหมวดให้ข้อไหนเลย' : '') + '</small>';
+}
+function oeCatModeToggle(){
+  /* แบ่งส่วน บริการ/ครัว มีวิธีสุ่มของตัวเอง เปิดพร้อมกันไม่ได้ — เปิดหมวดแล้วปิดแบ่งส่วนให้ */
+  if(_oeEdCatMode() && _oeEdPartMode()){ $('edPartMode').checked = false; _oePartModePaint(); }
+  syncDraftFromDOM();
+  _oeCatBoxPaint();
+  renderQEditor();
+}
+/* ตั้งหมวดให้ข้อที่ติ๊กไว้ — ว่าง = ล้างหมวด */
+function qSetCatSelected(){
+  var idx = _qChecks().filter(function(el){ return el.checked; }).map(function(el){ return Number(el.getAttribute('data-i')); });
+  if(!idx.length){ toast('ติ๊กเลือกข้อที่ต้องการก่อน','err'); return; }
+  var known = {}; draftQuestions.forEach(function(q){ var c = oeQCat(q); if(c) known[c] = 1; });
+  var NL = String.fromCharCode(10);
+  var v = window.prompt('ตั้งหมวดให้ ' + idx.length + ' ข้อที่เลือก' + (Object.keys(known).length ? NL + '(หมวดที่มีอยู่: ' + Object.keys(known).join(' · ') + ')' : '') + NL + 'พิมพ์ชื่อหมวด (เว้นว่าง = ล้างหมวด)', '');
+  if(v === null) return;
+  syncDraftFromDOM();
+  v = String(v).trim();
+  idx.forEach(function(i){ if(draftQuestions[i]) draftQuestions[i].cat = v; });
+  var chk = {}; idx.forEach(function(i){ chk[i] = 1; });
+  renderQEditor();
+  _qChecks().forEach(function(el){ el.checked = !!chk[Number(el.getAttribute('data-i'))]; });
+  qSelPaint();
+  _oeCatBoxPaint();
+  toast('ตั้งหมวด ' + (v || '(ล้าง)') + ' ให้ ' + idx.length + ' ข้อแล้ว','ok');
 }
 /* ส่วนของข้อ (บริการ/ครัว/ใช้ร่วม) — เปลี่ยนแล้วอัปเดตสีกับตัวนับ ไม่ต้องวาดการ์ดใหม่ ช่องที่พิมพ์อยู่จะได้ไม่หลุด */
 function qPartSet(qi, v){
@@ -4755,6 +4906,7 @@ function qPartSet(qi, v){
   if(el) el.className = 'q-part p-' + v;
   _oePartCount();
 }
+function qCatDirty(qi){ var el = document.querySelector('#qEditor .q-cat[data-i="' + qi + '"]'); if(el && draftQuestions[qi]) draftQuestions[qi].cat = el.value.trim(); }
 function _oeEdPartMode(){ var el = $('edPartMode'); return !!(el && el.checked); }
 /* หน้าตาในตัวแก้ตามสวิตช์แบ่งส่วน — เกณฑ์รวมกับการสุ่มข้อไม่ถูกใช้ตอนแบ่งส่วน จึงหรี่ไว้ให้รู้ */
 function _oePartModePaint(){
@@ -4855,8 +5007,10 @@ function oePosModeToggle(){
 }
 function oePartModeToggle(){
   if($('edPartMode').checked && $('edPosMode') && $('edPosMode').checked){ $('edPosMode').checked = false; _oePosBoxPaint(); }
+  if($('edPartMode').checked && _oeEdCatMode()){ $('edCatMode').checked = false; }   // แบ่งส่วนกับแบ่งหมวด ใช้วิธีสุ่มคนละแบบ เปิดได้อย่างเดียว
   syncDraftFromDOM();
   _oePartModePaint();
+  _oeCatBoxPaint();
   renderQEditor();
 }
 /* ตัวนับข้อรายส่วนบนแถบเครื่องมือ — ส่วนไหนไม่มีข้อเลย สอบส่วนนั้นไม่ได้ ต้องเห็นก่อนบันทึก */
@@ -4964,6 +5118,7 @@ function qSelPaint(){
   var bar = $('qSelBar'); if(bar) bar.hidden = !all.length;
   var num = $('qSelNum'); if(num) num.textContent = on.length ? ('เลือกไว้ ' + on.length + ' ข้อ') : 'ยังไม่ได้เลือก';
   var del = $('qDelSel'); if(del) del.disabled = !on.length;
+  var cs = $('qCatSel'); if(cs){ cs.hidden = !_oeEdCatMode(); cs.disabled = !on.length; }
   var alls = $('qSelAll');
   if(alls){
     alls.checked = all.length > 0 && on.length === all.length;
@@ -5089,6 +5244,9 @@ function _qCardHtml(q, qi, last) {
               ['common', 'service', 'kitchen'].map(function (k) {
                 return '<option value="' + k + '"' + (oeQPart(q) === k ? ' selected' : '') + '>' + OE_PART_TH[k] + '</option>';
               }).join('') + '</select>'
+          : '') +
+        (_oeEdCatMode()
+          ? '<input class="q-cat" list="oeCats" data-i="' + qi + '" value="' + esc(oeQCat(q)) + '" placeholder="หมวด" title="หมวดของข้อนี้" aria-label="หมวดของข้อ ' + (qi + 1) + '" oninput="qCatDirty(' + qi + ')">'
           : '') +
         '<div class="q-ops">' +
           '<button type="button" class="qop qtog" onclick="toggleQ(' + qi + ')" title="' +
@@ -5220,7 +5378,7 @@ function examTab(n){
   n=String(n);
   document.querySelectorAll('#editorModal .etab').forEach(function(b){ b.classList.toggle('active', b.getAttribute('data-t')===n); });
   document.querySelectorAll('#editorModal .etab-panel').forEach(function(p){ p.classList.toggle('hidden', p.getAttribute('data-p')!==n); });
-  if(n!=='2') syncDraftFromDOM();   // เก็บค่าที่พิมพ์ในแท็บคำถามไว้ก่อนสลับ
+  if(n!=='2'){ syncDraftFromDOM(); if(n==='1') _oeCatBoxPaint(); }   // เก็บค่าที่พิมพ์ในแท็บคำถามไว้ก่อนสลับ · กลับมาแท็บตั้งค่าให้ตารางหมวดเป็นปัจจุบัน
 }
 function toggleImportPanel(){ var p=$('importPanel'); if(p) p.classList.toggle('hidden'); }
 
@@ -5228,10 +5386,10 @@ function toggleImportPanel(){ var p=$('importPanel'); if(p) p.classList.toggle('
 function downloadExamTemplate(){
   if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
   var rows=[
-    ['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)','ส่วน (บริการ/ครัว/ใช้ร่วม)'],
-    ['อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?','0–4 °C','5–10 °C','10–15 °C','ต่ำกว่า -18 °C','1','ครัว'],
-    ['ขั้นตอนแรกเมื่อลูกค้าเข้าร้าน?','กล่าวต้อนรับและทักทาย','รอลูกค้าเรียก','เดินไปเก็บโต๊ะ','สอบถามที่นั่ง','1','บริการ'],
-    ['ล้างมือก่อนสัมผัสอาหารอย่างน้อยกี่วินาที?','5 วินาที','10 วินาที','20 วินาที','1 นาที','3','ใช้ร่วม']
+    ['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)','ส่วน (บริการ/ครัว/ใช้ร่วม)','หมวด (ไม่บังคับ)'],
+    ['อุณหภูมิ Chiller ที่ปลอดภัยคือเท่าใด?','0–4 °C','5–10 °C','10–15 °C','ต่ำกว่า -18 °C','1','ครัว','ความปลอดภัยอาหาร'],
+    ['ขั้นตอนแรกเมื่อลูกค้าเข้าร้าน?','กล่าวต้อนรับและทักทาย','รอลูกค้าเรียก','เดินไปเก็บโต๊ะ','สอบถามที่นั่ง','1','บริการ','การบริการลูกค้า'],
+    ['ล้างมือก่อนสัมผัสอาหารอย่างน้อยกี่วินาที?','5 วินาที','10 วินาที','20 วินาที','1 นาที','3','ใช้ร่วม','ความปลอดภัยอาหาร']
   ];
   var ws=XLSX.utils.aoa_to_sheet(rows);
   ws['!cols']=[{wch:46},{wch:20},{wch:20},{wch:20},{wch:20},{wch:20},{wch:24}];
@@ -5267,16 +5425,16 @@ function exportCurrentExam(){
 /* สร้างไฟล์จริง ใช้ร่วมกันทั้งปุ่มในแถวและปุ่มในหน้าแก้ไข */
 function _exportQuestionsXlsx(qs, title){
   if(typeof XLSX==='undefined'){ toast('ตัวช่วย Excel ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง','err'); return; }
-  var rows=[['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)','ส่วน (บริการ/ครัว/ใช้ร่วม)']];
+  var rows=[['คำถาม','ตัวเลือกที่ 1','ตัวเลือกที่ 2','ตัวเลือกที่ 3','ตัวเลือกที่ 4','เฉลย (เลขข้อที่ถูก 1-4)','ส่วน (บริการ/ครัว/ใช้ร่วม)','หมวด (ไม่บังคับ)']];
   qs.forEach(function(q){
     var c=(q.choices||[]).slice(0,4);
     while(c.length<4) c.push('');
     /* ในระบบเก็บเฉลยเป็นลำดับเริ่มจาก 0 แต่ในไฟล์ใช้เลขข้อ 1-4 ให้คนอ่านเข้าใจตรงกัน */
     var ans=(typeof q.answer==='number' ? q.answer : 0)+1;
-    rows.push([q.q, c[0], c[1], c[2], c[3], ans, OE_PART_TH[oeQPart(q)]]);
+    rows.push([q.q, c[0], c[1], c[2], c[3], ans, OE_PART_TH[oeQPart(q)], oeQCat(q)]);
   });
   var ws=XLSX.utils.aoa_to_sheet(rows);
-  ws['!cols']=[{wch:56},{wch:22},{wch:22},{wch:22},{wch:22},{wch:20},{wch:24}];
+  ws['!cols']=[{wch:56},{wch:22},{wch:22},{wch:22},{wch:22},{wch:20},{wch:24},{wch:22}];
   var wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, 'ข้อสอบ');
   /* ชื่อไฟล์ห้ามมีอักขระที่ Windows ใช้ไม่ได้ ไม่งั้นเบราว์เซอร์บันทึกไม่ลง */
   var name=String(title||'ข้อสอบ').replace(/[\\/:*?"<>|]+/g,' ').trim().slice(0,60);
@@ -5307,13 +5465,14 @@ function importExamFile(ev){
         if(choices.length<2){ skip.push([i+1, 'ตัวเลือกไม่ถึง 2 ช่อง', q]); continue; }
         var an=parseInt(String(r[5]==null?'':r[5]).trim(),10); if(isNaN(an)) an=1;
         /* คอลัมน์ที่ 7 = ส่วนของข้อ · ไฟล์เก่าที่ไม่มีคอลัมน์นี้ได้ "ใช้ร่วม" ทั้งหมด */
-        out.push({ q:q, choices:choices, answer:Math.min(Math.max(an-1,0),choices.length-1), part:oePartParse(r[6]) });
+        out.push({ q:q, choices:choices, answer:Math.min(Math.max(an-1,0),choices.length-1), part:oePartParse(r[6]), cat:String(r[7]==null?'':r[7]).trim() });
       }
       if(!out.length){ toast('ไม่พบข้อสอบในไฟล์ — ตรวจว่ากรอกตามแบบฟอร์มหรือไม่','err'); ev.target.value=''; return; }
       // นำเข้าอัตโนมัติทันทีที่เลือกไฟล์
       syncDraftFromDOM();
-      out.forEach(function(p){ draftQuestions.push({ q:p.q, choices:p.choices.slice(), answer:p.answer, part:p.part }); });
+      out.forEach(function(p){ draftQuestions.push({ q:p.q, choices:p.choices.slice(), answer:p.answer, part:p.part, cat:p.cat||'' }); });
       renderQEditor();
+      _oeCatBoxPaint();
       toast('นำเข้า '+out.length+' ข้อ'+(skip.length?' · ข้าม '+skip.length+' แถว':'เรียบร้อย'), skip.length?'err':'ok');
       if(skip.length){
         showExamInfo('นำเข้าแล้ว '+out.length+' ข้อ · ข้าม '+skip.length+' แถว',
@@ -5400,6 +5559,7 @@ function collectExamFromForm(){
     var o = { q:(q.q||'').trim(), choices:q.choices.map(function(c){return (c||'').trim();}).filter(function(c){return c!=='';}), answer:q.answer };
     /* เก็บส่วนของข้อไว้แม้ปิดแบ่งส่วน — เปิดกลับมาจะได้ไม่ต้องตั้งใหม่ทุกข้อ */
     if(pm || q.part) o.part = oeQPart(q);
+    if(oeQCat(q)) o.cat = oeQCat(q);   // เก็บหมวดไว้แม้ปิดโหมด — เปิดกลับมาจะได้ไม่ต้องตั้งใหม่
     return o;
   }).filter(function(q){ return q.q!=='' && q.choices.length>=2; });
   if(!qs.length){ toast('ต้องมีอย่างน้อย 1 คำถามที่สมบูรณ์ (มีคำถาม + ตัวเลือก ≥2)','err'); return null; }
@@ -5410,6 +5570,13 @@ function collectExamFromForm(){
       toast('ส่วน' + _miss.map(function(p){ return p.label; }).join(' และ ') + ' ยังไม่มีคำถาม — ตั้งส่วนของข้อในแท็บคำถาม หรือปิดแบ่งส่วน','err');
       return null;
     }
+  }
+  /* เปิดสัดส่วนตามหมวดแล้วต้องมีหมวดจริงอย่างน้อยหนึ่งหมวด ไม่งั้นก็แค่สุ่มรวมเหมือนเดิม */
+  var cm = _oeEdCatMode() && !pm;
+  var _cr = cm ? oeCatRows({ questions: qs }, (_oeCatReadInputs(), _oeCatN)) : [];
+  if(cm && !_cr.some(function(r){ return r.name; })){
+    toast('เปิดสัดส่วนตามหมวดแล้ว แต่ยังไม่ได้ตั้งหมวดให้ข้อสอบ — ตั้งหมวดในแท็บคำถามก่อน หรือปิดสวิตช์นี้','err');
+    return null;
   }
   // clamp answer index
   qs.forEach(function(q){ if(q.answer>=q.choices.length) q.answer=0; });
@@ -5424,7 +5591,9 @@ function collectExamFromForm(){
     maxViolations: Math.max(1, parseInt($('edViol').value)||3),
     /* เก็บ 0 เมื่อไม่ได้สุ่มจริง — ชุดที่ยังไม่เคยตั้งค่านี้กับชุดที่ตั้งเท่าคลัง จะได้มีค่าเหมือนกัน
        ไม่ต้องไปเดาทีหลังว่าตกลงตั้งใจสุ่มหรือเปล่า */
-    drawCount: (function(){ var d=Math.max(0, parseInt($('edDraw').value)||0); return d>=qs.length ? 0 : d; })(),
+    drawCount: cm ? 0 : (function(){ var d=Math.max(0, parseInt($('edDraw').value)||0); return d>=qs.length ? 0 : d; })(),
+    catMode: cm,
+    catDraw: cm ? _cr.map(function(r){ return { name: r.name, n: r.draw >= r.pool ? 0 : r.draw }; }) : [],
     startDate: $('edStart').value,
     endDate: $('edEnd').value,
     visibleBranches: branches,
@@ -6989,7 +7158,7 @@ function beginExam(){
   var _mk = function(item, qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
     if(CFG.shuffleChoices) choices=shuffle(choices);
-    var o = { q:item.q, choices:choices, origIndex:qi };
+    var o = { q:item.q, choices:choices, origIndex:qi, cat:oeQCat(item) };
     /* จำส่วนของแต่ละข้อติดไปด้วย ตอนตัดสินจะได้แยกคะแนนรายส่วนได้ */
     if(_pm) o.part = oeQPart(item);
     return o;
@@ -7004,13 +7173,15 @@ function beginExam(){
     if(!CFG.shuffleQuestions) qs.sort(function(a,b){ return a.origIndex-b.origIndex; });
   } else {
     (CFG.questions||[]).forEach(function(item,qi){ qs.push(_mk(item, qi)); });
+    /* ชุดที่แบ่งสัดส่วนตามหมวด: หยิบข้อของแต่ละหมวดตามจำนวนที่ตั้งไว้ */
+    if(oeCatMode(CFG)) qs = oeCatPick(CFG, qs);
   }
   /* เวลาสอบ: ชุดที่แบ่งส่วนใช้เวลาของทางที่เลือก */
   var _lim = _pm ? oeTrackTime(CFG, R.track) : CFG.timeLimitMinutes;
   /* สุ่มเลือกข้อ: ต้องสลับก่อนหั่นเสมอ ไม่งั้นทุกคนได้ n ข้อแรกเหมือนกันหมด
      ส่วนที่ปิด "สลับลำดับข้อ" ไว้ แปลว่าอยากได้ลำดับตามที่เรียงในคลัง — เรียงกลับให้หลังสุ่ม
      ชุดที่แบ่งส่วนไม่สุ่ม ได้ทุกข้อของส่วนที่เลือก */
-  var draw = _pm ? qs.length : examDrawCount(CFG);
+  var draw = (_pm || oeCatMode(CFG)) ? qs.length : examDrawCount(CFG);
   if(draw<qs.length){
     qs=shuffle(qs).slice(0,draw);
     if(!CFG.shuffleQuestions) qs.sort(function(a,b){ return a.origIndex-b.origIndex; });
@@ -7332,7 +7503,19 @@ function computeAndShow(){
     }
     pass = parts[0].pass;
   }
-  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts,passMark:_mark};
+  /* ชุดที่แบ่งหมวด: คะแนนรายหมวดไว้ให้ผู้สอบดู (ไม่ใช้ตัดผ่าน/ไม่บันทึกขึ้นระบบ) */
+  var cats=null;
+  if(oeCatMode(R.exam) && !parts){
+    var _cm={}, _co=[];
+    R.questions.forEach(function(q,i){
+      var c=q.cat||'';
+      if(!_cm[c]){ _cm[c]={name:c,label:c||OE_NOCAT,correct:0,total:0}; _co.push(c); }
+      _cm[c].total++;
+      var sel=R.answers[i]; if(sel!=null && q.choices[sel].correct) _cm[c].correct++;
+    });
+    cats=_co.map(function(c){ var x=_cm[c]; x.pct=x.total?Math.round(x.correct/x.total*100):0; return x; });
+  }
+  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts,passMark:_mark,cats:cats};
 
   /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ตามกติกา — เลขบนวงต้องตรงกับ
      ที่บันทึกไว้จริง ไม่งั้นคนสอบเห็น 85% แล้วไปเห็น 70% ในผลสอบทีหลัง */
@@ -7358,6 +7541,14 @@ function computeAndShow(){
        }).join('') + '</span>')
     : ('ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ · เกณฑ์ผ่าน ' + _mark + '%' +
        (oePosMode(R.exam) && R.student.position ? ' (ตำแหน่ง ' + esc(R.student.position) + ')' : ''));
+  var _rc=$('resCats');
+  if(_rc){
+    var _cats = R.result.cats;
+    _rc.hidden = !(_cats && _cats.length > 1);
+    _rc.innerHTML = _rc.hidden ? '' : '<div class="rc-h">คะแนนรายหมวด</div>' + _cats.map(function(c){
+      return '<div class="rc"><span>' + esc(c.label) + '</span><span class="bar"><i style="width:' + c.pct + '%"></i></span><span><b>' + c.correct + '/' + c.total + '</b> · ' + c.pct + '%</span></div>';
+    }).join('');
+  }
   _oePaintResNote();
 
   /* โหมดทดลองไม่มีผลจริงให้พิมพ์ ซ่อนปุ่มเอกสารไว้ */
