@@ -776,7 +776,7 @@ summary{font-weight:700;cursor:pointer}
 .tt-go{width:100%;margin-top:12px;max-width:520px;display:block}
 
 /* ── ผลก่อน–หลัง: ตัวกรอง + ปุ่มพิมพ์แถวเดียว ── */
-.rf-row{display:grid;grid-template-columns:repeat(3,minmax(0,1fr)) auto;gap:12px;align-items:end}
+.rf-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:12px;align-items:end}
 .rf-print{white-space:nowrap;height:44px}
 @media(max-width:820px){ .rf-row{grid-template-columns:1fr} .rf-print{width:100%} }
 
@@ -1848,7 +1848,7 @@ function renderResult(d, extra){
 /* ══════════════════════════════════════════════════════════════════
    ผลก่อน–หลัง
    ══════════════════════════════════════════════════════════════════ */
-let rf = { training:'', branch:'', q:'', show:false };   // show = เลือกตัวกรองอะไรแล้ว (ก่อนนั้นหน้าว่าง)
+let rf = { training:'', branch:'', q:'', sort:'score', show:false };   // show = เลือกตัวกรองอะไรแล้ว (ก่อนนั้นหน้าว่าง)
 
 /* 1 แถว = 1 คน พร้อมคะแนนก่อนและหลังของการอบรมนั้น */
 /* กติกาเรียงเดียวกันทั้งระบบ: คะแนนหลังเรียนมากไปน้อย · เท่ากันดูที่พัฒนาขึ้น · เท่ากันอีกเรียงชื่อ
@@ -1874,7 +1874,18 @@ function resultRows(){
   return list.filter(r =>
     (!rf.branch || (r.p.branch || '') === rf.branch) &&
     (!q || (`${r.p.name} ${r.p.branch || ''} ${r.t.title}`).toLowerCase().includes(q)))
-    .sort((a, b) => ttRank(a.post && a.post.pct, a.diff, a.p.name, b.post && b.post.pct, b.diff, b.p.name));
+    .sort((a, b) => {
+      /* เรียงตามเวลาที่ทำ: pre-new = ก่อนเรียน ใหม่→เก่า · post-old = หลังเรียน เก่า→ใหม่ · ที่ยังไม่ทำไปอยู่ท้าย */
+      const m = /^(pre|post)-(new|old)$/.exec(rf.sort || '');
+      if (m) {
+        const ta = a[m[1]] && a[m[1]].created_at ? new Date(a[m[1]].created_at).getTime() : null;
+        const tb = b[m[1]] && b[m[1]].created_at ? new Date(b[m[1]].created_at).getTime() : null;
+        if (ta == null && tb != null) return 1;
+        if (tb == null && ta != null) return -1;
+        if (ta != null && ta !== tb) return m[2] === 'new' ? tb - ta : ta - tb;
+      }
+      return ttRank(a.post && a.post.pct, a.diff, a.p.name, b.post && b.post.pct, b.diff, b.p.name);
+    });
 }
 
 function renderResults(){
@@ -1894,6 +1905,11 @@ function renderResults(){
           ${branches.map(b => `<option value="${esc(b)}" ${rf.branch===b?'selected':''}>${esc(b)}</option>`).join('')}
         </select></div>
         <div><label>ค้นหาชื่อ</label><input id="rfQ" value="${esc(rf.q)}" placeholder="ชื่อผู้เข้าอบรม"></div>
+        <div><label>เรียงตาม</label><select id="rfSort">
+          ${[['score','คะแนนหลังเรียน (มาก → น้อย)'],['pre-new','เวลาทำก่อนเรียน (ใหม่ → เก่า)'],['pre-old','เวลาทำก่อนเรียน (เก่า → ใหม่)'],
+             ['post-new','เวลาทำหลังเรียน (ใหม่ → เก่า)'],['post-old','เวลาทำหลังเรียน (เก่า → ใหม่)']]
+            .map(([v, l]) => `<option value="${v}" ${rf.sort===v?'selected':''}>${l}</option>`).join('')}
+        </select></div>
         <button class="btn btn-secondary rf-print" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
       </div>
     </div>
@@ -1912,6 +1928,7 @@ function renderResults(){
   ['rfTraining','rfBranch'].forEach(id => $('#'+id).onchange = () => {
     const v = $('#'+id).value; rf.show = true;
     rf[id === 'rfTraining' ? 'training' : 'branch'] = v === '*all' ? '' : v; paintResults(); });
+  $('#rfSort').onchange = () => { rf.sort = $('#rfSort').value; paintResults(); };
   $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; if (rf.q.trim()) rf.show = true; paintResults(); };
   paintResults();
 }
