@@ -1480,7 +1480,7 @@ function dueHtml(f){
   if (days <= 3) return `<span class="due">${days === 0 ? 'ปิดรับวันนี้' : 'เหลือ ' + days + ' วัน'}</span>`;
   return 'ปิดรับ ' + esc(fmtD(f.close_at));
 }
-const myDate = key => { const r = (myResp || []).find(x => x.form_key === key); return r ? fmtD(r.created_at) : ''; };
+const myDate = key => { const r = (myResp || []).find(x => x.form_key === key); return r ? fmtDT(r.created_at) : ''; };
 
 function formItemHtml(f){
   const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
@@ -1582,7 +1582,7 @@ function renderList(){
     </div>`;
 }
 
-const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit' }) : '';
+const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }) : '';
 const fmtD  = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'2-digit' }) : '—';
 
 /* ══════════════════════════════════════════════════════════════════
@@ -1780,7 +1780,7 @@ function paintResults(){
       : `<div><i>แบบฟอร์ม</i><em>${esc(r.form_title || r.form_key)}</em></div>`;
     const more = form ? qs.length - 3 : Object.keys(a).length;
     return `<div class="rc" onclick="detail(${r.id})">
-      <div class="rc-top"><b>${esc(r.respondent_name || '—')}</b><span>${fmtD(r.created_at)}</span></div>
+      <div class="rc-top"><b>${esc(r.respondent_name || '—')}</b><span>${fmtDT(r.created_at)}</span></div>
       ${r.respondent_branch && r.respondent_branch !== r.respondent_name ? `<div class="rc-sub">${esc(r.respondent_branch)}</div>` : ''}
       <div class="rc-qa">${qa}</div>
       <div class="rc-more">${form ? (more > 0 ? `ดูอีก ${more} ข้อ ›` : 'ดูรายละเอียด ›') : `ตอบ ${more} ข้อ · ดูรายละเอียด ›`}</div>
@@ -1788,8 +1788,8 @@ function paintResults(){
   }).join('');
   /* เลือกฟอร์มแล้ว = กางคำตอบเป็นคอลัมน์รายข้อ · ยังไม่เลือก = ดูรวม */
   const head = form
-    ? ['วันที่','ผู้ตอบ','สาขา', ...qs.map(q => q.label), '']
-    : ['วันที่','ผู้ตอบ','สาขา','แบบฟอร์ม','ตอบไปแล้ว',''];
+    ? ['วันที่ · เวลา','ผู้ตอบ','สาขา', ...qs.map(q => q.label), '']
+    : ['วันที่ · เวลา','ผู้ตอบ','สาขา','แบบฟอร์ม','ตอบไปแล้ว',''];
   $('#rTable').innerHTML = `
     <thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${list.map(r => {
@@ -1798,7 +1798,7 @@ function paintResults(){
         : `<td class="muted" style="font-size:13px">${esc(r.form_title || r.form_key)}</td>
            <td>${Object.keys(r.answers || {}).length} ข้อ</td>`;
       return `<tr>
-        <td class="muted">${fmtD(r.created_at)}</td>
+        <td class="muted" style="white-space:nowrap">${fmtDT(r.created_at)}</td>
         <td><b>${esc(r.respondent_name || '—')}</b></td>
         <td>${esc(r.respondent_branch || '')}</td>
         ${cells}
@@ -1857,9 +1857,9 @@ window.csvResults = function(){
   if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
   const qs = form ? (form.questions || []) : [];
-  const head = ['วันที่','ผู้ตอบ','ตำแหน่ง','สาขา','แบรนด์','แบบฟอร์ม']
+  const head = ['วันที่','เวลา','ผู้ตอบ','ตำแหน่ง','สาขา','แบรนด์','แบบฟอร์ม']
     .concat(qs.length ? qs.map(q => q.label) : ['คำตอบ']);
-  const body = list.map(r => [fmtD(r.created_at), r.respondent_name, r.respondent_role, r.respondent_branch, r.respondent_brand, r.form_title || r.form_key]
+  const body = list.map(r => [fmtD(r.created_at), r.created_at ? new Date(r.created_at).toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', hour12:false }) : '', r.respondent_name, r.respondent_role, r.respondent_branch, r.respondent_brand, r.form_title || r.form_key]
     .concat(qs.length ? qs.map(q => ansText((r.answers || {})[q.id]))
                       : [Object.keys(r.answers || {}).map(k => k + ': ' + ansText(r.answers[k])).join(' | ')])
     .map(csvCell).join(','));
@@ -2117,9 +2117,9 @@ window.printResults = function(){
       <div><b>${qs.length || '—'}</b><span>คำถาม</span></div>
     </div>
     <table class="pr-table">
-      <thead><tr><th>วันที่</th><th>ผู้ตอบ</th><th>สาขา</th>${qs.length ? qs.map(q => `<th>${esc(q.label)}</th>`).join('') : '<th>แบบฟอร์ม</th>'}</tr></thead>
+      <thead><tr><th>วันที่ · เวลา</th><th>ผู้ตอบ</th><th>สาขา</th>${qs.length ? qs.map(q => `<th>${esc(q.label)}</th>`).join('') : '<th>แบบฟอร์ม</th>'}</tr></thead>
       <tbody>${list.map(r => `<tr>
-        <td>${fmtD(r.created_at)}</td><td>${esc(r.respondent_name)}</td><td>${esc(r.respondent_branch || '')}</td>
+        <td style="white-space:nowrap">${fmtDT(r.created_at)}</td><td>${esc(r.respondent_name)}</td><td>${esc(r.respondent_branch || '')}</td>
         ${qs.length ? qs.map(q => `<td>${esc(ansText((r.answers || {})[q.id]))}</td>`).join('') : `<td>${esc(r.form_title || r.form_key)}</td>`}
       </tr>`).join('')}</tbody>
     </table>`, `คำตอบแบบฟอร์ม-${stamp()}`);
