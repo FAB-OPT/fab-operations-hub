@@ -84,6 +84,7 @@ label{font-weight:700;font-size:14px;display:block;margin-bottom:6px}
 .pill.fail{background:#fff1f0;color:var(--red)}
 .pill.off,.pill.closed{background:#f2f4f7;color:#98a2b3}
 .pill.draft{background:#fff8e6;color:#8a6100}
+.table-wrap th.c,.table-wrap td.c{text-align:center}
 .pill.branch{background:var(--orange-soft);color:#b33a05}
 .pill.brand{background:#eef2ff;color:#3538cd}
 /* ติ๊กสาขา — สาขามีหลายสิบแห่ง จัดเป็นหลายคอลัมน์และจำกัดความสูงให้เลื่อนในกรอบ */
@@ -2395,6 +2396,24 @@ window.printReport = function(){
    ติดตามคนที่ยังไม่ทำ
    ══════════════════════════════════════════════════════════════════ */
 let ff = { training:'' };
+/* ติดตามแบบประเมินอบรม: ประเมินไม่ระบุชื่อ จึงนับเป็นรายสาขา (บัญชีที่ส่งประเมิน)
+   ควรประเมิน = จำนวนคนของสาขานั้นที่ทำหลังเรียนแล้ว · ประเมินแล้ว = ใบประเมินที่สาขานั้นส่งมา */
+function evalFollowRows(t){
+  const g = new Map();
+  const get = (code, label) => { if (!g.has(code)) g.set(code, { code, label, exp:0, done:0, last:null }); return g.get(code); };
+  rosterOf(t).forEach(p => {
+    if (!attemptOf(t.key, 'post', p.id)) return;
+    const code = codeOfBranch(p.branch) || String(p.branch || '-');
+    get(code, p.branch || 'ไม่ระบุสาขา').exp++;
+  });
+  evalsOf(t.key).forEach(e => {
+    const r = get(String(e.taker_code || '-'), e.taker_branch || String(e.taker_code || ''));
+    r.done++;
+    if (!r.last || String(e.created_at) > String(r.last)) r.last = e.created_at;
+  });
+  return [...g.values()].map(r => ({ ...r, left: Math.max(0, r.exp - r.done) }))
+    .sort((a, b) => b.left - a.left || String(a.label).localeCompare(String(b.label), 'th'));
+}
 function renderFollowup(){
   const list = trainings.filter(t => t.status === 'open');
   if (!list.length){
@@ -2406,6 +2425,8 @@ function renderFollowup(){
   const ppl = rosterOf(t);
   const rows = ppl.map(p => ({ p, pre: !!attemptOf(t.key,'pre',p.id), post: !!attemptOf(t.key,'post',p.id) }));
   const missPre = rows.filter(r => !r.pre), missPost = rows.filter(r => !r.post);
+  const evOn = evalOn(t), evRows = evOn ? evalFollowRows(t) : [];
+  const evMiss = evRows.filter(r => r.left > 0), evExp = evRows.reduce((a, r) => a + r.exp, 0), evDone = evRows.reduce((a, r) => a + Math.min(r.done, r.exp), 0);
   $('#view').innerHTML = `
     <div class="card">
       <h2>ติดตามคนที่ยังไม่ทำแบบทดสอบ</h2>
@@ -2417,6 +2438,7 @@ function renderFollowup(){
         <div class="cp-row">
           <button class="cp-b" onclick="copyFollowup('pre')" ${missPre.length ? '' : 'disabled'}><span class="ic">📋</span><span><b>ก่อนเรียน · ${missPre.length} คน</b><small>คัดลอกที่ยังไม่ทำ</small></span></button>
           <button class="cp-b" onclick="copyFollowup('post')" ${missPost.length ? '' : 'disabled'}><span class="ic">📋</span><span><b>หลังเรียน · ${missPost.length} คน</b><small>คัดลอกที่ยังไม่ทำ</small></span></button>
+          ${evOn ? `<button class="cp-b" onclick="copyEvalFollowup()" ${evMiss.length ? '' : 'disabled'}><span class="ic">📋</span><span><b>ประเมินอบรม · ${evMiss.length} สาขา</b><small>คัดลอกสาขาที่ยังไม่ประเมิน</small></span></button>` : ''}
         </div>
       </div>
     </div>
@@ -2425,6 +2447,7 @@ function renderFollowup(){
       <div class="stat"><b style="color:${missPre.length?'var(--red)':'inherit'}">${missPre.length}</b><span>ยังไม่ทำก่อนเรียน</span></div>
       <div class="stat"><b style="color:${missPost.length?'var(--red)':'inherit'}">${missPost.length}</b><span>ยังไม่ทำหลังเรียน</span></div>
       <div class="stat"><b>${rows.filter(r => r.pre && r.post).length}</b><span>ทำครบทั้งสองรอบ</span></div>
+      ${evOn ? `<div class="stat"><b style="color:${evMiss.length?'var(--red)':'inherit'}">${evDone}/${evExp}</b><span>ประเมินอบรมแล้ว (ใบ)</span></div>` : ''}
     </div>
     <div class="card" style="padding:0;overflow:hidden">
       <div class="table-wrap"><table>
@@ -2435,10 +2458,38 @@ function renderFollowup(){
           <td data-l="หลังเรียน">${r.post ? '<span class="pill pass">ทำแล้ว</span>' : '<span class="pill fail">ยังไม่ทำ</span>'}</td>
         </tr>`).join('') || '<tr><td colspan="4"><div class="empty">ยังไม่มีรายชื่อผู้เข้าอบรม</div></td></tr>'}</tbody>
       </table></div>
-    </div>`;
+    </div>
+    ${evOn ? `<div class="card" style="padding:0;overflow:hidden;margin-top:14px">
+      <div style="padding:16px 18px 6px"><h3 style="margin:0 0 4px">ติดตามการประเมินอบรม</h3>
+        <p class="sub" style="margin:0">แบบประเมินไม่ระบุชื่อ จึงนับรายสาขา · ควรประเมิน = คนที่ทำหลังเรียนแล้ว · ประเมินได้หลังทำแบบทดสอบหลังเรียนเท่านั้น</p></div>
+      <div class="table-wrap"><table>
+        <thead class="mc-h"><tr><th>สาขา</th><th class="c">ทำหลังเรียนแล้ว</th><th class="c">ประเมินแล้ว</th><th class="c">ค้างประเมิน</th><th>ประเมินล่าสุด</th><th>สถานะ</th></tr></thead>
+        <tbody>${evRows.map(r => `<tr>
+          <td class="mc-n"><b>${esc(r.label)}</b></td>
+          <td class="c" data-l="ทำหลังเรียนแล้ว">${r.exp}</td>
+          <td class="c" data-l="ประเมินแล้ว">${r.done}</td>
+          <td class="c" data-l="ค้างประเมิน">${r.left ? `<b style="color:var(--red)">${r.left}</b>` : '0'}</td>
+          <td class="muted" data-l="ประเมินล่าสุด" style="white-space:nowrap">${r.last ? fmtDT(r.last) : '—'}</td>
+          <td data-l="สถานะ">${r.left ? '<span class="pill fail">ค้างประเมิน</span>' : r.exp ? '<span class="pill pass">ครบแล้ว</span>' : '<span class="pill draft">ไม่มีคนทำหลังเรียน</span>'}</td>
+        </tr>`).join('') || '<tr><td colspan="6"><div class="empty">ยังไม่มีใครทำแบบทดสอบหลังเรียน จึงยังไม่ถึงขั้นประเมิน</div></td></tr>'}</tbody>
+      </table></div>
+    </div>` : ''}`;
   $('#ffTraining').onchange = () => { ff.training = $('#ffTraining').value; renderFollowup(); };
 }
 
+window.copyEvalFollowup = function(){
+  const t = trainings.find(x => x.key === ff.training); if (!t) return;
+  const miss = evalFollowRows(t).filter(r => r.left > 0);
+  if (!miss.length) return msg('ทุกสาขาประเมินอบรมครบแล้ว', 'ok');
+  const text = `🎓 ${t.title}${t.train_date ? ' (อบรม ' + fmtD(t.train_date) + ')' : ''}\n` +
+    `ยังไม่ได้ทำแบบประเมินอบรม ${miss.length} สาขา — รบกวนประเมินให้ครบด้วยครับ\n\n` +
+    miss.map(r => '• ' + r.label + ' · ค้าง ' + r.left + ' ใบ').join('\n') +
+    `\n\nลิงก์: ${location.origin + location.pathname}`;
+  const done = () => msg('คัดลอกข้อความแล้ว — วางส่งใน LINE ได้เลย');
+  if (navigator.clipboard && navigator.clipboard.writeText)
+    navigator.clipboard.writeText(text).then(done).catch(() => window.prompt('คัดลอกข้อความนี้', text));
+  else window.prompt('คัดลอกข้อความนี้', text);
+};
 window.copyFollowup = function(phase){
   const t = trainings.find(x => x.key === ff.training); if (!t) return;
   const miss = rosterOf(t).filter(p => !attemptOf(t.key, phase, p.id));
