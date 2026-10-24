@@ -497,6 +497,16 @@ input.fld.w1{width:15mm}input.fld.wd{width:9mm}input.fld.w2{width:34mm}input.fld
 .rd-q.blank{box-shadow:inset 3px 0 0 var(--gold)}
 .rd-q.blank::before{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
 /* แถวที่ไม่บอกว่าถูกหรือผิด (คนที่ไม่ใช่แอดมิน) — เลขข้อสีกลาง ไม่มีแถบสี */
+.rd-fix{display:flex;gap:6px;margin-top:7px}
+.rd-fix button{padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);font-size:12.5px;font-weight:700;color:var(--text2)}
+.rd-fix button.ok.on{background:var(--green-soft);border-color:var(--green-line);color:#0b7a55}
+.rd-fix button.bad.on{background:var(--red-soft);border-color:var(--red-line);color:#a51c1c}
+.rd-q .rd-fixed{display:inline-block;margin-left:8px;font-size:11.5px;font-weight:700;color:var(--gold)}
+.rd-editbar{position:sticky;top:0;z-index:3;margin:0 0 10px;padding:10px 12px;border:1px solid var(--gold-line);border-radius:12px;background:var(--gold-soft);display:flex;flex-direction:column;gap:8px}
+.rd-editbar .eb-sum{font-size:13.5px}
+.rd-editbar textarea{width:100%;min-height:44px;border:1px solid var(--border2);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;resize:vertical;background:#fff}
+.rd-editbar .eb-btns{display:flex;gap:8px;justify-content:flex-end}
+.rd-editnote{margin:0 0 10px;padding:9px 12px;border:1px dashed var(--gold-line);border-radius:10px;background:var(--gold-soft);font-size:12.5px;color:var(--text2);line-height:1.6}
 .rd-q.plain::before{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
 .rd-q-a b.none{color:var(--gold);font-weight:700}
 .rd-q-t{font-size:13.5px;font-weight:600;line-height:1.45}
@@ -3404,6 +3414,7 @@ apiPost = function(body){
     'delete-exam':         function(){ return ['oe_delete_exam', { p_id: _oeStr(body.id) }]; },
     'submit-exam-result':  function(){ return ['oe_submit_result', { r: body.result }]; },
     'extend-retake':       function(){ return ['oe_extend_retake', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_extra: Number(body.extra) || 0, p_by: _oeStr(body.by) }]; },
+    'edit-result':         function(){ return ['oe_edit_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_patch: body.patch || {}, p_by: _oeStr(body.by) }]; },
     'delete-exam-result':  function(){ return ['oe_delete_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId) }]; },
     'request-exam':        function(){ return ['oe_request', { req: body.req }]; },
     'decide-exam-request': function(){ return ['oe_decide', { p_id: _oeStr(body.id), p_decision: _oeStr(body.decision), p_by: _oeStr(body.by), p_note: _oeStr(body.note) }]; },
@@ -6073,6 +6084,7 @@ function openDocsAt(i){
   openDocSet();
 }
 function closeResultDetail(){
+  _oeEd = null;
   $('rdModal').classList.remove('show');
   document.body.style.overflow = '';
   _oeResCur = null;
@@ -6265,8 +6277,10 @@ function _oeResDetailHtml(r){
       '<span>ผลที่บันทึกก่อนระบบเริ่มเก็บคำตอบรายข้อจะดูย้อนหลังไม่ได้</span></div>';
     return h;
   }
-  var nOk = ans.filter(_oeAnsOk).length;
-  var nBlank = ans.filter(function(a){ return !_oeAnsOk(a) && _oeAnsBlank(a); }).length;
+  var _ed = (_oeEd && _oeEd.r === r) ? _oeEd : null;
+  var okOf = function(a, i){ return _ed ? !!_ed.ok[i] : _oeAnsOk(a); };
+  var nOk = ans.filter(function(a, i){ return okOf(a, i); }).length;
+  var nBlank = ans.filter(function(a, i){ return !okOf(a, i) && _oeAnsBlank(a); }).length;
   var nWrong = ans.length - nOk - nBlank;
   var miss = ans.length - nOk;
 
@@ -6277,30 +6291,178 @@ function _oeResDetailHtml(r){
   var key = _oeSeeKey();
   h += '<div class="rd-secthead">' +
       '<b>คำตอบรายข้อ</b>' +
-      '<span class="rd-tally">' +
+      '<span class="rd-tally" id="rdTally">' +
         '<i class="ok">ถูก ' + nOk + '</i>' +
         (nWrong ? '<i class="bad">ตอบผิด ' + nWrong + '</i>' : '') +
         (nBlank ? '<i class="blank">ไม่ได้ตอบ ' + nBlank + '</i>' : '') +
       '</span>' +
-      (key && miss ? '<button type="button" class="rd-only on" id="rdOnlyWrong" onclick="toggleOnlyWrong(this)">' +
-        'ดูทุกข้อ (' + ans.length + ')</button>' : '') +
+      (_ed ? '' : (key && miss ? '<button type="button" class="rd-only on" id="rdOnlyWrong" onclick="toggleOnlyWrong(this)">' +
+        'ดูทุกข้อ (' + ans.length + ')</button>' : '')) +
+      (!_ed && _oeCanEditAns() ? '<button type="button" class="rd-only" ' + (key && miss ? 'style="margin-left:6px" ' : '') + 'onclick="oeEditAnsStart()">✏️ แก้ผลรายข้อ</button>' : '') +
     '</div>';
-  h += '<ol class="rd-qs' + (key && miss ? ' only-wrong' : '') + '" id="rdQs">' + ans.map(function(a){
-    var ok = _oeAnsOk(a);
+  if(r.editedAt && !_ed){
+    var nFix = ans.filter(function(a){ return a && a.fixed; }).length;
+    h += '<div class="rd-editnote">✏️ แอดมินแก้ผลรายข้อแล้ว' + (nFix ? ' ' + nFix + ' ข้อ' : '') +
+      (r.editedBy ? ' · โดย ' + esc(r.editedBy) : '') + ' · ' + esc(fmtDT(r.editedAt)) +
+      (r.origPct != null ? '<br>ก่อนแก้: ' + esc(r.origPct) + '% (' + esc(r.origResult || '—') + ')' : '') +
+      (r.editNote ? '<br>เหตุผล: ' + esc(r.editNote) : '') + '</div>';
+  }
+  if(_ed){
+    h += '<div class="rd-editbar"><div class="eb-sum" id="ebSum"></div>' +
+      '<textarea id="ebNote" placeholder="เหตุผลที่แก้ (จำเป็น) เช่น เฉลยข้อ 12 ผิด ตรวจใหม่แล้ว" oninput="_oeEd.note=this.value">' + esc(_ed.note || '') + '</textarea>' +
+      '<div class="eb-btns"><button type="button" class="btn btn-soft btn-sm" onclick="oeEditAnsCancel()">ยกเลิก</button>' +
+      '<button type="button" class="btn btn-primary btn-sm" onclick="oeEditAnsSave()">บันทึกผลที่แก้</button></div></div>';
+  }
+  h += '<ol class="rd-qs' + (!_ed && key && miss ? ' only-wrong' : '') + '" id="rdQs">' + ans.map(function(a, i){
+    var ok = okOf(a, i);
     var blank = !ok && _oeAnsBlank(a);
     /* ไม่ได้ตอบ ไม่ใช่ความลับของข้อสอบ บอกได้ทุกคน · ถูก/ผิด บอกเฉพาะแอดมิน */
     var tone = blank ? 'blank' : (key ? (ok ? 'ok' : 'bad') : 'plain');
-    return '<li class="rd-q ' + tone + '">' +
-      '<div class="rd-q-t">' + esc(a.q || '') + '</div>' +
+    return '<li class="rd-q ' + tone + '" id="rdq' + i + '">' +
+      '<div class="rd-q-t">' + esc(a.q || '') + (a.fixed && key ? '<span class="rd-fixed">แก้โดยแอดมิน</span>' : '') + '</div>' +
       '<div class="rd-q-a">' +
-        (blank
+        (_oeAnsBlank(a)
           ? '<b class="none">ไม่ได้ตอบ</b>'
           : '<span>ตอบ</span><b>' + esc(a.my) + '</b>') +
-        (ok || !_oeSeeKey() ? '' : '<i class="sep">·</i><span>เฉลย</span><b class="right">' + esc(a.correct || '—') + '</b>') +
+        ((ok && !_ed) || !_oeSeeKey() ? '' : '<i class="sep">·</i><span>เฉลย</span><b class="right">' + esc(a.correct || '—') + '</b>') +
       '</div>' +
+      (_ed ? '<div class="rd-fix"><button type="button" class="ok' + (ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',true)">✓ ถูก</button>' +
+             '<button type="button" class="bad' + (!ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',false)">✗ ผิด</button></div>' : '') +
     '</li>';
   }).join('') + '</ol>';
+  if(_ed) setTimeout(_oeEdSum, 0);
   return h;
+}
+
+/* ═══ แก้ผลสอบรายข้อ (แอดมิน) ═══
+   ใช้เมื่อเฉลยในชุดข้อสอบผิด หรือตรวจแล้วพบว่าข้อไหนควรถูก/ผิดต่างจากที่ระบบตัดสินไว้
+   ผลที่แก้เก็บเป็นข้อ ๆ (a.fixed + a.ok) พร้อมคะแนนก่อนแก้ ใครแก้ เมื่อไร เหตุผล
+   คะแนนรวม ผ่าน/ไม่ผ่าน และคะแนนรายส่วนคิดใหม่ให้จากรายข้อที่แก้ */
+var _oeEd = null;
+function _oeCanEditAns(){ return _oeSeeKey() && oeCan('exam-approve'); }
+function _oeEdCalc(r, okArr){
+  var ans = _oeResAnswers(r) || [];
+  var total = ans.length, correct = okArr.filter(Boolean).length;
+  if(!total) return { err: 'ไม่มีคำตอบรายข้อให้คิดใหม่' };
+  var pct = Math.round(correct / total * 100);
+  var ex = _oeExamOf(r);
+  var mark = oeResPassMark(r, ex);
+  if(mark == null || !isFinite(Number(mark))) mark = Number(r.passMark);
+  if(!isFinite(mark)) mark = OE_PASS_PCT;
+  var pass = pct >= mark, parts = null;
+  if(_oeResParts(r)){
+    if(!ex) return { err: 'ไม่พบชุดข้อสอบของใบนี้ จึงคิดคะแนนรายส่วนใหม่ไม่ได้' };
+    var byQ = {};
+    (ex.questions || []).forEach(function(q){ byQ[String(q.q || '').trim()] = q; });
+    var qs = ans.map(function(a){ return byQ[String(a.q || '').trim()]; });
+    if(qs.some(function(q){ return !q; })) return { err: 'ข้อสอบในชุดถูกแก้ไปแล้ว จับคู่ข้อไม่ครบ จึงคิดคะแนนรายส่วนใหม่ไม่ได้' };
+    var sc = function(k, label, inIt){
+      var c = 0, t = 0;
+      qs.forEach(function(q, i){ if(!inIt(q)) return; t++; if(okArr[i]) c++; });
+      var pp = t ? Math.round(c / t * 100) : 0, mk = oePartPass(ex, k);
+      return { key:k, label:label, correct:c, total:t, pct:pp, passMark:mk, pass: t > 0 && pp >= mk };
+    };
+    var tr = r.track || 'all';
+    parts = tr === 'all'
+      ? [ sc('all', OE_TRACKS.all, function(){ return true; }) ].concat(OE_PARTS.map(function(p){ return sc(p.key, p.label, function(q){ return oeInPart(q, p.key); }); }))
+      : [ sc(tr, OE_TRACKS[tr] || tr, function(q){ return oeInPart(q, tr); }) ];
+    pass = parts[0].pass;
+  }
+  return { correct: correct, total: total, pct: pct, mark: mark, pass: pass, parts: parts };
+}
+function _oeEdSum(){
+  var el = $('ebSum'); if(!el || !_oeEd) return;
+  var r = _oeEd.r, c = _oeEdCalc(r, _oeEd.ok);
+  if(c.err){ el.innerHTML = '<b style="color:#a51c1c">' + esc(c.err) + '</b>'; return; }
+  var was = isPass(r), changed = 0, ans = _oeResAnswers(r) || [];
+  ans.forEach(function(a, i){ if(!!_oeEd.ok[i] !== _oeAnsOk(a)) changed++; });
+  el.innerHTML = 'แก้แล้ว <b>' + changed + '</b> ข้อ · ถูก <b>' + c.correct + '/' + c.total + '</b> = <b>' + c.pct + '%</b> · ' +
+    '<b style="color:' + (c.pass ? '#0b7a55' : '#a51c1c') + '">' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</b> (เกณฑ์ ' + c.mark + '%)' +
+    (c.pass !== was ? ' <b style="color:#b45309">· ผลเปลี่ยนจาก' + (was ? 'ผ่าน' : 'ไม่ผ่าน') + '</b>' : '') +
+    (changed ? '' : ' · <span style="color:var(--text3)">ยังไม่ได้แก้ข้อไหน</span>');
+}
+function oeEditAnsStart(){
+  var r = _oeResCur, ans = _oeResAnswers(r);
+  if(!r || !ans || !_oeCanEditAns()){ toast('ไม่มีสิทธิ์แก้ผลสอบ','err'); return; }
+  _oeEd = { r: r, ok: ans.map(_oeAnsOk), note: '' };
+  $('rdBody').innerHTML = _oeResDetailHtml(r);
+}
+function oeEditAnsCancel(){
+  var r = _oeEd && _oeEd.r; _oeEd = null;
+  if(r && _oeResCur === r) $('rdBody').innerHTML = _oeResDetailHtml(r);
+}
+function oeEditAnsSet(i, v){
+  if(!_oeEd) return;
+  _oeEd.ok[i] = !!v;
+  var li = $('rdq' + i);
+  if(li){
+    var a = (_oeResAnswers(_oeEd.r) || [])[i];
+    li.className = 'rd-q ' + (!v && _oeAnsBlank(a) ? 'blank' : (v ? 'ok' : 'bad'));
+    var bs = li.querySelectorAll('.rd-fix button');
+    if(bs[0]) bs[0].classList.toggle('on', !!v);
+    if(bs[1]) bs[1].classList.toggle('on', !v);
+  }
+  var ans = _oeResAnswers(_oeEd.r) || [], nOk = _oeEd.ok.filter(Boolean).length;
+  var nBlank = ans.filter(function(a, k){ return !_oeEd.ok[k] && _oeAnsBlank(a); }).length;
+  var nWrong = ans.length - nOk - nBlank, t = $('rdTally');
+  if(t) t.innerHTML = '<i class="ok">ถูก ' + nOk + '</i>' + (nWrong ? '<i class="bad">ตอบผิด ' + nWrong + '</i>' : '') + (nBlank ? '<i class="blank">ไม่ได้ตอบ ' + nBlank + '</i>' : '');
+  _oeEdSum();
+}
+async function oeEditAnsSave(){
+  var ed = _oeEd; if(!ed) return;
+  var r = ed.r;
+  if(!_oeCanEditAns()){ toast('ไม่มีสิทธิ์แก้ผลสอบ','err'); return; }
+  var ans = _oeResAnswers(r) || [], c = _oeEdCalc(r, ed.ok);
+  if(c.err){ toast(c.err, 'err'); return; }
+  var changed = 0;
+  var nextAns = ans.map(function(a, i){
+    var n = {}; for(var k in a) n[k] = a[k];
+    var was = _oeAnsOk(a);
+    if(!!ed.ok[i] !== was){ n.ok = !!ed.ok[i]; n.fixed = true; n.origOk = was; changed++; }
+    return n;
+  });
+  if(!changed){ toast('ยังไม่ได้แก้ข้อไหน', 'warn'); return; }
+  var note = String(ed.note || '').trim();
+  if(!note){ toast('กรุณาใส่เหตุผลที่แก้', 'err'); var nb = $('ebNote'); if(nb) nb.focus(); return; }
+  var wasPass = isPass(r);
+  var okGo = await oeConfirm({
+    icon: '✏️', title: 'บันทึกผลสอบที่แก้',
+    text: 'ผู้สอบ: <b>' + esc(r.name || '') + '</b>',
+    facts: [
+      ['ก่อนแก้', (r.pct != null ? r.pct : '—') + '% · ' + (wasPass ? 'ผ่าน' : 'ไม่ผ่าน')],
+      ['หลังแก้', c.pct + '% · ' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน')],
+      ['แก้กี่ข้อ', changed + ' ข้อ']
+    ],
+    warn: 'บันทึกแล้วคะแนน ผ่าน/ไม่ผ่าน ฐานเงินเดือน และสิทธิ์สอบซ่อมของใบนี้จะคิดใหม่ตามผลที่แก้ · ระบบเก็บคะแนนก่อนแก้และเหตุผลไว้ให้ย้อนดูได้',
+    yes: 'บันทึก'
+  });
+  if(!okGo) return;
+  var sess = (typeof getHubSession === 'function' && getHubSession()) || {};
+  var by = sess.name || sess.nick || '';
+  var patch = {
+    answers: nextAns, correct: c.correct, pct: c.pct, pass: c.pass, result: c.pass ? 'ผ่าน' : 'ไม่ผ่าน',
+    origCorrect: r.origCorrect != null ? r.origCorrect : r.correct,
+    origPct: r.origPct != null ? r.origPct : r.pct,
+    origResult: r.origResult != null ? r.origResult : (wasPass ? 'ผ่าน' : 'ไม่ผ่าน'),
+    origPass: r.origPass != null ? r.origPass : wasPass,
+    editNote: note, editCount: (Number(r.editCount) || 0) + 1,
+    editedBy: by, editedAt: new Date().toISOString()
+  };
+  if(c.parts) patch.parts = c.parts;
+  apiPost({ type:'edit-result', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '', patch: patch, by: by })
+    .then(function(res){
+      if(res && res.ok){
+        for(var k in patch) r[k] = patch[k];
+        _oeEd = null;
+        toast('บันทึกผลที่แก้แล้ว · ' + c.pct + '% ' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน'));
+        if(_oeResCur === r) $('rdBody').innerHTML = _oeResDetailHtml(r);
+        loadResults(true);
+      } else toast('บันทึกไม่สำเร็จ: ' + ((res && res.error) || 'ไม่ทราบสาเหตุ'), 'err');
+    })
+    .catch(function(e){
+      var m = String((e && e.message) || e || '');
+      toast(/oe_edit_result/.test(m) ? 'ยังไม่ได้เพิ่มฟังก์ชันหลังบ้าน — รันไฟล์ supabase/online-exam-edit-result.sql ก่อน 1 ครั้ง' : 'บันทึกไม่สำเร็จ - ' + _apiWhy(e), 'err');
+    });
 }
 /* ถูกไหม — เทียบข้อความคำตอบที่เลือกกับคำตอบที่ถูก
    เก็บมาเป็นข้อความ ไม่ใช่ดัชนี จึงต้องตัดช่องว่างหัวท้ายก่อนเทียบ */
@@ -6325,6 +6487,7 @@ function _oeAnsBlank(a){
 }
 function _oeAnsOk(a){
   if(!a) return false;
+  if(a.fixed) return !!a.ok;      /* แอดมินแก้ผลข้อนี้เอง — ยึดตามที่แก้ ไม่เทียบข้อความ */
   var my = String(a.my == null ? '' : a.my).trim();
   var right = String(a.correct == null ? '' : a.correct).trim();
   return my !== '' && my !== '(ไม่ตอบ)' && my === right;
