@@ -2519,6 +2519,7 @@ label.fld>span>b{font-weight:800}
                 <div id="edBumpRows"></div>
                 <button type="button" class="bump-add" onclick="oeBumpAdd()">+ เพิ่มขั้นคะแนน</button>
               </div>
+              <div class="switch-row"><div><div class="sw-t">ยึดผลสอบล่าสุดตามจริง</div><div class="sw-d">เปิด = สอบซ่อมรอบสองนับคะแนนที่ทำได้จริง (เหมาะกับสอบปรับระดับ) · ปิดไว้ = รอบสองที่ทำได้เกิน 70% นับเป็น 70% (แบบประเมินทดลองงาน)</div></div><label class="sw"><input type="checkbox" id="edLatest"><span class="track"></span></label></div>
             </div>
           </section>
 
@@ -3581,6 +3582,9 @@ function oeExamBump(ex){
           .filter(function(x){ return x[1] > 0; })
           .sort(function(a, c){ return c[0] - a[0]; });
 }
+/* ยึดผลสอบล่าสุดตามจริง (ex.latestScore) — ชุดที่ตั้งแบบนี้ (เช่น สอบปรับระดับ) ไม่ตัดคะแนนรอบสองลงมาเท่าเกณฑ์ 70%
+   ใช้คะแนนที่ทำได้จริงของรอบล่าสุดทุกที่ · ชุดที่ไม่ได้ตั้ง (เช่น ประเมินทดลองงาน) ยังตัดรอบสองที่ 70% เหมือนเดิม */
+function oeExamLatest(ex){ return !!(ex && ex.latestScore); }
 /* ผลสอบเก็บแค่ชื่อ/ไอดีชุด ต้องตามไปหาตัวชุดเองเวลาจะดูค่าที่ตั้งไว้ */
 function _oeExamOf(r){
   if(!r) return null;
@@ -3734,6 +3738,7 @@ function _oeAttempt(r){
 }
 /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ */
 function _oeCapped(r){
+  if(oeExamLatest(_oeExamOf(r))) return false;
   return _oeAttempt(r) >= 2 && (Number(r && r.pct) || 0) > OE_PASS_PCT;
 }
 function _oeEffPct(r){
@@ -4756,6 +4761,7 @@ function openExamEditor(id){
   $('edBumpMode').checked = _bp.length > 0;
   _oeBumpPaint(_bp);
   oeBumpModeToggle();
+  $('edLatest').checked = oeExamLatest(ex);
   draftQuestions = ex && ex.questions ? JSON.parse(JSON.stringify(ex.questions)) : [];
   _qOpen = {};
   renderQEditor();
@@ -5608,6 +5614,7 @@ function collectExamFromForm(){
     posPass: $('edPosMode').checked ? _oePosRead() : [],
     docs: _oeDocsRead(),
     bump: $('edBumpMode').checked ? _oeBumpRead() : [],
+    latestScore: $('edLatest').checked,
     passService: Math.min(100, Math.max(0, parseInt($('edPassSrv').value)||70)),
     passKitchen: Math.min(100, Math.max(0, parseInt($('edPassKit').value)||70)),
     timeService: Math.max(1, parseInt($('edTimeSrv').value)||20),
@@ -6100,7 +6107,7 @@ function _oeRuleNote(r, isRound2){
   /* ตอนเพิ่งสอบเสร็จ ผลรอบนี้ยังไม่ทันเข้ารายการ นับรอบจากรายการจึงยังได้ 1
      ผู้เรียกที่รู้อยู่แล้วว่ากำลังทำรอบสอง ส่งมาบอกตรง ๆ ได้ */
   var out = [];
-  var capped = _oeCapped(r) || (isRound2 && (Number(r.pct) || 0) > OE_PASS_PCT);
+  var capped = _oeCapped(r) || (isRound2 && !oeExamLatest(_oeExamOf(r)) && (Number(r.pct) || 0) > OE_PASS_PCT);
   if(capped) out.push('<span class="rn warn">สอบรอบที่ 2 — ทำได้ ' + esc(r.pct)
     + '% นับเป็น ' + OE_PASS_PCT + '% ตามกติกา</span>');
   var left = isRound2 ? null : _oeRetakeLeft(r);
@@ -6172,7 +6179,7 @@ async function oeExtendRetake(){
       ['ชุดข้อสอบ', r.examTitle || ''],
       ['สถานะตอนนี้', curLeft > 0 ? ('เหลือ ' + curLeft + ' วัน') : 'หมดเวลาแล้ว']
     ],
-    warn: 'ยังสอบซ่อมได้ 1 ครั้งเหมือนเดิม และคะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี',
+    warn: 'ยังสอบซ่อมได้ 1 ครั้งเหมือนเดิม และ' + (oeExamLatest(_oeExamOf(r)) ? 'นับคะแนนจริงของรอบล่าสุด' : 'คะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี'),
     yes: 'ขยายเวลา'
   });
   if(!okExt) return;
@@ -9477,7 +9484,7 @@ function renderBranchReqs(){
              กล่องเทา "รอผู้ดูแลอนุมัติ" ที่เคยมีคือการพูดซ้ำ แถมกินที่ครึ่งการ์ด */
           + (again
               ? '<div class="rq-again">รอบแรกยังไม่ผ่าน · สอบใหม่ได้อีก 1 ครั้ง ภายใน <b>' + again
-                + ' วัน</b><span>คะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี</span></div>'
+                + ' วัน</b><span>' + (oeExamLatest(_oeExamOf(r)) ? 'นับคะแนนจริงของรอบล่าสุด' : 'คะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี') + '</span></div>'
               : '')
           + (ready
               ? '<div class="rq-act"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="'
