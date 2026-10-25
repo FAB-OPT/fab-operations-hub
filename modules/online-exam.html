@@ -3415,6 +3415,8 @@ apiPost = function(body){
     'submit-exam-result':  function(){ return ['oe_submit_result', { r: body.result }]; },
     'extend-retake':       function(){ return ['oe_extend_retake', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_extra: Number(body.extra) || 0, p_by: _oeStr(body.by) }]; },
     'edit-result':         function(){ return ['oe_edit_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_patch: body.patch || {}, p_by: _oeStr(body.by) }]; },
+    'save-doc-draft':      function(){ return ['oe_doc_draft_save', { p_key: _oeStr(body.key), p_draft: body.draft || {}, p_by: _oeStr(body.by) }]; },
+    'get-doc-draft':       function(){ return ['oe_doc_draft_get', { p_key: _oeStr(body.key) }]; },
     'delete-exam-result':  function(){ return ['oe_delete_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId) }]; },
     'request-exam':        function(){ return ['oe_request', { req: body.req }]; },
     'decide-exam-request': function(){ return ['oe_decide', { p_id: _oeStr(body.id), p_decision: _oeStr(body.decision), p_by: _oeStr(body.by), p_note: _oeStr(body.note) }]; },
@@ -8064,6 +8066,9 @@ function openDocSet(){
   $('docsSheets').innerHTML = _docSheetExam(r);
   _docMarkSign();
   _docLoadDraft();
+  _docTouched = false;
+  _docRestoreTicks();       // ใบที่เคยติ๊กไว้ (พร้อมข้อมูลที่เคยกรอก) เปิดคืนให้เลย
+  _docPullDraft();          // ร่างที่เก็บไว้บนระบบกลาง (เครื่องอื่น/คนอื่นกรอกไว้) ใหม่กว่าในเครื่อง = ใช้ของใหม่
   $('docsView').classList.remove('hidden');
   document.body.style.overflow = 'hidden';
   _docFitWidth();
@@ -8791,6 +8796,8 @@ function docsPickForm(kind, on){
   });
 }
 
+document.addEventListener('input', function(e){ if(e.target && e.target.closest && e.target.closest('#docsView')) _docTouched = true; });
+document.addEventListener('change', function(e){ if(e.target && e.target.closest && e.target.closest('#docsView')) _docTouched = true; });
 function closeDocSet(){
   _docSaveDraft(true);      // เก็บสิ่งที่พิมพ์ค้างไว้ให้เงียบ ๆ ก่อนปิด
   ['service','kitchen'].forEach(function(k){
@@ -8830,17 +8837,74 @@ function _docFields(){
 function _docClearSigns(){
   _docFields().forEach(function(el){ if(el.dataset && el.dataset.sig) _docSetSign(el, ''); });
 }
+/* ร่างเอกสาร: เก็บในเครื่องทันที + ส่งขึ้นระบบกลางตามหลัง (oe_doc_drafts) ให้เปิดต่อได้ทุกเครื่อง
+   - รวมกับร่างเดิมเสมอ: ใบที่ยังไม่ได้เปิดหรือเพิ่งปลดติ๊ก ข้อมูลที่เคยกรอกต้องไม่หาย
+   - #docs = ใบที่ติ๊กไว้ · #t = เวลาที่บันทึก (ใช้ตัดสินว่าร่างไหนใหม่กว่า) */
+var DOC_PICK_ID = { adjust:'pickAdjust', evaluate:'pickEvaluate', service:'pickService', kitchen:'pickKitchen' };
+var _docTouched = false, _docPushTm = null;
+function _docTicks(){
+  return Object.keys(DOC_PICK_ID).filter(function(k){ var el = $(DOC_PICK_ID[k]); return el && el.checked; });
+}
+function _docReadLocal(r){
+  try{ return JSON.parse(_oeGet(_docDraftKey(r || _docR)) || 'null') || null; }catch(e){ return null; }
+}
 function _docSaveDraft(quiet){
   if(!_docR) return;
-  var d = {};
+  var d = {}, old = _docReadLocal();
+  if(old) for(var ok in old) d[ok] = old[ok];
   _docFields().forEach(function(el){
     var k = el.getAttribute('data-d');
     d[k] = (el.type === 'checkbox') ? (el.checked ? 1 : 0) : (el.value || '');
     if(el.dataset && el.dataset.sig) d['@' + k] = el.dataset.sig;   // ลายเซ็นเก็บแยกคีย์
   });
+  d['#docs'] = _docTicks();
+  d['#t'] = Date.now();
   try{ _oeSet(_docDraftKey(_docR), JSON.stringify(d)); }
   catch(e){ if(!quiet) toast('บันทึกร่างไม่ได้ — พื้นที่ในเครื่องเต็ม','err'); return; }
-  if(!quiet) toast('บันทึกร่างแล้ว');
+  var p = _docPushDraft(d, !quiet);
+  if(!quiet){
+    toast('บันทึกร่างแล้ว');
+    p.then(function(ok){ if(!ok) toast('เก็บร่างในเครื่องแล้ว · ยังไม่ขึ้นระบบกลาง (เครื่องอื่นจะยังไม่เห็น)','warn'); });
+  }
+}
+/* ส่งร่างขึ้นระบบกลาง — พิมพ์รัว ๆ รวบเป็นครั้งเดียว · ส่งไม่ได้ก็เงียบ (ในเครื่องยังมีครบ) */
+function _docPushDraft(d, now){
+  var key = _docDraftKey(_docR);
+  var sess = (typeof getHubSession === 'function' && getHubSession()) || {};
+  var by = sess.name || sess.nick || '';
+  var send = function(){
+    return apiPost({ type:'save-doc-draft', key:key, draft:d, by:by })
+      .then(function(res){ return !!(res && res.ok); }, function(){ return false; });
+  };
+  clearTimeout(_docPushTm);
+  if(now) return send();
+  _docPushTm = setTimeout(send, 1800);
+  return Promise.resolve(true);
+}
+/* คืนใบที่เคยติ๊กไว้ — เปิดใบนั้นขึ้นมาพร้อมข้อมูลที่เคยกรอก */
+function _docRestoreTicks(){
+  var d = _docReadLocal();
+  var want = (d && Array.isArray(d['#docs'])) ? d['#docs'] : [];
+  want.forEach(function(k){
+    var el = $(DOC_PICK_ID[k]);
+    if(!el || el.checked) return;       // ชุดนี้ไม่ได้ใช้ใบนี้ หรือเปิดอยู่แล้ว
+    el.checked = true;
+    docsPickForm(k, true);
+  });
+}
+function _docPullDraft(){
+  var r = _docR, key = _docDraftKey(r);
+  apiPost({ type:'get-doc-draft', key:key }).then(function(res){
+    var sv = res && res.ok && res.draft;
+    if(!sv || typeof sv !== 'object' || _docR !== r) return;
+    var lo = _docReadLocal(r);
+    if(Number(sv['#t'] || 0) <= Number((lo && lo['#t']) || 0)) return;   // ในเครื่องใหม่กว่าหรือเท่ากัน
+    if(_docTouched) return;                                              // เริ่มพิมพ์ไปแล้ว ไม่ทับของที่กำลังกรอก
+    _oeSet(key, JSON.stringify(sv));
+    _docRestoreTicks();
+    _docLoadDraft();
+    toast('โหลดร่างเอกสารล่าสุดจากระบบกลางแล้ว');
+  }).catch(function(){});
 }
 function docsSaveDraft(){ _docSaveDraft(false); }
 
@@ -9015,8 +9079,7 @@ function _docImportInto(f){
 }
 function _docLoadDraft(){
   if(!_docR) return;
-  var d;
-  try{ d = JSON.parse(_oeGet(_docDraftKey(_docR)) || 'null'); }catch(e){ d = null; }
+  var d = _docReadLocal();
   if(!d) return;
   _docFields().forEach(function(el){
     var k = el.getAttribute('data-d');
@@ -9038,6 +9101,7 @@ async function docsClear(){
   });
   _docClearSigns();
   _oeDel(_docDraftKey(_docR));
+  _docPushDraft({}, true);      // ว่าง = ลบร่างบนระบบกลางด้วย
   toast('ล้างฟอร์มแล้ว');
 }
 
