@@ -379,13 +379,28 @@ table.tb tbody tr:hover{background:var(--surface2)}
 .unsent-bar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom));z-index:900;
   display:flex;align-items:center;gap:12px;flex-wrap:wrap;width:min(560px,calc(100% - 24px));padding:10px 12px 10px 14px;
   background:#fff;border:1px solid #FEC84B;border-left:5px solid #F79009;border-radius:14px;box-shadow:0 12px 32px rgba(0,0,0,.16)}
-.unsent-bar.busy{border-color:#B2DDFF;border-left-color:#1570EF}
+/* กำลังส่งขึ้นคลาวด์: การ์ดกลางจอ — ม่านจางไว้ดึงสายตา แต่ไม่บังการกด (pointer-events:none) */
+.unsent-bar.busy{position:fixed;inset:0;left:0;right:0;top:0;bottom:0;transform:none;width:auto;display:grid;place-items:center;
+  padding:16px;background:rgba(16,24,40,.28);border:0;border-radius:0;box-shadow:none;pointer-events:none;gap:0}
+.ub-card{pointer-events:auto;width:min(380px,100%);background:#fff;border-radius:22px;padding:22px 22px 18px;text-align:center;
+  box-shadow:0 24px 60px rgba(16,24,40,.28),0 0 0 1px rgba(16,24,40,.06)}
+.ub-spin{width:46px;height:46px;margin:0 auto 12px;border-radius:50%;border:4px solid #D1E9FF;border-top-color:#1570EF;animation:ubspin .9s linear infinite}
+@keyframes ubspin{to{transform:rotate(360deg)}}
+.ub-ttl{font-size:16px;font-weight:700;color:var(--text);line-height:1.35}
+.ub-left{margin-top:4px;font-size:13px;color:var(--text2)}
+.ub-left b{font-size:22px;color:#1570EF;font-variant-numeric:tabular-nums;margin:0 2px}
+.ub-prog{margin:14px 0 6px;height:8px;border-radius:99px;background:#EAECF0;overflow:hidden}
+.ub-prog i{display:block;height:100%;border-radius:99px;background:#1570EF;transition:width .3s}
+.ub-prog.ind i{width:38%;animation:ubind 1.2s ease-in-out infinite}
+@keyframes ubind{0%{transform:translateX(-110%)}100%{transform:translateX(280%)}}
+.ub-meta{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--text2);font-variant-numeric:tabular-nums}
+.ub-meta span:first-child{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left}
+.ub-warn{margin-top:14px;padding:8px 12px;border-radius:10px;background:#FFF4E5;color:#B54708;font-size:12.5px;font-weight:700}
+@media(prefers-reduced-motion:reduce){ .ub-spin,.ub-prog.ind i{animation:none} }
 .unsent-bar .ub-ic{font-size:20px;flex:none}
 .unsent-bar .ub-tx{flex:1;min-width:0;line-height:1.35}
 .unsent-bar .ub-tx b{display:block;font-size:13.5px;color:var(--text)}
 .unsent-bar .ub-tx small{display:block;font-size:12px;color:var(--text2)}
-.unsent-bar .ub-bar{flex-basis:100%;height:6px;border-radius:9px;background:#EAECF0;overflow:hidden}
-.unsent-bar .ub-bar i{display:block;height:100%;background:#1570EF;transition:width .3s}
 @media(max-width:700px){ .unsent-bar{bottom:calc(76px + env(safe-area-inset-bottom))} }
 @media print{ .unsent-bar{display:none!important} }
 .p-fail{background:var(--red-light);color:var(--red)}
@@ -3022,9 +3037,15 @@ const Cloud = {
     const up = this.upProg;
     if(this.lastStatus === 'syncing'){
       el.className = 'unsent-bar noprint busy';
-      el.innerHTML = `<span class="ub-ic">⇡</span><span class="ub-tx"><b>กำลังส่งรายงานขึ้นคลาวด์ · เหลือ ${pend} ใบ</b>
-        <small>${up ? `รูป ${up.done}/${up.total}${up.branch ? ' · ' + esc(up.branch) : ''} · ` : ''}อย่าเพิ่งปิดหน้านี้</small></span>
-        ${up ? `<span class="ub-bar"><i style="width:${up.total ? Math.round(up.done / up.total * 100) : 0}%"></i></span>` : ''}`;
+      const pct = up && up.total ? Math.round(up.done / up.total * 100) : null;
+      el.innerHTML = `<div class="ub-card" role="status" aria-live="polite">
+        <div class="ub-spin"></div>
+        <div class="ub-ttl">กำลังส่งรายงานขึ้นคลาวด์</div>
+        <div class="ub-left">เหลืออีก <b>${pend}</b> ใบ</div>
+        <div class="ub-prog${pct == null ? ' ind' : ''}"><i${pct == null ? '' : ` style="width:${pct}%"`}></i></div>
+        <div class="ub-meta"><span>${up ? (up.branch ? esc(up.branch) : 'กำลังอัปโหลดรูป') : 'กำลังเตรียมข้อมูล'}</span><span>${up ? `รูป ${up.done}/${up.total}${pct == null ? '' : ' · ' + pct + '%'}` : ''}</span></div>
+        <div class="ub-warn">อย่าเพิ่งปิดหน้านี้</div>
+      </div>`;
     }else{
       el.className = 'unsent-bar noprint';
       el.innerHTML = `<span class="ub-ic">⏳</span><span class="ub-tx"><b>มี ${pend} ใบยังไม่ขึ้นคลาวด์</b>
