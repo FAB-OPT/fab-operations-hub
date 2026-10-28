@@ -6959,7 +6959,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), p=pp.join(' · ').trim();
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), p=[pp.join(' · ').trim()||r.dutyManagerPos||'', r.dutyManagerTen||''].filter(Boolean).join(' · ');
         return '<div class="kv"><span>Duty Manager</span><b>'+esc(n||'—')+'</b>'+(p?'<small class="dmi">'+esc(p)+'</small>':'')+'</div>'; })()}</div>
     </div>`;
   },
@@ -7088,7 +7088,9 @@ const PDF = {
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            <td>${(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), ps=pp.join(' · ').trim();
+            <td>${(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), inf=(r.nmInfo||{})[key]||{};
+              /* ใบที่บันทึกไว้ตอนยังมีช่องตำแหน่ง/อายุงานแยก (nmInfo) ยังแสดงให้ครบ */
+              const ps=[pp.join(' · ').trim()||inf.p||'', inf.t||''].filter(Boolean).join(' · ');
               return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&ps?'<div class="wi">'+esc(ps)+'</div>':''); })()}</td>
             <td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
