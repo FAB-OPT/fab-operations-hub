@@ -5055,6 +5055,8 @@ const Rec = {
   /* จำนวนแถวที่วาดอยู่ตอนนี้ — รีเซ็ตทุกครั้งที่ตัวกรองเปลี่ยน
      ไม่งั้นกรองให้แคบลงแล้วยังค้างที่จำนวนของผลลัพธ์ชุดก่อน */
   limit: 40,   /* ค่าตั้งต้น · ตัวจริงตั้งตอนวาดครั้งแรกจาก Mobile.page() */
+  sortKey:'date', sortDir:'desc',   /* date = วันที่ตรวจ · saved = บันทึกล่าสุด */
+  setSort(k, d){ if(d){ this.sortKey=k; this.sortDir=d; } else if(this.sortKey===k){ this.sortDir=this.sortDir==='desc'?'asc':'desc'; } else { this.sortKey=k; this.sortDir='desc'; } this.limit=Mobile.page(); this.render(); },
   filtered(){
     const g=id=>{ const el=document.getElementById(id); return el? el.value : ''; };
     const q=g('qText').trim().toLowerCase();
@@ -5071,7 +5073,14 @@ const Rec = {
       if(q && !JSON.stringify({a:r.branch,b:r.complaint||'',c:summaryLine(r),d:r.trainer,
         e:(r.menus||[]).map(m=>m.menu).join(' '),f:(r.materials||[]).join(' ')}).toLowerCase().includes(q)) return false;
       return true;
-    }).sort((a,b)=> (b.date+b.time).localeCompare(a.date+a.time));
+    }).sort((a,b)=>{
+      const ka = this.sortKey==='saved' ? (x=>String(x.updatedAt||x.createdAt||'')) : (x=>(x.date||'')+(x.time||''));
+      /* ใบที่ไม่มีเวลาบันทึกเลย (ใบเก่า) ไปท้ายเสมอทั้งสองทิศ */
+      const A=ka(a), B=ka(b);
+      if(this.sortKey==='saved'){ if(!A&&B) return 1; if(A&&!B) return -1; }
+      const c=A.localeCompare(B);
+      return this.sortDir==='desc' ? -c : c;
+    });
   },
   clearFilters(){ ['qText','qType','qVisit','qBranch','qFrom','qTo'].forEach(id=>{ const el=document.getElementById(id); if(el) el.value=''; }); this.limit=Mobile.page(); this.render(); },
   /* ช่องนี้มีความหมายเฉพาะกับใบ Visit จึงโผล่เฉพาะตอนเลือกประเภทฟอร์มเป็น Visit
@@ -5087,6 +5096,17 @@ const Rec = {
   /* เปลี่ยนตัวกรอง = เริ่มนับแถวใหม่ · กด "แสดงเพิ่ม" = วาดต่อจากเดิม
      แยกสองทางเข้าให้ชัด ไม่ใช้ธงในฟังก์ชันเดียวซึ่งอ่านแล้วเดาไม่ออกว่าใครเรียกแบบไหน */
   refilter(){ this.limit=Mobile.page(); this.render(); },
+  /* หัวคอลัมน์กดเรียงได้ — กดซ้ำสลับ ใหม่→เก่า / เก่า→ใหม่ */
+  sortTh(k, label){
+    const on=this.sortKey===k, arr=on?(this.sortDir==='desc'?' ▼':' ▲'):' <span style="opacity:.35">⇅</span>';
+    return `<th style="cursor:pointer;user-select:none;white-space:nowrap" onclick="Rec.setSort('${k}')" title="กดเพื่อเรียง">${label}${arr}</th>`;
+  },
+  /* มือถือไม่มีหัวตาราง — ใช้ช่องเลือกเรียงแทน */
+  sortSelect(){
+    const v=this.sortKey+':'+this.sortDir;
+    const o=(val,l)=>`<option value="${val}"${v===val?' selected':''}>${l}</option>`;
+    return `<div class="fld" style="margin:0 0 10px"><select class="inp" onchange="const p=this.value.split(':');Rec.setSort(p[0],p[1])" aria-label="เรียงตาม">${o('date:desc','เรียง: วันที่ตรวจ ใหม่ → เก่า')}${o('date:asc','เรียง: วันที่ตรวจ เก่า → ใหม่')}${o('saved:desc','เรียง: บันทึกล่าสุด ใหม่ → เก่า')}${o('saved:asc','เรียง: บันทึกล่าสุด เก่า → ใหม่')}</select></div>`;
+  },
   render(){
     if(!this._sized){ this.limit=Mobile.page(); this._sized=1; }
     this.syncVisitFilter();
@@ -5117,14 +5137,14 @@ const Rec = {
     const moreBtn = more > 0
       ? `<div class="recmore"><button class="btn" onclick="Rec.showMore()">แสดงเพิ่ม · เหลืออีก ${more.toLocaleString('th-TH')} รายการ</button></div>`
       : '';
-    if(Mobile.on()){ host.innerHTML=this.cardList(shown)+moreBtn; return; }
+    if(Mobile.on()){ host.innerHTML=this.sortSelect()+this.cardList(shown)+moreBtn; return; }
     /* คอลัมน์ที่ทุกแถวเขียนเหมือนกันหมดไม่ได้แยกอะไร เอาออกให้คอลัมน์ที่เหลือกว้างขึ้น
        - "ประเภท" แบรนด์ที่ใช้ฟอร์มเดียวจะเป็นป้ายเดียวกันทั้งตาราง
        - "ไม่ผ่าน" นับจากใบ FQA เท่านั้น แบรนด์ที่ไม่ได้ใช้ FQA จะเป็นขีดกลางทุกแถว */
     const colType = Brand.info().forms.length > 1;
     const colFail = Brand.has('FQA');
     host.innerHTML=`<table class="tb"><thead><tr>
-      <th>วันที่</th>${colType?'<th>ประเภท</th>':''}<th>สาขา</th><th>สรุปสิ่งที่พบ</th>${colFail?'<th>ไม่ผ่าน</th>':''}<th>ผู้ตรวจ</th><th>บันทึกล่าสุด</th><th></th></tr></thead><tbody>
+      ${this.sortTh('date','วันที่')}${colType?'<th>ประเภท</th>':''}<th>สาขา</th><th>สรุปสิ่งที่พบ</th>${colFail?'<th>ไม่ผ่าน</th>':''}<th>ผู้ตรวจ</th>${this.sortTh('saved','บันทึกล่าสุด')}<th></th></tr></thead><tbody>
       ${shown.map(r=>`<tr>
         <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
         ${colType?`<td>${planTypeTag(r.type)}</td>`:''}
