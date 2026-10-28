@@ -705,6 +705,7 @@ table.pdftb td.c{text-align:center}
 table.pdftb .sm{font-size:10px;color:#888}
 table.pdftb .wr{font-size:10.5px;color:#777;font-weight:700}
 table.pdftb .wn{margin-top:3px;font-weight:800;color:#111;font-size:12px;line-height:1.35}
+table.pdftb .wi{margin-top:1px;font-size:10.5px;color:#666;line-height:1.45}
 
 table.pdftb tr{page-break-inside:avoid}
 .pd-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
@@ -801,9 +802,11 @@ table.pdftb tr{page-break-inside:avoid}
 .sh-delta.up b{color:#16A34A}.sh-delta.down b{color:#DC2626}.sh-delta.first b{font-size:18px;color:#777}
 .sh-delta .u{font-size:10.5px;font-weight:600;color:#777}
 .sh-delta .vv{font-size:11px;font-weight:800;color:#333;margin-top:4px}
-.sh-meta{display:grid;grid-template-columns:.9fr 1fr 1.3fr 1.2fr 1.5fr;gap:10px 16px;padding:11px 16px;background:#FAFAFA;border-top:1px solid #EDEDED}
+.sh-meta{display:grid;grid-template-columns:repeat(4,max-content) minmax(0,1fr);gap:10px 30px;padding:11px 16px;background:#FAFAFA;border-top:1px solid #EDEDED}
 .sh-meta .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
 .sh-meta .kv b{font-size:12px;font-weight:700;color:#111;word-break:break-word}
+.sh-meta .kv:nth-child(-n+4) b{white-space:nowrap}
+.sh-meta .dmi{display:block;margin-top:2px;font-size:11px;font-weight:500;color:#666;line-height:1.45}
 .sh .pi-badge{font-size:11px;font-weight:800;border-radius:999px;white-space:nowrap;padding:7px 16px;color:#fff;text-align:center;line-height:1.35}
 .sh .pi-badge.ok{background:#16A34A}.sh .pi-badge.no{background:#DC2626}
 .sh .pi-badge small{font-weight:600;opacity:.9;font-size:10.5px;margin-left:3px}
@@ -6956,7 +6959,8 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',r.dutyManager)}</div>
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), p=pp.join(' · ').trim();
+        return '<div class="kv"><span>Duty Manager</span><b>'+esc(n||'—')+'</b>'+(p?'<small class="dmi">'+esc(p)+'</small>':'')+'</div>'; })()}</div>
     </div>`;
   },
 
@@ -7084,8 +7088,8 @@ const PDF = {
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            <td>${(()=>{ const nm=((r.names||{})[key]||'').trim();
-              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':''); })()}</td>
+            <td>${(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), ps=pp.join(' · ').trim();
+              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&ps?'<div class="wi">'+esc(ps)+'</div>':''); })()}</td>
             <td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
             <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
