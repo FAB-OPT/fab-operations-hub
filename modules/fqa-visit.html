@@ -4644,12 +4644,22 @@ const Form = {
     if(!this.s.names) this.s.names={};
     const v=this.withPos(val, ev);
     if(v!==val && ev && ev.target) ev.target.value=v;
-    this.s.names[key]=v; this.persist();
+    this.s.names[key]=v;
+    /* อายุงานไม่มีช่องกรอก — เก็บวันเริ่มงานจากระบบ Training ตอนชื่อตรงกับรายชื่อ แล้วคำนวณอายุงานในรายงาน */
+    if(!this.s.nmInfo) this.s.nmInfo={};
+    const e=Roster.find(this.s.branch, v);
+    if(e && e.s) this.s.nmInfo[key]=Object.assign({}, this.s.nmInfo[key], {sd:e.s, t:tenureText(e.s, this.s.date)||''});
+    else if(!String(v).trim()) delete this.s.nmInfo[key];
+    this.persist();
   },
   staDuty(val, ev){
     const v=this.withPos(val, ev);
     if(v!==val && ev && ev.target) ev.target.value=v;
-    this.s.dutyManager=v; this.persist();
+    this.s.dutyManager=v;
+    const e=Roster.find(this.s.branch, v);
+    if(e && e.s){ this.s.dutyManagerSD=e.s; this.s.dutyManagerTen=tenureText(e.s, this.s.date)||''; }
+    else if(!String(v).trim()){ this.s.dutyManagerSD=''; this.s.dutyManagerTen=''; }
+    this.persist();
   },
   /* ทวนสอบ: พิมพ์/เลือกชื่อที่ตรงกับรายชื่อในระบบ Training ของสาขานี้ → เติมตำแหน่งและอายุงานให้ */
   verifyName(i, val){
@@ -7031,7 +7041,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), pos=pp.join(' · ').trim()||r.dutyManagerPos||'', ten=r.dutyManagerTen||'';
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), pos=pp.join(' · ').trim()||r.dutyManagerPos||'', ten=(r.dutyManagerSD?tenureText(r.dutyManagerSD, r.date):'')||r.dutyManagerTen||'';
         return '<div class="kv"><span>Duty Manager</span><b>'+esc(n||'—')+'</b>'+(n&&pos?'<small class="dmi"><i>ตำแหน่ง</i> '+esc(pos)+'</small>':'')+(n&&ten?'<small class="dmi"><i>อายุงาน</i> '+esc(ten)+'</small>':'')+'</div>'; })()}</div>
     </div>`;
   },
@@ -7164,7 +7174,7 @@ const PDF = {
           /* ส่วนงาน / ชื่อผู้ถูกตรวจ ไปอยู่ในช่องบันทึกเพิ่มเติม (ไม่แยกคอลัมน์ให้กินที่) */
           const whoHtml=!hasWho?'':(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), inf=(r.nmInfo||{})[key]||{};
             /* ใบที่บันทึกไว้ตอนยังมีช่องตำแหน่ง/อายุงานแยก (nmInfo) ยังแสดงให้ครบ */
-            const pos=pp.join(' · ').trim()||inf.p||'', ten=inf.t||'';
+            const pos=pp.join(' · ').trim()||inf.p||'', ten=(inf.sd?tenureText(inf.sd, r.date):'')||inf.t||'';
             return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&pos?'<div class="wi"><i>ตำแหน่ง</i> '+esc(pos)+'</div>':'')+(nm&&ten?'<div class="wi"><i>อายุงาน</i> '+esc(ten)+'</div>':''); })();
           /* ไม่มีคอลัมน์ "ผล" แล้ว — ข้อที่ได้ 0 คะแนน (ไม่ผ่าน) ทั้งแถวเป็นสีแดงแทน */
           const zero = got==='0';
