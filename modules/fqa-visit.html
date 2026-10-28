@@ -705,6 +705,11 @@ table.pdftb th{background:#F5F5F5;color:#333;text-align:left;font-weight:700;fon
 table.pdftb td{padding:7px 9px;border:1px solid #E5E5E5;vertical-align:top;color:#222}
 table.pdftb td.c{text-align:center}
 table.pdftb .sm{font-size:10px;color:#888}
+table.pdftb .wr{font-size:10.5px;color:#777;font-weight:700}
+table.pdftb .wn{margin-top:3px;font-weight:800;color:#111;font-size:12px;line-height:1.35}
+table.pdftb .wi{margin-top:2px;font-size:10.5px;color:#666;line-height:1.5}
+table.pdftb .wi span,.sh-meta .dmi i{white-space:nowrap}
+.sh-meta .dmi i{font-style:normal}
 table.pdftb tr{page-break-inside:avoid}
 .pd-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
 .cvl{gap:3px;margin-top:8px!important}
@@ -800,9 +805,10 @@ table.pdftb tr{page-break-inside:avoid}
 .sh-delta.up b{color:#16A34A}.sh-delta.down b{color:#DC2626}.sh-delta.first b{font-size:18px;color:#777}
 .sh-delta .u{font-size:10.5px;font-weight:600;color:#777}
 .sh-delta .vv{font-size:11px;font-weight:800;color:#333;margin-top:4px}
-.sh-meta{display:grid;grid-template-columns:repeat(5,1fr);gap:10px 16px;padding:11px 16px;background:#FAFAFA;border-top:1px solid #EDEDED}
+.sh-meta{display:grid;grid-template-columns:.9fr 1fr 1.3fr 1.2fr 1.5fr;gap:10px 16px;padding:11px 16px;background:#FAFAFA;border-top:1px solid #EDEDED}
 .sh-meta .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
 .sh-meta .kv b{font-size:12px;font-weight:700;color:#111;word-break:break-word}
+.sh-meta .dmi{display:block;margin-top:2px;font-size:10.5px;font-weight:500;color:#666;line-height:1.5}
 .sh .pi-badge{font-size:11px;font-weight:800;border-radius:999px;white-space:nowrap;padding:7px 16px;color:#fff;text-align:center;line-height:1.35}
 .sh .pi-badge.ok{background:#16A34A}.sh .pi-badge.no{background:#DC2626}
 .sh .pi-badge small{font-weight:600;opacity:.9;font-size:10.5px;margin-left:3px}
@@ -6966,7 +6972,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',[r.dutyManager, [r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).join(' · ')].filter(Boolean).join(' — '))}</div>
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}<div class="kv"><span>Duty Manager</span><b>${esc(r.dutyManager||'—')}</b>${[r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).length?'<small class="dmi">'+[r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).map(x=>'<i>'+esc(x)+'</i>').join(' · ')+'</small>':''}</div></div>
     </div>`;
   },
 
@@ -7094,17 +7100,19 @@ const PDF = {
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            <td>${esc(p.who||'')}${(r.names||{})[key]?'<br><span style="font-weight:700">'+esc(r.names[key])+'</span>'+(((r.nmInfo||{})[key]&&([r.nmInfo[key].p,r.nmInfo[key].t].filter(Boolean).length))?'<br><span style="font-size:11px;color:#666">'+esc([r.nmInfo[key].p,r.nmInfo[key].t].filter(Boolean).join(' · '))+'</span>':''):''}</td><td class="c">${p.na?'—':staNum(p.max)}</td>
+            <td>${(()=>{ const nm=((r.names||{})[key]||'').trim(), inf=(r.nmInfo||{})[key]||{}, bits=[inf.p,inf.t].filter(Boolean);
+              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(bits.length?'<div class="wi">'+bits.map(x=>'<span>'+esc(x)+'</span>').join(' · ')+'</div>':''); })()}</td>
+            <td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
             <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
             <td>${esc(((r.notes||{})[key])||'')}</td></tr>`);
         }));
         b+=sec(`${S.name} — ได้ ${staNum(ss.got)}/${staNum(ss.full)}`, tbl(
-          [{h:'ข้อ',w:'6%'},{h:'หัวข้อการตรวจ',w:'34%'},{h:'ส่วนงาน',w:'14%'},{h:'เต็ม',w:'7%',c:1},{h:'ได้',w:'7%',c:1},{h:'ผล',w:'10%',c:1},{h:'บันทึกเพิ่มเติม',w:'22%'}], rows));
+          [{h:'ข้อ',w:'5%'},{h:'หัวข้อการตรวจ',w:'28%'},{h:'ส่วนงาน / ชื่อผู้ถูกตรวจ',w:'27%'},{h:'เต็ม',w:'6%',c:1},{h:'ได้',w:'6%',c:1},{h:'ผล',w:'8%',c:1},{h:'บันทึกเพิ่มเติม',w:'20%'}], rows));
       });
       const vr=(r.verify||[]).filter(v=>(v.name||'').trim());
       if(vr.length) b+=sec('ทวนสอบมาตรฐานการทำงาน (พนักงาน)', tbl(
-        [{h:'ส่วนงาน',w:'13%'},{h:'ชื่อ-นามสกุล',w:'20%'},{h:'ตำแหน่ง',w:'13%'},{h:'อายุงาน',w:'10%'},{h:'เรื่องที่ทวนสอบ',w:'22%'},{h:'ผล',w:'10%',c:1},{h:'ความเห็น',w:'12%'}],
+        [{h:'ส่วนงาน',w:'11%'},{h:'ชื่อ-นามสกุล',w:'19%'},{h:'ตำแหน่ง',w:'12%'},{h:'อายุงาน',w:'13%'},{h:'เรื่องที่ทวนสอบ',w:'21%'},{h:'ผล',w:'7%',c:1},{h:'ความเห็น',w:'17%'}],
         vr.map(v=>`<tr><td>${esc(v.group)}</td><td>${esc(v.name)}</td><td>${esc(v.position)}</td><td>${esc(v.tenure)}</td>
           <td>${esc(v.topic)}</td><td class="c">${esc(v.result)}</td><td>${esc(v.comment)}</td></tr>`)));
       if((r.comment||'').trim()) b+=sec('สรุปของผู้ตรวจ', `<p class="pdftext">${esc(r.comment)}</p>`);
