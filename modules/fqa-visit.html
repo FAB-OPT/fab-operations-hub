@@ -262,9 +262,11 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 .sta-row .note{min-width:0}
 .sta-row .nmrow{grid-column:1 / -1;display:flex;align-items:center;gap:10px;margin-top:2px}
 .sta-row .nmrow>span{flex:none;font-size:12px;font-weight:700;color:var(--text3);min-width:84px}
+.sta-row .nmrow .nm-pos{flex:0 0 170px}
+.sta-row .nmrow .nm-ten{flex:0 0 130px}
 .sta-row .nmrow input{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:7px 10px;font:inherit;font-size:13px}
 .sta-row .nmrow input:focus{outline:0;border-color:var(--accent);box-shadow:var(--ring)}
-@media(max-width:700px){ .sta-row .nmrow{flex-direction:column;align-items:stretch;gap:4px} .sta-row .nmrow>span{min-width:0} }
+@media(max-width:700px){ .sta-row .nmrow{flex-wrap:wrap;gap:6px} .sta-row .nmrow>span{flex-basis:100%;min-width:0} .sta-row .nmrow input{flex:1 1 100%} .sta-row .nmrow .nm-pos,.sta-row .nmrow .nm-ten{flex:1 1 calc(50% - 4px)} }
 .sta-row .note input{width:100%;border:1px solid transparent;border-radius:8px;background:var(--surface2);
   padding:8px 11px;font-family:inherit;font-size:12.5px;color:var(--text);transition:.15s}
 .sta-row .note input:hover{border-color:var(--border)}
@@ -2047,6 +2049,15 @@ const todayISO = ()=> new Date().toISOString().slice(0,10);
    บวก 543 ตรงนี้ที่เดียว ห้ามไปบวกตอนบันทึก ไม่งั้นข้อมูลจะปนกันสองระบบปี
    แล้วแยกไม่ออกว่าใบไหนเก็บเป็น ค.ศ. ใบไหนเป็น พ.ศ.
    ค่าที่ไม่ใช่รูปแบบวันที่ (ว่าง/พัง) คืนกลับไปตามเดิม ดีกว่าโชว์ NaN */
+/* บันทึกล่าสุด: วันที่ + เวลา (เวลาไทย) ของครั้งที่แก้/บันทึกใบนี้ล่าสุด · ใบที่ไม่มีค่าเลย = null */
+function savedAtParts(r){
+  const iso=(r && (r.updatedAt||r.createdAt))||'';
+  const d=iso?new Date(iso):null;
+  if(!d || isNaN(d.getTime())) return null;
+  const tz='Asia/Bangkok';
+  return { d:d.toLocaleDateString('th-TH',{day:'2-digit',month:'2-digit',year:'numeric',timeZone:tz}),
+           t:d.toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:tz}) };
+}
 function fmtDMY(v){
   const t = String(v == null ? '' : v).slice(0,10);
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(t);
@@ -3941,7 +3952,7 @@ const Form = {
     if(type==='VISIT'){ r.visitType=[]; r.visitTypeOther=''; r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     /* STA — marks เก็บผลรายข้อ ('A1.mgr' → pass/fail/na) · notes เก็บสิ่งที่จดเพิ่มของข้อนั้น
        แยกสองก้อนเพราะคนละเรื่องกัน และทำให้เพิ่ม/ลดข้อในเกณฑ์ทีหลังได้โดยใบเก่าไม่พัง */
-    if(type==='STA'){ r.timeEnd=''; r.dutyManager=''; r.marks={}; r.notes={}; r.names={}; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
+    if(type==='STA'){ r.timeEnd=''; r.dutyManager=''; r.marks={}; r.notes={}; r.names={}; r.nmInfo={}; r.dutyManagerPos=''; r.dutyManagerTen=''; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
     return r;
   },
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
@@ -4087,7 +4098,9 @@ const Form = {
               ${M.trainers().map(t=>`<option ${t===s.trainer?'selected':''}>${esc(t)}</option>`).join('')}
             </select></div>
           ${sta?`<div class="fld"><label class="lbl">Duty Manager</label>
-            <input class="inp" list="rl-mgr" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,'mgr','ชื่อผู้จัดการกะที่อยู่ในร้าน'))}" value="${attr(s.dutyManager||'')}" oninput="Form.set('dutyManager',this.value)"></div>`:''}
+            <input class="inp" list="rl-mgr" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,'mgr','ชื่อผู้จัดการกะที่อยู่ในร้าน'))}" value="${attr(s.dutyManager||'')}" oninput="Form.staDuty(this.value)">
+            <div class="trange" style="margin-top:8px"><input class="inp" id="dmPos" placeholder="ตำแหน่ง" value="${attr(s.dutyManagerPos||'')}" oninput="Form.set('dutyManagerPos',this.value)" aria-label="ตำแหน่ง Duty Manager">
+              <input class="inp" id="dmTen" placeholder="อายุงาน" value="${attr(s.dutyManagerTen||'')}" oninput="Form.set('dutyManagerTen',this.value)" aria-label="อายุงาน Duty Manager"></div></div>`:''}
         </div>
       </div></div>`;
   },
@@ -4418,6 +4431,7 @@ const Form = {
     if(!s.marks) s.marks={};
     if(!s.notes) s.notes={};
     if(!s.names) s.names={};
+    if(!s.nmInfo) s.nmInfo={};
     if(!Array.isArray(s.verify)) s.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g));
     const sc=staScore(s);
     const auto=staPrevAuto(s), f68=staPrevAuto(s)?null:staPrev68(s), prev=staPrev(s,true), dl=staDelta(sc.pct, prev);
@@ -4531,7 +4545,9 @@ const Form = {
               <span class="max">${staNum(p.max)}</span>
               ${mk(it.no,p.k,cur)}
               <span class="note"><input placeholder="${attr(ph)}" value="${attr(s.notes[key]||"")}" oninput="Form.staNote('${key}',this.value)"></span>
-              ${p.nm?`<label class="nmrow"><span>ชื่อ-นามสกุล</span><input list="rl-${p.nm}" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,p.nm))}" value="${attr((s.names||{})[key]||"")}" oninput="Form.staName('${key}',this.value)"></label>`:""}</div>`;
+              ${p.nm?`<div class="nmrow"><span>ชื่อ-นามสกุล</span><input list="rl-${p.nm}" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,p.nm))}" value="${attr((s.names||{})[key]||"")}" oninput="Form.staName('${key}',this.value)">
+                <input class="nm-pos" id="nmp-${key}" placeholder="ตำแหน่ง" value="${attr(((s.nmInfo||{})[key]||{}).p||"")}" oninput="Form.staNmInfo('${key}','p',this.value)" aria-label="ตำแหน่ง">
+                <input class="nm-ten" id="nmt-${key}" placeholder="อายุงาน" value="${attr(((s.nmInfo||{})[key]||{}).t||"")}" oninput="Form.staNmInfo('${key}','t',this.value)" aria-label="อายุงาน"></div>`:""}</div>`;
           }).join("")}
           </div>
         </div>`;
@@ -4592,7 +4608,31 @@ const Form = {
     this.persist(); this.render();
   },
   staNote(key, val){ this.s.notes[key]=val; this.persist(); },
-  staName(key, val){ if(!this.s.names) this.s.names={}; this.s.names[key]=val; this.persist(); },
+  /* พิมพ์/เลือกชื่อที่ตรงกับรายชื่อในระบบ Training → เติมตำแหน่งและอายุงานให้ (แก้เองได้) */
+  staName(key, val){
+    if(!this.s.names) this.s.names={}; if(!this.s.nmInfo) this.s.nmInfo={};
+    this.s.names[key]=val;
+    const e=Roster.find(this.s.branch, val);
+    if(e){
+      const t=tenureText(e.s, this.s.date)||'';
+      this.s.nmInfo[key]={p:e.p||'', t:t};
+      const a=document.getElementById('nmp-'+key), b=document.getElementById('nmt-'+key);
+      if(a) a.value=e.p||''; if(b) b.value=t;
+    }
+    this.persist();
+  },
+  staNmInfo(key, f, val){ if(!this.s.nmInfo) this.s.nmInfo={}; const o=this.s.nmInfo[key]||(this.s.nmInfo[key]={p:'',t:''}); o[f]=val; this.persist(); },
+  staDuty(val){
+    this.s.dutyManager=val;
+    const e=Roster.find(this.s.branch, val);
+    if(e){
+      const t=tenureText(e.s, this.s.date)||'';
+      this.s.dutyManagerPos=e.p||''; this.s.dutyManagerTen=t;
+      const a=document.getElementById('dmPos'), b=document.getElementById('dmTen');
+      if(a) a.value=e.p||''; if(b) b.value=t;
+    }
+    this.persist();
+  },
   /* ทวนสอบ: พิมพ์/เลือกชื่อที่ตรงกับรายชื่อในระบบ Training ของสาขานี้ → เติมตำแหน่งและอายุงานให้ */
   verifyName(i, val){
     const v=this.s.verify[i]; v.name=val;
@@ -5056,7 +5096,7 @@ const Rec = {
     const colType = Brand.info().forms.length > 1;
     const colFail = Brand.has('FQA');
     host.innerHTML=`<table class="tb"><thead><tr>
-      <th>วันที่</th>${colType?'<th>ประเภท</th>':''}<th>สาขา</th><th>สรุปสิ่งที่พบ</th>${colFail?'<th>ไม่ผ่าน</th>':''}<th>ผู้ตรวจ</th><th></th></tr></thead><tbody>
+      <th>วันที่</th>${colType?'<th>ประเภท</th>':''}<th>สาขา</th><th>สรุปสิ่งที่พบ</th>${colFail?'<th>ไม่ผ่าน</th>':''}<th>ผู้ตรวจ</th><th>บันทึกล่าสุด</th><th></th></tr></thead><tbody>
       ${shown.map(r=>`<tr>
         <td class="mono" style="white-space:nowrap">${esc(fmtDMY(r.date))}<div style="font-size:11px;color:var(--text3)">${esc(r.time)}</div></td>
         ${colType?`<td>${planTypeTag(r.type)}</td>`:''}
@@ -5064,6 +5104,7 @@ const Rec = {
         <td style="max-width:300px;color:var(--text2)">${summaryHTML(r)}</td>
         ${colFail?`<td>${r.type==='FQA'?(failCount(r)?`<span class="pill p-fail">${failCount(r)}</span>`:`<span class="pill p-pass">0</span>`):'<span style="color:var(--text3)">—</span>'}</td>`:''}
         <td style="font-size:12.5px">${trainerTag(r.trainer)}</td>
+        <td class="mono" style="white-space:nowrap">${(()=>{ const p=savedAtParts(r); return p?`${esc(p.d)}<div style="font-size:11px;color:var(--text3)">${esc(p.t)}</div>`:'<span style="color:var(--text3)">—</span>'; })()}</td>
         <td class="rowact noprint">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
@@ -5082,6 +5123,7 @@ const Rec = {
           <b>${esc(r.branch)} ${unsentTag(r.id)}</b>
           <span>${summaryHTML(r)}</span>
           <em>${esc(fmtDMY(r.date))} ${esc(r.time||'')} · ${esc(r.trainer||'—')}</em>
+          ${(()=>{ const p=savedAtParts(r); return p?`<em style="display:block">บันทึกล่าสุด ${esc(p.d)} ${esc(p.t)}</em>`:''; })()}
         </div>
         ${canEdit()?`<span class="rl-a" onclick="event.stopPropagation()">
           <button class="btn sm" title="แก้ไข" aria-label="แก้ไข" onclick="Rec.edit('${r.id}')"><span class="ic">✎</span></button>
@@ -5098,6 +5140,7 @@ const Rec = {
         <b class="rc-branch" style="display:block;margin-bottom:8px">${esc(r.branch)} ${unsentTag(r.id)}</b>
         <div class="rc-sum">${summaryHTML(r)}</div>
         <div class="rc-meta"><span>📅 ${esc(fmtDMY(r.date))} ${esc(r.time||'')}</span>${trainerTag(r.trainer)}</div>
+        ${(()=>{ const p=savedAtParts(r); return p?`<div style="font-size:11.5px;color:var(--text3);margin-top:4px">บันทึกล่าสุด ${esc(p.d)} ${esc(p.t)}</div>`:''; })()}
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
@@ -6921,7 +6964,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',r.dutyManager)}</div>
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',[r.dutyManager, [r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).join(' · ')].filter(Boolean).join(' — '))}</div>
     </div>`;
   },
 
@@ -7049,7 +7092,7 @@ const PDF = {
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            <td>${esc(p.who||'')}${(r.names||{})[key]?'<br><span style="font-weight:700">'+esc(r.names[key])+'</span>':''}</td><td class="c">${p.na?'—':staNum(p.max)}</td>
+            <td>${esc(p.who||'')}${(r.names||{})[key]?'<br><span style="font-weight:700">'+esc(r.names[key])+'</span>'+(((r.nmInfo||{})[key]&&([r.nmInfo[key].p,r.nmInfo[key].t].filter(Boolean).length))?'<br><span style="font-size:11px;color:#666">'+esc([r.nmInfo[key].p,r.nmInfo[key].t].filter(Boolean).join(' · '))+'</span>':''):''}</td><td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
             <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
             <td>${esc(((r.notes||{})[key])||'')}</td></tr>`);
@@ -7427,14 +7470,15 @@ const IO = {
     rows=rows||inspections();
     const summary=rows.map(r=>({
       'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'เวลาเสร็จ':r.timeEnd||'','ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
-      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,'Duty Manager':r.dutyManager||'',
+      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,'Duty Manager':r.dutyManager||'','Duty Manager ตำแหน่ง':r.dutyManagerPos||'','Duty Manager อายุงาน':r.dutyManagerTen||'',
       'ประเภทการเข้า Visit':r.type==='VISIT'?visitTypeList(r).join(', '):'',
       'จำนวนประเด็นที่พบ':failCount(r),'สรุปสิ่งที่พบ':summaryLine(r),
       'คะแนนที่ได้':r.type==='STA'?staScore(r).got:'','คะแนนเต็ม':r.type==='STA'?(staScore(r).total||staScore(r).full):'',
       'คิดเป็น (%)':r.type==='STA'?staScore(r).pct:'',
       'ครั้งก่อน (%)':r.type==='STA'?((staPrev(r,false)||{}).pct ?? ''):'',
       'เพิ่ม/ลดจากครั้งก่อน (%)':r.type==='STA'?((staDelta(staScore(r).pct, staPrev(r,false))||{}).d ?? ''):'',
-      'จำนวนรูป':r.photos.length,'บันทึกเมื่อ':(r.createdAt||'').slice(0,19).replace('T',' ')}));
+      'จำนวนรูป':r.photos.length,'บันทึกเมื่อ':(r.createdAt||'').slice(0,19).replace('T',' '),
+      'บันทึกล่าสุด':(()=>{ const p=savedAtParts(r); return p?p.d+' '+p.t:''; })()}));
     const fqaItem=[],fqaMenu=[],comp=[],visit=[],sta=[],staVerify=[];
     rows.forEach(r=>{
       if(r.type==='FQA'){
@@ -7453,7 +7497,7 @@ const IO = {
         STA_FORM.forEach(sec=>sec.items.forEach(it=>it.parts.forEach(p=>{
           const key=it.no+'.'+p.k, v=(r.marks||{})[key];
           sta.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
-            'หมวด':sec.name,'ข้อ':it.no,'หัวข้อการตรวจ':it.text,'ส่วนงาน':p.who||'','ชื่อ-นามสกุล':((r.names||{})[key])||'',
+            'หมวด':sec.name,'ข้อ':it.no,'หัวข้อการตรวจ':it.text,'ส่วนงาน':p.who||'','ชื่อ-นามสกุล':((r.names||{})[key])||'','ตำแหน่ง':(((r.nmInfo||{})[key])||{}).p||'','อายุงาน':(((r.nmInfo||{})[key])||{}).t||'',
             'คะแนนเต็ม':p.na?'':p.max,
             'ผล':p.na?'N/A':(v==='pass'?'ผ่าน':v==='fail'?'ไม่ผ่าน':v==='na'?'N/A':''),
             'คะแนนที่ได้':(!p.na&&v==='pass')?p.max:((!p.na&&v==='fail')?0:''),
