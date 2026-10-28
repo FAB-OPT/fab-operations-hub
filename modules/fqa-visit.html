@@ -2158,8 +2158,12 @@ const Roster = {
   },
   of(branch, role){
     const code=this.codeOf(branch); if(!code) return [];
-    return this.list.filter(e=>e.b===code && (!role || role==='all' || e.r===role))
-      .sort((a,b)=>a.n.localeCompare(b.n,'th'));
+    /* ครัวกับบริการสลับกันได้ (คนครัวถูกตรวจในแถวบริการ หรือกลับกัน) — กลุ่มของแถวนั้นขึ้นก่อน แล้วค่อยตามด้วยอีกกลุ่ม
+       ผู้จัดการแยกกลุ่มของตัวเอง */
+    const fl=(role=='kit'||role=='srv') ? (e=>e.r==='kit'||e.r==='srv') : (e=>!role||role==='all'||e.r===role);
+    const rank=e=>(role=='kit'||role=='srv')&&e.r!==role?1:0;
+    return this.list.filter(e=>e.b===code && fl(e))
+      .sort((a,b)=>rank(a)-rank(b)||a.n.localeCompare(b.n,'th'));
   },
   find(branch, name){
     const k=this.bare(name); if(!k) return null;
