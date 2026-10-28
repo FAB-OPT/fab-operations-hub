@@ -717,6 +717,8 @@ table.pdftb .sm{font-size:10px;color:#888}
 .vbd>div{padding:8px 12px}
 .vbd>div+div{border-left:1px solid #E5E5E5}
 .vlb{font-size:10px;font-weight:700;color:#9A9A9A;margin-bottom:2px}
+table.pdftb .wnote{margin-top:5px;padding-top:5px;border-top:1px dashed #E5E5E5}
+table.pdftb .wr+.wnote,table.pdftb td>.wnote:first-child{margin-top:0;padding-top:0;border-top:0}
 table.pdftb .wr{font-size:10.5px;color:#777;font-weight:700}
 table.pdftb .wn{margin-top:3px;font-weight:800;color:#111;font-size:12px;line-height:1.35}
 table.pdftb .wi{margin-top:1px;font-size:10.5px;color:#444;line-height:1.45}
@@ -7104,19 +7106,20 @@ const PDF = {
           /* คะแนนที่ได้จริงของข้อนั้น ผ่านได้เต็ม ไม่ผ่านได้ศูนย์
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
+          /* ส่วนงาน / ชื่อผู้ถูกตรวจ ไปอยู่ในช่องบันทึกเพิ่มเติม (ไม่แยกคอลัมน์ให้กินที่) */
+          const whoHtml=!hasWho?'':(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), inf=(r.nmInfo||{})[key]||{};
+            /* ใบที่บันทึกไว้ตอนยังมีช่องตำแหน่ง/อายุงานแยก (nmInfo) ยังแสดงให้ครบ */
+            const pos=pp.join(' · ').trim()||inf.p||'', ten=inf.t||'';
+            return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&pos?'<div class="wi"><i>ตำแหน่ง</i> '+esc(pos)+'</div>':'')+(nm&&ten?'<div class="wi"><i>อายุงาน</i> '+esc(ten)+'</div>':''); })();
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            ${!hasWho?'':`<td>${(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), inf=(r.nmInfo||{})[key]||{};
-              /* ใบที่บันทึกไว้ตอนยังมีช่องตำแหน่ง/อายุงานแยก (nmInfo) ยังแสดงให้ครบ */
-              const pos=pp.join(' · ').trim()||inf.p||'', ten=inf.t||'';
-              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&pos?'<div class="wi"><i>ตำแหน่ง</i> '+esc(pos)+'</div>':'')+(nm&&ten?'<div class="wi"><i>อายุงาน</i> '+esc(ten)+'</div>':''); })()}</td>`}
             <td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
             <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
-            <td>${esc(((r.notes||{})[key])||'')}</td></tr>`);
+            <td>${whoHtml}${((r.notes||{})[key])?`<div class="wnote${whoHtml?'':''}">${esc(r.notes[key])}</div>`:''}</td></tr>`);
         }));
         b+=sec(`${S.name} — ได้ ${staNum(ss.got)}/${staNum(ss.full)}`, tbl(
           hasWho
-            ? [{h:'ข้อ',w:'5%'},{h:'หัวข้อการตรวจ',w:'28%'},{h:'ส่วนงาน / ชื่อผู้ถูกตรวจ',w:'27%'},{h:'เต็ม',w:'6%',c:1},{h:'ได้',w:'6%',c:1},{h:'ผล',w:'8%',c:1},{h:'บันทึกเพิ่มเติม',w:'20%'}]
+            ? [{h:'ข้อ',w:'5%'},{h:'หัวข้อการตรวจ',w:'30%'},{h:'เต็ม',w:'6%',c:1},{h:'ได้',w:'6%',c:1},{h:'ผล',w:'8%',c:1},{h:'บันทึกเพิ่มเติม',w:'45%'}]
             : [{h:'ข้อ',w:'6%'},{h:'หัวข้อการตรวจ',w:'50%'},{h:'เต็ม',w:'7%',c:1},{h:'ได้',w:'7%',c:1},{h:'ผล',w:'10%',c:1},{h:'บันทึกเพิ่มเติม',w:'20%'}], rows));
       });
       const vr=(r.verify||[]).filter(v=>(v.name||'').trim());
