@@ -262,11 +262,9 @@ select.inp{appearance:none;background-image:url("data:image/svg+xml;charset=utf8
 .sta-row .note{min-width:0}
 .sta-row .nmrow{grid-column:1 / -1;display:flex;align-items:center;gap:10px;margin-top:2px}
 .sta-row .nmrow>span{flex:none;font-size:12px;font-weight:700;color:var(--text3);min-width:84px}
-.sta-row .nmrow .nm-pos{flex:0 0 170px}
-.sta-row .nmrow .nm-ten{flex:0 0 130px}
 .sta-row .nmrow input{flex:1;min-width:0;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:7px 10px;font:inherit;font-size:13px}
 .sta-row .nmrow input:focus{outline:0;border-color:var(--accent);box-shadow:var(--ring)}
-@media(max-width:700px){ .sta-row .nmrow{flex-wrap:wrap;gap:6px} .sta-row .nmrow>span{flex-basis:100%;min-width:0} .sta-row .nmrow input{flex:1 1 100%} .sta-row .nmrow .nm-pos,.sta-row .nmrow .nm-ten{flex:1 1 calc(50% - 4px)} }
+@media(max-width:700px){ .sta-row .nmrow{flex-direction:column;align-items:stretch;gap:4px} .sta-row .nmrow>span{min-width:0} }
 .sta-row .note input{width:100%;border:1px solid transparent;border-radius:8px;background:var(--surface2);
   padding:8px 11px;font-family:inherit;font-size:12.5px;color:var(--text);transition:.15s}
 .sta-row .note input:hover{border-color:var(--border)}
@@ -707,9 +705,7 @@ table.pdftb td.c{text-align:center}
 table.pdftb .sm{font-size:10px;color:#888}
 table.pdftb .wr{font-size:10.5px;color:#777;font-weight:700}
 table.pdftb .wn{margin-top:3px;font-weight:800;color:#111;font-size:12px;line-height:1.35}
-table.pdftb .wi{margin-top:2px;font-size:10.5px;color:#666;line-height:1.5}
-table.pdftb .wi span,.sh-meta .dmi i{white-space:nowrap}
-.sh-meta .dmi i{font-style:normal}
+
 table.pdftb tr{page-break-inside:avoid}
 .pd-pill{display:inline-block;padding:1px 8px;border-radius:999px;font-size:10.5px;font-weight:700}
 .cvl{gap:3px;margin-top:8px!important}
@@ -808,7 +804,6 @@ table.pdftb tr{page-break-inside:avoid}
 .sh-meta{display:grid;grid-template-columns:.9fr 1fr 1.3fr 1.2fr 1.5fr;gap:10px 16px;padding:11px 16px;background:#FAFAFA;border-top:1px solid #EDEDED}
 .sh-meta .kv span{display:block;font-size:9px;color:#9A9A9A;text-transform:uppercase;letter-spacing:.4px;margin-bottom:1px}
 .sh-meta .kv b{font-size:12px;font-weight:700;color:#111;word-break:break-word}
-.sh-meta .dmi{display:block;margin-top:2px;font-size:10.5px;font-weight:500;color:#666;line-height:1.5}
 .sh .pi-badge{font-size:11px;font-weight:800;border-radius:999px;white-space:nowrap;padding:7px 16px;color:#fff;text-align:center;line-height:1.35}
 .sh .pi-badge.ok{background:#16A34A}.sh .pi-badge.no{background:#DC2626}
 .sh .pi-badge small{font-weight:600;opacity:.9;font-size:10.5px;margin-left:3px}
@@ -2100,7 +2095,7 @@ const Roster = {
   URL:'https://cyjfgperenakjeazsfgf.supabase.co', KEY:'sb_publishable_xAtQvH3Bdaqt7PVJGbkxWw_KVhfBszo',
   LS:'fqa_roster_v1', TTL:6*3600*1000, list:[], t:0, _p:null, _c:null,
   clean(n){ return String(n||'').replace(/\s+/g,' ').trim(); },
-  bare(n){ return this.clean(String(n||'').replace(/\([^)]*\)/g,'')).toLowerCase(); },
+  bare(n){ return this.clean(String(n||'').split(' · ')[0].replace(/\([^)]*\)/g,'')).toLowerCase(); },
   role(p, g){
     const t=String(p||'')+' '+String(g||'');
     if(/manager|supervisor|ผู้จัดการ|หัวหน้า/i.test(t)) return 'mgr';
@@ -2147,7 +2142,7 @@ const Roster = {
   find(branch, name){
     const k=this.bare(name); if(!k) return null;
     const code=this.codeOf(branch); if(!code) return null;
-    return this.list.find(e=>e.b===code && (this.bare(e.n)===k || this.clean(e.n).toLowerCase()===this.clean(name).toLowerCase())) || null;
+    return this.list.find(e=>e.b===code && (this.bare(e.n)===k || this.clean(e.n).toLowerCase()===this.clean(String(name||'').split(' · ')[0]).toLowerCase())) || null;
   },
   ph(branch, role, fallback){
     const base=fallback||'ชื่อ-นามสกุล';
@@ -3960,7 +3955,7 @@ const Form = {
     if(type==='VISIT'){ r.visitType=[]; r.visitTypeOther=''; r.topics=[this.topicRow()]; r.newStaff=[this.staffRow()]; }
     /* STA — marks เก็บผลรายข้อ ('A1.mgr' → pass/fail/na) · notes เก็บสิ่งที่จดเพิ่มของข้อนั้น
        แยกสองก้อนเพราะคนละเรื่องกัน และทำให้เพิ่ม/ลดข้อในเกณฑ์ทีหลังได้โดยใบเก่าไม่พัง */
-    if(type==='STA'){ r.timeEnd=''; r.dutyManager=''; r.marks={}; r.notes={}; r.names={}; r.nmInfo={}; r.dutyManagerPos=''; r.dutyManagerTen=''; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
+    if(type==='STA'){ r.timeEnd=''; r.dutyManager=''; r.marks={}; r.notes={}; r.names={}; r.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g)); r.comment=''; }
     return r;
   },
   menuRow(){ return {menu:'',cook:'',taste:'',detail:'',fix:''}; },
@@ -4106,9 +4101,7 @@ const Form = {
               ${M.trainers().map(t=>`<option ${t===s.trainer?'selected':''}>${esc(t)}</option>`).join('')}
             </select></div>
           ${sta?`<div class="fld"><label class="lbl">Duty Manager</label>
-            <input class="inp" list="rl-mgr" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,'mgr','ชื่อผู้จัดการกะที่อยู่ในร้าน'))}" value="${attr(s.dutyManager||'')}" oninput="Form.staDuty(this.value)">
-            <div class="trange" style="margin-top:8px"><input class="inp" id="dmPos" placeholder="ตำแหน่ง" value="${attr(s.dutyManagerPos||'')}" oninput="Form.set('dutyManagerPos',this.value)" aria-label="ตำแหน่ง Duty Manager">
-              <input class="inp" id="dmTen" placeholder="อายุงาน" value="${attr(s.dutyManagerTen||'')}" oninput="Form.set('dutyManagerTen',this.value)" aria-label="อายุงาน Duty Manager"></div></div>`:''}
+            <input class="inp" list="rl-mgr" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,'mgr','ชื่อผู้จัดการกะที่อยู่ในร้าน'))}" value="${attr(s.dutyManager||'')}" oninput="Form.staDuty(this.value,event)"></div>`:''}
         </div>
       </div></div>`;
   },
@@ -4439,7 +4432,6 @@ const Form = {
     if(!s.marks) s.marks={};
     if(!s.notes) s.notes={};
     if(!s.names) s.names={};
-    if(!s.nmInfo) s.nmInfo={};
     if(!Array.isArray(s.verify)) s.verify=STA_VERIFY_GROUPS.map(g=>this.verifyRow(g));
     const sc=staScore(s);
     const auto=staPrevAuto(s), f68=staPrevAuto(s)?null:staPrev68(s), prev=staPrev(s,true), dl=staDelta(sc.pct, prev);
@@ -4553,9 +4545,7 @@ const Form = {
               <span class="max">${staNum(p.max)}</span>
               ${mk(it.no,p.k,cur)}
               <span class="note"><input placeholder="${attr(ph)}" value="${attr(s.notes[key]||"")}" oninput="Form.staNote('${key}',this.value)"></span>
-              ${p.nm?`<div class="nmrow"><span>ชื่อ-นามสกุล</span><input list="rl-${p.nm}" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,p.nm))}" value="${attr((s.names||{})[key]||"")}" oninput="Form.staName('${key}',this.value)">
-                <input class="nm-pos" id="nmp-${key}" placeholder="ตำแหน่ง" value="${attr(((s.nmInfo||{})[key]||{}).p||"")}" oninput="Form.staNmInfo('${key}','p',this.value)" aria-label="ตำแหน่ง">
-                <input class="nm-ten" id="nmt-${key}" placeholder="อายุงาน" value="${attr(((s.nmInfo||{})[key]||{}).t||"")}" oninput="Form.staNmInfo('${key}','t',this.value)" aria-label="อายุงาน"></div>`:""}</div>`;
+              ${p.nm?`<div class="nmrow"><span>ชื่อ-นามสกุล</span><input list="rl-${p.nm}" autocomplete="off" placeholder="${attr(Roster.ph(s.branch,p.nm))}" value="${attr((s.names||{})[key]||"")}" oninput="Form.staName('${key}',this.value,event)"></div>`:""}</div>`;
           }).join("")}
           </div>
         </div>`;
@@ -4616,30 +4606,24 @@ const Form = {
     this.persist(); this.render();
   },
   staNote(key, val){ this.s.notes[key]=val; this.persist(); },
-  /* พิมพ์/เลือกชื่อที่ตรงกับรายชื่อในระบบ Training → เติมตำแหน่งและอายุงานให้ (แก้เองได้) */
-  staName(key, val){
-    if(!this.s.names) this.s.names={}; if(!this.s.nmInfo) this.s.nmInfo={};
-    this.s.names[key]=val;
+  /* เลือกชื่อจากรายชื่อในระบบ Training → ต่อท้ายชื่อด้วย " · ตำแหน่ง" ให้เอง
+     ทำเฉพาะตอนเลือกจากลิสต์ (ไม่ใช่ตอนพิมพ์/ลบ) ผู้ใช้จึงลบส่วนตำแหน่งออกได้โดยไม่ถูกเติมกลับ */
+  withPos(val, ev){
+    const picked = !ev || !ev.inputType || ev.inputType==='insertReplacementText';
+    if(!picked || String(val).indexOf(' · ')>=0) return val;
     const e=Roster.find(this.s.branch, val);
-    if(e){
-      const t=tenureText(e.s, this.s.date)||'';
-      this.s.nmInfo[key]={p:e.p||'', t:t};
-      const a=document.getElementById('nmp-'+key), b=document.getElementById('nmt-'+key);
-      if(a) a.value=e.p||''; if(b) b.value=t;
-    }
-    this.persist();
+    return (e && e.p && Roster.clean(val)===Roster.clean(e.n)) ? e.n+' · '+e.p : val;
   },
-  staNmInfo(key, f, val){ if(!this.s.nmInfo) this.s.nmInfo={}; const o=this.s.nmInfo[key]||(this.s.nmInfo[key]={p:'',t:''}); o[f]=val; this.persist(); },
-  staDuty(val){
-    this.s.dutyManager=val;
-    const e=Roster.find(this.s.branch, val);
-    if(e){
-      const t=tenureText(e.s, this.s.date)||'';
-      this.s.dutyManagerPos=e.p||''; this.s.dutyManagerTen=t;
-      const a=document.getElementById('dmPos'), b=document.getElementById('dmTen');
-      if(a) a.value=e.p||''; if(b) b.value=t;
-    }
-    this.persist();
+  staName(key, val, ev){
+    if(!this.s.names) this.s.names={};
+    const v=this.withPos(val, ev);
+    if(v!==val && ev && ev.target) ev.target.value=v;
+    this.s.names[key]=v; this.persist();
+  },
+  staDuty(val, ev){
+    const v=this.withPos(val, ev);
+    if(v!==val && ev && ev.target) ev.target.value=v;
+    this.s.dutyManager=v; this.persist();
   },
   /* ทวนสอบ: พิมพ์/เลือกชื่อที่ตรงกับรายชื่อในระบบ Training ของสาขานี้ → เติมตำแหน่งและอายุงานให้ */
   verifyName(i, val){
@@ -6972,7 +6956,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}<div class="kv"><span>Duty Manager</span><b>${esc(r.dutyManager||'—')}</b>${[r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).length?'<small class="dmi">'+[r.dutyManagerPos,r.dutyManagerTen].filter(Boolean).map(x=>'<i>'+esc(x)+'</i>').join(' · ')+'</small>':''}</div></div>
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${kv('Duty Manager',r.dutyManager)}</div>
     </div>`;
   },
 
@@ -7100,8 +7084,8 @@ const PDF = {
              N/A กับข้อที่ยังไม่ตอบไม่ถูกนับ ทั้งฝั่งที่ได้และฝั่งคะแนนเต็ม จึงใส่ขีดไว้ */
           const got = (p.na || !v || v==='na') ? '—' : (v==='pass' ? staNum(p.max) : '0');
           rows.push(`<tr><td>${pi===0?esc(it.no):''}</td><td>${pi===0?esc(it.text):''}</td>
-            <td>${(()=>{ const nm=((r.names||{})[key]||'').trim(), inf=(r.nmInfo||{})[key]||{}, bits=[inf.p,inf.t].filter(Boolean);
-              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(bits.length?'<div class="wi">'+bits.map(x=>'<span>'+esc(x)+'</span>').join(' · ')+'</div>':''); })()}</td>
+            <td>${(()=>{ const nm=((r.names||{})[key]||'').trim();
+              return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':''); })()}</td>
             <td class="c">${p.na?'—':staNum(p.max)}</td>
             <td class="c" style="font-weight:800;color:${got==='0'?'#DC2626':got==='—'?'#888':'#111'}">${esc(got)}</td>
             <td class="c" style="color:${res==='ไม่ผ่าน'?'#DC2626':res==='ผ่าน'?'#0E9F6E':'#888'};font-weight:700">${esc(res)}</td>
@@ -7480,7 +7464,7 @@ const IO = {
     rows=rows||inspections();
     const summary=rows.map(r=>({
       'เลขที่':r.id,'วันที่':r.date,'เวลา':r.time,'เวลาเสร็จ':r.timeEnd||'','ประเภทฟอร์ม':TYPE_LABEL[r.type],'รหัสประเภท':r.type,
-      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,'Duty Manager':r.dutyManager||'','Duty Manager ตำแหน่ง':r.dutyManagerPos||'','Duty Manager อายุงาน':r.dutyManagerTen||'',
+      'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,'Duty Manager':r.dutyManager||'',
       'ประเภทการเข้า Visit':r.type==='VISIT'?visitTypeList(r).join(', '):'',
       'จำนวนประเด็นที่พบ':failCount(r),'สรุปสิ่งที่พบ':summaryLine(r),
       'คะแนนที่ได้':r.type==='STA'?staScore(r).got:'','คะแนนเต็ม':r.type==='STA'?(staScore(r).total||staScore(r).full):'',
@@ -7507,7 +7491,7 @@ const IO = {
         STA_FORM.forEach(sec=>sec.items.forEach(it=>it.parts.forEach(p=>{
           const key=it.no+'.'+p.k, v=(r.marks||{})[key];
           sta.push({'เลขที่':r.id,'วันที่':r.date,'สาขา':r.branch,'ผู้จัดการเขต':r.bzm,'ผู้ตรวจ':r.trainer,
-            'หมวด':sec.name,'ข้อ':it.no,'หัวข้อการตรวจ':it.text,'ส่วนงาน':p.who||'','ชื่อ-นามสกุล':((r.names||{})[key])||'','ตำแหน่ง':(((r.nmInfo||{})[key])||{}).p||'','อายุงาน':(((r.nmInfo||{})[key])||{}).t||'',
+            'หมวด':sec.name,'ข้อ':it.no,'หัวข้อการตรวจ':it.text,'ส่วนงาน':p.who||'','ชื่อ-นามสกุล':((r.names||{})[key])||'',
             'คะแนนเต็ม':p.na?'':p.max,
             'ผล':p.na?'N/A':(v==='pass'?'ผ่าน':v==='fail'?'ไม่ผ่าน':v==='na'?'N/A':''),
             'คะแนนที่ได้':(!p.na&&v==='pass')?p.max:((!p.na&&v==='fail')?0:''),
