@@ -7041,7 +7041,7 @@ const PDF = {
         </div>
         ${cmp}
       </div>
-      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), pos=pp.join(' · ').trim()||r.dutyManagerPos||'', ten=(r.dutyManagerSD?tenureText(r.dutyManagerSD, r.date):'')||r.dutyManagerTen||'';
+      <div class="sh-meta">${kv('วันที่',fmtDMY(r.date))}${kv('เวลา',staTimeText(r))}${kv('ผู้ตรวจ',r.trainer)}${kv('BZM',r.bzm)}${(()=>{ const pp=String(r.dutyManager||'').split(' · '), n=(pp.shift()||'').trim(), pos=pp.join(' · ').trim()||r.dutyManagerPos||'', ten=(r.dutyManagerSD?tenureText(r.dutyManagerSD, r.date):'')||r.dutyManagerTen||(()=>{ try{ const e=n&&Roster.find(r.branch, n); return e&&e.s?tenureText(e.s, r.date):''; }catch(_){ return ''; } })();
         return '<div class="kv"><span>Duty Manager</span><b>'+esc(n||'—')+'</b>'+(n&&pos?'<small class="dmi"><i>ตำแหน่ง</i> '+esc(pos)+'</small>':'')+(n&&ten?'<small class="dmi"><i>อายุงาน</i> '+esc(ten)+'</small>':'')+'</div>'; })()}</div>
     </div>`;
   },
@@ -7174,7 +7174,7 @@ const PDF = {
           /* ส่วนงาน / ชื่อผู้ถูกตรวจ ไปอยู่ในช่องบันทึกเพิ่มเติม (ไม่แยกคอลัมน์ให้กินที่) */
           const whoHtml=!hasWho?'':(()=>{ const pp=String((r.names||{})[key]||'').split(' · '), nm=(pp.shift()||'').trim(), inf=(r.nmInfo||{})[key]||{};
             /* ใบที่บันทึกไว้ตอนยังมีช่องตำแหน่ง/อายุงานแยก (nmInfo) ยังแสดงให้ครบ */
-            const pos=pp.join(' · ').trim()||inf.p||'', ten=(inf.sd?tenureText(inf.sd, r.date):'')||inf.t||'';
+            const pos=pp.join(' · ').trim()||inf.p||'', ten=(inf.sd?tenureText(inf.sd, r.date):'')||inf.t||(()=>{ /* ใบที่ยังไม่มีวันเริ่มงานติดมา — ค้นจากรายชื่อ Training ตามชื่อ */ try{ const e=nm&&Roster.find(r.branch, nm); return e&&e.s?tenureText(e.s, r.date):''; }catch(_){ return ''; } })();
             return '<div class="wr">'+esc(p.who||'')+'</div>'+(nm?'<div class="wn">'+esc(nm)+'</div>':'')+(nm&&pos?'<div class="wi"><i>ตำแหน่ง</i> '+esc(pos)+'</div>':'')+(nm&&ten?'<div class="wi"><i>อายุงาน</i> '+esc(ten)+'</div>':''); })();
           /* ไม่มีคอลัมน์ "ผล" แล้ว — ข้อที่ได้ 0 คะแนน (ไม่ผ่าน) ทั้งแถวเป็นสีแดงแทน */
           const zero = got==='0';
