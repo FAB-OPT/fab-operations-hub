@@ -1262,7 +1262,18 @@ select.txt{appearance:none;-webkit-appearance:none;
 .p-in input:focus{outline:none}
 .p-in input::-webkit-outer-spin-button,.p-in input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .p-in i{font-style:normal;font-size:12px;color:var(--text3);font-weight:700}
-.p-row.off{display:none}   /* โหมดสัดส่วนหมวด/แบ่งส่วนคุมจำนวนข้อแล้ว — ซ่อนช่องนี้ ไม่ให้เห็นเลขที่ไม่มีผล (ข้อความอธิบายอยู่ใต้ช่อง) */
+.p-row.off{display:none}
+/* กลุ่มการตั้งค่า: หัวข้อ + กรอบ — ไล่หาว่าอะไรเกี่ยวกับอะไรได้ในแวบเดียว */
+.grp{border:1px solid var(--border);border-radius:12px;margin:0 0 12px;overflow:hidden;background:#fff}
+.grp>.grp-h{padding:9px 14px;background:var(--bg3);border-bottom:1px solid var(--border);font-size:13px;font-weight:800;color:var(--text2)}
+.grp>.grp-b{padding:6px 14px 8px}
+.grp>.grp-b>.fld{margin-top:8px}
+.grp>.grp-b>.switch-row:first-child,.grp>.grp-b>.p-row:first-child{margin-top:0}
+.stu-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:0 0 12px}
+.stu-sum>div{background:#fff;border:1px solid var(--blue-line);border-radius:12px;padding:9px 6px;text-align:center}
+.stu-sum b{display:block;font-size:20px;line-height:1.25;font-variant-numeric:tabular-nums;color:#1c47b8}
+.stu-sum span{font-size:11.5px;font-weight:700;color:var(--text3)}
+.stu-sum em{display:block;font-style:normal;font-size:10.5px;color:var(--text3);margin-top:1px}   /* โหมดสัดส่วนหมวด/แบ่งส่วนคุมจำนวนข้อแล้ว — ซ่อนช่องนี้ ไม่ให้เห็นเลขที่ไม่มีผล (ข้อความอธิบายอยู่ใต้ช่อง) */
 /* เอกสารที่แนบกับผลสอบ + ขั้นฐานเงินเดือน — ตั้งได้รายชุดข้อสอบ */
 .doc-pick{display:flex;flex-wrap:wrap;gap:8px}
 .doc-pick label{display:flex;align-items:center;gap:8px;border:1.5px solid var(--border);border-radius:10px;
@@ -2405,13 +2416,11 @@ label.fld>span>b{font-weight:800}
           <section class="pane stu">
             <div class="ph">สิ่งที่ผู้สอบเจอ<small>เปลี่ยนตรงนี้ = คนสอบรู้สึกได้ทันที</small></div>
             <div class="pb">
+              <div class="stu-sum" id="edSummary" aria-live="polite"></div>
+              <div class="grp"><div class="grp-h">📝 ข้อสอบ</div><div class="grp-b">
               <div class="p-row"><div class="p-lb">ได้ข้อสอบกี่ข้อ<small>ใส่ 0 = ได้ครบทุกข้อในคลัง</small></div>
                 <div class="p-in"><input id="edDraw" type="number" min="0" value="0" oninput="updateDrawHint()"><i>ข้อ</i></div></div>
               <p class="p-note" id="edDrawNote"></p>
-              <div class="p-row"><div class="p-lb">มีเวลาทำกี่นาที</div>
-                <div class="p-in"><input id="edTime" type="number" min="1" value="20"><i>นาที</i></div></div>
-              <div class="p-row"><div class="p-lb">ถือว่าผ่านที่<small>คะแนนรวมขั้นต่ำที่ถือว่าผ่าน</small></div>
-                <div class="p-in"><input id="edPass" type="number" min="0" max="100" value="70"><i>%</i></div></div>
 <!-- แบ่งส่วน บริการ / ครัว — ผู้สอบเลือกเองว่าสอบส่วนไหน แต่ละส่วนมีเกณฑ์ผ่านของตัวเอง -->
           <div class="switch-row part-row"><div><div class="sw-t">แบ่งส่วน บริการ / ครัว</div><div class="sw-d">ผู้สอบเลือก รวมทั้งหมด / บริการ / ครัว · แต่ละทางตั้งเวลา จำนวนข้อ และเกณฑ์ผ่านของตัวเอง · รวมทั้งหมดตัดสินจากคะแนนรวม</div></div><label class="sw"><input type="checkbox" id="edPartMode" onchange="oePartModeToggle()"><span class="track"></span></label></div>
 <!-- ตั้งแยกการ์ดละทาง ตามที่ผู้สอบเลือก: รวมทั้งหมด → บริการ → ครัว -->
@@ -2458,9 +2467,18 @@ label.fld>span>b{font-weight:800}
                 <div class="cat-sum" id="edCatSum"></div>
                 <datalist id="oeCats"></datalist>
               </div>
+              </div></div>
+              <div class="grp"><div class="grp-h">⏱ เวลาและเกณฑ์ผ่าน</div><div class="grp-b">
+              <div class="p-row"><div class="p-lb">มีเวลาทำกี่นาที</div>
+                <div class="p-in"><input id="edTime" type="number" min="1" value="20"><i>นาที</i></div></div>
+              <div class="p-row"><div class="p-lb">ถือว่าผ่านที่<small>คะแนนรวมขั้นต่ำที่ถือว่าผ่าน</small></div>
+                <div class="p-in"><input id="edPass" type="number" min="0" max="100" value="70"><i>%</i></div></div>
+              </div></div>
+              <div class="grp"><div class="grp-h">🛡 ระหว่างทำข้อสอบ</div><div class="grp-b">
               <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
+              </div></div>
             </div>
           </section>
 
@@ -2469,6 +2487,7 @@ label.fld>span>b{font-weight:800}
             <div class="ph">กฎที่ผู้ดูแลคุม<small>ผู้สอบไม่เห็น แต่กำหนดว่าใครทำได้และผลนับยังไง</small></div>
             <div class="pb">
               <input type="hidden" id="edBrand">
+              <div class="grp"><div class="grp-h">📌 ชุดข้อสอบ</div><div class="grp-b">
               <label class="fld"><span>ชื่อชุดข้อสอบ <b class="req">*</b><span id="edBrandBadge" class="brand-tag" style="margin-left:8px"></span></span>
                 <input class="txt" id="edTitle" placeholder="เช่น แบบทดสอบมาตรฐานการบริการ เจ๊แดง 2026"></label>
               <label class="fld"><span>สถานะ</span>
@@ -2477,6 +2496,8 @@ label.fld>span>b{font-weight:800}
                   <option value="false">ปิด — เก็บเป็นร่าง ยังไม่ให้ใครเห็น</option>
                 </select>
               </label>
+              </div></div>
+              <div class="grp"><div class="grp-h">👥 ใครทำได้ และเมื่อไร</div><div class="grp-b">
               <div class="fld" style="margin:0"><span>จำกัดเฉพาะบางสาขา</span>
             <!-- เก็บค่าจริงไว้ในช่องซ่อน (ชื่อสาขาบรรทัดละอัน) ตัวบันทึกชุดข้อสอบจึงไม่ต้องแก้ -->
             <input type="hidden" id="edBranches">
@@ -2508,13 +2529,17 @@ label.fld>span>b{font-weight:800}
                   <em class="fld-hint">ว่างไว้ = ไม่กำหนดวันปิด</em></label>
               </div>
               <div class="switch-row" style="margin-top:12px"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ทำได้ครั้งเดียว ส่งแล้วปิดทันที</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
+              </div></div>
+              <div class="grp"><div class="grp-h">🛡 กันทุจริตระหว่างสอบ</div><div class="grp-b">
               <div class="p-row"><div class="p-lb">เตือนได้กี่ครั้ง<small>สลับแท็บ / ออกจอ / จับภาพ ได้กี่ครั้งก่อนถูกตัดสิทธิ์</small></div>
                 <div class="p-in"><input id="edViol" type="number" min="1" value="3"><i>ครั้ง</i></div></div>
               <div class="switch-row"><div><div class="sw-t">กันสลับแท็บ / ออกหน้าจอ</div><div class="sw-d">ออกจากหน้านี้เมื่อไร นับเป็นการเตือน</div></div><label class="sw"><input type="checkbox" id="edLeave" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">กันจับภาพหน้าจอ</div><div class="sw-d">บล็อก PrintScreen และเครื่องมือจับภาพ</div></div><label class="sw"><input type="checkbox" id="edShot" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">เตือนครบแล้วส่งอัตโนมัติ</div><div class="sw-d">ตัดสิทธิ์และส่งข้อสอบทันทีเมื่อเตือนครบ</div></div><label class="sw"><input type="checkbox" id="edAuto" checked><span class="track"></span></label></div>
+              </div></div>
 
               <!-- แต่ละชุดใช้เอกสารคนละชุดและไม่ได้ผูกกับฐานเงินเดือนเหมือนกันหมด จึงตั้งแยกรายชุด -->
+              <div class="grp"><div class="grp-h">📑 ผลสอบ และเอกสาร</div><div class="grp-b">
               <div class="p-row" style="flex-direction:column;align-items:stretch;gap:9px">
                 <div class="p-lb">เอกสารที่แนบกับผลสอบ<small>ติ๊กเฉพาะใบที่ชุดนี้ต้องใช้ · ใบผลสอบมีอยู่แล้วทุกชุด</small></div>
                 <div class="doc-pick" id="edDocs"></div>
@@ -2525,6 +2550,7 @@ label.fld>span>b{font-weight:800}
                 <button type="button" class="bump-add" onclick="oeBumpAdd()">+ เพิ่มขั้นคะแนน</button>
               </div>
               <div class="switch-row"><div><div class="sw-t">ยึดผลสอบล่าสุดตามจริง</div><div class="sw-d">เปิด = สอบซ่อมรอบสองนับคะแนนที่ทำได้จริง (เหมาะกับสอบปรับระดับ) · ปิดไว้ = รอบสองที่ทำได้เกิน 70% นับเป็น 70% (แบบประเมินทดลองงาน)</div></div><label class="sw"><input type="checkbox" id="edLatest"><span class="track"></span></label></div>
+              </div></div>
             </div>
           </section>
 
@@ -4726,6 +4752,48 @@ var editingId = null;
 var draftQuestions = [];
 
 /* บอกให้เห็น ๆ ว่าตั้งเลขนี้แล้วผู้สอบจะได้กี่ข้อ — เลขเกินคลังคือพลาดที่เจอบ่อย ต้องเตือนตรงนั้นเลย */
+/* กล่องสรุปบนสุดของฝั่ง "สิ่งที่ผู้สอบเจอ" — อ่านจากค่าในฟอร์มตอนนี้ แล้วบอกว่าผู้สอบจะเจอกี่ข้อ กี่นาที เกณฑ์เท่าไร */
+function edSummaryPaint(){
+  var el = $('edSummary'); if(!el) return;
+  try {
+    var num = function(id, d){ var v = parseInt(($(id) || {}).value, 10); return isFinite(v) ? v : d; };
+    var pm = _oeEdPartMode(), cm = _oeEdCatMode(), pos = !!($('edPosMode') && $('edPosMode').checked);
+    var fx = { questions: draftQuestions, passingScorePercent: num('edPass', 70), timeLimitMinutes: num('edTime', 20),
+      drawCount: num('edDraw', 0), catMode: cm, partMode: pm,
+      posPass: pos ? _oePosRead() : [],
+      drawAll: num('edDrawAll', 0), drawService: num('edDrawSrv', 0), drawKitchen: num('edDrawKit', 0),
+      passAll: num('edPassAll', 70), passService: num('edPassSrv', 70), passKitchen: num('edPassKit', 70),
+      timeAll: num('edTimeAll', 30), timeService: num('edTimeSrv', 20), timeKitchen: num('edTimeKit', 20) };
+    if(cm){
+      _oeCatReadInputs();
+      fx.catDraw = oeCatRows({ questions: draftQuestions }, _oeCatN).map(function(r){ return { name: r.name, n: r.draw >= r.pool ? 0 : r.draw }; });
+    }
+    var q, t, p, sub = '';
+    var range = function(a){ var lo = Math.min.apply(null, a), hi = Math.max.apply(null, a); return lo === hi ? String(lo) : lo + '–' + hi; };
+    if(pm){
+      q = range(OE_TRACK_ORDER.map(function(k){ return oeTrackCount(fx, k); }));
+      t = range(OE_TRACK_ORDER.map(function(k){ return oeTrackTime(fx, k); }));
+      p = range(OE_TRACK_ORDER.map(function(k){ return oePartPass(fx, k); })) + '%';
+      sub = 'ตามส่วนที่ผู้สอบเลือก';
+    } else {
+      q = oeCountLabel(fx); t = String(fx.timeLimitMinutes); p = oePassLabel(fx);
+      if(pos) sub = 'ตามตำแหน่ง';
+    }
+    el.innerHTML = '<div><b>' + q + '</b><span>ข้อ</span><em>' + (draftQuestions.length ? 'จากคลัง ' + draftQuestions.length : 'ยังไม่มีคำถาม') + '</em></div>' +
+      '<div><b>' + t + '</b><span>นาที</span>' + (sub && pm ? '<em>' + sub + '</em>' : '') + '</div>' +
+      '<div><b>' + p + '</b><span>เกณฑ์ผ่าน</span>' + (sub ? '<em>' + sub + '</em>' : '<em>จากคะแนนรวม</em>') + '</div>';
+  } catch(e){ el.innerHTML = ''; }
+}
+(function(){
+  var tm = null, go = function(e){
+    var t = e && e.target;
+    if(!t || !t.closest || !t.closest('.pane.stu')) return;
+    clearTimeout(tm); tm = setTimeout(edSummaryPaint, 60);
+  };
+  document.addEventListener('input', go);
+  document.addEventListener('change', go);
+  document.addEventListener('click', function(e){ var t = e.target; if(t && t.closest && t.closest('.pane.stu') && t.closest('button')) go(e); });
+})();
 function updateDrawHint(){
   var note=$('edDrawNote'); if(!note) return;
   if(_oeEdPartMode()){
@@ -5340,6 +5408,7 @@ function renderQEditor() {
   var _qt = $('qCountTab'); if (_qt) _qt.textContent = draftQuestions.length;
   _qWarnRefresh();
   updateDrawHint();
+  edSummaryPaint();
   _oePartCount();
 
   if (!draftQuestions.length) {
