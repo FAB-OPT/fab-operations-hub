@@ -3435,6 +3435,7 @@ apiPost = function(body){
     'delete-exam':         function(){ return ['oe_delete_exam', { p_id: _oeStr(body.id) }]; },
     'submit-exam-result':  function(){ return ['oe_submit_result', { r: body.result }]; },
     'extend-retake':       function(){ return ['oe_extend_retake', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_extra: Number(body.extra) || 0, p_by: _oeStr(body.by) }]; },
+    'edit-result-info':    function(){ return ['oe_edit_result_info', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_fields: body.fields || {}, p_by: _oeStr(body.by) }]; },
     'edit-result':         function(){ return ['oe_edit_result', { p_submitted_at: _oeStr(body.submittedAt), p_emp_id: _oeStr(body.empId), p_exam_id: _oeStr(body.examId), p_patch: body.patch || {}, p_by: _oeStr(body.by) }]; },
     'save-doc-draft':      function(){ return ['oe_doc_draft_save', { p_key: _oeStr(body.key), p_draft: body.draft || {}, p_by: _oeStr(body.by) }]; },
     'get-doc-draft':       function(){ return ['oe_doc_draft_get', { p_key: _oeStr(body.key) }]; },
@@ -6450,7 +6451,13 @@ function _oeResDetailHtml(r){
   h += '<div class="rd-acts">' +
     '<button class="btn btn-soft" onclick="oePick(\'report\',\'' + esc(rid) + '\')">🖨 ใบรายงานผลสอบ</button>' +
     '<button class="btn btn-primary" onclick="oePick(\'docs\',\'' + esc(rid) + '\')">📑 ชุดเอกสาร</button>' +
+    (_oeCanEditInfo() ? '<button class="btn btn-soft" onclick="oeEditInfo()">✏️ แก้ข้อมูลผู้สอบ</button>' : '') +
   '</div>';
+  if(r.infoEditedAt && _oeCanEditInfo()){
+    h += '<div class="rd-editnote">✏️ แอดมินแก้ข้อมูลผู้สอบแล้ว' + (r.infoEditedBy ? ' · โดย ' + esc(r.infoEditedBy) : '') + ' · ' + esc(fmtDT(r.infoEditedAt)) +
+      (r.origName && r.origName !== r.name ? '<br>ชื่อเดิม: ' + esc(r.origName) : '') +
+      (r.origEmpId != null && r.origEmpId !== r.empId ? '<br>รหัสเดิม: ' + esc(r.origEmpId || '—') : '') + '</div>';
+  }
 
   /* ข้อมูลประกอบ — เวลาที่ใช้คำนวณจากเริ่มถึงส่ง ไม่ได้เก็บไว้ตรง ๆ */
   var um = _oeUsedMin(r);
@@ -6528,6 +6535,55 @@ function _oeResDetailHtml(r){
   }).join('') + '</ol>';
   if(_ed) setTimeout(_oeEdSum, 0);
   return h;
+}
+
+/* ═══ แก้ข้อมูลผู้สอบ (แอดมินเท่านั้น · แก้ได้ตลอด) ═══
+   แก้ชื่อ-นามสกุล รหัสพนักงาน ตำแหน่ง สาขา ของใบผลสอบ · คำขอสอบของคนเดิมตามไปแก้ที่หลังบ้านให้
+   ค่าเดิมเก็บไว้ที่ origName/origEmpId · ไม่แตะคะแนนหรือเวลาส่ง */
+function _oeCanEditInfo(){ return _oeRole() === 'admin'; }
+var _oeInfoDraft = null;
+async function oeEditInfo(){
+  var r = _oeResCur;
+  if(!r || !_oeCanEditInfo()){ toast('เฉพาะแอดมินแก้ข้อมูลผู้สอบได้','err'); return; }
+  _oeInfoDraft = { name: r.name || '', empId: r.empId || '', position: r.position || '', branch: r.branch || '' };
+  var fld = function(k, label){
+    return '<label class="fld" style="text-align:left;margin-bottom:10px"><span>' + label + '</span>' +
+      '<input class="txt" id="oeInfo_' + k + '" value="' + esc(_oeInfoDraft[k]) + '" oninput="_oeInfoDraft.' + k + '=this.value"></label>';
+  };
+  var okGo = await oeConfirm({
+    icon: '✏️', title: 'แก้ข้อมูลผู้สอบ',
+    text: '<div style="margin-top:8px">' + fld('name', 'ชื่อ-นามสกุล') + fld('empId', 'รหัสพนักงาน') + fld('position', 'ตำแหน่ง') + fld('branch', 'สาขา') + '</div>',
+    facts: [['ชุดข้อสอบ', r.examTitle || ''], ['ส่งเมื่อ', fmtDT(r.submittedAt)]],
+    warn: 'คะแนนและเวลาส่งไม่เปลี่ยน · คำขอสอบของคนนี้ในชุดเดียวกันจะแก้ชื่อ/รหัส/ตำแหน่งตามให้ · ระบบเก็บชื่อและรหัสเดิมไว้ให้ย้อนดู',
+    yes: 'บันทึก'
+  });
+  if(!okGo){ _oeInfoDraft = null; return; }
+  var d = _oeInfoDraft || {}; _oeInfoDraft = null;
+  var fields = {};
+  ['name','empId','position','branch'].forEach(function(k){
+    var nv = String(d[k] == null ? '' : d[k]).trim();
+    if(nv !== String(r[k] == null ? '' : r[k]).trim()) fields[k] = nv;
+  });
+  if(!Object.keys(fields).length){ toast('ยังไม่ได้แก้อะไร', 'warn'); return; }
+  if('name' in fields && !fields.name){ toast('ชื่อห้ามว่าง', 'err'); return; }
+  var sess = (typeof getHubSession === 'function' && getHubSession()) || {};
+  var by = sess.name || sess.nick || '';
+  apiPost({ type:'edit-result-info', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '', fields: fields, by: by })
+    .then(function(res){
+      if(res && res.ok){
+        if(r.origName == null) r.origName = r.name;
+        if(r.origEmpId == null) r.origEmpId = r.empId || '';
+        for(var k in fields) r[k] = fields[k];
+        r.infoEditedBy = by; r.infoEditedAt = new Date().toISOString();
+        toast('แก้ข้อมูลผู้สอบแล้ว' + (res.requests ? ' · คำขอสอบตามไปแก้ ' + res.requests + ' ใบ' : ''));
+        if(_oeResCur === r) $('rdBody').innerHTML = _oeResDetailHtml(r);
+        loadResults(true);
+      } else toast('บันทึกไม่สำเร็จ: ' + ((res && res.error) || 'ไม่ทราบสาเหตุ'), 'err');
+    })
+    .catch(function(e){
+      var m = String((e && e.message) || e || '');
+      toast(/oe_edit_result_info/.test(m) ? 'ยังไม่ได้เพิ่มฟังก์ชันหลังบ้าน — รันไฟล์ supabase/online-exam-edit-info.sql ก่อน 1 ครั้ง' : 'บันทึกไม่สำเร็จ - ' + _apiWhy(e), 'err');
+    });
 }
 
 /* ═══ แก้ผลสอบรายข้อ (แอดมิน) ═══

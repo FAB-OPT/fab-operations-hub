@@ -2086,6 +2086,7 @@ window.evalSheets = function(key){
       <div class="es-h">
         <div class="es-hl"><b>ใบที่ ${ev.length - i}</b><span>${esc(fmtDT(e.created_at))}${e.taker_branch ? ' · ' + esc(e.taker_branch) : ''}</span></div>
         <div class="es-p"><small>ภาพรวม</small>${e.pct != null ? Number(e.pct).toFixed(1) + '%' : '—'}</div>
+        ${ttIsAdmin() ? `<button class="btn btn-line btn-sm" onclick="editAttTime(${e.id},'eval','${esc(key)}')">🕒 แก้วัน-เวลา</button>` : ''}
         ${canDel ? `<button class="btn btn-danger btn-sm" onclick="delEval(${e.id},'${esc(key)}')">ลบ</button>` : ''}
       </div>
       <div class="es-b">${secs}
@@ -2096,6 +2097,42 @@ window.evalSheets = function(key){
       <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div>
     ${ev.length ? ev.map(one).join('') : '<div class="empty">ยังไม่มีแบบประเมิน</div>'}`;
   $('#modal').classList.add('show');
+};
+/* แก้วัน-เวลาที่ทำ — แอดมินเท่านั้น · ใช้เมื่อกรอกย้อนหลังหรือเวลาเครื่องผิด
+   เก็บลงช่อง created_at เดิม จึงไปกระทบการเรียงลำดับ "ประเมินล่าสุด" และรายงานทุกหน้าให้เอง */
+const ttIsAdmin = () => String(ME.role || '').toLowerCase() === 'admin';
+const _localInput = v => {
+  const d = new Date(v); if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate()) + 'T' + p(d.getHours()) + ':' + p(d.getMinutes());
+};
+window.editAttTime = function(id, from, key, pid){
+  if (!ttIsAdmin()) return msg('เฉพาะแอดมินแก้วัน-เวลาได้', 'warn');
+  const a = attempts.find(x => x.id === id); if (!a) return;
+  const back = () => from === 'eval' ? evalSheets(key) : detail(key, pid);
+  window._attTimeBack = back;
+  $('#modalBox').innerHTML = `<div class="cf-pop">
+    <div class="cf-ic">🕒</div>
+    <h2>แก้วัน-เวลาที่ทำ</h2>
+    <p>${esc(a.taker_name || (a.phase === 'eval' ? 'แบบประเมิน (ไม่ระบุชื่อ)' : ''))}<br><span class="muted">ตอนนี้ ${esc(fmtDT(a.created_at))}</span></p>
+    <input type="datetime-local" id="attTimeIn" value="${_localInput(a.created_at)}" style="width:100%;padding:10px 12px;border:1px solid var(--line,#d6dbe1);border-radius:10px;font:inherit;margin-top:6px">
+    <div class="cf-act" style="margin-top:14px">
+      <button class="btn btn-secondary" onclick="_attTimeBack()">ยกเลิก</button>
+      <button class="btn btn-primary" onclick="saveAttTime(${id})">บันทึก</button>
+    </div></div>`;
+  $('#modal').classList.add('show');
+};
+window.saveAttTime = async function(id){
+  if (!ttIsAdmin()) return msg('เฉพาะแอดมินแก้วัน-เวลาได้', 'warn');
+  const v = ($('#attTimeIn') || {}).value;
+  const d = v ? new Date(v) : null;
+  if (!d || isNaN(d)) return msg('เลือกวัน-เวลาให้ครบก่อน', 'warn');
+  const { data, error } = await SB.from(TT_ATT_T).update({ created_at: d.toISOString() }).eq('id', id).select('id');
+  if (error) return msg('บันทึกไม่สำเร็จ — ' + esc(error.message), 'err');
+  if (!data || !data.length) return msg('บันทึกไม่สำเร็จ — ไม่มีสิทธิ์แก้แถวนี้', 'err');
+  await loadAttempts(); paintResults();
+  msg('แก้วัน-เวลาแล้ว');
+  window._attTimeBack && window._attTimeBack();
 };
 window.delEval = async function(id, key){
   if (!ttCan('delete-attempt')) return msg('ไม่มีสิทธิ์ลบผล', 'warn');
@@ -2131,8 +2168,8 @@ window.detail = function(key, pid){
       </div>
     </div>
     <div class="stats">
-      <div class="stat"><b>${pre ? pre.pct + '%' : '—'}</b><span>ก่อนเรียน ${pre ? '· ' + fmtDT(pre.created_at) : ''}</span></div>
-      <div class="stat"><b>${post ? post.pct + '%' : '—'}</b><span>หลังเรียน ${post ? '· ' + fmtDT(post.created_at) : ''}</span></div>
+      <div class="stat"><b>${pre ? pre.pct + '%' : '—'}</b><span>ก่อนเรียน ${pre ? '· ' + fmtDT(pre.created_at) : ''}</span>${ttIsAdmin() && pre ? `<button class="btn btn-line btn-sm" style="margin-top:6px" onclick="editAttTime(${pre.id},'detail','${esc(key)}','${esc(pid)}')">🕒 แก้วัน-เวลา</button>` : ''}</div>
+      <div class="stat"><b>${post ? post.pct + '%' : '—'}</b><span>หลังเรียน ${post ? '· ' + fmtDT(post.created_at) : ''}</span>${ttIsAdmin() && post ? `<button class="btn btn-line btn-sm" style="margin-top:6px" onclick="editAttTime(${post.id},'detail','${esc(key)}','${esc(pid)}')">🕒 แก้วัน-เวลา</button>` : ''}</div>
       <div class="stat"><b>${diff == null ? '—' : (diff > 0 ? '+' : '') + diff + '%'}</b><span>เปลี่ยนแปลง</span></div>
     </div>
     <h3 style="margin:18px 0 10px">คำตอบรายข้อ</h3>
