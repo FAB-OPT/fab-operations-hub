@@ -6672,7 +6672,15 @@ const Plan = {
     /* กรองสาขาตามสถานะการเข้าตรวจ (ยังไม่เคยเข้า / เข้าล่าสุดภายใน 30, 90 วัน / เกิน 30, 90 วัน) */
     const vdm = visitDaysMap();
     const dOf = b => { const d = vdm[branchKey(b.name)]; return d === undefined ? null : d; };
-    const branchList = this.visitF ? byZone.filter(b => visitMatch(this.visitF, dOf(b))) : byZone;
+    let branchList = this.visitF ? byZone.filter(b => visitMatch(this.visitF, dOf(b))) : byZone;
+    /* สาขาที่มีแผน "รอตรวจ" ชนิดเดียวกันอยู่แล้ว (หรือเพิ่งใส่ในตารางรอบันทึก) ไม่ต้องขึ้นให้เลือกซ้ำ
+       แผนที่ตรวจแล้วหรือเกินกำหนดไม่นับ เพราะอาจต้องนัดรอบใหม่ */
+    const planned = new Set();
+    const pt = planType(this.pType);
+    all.forEach(p => { if(planType(p.ptype) === pt && planState(p).s === 'upcoming') planned.add(branchKey(p.branch)); });
+    this.draft.forEach(d => { if(planType(d.ptype) === pt) planned.add(branchKey(d.branch)); });
+    const hidePlanned = branchList.filter(b => planned.has(branchKey(b.name))).length;
+    branchList = branchList.filter(b => !planned.has(branchKey(b.name)));
 
     document.getElementById('v-plan').innerHTML=`
       <div class="kpis">
@@ -6695,9 +6703,10 @@ const Plan = {
             <div class="fld"><label class="lbl">สถานะการเข้าตรวจ</label>
               <select class="inp" onchange="Plan.setVisitF(this.value)"><option value="">— ทุกสถานะ (${byZone.length}) —</option>${VISIT_FILTERS.map(([k,l])=>`<option value="${k}" ${k===this.visitF?'selected':''}>${l} (${byZone.filter(b=>visitMatch(k,dOf(b))).length})</option>`).join('')}</select></div>
             <div class="fld"><label class="lbl">สาขา</label>
-              <select class="inp" id="plBranch"><option value="">— เลือกสาขา —</option>${branchList.map(b=>`<option>${esc(b.name)}</option>`).join('')}</select></div>
+              <select class="inp" id="plBranch"><option value="">— เลือกสาขา —</option>${branchList.map(b=>`<option>${esc(b.name)}</option>`).join('')}</select>
+              ${hidePlanned ? `<div class="hint" style="margin:4px 0 0">ซ่อน ${hidePlanned} สาขาที่มีแผนรอตรวจอยู่แล้ว</div>` : ''}</div>
             ${planTypesOfBrand().length>1 ? `<div class="fld"><label class="lbl">ประเภทการตรวจ</label>
-              <select class="inp" onchange="Plan.pType=this.value">${planTypesOfBrand().map(t=>`<option value="${t}" ${t===this.pType?'selected':''}>${PLAN_TYPE[t]}</option>`).join('')}</select></div>` : ''}
+              <select class="inp" onchange="Plan.pType=this.value;Plan.render()">${planTypesOfBrand().map(t=>`<option value="${t}" ${t===this.pType?'selected':''}>${PLAN_TYPE[t]}</option>`).join('')}</select></div>` : ''}
             <div class="fld"><label class="lbl">วันที่นัดตรวจ</label><input type="date" class="inp" id="plDate" value="${attr(this.pDate)}" onchange="Plan.pDate=this.value"></div>
           </div>
           <div style="margin-top:12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
