@@ -1,0 +1,466 @@
+<title>Planner OPT-TR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Anuphan:wght@400;500;600&family=Kanit:wght@400;500;600&family=Sarabun:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
+<style>
+/* Layout: sticky toolbar → month summary strip → calendar (per person) or day × member table (team) */
+:root{
+  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#1B2220; --muted:#5F6B67; --line:#E1E5E2; --soft:#F3F5F3; color-scheme:light;
+  --accent:#1F4FD1; --accent-ink:#FFFFFF; --today:#FFF3C9; --weekend:#FFF1F1; --weekend-ink:#C8364B;
+  --t-train:#4B3FD6; --t-meet:#C27700; --t-visit:#16804D; --t-ojt:#0B7E8C;
+  --t-office:#5A6470; --t-project:#9B3FB5; --t-leave:#C8364B; --t-off:#9AA3A0;
+  --f-display:"Noto Sans Thai",system-ui,sans-serif;
+  --f-body:"Noto Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"Noto Sans Thai",system-ui,sans-serif;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
+.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:12px;max-width:1280px;margin:0 auto}
+.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto}
+.brand h1{font-family:var(--f-display);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em}
+.brand span{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.08em}
+.monthnav{display:flex;align-items:center;gap:4px}
+.monthnav b{font-family:var(--f-display);font-weight:600;font-size:16px;min-width:130px;text-align:center}
+.icon{width:34px;height:34px;border:1px solid var(--line);background:var(--surface);border-radius:8px;display:grid;place-items:center}
+.icon:hover{background:var(--soft)}
+.seg{display:flex;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--soft)}
+.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-weight:500;color:var(--muted)}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0/.08)}
+.primary{border:0;background:var(--accent);color:var(--accent-ink);padding:8px 14px;border-radius:8px;font-weight:600}
+.primary:disabled{opacity:.45;cursor:not-allowed}
+.ghost{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:8px}
+
+.people{display:flex;gap:6px;overflow-x:auto;padding-block:0 12px;max-width:1280px;margin:0 auto;scrollbar-width:none}
+.people button{flex:none;border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;white-space:nowrap}
+.people button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+
+main{max-width:1280px;margin:0 auto;padding-block:16px 48px;display:grid;gap:14px}
+.notice{border:1px dashed var(--line);border-radius:10px;padding:12px 14px;color:var(--muted);background:var(--surface)}
+
+.summary{display:flex;flex-wrap:wrap;gap:8px}
+.stat{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.stat i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+.stat b{font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:13px}
+.stat span{color:var(--muted);font-size:13px}
+
+/* calendar */
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line);gap:1px}
+.dow:nth-child(6),.dow:nth-child(7){color:var(--weekend-ink)}
+.dow{background:var(--soft);padding:6px 8px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
+.day{background:var(--surface);min-height:108px;padding:6px;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-width:0;border:0;text-align:left}
+.day:hover{background:var(--soft)}
+.day.wk,.day.hol{background:var(--weekend)}
+.day.wk .dnum,.day.hol .dnum{color:var(--weekend-ink);font-weight:600}
+.day.wk:hover,.day.hol:hover{background:#FFE6E6}
+.day.today{box-shadow:inset 0 0 0 2px var(--accent)}
+.day.blank{background:var(--soft);cursor:default}
+.dnum{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
+.dnum .lbl{display:none}
+.day.today .dnum b{background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:0 5px}
+.pill{font-weight:500;display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 12%,var(--surface));color:var(--ink);border-radius:5px;padding:3px 6px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
+.pill small{display:block;color:var(--muted);font-size:11px}
+.pill.off{background:repeating-linear-gradient(135deg,var(--soft) 0 6px,transparent 6px 12px);border-left-color:var(--t-off);color:var(--muted)}
+.day .list{display:grid;gap:4px;min-width:0}
+.add{opacity:0;font-size:16px;line-height:1;color:var(--muted)}
+.day:hover .add{opacity:1}
+
+/* team table */
+.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
+th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top;padding:5px 6px}
+thead th{position:sticky;top:0;background:var(--soft);font-weight:600;font-size:13px;text-align:left;z-index:1}
+th.d,td.d{position:sticky;left:0;background:var(--surface);z-index:2;width:78px;font-family:var(--f-mono);font-size:12px;color:var(--muted);white-space:nowrap}
+thead th.d{background:var(--soft);z-index:3}
+td.c{width:170px;min-width:150px;cursor:pointer}
+td.c:hover{background:var(--soft)}
+tr.wk td,td.c.hol{background:var(--weekend)}
+tr.wk td.d{color:var(--weekend-ink);font-weight:600}
+tr.wk td.d{background:var(--weekend)}
+tr.today td.d{color:var(--accent);font-weight:700}
+td.c .stack{display:grid;gap:3px}
+
+.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:3px;background:var(--c)}
+
+/* dialog */
+dialog{border:0;border-radius:14px;padding:0;width:min(460px,calc(100vw - 32px));background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgb(0 0 0/.25)}
+dialog::backdrop{background:rgb(10 14 13/.45)}
+.dlg{display:grid;gap:12px;padding:18px}
+.dlg h2{font-family:var(--f-display);font-size:18px;margin:0}
+.field{display:grid;gap:4px}
+.field label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.03em}
+.field input,.field select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.types{display:flex;flex-wrap:wrap;gap:6px}
+.types button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px;display:flex;align-items:center;gap:6px}
+.types button i{width:9px;height:9px;border-radius:3px;background:var(--c)}
+.types button[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));font-weight:600}
+.actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
+.actions .danger{margin-right:auto;border:0;background:transparent;color:var(--t-leave);font-weight:600;padding:6px 4px}
+.hint{font-size:12px;color:var(--muted)}
+.teamlist{display:grid;gap:6px}
+.teamlist div{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+.teamlist button{border:0;background:transparent;color:var(--t-leave)}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:20}
+
+@media (max-width:680px){
+  .brand{width:100%}
+  .monthnav b{min-width:110px}
+  .cal{grid-template-columns:1fr}
+  .dow,.day.blank{display:none}
+  .day{min-height:0;flex-direction:row;align-items:flex-start;gap:10px}
+  .dnum{flex-direction:column;align-items:flex-start;width:44px;flex:none}
+  .dnum .lbl{display:block;font-size:11px}
+  .day .list{flex:1;display:grid;gap:4px;min-width:0}
+  .add{opacity:1}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+
+<header>
+  <div class="wrap">
+    <div class="bar">
+      <div class="brand"><h1>Planner OPT-TR</h1><span id="sync">กำลังเชื่อมต่อ…</span></div>
+      <div class="monthnav">
+        <button class="icon" id="prev" aria-label="เดือนก่อน">‹</button>
+        <b id="mlabel"></b>
+        <button class="icon" id="next" aria-label="เดือนถัดไป">›</button>
+      </div>
+      <div class="seg" role="group" aria-label="มุมมอง">
+        <button id="vPerson" aria-pressed="true">รายคน</button>
+        <button id="vTeam" aria-pressed="false">ทั้งทีม</button>
+      </div>
+      <select id="fontSel" class="ghost" aria-label="เลือกฟอนต์" style="padding:7px 8px"><option value="Noto Sans Thai">Aa Noto Sans Thai</option><option value="Anuphan">Aa Anuphan</option><option value="Prompt">Aa Prompt</option><option value="Kanit">Aa Kanit</option><option value="Sarabun">Aa Sarabun</option><option value="Mitr">Aa Mitr</option><option value="IBM Plex Sans Thai">Aa IBM Plex Thai</option></select>
+      <button class="ghost" id="todayBtn">วันนี้</button>
+      <button class="primary" id="addBtn">+ เพิ่มแผน</button>
+    </div>
+    <div class="people" id="people" aria-label="สมาชิก"></div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="notice" id="notice" hidden></div>
+  <div class="summary" id="summary"></div>
+  <div id="view"></div>
+  <div class="legend" id="legend"></div>
+</main>
+
+<dialog id="dlg">
+  <form class="dlg" id="form" method="dialog">
+    <h2 id="dlgTitle">เพิ่มแผนงาน</h2>
+    <div class="row2">
+      <div class="field"><label for="fPerson">ผู้รับผิดชอบ</label><select id="fPerson"></select></div>
+      <div class="field"><label for="fDate">วันที่</label><input type="date" id="fDate" required></div>
+    </div>
+    <div class="field" id="rangeRow"><label for="fTo">ถึงวันที่ (ถ้าหลายวัน)</label><input type="date" id="fTo"><span class="hint">เว้นว่างได้ · ใส่เพื่อลงงานเดียวกันหลายวันติดกัน</span></div>
+    <div class="field"><label>ประเภทงาน</label><div class="types" id="fType"></div></div>
+    <div class="field"><label for="fTitle">รายละเอียด</label><input id="fTitle" placeholder="เช่น อบรม Service Mind Santafe รุ่น 1/2569" required></div>
+    <div class="field"><label for="fPlace">สถานที่</label><input id="fPlace" list="places" placeholder="เช่น SKV71"></div>
+    <datalist id="places"><option value="SKV71"><option value="FAB Avenue"><option value="Office"><option value="Online"></datalist>
+    <div class="actions">
+      <button type="button" class="danger" id="delBtn" hidden>ลบรายการ</button>
+      <button type="button" class="ghost" id="cancelBtn">ยกเลิก</button>
+      <button type="submit" class="primary" id="saveBtn">บันทึก</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="teamDlg">
+  <form class="dlg" id="teamForm" method="dialog">
+    <h2>สมาชิกทีม</h2>
+    <div class="teamlist" id="teamList"></div>
+    <div class="row2"><input id="newMember" placeholder="ชื่อสมาชิกใหม่" style="border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;min-width:0"><button type="button" class="ghost" id="addMember">เพิ่ม</button></div>
+    <span class="hint">ลบชื่อออกจะซ่อนจากหน้าจอ แผนเดิมยังเก็บไว้</span>
+    <div class="actions"><button type="button" class="primary" id="teamDone">เสร็จ</button></div>
+  </form>
+</dialog>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
+<script src="hub-docstore.js?v=20261030a"></script>
+<script>
+const TYPES = {
+  train:{th:"อบรม",c:"--t-train"}, meet:{th:"ประชุม",c:"--t-meet"}, visit:{th:"Visit / ตรวจสาขา",c:"--t-visit"},
+  ojt:{th:"OJT",c:"--t-ojt"}, office:{th:"Office / WFH",c:"--t-office"}, project:{th:"โปรเจกต์ / NPD",c:"--t-project"},
+  leave:{th:"ลา",c:"--t-leave"}, off:{th:"วันหยุด",c:"--t-off"}
+};
+const TH_M = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const TH_D = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+const DEFAULT_TEAM = ["พี่จอย","กาย","เบนซ์","พี่น้อย","ฟาง JD","พี่หนิง JD","ใบชา"];
+const $ = s => document.querySelector(s);
+const pad = n => String(n).padStart(2,"0");
+const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+const todayISO = iso(new Date());
+
+let st = { y:new Date().getFullYear(), m:new Date().getMonth(), view:"person", person:null, team:DEFAULT_TEAM.slice(), plans:[], canWrite:true, live:false };
+try{ const s=JSON.parse(localStorage.getItem("planner-ui")||"{}"); if(s.view) st.view=s.view; if(s.person) st.person=s.person; }catch(e){}
+if(!st.person) st.person = st.team[0];
+function saveUI(){ try{ localStorage.setItem("planner-ui",JSON.stringify({view:st.view,person:st.person})); }catch(e){} }
+
+let db=null, unsubMonth=null;
+const monthKey = () => st.y+"-"+pad(st.m+1);
+
+function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function toast(t){ const el=document.createElement("div"); el.className="toast"; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2200); }
+
+function pill(p){
+  const t=TYPES[p.type]||TYPES.project;
+  return `<button type="button" class="pill ${p.type==="off"?"off":""}" style="--c:var(${t.c})" data-id="${esc(p.id)}">${esc(p.title)}${p.place?`<small>@ ${esc(p.place)}</small>`:""}</button>`;
+}
+function plansFor(person,date){ return st.plans.filter(p=>p.person===person&&p.date===date); }
+
+function render(){
+  $("#mlabel").textContent = TH_M[st.m]+" "+(st.y+543);
+  $("#vPerson").setAttribute("aria-pressed",st.view==="person");
+  $("#vTeam").setAttribute("aria-pressed",st.view==="team");
+  $("#addBtn").disabled = !st.canWrite || !db;
+  // people chips
+  const pe=$("#people");
+  pe.hidden = st.view!=="person";
+  pe.innerHTML = st.team.map(n=>`<button type="button" aria-pressed="${n===st.person}" data-p="${esc(n)}">${esc(n)}</button>`).join("") +
+    (st.canWrite&&db?`<button type="button" id="editTeam" style="border-style:dashed;color:var(--muted)">แก้ไขทีม</button>`:"");
+  // summary
+  const scope = st.view==="person" ? st.plans.filter(p=>p.person===st.person) : st.plans.filter(p=>st.team.includes(p.person));
+  const counts={}; scope.forEach(p=>{ counts[p.type]=(counts[p.type]||0)+1; });
+  const label = st.view==="person" ? st.person : "ทั้งทีม";
+  $("#summary").innerHTML = `<div class="stat"><span>${esc(label)} · ${TH_M[st.m]}</span><b>${scope.length}</b><span>รายการ</span></div>` +
+    Object.keys(TYPES).filter(k=>counts[k]).map(k=>`<div class="stat" style="--c:var(${TYPES[k].c})"><i></i><span>${TYPES[k].th}</span><b>${counts[k]}</b></div>`).join("");
+  $("#legend").innerHTML = Object.entries(TYPES).map(([k,t])=>`<span style="--c:var(${t.c})"><i></i>${t.th}</span>`).join("");
+  st.view==="person" ? renderCal() : renderTeam();
+}
+
+function renderCal(){
+  const first=new Date(st.y,st.m,1), days=new Date(st.y,st.m+1,0).getDate();
+  const lead=(first.getDay()+6)%7; // Monday first
+  let h=["จ","อ","พ","พฤ","ศ","ส","อา"].map(d=>`<div class="dow">${d}</div>`).join("");
+  for(let i=0;i<lead;i++) h+=`<div class="day blank" aria-hidden="true"></div>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(st.y,st.m,d), ds=iso(dt), wd=dt.getDay();
+    const items=plansFor(st.person,ds);
+    const hol=items.some(p=>p.type==="off");
+    h+=`<div class="day ${wd===0||wd===6?"wk":""} ${hol?"hol":""} ${ds===todayISO?"today":""}" data-date="${ds}" tabindex="0" role="button" aria-label="${d} ${TH_M[st.m]}">
+      <div class="dnum"><b>${d}</b><span class="lbl">${TH_D[wd]}</span>${st.canWrite&&db?`<span class="add">+</span>`:""}</div>
+      <div class="list">${items.map(pill).join("")}</div></div>`;
+  }
+  const tail=(7-((lead+days)%7))%7;
+  for(let i=0;i<tail;i++) h+=`<div class="day blank" aria-hidden="true"></div>`;
+  $("#view").innerHTML=`<div class="cal">${h}</div>`;
+}
+
+function renderTeam(){
+  const days=new Date(st.y,st.m+1,0).getDate();
+  let h=`<thead><tr><th class="d">วันที่</th>${st.team.map(n=>`<th>${esc(n)}</th>`).join("")}</tr></thead><tbody>`;
+  for(let d=1;d<=days;d++){
+    const dt=new Date(st.y,st.m,d), ds=iso(dt), wd=dt.getDay();
+    h+=`<tr class="${wd===0||wd===6?"wk":""} ${ds===todayISO?"today":""}"><td class="d">${TH_D[wd]} ${pad(d)}</td>`+
+      st.team.map(n=>`<td class="c ${plansFor(n,ds).some(p=>p.type==="off")?"hol":""}" data-date="${ds}" data-person="${esc(n)}"><div class="stack">${plansFor(n,ds).map(pill).join("")}</div></td>`).join("")+`</tr>`;
+  }
+  $("#view").innerHTML=`<div class="tablebox"><table>${h}</tbody></table></div>`;
+  const t=$("#view tr.today"); if(t) t.scrollIntoView({block:"nearest"});
+}
+
+/* ---------- dialog ---------- */
+let editing=null, selType="train";
+function typeChips(){
+  $("#fType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<button type="button" style="--c:var(${t.c})" aria-pressed="${k===selType}" data-t="${k}"><i></i>${t.th}</button>`).join("");
+}
+function openDlg({date,person,plan}){
+  if(!db) return;
+  if(!st.canWrite && !plan) return;
+  editing=plan||null;
+  $("#fPerson").innerHTML=st.team.map(n=>`<option>${esc(n)}</option>`).join("");
+  $("#fPerson").value=plan?plan.person:(person||st.person);
+  $("#fDate").value=plan?plan.date:(date||todayISO);
+  $("#fTo").value="";
+  $("#rangeRow").hidden=!!plan;
+  selType=plan?plan.type:"train"; typeChips();
+  $("#fTitle").value=plan?plan.title:"";
+  $("#fPlace").value=plan?plan.place||"":"";
+  $("#dlgTitle").textContent=plan?"แก้ไขแผนงาน":"เพิ่มแผนงาน";
+  $("#delBtn").hidden=!plan||!st.canWrite;
+  $("#saveBtn").disabled=!st.canWrite;
+  [...$("#form").elements].forEach(e=>{ if(e.id!=="cancelBtn") e.disabled=!st.canWrite; });
+  $("#dlg").showModal(); setTimeout(()=>$("#fTitle").focus(),30);
+}
+$("#fType").addEventListener("click",e=>{ const b=e.target.closest("button[data-t]"); if(!b) return; selType=b.dataset.t; typeChips();
+  if(selType==="off"&&!$("#fTitle").value) $("#fTitle").value="OFF"; });
+$("#cancelBtn").onclick=()=>$("#dlg").close();
+
+$("#form").addEventListener("submit",async e=>{
+  e.preventDefault();
+  const title=$("#fTitle").value.trim(); if(!title) return;
+  const base={person:$("#fPerson").value,type:selType,title,place:$("#fPlace").value.trim().replace(/^@\s*/,""),updatedAt:new Date().toISOString()};
+  $("#saveBtn").disabled=true;
+  try{
+    if(editing){
+      const date=$("#fDate").value;
+      await db.collection("plans").doc(editing.id).set({...base,date,month:date.slice(0,7)});
+    }else{
+      const from=new Date($("#fDate").value+"T00:00"), toV=$("#fTo").value;
+      const to=toV?new Date(toV+"T00:00"):from;
+      if(to<from){ toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม"); $("#saveBtn").disabled=false; return; }
+      const dates=[]; for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1)) dates.push(iso(d));
+      if(dates.length>62){ toast("ลงได้ครั้งละไม่เกิน 62 วัน"); $("#saveBtn").disabled=false; return; }
+      for(const date of dates) await db.collection("plans").add({...base,date,month:date.slice(0,7)});
+    }
+    $("#dlg").close(); toast("บันทึกแล้ว");
+  }catch(err){ failWrite(err); }
+  $("#saveBtn").disabled=false;
+});
+$("#delBtn").onclick=async()=>{
+  if($("#delBtn").dataset.confirm!=="1"){ $("#delBtn").dataset.confirm="1"; $("#delBtn").textContent="กดอีกครั้งเพื่อยืนยัน"; return; }
+  try{ await db.collection("plans").doc(editing.id).delete(); $("#dlg").close(); toast("ลบแล้ว"); }catch(err){ failWrite(err); }
+};
+$("#dlg").addEventListener("close",()=>{ $("#delBtn").dataset.confirm=""; $("#delBtn").textContent="ลบรายการ"; });
+function failWrite(err){
+  if(err&&err.code==="invalid_argument"){ st.canWrite=false; render(); toast("บัญชีนี้ดูได้อย่างเดียว แก้ไขไม่ได้"); }
+  else toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
+}
+
+/* ---------- team ---------- */
+function renderTeamList(){
+  $("#teamList").innerHTML=st.team.map((n,i)=>`<div><span>${esc(n)}</span><button type="button" data-i="${i}" aria-label="ลบ ${esc(n)}">ลบ</button></div>`).join("");
+}
+async function saveTeam(next){ try{ await db.doc("config/team").set({members:next}); }catch(err){ failWrite(err); } }
+$("#teamList").addEventListener("click",e=>{ const b=e.target.closest("button[data-i]"); if(!b) return; const next=st.team.filter((_,i)=>i!==+b.dataset.i); st.team=next; renderTeamList(); saveTeam(next); });
+$("#addMember").onclick=()=>{ const v=$("#newMember").value.trim(); if(!v||st.team.includes(v)) return; const next=[...st.team,v]; st.team=next; $("#newMember").value=""; renderTeamList(); saveTeam(next); };
+$("#teamDone").onclick=()=>{ $("#teamDlg").close(); render(); };
+
+/* ---------- events ---------- */
+$("#people").addEventListener("click",e=>{
+  if(e.target.id==="editTeam"){ renderTeamList(); $("#teamDlg").showModal(); return; }
+  const b=e.target.closest("button[data-p]"); if(!b) return; st.person=b.dataset.p; saveUI(); render();
+});
+$("#view").addEventListener("click",e=>{
+  const p=e.target.closest(".pill"); if(p){ const plan=st.plans.find(x=>x.id===p.dataset.id); if(plan) openDlg({plan}); return; }
+  if(!st.canWrite) return;
+  const cell=e.target.closest("[data-date]"); if(!cell) return;
+  openDlg({date:cell.dataset.date,person:cell.dataset.person});
+});
+$("#view").addEventListener("keydown",e=>{ if((e.key==="Enter"||e.key===" ")&&e.target.matches(".day[data-date]")){ e.preventDefault(); if(st.canWrite) openDlg({date:e.target.dataset.date}); } });
+function shift(n){ const d=new Date(st.y,st.m+n,1); st.y=d.getFullYear(); st.m=d.getMonth(); render(); subscribeMonth(); }
+$("#prev").onclick=()=>shift(-1); $("#next").onclick=()=>shift(1);
+$("#todayBtn").onclick=()=>{ const n=new Date(); st.y=n.getFullYear(); st.m=n.getMonth(); render(); subscribeMonth(); };
+$("#vPerson").onclick=()=>{ st.view="person"; saveUI(); render(); };
+$("#vTeam").onclick=()=>{ st.view="team"; saveUI(); render(); };
+$("#addBtn").onclick=()=>openDlg({});
+
+/* ---------- font ---------- */
+function applyFont(f){
+  const stack=`"${f}","Noto Sans Thai",system-ui,sans-serif`;
+  const rs=document.documentElement.style;
+  rs.setProperty("--f-body",stack);
+  rs.setProperty("--f-display",f==="Sarabun"||f==="Anuphan"||f==="IBM Plex Sans Thai"?`"Prompt",${stack}`:stack);
+  rs.setProperty("--f-mono",stack);
+  $("#fontSel").value=f;
+}
+let font="Noto Sans Thai"; try{ font=localStorage.getItem("planner-font")||"Noto Sans Thai"; }catch(e){}
+applyFont(font);
+$("#fontSel").addEventListener("change",e=>{ applyFont(e.target.value); try{ localStorage.setItem("planner-font",e.target.value); }catch(err){} });
+
+/* ---------- data ---------- */
+function subscribeMonth(){
+  if(!db) return;
+  if(unsubMonth) unsubMonth();
+  const mk=monthKey();
+  st.plans=[]; render();
+  unsubMonth=db.collection("plans").where("month","==",mk).onSnapshot(snap=>{
+    if(mk!==monthKey()) return;
+    st.plans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.updatedAt||"").localeCompare(b.updatedAt||""));
+    $("#sync").textContent="ซิงก์แล้ว · ทุกคนเห็นตรงกัน";
+    render();
+  },()=>{ $("#sync").textContent="การเชื่อมต่อหลุด รีเฟรชหน้า"; });
+}
+
+/* ---------- ฐานข้อมูล: Supabase FAB HUB (ตาราง planner_docs) ----------
+   ทำให้ใช้ db.collection / db.doc แบบเดิมได้ · โหลดทั้งหมดแล้วรีเฟรชทุก 20 วินาที
+   สิทธิ์แก้ไข: admin และ support (อ่านได้ทุกคนที่ล็อกอินฮับ) */
+const PLDB = (() => {
+  let sb = null, cache = {}, listeners = [], who = '';
+  const sess = () => { try { return JSON.parse(localStorage.getItem('fab_session') || 'null'); } catch (e) { return null; } };
+  const role = () => String((sess() && sess().role) || sessionStorage.getItem('fab_role') || '').toLowerCase();
+  const emit = () => listeners.slice().forEach(f => { try { f(); } catch (e) {} });
+  async function refresh() {
+    const r = await sb.from('planner_docs').select('col,id,data').eq('deleted', false).limit(5000);
+    if (r.error) throw r.error;
+    const c = {};
+    r.data.forEach(x => { (c[x.col] = c[x.col] || {})[x.id] = x.data; });
+    cache = c; emit();
+  }
+  async function write(col, id, data) {
+    const r = await sb.from('planner_docs').upsert({ col, id, data, deleted: false, updated_at: new Date().toISOString(), updated_by: who });
+    if (r.error) throw r.error;
+    (cache[col] = cache[col] || {})[id] = data; emit();
+  }
+  async function remove(col, id) {
+    const r = await sb.from('planner_docs').update({ deleted: true, updated_at: new Date().toISOString(), updated_by: who }).eq('col', col).eq('id', id);
+    if (r.error) throw r.error;
+    if (cache[col]) delete cache[col][id];
+    emit();
+  }
+  const watch = (run) => { listeners.push(run); run(); return () => { listeners = listeners.filter(x => x !== run); }; };
+  const docRef = (col, id) => ({
+    set: data => write(col, id, data),
+    delete: () => remove(col, id),
+    onSnapshot(cb, err) {
+      return watch(() => { try { const d = (cache[col] || {})[id]; cb({ exists: !!d, data: () => d || {} }); } catch (e) { if (err) err(e); } });
+    }
+  });
+  const collection = name => ({
+    doc: id => docRef(name, id),
+    add: async data => { const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); await write(name, id, data); return { id }; },
+    where: (field, op, value) => ({
+      onSnapshot(cb, err) {
+        return watch(() => {
+          try {
+            const all = cache[name] || {};
+            const docs = Object.keys(all).filter(id => op === '==' ? all[id][field] === value : true)
+              .map(id => ({ id, data: () => all[id] }));
+            cb({ docs });
+          } catch (e) { if (err) err(e); }
+        });
+      }
+    })
+  });
+  return {
+    canWrite: () => ['admin', 'support'].includes(role()),
+    async open() {
+      who = (sess() && (sess().nick || sess().name)) || role();
+      try {
+        if (!(await HubMod.SB.ready())) return null;
+        sb = HubMod.SB.client();
+        await refresh();
+        setInterval(() => refresh().catch(() => {}), 20000);
+        window.addEventListener('focus', () => refresh().catch(() => {}));
+        return { collection, doc: path => { const [c, i] = path.split('/'); return docRef(c, i); } };
+      } catch (e) { return null; }
+    }
+  };
+})();
+
+async function start(){
+  render();
+  db = await PLDB.open();
+  if(!db){
+    $("#sync").textContent="ออฟไลน์";
+    const n=$("#notice"); n.hidden=false;
+    n.textContent="ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่ แล้วรีเฟรชอีกครั้ง";
+    render(); return;
+  }
+  st.canWrite = PLDB.canWrite();
+  if(!st.canWrite){ const n=$("#notice"); n.hidden=false; n.textContent="คุณมีสิทธิ์ดูอย่างเดียว ถ้าต้องแก้ไขแผน ให้เจ้าของหน้านี้แชร์สิทธิ์ Contributor ให้"; }
+  db.doc("config/team").onSnapshot(s=>{
+    const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null;
+    if(m&&m.length){ st.team=m.slice(); if(!st.team.includes(st.person)) st.person=st.team[0]; render(); }
+  },()=>{});
+  subscribeMonth();
+}
+start();
+</script>
