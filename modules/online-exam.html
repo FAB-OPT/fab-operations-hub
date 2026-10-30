@@ -1453,6 +1453,7 @@ button.rq-done-it:hover{background:var(--bg3)}
 .paper-card .ch h1{font-size:23px;font-weight:800;line-height:1.25;letter-spacing:-.025em}
 .paper-card .ch p{margin-top:6px;color:var(--text2);font-size:14px}
 .paper-card .cb{padding:24px 30px 26px}
+.meta-grid.nc{grid-template-columns:repeat(3,1fr)}
 .meta-grid{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--border);border-radius:15px;overflow:hidden;margin-bottom:18px;background:var(--bg3)}
 .meta{padding:14px 6px;text-align:center;border-right:1px solid var(--border)}
 .meta:last-child{border-right:none}
@@ -1819,7 +1820,7 @@ body.oe-guest #resDocs{display:none}
 
 @media(max-width:640px){
   .row-flex,.row-3{grid-template-columns:1fr}
-  .meta-grid{grid-template-columns:repeat(2,1fr)}
+  .meta-grid,.meta-grid.nc{grid-template-columns:repeat(2,1fr)}
   .meta:nth-child(2){border-right:none}
   .meta:nth-child(1),.meta:nth-child(2){border-bottom:1px solid var(--border)}
   .exam-top{padding:10px 14px}
@@ -2945,7 +2946,7 @@ label.fld>span>b{font-weight:800}
       <label class="fld"><span>ตำแหน่ง <b class="req">*</b></span>
         <select class="txt" id="reqPositionSel" hidden onchange="oeReqPosPick()"></select>
         <input class="txt" id="reqPosition" placeholder="เช่น พนักงานครัว / ผู้ช่วยผู้จัดการ" autocomplete="off">
-        <em class="fld-hint" id="reqPosHint" hidden>เกณฑ์ผ่านขึ้นกับตำแหน่ง · เลือกแล้วเปลี่ยนตอนสอบไม่ได้</em></label>
+        <em class="fld-hint" id="reqPosHint" hidden><span id="reqPosHintC">เกณฑ์ผ่านขึ้นกับตำแหน่ง · </span>เลือกแล้วเปลี่ยนตอนสอบไม่ได้</em></label>
       <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน <b class="req">*</b></span>
         <input class="txt" id="reqEmpId" placeholder="เช่น 100234" autocomplete="off">
         <em class="fld-hint">ชื่อที่กรอกตรงนี้จะถูกใช้เป็นชื่อในผลสอบ แก้ตอนสอบไม่ได้</em></label>
@@ -4707,7 +4708,7 @@ function _oeExamRow(ex){
     '<div class="xr-facts">' +
       '<div><b>' + oeCountLabel(ex) + '</b><span>ข้อ</span></div>' +
       '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
-      '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>' +
+      (oeNoCrit(ex) ? '' : '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>') +
     '</div>' +
     '<div class="xr-perf">' + perf + '</div>' +
     '<div class="xr-act">' +
@@ -7290,10 +7291,10 @@ function renderBranchExams(){
           (ex.brand ? '<div class="bx-brand">' + esc(ex.brand) + '</div>' : '') + '</div></div>' +
       /* สามตัวเลขที่ต้องรู้ก่อนกดสอบ — จำนวนข้อ เวลา เกณฑ์ผ่าน
          เดิมเป็นป้ายหลายอันพันบรรทัด อ่านเป็นกอง ไม่รู้ว่าอันไหนสำคัญกว่ากัน */
-      '<div class="bx-facts">' +
+      '<div class="bx-facts"' + (oeNoCrit(ex) ? ' style="grid-template-columns:repeat(2,1fr)"' : '') + '>' +
         '<div><b>' + nDraw + '</b><span>ข้อ</span></div>' +
         '<div><b>' + esc(ex.timeLimitMinutes) + '</b><span>นาที</span></div>' +
-        '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>' +
+        (oeNoCrit(ex) ? '' : '<div><b>' + esc(oePassLabel(ex)) + '</b><span>เกณฑ์ผ่าน</span></div>') +
       '</div>' +
       /* เหลือแค่วันปิดรับ — จำนวนข้อในคลังกับเกณฑ์รายตำแหน่งเป็นเรื่องหลังบ้าน
          สาขาเห็นเกณฑ์ของตัวเองตอนเลือกตำแหน่งในใบขอสิทธิ์อยู่แล้ว */
@@ -7354,6 +7355,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('mQ').textContent = oeCountLabel(CFG);
   $('mT').textContent = CFG.timeLimitMinutes;
   $('mP').textContent = oePassLabel(CFG);
+  _oeMetaPass(CFG);
   $('mV').textContent = CFG.maxViolations;
   var _vm = $('vMax'); if(_vm) _vm.textContent = CFG.maxViolations;
   $('lockMax').textContent = CFG.maxViolations;
@@ -7465,6 +7467,7 @@ function _oeTrackPaint(){
   }).join('');
   $('mQ').textContent = R.track ? cnt(R.track) : '–';
   $('mP').textContent = (R.track && !oeNoCrit(ex)) ? (oePartPass(ex, R.track) + '%') : oePassLabel(ex);
+  _oeMetaPass(ex);
   $('mT').textContent = R.track ? oeTrackTime(ex, R.track) : '–';
   var lab = box.querySelector('.tp-l');
   if(lab) lab.innerHTML = lock
@@ -7537,9 +7540,16 @@ function oePosPick(){
   inp.value = sel.value;
   if(sel.parentNode && sel.parentNode.classList) sel.parentNode.classList.remove('bad');
   var mp = $('mP');
-  if(mp && R && oePosMode(R.exam)) mp.textContent = sel.value ? oePassForPos(R.exam, sel.value) + '%' : oePassLabel(R.exam);
+  if(mp && R && oePosMode(R.exam) && !oeNoCrit(R.exam)) mp.textContent = sel.value ? oePassForPos(R.exam, sel.value) + '%' : oePassLabel(R.exam);
   var mq = $('mQ');   // จำนวนข้อตามตำแหน่งที่เลือก
   if(mq && R && oePosMode(R.exam)) mq.textContent = sel.value ? oeCountFor(R.exam, sel.value) : oeCountLabel(R.exam);
+}
+/* ชุด "บอกแค่คะแนน" — ซ่อนช่องเกณฑ์ผ่านในแถบตัวเลขหน้าเริ่มสอบ (เหลือ 3 ช่อง) */
+function _oeMetaPass(ex){
+  var mp = $('mP'); if(!mp || !mp.parentNode) return;
+  var nc = oeNoCrit(ex);
+  mp.parentNode.style.display = nc ? 'none' : '';
+  if(mp.parentNode.parentNode) mp.parentNode.parentNode.classList.toggle('nc', nc);
 }
 function _oeFieldFail(id, msg){
   var el = $(id);
@@ -7701,7 +7711,7 @@ function beginExam(){
   if(!empId) return _oeFieldFail('inId', 'กรุณากรอกรหัสพนักงานก่อนเริ่ม');
   var position = $('inPosition').value.trim();
   if(!position) return oePosMode(R.exam)
-    ? _oeFieldFail('inPositionSel', 'กรุณาเลือกตำแหน่งก่อนเริ่ม — เกณฑ์ผ่านขึ้นกับตำแหน่ง')
+    ? _oeFieldFail('inPositionSel', 'กรุณาเลือกตำแหน่งก่อนเริ่ม' + (oeNoCrit(R.exam) ? '' : ' — เกณฑ์ผ่านขึ้นกับตำแหน่ง'))
     : _oeFieldFail('inPosition', 'กรุณากรอกตำแหน่งก่อนเริ่ม');
 
   var branch = currentBranchName || $('inBranch').value.trim();
@@ -9978,6 +9988,7 @@ function _oeReqPosPaint(){
   var list = oePosList(_reqExam);
   if(!list.length){ sel.hidden = true; inp.hidden = false; if(hint) hint.hidden = true; return; }
   sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
+  var _hc = $('reqPosHintC'); if(_hc) _hc.hidden = oeNoCrit(_reqExam);
   sel.innerHTML = '<option value="">— เลือกตำแหน่งที่จะสอบ —</option>' +
     list.map(function(x){ return '<option value="' + esc(x.name) + '">' + esc(x.name) + (oeNoCrit(_reqExam) ? '' : ' · เกณฑ์ผ่าน ' + x.pass + '%') + '</option>'; }).join('');
   sel.value = '';
@@ -10031,7 +10042,7 @@ function submitExamRequest(){
   var position = $('reqPosition').value.trim();
   if(!position){
     var _posSel = $('reqPositionSel');
-    if(_posSel && !_posSel.hidden){ $('reqFormMsg').textContent = 'กรุณาเลือกตำแหน่งที่จะสอบ — เกณฑ์ผ่านขึ้นกับตำแหน่ง'; _posSel.focus(); }
+    if(_posSel && !_posSel.hidden){ $('reqFormMsg').textContent = 'กรุณาเลือกตำแหน่งที่จะสอบ' + (oeNoCrit(_reqExam) ? '' : ' — เกณฑ์ผ่านขึ้นกับตำแหน่ง'); _posSel.focus(); }
     else { $('reqFormMsg').textContent = 'กรุณากรอกตำแหน่ง'; $('reqPosition').focus(); }
     return;
   }
