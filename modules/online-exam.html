@@ -3040,8 +3040,24 @@ function _oeLogoTrim(src){
         x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(w - 1, x1 + pad); y1 = Math.min(h - 1, y1 + pad);
         var cw = x1 - x0 + 1, ch = y1 - y0 + 1;
         if(cw * ch > w * h * 0.92) return;          /* ไม่มีขอบว่างให้ตัดแล้ว */
-        var o = document.createElement('canvas'); o.width = cw; o.height = ch;
-        o.getContext('2d').drawImage(c, x0, y0, cw, ch, 0, 0, cw, ch);
+        /* ทะเบียนแบรนด์เก็บโลโก้ย่อเล็ก (เพดานพื้นที่ในระบบ) · ขยายเป็นขั้น ๆ แล้วเกลาขอบอีกนิด พิมพ์ลงกระดาษแล้วไม่เบลอเท่าให้เบราว์เซอร์ขยายเอง */
+        var k = Math.min(4, Math.max(1, 560 / Math.max(cw, ch))), ow = Math.round(cw * k), oh = Math.round(ch * k);
+        var o = document.createElement('canvas'); o.width = ow; o.height = oh;
+        var og = o.getContext('2d');
+        try{ og.imageSmoothingQuality = 'high'; }catch(e){}
+        og.drawImage(c, x0, y0, cw, ch, 0, 0, ow, oh);
+        if(k > 1.2){
+          var src2 = og.getImageData(0, 0, ow, oh), sd = src2.data, out = og.createImageData(ow, oh), od = out.data;
+          for(y = 0; y < oh; y++) for(x = 0; x < ow; x++){
+            i = (y * ow + x) * 4;
+            for(var ch2 = 0; ch2 < 4; ch2++){
+              if(x === 0 || y === 0 || x === ow - 1 || y === oh - 1){ od[i + ch2] = sd[i + ch2]; continue; }
+              var v = 3.4 * sd[i + ch2] - 0.6 * (sd[i - 4 + ch2] + sd[i + 4 + ch2] + sd[i - ow * 4 + ch2] + sd[i + ow * 4 + ch2]);
+              od[i + ch2] = v < 0 ? 0 : (v > 255 ? 255 : v);
+            }
+          }
+          og.putImageData(out, 0, 0);
+        }
         _oeLogoCache[src] = o.toDataURL('image/png');
       }catch(e){}
     };
@@ -8478,7 +8494,7 @@ function _docSheetExam(r){
         (capped ? '<div><span>สอบรอบที่ 2</span>ทำได้จริง ' + pct + '% นับเป็น ' + OE_PASS_PCT + '%</div>' : '') +
         (bump ? '<div><span>ฐานเงินเดือน</span>เพิ่ม ' + bump.toLocaleString() + ' บาท</div>' : '') +
       '</div>' +
-      (nc ? '' : '<div class="exs-vd">' + (pass ? 'ผ่านเกณฑ์' : 'ไม่ผ่านเกณฑ์') + '</div>') +
+      '' +
     '</div>' +
     '<div class="exs-sec">ข้อมูลผู้เข้าสอบ</div>' +
     '<table class="sh-kv">' +
