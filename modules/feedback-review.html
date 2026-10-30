@@ -542,33 +542,38 @@ function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-he
 /* ═════════ นำเข้าไฟล์ ═════════ */
 async function importFile(file) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
-  let kind = "", aoa = null, branchAoa = null;
+  let kind = "", aoa = null, branchAoa = null, vsParts = null;
+  const chanOf = k => k === "vocsum" ? "voc" : k;
   try {
     const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type: "array", dense: true});
     const toAoa = n => XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: null});
+    const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
+    const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
     /* ชื่อชีตอาจถูกเปลี่ยนตอนดาวน์โหลด — หาจากหัวคอลัมน์ (complain + แบรนด์) แทนถ้าชื่อไม่ตรง */
     const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n))
       || (!rawName && !csName ? wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("complain") && (r || []).includes("แบรนด์"))) : null);
-    const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
-    const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
+    /* ไฟล์สรุป "Complain Voc" — ชีตที่จัดหัวข้อแล้วหรือชีตรายละเอียด (ไม่มีเคส Facebook/rawdata/CSAT) */
+    const volParts = (rawName || csName || fbName) ? [] : wb.SheetNames.map(n => { const a = toAoa(n), k = I.vsKind(a); return k ? {kind: k, aoa: a} : null; }).filter(Boolean);
     if (csName) { kind = "csat"; aoa = toAoa(csName); }
     else if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
     else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; }
+    else if (volParts.length) { kind = "vocsum"; vsParts = volParts; }
     else { const n = wb.SheetNames.find(x => !/dictionary/i.test(x)); kind = "voc"; aoa = toAoa(n); }
   } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx"); }
   if (kind === "csat") {                       // ไฟล์สรุป CSAT/NPS ตามป้าย (เช่น csat 6.69.xlsx)
     let r; try { r = I.parseCsatSummary(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
     busy(false); return previewCsat(file.name, r);
   }
-  const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip}) : I.parseRaw(aoa, {skipSrc: skip});
+  const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip})
+    : kind === "vocsum" ? I.parseVocSummary(vsParts, {skipSrc: skip}) : I.parseRaw(aoa, {skipSrc: skip});
   let first;
   try { first = parse(); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
   if (!first.rows.length && !first.csat.length) { busy(false); return modal("ไม่พบข้อมูล", "ไม่พบแถวที่ใช้ได้ในไฟล์นี้"); }
   busy(true, "ตรวจว่าเคยนำเข้าแล้วหรือยัง…"); await tick();
   let skip = {};
-  try { skip = await FBStore.existingSrc(kind, first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
+  try { skip = await FBStore.existingSrc(chanOf(kind), first.stats.dmin, first.stats.dmax); } catch (e) { busy(false); return toast("ต่อฐานข้อมูลไม่ได้: " + e.message); }
   const res = parse(skip), resAll = parse();
-  if (kind === "facebook") [res, resAll].forEach(x => x.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; }));   // ชื่อสาขาตามทะเบียนของฮับ
+  if (kind === "facebook" || kind === "vocsum") [res, resAll].forEach(x => x.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; }));   // ชื่อสาขาตามทะเบียนของฮับ
   busy(false);
   previewImport(kind, file.name, res, resAll);
 }
@@ -648,44 +653,48 @@ function htmlVoc(fileName, res) {
 /* หน้าต่างตรวจไฟล์ก่อนสร้างชุด · เลือกโหมด: เพิ่มเฉพาะใบใหม่ / แทนที่ข้อมูลช่วงเดียวกันด้วยไฟล์นี้ทั้งชุด */
 function previewImport(kind, fileName, resAdd, resAll) {
   let mode = "add", existing = null;
-  const isFb = kind === "facebook", unit = isFb ? "เคส" : "คอมเมนต์";
-  const cur = () => mode === "replace" ? resAll : resAdd;
+  const isFb = kind === "facebook", isVs = kind === "vocsum", chan = isVs ? "voc" : kind, unit = isFb ? "เคส" : "คอมเมนต์";
+  const isRep = m => m === "replace" || m === "replace_complaints";
+  const cur = () => isRep(mode) ? resAll : resAdd;
+  const repLabel = isVs
+    ? `<label><input type="radio" name="imode" value="replace_complaints"><span><b>แทนที่คอมเมนต์ไม่พอใจช่วงนี้ — ให้ไฟล์นี้ชนะทั้งชุด</b><small>เมื่ออนุมัติ คอมเมนต์ไม่พอใจเดิมของแบรนด์และช่วงวันที่ในไฟล์จะถูกลบ แล้วใช้ไฟล์นี้แทน · คอมเมนต์พอใจและ CSAT/NPS ไม่ถูกแตะ</small></span></label>`
+    : `<label><input type="radio" name="imode" value="replace"><span><b>แทนที่ข้อมูลช่วงนี้ — ให้ไฟล์นี้ชนะทั้งชุด</b><small>เมื่ออนุมัติ ${unit}เดิมที่ลงระบบแล้วในช่วงวันที่และแบรนด์ของไฟล์นี้จะถูกลบ แล้วใช้ไฟล์นี้แทน · ที่แก้ไว้ในชุดเก่าจะหาย</small></span></label>`;
   const brandsIn = r => Object.keys(r.stats.byBrand).filter(k => r.stats.byBrand[k] > 0);
   const body = document.createElement("div");
   body.innerHTML = `
     <div class="modeopt">
       <label><input type="radio" name="imode" value="add" checked><span><b>เพิ่มเฉพาะใบใหม่</b> (แนะนำ)<small>ข้ามใบที่เคยนำเข้าแล้ว · สิ่งที่แอดมินแก้ไว้ไม่ถูกเขียนทับ · ใบที่แพลตฟอร์มแก้ภายหลังจะไม่เข้า</small></span></label>
-      <label><input type="radio" name="imode" value="replace"><span><b>แทนที่ข้อมูลช่วงนี้ — ให้ไฟล์นี้ชนะทั้งชุด</b><small>เมื่ออนุมัติ ${unit}เดิมที่ลงระบบแล้วในช่วงวันที่และแบรนด์ของไฟล์นี้จะถูกลบ แล้วใช้ไฟล์นี้แทน · ที่แก้ไว้ในชุดเก่าจะหาย</small></span></label>
+      ${repLabel}
     </div>
     <div class="warn hide" id="repWarn"></div>
     <div id="pv"></div>`;
   const draw = () => {
     const r = cur();
-    $("#pv", body).innerHTML = isFb ? htmlFb(fileName, r) : htmlVoc(fileName, r);
+    $("#pv", body).innerHTML = (isFb || isVs) ? htmlFb(fileName, r) : htmlVoc(fileName, r);
     const w = $("#repWarn", body);
-    w.classList.toggle("hide", mode !== "replace");
-    if (mode === "replace") w.innerHTML = existing == null ? "กำลังนับข้อมูลเดิมที่จะถูกแทนที่…" : `เมื่ออนุมัติ จะลบ${unit}เดิมที่ลงระบบแล้ว <b class="num">${fmt(existing)}</b> แถว (ช่วง ${esc(fmtD(r.stats.dmin))} – ${esc(fmtD(r.stats.dmax))} · แบรนด์ ${esc(brandsIn(r).join(", "))})${isFb ? "" : " และ CSAT/NPS ของช่วงนั้น"} แล้วใช้ข้อมูลจากไฟล์นี้แทน — ถอนการอนุมัติแล้วข้อมูลเดิมไม่กลับมา (ต้องนำเข้าไฟล์เดิมใหม่)`;
+    w.classList.toggle("hide", !isRep(mode));
+    if (isRep(mode)) w.innerHTML = existing == null ? "กำลังนับข้อมูลเดิมที่จะถูกแทนที่…" : `เมื่ออนุมัติ จะลบ${unit}เดิมที่ลงระบบแล้ว <b class="num">${fmt(existing)}</b> แถว (ช่วง ${esc(fmtD(r.stats.dmin))} – ${esc(fmtD(r.stats.dmax))} · แบรนด์ ${esc(brandsIn(r).join(", "))})${isFb ? "" : " และ CSAT/NPS ของช่วงนั้น"} แล้วใช้ข้อมูลจากไฟล์นี้แทน — ถอนการอนุมัติแล้วข้อมูลเดิมไม่กลับมา (ต้องนำเข้าไฟล์เดิมใหม่)`;
   };
   body.addEventListener("change", e => {
     if (e.target.name !== "imode") return;
     mode = e.target.value; draw();
-    if (mode === "replace" && existing == null) {
+    if (isRep(mode) && existing == null) {
       const r = resAll;
-      FBStore.countLive(kind, r.stats.dmin, r.stats.dmax, brandsIn(r)).then(n => { existing = n; draw(); }).catch(() => { existing = 0; draw(); });
+      FBStore.countLive(chan, r.stats.dmin, r.stats.dmax, brandsIn(r), isVs ? "ไม่พอใจ" : null).then(n => { existing = n; draw(); }).catch(() => { existing = 0; draw(); });
     }
   });
   draw();
-  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ" + (isFb ? " (Facebook)" : ""), body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ" + (isFb ? " (Facebook)" : isVs ? " (สรุป Complain Voc)" : ""), body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
     const res = cur();
     if (!res.rows.length && !res.csat.length) { toast("ไม่มีแถวใหม่ให้นำเข้า"); return false; }
     busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
     try {
-      const id = await FBStore.createBatch({channel: kind, file_name: fileName, d_from: res.stats.dmin, d_to: res.stats.dmax, by: who(), mode}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
+      const id = await FBStore.createBatch({channel: chan, file_name: fileName, d_from: res.stats.dmin, d_to: res.stats.dmax, by: who(), mode}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
       busy(false); toast("สร้างชุดตรวจสอบแล้ว");
       const bs = await FBStore.batches(); S.batches = bs; openBatch(bs.find(x => x.id === id));
     } catch (e) {
       busy(false);
-      toast(/mode/.test(String(e.message)) ? "ต้องรัน supabase/feedback.sql ฉบับล่าสุดก่อนจึงใช้โหมดแทนที่ได้" : "สร้างชุดไม่สำเร็จ: " + (e.message || e));
+      toast(/mode/.test(String(e.message)) ? "ต้องรัน supabase/feedback.sql และ supabase/feedback-voc-summary.sql ฉบับล่าสุดก่อนจึงใช้โหมดแทนที่ได้" : "สร้างชุดไม่สำเร็จ: " + (e.message || e));
       return false;
     }
   }}]);

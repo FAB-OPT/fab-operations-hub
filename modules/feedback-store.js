@@ -103,7 +103,7 @@
       return sb().from('fb_batches').insert(Object.assign({
         channel: meta.channel || 'voc', file_name: meta.file_name || '', d_from: meta.d_from || null, d_to: meta.d_to || null,
         n_rows: rows.length, n_csat: csat.length, note: meta.note || '', created_by: meta.by || ''
-      }, meta.mode === 'replace' ? { mode: 'replace' } : {})).select('id').single().then(ok).then(function (b) {
+      }, meta.mode && meta.mode !== 'add' ? { mode: meta.mode } : {})).select('id').single().then(ok).then(function (b) {
         bid = b.id;
         var jobs = chunk(rows, 500).map(function (c) { return { t: 'fb_rows', rows: c }; })
           .concat(chunk(csat, 500).map(function (c) { return { t: 'fb_csat', rows: c }; }));
@@ -138,9 +138,10 @@
     },
     /* ช่องติดตามของเคส Facebook ที่ลงระบบแล้ว */
     /* จำนวนแถวที่ลงระบบแล้วในช่วงวันที่/แบรนด์ (ใช้บอกว่าโหมดแทนที่จะลบกี่แถว) */
-    countLive: function (channel, from, to, brands) {
+    countLive: function (channel, from, to, brands, ty) {
       var q = sb().from('fb_rows').select('id', { head: true, count: 'exact' }).eq('channel', channel).eq('state', 'live').gte('d', from).lte('d', to);
       if (brands && brands.length) q = q.in('b', brands);
+      if (ty) q = q.eq('ty', ty);
       return q.then(function (r) { if (r.error) throw fail(r.error); return r.count || 0; });
     },
     setExtra: function (rowId, extra, by) {

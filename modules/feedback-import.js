@@ -407,6 +407,83 @@
     return f;
   }
 
-  var api = { OWNER_OF: OWNER_OF, FS_ZONE: FS_ZONE, DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
+  /* ───────── ไฟล์สรุป "Complain Voc" (คอมเมนต์ไม่พอใจทั้งชุด) ─────────
+     parts = [{kind:'cls'|'det', aoa}] · cls = ชีตจัดหัวข้อแล้ว (หัวข้อหลัก/หัวข้อย่อย) · det = ชีตรายละเอียด (จำนวนหมวดคุณภาพ/บริการ)
+     ทุกแถวเป็นไม่พอใจ · รหัสสาขาเลขแรก 5=KT 8=FS 4=JD · ชีตที่ซ้ำกันข้ามไป (ชีต cls มาก่อน) */
+  var VS_MAIN = { 'คุณภาพอาหาร': 'หมวดคุณภาพ', 'หมวดคุณภาพอาหาร': 'หมวดคุณภาพ', 'หมวดคุณภาพ': 'หมวดคุณภาพ',
+                  'การบริการ': 'หมวดพนักงานและการบริการ', 'หมวดพนักงานและการบริการ': 'หมวดพนักงานและการบริการ' };
+  function vsCode(v) { return v == null ? '' : String(v).trim().replace(/\.0+$/, ''); }
+  function vsBrandByCode(code) { return { '5': 'KT', '8': 'FS', '4': 'JD' }[String(code).charAt(0)] || ''; }
+  function vsKind(aoa) {
+    for (var i = 0; i < Math.min(aoa.length, 10); i++) {
+      var h = (aoa[i] || []).map(clean);
+      if (h.indexOf('หัวข้อหลัก') >= 0 && h.indexOf('รหัส') >= 0) return 'cls';
+      if (h.indexOf('คอมเม้นท์') >= 0 && h.some(function (x) { return x.indexOf('จำนวน หมวดคุณภาพ') === 0; })) return 'det';
+    }
+    return '';
+  }
+  function parseVocSummary(parts, opts) {
+    opts = opts || {};
+    var skip = opts.skipSrc || {}, st = { cases: 0, dupSrc: 0, noBrand: 0, noDate: 0, dmin: '9999', dmax: '0000', byBrand: { KT: 0, FS: 0, JD: 0 }, closed: 0, nocat: 0, amb: 0 };
+    var rows = [], seen = {}, keys = {};
+    var order = parts.slice().sort(function (x, y) { return (x.kind === 'cls' ? 0 : 1) - (y.kind === 'cls' ? 0 : 1); });
+    order.forEach(function (part) {
+      var aoa = part.aoa, hi = -1, H = null;
+      for (var i = 0; i < Math.min(aoa.length, 10); i++) {
+        var h = (aoa[i] || []).map(clean);
+        if (part.kind === 'cls' ? (h.indexOf('หัวข้อหลัก') >= 0 && h.indexOf('รหัส') >= 0) : (h.indexOf('คอมเม้นท์') >= 0)) { hi = i; H = h; break; }
+      }
+      if (hi < 0) return;
+      var ix = function (n) { return H.indexOf(n); };
+      var iD = ix('วันที่'), iK = ix('รหัส'), iBr = ix('สาขา'), iZ = ix('BZM');
+      var iB = part.kind === 'cls' ? iZ - 1 : ix('Branch type');
+      var iC = part.kind === 'cls' ? ix('หัวข้อย่อย') - 1 : ix('คอมเม้นท์');
+      var iSub = part.kind === 'cls' ? ix('หัวข้อย่อย') : ix('อื่นๆ');
+      var iMain = part.kind === 'cls' ? ix('หัวข้อหลัก') : -1;
+      var iQ = ix('จำนวน หมวดคุณภาพ'), iS = ix('จำนวน หมวดบริการ');
+      var g = function (a, k) { return k >= 0 ? a[k] : null; };
+      for (var r = hi + 1; r < aoa.length; r++) {
+        var a = aoa[r]; if (!a) continue;
+        var text = clean(g(a, iC)); if (!text) continue;
+        var code = vsCode(g(a, iK));
+        var bv = clean(g(a, iB)).toUpperCase();
+        var b = (bv === 'KT' || bv === 'FS' || bv === 'JD') ? bv : (brandOf(clean(g(a, iB)), '') || vsBrandByCode(code));
+        if (!b) { st.noBrand++; continue; }
+        var dt = parseDT(g(a, iD)); if (!dt) { st.noDate++; continue; }
+        if (dt.d < st.dmin) st.dmin = dt.d; if (dt.d > st.dmax) st.dmax = dt.d;
+        var m = maskPii(text);
+        var key = dt.d + '|' + code + '|' + m.text.replace(/\s+/g, '').slice(0, 24);
+        if (keys[key]) { st.dupSrc++; continue; }
+        keys[key] = 1;
+        var sub = '', main = '', amb = false;
+        if (part.kind === 'cls') {
+          sub = clean(g(a, iSub));
+          main = VS_MAIN[clean(g(a, iMain))] || 'หมวดอื่นๆ';
+        } else {
+          var q = Number(g(a, iQ)) || 0, sv = Number(g(a, iS)) || 0;
+          amb = !!(q && sv);
+          main = q ? 'หมวดคุณภาพ' : (sv ? 'หมวดพนักงานและการบริการ' : 'หมวดอื่นๆ');
+          var raw = clean(g(a, iSub));
+          if (CAT[raw]) { sub = CAT[raw][0]; main = CAT[raw][1]; } else sub = raw;
+        }
+        if (!main) st.nocat++;
+        if (amb) st.amb++;
+        var info = { name: clean(g(a, iBr)), bzm: clean(g(a, iZ)) };
+        var src = 'vs|' + dt.d + '|' + code + '|' + hash(m.text.toLowerCase());
+        var n = (seen[src] = (seen[src] || 0) + 1); if (n > 1) src += '#' + n;
+        if (skip[src]) { st.dupSrc++; continue; }
+        var extra = { status: 'new', src: 'summary' };
+        if (amb) extra.amb = true;
+        if (m.masked) extra.masked = true;
+        st.cases++;
+        rows.push({ src_id: src, state: 'staging', b: b, d: dt.d, t: '', ty: 'ไม่พอใจ', br: (code + ' ' + info.name).trim(),
+          z: person(info.bzm), o: '', s: null, c: m.text, sub: sub, main: main, extra: extra, edited: false });
+        st.byBrand[b]++;
+      }
+    });
+    return { rows: rows, csat: [], stats: st };
+  }
+
+  var api = { vsKind: vsKind, parseVocSummary: parseVocSummary, OWNER_OF: OWNER_OF, FS_ZONE: FS_ZONE, DEFINED_SUBS: DEFINED_SUBS, suggestSub: suggestSub, parseRaw: parseRaw, parseFb: parseFb, parseCsatSummary: parseCsatSummary, monthFromName: monthFromName, FB_CATS: FB_CATS, flagsOf: flagsOf, FLAG_LABEL: FLAG_LABEL, CAT: CAT, isNoise: isNoise, maskPii: maskPii, hasPii: hasPii, parseDT: parseDT, MAINS: [M_Q, M_S, M_O] };
   if (typeof module !== 'undefined' && module.exports) module.exports = api; else global.FBImport = api;
 })(typeof window !== 'undefined' ? window : globalThis);
