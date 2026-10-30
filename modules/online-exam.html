@@ -3041,7 +3041,7 @@ function _oeLogoTrim(src){
         var cw = x1 - x0 + 1, ch = y1 - y0 + 1;
         if(cw * ch > w * h * 0.92) return;          /* ไม่มีขอบว่างให้ตัดแล้ว */
         /* ทะเบียนแบรนด์เก็บโลโก้ย่อเล็ก (เพดานพื้นที่ในระบบ) · ขยายเป็นขั้น ๆ แล้วเกลาขอบอีกนิด พิมพ์ลงกระดาษแล้วไม่เบลอเท่าให้เบราว์เซอร์ขยายเอง */
-        var k = Math.min(4, Math.max(1, 560 / Math.max(cw, ch))), ow = Math.round(cw * k), oh = Math.round(ch * k);
+        var mx = Math.max(cw, ch), k = mx > 900 ? 900 / mx : (mx < 560 ? Math.min(4, 560 / mx) : 1), ow = Math.round(cw * k), oh = Math.round(ch * k);
         var o = document.createElement('canvas'); o.width = ow; o.height = oh;
         var og = o.getContext('2d');
         try{ og.imageSmoothingQuality = 'high'; }catch(e){}
@@ -3063,6 +3063,12 @@ function _oeLogoTrim(src){
     };
     im.src = src;
   }catch(e){}
+}
+/* ไฟล์โลโก้ความละเอียดสูงของแบรนด์ (มาจากเจ้าของแบรนด์) — ใช้แทนโลโก้ที่ถูกบีบในทะเบียนแบรนด์ */
+var OE_BRAND_LOGO_FILE = { topsecretramen: 'logo-topsecret-ramen.png', topsecretcafe: 'logo-topsecret-cafe.png' };
+function oeBrandLogoFile(b){
+  if(!b) return '';
+  return OE_BRAND_LOGO_FILE[String(b.key || '')] || '';
 }
 var DEFAULT_EXAM_BRANDS = [
   { key:'jaedaeng', name:'เจ๊แดง',   emoji:'🌶️', desc:'เจ๊แดง สามย่าน', prefixes:['40'] },
@@ -3092,7 +3098,7 @@ function buildBrands(){
   });
 }
 var BRANDS = buildBrands();
-BRANDS.forEach(function(b){ _oeLogoTrim(b.logo); });
+BRANDS.forEach(function(b){ _oeLogoTrim(b.logo); _oeLogoTrim(oeBrandLogoFile(b)); });
 var currentBrand = null;   // key ที่เลือก ('jaedaeng' | 'santafe' | 'all')
 var _dataLoaded = false;   // โหลดข้อมูลจาก backend แล้วหรือยัง
 
@@ -3561,7 +3567,7 @@ function _oeApplyBrandsFromHub(res){
   var before = BRANDS.map(function(b){ return b.key; }).join('|');
   try{ localStorage.setItem('fab_brands_v1', JSON.stringify(arr)); }catch(e){}
   BRANDS = buildBrands();
-  BRANDS.forEach(function(b){ _oeLogoTrim(b.logo); });
+  BRANDS.forEach(function(b){ _oeLogoTrim(b.logo); _oeLogoTrim(oeBrandLogoFile(b)); });
   return BRANDS.map(function(b){ return b.key; }).join('|') !== before;
 }
 function oeLoadPermsFromHub(){
@@ -8409,7 +8415,9 @@ function _docDate(v){
 function _docCo(r){
   var bi = _oeBrandOfResult(r) || {};
   var co = oeBrandCompany(bi);
-  return { key: bi.key || '', name: co || bi.name || 'FAB Food', company: co, logo: oeLogoSrc(bi.logo) };
+  var lf = oeBrandLogoFile(bi);
+  if(lf) _oeLogoTrim(lf);
+  return { key: bi.key || '', name: co || bi.name || 'FAB Food', company: co, logo: oeLogoSrc(lf || bi.logo) };
 }
 
 /* ชื่อบริษัทบนหัวกระดาษ — หยิบจากใบปรับสภาพ จะได้ตรงกันทั้งชุด
