@@ -4396,6 +4396,17 @@ function _oeBrandOfResult(r){
   if(currentBrand && currentBrand !== 'all') return BRANDS.filter(function(b){ return b.key === currentBrand; })[0] || null;
   return null;
 }
+/* ชื่อนิติบุคคลบนหัวเอกสาร — ใช้ตามทะเบียนแบรนด์ก่อน · ถ้าทะเบียนยังไม่ได้ใส่ ใช้ตามกลุ่มแบรนด์:
+   Top Secret ทุกสาขา = บริษัท โนมิมาโช จำกัด · ยามะจัง = บริษัท ยามะจัง (ไทยแลนด์) จำกัด */
+function oeBrandCompany(b){
+  if(!b) return '';
+  if(b.company) return b.company;
+  var t = (String(b.key || '') + String(b.name || '')).toLowerCase().replace(/[\s_\-]+/g, '');
+  if(/topsecret|ท็อปซีเคร็ต|ท็อปซีเครท/.test(t)) return 'บริษัท โนมิมาโช จำกัด';
+  if(/yamachan|yama|ยามะ/.test(t)) return 'บริษัท ยามะจัง (ไทยแลนด์) จำกัด';
+  if(/jaedaeng|jaedang|เจ๊แดง/.test(t)) return 'บริษัท ส้มตำเจ๊แดงสามย่าน จำกัด';
+  return '';
+}
 function _brandKey(s){
   return String(s||'')
     .replace(/[\s\-–—_.,'"()\[\]/]+/g,'')
@@ -7124,7 +7135,7 @@ function _oeReportHtml(r){
   var body =
     '<table class="hd"><tr>' +
       '<td class="hd-l">' + logo +
-        '<div class="corp">' + esc(bi.company || bi.name || '') + '</div></td>' +
+        '<div class="corp">' + esc(oeBrandCompany(bi) || bi.name || '') + '</div></td>' +
       '<td class="hd-c"><h1>ใบรายงานผลสอบ</h1></td>' +
       '<td class="hd-r">EX-001</td>' +
     '</tr></table>' +
@@ -8343,7 +8354,8 @@ function _docDate(v){
 }
 function _docCo(r){
   var bi = _oeBrandOfResult(r) || {};
-  return { key: bi.key || '', name: bi.company || bi.name || 'FAB Food', company: bi.company || '', logo: bi.logo || '' };
+  var co = oeBrandCompany(bi);
+  return { key: bi.key || '', name: co || bi.name || 'FAB Food', company: co, logo: bi.logo || '' };
 }
 
 /* ชื่อบริษัทบนหัวกระดาษ — หยิบจากใบปรับสภาพ จะได้ตรงกันทั้งชุด
