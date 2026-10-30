@@ -4381,6 +4381,21 @@ function _oeBrandFor(ex){
   }
   return null;
 }
+/* แบรนด์ของผลสอบใบนี้ — ยึดแบรนด์ที่ติดมากับใบ แล้วค่อยดูชุดข้อสอบ สุดท้ายถึงใช้แบรนด์ที่แอดมินเปิดค้างอยู่
+   (เดิมยึดแบรนด์ที่เปิดค้างก่อน ใบของร้านหนึ่งเลยขึ้นหัวกระดาษของอีกร้านถ้าเปิดผิดแบรนด์ค้างไว้) */
+function _oeBrandOfResult(r){
+  var ex = _oeExamOf(r);
+  var keys = [r && r.brand, ex && ex.brand];
+  for(var i = 0; i < keys.length; i++){
+    var k = keys[i];
+    if(!k || k === 'all') continue;
+    var hit = BRANDS.filter(function(b){ return b.key === k; })[0] ||
+              BRANDS.filter(function(b){ return _brandKey(b.name) === _brandKey(k); })[0];
+    if(hit) return hit;
+  }
+  if(currentBrand && currentBrand !== 'all') return BRANDS.filter(function(b){ return b.key === currentBrand; })[0] || null;
+  return null;
+}
 function _brandKey(s){
   return String(s||'')
     .replace(/[\s\-–—_.,'"()\[\]/]+/g,'')
@@ -6993,10 +7008,7 @@ function _oeReportHtml(r){
   /* หัวใบยึดแบรนด์ที่แอดมินเปิดค้างอยู่เป็นหลัก — เปิดแบรนด์ไหนก็ออกใบในนามแบรนด์นั้น
      จะไปดูว่าผลสอบใบนั้นเป็นของแบรนด์อะไร ก็ต่อเมื่อเปิดอยู่แบบ "ทุกแบรนด์"
      ผลเก่าบางใบไม่มี brand ติดมา จึงต้องถอยไปดูที่ชุดข้อสอบให้อีกชั้น */
-  var bkey = (currentBrand && currentBrand !== 'all')
-    ? currentBrand
-    : (r.brand || (ex && ex.brand) || '');
-  var bi = bkey ? (brandInfo(bkey) || {}) : {};
+  var bi = _oeBrandOfResult(r) || {};
   var passMark = oeResPassMark(r, ex);
 
   /* ช่องติ๊กแบบฟอร์มกระดาษ — เอกสารทางการตัดสินด้วยเครื่องหมายถูก ไม่ใช่ป้ายสี
@@ -8330,15 +8342,18 @@ function _docDate(v){
     String(_docYearBE(d.getFullYear()) % 100).padStart(2,'0');
 }
 function _docCo(r){
-  var bkey = (currentBrand && currentBrand !== 'all') ? currentBrand : (r.brand || '');
-  var bi = bkey ? (brandInfo(bkey) || {}) : {};
-  return { name: bi.company || bi.name || 'FAB Food', logo: bi.logo || '' };
+  var bi = _oeBrandOfResult(r) || {};
+  return { key: bi.key || '', name: bi.company || bi.name || 'FAB Food', company: bi.company || '', logo: bi.logo || '' };
 }
 
 /* ชื่อบริษัทบนหัวกระดาษ — หยิบจากใบปรับสภาพ จะได้ตรงกันทั้งชุด
    ทะเบียนแบรนด์ในระบบเก็บชื่อไว้เป็นภาษาอังกฤษ ใช้ตรง ๆ แล้วหน้านี้จะแปลกกว่าใบอื่น */
 var _docCoLine;
-function _docCoName(fallback){
+function _docCoName(co){
+  /* ทะเบียนแบรนด์มีชื่อนิติบุคคลก็ใช้อันนั้น · แบรนด์อื่นที่ไม่มี ใช้ชื่อแบรนด์ — ข้อความในใบปรับสภาพเป็นของเจ๊แดง ห้ามเอาไปขึ้นหัวใบของแบรนด์อื่น */
+  if(co && co.company) return co.company;
+  if(co && co.key && co.key !== 'jaedaeng') return co.name || '';
+  var fallback = co && co.name;
   if(_docCoLine === undefined){
     _docCoLine = _docAdjustTpl.split(/<[^>]+>/)
       .map(function(x){ return x.trim(); }).filter(Boolean)[0] || '';
@@ -8393,9 +8408,10 @@ function _docSheetExam(r){
 
   return '<article class="sheet exs" data-doc="exam">' +
     '<header class="exs-head">' +
-      '<img class="exs-logo" src="' + _docAdjustLogo + '" alt="">' +
+      (co.logo ? '<img class="exs-logo" src="' + co.logo + '" alt="">'
+        : (co.key && co.key !== 'jaedaeng' ? '' : '<img class="exs-logo" src="' + _docAdjustLogo + '" alt="">')) +
       '<div class="exs-id">' +
-        '<div class="exs-co">' + esc(_docCoName(co.name)) + '</div>' +
+        '<div class="exs-co">' + esc(_docCoName(co)) + '</div>' +
         '<div class="exs-ti">ใบรายงานผลการทดสอบความรู้</div>' +
         '<div class="exs-sub">ระบบสอบออนไลน์</div>' +
       '</div>' +
