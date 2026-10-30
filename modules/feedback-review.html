@@ -546,7 +546,9 @@ async function importFile(file) {
   try {
     const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type: "array", dense: true});
     const toAoa = n => XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: null});
-    const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n));
+    /* ชื่อชีตอาจถูกเปลี่ยนตอนดาวน์โหลด — หาจากหัวคอลัมน์ (complain + แบรนด์) แทนถ้าชื่อไม่ตรง */
+    const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n))
+      || (!rawName && !csName ? wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("complain") && (r || []).includes("แบรนด์"))) : null);
     const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
     const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
     if (csName) { kind = "csat"; aoa = toAoa(csName); }
