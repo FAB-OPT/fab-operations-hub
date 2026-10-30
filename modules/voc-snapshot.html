@@ -213,6 +213,16 @@ body.scope-branch #wBzm,body.scope-branch #wBranch,body.scope-branch #wOwner{dis
 /* จอกว้าง: ปรับขนาดเนื้อหาทั้งหน้าตามขนาดจอ — ซูมออกให้เห็นทั้งหน้า (ใช้ zoom — Chrome/Edge/Safari/Firefox 126+) */
 /* ขนาดจริง 1 เท่าทุกจอ (ไม่ซูม) */
 body{zoom:1}
+/* การ์ดเทียบกับไฟล์สรุป */
+.cmp{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:10px 16px}
+.cmp .cmpbox summary{cursor:pointer;font-weight:700;font-size:15px;padding:4px 0}
+.cmp h3{font-size:14px;margin:14px 0 6px}
+.cchips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.cchips span{font-size:13px;padding:4px 10px;border-radius:999px;background:var(--bg2,#f3f4f6);color:var(--muted)}
+.cchips b{color:var(--ink)}
+.cmpt{width:100%;border-collapse:collapse;font-size:13px}
+.cmpt th,.cmpt td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+.cmpt th{color:var(--muted);font-weight:700}
 </style>
 </head>
 <body>
@@ -264,6 +274,7 @@ body{zoom:1}
     </div>
   </div>
 
+  <section class="cmp" id="cmpCard" hidden></section>
   <div class="cats">
     <section class="cat q"><div class="chead"><i class="cdot"></i><h2>หมวดคุณภาพอาหาร</h2><span class="cpills" id="catQh"></span></div><div id="catQ"></div></section>
     <section class="cat s"><div class="chead"><i class="cdot"></i><h2>หมวดพนักงานและบริการ</h2><span class="cpills" id="catSh"></span></div><div id="catS"></div></section>
@@ -408,10 +419,101 @@ function headerRow(rows, need){
   for(let i=0;i<Math.min(rows.length,10);i++){ const h=(rows[i]||[]).map(clean); if(need.every(n=>h.includes(n))) return i; }
   return -1;
 }
+/* ---------- ไฟล์สรุป "สรุป Complain Voc" (ยึดเป็นหลักของคอมเมนต์ไม่พอใจ) ----------
+   ชีตที่รู้จัก 2 แบบ: cls = ชีตที่จัดหัวข้อแล้ว (มี หัวข้อหลัก/หัวข้อย่อย) · det = ชีตรายละเอียด (มีจำนวนหมวดคุณภาพ/บริการ)
+   แถวของไฟล์ = ไม่พอใจทั้งหมด · รหัสสาขาเลขแรก 5 = KT · 8 = FS · 4 = JD */
+function headAoa(ws, n){
+  if(!ws || !ws['!ref']) return [];
+  const ref = XLSX.utils.decode_range(ws['!ref']), e = Math.min(ref.e.r, ref.s.r + n);
+  return XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null, range: XLSX.utils.encode_range({s:{r:ref.s.r, c:ref.s.c}, e:{r:e, c:ref.e.c}})});
+}
+function summaryKind(aoa){
+  if(headerRow(aoa, ['หัวข้อหลัก','รหัส']) >= 0) return 'cls';
+  if(headerRow(aoa, ['คอมเม้นท์','จำนวน หมวดคุณภาพ']) >= 0) return 'det';
+  return null;
+}
+const codeOf = v => (v==null ? '' : String(v)).trim().replace(/\.0+$/,'');
+const brandByCode = code => ({'5':'KT','8':'FS','4':'JD'})[String(code).charAt(0)] || null;
+const normC = c => String(c||'').replace(/\s+/g,'').slice(0,24);
+const rowKey = r => r.d+'|'+rowCode(r)+'|'+normC(r.c);
+function parseSummarySheet(ws, kind){
+  const aoa = XLSX.utils.sheet_to_json(ws, {header:1, raw:true, defval:null});
+  const hi = headerRow(aoa, kind==='cls' ? ['หัวข้อหลัก','รหัส'] : ['คอมเม้นท์','จำนวน หมวดคุณภาพ']);
+  if(hi<0) return [];
+  const h = aoa[hi].map(clean), ix = n => h.indexOf(n), g = (a,i) => i>=0 ? a[i] : null;
+  const iD=ix('วันที่'), iK=ix('รหัส'), iBr=ix('สาขา'), iZ=ix('BZM'), out=[];
+  if(kind==='cls'){
+    const iSub=ix('หัวข้อย่อย'), iMain=ix('หัวข้อหลัก'), iC=iSub-1, iB=iZ-1;
+    for(let r=hi+1;r<aoa.length;r++){ const a=aoa[r]; if(!a) continue;
+      const d=serialDate(g(a,iD)), c=clean(g(a,iC)); if(!d||!c) continue;
+      const code=codeOf(g(a,iK)), bv=clean(g(a,iB)).toUpperCase(), b=BRANDS[bv] ? bv : brandByCode(code); if(!b) continue;
+      out.push(Object.assign(mkRow(b,d,'','ไม่พอใจ',code+' '+clean(g(a,iBr)),g(a,iZ),'','',c,g(a,iSub),g(a,iMain)),{amb:false,kind:'cls'}));
+    }
+  } else {
+    const iQ=ix('จำนวน หมวดคุณภาพ'), iS=ix('จำนวน หมวดบริการ'), iC=ix('คอมเม้นท์'), iO=ix('อื่นๆ');
+    for(let r=hi+1;r<aoa.length;r++){ const a=aoa[r]; if(!a) continue;
+      const d=serialDate(g(a,iD)), c=clean(g(a,iC)); if(!d||!c) continue;
+      const code=codeOf(g(a,iK)), b=brandByCode(code); if(!b) continue;
+      const q=Number(g(a,iQ))||0, sv=Number(g(a,iS))||0;
+      /* มีทั้งสองหมวดในแถวเดียว = ไม่รู้ว่าหัวข้อไหนหลัก ให้ไว้ที่หมวดคุณภาพและติดธงให้ตรวจ */
+      const main = q ? 'หมวดคุณภาพ' : (sv ? 'หมวดพนักงานและการบริการ' : 'หมวดอื่นๆ');
+      out.push(Object.assign(mkRow(b,d,'','ไม่พอใจ',code+' '+clean(g(a,iBr)),g(a,iZ),'','',c,g(a,iO),main),{amb:!!(q&&sv),kind:'det'}));
+    }
+  }
+  return out;
+}
+function applySummary(s){
+  const months=new Set(s.rows.map(r=>r.d.slice(0,7))), brands=new Set(s.rows.map(r=>r.b));
+  const inScope = r => months.has(r.d.slice(0,7)) && brands.has(r.b) && r.ty==='ไม่พอใจ';
+  const ex = DATA.rows.filter(inScope);
+  const exK = new Map(); ex.forEach(r=>{ const k=rowKey(r); if(!exK.has(k)) exK.set(k,r); });
+  const fK = new Map(); s.rows.forEach(r=>{ const k=rowKey(r); if(!fK.has(k)) fK.set(k,r); });
+  const pick = r => ({d:r.d, br:r.br, z:r.z, c:r.c, main:r.main||'', sub:r.sub||''});
+  const add=[], topic=[], remove=[]; let match=0;
+  for(const [k,fr] of fK){
+    const er = exK.get(k);
+    if(!er){ add.push(pick(fr)); continue; }
+    match++;
+    if((er.sub||'')!==(fr.sub||'') || (er.main||'')!==(fr.main||'')) topic.push(Object.assign(pick(fr),{from:(er.main||'–')+' › '+(er.sub||'–'), to:(fr.main||'–')+' › '+(fr.sub||'–')}));
+  }
+  for(const [k,er] of exK) if(!fK.has(k)) remove.push(pick(er));
+  /* ยึดไฟล์เป็นหลัก: ไม่พอใจของเดือน+แบรนด์ในไฟล์ถูกแทนด้วยของไฟล์ · พอใจไม่แตะ */
+  DATA.rows = DATA.rows.filter(r=>!inScope(r)).concat(s.rows);
+  return { file:s.file, at:new Date().toISOString(), months:[...months].sort(), brands:[...brands].sort(),
+    n:{ file:fK.size, dup:s.dup||0, existing:ex.length, match, add:add.length, topic:topic.length, remove:remove.length, amb:s.rows.filter(r=>r.amb).length },
+    add:add.slice(0,300), topic:topic.slice(0,300), remove:remove.slice(0,300) };
+}
+function cmpText(cs){
+  if(!cs || !cs.length) return '';
+  return '<br>เทียบไฟล์สรุป: ' + cs.map(c=>`${esc(c.file)} · เพิ่มใหม่ ${c.n.add} · หัวข้อต่างจากเดิม ${c.n.topic} · เอาออก ${c.n.remove}`).join(' | ');
+}
+/* การ์ดเทียบกับไฟล์สรุป — เห็นเฉพาะแอดมิน (ข้อมูลทั้งหมด) */
+function renderCmp(){
+  const el=$('cmpCard'); if(!el) return;
+  const cs=(DATA.meta&&DATA.meta.cmps)||[];
+  if(!cs.length || !SCOPE.all){ el.hidden=true; el.innerHTML=''; return; }
+  el.hidden=false;
+  const tbl=(arr,cols)=> arr.length
+    ? `<div class="tw"><table class="cmpt"><thead><tr>${cols.map(x=>`<th>${x[0]}</th>`).join('')}</tr></thead><tbody>${arr.map(r=>`<tr>${cols.map(x=>`<td>${esc(x[1](r))}</td>`).join('')}</tr>`).join('')}</tbody></table></div>`
+    : '<p class="note">ไม่มี</p>';
+  const base=[['วันที่',r=>fmtD(r.d)],['สาขา',r=>r.br],['BZM',r=>r.z||'–'],['คอมเมนต์',r=>String(r.c).slice(0,120)]];
+  el.innerHTML = cs.map(c=>{
+    const ml = c.months.map(m=>{ const [y,mo]=m.split('-'); return TH_MF[+mo-1]+' '+(+y+543); }).join(', ');
+    return `<details class="cmpbox"><summary>เทียบกับไฟล์ ${esc(c.file)} · ${esc(ml)}</summary>
+      <div class="cchips"><span>ในไฟล์ <b>${c.n.file}</b></span><span>ตรงกับระบบ <b>${c.n.match}</b></span><span>เพิ่มใหม่ <b>${c.n.add}</b></span><span>หัวข้อต่างจากเดิม <b>${c.n.topic}</b></span><span>ถูกเอาออก <b>${c.n.remove}</b></span><span>ทั้งคุณภาพและบริการ (ต้องตรวจ) <b>${c.n.amb}</b></span>${c.n.dup?`<span>ชีตรายละเอียดซ้ำกับชีตหลัก (ข้าม) ${c.n.dup}</span>`:''}</div>
+      <h3>เพิ่มใหม่ (มีในไฟล์ ไม่มีในระบบ)</h3>${tbl(c.add,base.concat([['หัวข้อ',r=>(r.main||'–')+' › '+(r.sub||'–')]]))}
+      <h3>หัวข้อต่างจากเดิม</h3>${tbl(c.topic,[['วันที่',r=>fmtD(r.d)],['สาขา',r=>r.br],['คอมเมนต์',r=>String(r.c).slice(0,120)],['เดิม',r=>r.from],['ตามไฟล์',r=>r.to]])}
+      <h3>ถูกเอาออก (มีในระบบ ไม่มีในไฟล์)</h3>${tbl(c.remove,base.concat([['หัวข้อ',r=>(r.main||'–')+' › '+(r.sub||'–')]]))}
+    </details>`;
+  }).join('');
+}
+
 function parseWorkbook(wb){
-  const out = {rows:{}, csat:{}};
+  const out = {rows:{}, csat:{}, summary:null};
+  const sums = [];
   for(const name of wb.SheetNames){
-    const b = brandOf(name); if(!b) continue;
+    const b = brandOf(name);
+    if(!b){ const ws=wb.Sheets[name], k=summaryKind(headAoa(ws,30)); if(k) sums.push({kind:k, rows:parseSummarySheet(ws,k)}); continue; }
     const aoa = XLSX.utils.sheet_to_json(wb.Sheets[name], {header:1, raw:true, defval:null});
     if(/CSAT|NPS/i.test(name)){
       const hi = headerRow(aoa, ['วันที่','CSAT','NPS']); if(hi<0) continue;
@@ -432,29 +534,39 @@ function parseWorkbook(wb){
       out.rows[b]=list;
     }
   }
+  if(sums.length){
+    /* ชีตที่จัดหัวข้อแล้วมาก่อน (เป็นหลัก) แล้วค่อยชีตรายละเอียดที่ซ้ำกันจะถูกข้าม */
+    const seen = new Set(), rows = []; let dup = 0;
+    sums.sort((x,y)=>(x.kind==='cls'?0:1)-(y.kind==='cls'?0:1)).forEach(x=>x.rows.forEach(r=>{ const k=rowKey(r); if(seen.has(k)){ dup++; return; } seen.add(k); rows.push(r); }));
+    out.summary = {rows, dup};
+  }
   return out;
 }
 async function importFiles(files){
   overlay(true,'กำลังอ่านไฟล์…');
   await new Promise(r=>setTimeout(r,30));
-  const got = {rows:{}, csat:{}}; const names=[];
+  const got = {rows:{}, csat:{}}; const names=[]; const sums=[];
   try{
     for(const f of files){
       overlay(true,`กำลังอ่าน ${f.name}…`); await new Promise(r=>setTimeout(r,30));
       const wb = XLSX.read(new Uint8Array(await f.arrayBuffer()), {type:'array', dense:true});
       const p = parseWorkbook(wb); Object.assign(got.rows,p.rows); Object.assign(got.csat,p.csat); names.push(f.name);
+      if(p.summary) sums.push(Object.assign({file:f.name}, p.summary));
     }
   }catch(e){ overlay(false); setStatus(`<strong style="color:var(--bad)">อ่านไฟล์ไม่ได้</strong> — ตรวจว่าเป็นไฟล์ .xlsx ที่ดาวน์โหลดจาก Google Sheets (${esc(e.message||e)})`); return; }
   const bs = Object.keys(got.rows);
-  if(!bs.length){ overlay(false); setStatus('<strong style="color:var(--bad)">ไม่พบชีตข้อมูล</strong> — ชื่อชีตต้องมี KT / FS / JD และหัวคอลัมน์ต้องมี วันที่, ประเภท, สาขา, คอมเม้นท์'); return; }
+  if(!bs.length && !sums.length){ overlay(false); setStatus('<strong style="color:var(--bad)">ไม่พบชีตข้อมูล</strong> — ชื่อชีตต้องมี KT / FS / JD และหัวคอลัมน์ต้องมี วันที่, ประเภท, สาขา, คอมเม้นท์'); return; }
   if(DATA.meta.source==='sample'){ DATA={rows:[],csat:[],meta:{source:'upload',files:[]}}; }
   DATA.rows = DATA.rows.filter(r=>!(r.b in got.rows)).concat(...Object.values(got.rows));
   DATA.csat = DATA.csat.filter(r=>!(r.b in got.csat)).concat(...Object.values(got.csat));
-  DATA.meta = {source:'upload', updated:new Date().toISOString(), files:names};
+  const prevCmps = (DATA.meta && DATA.meta.cmps) || [];
+  /* ไฟล์สรุปมาทีหลังทับคอมเมนต์ไม่พอใจของเดือน+แบรนด์นั้น — ใช้ผลเทียบล่าสุดของแต่ละไฟล์ */
+  const cmps = sums.map(applySummary);
+  DATA.meta = {source:'upload', updated:new Date().toISOString(), files:names, cmps: cmps.length ? cmps : prevCmps};
   overlay(true,'กำลังบันทึกในเบราว์เซอร์…'); await new Promise(r=>setTimeout(r,30));
   const ok = await save();
   index(); overlay(false);
-  if(!byBrand[ui.brand]) ui.brand = bs[0];
+  if(!byBrand[ui.brand]) ui.brand = bs[0] || Object.keys(byBrand)[0] || ui.brand;
   resetFilters(true); renderAll(); renderStatus(ok?'':' · <span style="color:var(--bad)">บันทึกในเบราว์เซอร์ไม่ได้ ต้องนำเข้าใหม่เมื่อเปิดหน้าครั้งหน้า</span>');
 }
 
@@ -469,7 +581,7 @@ function renderStatus(extra=''){
     $('btnReset').hidden=true;
   } else {
     const t = DATA.meta.updated ? new Date(DATA.meta.updated).toLocaleString('th-TH',{dateStyle:'medium',timeStyle:'short'}) : '';
-    setStatus(`<span class="pill">นำเข้าแล้ว ${esc(t)}</span> ${parts.join(' · ')}<br>ไฟล์: ${esc(DATA.meta.files.join(', '))} · ข้อมูลเก็บไว้ในเบราว์เซอร์นี้`+extra);
+    setStatus(`<span class="pill">นำเข้าแล้ว ${esc(t)}</span> ${parts.join(' · ')}<br>ไฟล์: ${esc(DATA.meta.files.join(', '))} · ข้อมูลเก็บไว้ในเบราว์เซอร์นี้`+cmpText(DATA.meta.cmps)+extra);
     $('btnReset').hidden=false;
   }
 }
@@ -547,7 +659,7 @@ const splitSub = s => { const m=String(s).match(/^(.*?)\s*\((.*)\)\s*$/); return
 const mainCls = m => m===MAINS[0][0] ? 'q' : m===MAINS[1][0] ? 's' : 'o';
 const fmtShort = iso => { if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${+d} ${TH_M[+m-1]} ${y.slice(2)}`; };
 function renderAll(){
-  renderTabs(); refreshDropdowns();
+  renderTabs(); refreshDropdowns(); renderCmp();
   const rows = filtered();
   const pos = rows.filter(r=>r.ty==='พอใจ').length, neg = rows.filter(r=>r.ty==='ไม่พอใจ').length;
   $('kAll').textContent=fmtN(rows.length); $('kPos').textContent=fmtN(pos); $('kNeg').textContent=fmtN(neg);
