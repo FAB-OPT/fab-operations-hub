@@ -1044,6 +1044,12 @@ select.txt{appearance:none;-webkit-appearance:none;
 .part-row{margin-top:12px;border:1px solid var(--border);border-radius:12px}
 /* สัดส่วนข้อสอบตามหมวด */
 .cat-row{margin-top:12px;border:1px solid var(--border);border-radius:12px}
+.cat-by{display:inline-flex;border:1px solid var(--border2);border-radius:10px;overflow:hidden;margin:0 0 10px;background:#fff}
+.cat-by button{border:0;background:transparent;padding:7px 14px;font:inherit;font-size:12.5px;font-weight:700;color:var(--text2);cursor:pointer}
+.cat-by button.on{background:var(--gold);color:#fff}
+.cat-tot{display:flex;align-items:center;gap:8px;margin:0 0 10px;font-size:13px;font-weight:700;color:var(--text2);flex-wrap:wrap}
+.cat-tot input{width:86px;border:1.5px solid var(--border2);border-radius:8px;padding:6px 9px;font:inherit;text-align:right;background:#fff}
+.cat-tot em{font-style:normal;font-weight:500;font-size:11.5px;color:var(--text3)}
 .cat-box{margin-top:12px;border:1px solid var(--border);border-radius:var(--radius);padding:15px;background:var(--bg3)}
 .cat-note{font-size:12px;color:var(--text2);margin-bottom:10px;line-height:1.6}
 .cat-tbl{width:100%;border-collapse:collapse;font-size:13.5px;background:#fff;border-radius:10px;overflow:hidden}
@@ -2467,8 +2473,10 @@ label.fld>span>b{font-weight:800}
               <!-- สัดส่วนข้อสอบตามหมวด: ตั้งหมวดให้แต่ละข้อ แล้วกำหนดว่าแต่ละหมวดสุ่มมากี่ข้อ -->
               <div class="switch-row cat-row"><div><div class="sw-t">สัดส่วนข้อสอบตามหมวด</div><div class="sw-d">ตั้งหมวดให้แต่ละข้อ แล้วกำหนดว่าแต่ละหมวดสุ่มมาออกสอบกี่ข้อ เช่น ครัว 50 จาก 100 · บริการ 20 จาก 50</div></div><label class="sw"><input type="checkbox" id="edCatMode" onchange="oeCatModeToggle()"><span class="track"></span></label></div>
               <div class="cat-box" id="edCatBox" hidden>
+                <div class="cat-by" role="group" aria-label="วิธีกำหนดสัดส่วน"><button type="button" id="edCatByN" onclick="oeCatBySet('n')">ตามจำนวนข้อ</button><button type="button" id="edCatByP" onclick="oeCatBySet('pct')">ตามสัดส่วน %</button></div>
+                <div class="cat-tot" id="edCatTotBox" hidden><span>รวมออกสอบ</span><input id="edCatTotal" type="number" min="1" placeholder="กี่ข้อ" oninput="_oeCatSumPaint()"><span>ข้อ <em>(เว้นว่าง = คิดจากทุกข้อในคลัง)</em></span></div>
                 <div class="cat-note">ตั้งหมวดของแต่ละข้อในแท็บ <b>คำถาม</b> (ช่อง "หมวด" ที่หัวการ์ด หรือเลือกหลายข้อแล้วกด "ตั้งหมวดที่เลือก" หรือใส่คอลัมน์ "หมวด" ในไฟล์ Excel) · <b>สุ่มมาออกสอบ 0 = ใช้ทุกข้อของหมวดนั้น</b> · ผู้สอบแต่ละคนได้ข้อไม่เหมือนกัน แต่จำนวนต่อหมวดเท่ากัน</div>
-                <table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">สุ่มมาออกสอบ</th></tr></thead><tbody id="edCatRows"></tbody></table>
+                <table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n" id="edCatTh">สุ่มมาออกสอบ</th></tr></thead><tbody id="edCatRows"></tbody></table>
                 <div class="cat-sum" id="edCatSum"></div>
                 <datalist id="oeCats"></datalist>
               </div>
@@ -3647,16 +3655,35 @@ function oePartMode(ex){ return !!(ex && ex.partMode); }
 /* ── เกณฑ์ผ่านตามตำแหน่ง ──
    เก็บเป็น posPass: [{name, pass}] · ว่าง = ไม่ได้ใช้โหมดนี้
    ตำแหน่งที่ไม่อยู่ในรายการใช้เกณฑ์ผ่านหลักของชุด */
+/* แบ่งจำนวนข้อรวม total ตามสัดส่วน % ของแต่ละหมวด — ปัดแบบ "เศษมากสุดได้ก่อน" ผลรวมจึงเท่า total พอดี
+   หมวดที่คลังมีไม่พอใช้เท่าที่มี (ผลรวมอาจน้อยกว่า total) · items = [{name, p, pool}] → {ชื่อหมวด: จำนวนข้อ} */
+function oeAllocPct(items, total){
+  var out = {}, sp = 0;
+  items.forEach(function(x){ out[x.name] = 0; if(x.p > 0) sp += x.p; });
+  total = parseInt(total, 10) || 0;
+  if(!(sp > 0) || total <= 0) return out;
+  var rows = items.map(function(x){
+    var q = (x.p > 0 ? x.p : 0) / sp * total, f = Math.floor(q + 1e-9);
+    return { name: x.name, f: f, r: q - f, pool: x.pool };
+  });
+  var left = total - rows.reduce(function(a, x){ return a + x.f; }, 0);
+  rows.slice().sort(function(a, b){ return b.r - a.r; }).forEach(function(x){ if(left > 0 && x.r > 1e-9){ x.f++; left--; } });
+  rows.forEach(function(x){ out[x.name] = Math.min(x.f, x.pool == null ? x.f : x.pool); });
+  return out;
+}
 function oePosList(ex){
   var a = (ex && ex.posPass) || [];
   if(!Array.isArray(a)) return [];
   return a.filter(function(x){ return x && String(x.name || '').trim(); })
           .map(function(x){
+            var by = x.by === 'pct' ? 'pct' : 'n';
             var cat = Array.isArray(x.cat) ? x.cat.map(function(c){
-              return { name: String((c && c.name) == null ? '' : c.name).trim(), n: Math.max(0, parseInt(c && c.n, 10) || 0) };
-            }).filter(function(c){ return c.n > 0; }) : [];
+              return { name: String((c && c.name) == null ? '' : c.name).trim(), n: Math.max(0, parseInt(c && c.n, 10) || 0),
+                       p: Math.min(100, Math.max(0, Number(c && c.p) || 0)) };
+            }).filter(function(c){ return by === 'pct' ? c.p > 0 : c.n > 0; }) : [];
             return { name: String(x.name).trim(), pass: Math.min(100, Math.max(0, Number(x.pass) || 0)),
-                     draw: Math.max(0, parseInt(x.draw, 10) || 0), cat: cat };
+                     draw: Math.max(0, parseInt(x.draw, 10) || 0), cat: cat,
+                     by: by, total: Math.max(0, parseInt(x.total, 10) || 0) };
           });
 }
 function oePosMode(ex){ return oePosList(ex).length > 0; }
@@ -3681,9 +3708,15 @@ function oePosCatPlan(ex, entry){
   if(!entry || !entry.cat || !entry.cat.length) return null;
   var pools = {};
   oeCatRows(ex).forEach(function(r){ pools[r.name] = r.pool; });
+  var al = null;
+  if(entry.by === 'pct'){
+    /* ตั้งเป็น % — รวมกี่ข้อไม่ได้ใส่ = คิดจากทุกข้อของหมวดที่เลือก */
+    var tot0 = entry.total > 0 ? entry.total : entry.cat.reduce(function(a, c){ return a + (pools[c.name] || 0); }, 0);
+    al = oeAllocPct(entry.cat.map(function(c){ return { name: c.name, p: c.p, pool: pools[c.name] || 0 }; }), tot0);
+  }
   var rows = entry.cat.map(function(c){
     var p = pools[c.name] || 0;
-    return { name: c.name, label: c.name || OE_NOCAT, pool: p, take: Math.min(c.n, p) };
+    return { name: c.name, label: c.name || OE_NOCAT, pool: p, take: al ? (al[c.name] || 0) : Math.min(c.n, p) };
   });
   var total = rows.reduce(function(a, r){ return a + r.take; }, 0);
   if(!total) return null;   // หมวดที่ตั้งไว้ไม่มีข้อในคลังเลย — ถอยกลับไปใช้ค่าของชุด ไม่ให้ได้ข้อสอบว่าง
@@ -3737,6 +3770,11 @@ function oeResPassMark(r, ex){
 var OE_NOCAT = 'ไม่ระบุหมวด';
 function oeQCat(q){ return String((q && q.cat) || '').trim(); }
 function oeCatMode(ex){ return !!(ex && ex.catMode); }
+function oeCatPctMap(ex){
+  var m = {};
+  ((ex && ex.catPct) || []).forEach(function(x){ if(x) m[String(x.name || '').trim()] = Math.max(0, Number(x.p) || 0); });
+  return m;
+}
 function oeCatRows(ex, drawMap){
   var order = [], pool = {};
   ((ex && ex.questions) || []).forEach(function(q){
@@ -3745,12 +3783,22 @@ function oeCatRows(ex, drawMap){
     if(!(c in pool)){ pool[c] = 0; order.push(c); }
     pool[c]++;
   });
-  var dr = {};
-  if(drawMap) Object.keys(drawMap).forEach(function(k){ dr[k] = Math.max(0, parseInt(drawMap[k], 10) || 0); });
-  else ((ex && ex.catDraw) || []).forEach(function(x){ if(x) dr[String(x.name || '').trim()] = Math.max(0, parseInt(x.n, 10) || 0); });
+  var dr = {}, pm = !drawMap && !!ex && ex.catBy === 'pct', pmap = pm ? oeCatPctMap(ex) : {};
+  if(pm){
+    /* ตั้งเป็น % — แจกจำนวนข้อรวมตามสัดส่วน · รวมกี่ข้อไม่ได้ใส่ = คิดจากทุกข้อในคลัง */
+    var tot0 = parseInt(ex.catTotal, 10) || order.reduce(function(a, c){ return a + pool[c]; }, 0);
+    dr = oeAllocPct(order.map(function(c){ return { name: c, p: pmap[c] || 0, pool: pool[c] }; }), tot0);
+    /* ตั้ง % ไว้ผิด (รวมเป็นศูนย์) จะได้ข้อสอบว่าง — ถอยไปใช้ค่าแบบจำนวนข้อแทน */
+    if(!order.some(function(c){ return dr[c] > 0; })) pm = false;
+  }
+  if(!pm){
+    if(drawMap) Object.keys(drawMap).forEach(function(k){ dr[k] = Math.max(0, parseInt(drawMap[k], 10) || 0); });
+    else ((ex && ex.catDraw) || []).forEach(function(x){ if(x) dr[String(x.name || '').trim()] = Math.max(0, parseInt(x.n, 10) || 0); });
+  }
   return order.map(function(c){
     var n = pool[c], d = dr[c] || 0;
-    return { name: c, label: c || OE_NOCAT, pool: n, draw: d, take: (d > 0 && d < n) ? d : n };
+    return { name: c, label: c || OE_NOCAT, pool: n, draw: d, pct: pm ? (pmap[c] || 0) : null,
+             take: pm ? Math.min(d, n) : ((d > 0 && d < n) ? d : n) };
   });
 }
 function oeCatTake(ex, name){
@@ -4782,6 +4830,8 @@ function edSummaryPaint(){
     if(cm){
       _oeCatReadInputs();
       fx.catDraw = oeCatRows({ questions: draftQuestions }, _oeCatN).map(function(r){ return { name: r.name, n: r.draw >= r.pool ? 0 : r.draw }; });
+      fx.catBy = _oeCatBy; fx.catTotal = _oeCatTot;
+      fx.catPct = Object.keys(_oeCatP).map(function(k){ return { name: k, p: _oeCatP[k] }; });
     }
     var q, t, p, sub = '';
     var range = function(a){ var lo = Math.min.apply(null, a), hi = Math.max.apply(null, a); return lo === hi ? String(lo) : lo + '–' + hi; };
@@ -4892,6 +4942,10 @@ function openExamEditor(id){
   $('edPartMode').checked = !!(ex && ex.partMode);
   $('edCatMode').checked = oeCatMode(ex);
   _oeCatN = {}; ((ex && ex.catDraw) || []).forEach(function(x){ if(x) _oeCatN[String(x.name || '').trim()] = Math.max(0, parseInt(x.n, 10) || 0); });
+  _oeCatBy = (ex && ex.catBy === 'pct') ? 'pct' : 'n';
+  _oeCatP = oeCatPctMap(ex);
+  _oeCatTot = Math.max(0, parseInt(ex && ex.catTotal, 10) || 0);
+  if($('edCatTotal')) $('edCatTotal').value = _oeCatTot > 0 ? _oeCatTot : '';
   $('edPosMode').checked = oePosMode(ex);
   _oePosPaintRows(oePosList(ex));
   _oePosBoxPaint();
@@ -4996,11 +5050,32 @@ function syncDraftFromDOM(){
 }
 /* ── หมวดข้อสอบในตัวแก้ไข ── */
 var _oeCatN = {};   // จำนวนที่สุ่มของแต่ละหมวด (ชื่อหมวด → n) เก็บไว้ข้ามการวาดตารางใหม่
+var _oeCatBy = 'n', _oeCatP = {}, _oeCatTot = 0;   // วิธีกำหนด ('n' จำนวนข้อ | 'pct' สัดส่วน %) · % ของแต่ละหมวด · รวมกี่ข้อ (โหมด %)
+/* ชุดข้อมูลหมวดตามที่ตัวแก้ไขตั้งอยู่ตอนนี้ — ให้ oeCatRows คิดได้เหมือนตอนผู้สอบสอบจริง */
+function _oeCatEdEx(){
+  return { questions: draftQuestions, catBy: _oeCatBy, catTotal: _oeCatTot,
+           catPct: Object.keys(_oeCatP).map(function(k){ return { name: k, p: _oeCatP[k] }; }) };
+}
+function _oeCatRowsEd(){
+  _oeCatReadInputs();
+  return _oeCatBy === 'pct' ? oeCatRows(_oeCatEdEx()) : oeCatRows({ questions: draftQuestions }, _oeCatN);
+}
+function oeCatBySet(by){
+  _oeCatReadInputs();
+  _oeCatBy = by === 'pct' ? 'pct' : 'n';
+  _oeCatBoxPaint();
+  try{ edSummaryPaint(); }catch(e){}
+}
 function _oeEdCatMode(){ var el = $('edCatMode'); return !!(el && el.checked); }
 function _oeCatReadInputs(){
   [].forEach.call(document.querySelectorAll('#edCatRows input[data-cat]'), function(el){
     _oeCatN[el.getAttribute('data-cat')] = Math.max(0, parseInt(el.value, 10) || 0);
   });
+  [].forEach.call(document.querySelectorAll('#edCatRows input[data-catp]'), function(el){
+    _oeCatP[el.getAttribute('data-catp')] = Math.min(100, Math.max(0, Number(el.value) || 0));
+  });
+  var t = $('edCatTotal');
+  if(t && t.offsetParent !== null) _oeCatTot = Math.max(0, parseInt(t.value, 10) || 0);
 }
 function _oeCatListPaint(){
   var dl = $('oeCats'); if(!dl) return;
@@ -5016,7 +5091,12 @@ function _oeCatBoxPaint(){
   var dr = $('edDraw'), row = (dr && dr.closest) ? dr.closest('.p-row') : null;
   if(row) row.classList.toggle('off', on || _oeEdPartMode());
   if(!on) return;
-  var rows = oeCatRows({ questions: draftQuestions }, _oeCatN);
+  var pct = _oeCatBy === 'pct';
+  var bn = $('edCatByN'), bp = $('edCatByP'); if(bn) bn.classList.toggle('on', !pct); if(bp) bp.classList.toggle('on', pct);
+  var tb = $('edCatTotBox'); if(tb) tb.hidden = !pct;
+  var tt = $('edCatTotal'); if(tt && pct && document.activeElement !== tt) tt.value = _oeCatTot > 0 ? _oeCatTot : '';
+  var th = $('edCatTh'); if(th) th.textContent = pct ? 'สัดส่วน (%)' : 'สุ่มมาออกสอบ';
+  var rows = _oeCatRowsEd();
   var body = $('edCatRows'), sum = $('edCatSum'); if(!body || !sum) return;
   if(!rows.length){
     body.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text3);padding:16px">ยังไม่มีคำถาม — เพิ่มคำถามแล้วตั้งหมวดในแท็บคำถาม</td></tr>';
@@ -5024,22 +5104,25 @@ function _oeCatBoxPaint(){
   }
   body.innerHTML = rows.map(function(r){
     return '<tr><td class="cn' + (r.name ? '' : ' nocat') + '">' + esc(r.label) + '</td><td class="n">' + r.pool + ' ข้อ</td>' +
-      '<td class="n"><input type="number" min="0" max="' + r.pool + '" value="' + (r.draw || 0) + '" data-cat="' + esc(r.name) + '" oninput="_oeCatSumPaint()">' +
+      '<td class="n">' + (pct
+        ? '<input type="number" min="0" max="100" step="any" value="' + (_oeCatP[r.name] > 0 ? _oeCatP[r.name] : '') + '" data-catp="' + esc(r.name) + '" oninput="_oeCatSumPaint()"> %'
+        : '<input type="number" min="0" max="' + r.pool + '" value="' + (_oeCatN[r.name] || 0) + '" data-cat="' + esc(r.name) + '" oninput="_oeCatSumPaint()">') +
       '<span class="get" data-get="' + esc(r.name) + '"></span></td></tr>';
   }).join('');
   _oeCatSumPaint();
 }
 function _oeCatSumPaint(){
-  _oeCatReadInputs();
-  var rows = oeCatRows({ questions: draftQuestions }, _oeCatN);
-  var tot = 0, pool = 0;
+  var rows = _oeCatRowsEd();
+  var tot = 0, pool = 0, psum = 0, pct = _oeCatBy === 'pct';
   rows.forEach(function(r){
-    tot += r.take; pool += r.pool;
+    tot += r.take; pool += r.pool; psum += (_oeCatP[r.name] || 0);
     var g = document.querySelector('#edCatRows .get[data-get="' + (window.CSS && CSS.escape ? CSS.escape(r.name) : r.name.replace(/"/g, '\"')) + '"]');
-    if(g) g.textContent = 'ออก ' + r.take + ' ข้อ' + (r.take < r.pool ? ' (สุ่ม)' : '');
+    if(g) g.textContent = (pct ? '≈ ' : 'ออก ') + r.take + ' ข้อ' + (r.take < r.pool ? ' (สุ่ม)' : '');
   });
   var sum = $('edCatSum');
-  if(sum) sum.innerHTML = 'ผู้สอบได้ ' + tot + ' ข้อ <small>จากคลัง ' + pool + ' ข้อ · ' + rows.length + ' หมวด' +
+  var pnote = pct ? ' · รวม <b style="color:' + (Math.abs(psum - 100) < 0.01 ? '#0b7a55' : '#a51c1c') + '">' + (Math.round(psum * 100) / 100) + '%</b>' +
+    (Math.abs(psum - 100) < 0.01 ? ' ครบ' : ' (ต้องรวมเป็น 100%)') : '';
+  if(sum) sum.innerHTML = 'ผู้สอบได้ ' + tot + ' ข้อ' + pnote + ' <small>จากคลัง ' + pool + ' ข้อ · ' + rows.length + ' หมวด' +
     (rows.length === 1 && rows[0].name === '' ? ' · ยังไม่ได้ตั้งหมวดให้ข้อไหนเลย' : '') + '</small>';
 }
 function oeCatModeToggle(){
@@ -5090,11 +5173,18 @@ function _oePartModePaint(){
 function _oePosCatSum(cat){
   return (cat || []).reduce(function(a, c){ return a + (c.n || 0); }, 0);
 }
-function _oePosRowHtml(name, pass, draw, cat){
+/* จำนวนข้อที่แถวตำแหน่งนี้ได้จริงตามสัดส่วนที่ตั้ง (ทั้งโหมดจำนวนข้อและ %) — คิดจากคลังข้อสอบตอนนี้ */
+function _oePosCatCount(row){
+  var by = row.getAttribute('data-by') === 'pct' ? 'pct' : 'n';
+  var cat = _oePosCatGet(row).filter(function(c){ return by === 'pct' ? c.p > 0 : c.n > 0; });
+  var pl = oePosCatPlan({ questions: draftQuestions }, { cat: cat, by: by, total: parseInt(row.getAttribute('data-total'), 10) || 0 });
+  return pl ? pl.total : 0;
+}
+function _oePosRowHtml(name, pass, draw, cat, by, total){
   var v = pass == null ? 70 : Math.min(100, Math.max(0, pass));
-  cat = cat || [];
-  var hasCat = cat.length > 0, sum = _oePosCatSum(cat);
-  return '<div class="pos-row" data-cat="' + esc(JSON.stringify(cat)).replace(/"/g, '&quot;') + '">' +
+  cat = cat || []; by = by === 'pct' ? 'pct' : 'n';
+  var hasCat = cat.length > 0, sum = (by === 'pct' ? (total > 0 ? total : '—') : _oePosCatSum(cat));
+  return '<div class="pos-row" data-by="' + by + '" data-total="' + (total > 0 ? total : '') + '" data-cat="' + esc(JSON.stringify(cat)).replace(/"/g, '&quot;') + '">' +
     '<input class="pos-n" list="oePosNames" placeholder="เช่น ผู้ช่วยผู้จัดการ" oninput="_oePosSugPaint()" value="' + esc(name || '') + '">' +
     '<button type="button" class="pos-del" title="ลบตำแหน่งนี้" onclick="this.parentNode.remove();_oePosBoxPaint()">✕</button>' +
     '<div class="pos-chips">' +
@@ -5122,35 +5212,62 @@ function oePosCatToggle(btn){
   if(!box.hidden){ box.hidden = true; return; }
   try { syncDraftFromDOM(); } catch(e){}
   var rows = oeCatRows({ questions: draftQuestions });
-  var cur = {}; _oePosCatGet(row).forEach(function(c){ cur[c.name] = c.n; });
+  var by = row.getAttribute('data-by') === 'pct' ? 'pct' : 'n', pct = by === 'pct';
+  var cur = {}; _oePosCatGet(row).forEach(function(c){ cur[c.name] = pct ? c.p : c.n; });
+  var tot0 = parseInt(row.getAttribute('data-total'), 10) || 0;
   var only = rows.length <= 1 && (!rows[0] || rows[0].name === '');
   if(only){
     box.innerHTML = '<div class="pos-cat-note">ยังไม่ได้ตั้งหมวดของข้อสอบ — ตั้งหมวดในแท็บ <b>คำถาม</b> ก่อน (ช่อง "หมวด" ที่หัวการ์ด หรือคอลัมน์ "หมวด" ในไฟล์ Excel) แล้วกลับมาตั้งสัดส่วนที่นี่</div>';
   } else {
-    box.innerHTML = '<div class="pos-cat-note">ใส่จำนวนข้อของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ผ่าน/ตกยังตัดจากคะแนนภาพรวม ไม่ได้ตัดแยกตามหมวด</div>' +
-      '<table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">ออกสอบ</th></tr></thead><tbody>' +
+    box.innerHTML = '<div class="cat-by"><button type="button" class="' + (pct ? '' : 'on') + '" onclick="oePosCatBy(this,\'n\')">ตามจำนวนข้อ</button>' +
+      '<button type="button" class="' + (pct ? 'on' : '') + '" onclick="oePosCatBy(this,\'pct\')">ตามสัดส่วน %</button></div>' +
+      (pct ? '<div class="cat-tot"><span>รวมออกสอบ</span><input class="pos-ct" type="number" min="1" placeholder="กี่ข้อ" value="' + (tot0 > 0 ? tot0 : '') + '" oninput="oePosCatInput(this)"><span>ข้อ <em>(เว้นว่าง = คิดจากทุกข้อของหมวดที่เลือก)</em></span></div>' : '') +
+      '<div class="pos-cat-note">' + (pct
+        ? 'ใส่สัดส่วน % ของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ รวมกันต้องได้ 100% · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ผ่าน/ตกยังตัดจากคะแนนภาพรวม'
+        : 'ใส่จำนวนข้อของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ผ่าน/ตกยังตัดจากคะแนนภาพรวม ไม่ได้ตัดแยกตามหมวด') + '</div>' +
+      '<table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">' + (pct ? 'สัดส่วน (%)' : 'ออกสอบ') + '</th></tr></thead><tbody>' +
       rows.map(function(r){
-        return '<tr><td>' + esc(r.label) + '</td><td class="n">' + r.pool + '</td><td class="n"><input class="pos-cn" type="number" min="0" max="' + r.pool + '" ' +
-          'data-name="' + esc(r.name) + '" value="' + (cur[r.name] > 0 ? cur[r.name] : '') + '" oninput="oePosCatInput(this)"></td></tr>';
-      }).join('') + '</tbody></table><div class="pos-cat-sum" id="">รวม <b class="pcs">0</b> ข้อ</div>';
+        return '<tr><td>' + esc(r.label) + '</td><td class="n">' + r.pool + '</td><td class="n"><input class="pos-cn" type="number" min="0" ' + (pct ? 'max="100" step="any"' : 'max="' + r.pool + '"') + ' ' +
+          'data-name="' + esc(r.name) + '" value="' + (cur[r.name] > 0 ? cur[r.name] : '') + '" oninput="oePosCatInput(this)">' + (pct ? ' %' : '') + '</td></tr>';
+      }).join('') + '</tbody></table><div class="pos-cat-sum" id=""></div>';
     oePosCatInput(box.querySelector('.pos-cn'));
   }
   box.hidden = false;
 }
+/* สลับวิธีกำหนดสัดส่วนของตำแหน่งนี้ — ค่าของอีกวิธีเก็บไว้ ไม่หาย */
+function oePosCatBy(btn, by){
+  var row = _oePosRowOf(btn); if(!row) return;
+  row.setAttribute('data-by', by === 'pct' ? 'pct' : 'n');
+  var box = row.querySelector('.pos-cats'); box.hidden = true;
+  oePosCatToggle(btn.closest('.pos-row').querySelector('.pos-cat-btn'));
+}
 function oePosCatInput(el){
   var row = _oePosRowOf(el); if(!row) return;
-  var cat = [];
+  var by = row.getAttribute('data-by') === 'pct' ? 'pct' : 'n', pct = by === 'pct';
+  /* เก็บทั้งจำนวนข้อ (n) และ % (p) ของแต่ละหมวดไว้ในแถวเดียวกัน · ช่องที่กำลังแก้อยู่เขียนทับเฉพาะฝั่งของมัน */
+  var old = {}, order = [];
+  _oePosCatGet(row).forEach(function(c){ if(!(c.name in old)) order.push(c.name); old[c.name] = { name: c.name, n: c.n || 0, p: c.p || 0 }; });
   [].forEach.call(row.querySelectorAll('.pos-cn'), function(i){
-    var n = Math.max(0, parseInt(i.value, 10) || 0), mx = parseInt(i.getAttribute('max'), 10) || 0;
-    if(n > mx && mx > 0) n = mx;
-    if(n > 0) cat.push({ name: i.getAttribute('data-name') || '', n: n });
+    var nm = i.getAttribute('data-name') || '';
+    if(!(nm in old)){ order.push(nm); old[nm] = { name: nm, n: 0, p: 0 }; }
+    if(pct) old[nm].p = Math.min(100, Math.max(0, Number(i.value) || 0));
+    else {
+      var n = Math.max(0, parseInt(i.value, 10) || 0), mx = parseInt(i.getAttribute('max'), 10) || 0;
+      if(n > mx && mx > 0) n = mx;
+      old[nm].n = n;
+    }
   });
-  /* เก็บของหมวดที่ตอนนี้ไม่มีในคลังไว้ด้วย (เผื่อหมวดกลับมา) */
-  var seen = {}; [].forEach.call(row.querySelectorAll('.pos-cn'), function(i){ seen[i.getAttribute('data-name') || ''] = 1; });
-  _oePosCatGet(row).forEach(function(c){ if(!seen[c.name]) cat.push(c); });
-  row.setAttribute('data-cat', JSON.stringify(cat));
-  var sum = _oePosCatSum(cat), has = cat.length > 0;
-  var s = row.querySelector('.pcs'); if(s) s.textContent = sum;
+  var ct = row.querySelector('.pos-ct');
+  if(ct) row.setAttribute('data-total', Math.max(0, parseInt(ct.value, 10) || 0) || '');
+  var all = order.map(function(k){ return old[k]; }).filter(function(c){ return c.n > 0 || c.p > 0; });
+  row.setAttribute('data-cat', JSON.stringify(all));
+  var cat = all.filter(function(c){ return pct ? c.p > 0 : c.n > 0; });
+  var sum = pct ? _oePosCatCount(row) : _oePosCatSum(cat), has = cat.length > 0;
+  var ps = cat.reduce(function(a, c){ return a + c.p; }, 0);
+  var sBox = row.querySelector('.pos-cat-sum');
+  if(sBox) sBox.innerHTML = pct
+    ? 'รวม <b style="color:' + (Math.abs(ps - 100) < 0.01 ? '#0b7a55' : '#a51c1c') + '">' + (Math.round(ps * 100) / 100) + '%</b>' + (Math.abs(ps - 100) < 0.01 ? ' ครบ' : ' (ต้องรวมเป็น 100%)') + ' · ได้ <b>' + sum + '</b> ข้อ'
+    : 'รวม <b class="pcs">' + sum + '</b> ข้อ';
   var s2 = row.querySelector('.pcs2'); if(s2) s2.textContent = sum;
   var b = row.querySelector('.pos-cat-btn');
   if(b){ b.classList.toggle('on', has); b.textContent = has ? 'แก้สัดส่วนหมวด ▾' : '+ สัดส่วนหมวด'; }
@@ -5177,17 +5294,18 @@ function _oePosSync(el, fromSlider, done){
 }
 function _oePosPaintRows(list){
   var box = $('edPosRows'); if(!box) return;
-  box.innerHTML = (list && list.length ? list : []).map(function(x){ return _oePosRowHtml(x.name, x.pass, x.draw, x.cat); }).join('');
+  box.innerHTML = (list && list.length ? list : []).map(function(x){ return _oePosRowHtml(x.name, x.pass, x.draw, x.cat, x.by, x.total); }).join('');
 }
 function _oePosRead(){
   var box = $('edPosRows'); if(!box) return [];
   return [].map.call(box.querySelectorAll('.pos-row'), function(r){
-    var cat = _oePosCatGet(r).filter(function(c){ return c && c.n > 0; });
+    var by = r.getAttribute('data-by') === 'pct' ? 'pct' : 'n';
+    var cat = _oePosCatGet(r).filter(function(c){ return c && (by === 'pct' ? c.p > 0 : c.n > 0); });
     var dEl = r.querySelector('.pos-d');
     return { name: (r.querySelector('.pos-n').value || '').trim(),
              pass: Math.min(100, Math.max(0, parseInt(r.querySelector('.pos-p').value, 10) || 0)),
              draw: cat.length ? 0 : Math.max(0, parseInt(dEl && dEl.value, 10) || 0),
-             cat: cat };
+             cat: cat, by: by, total: by === 'pct' ? (parseInt(r.getAttribute('data-total'), 10) || 0) : 0 };
   }).filter(function(x){ return x.name; });
 }
 /* ตำแหน่งที่เคยมีคนกรอกไว้จริง (จากผลสอบ + คำขอสอบ) — กดชิปแล้วได้ชื่อที่สะกดตรงกัน
@@ -5816,6 +5934,23 @@ function collectExamFromForm(){
     toast('เปิดสัดส่วนตามหมวดแล้ว แต่ยังไม่ได้ตั้งหมวดให้ข้อสอบ — ตั้งหมวดในแท็บคำถามก่อน หรือปิดสวิตช์นี้','err');
     return null;
   }
+  /* ตำแหน่งที่ตั้งสัดส่วนหมวดเป็น % ต้องรวม 100 เช่นกัน */
+  if($('edPosMode') && $('edPosMode').checked){
+    var _badPos = _oePosRead().filter(function(x){
+      return x.by === 'pct' && x.cat.length && Math.abs(x.cat.reduce(function(a, c){ return a + c.p; }, 0) - 100) > 0.01;
+    })[0];
+    if(_badPos){ toast('ตำแหน่ง "' + _badPos.name + '" ตั้งสัดส่วนหมวดไม่ครบ 100%','err'); return null; }
+  }
+  /* โหมด % ต้องรวมเป็น 100 พอดี ไม่งั้นสัดส่วนที่ผู้สอบได้จะไม่ตรงกับที่ตั้งใจ */
+  var _catPctList = [];
+  if(cm && _oeCatBy === 'pct'){
+    _catPctList = _cr.map(function(r){ return { name: r.name, p: _oeCatP[r.name] || 0 }; });
+    var _ps = _catPctList.reduce(function(a, x){ return a + x.p; }, 0);
+    if(Math.abs(_ps - 100) > 0.01){
+      toast('สัดส่วนหมวดรวมได้ ' + (Math.round(_ps * 100) / 100) + '% — ต้องรวมเป็น 100%','err');
+      return null;
+    }
+  }
   // clamp answer index
   qs.forEach(function(q){ if(q.answer>=q.choices.length) q.answer=0; });
   var branches = $('edBranches').value.split('\n').map(function(s){return s.trim();}).filter(Boolean);
@@ -5832,6 +5967,9 @@ function collectExamFromForm(){
     drawCount: cm ? 0 : (function(){ var d=Math.max(0, parseInt($('edDraw').value)||0); return d>=qs.length ? 0 : d; })(),
     catMode: cm,
     catDraw: cm ? _cr.map(function(r){ return { name: r.name, n: r.draw >= r.pool ? 0 : r.draw }; }) : [],
+    catBy: (cm && _oeCatBy === 'pct') ? 'pct' : 'n',
+    catPct: _catPctList,
+    catTotal: (cm && _oeCatBy === 'pct') ? (_oeCatTot > 0 ? _oeCatTot : 0) : 0,
     startDate: $('edStart').value,
     endDate: $('edEnd').value,
     visibleBranches: branches,
