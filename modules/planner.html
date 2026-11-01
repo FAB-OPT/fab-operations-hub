@@ -347,6 +347,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   </section>
   <aside class="right"><div class="right-in">
     <div class="lab" id="selLab"></div>
+    <button class="btn holset" id="selHol" hidden style="height:32px;font-size:13px;margin-bottom:8px">🏖 ป้ายวันหยุด</button>
     <div id="selBox"></div>
     <div class="lab" id="upLab"></div>
     <div id="up"></div>
@@ -611,6 +612,7 @@ function paintRight(){
   const list=visible().filter(p=>p.date===iso);
   $('selLab').textContent=`${iso===todayISO()?'วันนี้ · ':''}${DOWF[(mon()+d-1)%7]} ${d} ${TH[M]}`;
   $('selLab').classList.toggle('isToday',iso===todayISO());
+  $('selHol').hidden=false; $('selHol').dataset.iso=iso;
   $('selBox').innerHTML=list.length?list.map(p=>cardRow(p,true)).join(''):`<div class="empty">ไม่มีแผนวันนี้<br>กดที่วันเพื่อเพิ่มแผน</div>`;
   const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
   $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
@@ -635,6 +637,7 @@ function paintStrip(){
   const hd=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`, hl=holLabel(hd);
   $('dayh').style.setProperty('--c',WEEK_COLOR[dow]);
   $('dayh').classList.toggle('isToday',hd===todayISO());
+  $('dayh').insertAdjacentHTML('beforeend',`<button class="btn holset" data-iso="${hd}" style="height:32px;font-size:13px;margin-left:auto">🏖 ป้ายวันหยุด</button>`);
   $('dayh').innerHTML=`<b>${DOW[dow]} ${d0} ${TH[M]}</b>${hd===todayISO()?'<span>วันนี้</span>':''}${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
@@ -796,6 +799,15 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
+  const hset=t.closest('.holset');
+  if(hset){
+    if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
+    const iso=hset.dataset.iso||$('selHol').dataset.iso;
+    const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:`วันที่ ${iso} · เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก`,input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
+    if(!r) return;
+    await saveHol({...hols,[iso]:r.name});
+    toast(r.name?'บันทึกป้ายแล้ว':'เอาป้ายออกแล้ว'); return;
+  }
   const hb=t.closest('[data-hol]');
   if(hb){
     if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
