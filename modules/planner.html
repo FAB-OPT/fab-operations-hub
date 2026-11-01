@@ -240,6 +240,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .mini:hover{filter:brightness(.98)}
 .addrow{width:100%;margin-top:4px;text-align:center;padding:9px;font-size:13.5px;border-style:dashed}
 .ro .addone,.ro .add,.ro .mini,.ro .fab,.ro .addrow,.ro .mg-row .mini{display:none!important}
+.nomgr .addone,.nomgr #tabs [data-tab="team"],.nomgr .addrow,.nomgr .mg-row .ic{display:none!important}
 /* ป๊อปอัปจัดการ + กล่องยืนยัน (แทน confirm / prompt ของเบราว์เซอร์) */
 .mgr,.ask{background:rgba(15,23,42,.42);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);animation:fadeIn .18s ease}
 .ask{position:fixed;inset:0;display:grid;place-items:center;z-index:80;padding:14px}
@@ -415,7 +416,7 @@ let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
 let hols={}; /* ป้ายวันหยุดที่แก้เอง: {'2026-11-07': 'ชื่อป้าย' | ''} ('' = เอาป้ายออก) */
 let plans=[];
 let Y=new Date().getFullYear(), M=new Date().getMonth();
-let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='list', canWrite=false, editingId=null;
+let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='list', canWrite=false, canMgr=false, editingId=null;
 const todayISO=()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const mkey=()=>Y+'-'+String(M+1).padStart(2,'0');
 const catOf=k=>cats.find(c=>c.k===k)||{k,l:k,c:'#9ca3af'};
@@ -549,7 +550,7 @@ function paintAgenda(){
     return `<div class="agh"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<button class="agr2" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}</small><b>${esc(p.title)}</b></span></button>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
 }
-function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); }
+function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
 
 /* ───── ข้อมูล (Supabase FAB HUB · planner_docs) ───── */
 async function saveTeam(next){ team=next; await db.doc('config/team').set({members:next}); }
@@ -625,8 +626,9 @@ document.addEventListener('click',async e=>{
   const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
-  if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); return; }
+  if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
+  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],#addTeam,#addCat')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const tdel=t.closest('[data-tdel]');
   const tedit=t.closest('[data-tedit]');
   if(tedit){
@@ -670,6 +672,7 @@ async function start(){
     const sess=(()=>{ try{ return JSON.parse(localStorage.getItem('fab_session')||'null'); }catch(e){ return null; } })();
     const role=String((sess&&sess.role)||sessionStorage.getItem('fab_role')||'').toLowerCase();
     canWrite=['admin','support'].includes(role);
+    canMgr=role==='admin';
     db=makeDb(client);
   }catch(e){
     $('notice').hidden=false; $('notice').textContent='ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่';
