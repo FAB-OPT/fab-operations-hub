@@ -725,7 +725,8 @@ function openPlanDlg(id,dateIso){
 function closeDlg(){ $('dlg').hidden=true; }
 async function saveDlg(){
   const title=$('fTitle').value.trim(), date=$('fDate').value;
-  if(!title && $('fType').value!=='visit'){ toast('กรอกหัวข้อก่อน'); return; }
+  /* หัวข้อไม่บังคับ ถ้าว่างใช้ชื่อหมวดแทน */
+  const titleFinal=title||catOf($('fType').value).l;
   /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
   /* ช่วงวันที่ (ตั้งแต่ - ถึง) สร้างแผนทุกวันในช่วง ไม่เกิน 62 วัน */
   const multi=!$('fDaysW').hidden;
@@ -744,7 +745,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
