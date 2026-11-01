@@ -417,6 +417,27 @@ let hols={}; /* ป้ายวันหยุดที่แก้เอง: {'
 let plans=[];
 let Y=new Date().getFullYear(), M=new Date().getMonth();
 let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='list', canWrite=false, canMgr=false, editingId=null;
+/* สิทธิ์: ผู้ใช้ทั่วไปเห็นและแก้ได้เฉพาะแผนของตัวเอง · แอดมินทั้งหมด · พี่จอยเห็นทั้งหมดแต่แก้ได้เฉพาะของตัวเอง · COO เห็นทั้งหมดดูอย่างเดียว */
+const MEMBER_BY_CODE={'601183':'กาย','690201':'ฟาง','690202':'พี่หนิง','621338':'เบนซ์','690173':'ใบชา','690153':'พี่จอย'};
+let owner=null, seeAll=false;
+const teamVis=()=>seeAll?team:team.filter(n=>n===owner);
+const canEditPlan=p=>p.src!=='visit'&&(canMgr||(canWrite&&!!owner&&p.person===owner));
+/* แผน Visit (ระบบตรวจสาขา) อ่านจากตาราง fqa_records · ผู้ตรวจ (trainer) → ชื่อในทีม */
+const VISIT_PAGE='fqa-visit.html';
+const VISIT_TRAINER={'ไพรวัลย์ กิ่งทุม':'พี่หนิง','วัชระ อารีเอื้อ':'ฟาง','กันตภณ ลาภมงคลนาวิน':'กาย'};
+const VISIT_BRAND={jaedaeng:'เจ๊แดง',santafe:'Santa Fe'};
+let visitPlans=[], dbPlans=[], visitClient=null;
+async function refreshVisit(){
+  if(!visitClient) return;
+  try{
+    const s=`${mkey()}-01`, e=`${mkey()}-${String(nDays()).padStart(2,'0')}`;
+    const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
+    if(r.error) return;
+    visitPlans=(r.data||[]).filter(x=>(x.data||{}).ptype==='VISIT').map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit'}));
+    plans=dbPlans.concat(visitPlans);
+    paintAll();
+  }catch(err){}
+}
 const todayISO=()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
 const mkey=()=>Y+'-'+String(M+1).padStart(2,'0');
 const catOf=k=>cats.find(c=>c.k===k)||{k,l:k,c:'#9ca3af'};
@@ -441,7 +462,7 @@ const OFFICIAL_HOL={
   '2027-12-06':'ชดเชยวันพ่อ','2027-12-10':'วันรัฐธรรมนูญ','2027-12-31':'วันสิ้นปี'
 };
 function holLabel(iso){ if(iso in hols) return hols[iso]||''; if(OFFICIAL_HOL[iso]) return OFFICIAL_HOL[iso]; const w=new Date(iso+'T00:00:00').getDay(); return (w===0||w===6)?'Day Off':''; }
-function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&cats.some(c=>c.k===p.type)); }
+function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&cats.some(c=>c.k===p.type)&&(seeAll||p.person===owner)); }
 function byDay(){ const m={}; visible().forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
 
 /* ───── ส่วนแสดงผล ───── */
@@ -452,9 +473,9 @@ function paintHead(){
   document.querySelectorAll('#view button').forEach(b=>b.classList.toggle('on',b.dataset.view===mode));
 }
 function paintTeam(){
-  const html=`<button class="person all ${!person?'on':''}" data-p="">ทั้งทีม<span class="n">${plans.length}</span></button>`+team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<button class="person ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}<span class="n">${c}</span></button>`; }).join('');
+  const html=`<button class="person all ${!person?'on':''}" data-p="">ทั้งทีม<span class="n">${visible().length}</span></button>`+teamVis().map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<button class="person ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}<span class="n">${c}</span></button>`; }).join('');
   $('team').innerHTML=html;
-  $('mpeople').innerHTML=`<button class="pill all ${!person?'on':''}" data-p="">ทั้งทีม</button>`+team.map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
+  $('mpeople').innerHTML=`<button class="pill all ${!person?'on':''}" data-p="">ทั้งทีม</button>`+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
 }
 function paintCats(){
   $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" checked><span class="cn">${esc(c.l)}</span></label>`).join('');
@@ -559,11 +580,13 @@ async function saveHol(next){ hols=next; await db.doc('config/holidays').set({it
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
 async function delPlan(id){ await db.collection('plans').doc(id).delete(); }
 function subscribeMonth(){
+  refreshVisit();
   if(unsubMonth) unsubMonth();
   const k=mkey();
   unsubMonth=db.collection('plans').where('month','==',k).onSnapshot(snap=>{
     if(k!==mkey()) return;
-    plans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    dbPlans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    plans=dbPlans.concat(visitPlans);
     paintAll();
   });
 }
@@ -573,7 +596,8 @@ function openPlanDlg(id,dateIso){
   editingId=id||null;
   const p=id?plans.find(x=>x.id===id):null;
   $('dlgTitle').textContent=p?'แก้ไขแผน':'เพิ่มแผน';
-  $('fPerson').innerHTML=team.map(n=>`<option ${(p?p.person:(person||team[0]))===n?'selected':''}>${esc(n)}</option>`).join('');
+  const pOpts=canMgr?team:[owner].filter(Boolean);
+  $('fPerson').innerHTML=pOpts.map(n=>`<option ${(p?p.person:(canMgr?(person||team[0]):owner))===n?'selected':''}>${esc(n)}</option>`).join('');
   $('fType').innerHTML=cats.map(c=>`<option value="${esc(c.k)}" ${(p?p.type:cats[0]&&cats[0].k)===c.k?'selected':''}>${esc(c.l)}</option>`).join('');
   $('fDate').value=p?p.date:(dateIso||todayISO());
   $('fTitle').value=p?p.title:'';
@@ -587,6 +611,8 @@ async function saveDlg(){
   const title=$('fTitle').value.trim(), date=$('fDate').value;
   if(!title){ toast('กรอกหัวข้อก่อน'); return; }
   if(!date){ toast('เลือกวันที่ก่อน'); return; }
+  if(editingId){ const old=plans.find(x=>x.id===editingId); if(!old||!canEditPlan(old)) return toast('แก้ไขได้เฉพาะแผนของตัวเอง'); }
+  if(!canMgr && $('fPerson').value!==owner) return toast('เพิ่มแผนได้เฉพาะของตัวเอง');
   const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const data={person:$('fPerson').value,date,month:date.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
   try{ await savePlan(id,data); closeDlg(); toast('บันทึกแล้ว'); }
@@ -608,7 +634,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
   if(t.id==='dlg') return closeDlg();
   if(t.closest('#fSave')) return saveDlg();
-  if(t.closest('#fDel')){ if(!editingId) return; if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
+  if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
   const hb=t.closest('[data-hol]');
   if(hb){
@@ -621,7 +647,7 @@ document.addEventListener('click',async e=>{
   }
   const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); return; }
   const mv=t.closest('#mseg [data-mv]'); if(mv){ mView=mv.dataset.mv; document.querySelectorAll('#mseg [data-mv]').forEach(b=>b.classList.toggle('on',b===mv)); paintAll(); return; }
-  const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ if(canWrite) openPlanDlg(ev.dataset.id); return; }
+  const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ const pl=plans.find(x=>x.id===ev.dataset.id); if(pl&&pl.src==='visit'){ window.open(VISIT_PAGE,'_blank'); return; } if(pl&&canEditPlan(pl)) openPlanDlg(ev.dataset.id); else toast('ดูได้อย่างเดียว'); return; }
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
   const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
@@ -671,14 +697,19 @@ async function start(){
     const client=HubMod.SB.client();
     const sess=(()=>{ try{ return JSON.parse(localStorage.getItem('fab_session')||'null'); }catch(e){ return null; } })();
     const role=String((sess&&sess.role)||sessionStorage.getItem('fab_role')||'').toLowerCase();
-    canWrite=['admin','support'].includes(role);
+    const code=String((sess&&sess.code)||'');
+    owner=MEMBER_BY_CODE[code]||null;
+    seeAll=role==='admin'||role==='coo'||code==='690153';
+    canWrite=role==='admin'||(role!=='coo'&&!!owner);
     canMgr=role==='admin';
     db=makeDb(client);
+    visitClient=client;
+    setInterval(()=>refreshVisit(),30000);
   }catch(e){
     $('notice').hidden=false; $('notice').textContent='ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่';
     paintAll(); return;
   }
-  if(!canWrite){ $('notice').hidden=false; $('notice').textContent='คุณมีสิทธิ์ดูอย่างเดียว ถ้าต้องแก้ไขแผน ให้แอดมินหรือ Support เป็นผู้แก้'; }
+  if(!canWrite||!seeAll){ $('notice').hidden=false; $('notice').textContent=!canWrite?'คุณมีสิทธิ์ดูอย่างเดียว':'คุณเห็นและแก้ไขได้เฉพาะแผนของตัวเอง'; }
   unsubTeam=db.doc('config/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
   unsubCats=db.doc('config/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
   unsubHol=db.doc('config/holidays').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
