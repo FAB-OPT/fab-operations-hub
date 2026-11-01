@@ -260,6 +260,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .ic{width:28px;height:28px;flex:0 0 auto;border-radius:9px;background:#fff;border:1px solid var(--line);color:var(--ink2);font-size:13px;display:grid;place-items:center;padding:0}
 .ic:hover{background:#f6f7f9}
 .ic.danger{color:var(--red);border-color:#fecdd3}
+.ic.sm{width:24px;height:28px;font-size:10px;border-radius:8px}
 .ic.danger:hover{background:var(--red-soft)}
 .ro .ic{display:none!important}
 .mg-col .addrow{height:38px;font-size:13px;margin-top:4px}
@@ -611,7 +612,7 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
 }
 function paintMgr(){
   const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
-  const catRows=cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="ic" data-cedit="${esc(c.k)}" aria-label="แก้ไข">✎</button><button class="ic danger" data-cdel="${esc(c.k)}" aria-label="ลบ">✕</button></div>`; }).join('');
+  const catRows=cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="ic sm" data-cup="${esc(c.k)}" aria-label="เลื่อนขึ้น">▲</button><button class="ic sm" data-cdn="${esc(c.k)}" aria-label="เลื่อนลง">▼</button><button class="ic" data-cedit="${esc(c.k)}" aria-label="แก้ไข">✎</button><button class="ic danger" data-cdel="${esc(c.k)}" aria-label="ลบ">✕</button></div>`; }).join('');
   $('mgrBody').innerHTML=`<div class="mg-cols">
     <div class="mg-col"><div class="mg-h">ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
     <div class="mg-col"><div class="mg-h">หมวดงาน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มหมวด</button></div>
@@ -740,7 +741,9 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],#addTeam,#addCat')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
+  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
+  const ct=t.closest('[data-cup],[data-cdn]');
+  if(ct){ const up=ct.dataset.cup!==undefined; const k=ct.dataset.cup||ct.dataset.cdn; const i=cats.findIndex(x=>x.k===k); const j=up?i-1:i+1; if(i<0||j<0||j>=cats.length) return; const next=cats.slice(); [next[i],next[j]]=[next[j],next[i]]; await saveCats(next); toast('เรียงหมวดใหม่แล้ว'); return; }
   const tdel=t.closest('[data-tdel]');
   const tedit=t.closest('[data-tedit]');
   if(tedit){
