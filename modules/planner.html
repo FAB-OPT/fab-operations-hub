@@ -390,6 +390,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <label class="field"><span>หมวด</span><select id="fType"></select></label>
   <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ประชุม OPT-FS"></label>
   <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
+  <label class="field" id="fBranchW" hidden><span>สาขา (ระบบ Visit)</span><select id="fBranch"></select></label>
   <div class="acts">
     <button class="btn rd" id="fDel" hidden>ลบ</button>
     <button class="btn" id="fCancel">ยกเลิก</button>
@@ -421,7 +422,49 @@ let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='list', c
 const MEMBER_BY_CODE={'601183':'กาย','690201':'ฟาง','690202':'พี่หนิง','621338':'เบนซ์','690173':'ใบชา','690153':'พี่จอย'};
 let owner=null, seeAll=false;
 const teamVis=()=>seeAll?team:team.filter(n=>n===owner);
-const canEditPlan=p=>p.src!=='visit'&&(canMgr||(canWrite&&!!owner&&p.person===owner));
+const canEditPlan=p=>canMgr||(canWrite&&!!owner&&p.person===owner);
+/* คนที่ผูกกับระบบ Visit: ชื่อผู้ตรวจ (trainer) และแบรนด์ที่ล็อกไว้ */
+const HUB_CONFIG_URL='https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
+const VISIT_OWNER={'กาย':{trainer:'กันตภณ ลาภมงคลนาวิน',brand:'santafe'},'ฟาง':{trainer:'วัชระ อารีเอื้อ',brand:'jaedaeng'},'พี่หนิง':{trainer:'ไพรวัลย์ กิ่งทุม',brand:'jaedaeng'}};
+let BRANCHES={jaedaeng:[],santafe:[]};
+/* ทะเบียนสาขาจากฮับ (แหล่งกลาง) ใช้ชุดเดียวกับระบบ Visit */
+async function loadBranches(){
+  try{
+    const res=await fetch(`${HUB_CONFIG_URL}?action=config&_=${Date.now()}`).then(r=>r.json());
+    if(!res||!res.ok) return;
+    const users=Array.isArray(res.users)?res.users:[];
+    const bzmName=nick=>{ const n=String(nick||'').trim(); if(!n) return ''; const hit=users.find(u=>u&&u.role==='bzm'&&String(u.nick||'').trim()===n); return (hit&&String(hit.name||'').trim())||n; };
+    if(Array.isArray(res.jaedaengBranches)) BRANCHES.jaedaeng=res.jaedaengBranches.filter(b=>b&&b.name).map(b=>{
+      const nm=(b.manager||'').trim().replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/,'').trim(), nick=(b.managerNick||'').trim();
+      return {name:String(b.name).trim(), bzm:(!nm&&!nick)?'':(nick?`คุณ ${nm} (${nick})`.replace(/\s+/g,' ').trim():`คุณ ${nm}`)};
+    });
+    const sf=res.branches;
+    if(sf&&sf.branches){ const st=sf.statusMap||{}, bz=sf.bzmMap||{};
+      BRANCHES.santafe=Object.keys(sf.branches).filter(c=>String(c).startsWith('50')&&st[c]!=='closed').sort().map(c=>({name:`${c} ${sf.branches[c]}`.trim(), bzm:bzmName(bz[c])}));
+    }
+  }catch(err){}
+}
+function syncBranchField(p){
+  const isVisit=$('fType').value==='visit';
+  $('fBranchW').hidden=!isVisit;
+  if(!isVisit) return;
+  const v=VISIT_OWNER[$('fPerson').value];
+  const list=v?BRANCHES[v.brand]:[];
+  $('fBranch').innerHTML=list.map(b=>`<option ${p&&p.title===b.name?'selected':''}>${esc(b.name)}</option>`).join('');
+}
+/* บันทึกแผน Visit ลงตาราง fqa_records ของระบบ Visit (ผ่านฟังก์ชัน fqa_save ที่มีอยู่แล้ว) */
+async function visitWrite(editId,data){
+  const v=VISIT_OWNER[data.person];
+  if(!v) throw new Error('คนนี้ยังไม่ได้ผูกกับระบบ Visit');
+  const branch=$('fBranch').value;
+  if(!branch) throw new Error('เลือกสาขาก่อน');
+  const b=BRANCHES[v.brand].find(x=>x.name===branch);
+  const id=editId?String(editId).replace(/^v:/,''):('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  const now=new Date().toISOString();
+  const rec={id,brand:v.brand,type:'PLAN',ptype:'VISIT',date:data.date,branch,bzm:b?b.bzm:'',trainer:v.trainer,createdAt:now,updatedAt:now};
+  const r=await visitClient.rpc('fqa_save',{rec});
+  if(r.error) throw r.error;
+}
 /* แผน Visit (ระบบตรวจสาขา) อ่านจากตาราง fqa_records · ผู้ตรวจ (trainer) → ชื่อในทีม */
 const VISIT_PAGE='fqa-visit.html';
 const VISIT_TRAINER={'ไพรวัลย์ กิ่งทุม':'พี่หนิง','วัชระ อารีเอื้อ':'ฟาง','กันตภณ ลาภมงคลนาวิน':'กาย'};
@@ -433,7 +476,7 @@ async function refreshVisit(){
     const s=`${mkey()}-01`, e=`${mkey()}-${String(nDays()).padStart(2,'0')}`;
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
     if(r.error) return;
-    visitPlans=(r.data||[]).filter(x=>(x.data||{}).ptype==='VISIT').map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit'}));
+    visitPlans=(r.data||[]).filter(x=>(x.data||{}).ptype==='VISIT').map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
     plans=dbPlans.concat(visitPlans);
     paintAll();
   }catch(err){}
@@ -578,7 +621,11 @@ async function saveTeam(next){ team=next; await db.doc('config/team').set({membe
 async function saveCats(next){ cats=next; await db.doc('config/cats').set({items:next}); }
 async function saveHol(next){ hols=next; await db.doc('config/holidays').set({items:next}); }
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
-async function delPlan(id){ await db.collection('plans').doc(id).delete(); }
+async function delPlan(id){
+  const pl=plans.find(x=>x.id===id);
+  if(pl&&pl.src==='visit'){ const r=await visitClient.rpc('fqa_delete',{p_id:String(id).slice(2),p_brand:pl.brand||''}); if(r.error) throw r.error; refreshVisit(); return; }
+  await db.collection('plans').doc(id).delete();
+}
 function subscribeMonth(){
   refreshVisit();
   if(unsubMonth) unsubMonth();
@@ -603,6 +650,7 @@ function openPlanDlg(id,dateIso){
   $('fTitle').value=p?p.title:'';
   $('fPlace').value=p?(p.place||''):'';
   $('fDel').hidden=!p;
+  syncBranchField(p);
   $('dlg').hidden=false;
   setTimeout(()=>$('fTitle').focus(),50);
 }
@@ -615,8 +663,18 @@ async function saveDlg(){
   if(!canMgr && $('fPerson').value!==owner) return toast('เพิ่มแผนได้เฉพาะของตัวเอง');
   const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const data={person:$('fPerson').value,date,month:date.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
-  try{ await savePlan(id,data); closeDlg(); toast('บันทึกแล้ว'); }
-  catch(e){ toast('บันทึกไม่สำเร็จ'); }
+  try{
+    if(data.type==='visit'){
+      if(editingId && !String(editingId).startsWith('v:')) await db.collection('plans').doc(editingId).delete();
+      await visitWrite(editingId,data);
+      refreshVisit();
+    }else{
+      if(editingId && String(editingId).startsWith('v:')) return toast('แผน Visit เปลี่ยนหมวดไม่ได้');
+      await savePlan(id,data);
+    }
+    closeDlg(); toast('บันทึกแล้ว');
+  }
+  catch(e){ toast(e&&e.message&&!e.code?e.message:'บันทึกไม่สำเร็จ'); }
 }
 
 /* ───── การกระทำ ───── */
@@ -647,7 +705,7 @@ document.addEventListener('click',async e=>{
   }
   const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); return; }
   const mv=t.closest('#mseg [data-mv]'); if(mv){ mView=mv.dataset.mv; document.querySelectorAll('#mseg [data-mv]').forEach(b=>b.classList.toggle('on',b===mv)); paintAll(); return; }
-  const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ const pl=plans.find(x=>x.id===ev.dataset.id); if(pl&&pl.src==='visit'){ window.open(VISIT_PAGE,'_blank'); return; } if(pl&&canEditPlan(pl)) openPlanDlg(ev.dataset.id); else toast('ดูได้อย่างเดียว'); return; }
+  const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ const pl=plans.find(x=>x.id===ev.dataset.id); if(pl&&canEditPlan(pl)) openPlanDlg(ev.dataset.id); else if(pl&&pl.src==='visit') window.open(VISIT_PAGE,'_blank'); else toast('ดูได้อย่างเดียว'); return; }
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
   const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
@@ -704,6 +762,9 @@ async function start(){
     canMgr=role==='admin';
     db=makeDb(client);
     visitClient=client;
+    loadBranches();
+    $('fType').addEventListener('change',()=>syncBranchField(null));
+    $('fPerson').addEventListener('change',()=>syncBranchField(null));
     setInterval(()=>refreshVisit(),30000);
   }catch(e){
     $('notice').hidden=false; $('notice').textContent='ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่';
