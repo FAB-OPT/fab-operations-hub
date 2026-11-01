@@ -29,7 +29,9 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .person.on{background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.08);color:var(--gold-ink)}
 .person .n{margin-left:auto;font-size:12px;color:var(--ink3);font-weight:700}
 .cat{display:flex;align-items:center;gap:9px;height:32px;padding:0 6px;font-size:14px;font-weight:600;color:var(--ink2);cursor:pointer}
-.cat input{width:15px;height:15px;accent-color:var(--c);margin:0}
+.cat input{appearance:none;-webkit-appearance:none;width:13px;height:13px;border-radius:50%;border:2px solid var(--c);background:#fff;margin:0;flex:0 0 auto;cursor:pointer}
+.cat input:checked{background:var(--c)}
+.cat input:focus-visible{outline:2px solid #ffd2ac;outline-offset:2px}
 .scard{background:#fff;border-radius:14px;padding:8px 6px 6px;box-shadow:0 1px 2px rgba(15,23,42,.05);margin-bottom:10px}
 .scard h4{margin:4px 8px 6px;font-size:12.5px;font-weight:800;color:var(--ink2)}
 .scard .person{background:transparent}
@@ -150,13 +152,22 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .ask[hidden]{display:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-.mgr-box{width:min(460px,100%);border-radius:22px;padding:20px 20px 22px;box-shadow:0 30px 70px rgba(15,23,42,.28);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
+.mgr-box{width:min(680px,100%);border-radius:22px;padding:20px 20px 22px;box-shadow:0 30px 70px rgba(15,23,42,.28);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
 .mgr-sub{font-size:12.5px;color:var(--ink3);font-weight:600;margin:-6px 0 12px}
-.mtabs{display:flex;gap:4px;background:var(--line2);padding:4px;border-radius:14px;margin-bottom:12px}
-.mtabs button{flex:1;height:40px;border-radius:11px;font-weight:800;font-size:14px;color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:6px}
-.mtabs button.on{background:#fff;color:var(--accent-ink);box-shadow:0 1px 3px rgba(15,23,42,.1)}
-.mtabs em{font-style:normal;font-size:11.5px;background:#e5e7eb;color:var(--ink2);border-radius:999px;padding:1px 7px}
-.mtabs button.on em{background:var(--accent-soft);color:var(--accent-ink)}
+.mg-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.mg-col{min-width:0}
+.mg-h{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:800;color:var(--ink2);margin:2px 2px 8px}
+.mg-h em{font-style:normal;font-size:11px;background:var(--line2);color:var(--ink2);border-radius:999px;padding:1px 7px}
+.mg-col .mg-row{padding:8px;gap:8px;font-size:13.5px;margin-bottom:6px}
+.mg-col .mg-row .av{width:30px;height:30px;font-size:13px}
+.mg-col .mg-row .sw{height:28px}
+.mg-col .mg-row .tx{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.ic{width:28px;height:28px;flex:0 0 auto;border-radius:9px;background:#fff;border:1px solid var(--line);color:var(--ink2);font-size:13px;display:grid;place-items:center;padding:0}
+.ic:hover{background:#f6f7f9}
+.ic.danger{color:var(--red);border-color:#fecdd3}
+.ic.danger:hover{background:var(--red-soft)}
+.ro .ic{display:none!important}
+.mg-col .addrow{height:38px;font-size:13px;margin-top:4px}
 .mg-sec{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--ink3);margin:18px 2px 8px}
 .mg-sec em{font-style:normal;font-size:11.5px;background:var(--line2);color:var(--ink2);border-radius:999px;padding:1px 8px}
 .mg-row{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 12px;border:1px solid var(--line2);border-radius:16px;background:#fff;margin-bottom:8px;box-shadow:0 1px 2px rgba(15,23,42,.04);font-weight:700;font-size:14.5px}
@@ -402,15 +413,13 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
     box.onclick=e=>{ if(e.target===box) done(input?null:false); };
   });
 }
-let mgrTab='team';
 function paintMgr(){
-  const tabs=`<div class="mtabs" role="tablist">
-    <button role="tab" class="${mgrTab==='team'?'on':''}" data-mtab="team">ทีม <em>${team.length}</em></button>
-    <button role="tab" class="${mgrTab==='cat'?'on':''}" data-mtab="cat">หมวดงาน <em>${cats.length}</em></button></div>`;
-  const body = mgrTab==='team'
-    ? team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><span class="av">${esc(n.charAt(0))}</span><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="mini danger" data-tdel="${esc(n)}">ลบ</button></div>`; }).join('')+`<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิกทีม</button>`
-    : cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="mini ghost" data-cedit="${esc(c.k)}">แก้ไข</button><button class="mini danger" data-cdel="${esc(c.k)}">ลบ</button></div>`; }).join('')+`<button class="mini addrow" id="addCat">+ เพิ่มหมวดงาน</button>`;
-  $('mgrBody').innerHTML=tabs+body;
+  const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><span class="av">${esc(n.charAt(0))}</span><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
+  const catRows=cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="ic" data-cedit="${esc(c.k)}" aria-label="แก้ไข">✎</button><button class="ic danger" data-cdel="${esc(c.k)}" aria-label="ลบ">✕</button></div>`; }).join('');
+  $('mgrBody').innerHTML=`<div class="mg-cols">
+    <div class="mg-col"><div class="mg-h">ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
+    <div class="mg-col"><div class="mg-h">หมวดงาน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มหมวด</button></div>
+  </div>`;
 }
 function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); }
 
@@ -478,8 +487,19 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  const mtab=t.closest('[data-mtab]'); if(mtab){ mgrTab=mtab.dataset.mtab; paintMgr(); return; }
   const tdel=t.closest('[data-tdel]');
+  const tedit=t.closest('[data-tedit]');
+  if(tedit){
+    const old=tedit.dataset.tedit;
+    const r=await askBox({icon:'👤',title:'แก้ไขชื่อสมาชิก',input:{label:'ชื่อสมาชิก',value:old}});
+    if(!r) return;
+    if(r.name===old) return;
+    if(team.includes(r.name)) return toast('มีชื่อนี้ในทีมแล้ว');
+    await saveTeam(team.map(x=>x===old?r.name:x));
+    for(const p of plans.filter(p=>p.person===old)){ const {id,...rest}=p; await savePlan(id,{...rest,person:r.name}); }
+    if(person===old) person=r.name;
+    toast('แก้ไขชื่อแล้ว'); return;
+  }
   if(tdel){ const n=tdel.dataset.tdel, c=plans.filter(p=>p.person===n).length; if(!await askBox({icon:'👤',title:`ลบ ${n} ออกจากทีม?`,msg:c?`มีแผนของ ${n} อยู่ ${c} รายการ แผนจะยังอยู่ในระบบ`:'',danger:true})) return; await saveTeam(team.filter(x=>x!==n)); if(person===n) person=null; toast('ลบทีมแล้ว'); return; }
   if(t.closest('#addTeam')){ const r=await askBox({icon:'👤',title:'เพิ่มสมาชิกทีม',input:{label:'ชื่อสมาชิก'}}); if(!r) return; const name=r.name; if(team.includes(name)) return toast('มีอยู่แล้ว'); await saveTeam([...team,name]); toast('เพิ่มทีมแล้ว'); return; }
   const cedit=t.closest('[data-cedit]');
