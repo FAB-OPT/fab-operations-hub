@@ -196,7 +196,19 @@ button{cursor:pointer;border:0;background:none;padding:0}
   .tabs button.on{color:var(--accent)}
   .tabs .ti{width:54px;height:32px;font-size:19px}
   .notice{font-size:14.5px}
+  .strip{display:grid;grid-template-columns:repeat(7,1fr);gap:6px 4px;overflow:visible;padding:8px 10px 14px}
+  .mwd{font-size:13px;font-weight:800;color:var(--ink2);text-align:center;padding-bottom:4px}
+  .dayb{width:auto;height:50px;border-radius:14px;box-shadow:none;background:#fff;gap:3px;padding:0}
+  .dayb b{font-size:17px}
+  .dayb.on{box-shadow:0 8px 16px rgba(17,24,39,.22)}
 }
+.dsheet{position:fixed;inset:0;background:rgba(15,23,42,.35);display:flex;align-items:flex-end;z-index:40}
+.dsheet[hidden]{display:none}
+.dsbox{position:relative;width:100%;max-height:72vh;overflow-y:auto;background:#fff;border-radius:26px 26px 0 0;padding:10px 0 calc(24px + env(safe-area-inset-bottom));box-shadow:0 -12px 30px rgba(15,23,42,.18)}
+.dsgr{width:44px;height:5px;border-radius:3px;background:#d1d5db;margin:0 auto 4px}
+.dsx{position:absolute;right:14px;top:12px;width:36px;height:36px;border-radius:12px;background:#f3f4f6;font-size:15px;color:var(--ink2)}
+.dsbox .dayh{padding-top:6px}
+.dsbox .mlist{padding:0 16px}
 .fab{position:fixed;right:16px;bottom:96px;width:60px;height:60px;border-radius:22px;background:var(--accent);color:#fff;font-size:30px;box-shadow:0 14px 28px rgba(255,122,26,.4);display:grid;place-items:center;z-index:20}
 
 @media (max-width:820px){
@@ -334,8 +346,6 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="notice" id="notice" hidden></div>
   <div class="people" id="mpeople"></div>  <div class="agenda" id="agenda"></div>
   <div class="strip" id="strip"></div>
-  <div class="dayh" id="dayh"></div>
-  <div class="mlist" id="cards"></div>
 </div>
 <nav class="tabs" id="tabs">
   <button class="on" data-tab="list"><span class="ti">📋</span>รายการ</button>
@@ -343,6 +353,14 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <button data-tab="team"><span class="ti">👥</span>ทีม</button>
   <button data-tab="add"><span class="ti">＋</span>เพิ่มแผน</button>
 </nav>
+
+<!-- มือถือ: ป๊อปอัปรายการของวันที่แตะ -->
+<div class="dsheet" id="dsheet" hidden><div class="dsbox">
+  <div class="dsgr"></div>
+  <button class="dsx" id="dsClose" aria-label="ปิด">✕</button>
+  <div class="dayh" id="dayh"></div>
+  <div class="mlist" id="cards"></div>
+</div></div>
 
 <!-- ป๊อปอัปจัดการทีมและหมวด -->
 <div class="mgr" id="mgr" hidden><div class="mgr-box">
@@ -471,10 +489,10 @@ function cardRow(p,desk){
 function paintStrip(){
   const m=byDay(), n=nDays(), d0=mSel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
   mSel=d0;
-  $('strip').innerHTML=Array.from({length:n},(_,i)=>i+1).map(d=>{
+  $('strip').innerHTML=DOW.map(x=>`<div class="mwd">${x}</div>`).join('')+Array.from({length:mon()},()=>'<span></span>').join('')+Array.from({length:n},(_,i)=>i+1).map(d=>{
     const list=m[d]||[], dots=list.slice(0,3).map(p=>`<i style="background:${catOf(p.type).c}"></i>`).join('');
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    return `<button class="dayb ${wkend(d)?'we':''} ${d===d0?'on':''} ${iso===todayISO()&&d!==d0?'today':''}" data-md="${d}"><small>${DOW[(mon()+d-1)%7]}</small><b>${d}</b><span class="dots">${dots}</span></button>`;
+    return `<button class="dayb ${wkend(d)?'we':''} ${d===d0?'on':''} ${iso===todayISO()&&d!==d0?'today':''}" data-md="${d}"><b>${d}</b><span class="dots">${dots}</span></button>`;
   }).join('');
   const act=document.querySelector('.dayb.on'); if(act) act.scrollIntoView({inline:'center',block:'nearest'});
   const dow=(mon()+d0-1)%7;
@@ -600,7 +618,8 @@ document.addEventListener('click',async e=>{
   const mv=t.closest('#mseg [data-mv]'); if(mv){ mView=mv.dataset.mv; document.querySelectorAll('#mseg [data-mv]').forEach(b=>b.classList.toggle('on',b===mv)); paintAll(); return; }
   const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ if(canWrite) openPlanDlg(ev.dataset.id); return; }
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
-  const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); return; }
+  const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
+  if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
@@ -627,7 +646,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#addCat')){ const r=await askBox({icon:'🏷',title:'เพิ่มหมวดงานใหม่',input:{label:'ชื่อหมวด',color:'#2563eb'}}); if(!r) return; const k='c'+Date.now().toString(36); await saveCats([...cats,{k,l:r.name,c:/^#[0-9a-f]{6}$/i.test(r.color)?r.color:'#2563eb'}]); toast('เพิ่มหมวดแล้ว'); return; }
   const tab=t.closest('#tabs button');
   if(tab){ document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b===tab)); const k=tab.dataset.tab;
-    if(k==='list'||k==='cal'){ mView=k; paintAll(); }
+    if(k==='list'||k==='cal'){ mView=k; $('dsheet').hidden=true; paintAll(); }
     if(k==='today'){ const n=new Date(); Y=n.getFullYear(); M=n.getMonth(); mSel=n.getDate(); subscribeMonth(); paintAll(); }
     if(k==='add'){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
     if(k==='team'){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); }
