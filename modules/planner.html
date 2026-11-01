@@ -469,6 +469,8 @@ async function visitWrite(editId,data){
 const VISIT_PAGE='fqa-visit.html';
 const VISIT_TRAINER={'ไพรวัลย์ กิ่งทุม':'พี่หนิง','วัชระ อารีเอื้อ':'ฟาง','กันตภณ ลาภมงคลนาวิน':'กาย'};
 const VISIT_BRAND={jaedaeng:'เจ๊แดง',santafe:'Santa Fe'};
+/* ชื่อชนิดแผนตามที่ระบบ Visit แสดง: FQA · Complaint · Visit */
+const VISIT_PTYPE={FQA:'FQA',FSQ:'Complaint',VISIT:'Visit',STA:'Visit'};
 let visitPlans=[], dbPlans=[], visitClient=null;
 async function refreshVisit(){
   if(!visitClient) return;
@@ -477,7 +479,7 @@ async function refreshVisit(){
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
     if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
     /* แผนทุกชนิดของเจ๊แดง (FQA / FSQ / VISIT) และ Santa Fe (STA) นับเป็นหมวด Visit ทั้งหมด */
-    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
+    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
     plans=dbPlans.concat(visitPlans);
     paintAll();
   }catch(err){}
