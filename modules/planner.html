@@ -532,7 +532,8 @@ document.addEventListener('click',async e=>{
     if(r.name===old) return;
     if(team.includes(r.name)) return toast('มีชื่อนี้ในทีมแล้ว');
     await saveTeam(team.map(x=>x===old?r.name:x));
-    for(const p of plans.filter(p=>p.person===old)){ const {id,...rest}=p; await savePlan(id,{...rest,person:r.name}); }
+    const snap=await db.collection('plans').where('person','==',old).get();
+    for(const d of snap.docs){ await savePlan(d.id,{...d.data(),person:r.name}); }
     if(person===old) person=r.name;
     toast('แก้ไขชื่อแล้ว'); return;
   }
@@ -594,7 +595,10 @@ function makeDb(sb){
   });
   const collection=name=>({
     doc:id=>docRef(name,id),
-    where:(f,op,v)=>({ onSnapshot(cb){ return watch(()=>{ const all=cache[name]||{}; const docs=Object.keys(all).filter(id=>op==='=='?all[id][f]===v:true).map(id=>({id,data:()=>all[id]})); cb({docs}); }); } })
+    where:(f,op,v)=>({
+      onSnapshot(cb){ return watch(()=>{ const all=cache[name]||{}; const docs=Object.keys(all).filter(id=>op==='=='?all[id][f]===v:true).map(id=>({id,data:()=>all[id]})); cb({docs}); }); },
+      async get(){ const all=cache[name]||{}; return {docs:Object.keys(all).filter(id=>op==='=='?all[id][f]===v:true).map(id=>({id,data:()=>all[id]}))}; }
+    })
   });
   refresh().catch(()=>{});
   setInterval(()=>refresh().catch(()=>{}),20000);
