@@ -410,6 +410,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <button class="dsx" id="dsClose" aria-label="ปิด">✕</button>
   <div class="dayh" id="dayh"></div>
   <div class="mlist" id="cards"></div>
+  <button class="btn pri" id="dsAdd" style="margin:0 16px">+ เพิ่มแผน</button>
 </div></div>
 
 <!-- ป๊อปอัปจัดการทีมและหมวด -->
@@ -673,7 +674,8 @@ function paintStrip(){
   $('dayh').innerHTML=`<b>${DOW[dow]} ${d0} ${TH[M]}</b>${hd===todayISO()?'<span>วันนี้</span>':''}${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
-  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้${canWrite?'<br>แตะ + เพื่อเพิ่มแผน':''}</div>`;
+  $('dsAdd').hidden=!canWrite;
+  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้</div>`;
 }
 /* กล่องยืนยันแบบเดียวกับแอป: askBox({...}) → true/false, หรือ {name,color} เมื่อมี input */
 function askBox({icon='❔',title,msg='',danger=false,input=null}){
@@ -855,6 +857,7 @@ document.addEventListener('click',async e=>{
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
   const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
+  if(t.closest('#dsAdd')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
