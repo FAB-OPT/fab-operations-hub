@@ -154,6 +154,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .mseg .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.12)}
 .agenda{padding:0 14px 110px}
 .agh{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;padding:18px 2px 10px}
+.hol2{font-style:normal;font-size:12.5px;font-weight:800;color:#fff;background:#c8364b;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .agh small{margin-left:auto;font-size:13px;font-weight:800;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
 .dc{margin-bottom:12px}
 .agr2{display:flex;width:100%;padding:0;border:0;background:none;border-radius:14px;overflow:hidden;margin-bottom:10px;box-shadow:0 1px 3px rgba(15,23,42,.06);text-align:left;cursor:pointer}
@@ -477,7 +478,8 @@ function paintStrip(){
   }).join('');
   const act=document.querySelector('.dayb.on'); if(act) act.scrollIntoView({inline:'center',block:'nearest'});
   const dow=(mon()+d0-1)%7;
-  $('dayh').innerHTML=`<b>${d0} ${TH[M]}</b><span>วัน${DOWF[dow]}${`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`===todayISO()?' · วันนี้':''}</span>`;
+  const hd=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`, hl=holLabel(hd);
+  $('dayh').innerHTML=`<b>${d0} ${TH[M]}</b><span>วัน${DOWF[dow]}${hd===todayISO()?' · วันนี้':''}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
   $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<button class="agr2 dc" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}${p.place?' · '+esc(p.place):''}</small><b>${esc(p.title)}</b></span></button>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
@@ -517,10 +519,12 @@ function paintMgr(){
 /* มือถือ: รายการของทั้งเดือนจัดกลุ่มตามวัน */
 function paintAgenda(){
   const groups={}; visible().slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
-  const keys=Object.keys(groups);
+  for(let d=1; d<=nDays(); d++){ const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(holLabel(iso)&&!groups[iso]) groups[iso]=[]; }
+  const keys=Object.keys(groups).sort();
   $('agenda').innerHTML=keys.length?keys.map(k=>{
     const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7;
-    return `<div class="agh">${day} ${TH[M]}<small>${DOWF[dow]} · ${groups[k].length} แผน</small></div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<button class="agr2" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}</small><b>${esc(p.title)}</b></span></button>`; }).join('');
+    const hl=holLabel(k);
+    return `<div class="agh">${day} ${TH[M]}${hl?`<em class="hol2">${esc(hl)}</em>`:''}<small>${DOWF[dow]} · ${groups[k].length?groups[k].length+' แผน':'ไม่มีแผน'}</small></div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<button class="agr2" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}</small><b>${esc(p.title)}</b></span></button>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
 }
 function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); }
