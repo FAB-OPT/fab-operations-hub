@@ -146,7 +146,12 @@ button{cursor:pointer;border:0;background:none;padding:0}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
 .mgr-box{width:min(460px,100%);border-radius:22px;padding:20px 20px 22px;box-shadow:0 30px 70px rgba(15,23,42,.28);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
-.mgr-sub{font-size:12.5px;color:var(--ink3);font-weight:600;margin:-6px 0 4px}
+.mgr-sub{font-size:12.5px;color:var(--ink3);font-weight:600;margin:-6px 0 12px}
+.mtabs{display:flex;gap:4px;background:var(--line2);padding:4px;border-radius:14px;margin-bottom:12px}
+.mtabs button{flex:1;height:40px;border-radius:11px;font-weight:800;font-size:14px;color:var(--ink2);display:flex;align-items:center;justify-content:center;gap:6px}
+.mtabs button.on{background:#fff;color:var(--accent-ink);box-shadow:0 1px 3px rgba(15,23,42,.1)}
+.mtabs em{font-style:normal;font-size:11.5px;background:#e5e7eb;color:var(--ink2);border-radius:999px;padding:1px 7px}
+.mtabs button.on em{background:var(--accent-soft);color:var(--accent-ink)}
 .mg-sec{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:800;color:var(--ink3);margin:18px 2px 8px}
 .mg-sec em{font-style:normal;font-size:11.5px;background:var(--line2);color:var(--ink2);border-radius:999px;padding:1px 8px}
 .mg-row{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 12px;border:1px solid var(--line2);border-radius:16px;background:#fff;margin-bottom:8px;box-shadow:0 1px 2px rgba(15,23,42,.04);font-weight:700;font-size:14.5px}
@@ -394,14 +399,15 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
     box.onclick=e=>{ if(e.target===box) done(input?null:false); };
   });
 }
+let mgrTab='team';
 function paintMgr(){
-  $('mgrBody').innerHTML=`
-    <div class="mg-sec">ทีม <em>${team.length}</em></div>
-    ${team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><span class="av">${esc(n.charAt(0))}</span><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="mini danger" data-tdel="${esc(n)}">ลบ</button></div>`; }).join('')}
-    <button class="mini addrow" id="addTeam">+ เพิ่มสมาชิกทีม</button>
-    <div class="mg-sec">หมวดงาน <em>${cats.length}</em></div>
-    ${cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="mini ghost" data-cedit="${esc(c.k)}">แก้ไข</button><button class="mini danger" data-cdel="${esc(c.k)}">ลบ</button></div>`; }).join('')}
-    <button class="mini addrow" id="addCat">+ เพิ่มหมวดงาน</button>`;
+  const tabs=`<div class="mtabs" role="tablist">
+    <button role="tab" class="${mgrTab==='team'?'on':''}" data-mtab="team">ทีม <em>${team.length}</em></button>
+    <button role="tab" class="${mgrTab==='cat'?'on':''}" data-mtab="cat">หมวดงาน <em>${cats.length}</em></button></div>`;
+  const body = mgrTab==='team'
+    ? team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><span class="av">${esc(n.charAt(0))}</span><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="mini danger" data-tdel="${esc(n)}">ลบ</button></div>`; }).join('')+`<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิกทีม</button>`
+    : cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="mini ghost" data-cedit="${esc(c.k)}">แก้ไข</button><button class="mini danger" data-cdel="${esc(c.k)}">ลบ</button></div>`; }).join('')+`<button class="mini addrow" id="addCat">+ เพิ่มหมวดงาน</button>`;
+  $('mgrBody').innerHTML=tabs+body;
 }
 function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); }
 
@@ -469,6 +475,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
+  const mtab=t.closest('[data-mtab]'); if(mtab){ mgrTab=mtab.dataset.mtab; paintMgr(); return; }
   const tdel=t.closest('[data-tdel]');
   if(tdel){ const n=tdel.dataset.tdel, c=plans.filter(p=>p.person===n).length; if(!await askBox({icon:'👤',title:`ลบ ${n} ออกจากทีม?`,msg:c?`มีแผนของ ${n} อยู่ ${c} รายการ แผนจะยังอยู่ในระบบ`:'',danger:true})) return; await saveTeam(team.filter(x=>x!==n)); if(person===n) person=null; toast('ลบทีมแล้ว'); return; }
   if(t.closest('#addTeam')){ const r=await askBox({icon:'👤',title:'เพิ่มสมาชิกทีม',input:{label:'ชื่อสมาชิก'}}); if(!r) return; const name=r.name; if(team.includes(name)) return toast('มีอยู่แล้ว'); await saveTeam([...team,name]); toast('เพิ่มทีมแล้ว'); return; }
