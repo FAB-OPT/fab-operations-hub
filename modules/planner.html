@@ -398,6 +398,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ประชุม OPT-FS"></label>
   <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
   <label class="field" id="fBranchW" hidden><span>สาขา (ระบบ Visit)</span><select id="fBranch"></select></label>
+  <label class="field" id="fPtypeW" hidden><span>ประเภทการตรวจ</span><select id="fPtype"><option value="FQA">FQA</option><option value="FSQ">Complaint</option><option value="VISIT">Visit</option></select></label>
   <div class="acts">
     <button class="btn rd" id="fDel" hidden>ลบ</button>
     <button class="btn" id="fCancel">ยกเลิก</button>
@@ -459,8 +460,11 @@ function syncBranchField(p){
   const names=isVisit?base.filter(n=>VISIT_OWNER[n]):base;
   const cur=p?p.person:$('fPerson').value;
   $('fPerson').innerHTML=names.map(n=>`<option ${cur===n?'selected':''}>${esc(n)}</option>`).join('');
-  if(!isVisit) return;
+  if(!isVisit){ $('fPtypeW').hidden=true; return; }
   const v=VISIT_OWNER[$('fPerson').value];
+  /* เจ๊แดงเลือกประเภทได้ (FQA / Complaint / Visit) · Santa Fe เป็น STA เสมอ */
+  $('fPtypeW').hidden=!(v&&v.brand==='jaedaeng');
+  if(p&&p.ptype) $('fPtype').value=p.ptype;
   const list=v?BRANCHES[v.brand]:[];
   $('fBranch').innerHTML=list.map(b=>`<option ${p&&(p.branch||p.title)===b.name?'selected':''}>${esc(b.name)}</option>`).join('');
 }
@@ -473,7 +477,7 @@ async function visitWrite(editId,data){
   const b=BRANCHES[v.brand].find(x=>x.name===branch);
   const id=editId?String(editId).replace(/^v:/,''):('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const now=new Date().toISOString();
-  const rec={id,brand:v.brand,type:'PLAN',ptype:v.brand==='santafe'?'STA':'VISIT',date:data.date,branch,bzm:b?b.bzm:'',trainer:v.trainer,createdAt:now,updatedAt:now};
+  const rec={id,brand:v.brand,type:'PLAN',ptype:v.brand==='santafe'?'STA':($('fPtype').value||'VISIT'),date:data.date,branch,bzm:b?b.bzm:'',trainer:v.trainer,createdAt:now,updatedAt:now};
   const r=await visitClient.rpc('fqa_save',{rec});
   if(r.error) throw r.error;
 }
@@ -491,7 +495,7 @@ async function refreshVisit(){
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
     if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
     /* แผนทุกชนิดของเจ๊แดง (FQA / FSQ / VISIT) และ Santa Fe (STA) นับเป็นหมวด Visit ทั้งหมด */
-    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
+    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand,ptype:(x.data||{}).ptype||''}));
     plans=dbPlans.concat(visitPlans);
     paintAll();
   }catch(err){}
