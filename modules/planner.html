@@ -476,8 +476,8 @@ async function refreshVisit(){
     const s=`${mkey()}-01`, e=`${mkey()}-${String(nDays()).padStart(2,'0')}`;
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
     if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
-    /* Santa Fe เก็บแผนเป็นชนิด STA ส่วนเจ๊แดงเป็น VISIT (ทั้งคู่คือหมวด Visit) */
-    visitPlans=(r.data||[]).filter(x=>['VISIT','STA'].includes((x.data||{}).ptype)).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
+    /* แผนทุกชนิดของเจ๊แดง (FQA / FSQ / VISIT) และ Santa Fe (STA) นับเป็นหมวด Visit ทั้งหมด */
+    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
     plans=dbPlans.concat(visitPlans);
     paintAll();
   }catch(err){}
