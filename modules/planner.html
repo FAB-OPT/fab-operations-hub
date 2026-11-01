@@ -347,7 +347,6 @@ button{cursor:pointer;border:0;background:none;padding:0}
   </section>
   <aside class="right"><div class="right-in">
     <div class="lab" id="selLab"></div>
-    <button class="btn holset" id="selHol" hidden style="height:32px;font-size:13px;margin-bottom:8px">🏖 ป้ายวันหยุด</button>
     <div id="selBox"></div>
     <div class="lab" id="upLab"></div>
     <div id="up"></div>
@@ -612,7 +611,6 @@ function paintRight(){
   const list=visible().filter(p=>p.date===iso);
   $('selLab').textContent=`${iso===todayISO()?'วันนี้ · ':''}${DOWF[(mon()+d-1)%7]} ${d} ${TH[M]}`;
   $('selLab').classList.toggle('isToday',iso===todayISO());
-  $('selHol').hidden=false; $('selHol').dataset.iso=iso;
   $('selBox').innerHTML=list.length?list.map(p=>cardRow(p,true)).join(''):`<div class="empty">ไม่มีแผนวันนี้<br>กดที่วันเพื่อเพิ่มแผน</div>`;
   const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
   $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
@@ -802,7 +800,7 @@ document.addEventListener('click',async e=>{
   const hset=t.closest('.holset');
   if(hset){
     if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
-    const iso=hset.dataset.iso||$('selHol').dataset.iso;
+    const iso=hset.dataset.iso;
     const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:`วันที่ ${iso} · เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก`,input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
     if(!r) return;
     await saveHol({...hols,[iso]:r.name});
@@ -817,7 +815,7 @@ document.addEventListener('click',async e=>{
     await saveHol({...hols,[iso]:r.name});
     toast(r.name?'บันทึกป้ายแล้ว':'เอาป้ายออกแล้ว'); return;
   }
-  const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); return; }
+  const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); if(e.detail===1){ mSel=sel; paintStrip(); $('dsheet').hidden=false; } return; }
   const mv=t.closest('#mseg [data-mv]'); if(mv){ mView=mv.dataset.mv; document.querySelectorAll('#mseg [data-mv]').forEach(b=>b.classList.toggle('on',b===mv)); paintAll(); return; }
   const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ const pl=plans.find(x=>x.id===ev.dataset.id); if(pl&&canEditPlan(pl)) openPlanDlg(ev.dataset.id); else if(pl&&pl.src==='visit') window.open(VISIT_PAGE,'_blank'); else toast('ดูได้อย่างเดียว'); return; }
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
