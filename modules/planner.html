@@ -461,7 +461,7 @@ async function visitWrite(editId,data){
   const b=BRANCHES[v.brand].find(x=>x.name===branch);
   const id=editId?String(editId).replace(/^v:/,''):('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
   const now=new Date().toISOString();
-  const rec={id,brand:v.brand,type:'PLAN',ptype:'VISIT',date:data.date,branch,bzm:b?b.bzm:'',trainer:v.trainer,createdAt:now,updatedAt:now};
+  const rec={id,brand:v.brand,type:'PLAN',ptype:v.brand==='santafe'?'STA':'VISIT',date:data.date,branch,bzm:b?b.bzm:'',trainer:v.trainer,createdAt:now,updatedAt:now};
   const r=await visitClient.rpc('fqa_save',{rec});
   if(r.error) throw r.error;
 }
@@ -475,8 +475,9 @@ async function refreshVisit(){
   try{
     const s=`${mkey()}-01`, e=`${mkey()}-${String(nDays()).padStart(2,'0')}`;
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
-    if(r.error) return;
-    visitPlans=(r.data||[]).filter(x=>(x.data||{}).ptype==='VISIT').map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
+    if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
+    /* Santa Fe เก็บแผนเป็นชนิด STA ส่วนเจ๊แดงเป็น VISIT (ทั้งคู่คือหมวด Visit) */
+    visitPlans=(r.data||[]).filter(x=>['VISIT','STA'].includes((x.data||{}).ptype)).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand}));
     plans=dbPlans.concat(visitPlans);
     paintAll();
   }catch(err){}
