@@ -1,466 +1,471 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
 <title>Planner OPT-TR</title>
-<meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@400;500;600;700&family=Anuphan:wght@400;500;600&family=Kanit:wght@400;500;600&family=Sarabun:wght@400;500;600;700&family=Noto+Sans+Thai:wght@400;500;600;700&family=Mitr:wght@400;500;600&family=IBM+Plex+Sans+Thai:wght@400;500;600&display=swap">
-<style>
-/* Layout: sticky toolbar → month summary strip → calendar (per person) or day × member table (team) */
-:root{
-  --bg:#FFFFFF; --surface:#FFFFFF; --ink:#1B2220; --muted:#5F6B67; --line:#E1E5E2; --soft:#F3F5F3; color-scheme:light;
-  --accent:#1F4FD1; --accent-ink:#FFFFFF; --today:#FFF3C9; --weekend:#FFF1F1; --weekend-ink:#C8364B;
-  --t-train:#4B3FD6; --t-meet:#C27700; --t-visit:#16804D; --t-ojt:#0B7E8C;
-  --t-office:#5A6470; --t-project:#9B3FB5; --t-leave:#C8364B; --t-off:#9AA3A0;
-  --f-display:"Noto Sans Thai",system-ui,sans-serif;
-  --f-body:"Noto Sans Thai",system-ui,-apple-system,"Segoe UI",sans-serif;
-  --f-mono:"Noto Sans Thai",system-ui,sans-serif;
-}
-*{box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font-family:var(--f-body);font-size:15px;line-height:1.55;font-variant-numeric:tabular-nums;-webkit-font-smoothing:antialiased}
-body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:10;background:var(--surface)}
-.wrap{padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
-button,input,select{font:inherit;color:inherit}
-button{cursor:pointer}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
-
-header{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--surface);border-bottom:1px solid var(--line)}
-.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding-block:12px;max-width:1280px;margin:0 auto}
-.brand{display:flex;align-items:baseline;gap:8px;margin-right:auto}
-.brand h1{font-family:var(--f-display);font-weight:700;font-size:20px;margin:0;letter-spacing:.01em}
-.brand span{font-family:var(--f-mono);font-size:11px;color:var(--muted);letter-spacing:.08em}
-.monthnav{display:flex;align-items:center;gap:4px}
-.monthnav b{font-family:var(--f-display);font-weight:600;font-size:16px;min-width:130px;text-align:center}
-.icon{width:34px;height:34px;border:1px solid var(--line);background:var(--surface);border-radius:8px;display:grid;place-items:center}
-.icon:hover{background:var(--soft)}
-.seg{display:flex;border:1px solid var(--line);border-radius:9px;padding:2px;background:var(--soft)}
-.seg button{border:0;background:transparent;padding:6px 12px;border-radius:7px;font-weight:500;color:var(--muted)}
-.seg button[aria-pressed="true"]{background:var(--surface);color:var(--ink);box-shadow:0 1px 2px rgb(0 0 0/.08)}
-.primary{border:0;background:var(--accent);color:var(--accent-ink);padding:8px 14px;border-radius:8px;font-weight:600}
-.primary:disabled{opacity:.45;cursor:not-allowed}
-.ghost{border:1px solid var(--line);background:var(--surface);padding:7px 12px;border-radius:8px}
-
-.people{display:flex;gap:6px;overflow-x:auto;padding-block:0 12px;max-width:1280px;margin:0 auto;scrollbar-width:none}
-.people button{flex:none;border:1px solid var(--line);background:var(--surface);padding:5px 12px;border-radius:999px;white-space:nowrap}
-.people button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
-
-main{max-width:1280px;margin:0 auto;padding-block:16px 48px;display:grid;gap:14px}
-.notice{border:1px dashed var(--line);border-radius:10px;padding:12px 14px;color:var(--muted);background:var(--surface)}
-
-.summary{display:flex;flex-wrap:wrap;gap:8px}
-.stat{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
-.stat i{width:10px;height:10px;border-radius:3px;background:var(--c)}
-.stat b{font-variant-numeric:tabular-nums;font-family:var(--f-mono);font-size:13px}
-.stat span{color:var(--muted);font-size:13px}
-
-/* calendar */
-.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--line);gap:1px}
-.dow:nth-child(6),.dow:nth-child(7){color:var(--weekend-ink)}
-.dow{background:var(--soft);padding:6px 8px;font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.04em}
-.day{background:var(--surface);min-height:108px;padding:6px;display:flex;flex-direction:column;gap:4px;cursor:pointer;min-width:0;border:0;text-align:left}
-.day:hover{background:var(--soft)}
-.day.wk,.day.hol{background:var(--weekend)}
-.day.wk .dnum,.day.hol .dnum{color:var(--weekend-ink);font-weight:600}
-.day.wk:hover,.day.hol:hover{background:#FFE6E6}
-.day.today{box-shadow:inset 0 0 0 2px var(--accent)}
-.day.blank{background:var(--soft);cursor:default}
-.dnum{display:flex;justify-content:space-between;align-items:center;font-family:var(--f-mono);font-size:12px;color:var(--muted)}
-.dnum .lbl{display:none}
-.day.today .dnum b{background:var(--accent);color:var(--accent-ink);border-radius:5px;padding:0 5px}
-.pill{font-weight:500;display:block;width:100%;text-align:left;border:0;border-left:3px solid var(--c);background:color-mix(in srgb,var(--c) 12%,var(--surface));color:var(--ink);border-radius:5px;padding:3px 6px;font-size:12px;line-height:1.35;overflow-wrap:anywhere}
-.pill small{display:block;color:var(--muted);font-size:11px}
-.pill.off{background:repeating-linear-gradient(135deg,var(--soft) 0 6px,transparent 6px 12px);border-left-color:var(--t-off);color:var(--muted)}
-.day .list{display:grid;gap:4px;min-width:0}
-.add{opacity:0;font-size:16px;line-height:1;color:var(--muted)}
-.day:hover .add{opacity:1}
-
-/* team table */
-.tablebox{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
-table{border-collapse:separate;border-spacing:0;width:max-content;min-width:100%}
-th,td{border-bottom:1px solid var(--line);border-right:1px solid var(--line);vertical-align:top;padding:5px 6px}
-thead th{position:sticky;top:0;background:var(--soft);font-weight:600;font-size:13px;text-align:left;z-index:1}
-th.d,td.d{position:sticky;left:0;background:var(--surface);z-index:2;width:78px;font-family:var(--f-mono);font-size:12px;color:var(--muted);white-space:nowrap}
-thead th.d{background:var(--soft);z-index:3}
-td.c{width:170px;min-width:150px;cursor:pointer}
-td.c:hover{background:var(--soft)}
-tr.wk td,td.c.hol{background:var(--weekend)}
-tr.wk td.d{color:var(--weekend-ink);font-weight:600}
-tr.wk td.d{background:var(--weekend)}
-tr.today td.d{color:var(--accent);font-weight:700}
-td.c .stack{display:grid;gap:3px}
-
-.legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:12px;color:var(--muted)}
-.legend span{display:flex;align-items:center;gap:6px}
-.legend i{width:10px;height:10px;border-radius:3px;background:var(--c)}
-
-/* dialog */
-dialog{border:0;border-radius:14px;padding:0;width:min(460px,calc(100vw - 32px));background:var(--surface);color:var(--ink);box-shadow:0 20px 60px rgb(0 0 0/.25)}
-dialog::backdrop{background:rgb(10 14 13/.45)}
-.dlg{display:grid;gap:12px;padding:18px}
-.dlg h2{font-family:var(--f-display);font-size:18px;margin:0}
-.field{display:grid;gap:4px}
-.field label{font-size:12px;font-weight:600;color:var(--muted);letter-spacing:.03em}
-.field input,.field select{border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;width:100%;min-width:0}
-.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-.types{display:flex;flex-wrap:wrap;gap:6px}
-.types button{border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:4px 10px;font-size:13px;display:flex;align-items:center;gap:6px}
-.types button i{width:9px;height:9px;border-radius:3px;background:var(--c)}
-.types button[aria-pressed="true"]{border-color:var(--c);background:color-mix(in srgb,var(--c) 14%,var(--surface));font-weight:600}
-.actions{display:flex;gap:8px;justify-content:flex-end;align-items:center}
-.actions .danger{margin-right:auto;border:0;background:transparent;color:var(--t-leave);font-weight:600;padding:6px 4px}
-.hint{font-size:12px;color:var(--muted)}
-.teamlist{display:grid;gap:6px}
-.teamlist div{display:flex;justify-content:space-between;align-items:center;border:1px solid var(--line);border-radius:8px;padding:6px 10px}
-.teamlist button{border:0;background:transparent;color:var(--t-leave)}
-.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;font-size:13px;z-index:20}
-
-@media (max-width:680px){
-  .brand{width:100%}
-  .monthnav b{min-width:110px}
-  .cal{grid-template-columns:1fr}
-  .dow,.day.blank{display:none}
-  .day{min-height:0;flex-direction:row;align-items:flex-start;gap:10px}
-  .dnum{flex-direction:column;align-items:flex-start;width:44px;flex:none}
-  .dnum .lbl{display:block;font-size:11px}
-  .day .list{flex:1;display:grid;gap:4px;min-width:0}
-  .add{opacity:1}
-}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
-</style>
-
-<header>
-  <div class="wrap">
-    <div class="bar">
-      <div class="brand"><h1>Planner OPT-TR</h1><span id="sync">กำลังเชื่อมต่อ…</span></div>
-      <div class="monthnav">
-        <button class="icon" id="prev" aria-label="เดือนก่อน">‹</button>
-        <b id="mlabel"></b>
-        <button class="icon" id="next" aria-label="เดือนถัดไป">›</button>
-      </div>
-      <div class="seg" role="group" aria-label="มุมมอง">
-        <button id="vPerson" aria-pressed="true">รายคน</button>
-        <button id="vTeam" aria-pressed="false">ทั้งทีม</button>
-      </div>
-      <select id="fontSel" class="ghost" aria-label="เลือกฟอนต์" style="padding:7px 8px"><option value="Noto Sans Thai">Aa Noto Sans Thai</option><option value="Anuphan">Aa Anuphan</option><option value="Prompt">Aa Prompt</option><option value="Kanit">Aa Kanit</option><option value="Sarabun">Aa Sarabun</option><option value="Mitr">Aa Mitr</option><option value="IBM Plex Sans Thai">Aa IBM Plex Thai</option></select>
-      <button class="ghost" id="todayBtn">วันนี้</button>
-      <button class="primary" id="addBtn">+ เพิ่มแผน</button>
-    </div>
-    <div class="people" id="people" aria-label="สมาชิก"></div>
-  </div>
-</header>
-
-<main class="wrap">
-  <div class="notice" id="notice" hidden></div>
-  <div class="summary" id="summary"></div>
-  <div id="view"></div>
-  <div class="legend" id="legend"></div>
-</main>
-
-<dialog id="dlg">
-  <form class="dlg" id="form" method="dialog">
-    <h2 id="dlgTitle">เพิ่มแผนงาน</h2>
-    <div class="row2">
-      <div class="field"><label for="fPerson">ผู้รับผิดชอบ</label><select id="fPerson"></select></div>
-      <div class="field"><label for="fDate">วันที่</label><input type="date" id="fDate" required></div>
-    </div>
-    <div class="field" id="rangeRow"><label for="fTo">ถึงวันที่ (ถ้าหลายวัน)</label><input type="date" id="fTo"><span class="hint">เว้นว่างได้ · ใส่เพื่อลงงานเดียวกันหลายวันติดกัน</span></div>
-    <div class="field"><label>ประเภทงาน</label><div class="types" id="fType"></div></div>
-    <div class="field"><label for="fTitle">รายละเอียด</label><input id="fTitle" placeholder="เช่น อบรม Service Mind Santafe รุ่น 1/2569" required></div>
-    <div class="field"><label for="fPlace">สถานที่</label><input id="fPlace" list="places" placeholder="เช่น SKV71"></div>
-    <datalist id="places"><option value="SKV71"><option value="FAB Avenue"><option value="Office"><option value="Online"></datalist>
-    <div class="actions">
-      <button type="button" class="danger" id="delBtn" hidden>ลบรายการ</button>
-      <button type="button" class="ghost" id="cancelBtn">ยกเลิก</button>
-      <button type="submit" class="primary" id="saveBtn">บันทึก</button>
-    </div>
-  </form>
-</dialog>
-
-<dialog id="teamDlg">
-  <form class="dlg" id="teamForm" method="dialog">
-    <h2>สมาชิกทีม</h2>
-    <div class="teamlist" id="teamList"></div>
-    <div class="row2"><input id="newMember" placeholder="ชื่อสมาชิกใหม่" style="border:1px solid var(--line);background:var(--bg);border-radius:8px;padding:8px 10px;min-width:0"><button type="button" class="ghost" id="addMember">เพิ่ม</button></div>
-    <span class="hint">ลบชื่อออกจะซ่อนจากหน้าจอ แผนเดิมยังเก็บไว้</span>
-    <div class="actions"><button type="button" class="primary" id="teamDone">เสร็จ</button></div>
-  </form>
-</dialog>
-
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261030a"></script>
+<style>
+:root{--ink:#111827;--ink2:#4b5563;--ink3:#9ca3af;--line:#e5e7eb;--line2:#f1f3f6;--accent:#ff7a1a;--accent-soft:#fff3e8;--accent-ink:#c2530a;--red:#be123c;--red-soft:#fff1f2;--blue:#ff7a1a;--gold-ink:#d95f0e;--today:#fff7ed;--weekend:#fbfbfd}
+*{box-sizing:border-box}
+html,body{margin:0;background:#f5f6f8;color:var(--ink);font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.45;-webkit-text-size-adjust:100%}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+
+/* ───── เดสก์ท็อป ───── */
+.desk{display:none;min-height:100vh;padding:24px}
+.app{max-width:1340px;margin:0 auto;background:#fff;border-radius:22px;box-shadow:0 18px 50px rgba(15,23,42,.12);display:grid;grid-template-columns:232px 1fr 300px;overflow:hidden}
+.side{background:#f6f7f9;border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.brand h1{margin:0;font-size:18px;font-weight:800}
+.sync{font-size:12px;color:#16a34a;margin-top:2px}
+.add{margin:14px 0 18px;height:42px;border-radius:14px;background:var(--blue);color:#fff;font-weight:700;font-size:15px;box-shadow:0 8px 18px rgba(255,122,26,.28)}
+.add:hover{filter:brightness(1.04)}
+.sec{font-size:15px;font-weight:800;color:var(--ink);margin:18px 6px 8px}
+.person{display:flex;align-items:center;gap:10px;height:40px;padding:0 10px;border-radius:12px;font-weight:700;font-size:14.5px;text-align:left;width:100%}
+.person:hover{background:#eceff3}
+.person.on{background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.08);color:var(--gold-ink)}
+.person .n{margin-left:auto;font-size:12px;color:var(--ink3);font-weight:700}
+.cat{display:flex;align-items:center;gap:9px;height:32px;padding:0 6px;font-size:14px;font-weight:600;color:var(--ink2);cursor:pointer}
+.cat input{width:15px;height:15px;accent-color:var(--c);margin:0}
+.cat .cn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.addone{margin-top:auto;padding-top:14px}
+.addbtn{width:100%;height:40px;border-radius:12px;border:1.5px dashed #ffb27a;background:#fffaf6;color:var(--accent-ink);font-weight:800;font-size:14px}
+.addbtn:hover{background:#fff3e8}
+.foot{font-size:11.5px;color:var(--ink3);margin-top:10px}
+.main{padding:22px 24px;min-width:0}
+.bar{display:flex;align-items:center;gap:10px;margin-bottom:16px}
+.bar h2{margin:0;font-size:22px;font-weight:800;letter-spacing:-.01em}
+.bar h2 span{color:var(--ink3);font-weight:700}
+.seg{margin-left:auto;display:inline-flex;background:#f0f2f5;border-radius:11px;padding:3px}
+.seg button{height:32px;padding:0 14px;border-radius:9px;font-weight:700;font-size:14px;color:var(--ink2)}
+.seg button.on{background:#fff;color:var(--gold-ink);box-shadow:0 1px 2px rgba(15,23,42,.1)}
+.btn{height:38px;padding:0 16px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:700;font-size:14px;color:var(--ink)}
+.btn:hover{border-color:#ffc9a3;background:#fffaf6}
+.iconb{width:38px;height:38px;border-radius:12px;border:1px solid var(--line);background:#fff;font-size:18px;font-weight:700;color:var(--ink2)}
+.iconb:hover{border-color:#ffc9a3;color:var(--gold-ink)}
+.wd{display:grid;grid-template-columns:repeat(7,1fr);font-size:12px;font-weight:700;color:var(--ink3);padding:0 2px 8px}
+.wd .we{color:#c8364b}
+.grid{display:grid;grid-template-columns:repeat(7,1fr);grid-auto-rows:minmax(96px,auto);border-top:1px solid var(--line)}
+.c{border-bottom:1px solid var(--line2);border-right:1px solid var(--line2);padding:8px 8px 6px;display:flex;flex-direction:column;gap:4px;min-width:0;cursor:pointer}
+.c:nth-child(7n){border-right:0}
+.c:hover{background:#fcfcfd}
+.c.out{background:#fafbfc;color:var(--ink3);cursor:default}
+.c.we .dn{color:#c8364b}
+.c.today{background:#eef4ff}
+.c.today .dn{background:var(--accent);color:#fff}
+.dn{font-size:13px;font-weight:700;width:24px;height:24px;display:grid;place-items:center;border-radius:50%}
+.ev{font-size:12px;padding:2px 6px;border-left:2px solid var(--c);color:var(--ink2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;border-radius:0 4px 4px 0;background:color-mix(in srgb,var(--c) 7%,#fff);text-align:left}
+.ev:hover{background:color-mix(in srgb,var(--c) 16%,#fff)}
+.more{font-size:11.5px;color:var(--ink3);font-weight:600;padding-left:6px}
+.right{background:#fff;border-left:1px solid var(--line);position:relative;min-width:0}
+.right-in{position:absolute;top:22px;bottom:18px;left:18px;right:18px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;scrollbar-width:thin}
+.right .lab{font-size:14px;color:var(--ink);font-weight:800;margin-top:4px}
+.empty{border:1.5px dashed #d6dbe3;border-radius:12px;padding:14px;color:var(--ink3);font-size:13px}
+.up{display:grid;grid-template-columns:44px 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line2);align-items:center;--c:#999;cursor:pointer}
+.up:first-of-type{border-top:0}
+.up .d{text-align:center;line-height:1.1}
+.up .d b{display:block;font-size:17px;font-weight:800}
+.up .d small{font-size:11.5px;color:var(--ink2);font-weight:700}
+.up .d.we b{color:#c8364b}
+.up .t{font-weight:700;font-size:13.5px;line-height:1.3}
+.up .s{font-size:12px;color:var(--c);font-weight:700;margin-top:2px}
+
+/* ───── มือถือ ───── */
+.mob{display:none;min-height:100vh;background:#f5f7fa;padding-bottom:110px}
+.mtop{padding:12px 14px 10px;background:#fff}
+.mtop h1{margin:0;font-size:18px;font-weight:800}
+.mo{display:flex;align-items:center;justify-content:space-between;margin-top:10px}
+.mo button{width:42px;height:42px;border-radius:14px;background:#fff;border:1px solid var(--line);font-size:18px}
+.mo b{font-size:16px;font-weight:700}
+.people{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:10px 14px 12px;background:#fff;border-bottom:1px solid var(--line)}
+.people::-webkit-scrollbar{display:none}
+.pill{flex:0 0 auto;height:40px;padding:0 15px;border-radius:999px;border:1px solid var(--line);font-weight:700;font-size:14px;background:#fff;box-shadow:0 1px 2px rgba(15,23,42,.05)}
+.pill.on{background:var(--ink);border-color:var(--ink);color:#fff;box-shadow:0 6px 14px rgba(17,24,39,.2)}
+.strip{display:flex;gap:7px;overflow-x:auto;scrollbar-width:none;padding:12px 14px 10px;background:#fff}
+.strip::-webkit-scrollbar{display:none}
+.dayb{flex:0 0 auto;width:50px;height:74px;border-radius:17px;background:#fff;box-shadow:0 1px 3px rgba(15,23,42,.07);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px}
+.dayb small{font-size:11px;color:var(--ink3);font-weight:600}
+.dayb b{font-size:18px;font-weight:800}
+.dayb.we b{color:#c8364b}
+.dayb.on{background:var(--ink);color:#fff;box-shadow:0 10px 20px rgba(17,24,39,.25)}
+.dayb.on small{color:#cbd5e1}
+.dayb.today:not(.on){box-shadow:inset 0 0 0 1.5px var(--accent)}
+.dots{display:flex;gap:3px;height:6px}
+.dots i{width:5px;height:5px;border-radius:50%}
+.dayh{padding:14px 16px 10px;display:flex;align-items:baseline;gap:8px}
+.dayh b{font-size:20px;font-weight:800}
+.dayh span{color:var(--ink2);font-size:13.5px}
+.mlist{padding:0 14px}
+.card{background:#fff;border-radius:18px;box-shadow:0 2px 10px rgba(15,23,42,.06);display:flex;overflow:hidden;margin-bottom:10px;cursor:pointer;text-align:left;width:100%}
+.card .bar2{width:6px;background:var(--c);flex:0 0 auto}
+.card .tx{padding:14px 16px 14px 14px;min-width:0}
+.card .tt{font-weight:700;font-size:16px;line-height:1.35}
+.card .mt{font-size:13px;color:var(--ink2);margin-top:2px}
+.tg{display:inline-block;margin-top:7px;font-size:11.5px;font-weight:700;padding:3px 9px;border-radius:999px;color:var(--c);background:color-mix(in srgb,var(--c) 13%,#fff)}
+.emptyd{text-align:center;color:var(--ink3);padding:40px 0}
+.tabs{position:fixed;left:0;right:0;bottom:0;height:76px;background:rgba(255,255,255,.97);box-shadow:0 -6px 18px rgba(15,23,42,.07);border-radius:22px 22px 0 0;display:grid;grid-template-columns:repeat(4,1fr);padding:8px 10px calc(10px + env(safe-area-inset-bottom,0px));z-index:20}
+.tabs button{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:11.5px;color:var(--ink3);font-weight:600}
+.tabs .ti{width:46px;height:30px;border-radius:15px;display:grid;place-items:center;font-size:17px}
+.tabs button.on{color:var(--accent)}
+.tabs button.on .ti{background:var(--accent-soft)}
+.fab{position:fixed;right:16px;bottom:96px;width:60px;height:60px;border-radius:22px;background:var(--accent);color:#fff;font-size:30px;box-shadow:0 14px 28px rgba(255,122,26,.4);display:grid;place-items:center;z-index:20}
+
+@media (max-width:820px){
+  .desk{display:none!important}
+  .mob{display:block}
+}
+@media (min-width:821px){
+  .desk{display:block}
+  .mob,.tabs,.fab{display:none!important}
+}
+@media (max-width:1100px) and (min-width:821px){ .app{grid-template-columns:200px 1fr} .right{display:none} }
+
+/* ───── ป๊อปอัปจัดการทีมและหมวด ───── */
+.mgr,.dlg{position:fixed;inset:0;background:rgba(15,23,42,.35);display:grid;place-items:center;z-index:50;padding:14px}
+.mgr[hidden],.dlg[hidden]{display:none}
+.mgr-box,.dlg-box{background:#fff;border-radius:18px;width:min(440px,100%);max-height:88vh;overflow:auto;box-shadow:0 30px 60px rgba(15,23,42,.25);padding:18px}
+.hd{display:flex;align-items:center;justify-content:space-between;font-size:17px;font-weight:800;margin-bottom:10px}
+.x{width:34px;height:34px;border-radius:10px;font-size:16px;color:var(--ink2)}
+.x:hover{background:#f1f3f6}
+.mg-sec{font-size:13px;font-weight:800;color:var(--ink2);margin:14px 2px 6px}
+.mg-row{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-radius:12px;background:#f8fafc;margin-bottom:6px;font-weight:700}
+.mg-row small{display:block;font-size:12px;color:var(--ink3);font-weight:600}
+.mg-row i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px}
+.mini{font-size:12.5px;font-weight:800;padding:6px 10px;border-radius:10px;background:#fff3e8;color:#c2530a;border:1px solid #ffd2ac}
+.mini.danger{background:#fff1f2;color:var(--red);border-color:#fecdd3}
+.mini:hover{filter:brightness(.98)}
+.addrow{width:100%;margin-top:4px;text-align:center;padding:9px;font-size:13.5px;border-style:dashed}
+.ro .addone,.ro .add,.ro .mini,.ro .fab,.ro .addrow,.ro .mg-row .mini{display:none!important}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:12px}
+.field span{font-size:12.5px;font-weight:700;color:var(--ink2)}
+.field input,.field select{height:40px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font-size:14.5px;background:#fff}
+.field input:focus,.field select:focus{outline:2px solid #ffd2ac;border-color:#ffb27a}
+.acts{display:flex;gap:8px;margin-top:6px}
+.acts .btn{flex:1}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.pri:hover{background:#f06a10}
+.btn.rd{background:var(--red-soft);color:var(--red);border-color:#fecdd3}
+.toast{position:fixed;left:50%;bottom:110px;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:12px;font-weight:700;font-size:13.5px;z-index:70;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.on{opacity:1}
+.notice{margin:10px 14px 0;padding:10px 12px;border-radius:12px;background:#fff7ed;color:#9a3412;font-size:13px}
+.notice[hidden]{display:none}
+</style>
+</head>
+<body>
+
+<!-- ═════ เดสก์ท็อป ═════ -->
+<div class="desk" id="desk">
+ <div class="app">
+  <aside class="side">
+    <div class="brand"><h1>Planner OPT-TR</h1><div class="sync" id="sync1">● กำลังเชื่อมต่อ</div></div>
+    <button class="add" id="addPlanBtn">+ เพิ่มแผน</button>
+    <div class="sec">ทีม</div>
+    <div id="team"></div>
+    <div class="sec">หมวด</div>
+    <div id="cats"></div>
+    <div class="addone"><button class="addbtn" id="addOne">+ เพิ่มทีม / หมวด</button></div>
+    <div class="foot">ทุกคนเห็นข้อมูลตรงกัน</div>
+  </aside>
+  <section class="main">
+    <div class="bar">
+      <h2 id="title"></h2>
+      <div class="seg" id="view"><button class="on" data-view="person">รายคน</button><button data-view="team">ทั้งทีม</button></div>
+      <button class="btn" id="today">วันนี้</button>
+      <button class="iconb" id="prev" aria-label="เดือนก่อน">‹</button>
+      <button class="iconb" id="next" aria-label="เดือนถัดไป">›</button>
+    </div>
+    <div class="wd" id="wd"></div>
+    <div class="grid" id="grid"></div>
+  </section>
+  <aside class="right"><div class="right-in">
+    <div class="lab" id="selLab"></div>
+    <div id="selBox"></div>
+    <div class="lab" id="upLab"></div>
+    <div id="up"></div>
+  </div></aside>
+ </div>
+</div>
+
+<!-- ═════ มือถือ ═════ -->
+<div class="mob" id="mob">
+  <div class="mtop">
+    <h1>Planner OPT-TR</h1>
+    <div class="mo"><button id="mprev" aria-label="เดือนก่อน">‹</button><b id="mtitle"></b><button id="mnext" aria-label="เดือนถัดไป">›</button></div>
+  </div>
+  <div class="notice" id="notice" hidden></div>
+  <div class="people" id="mpeople"></div>
+  <div class="strip" id="strip"></div>
+  <div class="dayh" id="dayh"></div>
+  <div class="mlist" id="cards"></div>
+</div>
+<nav class="tabs" id="tabs">
+  <button class="on" data-tab="cal"><span class="ti">📅</span>ปฏิทิน</button>
+  <button data-tab="today"><span class="ti">📌</span>วันนี้</button>
+  <button data-tab="team"><span class="ti">👥</span>ทีม</button>
+  <button data-tab="add"><span class="ti">＋</span>เพิ่มแผน</button>
+</nav>
+
+<!-- ป๊อปอัปจัดการทีมและหมวด -->
+<div class="mgr" id="mgr" hidden><div class="mgr-box">
+  <div class="hd"><span>จัดการทีมและหมวด</span><button class="x" id="mgrX" aria-label="ปิด">✕</button></div>
+  <div id="mgrBody"></div>
+</div></div>
+
+<!-- ป๊อปอัปแผน -->
+<div class="dlg" id="dlg" hidden><div class="dlg-box">
+  <div class="hd"><span id="dlgTitle">เพิ่มแผน</span><button class="x" id="dlgX" aria-label="ปิด">✕</button></div>
+  <label class="field"><span>คน</span><select id="fPerson"></select></label>
+  <label class="field"><span>วันที่</span><input type="date" id="fDate"></label>
+  <label class="field"><span>หมวด</span><select id="fType"></select></label>
+  <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ประชุม OPT-FS"></label>
+  <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
+  <div class="acts">
+    <button class="btn rd" id="fDel" hidden>ลบ</button>
+    <button class="btn" id="fCancel">ยกเลิก</button>
+    <button class="btn pri" id="fSave">บันทึก</button>
+  </div>
+</div></div>
+
+<div class="toast" id="toast"></div>
+
 <script>
-const TYPES = {
-  train:{th:"อบรม",c:"--t-train"}, meet:{th:"ประชุม",c:"--t-meet"}, visit:{th:"Visit / ตรวจสาขา",c:"--t-visit"},
-  ojt:{th:"OJT",c:"--t-ojt"}, office:{th:"Office / WFH",c:"--t-office"}, project:{th:"โปรเจกต์ / NPD",c:"--t-project"},
-  leave:{th:"ลา",c:"--t-leave"}, off:{th:"วันหยุด",c:"--t-off"}
-};
-const TH_M = ["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
-const TH_D = ["อา","จ","อ","พ","พฤ","ศ","ส"];
+/* ───── ค่าเริ่มต้น ───── */
 const DEFAULT_TEAM = ["พี่จอย","กาย","เบนซ์","พี่น้อย","ฟาง JD","พี่หนิง JD","ใบชา"];
-const $ = s => document.querySelector(s);
-const pad = n => String(n).padStart(2,"0");
-const iso = d => d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
-const todayISO = iso(new Date());
+const DEFAULT_CATS = [
+  {k:'train',l:'อบรม',c:'#6d5ef0'},{k:'meet',l:'ประชุม',c:'#c27700'},{k:'visit',l:'Visit / ตรวจสาขา',c:'#16804d'},
+  {k:'ojt',l:'OJT',c:'#0b7e8c'},{k:'office',l:'Office / WFH',c:'#5a6470'},{k:'project',l:'โปรเจกต์ / NPD',c:'#9b3fb5'},
+  {k:'leave',l:'ลา',c:'#c8364b'},{k:'off',l:'วันหยุด',c:'#9aa3a0'}
+];
+const DOW=['จ','อ','พ','พฤ','ศ','ส','อา'], DOWF=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์','อาทิตย์'];
+const TH=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
-let st = { y:new Date().getFullYear(), m:new Date().getMonth(), view:"person", person:null, team:DEFAULT_TEAM.slice(), plans:[], canWrite:true, live:false };
-try{ const s=JSON.parse(localStorage.getItem("planner-ui")||"{}"); if(s.view) st.view=s.view; if(s.person) st.person=s.person; }catch(e){}
-if(!st.person) st.person = st.team[0];
-function saveUI(){ try{ localStorage.setItem("planner-ui",JSON.stringify({view:st.view,person:st.person})); }catch(e){} }
+/* ───── สถานะ ───── */
+let db=null, unsubMonth=null, unsubTeam=null, unsubCats=null;
+let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
+let plans=[];
+let Y=new Date().getFullYear(), M=new Date().getMonth();
+let person=null, mode='person', sel=null, mSel=null, mTab='cal', canWrite=false, editingId=null;
+const todayISO=()=>{ const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); };
+const mkey=()=>Y+'-'+String(M+1).padStart(2,'0');
+const catOf=k=>cats.find(c=>c.k===k)||{k,l:k,c:'#9ca3af'};
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const $=id=>document.getElementById(id);
+function toast(t){ const el=$('toast'); el.textContent=t; el.classList.add('on'); clearTimeout(toast._t); toast._t=setTimeout(()=>el.classList.remove('on'),1800); }
+function mon(d){ return (new Date(Y,M,1).getDay()+6)%7; }
+function nDays(){ return new Date(Y,M+1,0).getDate(); }
+function wkend(d){ return ((mon()+d-1)%7)>4; }
+function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&cats.some(c=>c.k===p.type)); }
+function byDay(){ const m={}; visible().forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
 
-let db=null, unsubMonth=null;
-const monthKey = () => st.y+"-"+pad(st.m+1);
-
-function esc(s){ return String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
-function toast(t){ const el=document.createElement("div"); el.className="toast"; el.textContent=t; document.body.appendChild(el); setTimeout(()=>el.remove(),2200); }
-
-function pill(p){
-  const t=TYPES[p.type]||TYPES.project;
-  return `<button type="button" class="pill ${p.type==="off"?"off":""}" style="--c:var(${t.c})" data-id="${esc(p.id)}">${esc(p.title)}${p.place?`<small>@ ${esc(p.place)}</small>`:""}</button>`;
+/* ───── ส่วนแสดงผล ───── */
+function paintHead(){
+  $('title').innerHTML=`${TH[M]} <span>${Y+543}</span>`;
+  $('mtitle').textContent=`${TH[M]} ${Y+543}`;
+  $('wd').innerHTML=DOW.map((d,i)=>`<div class="${i>4?'we':''}" style="padding-left:8px">${d}</div>`).join('');
+  document.querySelectorAll('#view button').forEach(b=>b.classList.toggle('on',b.dataset.view===mode));
 }
-function plansFor(person,date){ return st.plans.filter(p=>p.person===person&&p.date===date); }
-
-function render(){
-  $("#mlabel").textContent = TH_M[st.m]+" "+(st.y+543);
-  $("#vPerson").setAttribute("aria-pressed",st.view==="person");
-  $("#vTeam").setAttribute("aria-pressed",st.view==="team");
-  $("#addBtn").disabled = !st.canWrite || !db;
-  // people chips
-  const pe=$("#people");
-  pe.hidden = st.view!=="person";
-  pe.innerHTML = st.team.map(n=>`<button type="button" aria-pressed="${n===st.person}" data-p="${esc(n)}">${esc(n)}</button>`).join("") +
-    (st.canWrite&&db?`<button type="button" id="editTeam" style="border-style:dashed;color:var(--muted)">แก้ไขทีม</button>`:"");
-  // summary
-  const scope = st.view==="person" ? st.plans.filter(p=>p.person===st.person) : st.plans.filter(p=>st.team.includes(p.person));
-  const counts={}; scope.forEach(p=>{ counts[p.type]=(counts[p.type]||0)+1; });
-  const label = st.view==="person" ? st.person : "ทั้งทีม";
-  $("#summary").innerHTML = `<div class="stat"><span>${esc(label)} · ${TH_M[st.m]}</span><b>${scope.length}</b><span>รายการ</span></div>` +
-    Object.keys(TYPES).filter(k=>counts[k]).map(k=>`<div class="stat" style="--c:var(${TYPES[k].c})"><i></i><span>${TYPES[k].th}</span><b>${counts[k]}</b></div>`).join("");
-  $("#legend").innerHTML = Object.entries(TYPES).map(([k,t])=>`<span style="--c:var(${t.c})"><i></i>${t.th}</span>`).join("");
-  st.view==="person" ? renderCal() : renderTeam();
+function paintTeam(){
+  const html=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<button class="person ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}<span class="n">${c}</span></button>`; }).join('');
+  $('team').innerHTML=html;
+  $('mpeople').innerHTML=`<button class="pill ${!person?'on':''}" data-p="">ทั้งทีม</button>`+team.map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
 }
-
-function renderCal(){
-  const first=new Date(st.y,st.m,1), days=new Date(st.y,st.m+1,0).getDate();
-  const lead=(first.getDay()+6)%7; // Monday first
-  let h=["จ","อ","พ","พฤ","ศ","ส","อา"].map(d=>`<div class="dow">${d}</div>`).join("");
-  for(let i=0;i<lead;i++) h+=`<div class="day blank" aria-hidden="true"></div>`;
-  for(let d=1;d<=days;d++){
-    const dt=new Date(st.y,st.m,d), ds=iso(dt), wd=dt.getDay();
-    const items=plansFor(st.person,ds);
-    const hol=items.some(p=>p.type==="off");
-    h+=`<div class="day ${wd===0||wd===6?"wk":""} ${hol?"hol":""} ${ds===todayISO?"today":""}" data-date="${ds}" tabindex="0" role="button" aria-label="${d} ${TH_M[st.m]}">
-      <div class="dnum"><b>${d}</b><span class="lbl">${TH_D[wd]}</span>${st.canWrite&&db?`<span class="add">+</span>`:""}</div>
-      <div class="list">${items.map(pill).join("")}</div></div>`;
+function paintCats(){
+  $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" checked><span class="cn">${esc(c.l)}</span></label>`).join('');
+}
+function evHtml(p){ const c=catOf(p.type); return `<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(p.title)}">${mode==='team'?esc(p.person)+' · ':''}${esc(p.title)}</button>`; }
+function paintGrid(){
+  const m=byDay(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
+  let h='';
+  for(let i=0;i<off;i++) h+=`<div class="c out"><span class="dn">${prev-off+1+i}</span></div>`;
+  const t=todayISO();
+  for(let d=1; d<=n; d++){
+    const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const list=m[d]||[];
+    const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${list.slice(0,3).map(evHtml).join('')}${list.length>3?`<div class="more">+${list.length-3} รายการ</div>`:''}</div>`;
   }
-  const tail=(7-((lead+days)%7))%7;
-  for(let i=0;i<tail;i++) h+=`<div class="day blank" aria-hidden="true"></div>`;
-  $("#view").innerHTML=`<div class="cal">${h}</div>`;
+  const rest=(7-((off+n)%7))%7;
+  for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
+  $('grid').innerHTML=h;
 }
-
-function renderTeam(){
-  const days=new Date(st.y,st.m+1,0).getDate();
-  let h=`<thead><tr><th class="d">วันที่</th>${st.team.map(n=>`<th>${esc(n)}</th>`).join("")}</tr></thead><tbody>`;
-  for(let d=1;d<=days;d++){
-    const dt=new Date(st.y,st.m,d), ds=iso(dt), wd=dt.getDay();
-    h+=`<tr class="${wd===0||wd===6?"wk":""} ${ds===todayISO?"today":""}"><td class="d">${TH_D[wd]} ${pad(d)}</td>`+
-      st.team.map(n=>`<td class="c ${plansFor(n,ds).some(p=>p.type==="off")?"hol":""}" data-date="${ds}" data-person="${esc(n)}"><div class="stack">${plansFor(n,ds).map(pill).join("")}</div></td>`).join("")+`</tr>`;
-  }
-  $("#view").innerHTML=`<div class="tablebox"><table>${h}</tbody></table></div>`;
-  const t=$("#view tr.today"); if(t) t.scrollIntoView({block:"nearest"});
+function paintRight(){
+  const d=sel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
+  const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  const list=visible().filter(p=>p.date===iso);
+  $('selLab').textContent=`${iso===todayISO()?'วันนี้ · ':''}${DOWF[(mon()+d-1)%7]} ${d} ${TH[M]}`;
+  $('selBox').innerHTML=list.length?list.map(p=>cardRow(p,true)).join(''):`<div class="empty">ไม่มีแผนวันนี้<br>กดที่วันเพื่อเพิ่มแผน</div>`;
+  const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
+  $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
+  $('up').innerHTML=later.map(p=>{ const day=+p.date.slice(8,10), we=wkend(day); return `<div class="up" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="d ${we?'we':''}"><b>${day}</b><small>${DOW[(mon()+day-1)%7]}</small></div><div><div class="t">${esc(p.title)}</div><div class="s">${esc(catOf(p.type).l)}${mode==='team'||!person?' · '+esc(p.person):''}</div></div></div>`; }).join('');
 }
-
-/* ---------- dialog ---------- */
-let editing=null, selType="train";
-function typeChips(){
-  $("#fType").innerHTML=Object.entries(TYPES).map(([k,t])=>`<button type="button" style="--c:var(${t.c})" aria-pressed="${k===selType}" data-t="${k}"><i></i>${t.th}</button>`).join("");
+function cardRow(p,desk){
+  const c=catOf(p.type);
+  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(p.title)}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
 }
-function openDlg({date,person,plan}){
-  if(!db) return;
-  if(!st.canWrite && !plan) return;
-  editing=plan||null;
-  $("#fPerson").innerHTML=st.team.map(n=>`<option>${esc(n)}</option>`).join("");
-  $("#fPerson").value=plan?plan.person:(person||st.person);
-  $("#fDate").value=plan?plan.date:(date||todayISO);
-  $("#fTo").value="";
-  $("#rangeRow").hidden=!!plan;
-  selType=plan?plan.type:"train"; typeChips();
-  $("#fTitle").value=plan?plan.title:"";
-  $("#fPlace").value=plan?plan.place||"":"";
-  $("#dlgTitle").textContent=plan?"แก้ไขแผนงาน":"เพิ่มแผนงาน";
-  $("#delBtn").hidden=!plan||!st.canWrite;
-  $("#saveBtn").disabled=!st.canWrite;
-  [...$("#form").elements].forEach(e=>{ if(e.id!=="cancelBtn") e.disabled=!st.canWrite; });
-  $("#dlg").showModal(); setTimeout(()=>$("#fTitle").focus(),30);
+function paintStrip(){
+  const m=byDay(), n=nDays(), d0=mSel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
+  mSel=d0;
+  $('strip').innerHTML=Array.from({length:n},(_,i)=>i+1).map(d=>{
+    const list=m[d]||[], dots=list.slice(0,3).map(p=>`<i style="background:${catOf(p.type).c}"></i>`).join('');
+    const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    return `<button class="dayb ${wkend(d)?'we':''} ${d===d0?'on':''} ${iso===todayISO()&&d!==d0?'today':''}" data-md="${d}"><small>${DOW[(mon()+d-1)%7]}</small><b>${d}</b><span class="dots">${dots}</span></button>`;
+  }).join('');
+  const act=document.querySelector('.dayb.on'); if(act) act.scrollIntoView({inline:'center',block:'nearest'});
+  const dow=(mon()+d0-1)%7;
+  $('dayh').innerHTML=`<b>${d0} ${TH[M]}</b><span>วัน${DOWF[dow]}${`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`===todayISO()?' · วันนี้':''}</span>`;
+  const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
+  const list=visible().filter(p=>p.date===iso);
+  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<button class="card" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="bar2"></div><div class="tx"><div class="tt">${esc(p.title)}</div><div class="mt">${mode==='team'||!person?esc(p.person)+(p.place?' · '+esc(p.place):''):esc(p.place||'ไม่ระบุสถานที่')}</div><span class="tg">${esc(c.l)}</span></div></button>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
 }
-$("#fType").addEventListener("click",e=>{ const b=e.target.closest("button[data-t]"); if(!b) return; selType=b.dataset.t; typeChips();
-  if(selType==="off"&&!$("#fTitle").value) $("#fTitle").value="OFF"; });
-$("#cancelBtn").onclick=()=>$("#dlg").close();
-
-$("#form").addEventListener("submit",async e=>{
-  e.preventDefault();
-  const title=$("#fTitle").value.trim(); if(!title) return;
-  const base={person:$("#fPerson").value,type:selType,title,place:$("#fPlace").value.trim().replace(/^@\s*/,""),updatedAt:new Date().toISOString()};
-  $("#saveBtn").disabled=true;
-  try{
-    if(editing){
-      const date=$("#fDate").value;
-      await db.collection("plans").doc(editing.id).set({...base,date,month:date.slice(0,7)});
-    }else{
-      const from=new Date($("#fDate").value+"T00:00"), toV=$("#fTo").value;
-      const to=toV?new Date(toV+"T00:00"):from;
-      if(to<from){ toast("วันสิ้นสุดต้องไม่ก่อนวันเริ่ม"); $("#saveBtn").disabled=false; return; }
-      const dates=[]; for(let d=new Date(from);d<=to;d.setDate(d.getDate()+1)) dates.push(iso(d));
-      if(dates.length>62){ toast("ลงได้ครั้งละไม่เกิน 62 วัน"); $("#saveBtn").disabled=false; return; }
-      for(const date of dates) await db.collection("plans").add({...base,date,month:date.slice(0,7)});
-    }
-    $("#dlg").close(); toast("บันทึกแล้ว");
-  }catch(err){ failWrite(err); }
-  $("#saveBtn").disabled=false;
-});
-$("#delBtn").onclick=async()=>{
-  if($("#delBtn").dataset.confirm!=="1"){ $("#delBtn").dataset.confirm="1"; $("#delBtn").textContent="กดอีกครั้งเพื่อยืนยัน"; return; }
-  try{ await db.collection("plans").doc(editing.id).delete(); $("#dlg").close(); toast("ลบแล้ว"); }catch(err){ failWrite(err); }
-};
-$("#dlg").addEventListener("close",()=>{ $("#delBtn").dataset.confirm=""; $("#delBtn").textContent="ลบรายการ"; });
-function failWrite(err){
-  if(err&&err.code==="invalid_argument"){ st.canWrite=false; render(); toast("บัญชีนี้ดูได้อย่างเดียว แก้ไขไม่ได้"); }
-  else toast("บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");
+function paintMgr(){
+  $('mgrBody').innerHTML=`
+    <div class="mg-sec">ทีม</div>
+    ${team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><span>${esc(n)}<small>${c} แผน</small></span><button class="mini danger" data-tdel="${esc(n)}">ลบ</button></div>`; }).join('')}
+    <button class="mini addrow" id="addTeam">+ เพิ่มทีม</button>
+    <div class="mg-sec">หมวด</div>
+    ${cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span><i style="background:${c.c}"></i>${esc(c.l)}<small>${n} แผน</small></span><span><button class="mini" data-cedit="${esc(c.k)}">แก้ไข</button> <button class="mini danger" data-cdel="${esc(c.k)}">ลบ</button></span></div>`; }).join('')}
+    <button class="mini addrow" id="addCat">+ เพิ่มหมวด</button>`;
 }
+function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); }
 
-/* ---------- team ---------- */
-function renderTeamList(){
-  $("#teamList").innerHTML=st.team.map((n,i)=>`<div><span>${esc(n)}</span><button type="button" data-i="${i}" aria-label="ลบ ${esc(n)}">ลบ</button></div>`).join("");
-}
-async function saveTeam(next){ try{ await db.doc("config/team").set({members:next}); }catch(err){ failWrite(err); } }
-$("#teamList").addEventListener("click",e=>{ const b=e.target.closest("button[data-i]"); if(!b) return; const next=st.team.filter((_,i)=>i!==+b.dataset.i); st.team=next; renderTeamList(); saveTeam(next); });
-$("#addMember").onclick=()=>{ const v=$("#newMember").value.trim(); if(!v||st.team.includes(v)) return; const next=[...st.team,v]; st.team=next; $("#newMember").value=""; renderTeamList(); saveTeam(next); };
-$("#teamDone").onclick=()=>{ $("#teamDlg").close(); render(); };
-
-/* ---------- events ---------- */
-$("#people").addEventListener("click",e=>{
-  if(e.target.id==="editTeam"){ renderTeamList(); $("#teamDlg").showModal(); return; }
-  const b=e.target.closest("button[data-p]"); if(!b) return; st.person=b.dataset.p; saveUI(); render();
-});
-$("#view").addEventListener("click",e=>{
-  const p=e.target.closest(".pill"); if(p){ const plan=st.plans.find(x=>x.id===p.dataset.id); if(plan) openDlg({plan}); return; }
-  if(!st.canWrite) return;
-  const cell=e.target.closest("[data-date]"); if(!cell) return;
-  openDlg({date:cell.dataset.date,person:cell.dataset.person});
-});
-$("#view").addEventListener("keydown",e=>{ if((e.key==="Enter"||e.key===" ")&&e.target.matches(".day[data-date]")){ e.preventDefault(); if(st.canWrite) openDlg({date:e.target.dataset.date}); } });
-function shift(n){ const d=new Date(st.y,st.m+n,1); st.y=d.getFullYear(); st.m=d.getMonth(); render(); subscribeMonth(); }
-$("#prev").onclick=()=>shift(-1); $("#next").onclick=()=>shift(1);
-$("#todayBtn").onclick=()=>{ const n=new Date(); st.y=n.getFullYear(); st.m=n.getMonth(); render(); subscribeMonth(); };
-$("#vPerson").onclick=()=>{ st.view="person"; saveUI(); render(); };
-$("#vTeam").onclick=()=>{ st.view="team"; saveUI(); render(); };
-$("#addBtn").onclick=()=>openDlg({});
-
-/* ---------- font ---------- */
-function applyFont(f){
-  const stack=`"${f}","Noto Sans Thai",system-ui,sans-serif`;
-  const rs=document.documentElement.style;
-  rs.setProperty("--f-body",stack);
-  rs.setProperty("--f-display",f==="Sarabun"||f==="Anuphan"||f==="IBM Plex Sans Thai"?`"Prompt",${stack}`:stack);
-  rs.setProperty("--f-mono",stack);
-  $("#fontSel").value=f;
-}
-let font="Noto Sans Thai"; try{ font=localStorage.getItem("planner-font")||"Noto Sans Thai"; }catch(e){}
-applyFont(font);
-$("#fontSel").addEventListener("change",e=>{ applyFont(e.target.value); try{ localStorage.setItem("planner-font",e.target.value); }catch(err){} });
-
-/* ---------- data ---------- */
+/* ───── ข้อมูล (Supabase FAB HUB · planner_docs) ───── */
+async function saveTeam(next){ team=next; await db.doc('config/team').set({members:next}); }
+async function saveCats(next){ cats=next; await db.doc('config/cats').set({items:next}); }
+async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
+async function delPlan(id){ await db.collection('plans').doc(id).delete(); }
 function subscribeMonth(){
-  if(!db) return;
   if(unsubMonth) unsubMonth();
-  const mk=monthKey();
-  st.plans=[]; render();
-  unsubMonth=db.collection("plans").where("month","==",mk).onSnapshot(snap=>{
-    if(mk!==monthKey()) return;
-    st.plans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>(a.updatedAt||"").localeCompare(b.updatedAt||""));
-    $("#sync").textContent="ซิงก์แล้ว · ทุกคนเห็นตรงกัน";
-    render();
-  },()=>{ $("#sync").textContent="การเชื่อมต่อหลุด รีเฟรชหน้า"; });
+  const k=mkey();
+  unsubMonth=db.collection('plans').where('month','==',k).onSnapshot(snap=>{
+    if(k!==mkey()) return;
+    plans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
+    $('sync1').textContent='● ซิงก์แล้ว';
+    paintAll();
+  },()=>{ $('sync1').textContent='● การเชื่อมต่อหลุด'; });
 }
 
-/* ---------- ฐานข้อมูล: Supabase FAB HUB (ตาราง planner_docs) ----------
-   ทำให้ใช้ db.collection / db.doc แบบเดิมได้ · โหลดทั้งหมดแล้วรีเฟรชทุก 20 วินาที
-   สิทธิ์แก้ไข: admin และ support (อ่านได้ทุกคนที่ล็อกอินฮับ) */
-const PLDB = (() => {
-  let sb = null, cache = {}, listeners = [], who = '';
-  const sess = () => { try { return JSON.parse(localStorage.getItem('fab_session') || 'null'); } catch (e) { return null; } };
-  const role = () => String((sess() && sess().role) || sessionStorage.getItem('fab_role') || '').toLowerCase();
-  const emit = () => listeners.slice().forEach(f => { try { f(); } catch (e) {} });
-  async function refresh() {
-    const r = await sb.from('planner_docs').select('col,id,data').eq('deleted', false).limit(5000);
-    if (r.error) throw r.error;
-    const c = {};
-    r.data.forEach(x => { (c[x.col] = c[x.col] || {})[x.id] = x.data; });
-    cache = c; emit();
-  }
-  async function write(col, id, data) {
-    const r = await sb.from('planner_docs').upsert({ col, id, data, deleted: false, updated_at: new Date().toISOString(), updated_by: who });
-    if (r.error) throw r.error;
-    (cache[col] = cache[col] || {})[id] = data; emit();
-  }
-  async function remove(col, id) {
-    const r = await sb.from('planner_docs').update({ deleted: true, updated_at: new Date().toISOString(), updated_by: who }).eq('col', col).eq('id', id);
-    if (r.error) throw r.error;
-    if (cache[col]) delete cache[col][id];
-    emit();
-  }
-  const watch = (run) => { listeners.push(run); run(); return () => { listeners = listeners.filter(x => x !== run); }; };
-  const docRef = (col, id) => ({
-    set: data => write(col, id, data),
-    delete: () => remove(col, id),
-    onSnapshot(cb, err) {
-      return watch(() => { try { const d = (cache[col] || {})[id]; cb({ exists: !!d, data: () => d || {} }); } catch (e) { if (err) err(e); } });
-    }
-  });
-  const collection = name => ({
-    doc: id => docRef(name, id),
-    add: async data => { const id = 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); await write(name, id, data); return { id }; },
-    where: (field, op, value) => ({
-      onSnapshot(cb, err) {
-        return watch(() => {
-          try {
-            const all = cache[name] || {};
-            const docs = Object.keys(all).filter(id => op === '==' ? all[id][field] === value : true)
-              .map(id => ({ id, data: () => all[id] }));
-            cb({ docs });
-          } catch (e) { if (err) err(e); }
-        });
-      }
-    })
-  });
-  return {
-    canWrite: () => ['admin', 'support'].includes(role()),
-    async open() {
-      who = (sess() && (sess().nick || sess().name)) || role();
-      try {
-        if (!(await HubMod.SB.ready())) return null;
-        sb = HubMod.SB.client();
-        await refresh();
-        setInterval(() => refresh().catch(() => {}), 20000);
-        window.addEventListener('focus', () => refresh().catch(() => {}));
-        return { collection, doc: path => { const [c, i] = path.split('/'); return docRef(c, i); } };
-      } catch (e) { return null; }
-    }
-  };
-})();
+/* ───── ป๊อปอัปแผน ───── */
+function openPlanDlg(id,dateIso){
+  editingId=id||null;
+  const p=id?plans.find(x=>x.id===id):null;
+  $('dlgTitle').textContent=p?'แก้ไขแผน':'เพิ่มแผน';
+  $('fPerson').innerHTML=team.map(n=>`<option ${(p?p.person:(person||team[0]))===n?'selected':''}>${esc(n)}</option>`).join('');
+  $('fType').innerHTML=cats.map(c=>`<option value="${esc(c.k)}" ${(p?p.type:cats[0]&&cats[0].k)===c.k?'selected':''}>${esc(c.l)}</option>`).join('');
+  $('fDate').value=p?p.date:(dateIso||todayISO());
+  $('fTitle').value=p?p.title:'';
+  $('fPlace').value=p?(p.place||''):'';
+  $('fDel').hidden=!p;
+  $('dlg').hidden=false;
+  setTimeout(()=>$('fTitle').focus(),50);
+}
+function closeDlg(){ $('dlg').hidden=true; }
+async function saveDlg(){
+  const title=$('fTitle').value.trim(), date=$('fDate').value;
+  if(!title){ toast('กรอกหัวข้อก่อน'); return; }
+  if(!date){ toast('เลือกวันที่ก่อน'); return; }
+  const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+  const data={person:$('fPerson').value,date,month:date.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
+  try{ await savePlan(id,data); closeDlg(); toast('บันทึกแล้ว'); }
+  catch(e){ toast('บันทึกไม่สำเร็จ'); }
+}
 
+/* ───── การกระทำ ───── */
+function shift(n){ const d=new Date(Y,M+n,1); Y=d.getFullYear(); M=d.getMonth(); sel=null; mSel=null; subscribeMonth(); paintAll(); }
+function goToday(){ const n=new Date(); Y=n.getFullYear(); M=n.getMonth(); sel=n.getDate(); mSel=n.getDate(); subscribeMonth(); paintAll(); }
+
+document.addEventListener('click',async e=>{
+  const t=e.target;
+  if(t.closest('#prev')) return shift(-1);
+  if(t.closest('#next')) return shift(1);
+  if(t.closest('#mprev')) return shift(-1);
+  if(t.closest('#mnext')) return shift(1);
+  if(t.closest('#today')) return goToday();
+  if(t.closest('#addPlanBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,sel?`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`:null); }
+  if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
+  if(t.id==='dlg') return closeDlg();
+  if(t.closest('#fSave')) return saveDlg();
+  if(t.closest('#fDel')){ if(!editingId) return; if(!confirm('ลบแผนนี้?')) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
+  const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
+  const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); return; }
+  const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards')){ if(canWrite) openPlanDlg(ev.dataset.id); return; }
+  const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
+  const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); return; }
+  if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
+  if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); return; }
+  if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
+  const tdel=t.closest('[data-tdel]');
+  if(tdel){ const n=tdel.dataset.tdel, c=plans.filter(p=>p.person===n).length; if(!confirm(`ลบ ${n} ออกจากทีม?`+(c?`\nมีแผนของ ${n} อยู่ ${c} รายการ แผนจะยังอยู่ในระบบ`:''))) return; await saveTeam(team.filter(x=>x!==n)); if(person===n) person=null; toast('ลบทีมแล้ว'); return; }
+  if(t.closest('#addTeam')){ const name=(prompt('ชื่อสมาชิกใหม่')||'').trim(); if(!name) return; if(team.includes(name)) return toast('มีอยู่แล้ว'); await saveTeam([...team,name]); toast('เพิ่มทีมแล้ว'); return; }
+  const cedit=t.closest('[data-cedit]');
+  if(cedit){ const c=cats.find(x=>x.k===cedit.dataset.cedit); const name=(prompt('ชื่อหมวด',c.l)||'').trim(); if(!name) return; const col=(prompt('สีหมวด (เช่น #ff7a1a)',c.c)||'').trim(); const next=cats.map(x=>x.k===c.k?{...x,l:name,c:/^#[0-9a-f]{6}$/i.test(col)?col:x.c}:x); await saveCats(next); toast('บันทึกหมวดแล้ว'); return; }
+  const cdel=t.closest('[data-cdel]');
+  if(cdel){ const k=cdel.dataset.cdel, used=plans.filter(p=>p.type===k).length; if(used){ alert(`หมวดนี้มีแผนอยู่ ${used} รายการ ย้ายแผนไปหมวดอื่นก่อนจึงจะลบได้`); return; } if(!confirm('ลบหมวดนี้?')) return; await saveCats(cats.filter(x=>x.k!==k)); toast('ลบหมวดแล้ว'); return; }
+  if(t.closest('#addCat')){ const name=(prompt('ชื่อหมวดใหม่')||'').trim(); if(!name) return; const col=(prompt('สีหมวด (เช่น #2563eb)','#2563eb')||'').trim(); const k='c'+Date.now().toString(36); await saveCats([...cats,{k,l:name,c:/^#[0-9a-f]{6}$/i.test(col)?col:'#2563eb'}]); toast('เพิ่มหมวดแล้ว'); return; }
+  const tab=t.closest('#tabs button');
+  if(tab){ document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b===tab)); const k=tab.dataset.tab;
+    if(k==='today'){ const n=new Date(); Y=n.getFullYear(); M=n.getMonth(); mSel=n.getDate(); subscribeMonth(); paintAll(); }
+    if(k==='add'){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
+    if(k==='team'){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('mgr').hidden=false; paintMgr(); }
+    return;
+  }
+});
+document.addEventListener('change',async e=>{
+  const c=e.target.closest('[data-c]'); if(!c) return;
+});
+
+/* ───── เริ่มต้น ───── */
 async function start(){
-  render();
-  db = await PLDB.open();
-  if(!db){
-    $("#sync").textContent="ออฟไลน์";
-    const n=$("#notice"); n.hidden=false;
-    n.textContent="ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่ แล้วรีเฟรชอีกครั้ง";
-    render(); return;
+  const sb = window.supabase ? null : null;
+  try{
+    if(!(await HubMod.SB.ready())) throw new Error('no db');
+    const client=HubMod.SB.client();
+    const sess=(()=>{ try{ return JSON.parse(localStorage.getItem('fab_session')||'null'); }catch(e){ return null; } })();
+    const role=String((sess&&sess.role)||sessionStorage.getItem('fab_role')||'').toLowerCase();
+    canWrite=['admin','support'].includes(role);
+    db=makeDb(client);
+  }catch(e){
+    $('sync1').textContent='● ออฟไลน์';
+    $('notice').hidden=false; $('notice').textContent='ยังเชื่อมต่อฐานข้อมูลฮับไม่ได้ ลองรีเฟรชหน้า หรือล็อกอินฮับใหม่';
+    paintAll(); return;
   }
-  st.canWrite = PLDB.canWrite();
-  if(!st.canWrite){ const n=$("#notice"); n.hidden=false; n.textContent="คุณมีสิทธิ์ดูอย่างเดียว ถ้าต้องแก้ไขแผน ให้เจ้าของหน้านี้แชร์สิทธิ์ Contributor ให้"; }
-  db.doc("config/team").onSnapshot(s=>{
-    const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null;
-    if(m&&m.length){ st.team=m.slice(); if(!st.team.includes(st.person)) st.person=st.team[0]; render(); }
-  },()=>{});
+  if(!canWrite){ $('notice').hidden=false; $('notice').textContent='คุณมีสิทธิ์ดูอย่างเดียว ถ้าต้องแก้ไขแผน ให้แอดมินหรือ Support เป็นผู้แก้'; }
+  unsubTeam=db.doc('config/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
+  unsubCats=db.doc('config/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
+  const n=new Date(); sel=n.getDate(); mSel=n.getDate();
   subscribeMonth();
+  paintAll();
 }
+
+/* ตัวต่อฐานข้อมูลแบบเดียวกับ Firestore ที่หน้าเดิมใช้ (collection/doc/where/onSnapshot) */
+function makeDb(sb){
+  let cache={}, listeners=[];
+  const emit=()=>listeners.slice().forEach(f=>{ try{ f(); }catch(e){} });
+  const who=(()=>{ try{ const s=JSON.parse(localStorage.getItem('fab_session')||'null'); return (s&&(s.nick||s.name))||''; }catch(e){ return ''; } })();
+  async function refresh(){ const r=await sb.from('planner_docs').select('col,id,data').eq('deleted',false).limit(5000); if(r.error) throw r.error; const c={}; r.data.forEach(x=>{ (c[x.col]=c[x.col]||{})[x.id]=x.data; }); cache=c; emit(); }
+  async function write(col,id,data){ const r=await sb.from('planner_docs').upsert({col,id,data,deleted:false,updated_at:new Date().toISOString(),updated_by:who}); if(r.error) throw r.error; (cache[col]=cache[col]||{})[id]=data; emit(); }
+  async function remove(col,id){ const r=await sb.from('planner_docs').update({deleted:true,updated_at:new Date().toISOString(),updated_by:who}).eq('col',col).eq('id',id); if(r.error) throw r.error; if(cache[col]) delete cache[col][id]; emit(); }
+  const watch=run=>{ listeners.push(run); run(); return ()=>{ listeners=listeners.filter(x=>x!==run); }; };
+  const docRef=(col,id)=>({
+    set:data=>write(col,id,data),
+    delete:()=>remove(col,id),
+    onSnapshot(cb){ return watch(()=>{ const d=(cache[col]||{})[id]; cb({exists:!!d,data:()=>d||{}}); }); }
+  });
+  const collection=name=>({
+    doc:id=>docRef(name,id),
+    where:(f,op,v)=>({ onSnapshot(cb){ return watch(()=>{ const all=cache[name]||{}; const docs=Object.keys(all).filter(id=>op==='=='?all[id][f]===v:true).map(id=>({id,data:()=>all[id]})); cb({docs}); }); } })
+  });
+  refresh().catch(()=>{});
+  setInterval(()=>refresh().catch(()=>{}),20000);
+  window.addEventListener('focus',()=>refresh().catch(()=>{}));
+  return { collection, doc:path=>{ const [c,i]=path.split('/'); return docRef(c,i); } };
+}
+
+/* ตอนนี้ตัว refresh จะเรียกจากฐาน; ให้ปุ่มเริ่มใช้งานพร้อมกันทุกหน้าจอ */
+document.body.classList.add('ro');
 start();
 </script>
+</body>
+</html>
