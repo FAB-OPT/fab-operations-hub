@@ -443,7 +443,7 @@ const canEditPlan=p=>canMgr||(canWrite&&!!owner&&p.person===owner);
 /* คนที่ผูกกับระบบ Visit: ชื่อผู้ตรวจ (trainer) และแบรนด์ที่ล็อกไว้ */
 const HUB_CONFIG_URL='https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
 const VISIT_OWNER={'กาย':{trainer:'กันตภณ ลาภมงคลนาวิน',brand:'santafe'},'ฟาง':{trainer:'วัชระ อารีเอื้อ',brand:'jaedaeng'},'พี่หนิง':{trainer:'ไพรวัลย์ กิ่งทุม',brand:'jaedaeng'}};
-let BRANCHES={jaedaeng:[],santafe:[]};
+let BRANCHES={jaedaeng:[],santafe:[],yamachan:[],topsecret:[]};
 /* ทะเบียนสาขาจากฮับ (แหล่งกลาง) ใช้ชุดเดียวกับระบบ Visit */
 async function loadBranches(){
   try{
@@ -458,6 +458,13 @@ async function loadBranches(){
     const sf=res.branches;
     if(sf&&sf.branches){ const st=sf.statusMap||{}, bz=sf.bzmMap||{};
       BRANCHES.santafe=Object.keys(sf.branches).filter(c=>String(c).startsWith('50')&&st[c]!=='closed').sort().map(c=>({name:`${c} ${sf.branches[c]}`.trim(), bzm:bzmName(bz[c])}));
+      /* ยามะจัง (รหัส 60) และ Top Secret จากทะเบียนสาขาเดียวกันของฮับ */
+      const bm=sf.brandMap||{};
+      Object.keys(sf.branches).filter(c=>st[c]!=='closed').sort().forEach(c=>{
+        const nm=String(sf.branches[c]||'').trim(), key=bm[c]||'';
+        const bk=(key==='topsecret'||/top\s*secret/i.test(nm))?'topsecret':((key==='yamachan'||String(c).startsWith('60'))?'yamachan':'');
+        if(bk) BRANCHES[bk].push({name:`${c} ${nm}`.trim(), bzm:bzmName(bz[c])});
+      });
     }
   }catch(err){}
 }
@@ -480,7 +487,7 @@ function syncBranchField(p){
     const want=p&&p.brand?p.brand:$('fLBrand').value;
     $('fLBrand').innerHTML=lb.map(x=>`<option value="${x.k}" ${x.k===want?'selected':''}>${esc(x.l)}</option>`).join('');
     const bk=$('fLBrand').value;
-    if(bk==='jaedaeng'||bk==='santafe'){
+    if((BRANCHES[bk]||[]).length){
       $('fLBranchW').hidden=true; $('fBranchW').hidden=false;
       $('fBranch').innerHTML=BRANCHES[bk].map(b=>`<option ${p&&p.branch===b.name?'selected':''}>${esc(b.name)}</option>`).join('');
     }else{
@@ -735,7 +742,7 @@ async function saveDlg(){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
       const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
-        const bk=$('fLBrand').value, bn=(bk==='jaedaeng'||bk==='santafe')?$('fBranch').value:$('fLBranch').value.trim();
+        const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
         await savePlan(id,{...data,brand:bk,branch:bn,title:`${LOCAL_BRAND_LABEL[bk]} · ${bn}`,place:LOCAL_BRAND_LABEL[bk]});
       }else if(data.type==='visit'){
