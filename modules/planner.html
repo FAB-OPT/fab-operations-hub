@@ -299,6 +299,10 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .field span{font-size:12.5px;font-weight:700;color:var(--ink2)}
 .field input,.field select{height:40px;border:1px solid var(--line);border-radius:12px;padding:0 12px;font-size:14.5px;background:#fff}
 .field input:focus,.field select:focus{outline:2px solid #ffd2ac;border-color:#ffb27a}
+.field[hidden]{display:none}
+.dchips{display:flex;flex-wrap:wrap;gap:6px}
+.dchips button{width:40px;height:40px;border-radius:12px;border:1px solid var(--line);background:#fff;font-weight:800;font-size:14px;color:var(--ink)}
+.dchips button.on{background:var(--accent);border-color:var(--accent);color:#fff}
 .acts{display:flex;gap:8px;margin-top:6px}
 .acts .btn{flex:1}
 .btn.pri{background:var(--accent);border-color:var(--accent);color:#fff}
@@ -386,7 +390,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
 <div class="dlg" id="dlg" hidden><div class="dlg-box">
   <div class="hd"><span id="dlgTitle">เพิ่มแผน</span><button class="x" id="dlgX" aria-label="ปิด">✕</button></div>
   <label class="field"><span>คน</span><select id="fPerson"></select></label>
-  <label class="field"><span>วันที่</span><input type="date" id="fDate"></label>
+  <label class="field" id="fDateW"><span>วันที่</span><input type="date" id="fDate"></label>
+  <div class="field" id="fDaysW" hidden><span>วันที่ (ติ๊กได้หลายวัน)</span><div class="dchips" id="fDays"></div></div>
   <label class="field"><span>หมวด</span><select id="fType"></select></label>
   <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ประชุม OPT-FS"></label>
   <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
@@ -447,6 +452,11 @@ async function loadBranches(){
 function syncBranchField(p){
   const isVisit=$('fType').value==='visit';
   $('fBranchW').hidden=!isVisit;
+  /* หมวด Visit เลือกได้เฉพาะคนที่ผูกกับระบบ Visit (กาย ฟาง พี่หนิง) */
+  const base=canMgr?team:[owner].filter(Boolean);
+  const names=isVisit?base.filter(n=>VISIT_OWNER[n]):base;
+  const cur=p?p.person:$('fPerson').value;
+  $('fPerson').innerHTML=names.map(n=>`<option ${cur===n?'selected':''}>${esc(n)}</option>`).join('');
   if(!isVisit) return;
   const v=VISIT_OWNER[$('fPerson').value];
   const list=v?BRANCHES[v.brand]:[];
@@ -653,6 +663,10 @@ function openPlanDlg(id,dateIso){
   $('fTitle').value=p?p.title:'';
   $('fPlace').value=p?(p.place||''):'';
   $('fDel').hidden=!p;
+  $('fDateW').hidden=!p?true:false;
+  $('fDaysW').hidden=!!p;
+  if(!p){ const d0=dateIso||todayISO(), ym=d0.slice(0,7), dd=+d0.slice(8,10), n=new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate();
+    $('fDays').innerHTML=Array.from({length:n},(_,i)=>`<button type="button" data-d="${i+1}" class="${i+1===dd?'on':''}">${i+1}</button>`).join(''); }
   syncBranchField(p);
   $('dlg').hidden=false;
   setTimeout(()=>$('fTitle').focus(),50);
@@ -661,21 +675,26 @@ function closeDlg(){ $('dlg').hidden=true; }
 async function saveDlg(){
   const title=$('fTitle').value.trim(), date=$('fDate').value;
   if(!title){ toast('กรอกหัวข้อก่อน'); return; }
-  if(!date){ toast('เลือกวันที่ก่อน'); return; }
+  /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
+  const picked=[...document.querySelectorAll('#fDays .on')].map(b=>b.dataset.d);
+  const dates=editingId?[date]:picked.map(d=>`${(date||todayISO()).slice(0,7)}-${String(d).padStart(2,'0')}`);
+  if(!dates.length || !dates[0] || dates[0].endsWith('-undefined')){ toast('เลือกวันที่อย่างน้อยหนึ่งวัน'); return; }
   if(editingId){ const old=plans.find(x=>x.id===editingId); if(!old||!canEditPlan(old)) return toast('แก้ไขได้เฉพาะแผนของตัวเอง'); }
   if(!canMgr && $('fPerson').value!==owner) return toast('เพิ่มแผนได้เฉพาะของตัวเอง');
-  const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-  const data={person:$('fPerson').value,date,month:date.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
   try{
-    if(data.type==='visit'){
-      if(editingId && !String(editingId).startsWith('v:')) await db.collection('plans').doc(editingId).delete();
-      await visitWrite(editingId,data);
-      refreshVisit();
-    }else{
-      if(editingId && String(editingId).startsWith('v:')) return toast('แผน Visit เปลี่ยนหมวดไม่ได้');
-      await savePlan(id,data);
+    for(const dt of dates){
+      const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
+      if(data.type==='visit'){
+        if(editingId && !String(editingId).startsWith('v:')) await db.collection('plans').doc(editingId).delete();
+        await visitWrite(editingId,data);
+      }else{
+        if(editingId && String(editingId).startsWith('v:')) return toast('แผน Visit เปลี่ยนหมวดไม่ได้');
+        await savePlan(id,data);
+      }
     }
-    closeDlg(); toast('บันทึกแล้ว');
+    refreshVisit();
+    closeDlg(); toast(dates.length>1?`บันทึก ${dates.length} วันแล้ว`:'บันทึกแล้ว');
   }
   catch(e){ toast(e&&e.message&&!e.code?e.message:'บันทึกไม่สำเร็จ'); }
 }
@@ -694,6 +713,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#addPlanBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,sel?`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`:null); }
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
   if(t.id==='dlg') return closeDlg();
+  const dc=t.closest('#fDays [data-d]'); if(dc){ dc.classList.toggle('on'); return; }
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
