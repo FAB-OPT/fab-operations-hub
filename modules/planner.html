@@ -391,7 +391,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="hd"><span id="dlgTitle">เพิ่มแผน</span><button class="x" id="dlgX" aria-label="ปิด">✕</button></div>
   <label class="field"><span>คน</span><select id="fPerson"></select></label>
   <label class="field" id="fDateW"><span>วันที่</span><input type="date" id="fDate"></label>
-  <div class="field" id="fDaysW" hidden><span>วันที่ (ติ๊กได้หลายวัน)</span><div class="dchips" id="fDays"></div></div>
+  <button type="button" class="btn" id="fMulti" style="margin:-4px 0 12px">+ ติ๊กหลายวัน</button>
+  <div class="field" id="fDaysW" hidden><span>ติ๊กวันที่ (เดือนเดียวกับวันที่ด้านบน)</span><div class="dchips" id="fDays"></div></div>
   <label class="field"><span>หมวด</span><select id="fType"></select></label>
   <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ประชุม OPT-FS"></label>
   <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
@@ -663,8 +664,10 @@ function openPlanDlg(id,dateIso){
   $('fTitle').value=p?p.title:'';
   $('fPlace').value=p?(p.place||''):'';
   $('fDel').hidden=!p;
-  $('fDateW').hidden=!p?true:false;
-  $('fDaysW').hidden=!!p;
+  $('fDateW').hidden=false;
+  $('fDaysW').hidden=true;
+  $('fMulti').hidden=!!p;
+  $('fMulti').textContent='+ ติ๊กหลายวัน';
   if(!p){ const d0=dateIso||todayISO(), ym=d0.slice(0,7), dd=+d0.slice(8,10), n=new Date(+ym.slice(0,4),+ym.slice(5,7),0).getDate();
     $('fDays').innerHTML=Array.from({length:n},(_,i)=>`<button type="button" data-d="${i+1}" class="${i+1===dd?'on':''}">${i+1}</button>`).join(''); }
   syncBranchField(p);
@@ -677,7 +680,8 @@ async function saveDlg(){
   if(!title){ toast('กรอกหัวข้อก่อน'); return; }
   /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
   const picked=[...document.querySelectorAll('#fDays .on')].map(b=>b.dataset.d);
-  const dates=editingId?[date]:picked.map(d=>`${(date||todayISO()).slice(0,7)}-${String(d).padStart(2,'0')}`);
+  const multi=!$('fDaysW').hidden;
+  const dates=(editingId||!multi)?[date]:picked.map(d=>`${(date||todayISO()).slice(0,7)}-${String(d).padStart(2,'0')}`);
   if(!dates.length || !dates[0] || dates[0].endsWith('-undefined')){ toast('เลือกวันที่อย่างน้อยหนึ่งวัน'); return; }
   if(editingId){ const old=plans.find(x=>x.id===editingId); if(!old||!canEditPlan(old)) return toast('แก้ไขได้เฉพาะแผนของตัวเอง'); }
   if(!canMgr && $('fPerson').value!==owner) return toast('เพิ่มแผนได้เฉพาะของตัวเอง');
@@ -714,6 +718,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
   if(t.id==='dlg') return closeDlg();
   const dc=t.closest('#fDays [data-d]'); if(dc){ dc.classList.toggle('on'); return; }
+  if(t.closest('#fMulti')){ const show=$('fDaysW').hidden; $('fDaysW').hidden=!show; $('fDateW').hidden=show; $('fMulti').textContent=show?'ใช้วันที่เดียว':'+ ติ๊กหลายวัน'; return; }
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
