@@ -154,7 +154,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .mseg div{flex:1;height:40px;border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:800;color:var(--ink2)}
 .mseg .on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(15,23,42,.12)}
 .agenda{padding:0 14px 110px}
-.agh{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;padding:18px 2px 10px}
+.agh{display:flex;align-items:center;gap:10px;font-size:19px;font-weight:800;padding:10px 14px;margin-top:14px;border-radius:12px;background:color-mix(in srgb,var(--c,#e5e7eb) 16%,#fff)}
 .hol2{font-style:normal;font-size:12.5px;font-weight:800;color:#fff;background:#c8364b;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .agh small{margin-left:auto;font-size:13px;font-weight:800;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
 .dc{margin-bottom:12px}
@@ -214,7 +214,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .dsbox{position:relative;width:100%;max-height:72vh;overflow-y:auto;background:#fff;border-radius:26px 26px 0 0;padding:10px 0 calc(24px + env(safe-area-inset-bottom));box-shadow:0 -12px 30px rgba(15,23,42,.18)}
 .dsgr{width:44px;height:5px;border-radius:3px;background:#d1d5db;margin:0 auto 4px}
 .dsx{position:absolute;right:14px;top:12px;width:36px;height:36px;border-radius:12px;background:#f3f4f6;font-size:15px;color:var(--ink2)}
-.dsbox .dayh{padding-top:6px}
+.dsbox .dayh{padding:10px 14px;margin:6px 16px 10px;border-radius:12px;background:color-mix(in srgb,var(--c,#e5e7eb) 16%,#fff)}
 .dsbox .mlist{padding:0 16px}
 .fab{position:fixed;right:16px;bottom:96px;width:60px;height:60px;border-radius:22px;background:var(--accent);color:#fff;font-size:30px;box-shadow:0 14px 28px rgba(255,122,26,.4);display:grid;place-items:center;z-index:20}
 
@@ -427,6 +427,8 @@ const DEFAULT_CATS = [
   {k:'leave',l:'ลา',c:'#c8364b'},{k:'off',l:'วันหยุด',c:'#9aa3a0'}
 ];
 const DOW=['จ','อ','พ','พฤ','ศ','ส','อา'], DOWF=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์','อาทิตย์'];
+/* สีประจำวัน (จ=0 … อา=6) ตามประเพณีไทย */
+const WEEK_COLOR=['#facc15','#f472b6','#22c55e','#fb923c','#60a5fa','#c084fc','#f87171'];
 const TH=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
 
 /* ───── สถานะ ───── */
@@ -626,6 +628,7 @@ function paintStrip(){
   const act=document.querySelector('.dayb.on'); if(act) act.scrollIntoView({inline:'center',block:'nearest'});
   const dow=(mon()+d0-1)%7;
   const hd=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`, hl=holLabel(hd);
+  $('dayh').style.setProperty('--c',WEEK_COLOR[dow]);
   $('dayh').innerHTML=`<b>${DOW[dow]} ${d0} ${TH[M]}</b>${hd===todayISO()?'<span>วันนี้</span>':''}${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
@@ -671,7 +674,7 @@ function paintAgenda(){
   $('agenda').innerHTML=keys.length?keys.map(k=>{
     const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7;
     const hl=holLabel(k);
-    return `<div class="agh"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<button class="agr2" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}</small><b>${esc(p.title)}</b></span></button>`; }).join('');
+    return `<div class="agh" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<button class="agr2" style="--c:${c.c}" data-id="${esc(p.id)}"><span class="nm">${esc(p.person)}</span><span class="tt"><small>${esc(c.l)}</small><b>${esc(p.title)}</b></span></button>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
 }
 function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
