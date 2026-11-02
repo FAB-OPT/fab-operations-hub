@@ -772,7 +772,12 @@ async function saveTeam(next){ team=next; await db.doc('config/team').set({membe
 async function saveCats(next){ cats=next; await db.doc('config/cats').set({items:next}); }
 /* ป้ายวันหยุดเป็นของใครของมัน: เก็บแยกตามชื่อผู้ใช้ที่ล็อกอิน */
 function holDocId(){ return 'config/holidays_'+(owner||'guest'); }
-async function saveHol(next){ const out={}; Object.keys(next).forEach(k=>{ out[k]=next[k]||'__none__'; }); hols=out; paintAll(); await db.doc(holDocId()).set({items:out}); }
+async function saveHol(next){
+  const out={}; Object.keys(next).forEach(k=>{ out[k]=next[k]||'__none__'; });
+  const prev=hols; hols=out; paintAll();
+  try{ await db.doc(holDocId()).set({items:out}); }
+  catch(e){ console.error('[holidays] save failed', holDocId(), e); hols=prev; paintAll(); toast('บันทึกป้ายไม่สำเร็จ: '+((e&&e.message)||e)); throw e; }
+}
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
 async function delPlan(id){
   const pl=plans.find(x=>x.id===id);
