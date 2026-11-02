@@ -768,6 +768,7 @@ function paintMgr(){
   </div>`;
 }
 /* มือถือ: รายการของทั้งเดือนจัดกลุ่มตามวัน */
+let agendaAutoKey=null;   /* เดือนที่เลื่อนรายการไปวันนี้แล้ว */
 function paintAgenda(){
   const groups={}; visible().slice().sort((a,b)=>a.date.localeCompare(b.date)||personRank(a.person)-personRank(b.person)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
   for(let d=1; d<=nDays(); d++){ const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(holLabel(iso)&&!groups[iso]) groups[iso]=[]; }
@@ -777,6 +778,8 @@ function paintAgenda(){
     const hl=holLabel(k);
     return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}</div></div>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
+  const td=$('agenda').querySelector('.agh.isToday');
+  if(td && agendaAutoKey!==mkey()){ agendaAutoKey=mkey(); requestAnimationFrame(()=>td.scrollIntoView({block:'start'})); }
 }
 /* Day Off อัตโนมัติของทุกคนในทีม ทุกเสาร์-อาทิตย์ (ไม่บันทึกลงฐาน)
    ลบของใครคนนั้นจะถูกจำไว้ใน offSkip ไม่กระทบคนอื่น */
