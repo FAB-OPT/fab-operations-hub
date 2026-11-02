@@ -618,7 +618,7 @@ async function refreshVisit(){
     if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
     /* แผนทุกชนิดของเจ๊แดง (FQA / FSQ / VISIT) และ Santa Fe (STA) นับเป็นหมวด Visit ทั้งหมด */
     visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand,ptype:(x.data||{}).ptype||''}));
-    plans=dbPlans.concat(visitPlans);
+    plans=allPlans();
     paintAll();
   }catch(err){}
 }
@@ -764,7 +764,28 @@ function paintAgenda(){
     return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}</div></div>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
 }
-function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
+/* Day Off อัตโนมัติของทุกคนในทีม ทุกเสาร์-อาทิตย์ (ไม่บันทึกลงฐาน)
+   ลบของใครคนนั้นจะถูกจำไว้ใน offSkip ไม่กระทบคนอื่น */
+let offSkip={};
+function offKey(person,iso){ return person+'|'+iso; }
+function weekendOffs(){
+  const k=mkey(), out=[], n=new Date(Y,M+1,0).getDate();
+  const real=new Set(dbPlans.filter(p=>p.type==='off').map(p=>offKey(p.person,p.date)));
+  for(let d=1; d<=n; d++){
+    const dow=new Date(Y,M,d).getDay();
+    if(dow!==0 && dow!==6) continue;
+    const iso=`${k}-${String(d).padStart(2,'0')}`;
+    team.forEach(name=>{
+      const key=offKey(name,iso);
+      if(offSkip[key]||real.has(key)) return;
+      out.push({id:'wo:'+key,person:name,date:iso,month:k,type:'off',title:'Day Off',place:'',virtual:true});
+    });
+  }
+  return out;
+}
+function allPlans(){ return dbPlans.concat(visitPlans, weekendOffs()); }
+async function saveOffSkip(key){ offSkip={...offSkip,[key]:true}; paintAll(); await db.doc('config/offskip').set({items:offSkip}); }
+function paintAll(){ plans=allPlans(); paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
 
 /* ───── ข้อมูล (Supabase FAB HUB · planner_docs) ───── */
 async function saveTeam(next){ team=next; await db.doc('config/team').set({members:next}); }
@@ -779,6 +800,9 @@ async function saveHol(next){
 }
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
 async function delPlan(id){
+  if(String(id).startsWith('wo:')) return saveOffSkip(String(id).slice(3));
+  const pl0=plans.find(x=>x.id===id);
+  if(pl0 && pl0.type==='off' && pl0.date) await saveOffSkip(offKey(pl0.person,pl0.date));
   const pl=plans.find(x=>x.id===id);
   if(pl&&pl.src==='visit'){ const r=await visitClient.rpc('fqa_delete',{p_id:String(id).slice(2),p_brand:pl.brand||''}); if(r.error) throw r.error; refreshVisit(); return; }
   await db.collection('plans').doc(id).delete();
@@ -790,7 +814,7 @@ function subscribeMonth(){
   unsubMonth=db.collection('plans').where('month','==',k).onSnapshot(snap=>{
     if(k!==mkey()) return;
     dbPlans=snap.docs.map(d=>({id:d.id,...d.data()})).sort((a,b)=>String(a.date).localeCompare(String(b.date)));
-    plans=dbPlans.concat(visitPlans);
+    plans=allPlans();
     paintAll();
   });
 }
@@ -820,6 +844,7 @@ function openPlanDlg(id,dateIso){
 }
 function closeDlg(){ $('dlg').hidden=true; }
 async function saveDlg(){
+  if(editingId && String(editingId).startsWith('wo:')) return toast('Day Off อัตโนมัติแก้ไม่ได้ ให้ลบแล้วเพิ่มใหม่');
   const title=$('fTitle').value.trim(), date=$('fDate').value;
   /* หัวข้อไม่บังคับ ถ้าว่างใช้ชื่อหมวดแทน */
   const titleFinal=title||catOf($('fType').value).l;
@@ -967,6 +992,7 @@ async function start(){
   }
     unsubTeam=db.doc('config/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
   unsubCats=db.doc('config/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
+  db.doc('config/offskip').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; offSkip={...it}; paintAll(); });
   unsubHol=db.doc(holDocId()).onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
   const n=new Date(); sel=n.getDate(); mSel=n.getDate();
   subscribeMonth();
