@@ -2176,3 +2176,16 @@ function inventoryDrive() {
   Logger.log(out.join('\n'));
   return out;
 }
+
+/* ขั้น 0 การย้ายข้อมูล: ดูชื่อแท็บ จำนวนแถว และหัวตารางของชีตที่ผูกกับโปรเจกต์นี้ (อ่านอย่างเดียว) · รันด้วยมือจาก Apps Script editor */
+function inventorySheet() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var out = [];
+  ss.getSheets().forEach(function (sh) {
+    var last = sh.getLastRow(), cols = sh.getLastColumn();
+    var header = cols ? sh.getRange(1, 1, 1, cols).getValues()[0].join(' | ') : '';
+    out.push(sh.getName() + ': ' + last + ' แถว x ' + cols + ' คอลัมน์\n   หัวตาราง: ' + header);
+  });
+  Logger.log(out.join('\n'));
+  return out;
+}
