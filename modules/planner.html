@@ -77,6 +77,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .dn{font-size:16px;font-weight:800;width:30px;height:30px;display:grid;place-items:center;border-radius:50%}
 .hol{display:block;width:100%;text-align:left;font-size:13px;font-weight:800;color:#4b5563;background:#eef1f4;border:0;border-radius:7px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .hol:hover{background:#e2e6eb}
+.offlab{display:inline-block;margin-left:6px;vertical-align:middle;font-size:11.5px;font-weight:800;color:#4b5563;background:#eef1f4;border-radius:6px;padding:1px 6px;white-space:nowrap}
 .dlg-acts-row{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 14px}
 .chipbtn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #d6dbe2;background:#fff;color:#1f2937;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
 .chipbtn:hover{background:#f3f4f6}
@@ -653,7 +654,9 @@ function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
 /* แผนทุกหมวดต้องขึ้นในปฏิทิน (หมวดที่ไม่มีในรายการจะขึ้นเป็นสีเทา) ไม่ให้จำนวนนับแล้วแต่มองไม่เห็น */
 /* ผู้จัดการทีมเห็นแผนของทีมด้วย (เพิ่มให้คนอื่นได้จึงต้องเห็นที่บันทึกไป) */
 function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)); }
-function byDay(){ const m={}; visible().slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
+/* Day Off ไม่เป็นรายการในช่องวัน แสดงเป็นป้ายข้างตัวเลขวันแทน (นับจำนวนคนที่หยุด) */
+function offCounts(){ const c={}; visible().filter(p=>p.type==='off').forEach(p=>{ const d=+String(p.date).slice(8,10); c[d]=(c[d]||0)+1; }); return c; }
+function byDay(){ const m={}; visible().filter(p=>p.type!=='off').slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
 
 /* ───── ส่วนแสดงผล ───── */
 function paintHead(){
@@ -674,15 +677,15 @@ function paintCats(){
 }
 function evHtml(p){ const c=catOf(p.type); return `<div class="evw" style="--c:${c.c}"><span class="evd"></span>${!person?`<span class="evn">${esc(p.person)}</span>`:''}<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(p.title)}">${esc(p.title)}</button></div>`; }
 function paintGrid(){
-  const m=byDay(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
+  const m=byDay(), offC=offCounts(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
   let h='';
   for(let i=0;i<off;i++) h+=`<div class="c out"><span class="dn">${prev-off+1+i}</span></div>`;
   const t=todayISO();
   for(let d=1; d<=n; d++){
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const list=m[d]||[], hl=holLabel(iso);
+    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0;
     const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
-    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${hl?`<span class="hol">${esc(hl)}</span>`:''}${list.slice(0,6).map(evHtml).join('')}${list.length>6?`<div class="more">+${list.length-6} รายการ</div>`:''}</div>`;
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab">Day Off${oc>1?` · ${oc} คน`:''}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${list.slice(0,6).map(evHtml).join('')}${list.length>6?`<div class="more">+${list.length-6} รายการ</div>`:''}</div>`;
   }
   const rest=(7-((off+n)%7))%7;
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
