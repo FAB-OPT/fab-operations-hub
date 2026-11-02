@@ -190,7 +190,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
           <div class="t">ลากไฟล์ .xlsx มาวางที่นี่</div>
           <div class="s">หรือแตะเพื่อเลือกไฟล์ · ระบบดูเองว่าเป็นไฟล์ชนิดไหน</div>
-          <input type="file" id="file" accept=".xlsx,.xls" class="hide">
+          <input type="file" id="file" accept=".xlsx,.xls" class="hide" multiple>
         </div>
         <div class="ftags"><span>VOC · rawdata_….xlsx</span><span>Facebook · สรุป_Complain_FB….xlsx</span></div>
         <div id="covTodo"></div>
@@ -291,6 +291,8 @@ function modal(title, body, buttons) {
   });
   const c = Object.assign(document.createElement("button"), {className: "btn ghost", textContent: buttons && buttons.length ? "ยกเลิก" : "ปิด"}); c.onclick = () => m.remove(); ft.appendChild(c);
   $(".modal-x", box).onclick = () => m.remove(); box.appendChild(ft); m.appendChild(box); m.onclick = e => { if (e.target === m) m.remove(); };
+  m.remove = function () { Element.prototype.remove.call(this); const f = this._onGone; this._onGone = null; if (f) f(); };
+  window._lastMask = m;
   $("#modalHost").appendChild(m); return m;
 }
 
@@ -330,10 +332,10 @@ function wire() {
   const dz = $("#drop"), fi = $("#file");
   dz.onclick = () => fi.click();
   dz.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); fi.click(); } };
-  fi.onchange = () => { if (fi.files[0]) importFile(fi.files[0]); fi.value = ""; };
+  fi.onchange = () => { queueImport(fi.files); fi.value = ""; };
   ["dragenter", "dragover"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("over"); }));
   ["dragleave", "drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("over"); }));
-  dz.addEventListener("drop", e => { const f = e.dataTransfer.files[0]; if (f) importFile(f); });
+  dz.addEventListener("drop", e => queueImport(e.dataTransfer.files));
   $("#toList").onclick = showList;
   $("#vList").addEventListener("click", e => {
     const y = e.target.closest("[data-cy]"); if (y){ COV.year = +y.dataset.cy; return renderCov(); }
@@ -540,6 +542,29 @@ async function showList() {
 function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-height:1.8">${html}</div>`, [{text: okText, cls: "no", fn}]); }
 
 /* ═════════ นำเข้าไฟล์ ═════════ */
+/* คิวนำเข้าหลายไฟล์: ตรวจทีละไฟล์ ปิดกล่องตรวจไฟล์นั้นแล้วค่อยไปไฟล์ถัดไป */
+const importQueue = [];
+let importBusy = false;
+function queueImport(files) {
+  const list = Array.from(files || []).filter(f => /\.xlsx?$/i.test(f.name));
+  if (!list.length) return toast("เลือกไฟล์ .xlsx หรือ .xls");
+  importQueue.push(...list);
+  if (list.length > 1) toast(`เข้าคิว ${list.length} ไฟล์ ตรวจทีละไฟล์`);
+  runImportQueue();
+}
+async function runImportQueue() {
+  if (importBusy) return;
+  importBusy = true;
+  try {
+    while (importQueue.length) {
+      const file = importQueue.shift();
+      window._lastMask = null;
+      await importFile(file);
+      const mask = window._lastMask;
+      if (mask && mask.isConnected) await new Promise(res => { mask._onGone = res; });
+    }
+  } finally { importBusy = false; }
+}
 async function importFile(file) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
   let kind = "", aoa = null, branchAoa = null, vsParts = null;
