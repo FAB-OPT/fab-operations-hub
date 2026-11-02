@@ -136,6 +136,9 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .iq div{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;font-weight:700;padding:8px 10px;border:1px solid var(--border);border-radius:10px;overflow-wrap:anywhere}
 .iq em{font-style:normal;font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap}
 .iq div.now{border-color:#fdba74;background:#fff7ed}
+.mg{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-top:10px;padding:9px 12px;border:1px dashed var(--border);border-radius:10px;cursor:pointer}
+.mg input{accent-color:#f97316;width:16px;height:16px}
+.mgs{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5}
 .ftags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.ftags span{font-size:12px;font-weight:600;color:var(--text2);border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:3px 10px}
 .todo{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:12px 14px}
 .todo .th{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:8px}.todo .th span{color:#dc2626;font-size:12.5px;font-weight:700}
@@ -205,6 +208,8 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
         </div>
         <div class="ftags"><span>VOC · rawdata_….xlsx</span><span>Facebook · สรุป_Complain_FB….xlsx</span></div>
         <div id="impQueue"></div>
+        <label class="mg"><input type="checkbox" id="mergeOn" checked> รวมไฟล์ชนิดเดียวกันเป็นชุดเดียว</label>
+        <div class="mgs">ใช้เมื่อเลือกหลายไฟล์ · VOC กับ Facebook แยกชุดให้อัตโนมัติ · แถวซ้ำข้ามไฟล์นับครั้งเดียว · CSAT ตรวจทีละไฟล์</div>
       </section>
       <div id="covTodo"></div>
       <section class="bcol">
@@ -578,21 +583,47 @@ function queueImport(files) {
   if (list.length > 1) toast(`เข้าคิว ${list.length} ไฟล์ ตรวจทีละไฟล์`);
   runImportQueue();
 }
+/* รวมผลอ่านหลายไฟล์: แถวซ้ำ (src_id เดียวกัน) นับครั้งเดียว · ตัวเลขสถิติรวมกัน · ช่วงวันที่ใช้ต้นสุดถึงท้ายสุด */
+function mergeRes(list) {
+  const seen = new Set(), rows = [], csat = [];
+  list.forEach(r => { (r.rows || []).forEach(x => { if (seen.has(x.src_id)) return; seen.add(x.src_id); rows.push(x); }); csat.push(...(r.csat || [])); });
+  const sum = (a, b) => { Object.keys(b).forEach(k => { const v = b[k];
+    if (k === "dmin") a[k] = a[k] === undefined || v < a[k] ? v : a[k];
+    else if (k === "dmax") a[k] = a[k] === undefined || v > a[k] ? v : a[k];
+    else if (typeof v === "number") a[k] = (a[k] || 0) + v;
+    else if (v && typeof v === "object") a[k] = sum(a[k] || {}, v);
+    else if (a[k] === undefined) a[k] = v; }); return a; };
+  return {rows, csat, stats: list.reduce((a, r) => sum(a, r.stats || {}), {})};
+}
 async function runImportQueue() {
   if (importBusy) return;
   importBusy = true;
+  const waitMask = async () => { const m = window._lastMask; if (m && m.isConnected) await new Promise(res => { m._onGone = res; }); };
   try {
+    const hold = ($("#mergeOn") || {}).checked && importQueue.length > 1 ? [] : null;
     while (importQueue.length) {
       const file = importQueue.shift();
       importNow = file; paintQueue();
       window._lastMask = null;
-      await importFile(file);
-      const mask = window._lastMask;
-      if (mask && mask.isConnected) await new Promise(res => { mask._onGone = res; });
+      await importFile(file, hold);
+      await waitMask();
+    }
+    if (hold && hold.length) {
+      importNow = null; paintQueue();
+      const groups = {};
+      hold.forEach(h => (groups[h.kind] = groups[h.kind] || []).push(h));
+      for (const kind of Object.keys(groups)) {
+        const g = groups[kind], one = g.length === 1;
+        let name = one ? g[0].name : `รวม ${g.length} ไฟล์: ` + g.map(x => x.name).join(", ");
+        if (name.length > 240) name = name.slice(0, 237) + "...";
+        window._lastMask = null;
+        previewImport(kind, name, one ? g[0].res : mergeRes(g.map(x => x.res)), one ? g[0].resAll : mergeRes(g.map(x => x.resAll)));
+        await waitMask();
+      }
     }
   } finally { importBusy = false; importNow = null; paintQueue(); }
 }
-async function importFile(file) {
+async function importFile(file, hold) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
   let kind = "", aoa = null, branchAoa = null, vsParts = null;
   const chanOf = k => k === "vocsum" ? "voc" : k;
@@ -627,6 +658,7 @@ async function importFile(file) {
   const res = parse(skip), resAll = parse();
   if (kind === "facebook" || kind === "vocsum") [res, resAll].forEach(x => x.rows.forEach(r => { const c = branchCode(r), n = c && Branches.nameOf(c); if (n) r.br = c + " " + n; }));   // ชื่อสาขาตามทะเบียนของฮับ
   busy(false);
+  if (hold) { hold.push({kind, name: file.name, res, resAll}); return; }
   previewImport(kind, file.name, res, resAll);
 }
 
