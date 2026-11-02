@@ -517,7 +517,9 @@ let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='list', c
 /* สิทธิ์: ผู้ใช้ทั่วไปเห็นและแก้ได้เฉพาะแผนของตัวเอง · แอดมินทั้งหมด · พี่จอยเห็นทั้งหมดแต่แก้ได้เฉพาะของตัวเอง · COO เห็นทั้งหมดดูอย่างเดียว */
 const MEMBER_BY_CODE={'601183':'กาย','690201':'ฟาง','690202':'พี่หนิง','621338':'เบนซ์','690173':'ใบชา','690153':'พี่จอย'};
 let owner=null, seeAll=false;
-const teamVis=()=>seeAll?team:team.filter(n=>n===owner);
+const PERSON_ORDER=['พี่จอย','กาย','เบนซ์','ฟาง','พี่หนิง','ใบชา'];
+const personRank=n=>{ const i=PERSON_ORDER.findIndex(k=>n===k||String(n).startsWith(k+' ')); return i<0?99:i; };
+const teamVis=()=>(seeAll?team:team.filter(n=>n===owner)).slice().sort((a,b)=>personRank(a)-personRank(b));
 /* สิทธิ์ตั้งได้ที่หน้า "สิทธิ์ปุ่มแต่ละระบบ" ของฮับ (ค่าตั้งต้นด้านล่างต้องตรงกับที่ฮับนิยามไว้) */
 const PLANNER_PERM_DEFAULTS={'view-all':['admin','coo','support'],'add-own':['admin','support'],'edit-all':['admin'],'manage-team':['admin']};
 let canEditAll=false, canAddOwn=false;
@@ -756,7 +758,7 @@ function paintMgr(){
 }
 /* มือถือ: รายการของทั้งเดือนจัดกลุ่มตามวัน */
 function paintAgenda(){
-  const groups={}; visible().slice().sort((a,b)=>a.date.localeCompare(b.date)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
+  const groups={}; visible().slice().sort((a,b)=>a.date.localeCompare(b.date)||personRank(a.person)-personRank(b.person)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
   for(let d=1; d<=nDays(); d++){ const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`; if(holLabel(iso)&&!groups[iso]) groups[iso]=[]; }
   const keys=Object.keys(groups).sort();
   $('agenda').innerHTML=keys.length?keys.map(k=>{
