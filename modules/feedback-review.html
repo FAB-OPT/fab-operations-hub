@@ -127,7 +127,6 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .cst .d{font-size:12.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cst .pb{height:6px;border-radius:99px;background:var(--bg3);margin-top:6px;overflow:hidden}.cst .pb i{display:block;height:100%;background:var(--green);border-radius:99px}
 .covgrid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:14px;align-items:start}
-.bgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1.1fr);gap:14px;align-items:start;margin-top:14px}
 .bcol{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px 16px;min-width:0}
 .bh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.bh b{font-size:15px}.bh small{font-size:12.5px;color:var(--text3)}
 .bcol .bcards{margin-top:0}
@@ -139,6 +138,14 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .mg{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;margin-top:10px;padding:9px 12px;border:1px dashed var(--border);border-radius:10px;cursor:pointer}
 .mg input{accent-color:#f97316;width:16px;height:16px}
 .mgs{font-size:12px;color:var(--text3);margin-top:6px;line-height:1.5}
+.ftabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin:0 0 14px;flex-wrap:wrap}
+.ftabs button{display:inline-flex;align-items:center;gap:8px;height:46px;padding:0 16px;font:inherit;font-weight:700;font-size:14px;color:var(--text2);background:none;border:0;border-bottom:3px solid transparent;cursor:pointer}
+.ftabs button.on{color:#c2410c;border-bottom-color:#f97316}
+.ftabs em{font-style:normal;font-size:12px;font-weight:800;border-radius:999px;padding:1px 8px;background:var(--bg2);color:var(--text2)}
+.ftabs em:empty{display:none}
+.ftabs button.on em{background:#fff1e6;color:#c2410c}
+.igrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,340px);gap:14px;align-items:start}
+@media(max-width:1000px){.igrid{grid-template-columns:minmax(0,1fr)}}
 .ftags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.ftags span{font-size:12px;font-weight:600;color:var(--text2);border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:3px 10px}
 .todo{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:12px 14px}
 .todo .th{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:8px}.todo .th span{color:#dc2626;font-size:12.5px;font-weight:700}
@@ -172,7 +179,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 .dk{display:inline-grid;place-items:center;min-width:30px;height:26px;border-radius:8px;font-size:13px;font-weight:800;padding:0 6px}
 .dk.ok{background:#d1fae5;color:#059669}.dk.part{background:#fef3c7;color:#b45309;cursor:pointer}.dk.miss{background:#fff;border:1px dashed #f87171;color:#dc2626;cursor:pointer}
 .dk.open{background:#fff;border:1px dashed var(--border2)}.dk.na{background:none;color:var(--text3)}
-@media(max-width:1100px){.covtop{grid-template-columns:repeat(2,minmax(0,1fr))}.covgrid{grid-template-columns:minmax(0,1fr)}.bgrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:1100px){.covtop{grid-template-columns:repeat(2,minmax(0,1fr))}.covgrid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
@@ -190,33 +197,38 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 
   <!-- รายการชุดข้อมูลที่นำเข้า -->
   <div id="vList" class="hide">
-    <div class="steps" aria-label="ขั้นตอน">
-      <div class="st on"><b>1</b><span>นำเข้าไฟล์ดิบ</span></div>
-      <div class="st"><b>2</b><span>กรอง / แก้ไขโดยแอดมิน</span></div>
-      <div class="st"><b>3</b><span>แอดมินอนุมัติ</span></div>
-      <div class="st"><b>4</b><span>ข้อมูลลงในระบบ</span></div>
+    <nav class="ftabs" id="ftabs" aria-label="ขั้นงาน">
+      <button type="button" data-ft="imp" class="on">นำเข้าไฟล์<em id="ftImp"></em></button>
+      <button type="button" data-ft="wait">รอตรวจ / อนุมัติ<em id="ftWait"></em></button>
+      <button type="button" data-ft="live">ลงระบบแล้ว<em id="ftLive"></em></button>
+      <button type="button" data-ft="cov">ความครบของข้อมูล<em id="ftCov"></em></button>
+    </nav>
+    <div class="fpane" data-pane="imp">
+      <div class="igrid">
+        <section class="bcol">
+          <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
+            <div class="t">ลากไฟล์ .xlsx มาวางที่นี่ ได้หลายไฟล์พร้อมกัน</div>
+            <div class="s">หรือแตะเพื่อเลือกไฟล์ · ระบบดูเองว่าเป็นไฟล์ VOC, CSAT หรือ Facebook</div>
+            <input type="file" id="file" accept=".xlsx,.xls" class="hide" multiple>
+          </div>
+          <div class="ftags"><span>VOC · rawdata_….xlsx</span><span>Facebook · สรุป_Complain_FB….xlsx</span></div>
+          <div class="bh" style="margin-top:6px"><b>ไฟล์ในคิว</b><small>ไฟล์ที่ไม่มีเคสใหม่กดข้ามได้ในกล่องตรวจ</small></div>
+          <div id="impQueue"></div>
+          <label class="mg"><input type="checkbox" id="mergeOn" checked> รวมไฟล์ชนิดเดียวกันเป็นชุดเดียว</label>
+          <div class="mgs">ใช้เมื่อเลือกหลายไฟล์ · VOC กับ Facebook แยกชุดให้อัตโนมัติ · แถวซ้ำข้ามไฟล์นับครั้งเดียว · CSAT ตรวจทีละไฟล์</div>
+        </section>
+        <div id="covTodo"></div>
+      </div>
     </div>
-    <div class="covtop" id="covTop"></div>
-    <div class="covpanel" id="covPanel"><div class="muted" style="padding:20px">กำลังโหลดตารางความครบของข้อมูล…</div></div>
-    <div class="bgrid">
-      <section class="bcol">
-        <div class="bh"><b>นำเข้าไฟล์</b><small>เลือกได้หลายไฟล์</small></div>
-        <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
-          <div class="t">ลากไฟล์ .xlsx มาวางที่นี่</div>
-          <div class="s">หรือแตะเพื่อเลือกไฟล์ · ระบบดูเองว่าเป็นไฟล์ชนิดไหน</div>
-          <input type="file" id="file" accept=".xlsx,.xls" class="hide" multiple>
-        </div>
-        <div class="ftags"><span>VOC · rawdata_….xlsx</span><span>Facebook · สรุป_Complain_FB….xlsx</span></div>
-        <div id="impQueue"></div>
-        <label class="mg"><input type="checkbox" id="mergeOn" checked> รวมไฟล์ชนิดเดียวกันเป็นชุดเดียว</label>
-        <div class="mgs">ใช้เมื่อเลือกหลายไฟล์ · VOC กับ Facebook แยกชุดให้อัตโนมัติ · แถวซ้ำข้ามไฟล์นับครั้งเดียว · CSAT ตรวจทีละไฟล์</div>
-      </section>
-      <div id="covTodo"></div>
-      <section class="bcol">
-        <div class="bh"><b>ชุดข้อมูลล่าสุด</b><small id="bcount"></small></div>
-        <div class="bcards" id="bcards"></div>
-        <button type="button" class="btn sm ghost hide" id="bmore" style="width:100%;margin-top:10px"></button>
-      </section>
+    <div class="fpane hide" data-pane="wait">
+      <section class="bcol"><div class="bh"><b>รอตรวจ / อนุมัติ</b><small id="bcount"></small></div><div class="bcards" id="bcards"></div></section>
+    </div>
+    <div class="fpane hide" data-pane="live">
+      <section class="bcol"><div class="bh"><b>ลงระบบแล้ว</b><small id="lcount"></small></div><div class="bcards" id="bcardsLive"></div></section>
+    </div>
+    <div class="fpane hide" data-pane="cov">
+      <div class="covtop" id="covTop"></div>
+      <div class="covpanel" id="covPanel"><div class="muted" style="padding:20px">กำลังโหลดตารางความครบของข้อมูล…</div></div>
     </div>
   </div>
 
@@ -493,6 +505,7 @@ function renderCov() {
   const latest = (S.batches || [])[0];
   const lm = lastClosed.split("-"), lastLbl = MON[+lm[1] - 1] + " " + lm[0];
   const first = firstM.split("-"), lastD = [...all].sort().filter(m => m < cur).pop() || firstM, lastp = lastD.split("-");
+  { const ftc = $("#ftCov"); if (ftc) ftc.textContent = (totN ? Math.round(okN / totN * 100) : 0) + "%"; }
   $("#covTop").innerHTML = `
     <div class="cst"><div class="l">ข้อมูลครบ</div><div class="v n">${totN ? Math.round(okN / totN * 100) : 0}%</div><div class="pb"><i style="width:${totN ? okN / totN * 100 : 0}%"></i></div><div class="d n">${fmt(okN)} จาก ${fmt(totN)} ช่อง · ${MON[+first[1] - 1]} ${first[0]} ถึง เดือนที่ปิดล่าสุด</div></div>
     <div class="cst ${todo.length ? "warn" : "okc"}"><div class="l">${lastLbl} ${todo.length ? "ยังขาด" : "ครบทุกชนิด"}</div><div class="v n">${todo.length ? todo.length + `<small>รายการ</small>` : "✓"}</div><div class="d">${todo.length ? esc(todo.slice(0, 2).map(x => x.d.name).join(" · ")) + (todo.length > 2 ? " …" : "") : "ไม่มีรายการค้าง"}</div></div>
@@ -533,36 +546,46 @@ function covDetail(id, m) {
 }
 
 /* ═════════ รายการชุด ═════════ */
+function setFTab(k) {
+  document.querySelectorAll("#ftabs [data-ft]").forEach(b => b.classList.toggle("on", b.dataset.ft === k));
+  document.querySelectorAll("#vList .fpane").forEach(p => p.classList.toggle("hide", p.dataset.pane !== k));
+  try { sessionStorage.setItem("fbTab", k); } catch (e) {}
+}
+document.addEventListener("click", e => { const t = e.target.closest("#ftabs [data-ft]"); if (t) setFTab(t.dataset.ft); });
 async function showList() {
   saveView();
+  let tab0 = "imp"; try { tab0 = sessionStorage.getItem("fbTab") || "imp"; } catch (e) {}
+  setFTab(tab0);
+  paintQueue();
   S.cur = null; COV.cells = {}; $("#vBatch").classList.add("hide"); $("#gate").classList.add("hide"); $("#vList").classList.remove("hide");
   const box = $("#bcards"); box.innerHTML = `<div class="muted">กำลังโหลด…</div>`;
   try { S.batches = await FBStore.batches(); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
   loadCov();   // ตารางความครบของข้อมูล (เดือน × ชนิดข้อมูล)
   if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
-  box.classList.remove("all");
-  box.innerHTML = S.batches.map((b, bi) => {
+  const card = b => {
     const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
     let sv = null; try { sv = !live && JSON.parse(localStorage.getItem(viewKey(b.id))); } catch (e) {}
     const svChip = sv && sv.at ? `<span class="chip info" title="ตรวจค้างไว้ในเครื่องนี้ — เปิดชุดแล้วจะกลับไปตำแหน่งเดิม">ตรวจค้างไว้ที่แถว ${fmt(sv.at_row || 1)} · ${esc(new Date(sv.at).toLocaleString("th-TH", {dateStyle: "short", timeStyle: "short"}))}</span>` : "";
-    return `<div class="bcard${bi >= 4 ? " more" : ""}" data-id="${b.id}">
+    return `<div class="bcard" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
         <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${svChip}${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
       <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
-  }).join("");
-  const nWait = S.batches.filter(b => b.status !== "approved").length;
-  $("#bcount").textContent = `${S.batches.length} ชุด${nWait ? " · รอตรวจ " + nWait : ""}`;
-  const more = $("#bmore"); more.classList.toggle("hide", S.batches.length <= 4);
-  more.textContent = `ดูทั้งหมด ${S.batches.length} ชุด`;
-  more.onclick = () => { const all = box.classList.toggle("all"); more.textContent = all ? "ย่อเหลือ 4 ชุดล่าสุด" : `ดูทั้งหมด ${S.batches.length} ชุด`; };
-  box.onclick = async e => {
+  };
+  const waits = S.batches.filter(b => b.status !== "approved"), lives = S.batches.filter(b => b.status === "approved");
+  const boxL = $("#bcardsLive");
+  box.innerHTML = waits.length ? waits.map(card).join("") : `<div class="muted">ไม่มีชุดที่รอตรวจ</div>`;
+  boxL.innerHTML = lives.length ? lives.map(card).join("") : `<div class="muted">ยังไม่มีชุดที่ลงระบบ</div>`;
+  $("#ftWait").textContent = waits.length || ""; $("#ftLive").textContent = lives.length || "";
+  $("#bcount").textContent = `${waits.length} ชุด`; $("#lcount").textContent = `${lives.length} ชุด`;
+  const onBox = async e => {
     const bt = e.target.closest("[data-a]"); if (!bt) return;
     const b = S.batches.find(x => x.id === bt.closest(".bcard").dataset.id);
     if (bt.dataset.a === "open") openBatch(b);
     if (bt.dataset.a === "del") confirmBox("ลบชุดนี้?", `ลบ “${esc(b.file_name)}” พร้อมแถวทั้งหมด (${fmt(b.n_rows)} คอมเมนต์) — ยังไม่เคยลงระบบ ลบได้ และนำเข้าไฟล์เดิมใหม่ได้`, "ลบชุด", async () => { await FBStore.removeBatch(b.id); toast("ลบชุดแล้ว"); showList(); });
     if (bt.dataset.a === "revoke") confirmBox("ถอนการอนุมัติ?", `ข้อมูลของ “${esc(b.file_name)}” จะ<b>ออกจากระบบ</b> (ทุกคนจะไม่เห็นในแดชบอร์ด) และกลับไปเป็นชุดรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(b.id); } finally { busy(false); } toast("ถอนแล้ว — ข้อมูลออกจากระบบ"); notifyParent(); showList(); });
   };
+  box.onclick = onBox; boxL.onclick = onBox;
 }
 function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-height:1.8">${html}</div>`, [{text: okText, cls: "no", fn}]); }
 
@@ -573,7 +596,8 @@ let importBusy = false, importNow = null;
 function paintQueue() {
   const box = $("#impQueue"); if (!box) return;
   const list = (importNow ? [importNow] : []).concat(importQueue);
-  box.innerHTML = list.length ? `<div class="iq">${list.map((f, i) => `<div class="${i === 0 && importNow ? "now" : ""}">${esc(f.name)}<em>${i === 0 && importNow ? "กำลังตรวจ" : "รอคิว"}</em></div>`).join("")}</div>` : "";
+  box.innerHTML = list.length ? `<div class="iq">${list.map((f, i) => `<div class="${i === 0 && importNow ? "now" : ""}">${esc(f.name)}<em>${i === 0 && importNow ? "กำลังตรวจ" : "รอคิว"}</em></div>`).join("")}</div>` : `<div class="mgs">ยังไม่มีไฟล์ในคิว · ลากไฟล์มาวางด้านบน</div>`;
+  const ti = $("#ftImp"); if (ti) ti.textContent = list.length ? list.length + " ไฟล์ในคิว" : "";
 }
 function queueImport(files) {
   const list = Array.from(files || []).filter(f => /\.xlsx?$/i.test(f.name));
