@@ -2161,3 +2161,18 @@ function backupChecklistDailyLogged() {
   Logger.log(JSON.stringify(r));
   return r;
 }
+
+/* ขั้น 0 การย้ายข้อมูล: นับไฟล์และขนาดในโฟลเดอร์รูปของ Drive (อ่านอย่างเดียว ไม่แก้ไฟล์) · รันด้วยมือจาก Apps Script editor */
+function inventoryDrive() {
+  var names = ['FQA Photos', 'Meeting Expense Photos', 'Booth Equipment Photos', 'FAB Hub Icons', 'FQA Backups'];
+  var out = [];
+  names.forEach(function (n) {
+    var it = DriveApp.getFoldersByName(n);
+    if (!it.hasNext()) { out.push(n + ': ไม่พบโฟลเดอร์'); return; }
+    var files = it.next().getFiles(), count = 0, bytes = 0;
+    while (files.hasNext()) { var f = files.next(); count++; bytes += f.getSize(); }
+    out.push(n + ': ' + count + ' ไฟล์, ' + Math.round(bytes / 1048576) + ' MB');
+  });
+  Logger.log(out.join('\n'));
+  return out;
+}
