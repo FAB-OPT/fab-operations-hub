@@ -770,7 +770,9 @@ function paintAll(){ paintHead(); paintTeam(); paintCats(); paintGrid(); paintRi
 /* ───── ข้อมูล (Supabase FAB HUB · planner_docs) ───── */
 async function saveTeam(next){ team=next; await db.doc('config/team').set({members:next}); }
 async function saveCats(next){ cats=next; await db.doc('config/cats').set({items:next}); }
-async function saveHol(next){ hols=next; await db.doc('config/holidays').set({items:next}); }
+/* ป้ายวันหยุดเป็นของใครของมัน: เก็บแยกตามชื่อผู้ใช้ที่ล็อกอิน */
+function holDocId(){ return 'config/holidays_'+(owner||'guest'); }
+async function saveHol(next){ hols=next; await db.doc(holDocId()).set({items:next}); }
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
 async function delPlan(id){
   const pl=plans.find(x=>x.id===id);
@@ -979,7 +981,7 @@ async function start(){
   }
     unsubTeam=db.doc('config/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
   unsubCats=db.doc('config/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
-  unsubHol=db.doc('config/holidays').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
+  unsubHol=db.doc(holDocId()).onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
   const n=new Date(); sel=n.getDate(); mSel=n.getDate();
   subscribeMonth();
   paintAll();
