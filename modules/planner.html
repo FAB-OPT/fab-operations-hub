@@ -472,7 +472,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <label class="field" id="fDateW"><span>วันที่</span><input type="date" id="fDate"></label>
   <div class="dlg-acts-row">
     <button type="button" class="chipbtn" id="fMulti">+ ติ๊กหลายวัน</button>
-    <button type="button" class="chipbtn dayoff" id="fDayOff"><i></i>ตั้งวันนี้เป็น Day Off</button>
+    <button type="button" class="chipbtn dayoff" id="fDayOff"><i></i>เพิ่ม Day Off ให้คนนี้</button>
   </div>
   <div id="fDaysW" hidden>
     <label class="field"><span>ตั้งแต่วันที่</span><input type="date" id="fFrom"></label>
@@ -645,7 +645,7 @@ const OFFICIAL_HOL={
   '2027-08-12':'วันแม่ · วันเฉลิมฯ พระราชินี','2027-10-13':'วันนวมินทรมหาราช','2027-10-25':'ชดเชยวันปิยมหาราช',
   '2027-12-06':'ชดเชยวันพ่อ','2027-12-10':'วันรัฐธรรมนูญ','2027-12-31':'วันสิ้นปี'
 };
-function holLabel(iso){ if(iso in hols) return hols[iso]==='__none__'?'':(hols[iso]||''); if(OFFICIAL_HOL[iso]) return OFFICIAL_HOL[iso]; const w=new Date(iso+'T00:00:00').getDay(); return (w===0||w===6)?'Day Off':''; }
+function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
 /* แผนทุกหมวดต้องขึ้นในปฏิทิน (หมวดที่ไม่มีในรายการจะขึ้นเป็นสีเทา) ไม่ให้จำนวนนับแล้วแต่มองไม่เห็น */
 function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||p.person===owner)); }
 function byDay(){ const m={}; visible().forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
@@ -677,7 +677,7 @@ function paintGrid(){
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
     const list=m[d]||[], hl=holLabel(iso);
     const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
-    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${hl?`<button class="hol" data-hol="${iso}" title="แตะเพื่อแก้ไขป้าย">${esc(hl)}</button>`:''}${list.slice(0,6).map(evHtml).join('')}${list.length>6?`<div class="more">+${list.length-6} รายการ</div>`:''}</div>`;
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${hl?`<span class="hol">${esc(hl)}</span>`:''}${list.slice(0,6).map(evHtml).join('')}${list.length>6?`<div class="more">+${list.length-6} รายการ</div>`:''}</div>`;
   }
   const rest=(7-((off+n)%7))%7;
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
@@ -715,7 +715,6 @@ function paintStrip(){
   const hd=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`, hl=holLabel(hd);
   $('dayh').style.setProperty('--c',WEEK_COLOR[dow]);
   $('dayh').classList.toggle('isToday',hd===todayISO());
-  $('dayh').insertAdjacentHTML('beforeend',`<button class="btn holset" data-iso="${hd}" style="height:32px;font-size:13px;margin-left:auto">🏖 ป้ายวันหยุด</button>`);
   $('dayh').innerHTML=`<b>${DOW[dow]} ${d0} ${TH[M]}</b>${hd===todayISO()?'<span>วันนี้</span>':''}${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
@@ -884,30 +883,10 @@ document.addEventListener('click',async e=>{
   if(t.closest('#addPlanBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,sel?`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`:null); }
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
   if(t.closest('#fMulti')){ const show=$('fDaysW').hidden; if(show){ $('fFrom').value=$('fDate').value; $('fTo').value=$('fDate').value; } $('fDaysW').hidden=!show; $('fDateW').hidden=show; $('fMulti').textContent=show?'ใช้วันที่เดียว':'+ ช่วงวันที่'; return; }
-  if(t.closest('#fDayOff')){ if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง'); const iso=$('fDate').value; if(!iso) return toast('เลือกวันที่ก่อน'); await saveHol({...hols,[iso]:'Day Off'}); closeDlg(); return toast('ตั้งเป็น Day Off แล้ว'); }
+  if(t.closest('#fDayOff')){ const dt=$('fDate').value; if(!dt) return toast('เลือกวันที่ก่อน'); const id='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); await savePlan(id,{person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:'off',title:'Day Off',place:'',updatedAt:new Date().toISOString()}); closeDlg(); return toast('เพิ่ม Day Off ให้แล้ว'); }
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
-  const hset=t.closest('.holset');
-  if(hset){
-    if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
-    if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง');
-    const iso=hset.dataset.iso;
-    const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:`วันที่ ${iso} · เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก`,input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
-    if(!r) return;
-    await saveHol({...hols,[iso]:r.name});
-    toast(r.name?'บันทึกป้ายแล้ว':'เอาป้ายออกแล้ว'); return;
-  }
-  const hb=t.closest('[data-hol]');
-  if(hb){
-    if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
-    if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง');
-    const iso=hb.dataset.hol;
-    const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:'เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก',input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
-    if(!r) return;
-    await saveHol({...hols,[iso]:r.name});
-    toast(r.name?'บันทึกป้ายแล้ว':'เอาป้ายออกแล้ว'); return;
-  }
   const dayD=t.closest('#grid .c[data-d]'); if(dayD && !t.closest('.ev')){ sel=+dayD.dataset.d; if(canWrite&&e.detail===2) return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`); paintGrid(); paintRight(); if(e.detail===1){ mSel=sel; paintStrip(); $('dsheet').hidden=false; } return; }
   const mv=t.closest('#mseg [data-mv]'); if(mv){ mView=mv.dataset.mv; document.querySelectorAll('#mseg [data-mv]').forEach(b=>b.classList.toggle('on',b===mv)); paintAll(); return; }
   const ev=t.closest('[data-id]'); if(ev && ev.closest('#grid,#selBox,#up,#cards,#agenda')){ const pl=plans.find(x=>x.id===ev.dataset.id);
