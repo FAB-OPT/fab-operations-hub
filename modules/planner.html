@@ -648,7 +648,7 @@ const OFFICIAL_HOL={
 function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
 /* แผนทุกหมวดต้องขึ้นในปฏิทิน (หมวดที่ไม่มีในรายการจะขึ้นเป็นสีเทา) ไม่ให้จำนวนนับแล้วแต่มองไม่เห็น */
 /* ผู้จัดการทีมเห็นแผนของทีมด้วย (เพิ่มให้คนอื่นได้จึงต้องเห็นที่บันทึกไป) */
-function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)); }
+function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)); }
 function byDay(){ const m={}; visible().forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
 
 /* ───── ส่วนแสดงผล ───── */
@@ -666,7 +666,7 @@ function paintTeam(){
   $('mpeople').innerHTML=(seeAll?`<button class="pill all ${!person?'on':''}" data-p="">ทั้งทีม</button>`:'')+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
 }
 function paintCats(){
-  $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" checked><span class="cn">${esc(c.l)}</span></label>`).join('');
+  $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" ${catOff.has(c.k)?'':'checked'}><span class="cn">${esc(c.l)}</span></label>`).join('');
 }
 function evHtml(p){ const c=catOf(p.type); return `<div class="evw" style="--c:${c.c}"><span class="evd"></span>${!person?`<span class="evn">${esc(p.person)}</span>`:''}<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(p.title)}">${esc(p.title)}</button></div>`; }
 function paintGrid(){
@@ -768,6 +768,7 @@ function paintAgenda(){
 /* Day Off อัตโนมัติของทุกคนในทีม ทุกเสาร์-อาทิตย์ (ไม่บันทึกลงฐาน)
    ลบของใครคนนั้นจะถูกจำไว้ใน offSkip ไม่กระทบคนอื่น */
 let offSkip={};
+let catOff=new Set();   /* หมวดที่ผู้ใช้ปิดการแสดงผลจากแถบหมวด */
 function offKey(person,iso){ return person+'|'+iso; }
 function weekendOffs(){
   const k=mkey(), out=[], n=new Date(Y,M+1,0).getDate();
@@ -959,8 +960,10 @@ document.addEventListener('click',async e=>{
     return;
   }
 });
-document.addEventListener('change',async e=>{
+document.addEventListener('change',e=>{
   const c=e.target.closest('[data-c]'); if(!c) return;
+  const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
+  paintAll();
 });
 
 /* ───── เริ่มต้น ───── */
