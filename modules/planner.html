@@ -1005,7 +1005,18 @@ function makeDb(sb){
   let cache={}, listeners=[];
   const emit=()=>listeners.slice().forEach(f=>{ try{ f(); }catch(e){} });
   const who=(()=>{ try{ const s=JSON.parse(localStorage.getItem('fab_session')||'null'); return (s&&(s.nick||s.name))||''; }catch(e){ return ''; } })();
-  async function refresh(){ const r=await sb.from('planner_docs').select('col,id,data').eq('deleted',false).limit(5000); if(r.error) throw r.error; const c={}; r.data.forEach(x=>{ (c[x.col]=c[x.col]||{})[x.id]=x.data; }); cache=c; emit(); }
+  /* ดึงครบทุกแถวเป็นหน้า ๆ ละ 1000 (ฐานข้อมูลจำกัดการดึงต่อครั้ง ถ้าไม่แบ่งหน้า แถวใหม่จะหายตอนรีเฟรช) */
+  async function refresh(){
+    let all=[], from=0;
+    for(;;){
+      const r=await sb.from('planner_docs').select('col,id,data').eq('deleted',false).order('col').order('id').range(from,from+999);
+      if(r.error) throw r.error;
+      all=all.concat(r.data||[]);
+      if(!r.data || r.data.length<1000) break;
+      from+=1000;
+    }
+    const c={}; all.forEach(x=>{ (c[x.col]=c[x.col]||{})[x.id]=x.data; }); cache=c; emit();
+  }
   async function write(col,id,data){ const r=await sb.from('planner_docs').upsert({col,id,data,deleted:false,updated_at:new Date().toISOString(),updated_by:who}); if(r.error) throw r.error; (cache[col]=cache[col]||{})[id]=data; emit(); }
   async function remove(col,id){ const r=await sb.from('planner_docs').update({deleted:true,updated_at:new Date().toISOString(),updated_by:who}).eq('col',col).eq('id',id); if(r.error) throw r.error; if(cache[col]) delete cache[col][id]; emit(); }
   const watch=run=>{ listeners.push(run); run(); return ()=>{ listeners=listeners.filter(x=>x!==run); }; };
