@@ -709,9 +709,9 @@ function previewImport(kind, fileName, resAdd, resAll) {
     }
   });
   draw();
-  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ" + (isFb ? " (Facebook)" : isVs ? " (สรุป Complain Voc)" : ""), body, [{text: "สร้างชุดตรวจสอบ", fn: async () => {
+  modal("ตรวจไฟล์ก่อนสร้างชุดตรวจสอบ" + (isFb ? " (Facebook)" : isVs ? " (สรุป Complain Voc)" : ""), body, [{text: (!cur().rows.length && !cur().csat.length) ? "ข้ามไฟล์นี้" : "สร้างชุดตรวจสอบ", fn: async () => {
     const res = cur();
-    if (!res.rows.length && !res.csat.length) { toast("ไม่มีแถวใหม่ให้นำเข้า"); return false; }
+    if (!res.rows.length && !res.csat.length) return true;   /* ไม่มีรายการใหม่ ข้ามได้ ไปไฟล์ถัดไปในคิว */
     busy(true, "กำลังส่งข้อมูลเข้าฐานข้อมูล…", 0);
     try {
       const id = await FBStore.createBatch({channel: chan, file_name: fileName, d_from: res.stats.dmin, d_to: res.stats.dmax, by: who(), mode}, res.rows, res.csat, (a, b) => busy(true, `กำลังส่งข้อมูลเข้าฐานข้อมูล… ${fmt(a)}/${fmt(b)}`, a / b));
