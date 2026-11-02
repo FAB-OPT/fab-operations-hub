@@ -6991,26 +6991,33 @@ const PDF = {
     const ready=img=>img.complete && img.naturalWidth>0;
     const left=()=>imgs.filter(i=>!ready(i)).length;
     if(!imgs.length || !left()) return Promise.resolve({total:imgs.length, missing:0});
+    /* รูปจาก Google Drive ถ้าโหลดพร้อมกันหลายร้อยรูป ปลายทางจะปฏิเสธ (429) รูปที่เหลือจึงพัง
+       จึงไม่ปล่อยให้ทุกรูปเริ่มโหลดพร้อมกัน: เก็บลิงก์ไว้ก่อน แล้วโหลดทีละ 4 รูป เว้นจังหวะ ลองซ้ำพร้อมรอนานขึ้น */
+    imgs.forEach(i=>{ if(!ready(i) && i.getAttribute('src')){ i.dataset.src=i.getAttribute('src'); i.removeAttribute('src'); } });
     let done=imgs.length-left();
     const tick=()=>{ done++; if(imgs.length>3) App.toast(`กำลังเตรียมรูป ${done}/${imgs.length} …`); };
-    /* รูปที่โหลดพลาด (สัญญาณหลุดชั่วคราว) ลองใหม่ได้ 2 ครั้งก่อนยอมแพ้ */
-    const one=img=>new Promise(res=>{
-      if(ready(img)) return res();
+    const loadOne=img=>new Promise(res=>{
       let tries=0;
-      const done=()=>{ img.removeEventListener('load',ok); img.removeEventListener('error',bad); tick(); res(); };
-      const ok=()=>done();
-      const bad=()=>{
-        if(++tries<=2){ const s=img.src; setTimeout(()=>{ img.src=s+(s.includes('?')?'&':'?')+'r='+tries; }, 800*tries); }
-        else done();
+      const attempt=()=>{
+        const finish=ok=>{ img.onload=null; img.onerror=null; tick(); res(ok); };
+        img.onload=()=>finish(true);
+        img.onerror=()=>{ if(++tries<=3) setTimeout(attempt, 2000*tries); else finish(false); };
+        const u=img.dataset.src;
+        img.src = tries ? u+(u.indexOf('?')>=0?'&':'?')+'r='+tries : u;
       };
-      img.addEventListener('load',ok);
-      img.addEventListener('error',bad);
+      attempt();
     });
-    /* กันค้าง: ให้เวลาตามจำนวนรูป แต่ไม่เกินหนึ่งนาที · เน็ตแย่จริงก็ยอมพิมพ์เท่าที่ได้
-       แล้วบอกผู้ใช้ว่าขาดกี่รูป ดีกว่าค้างจนกดอะไรไม่ได้เลย */
+    const queue=imgs.filter(i=>i.dataset.src);
+    const worker=()=>{
+      const next=()=> queue.length
+        ? loadOne(queue.shift()).then(()=>new Promise(r=>setTimeout(r,300))).then(next)
+        : Promise.resolve();
+      return next();
+    };
+    const pool=Promise.all([worker(),worker(),worker(),worker()]);
     return Promise.race([
-      Promise.all(imgs.map(one)),
-      new Promise(res=>setTimeout(res, Math.min(90000, 10000+imgs.length*1000)))
+      pool,
+      new Promise(res=>setTimeout(res, Math.min(240000, 30000+imgs.length*1500)))
     ]).then(()=>({total:imgs.length, missing:left()}));
   },
 
