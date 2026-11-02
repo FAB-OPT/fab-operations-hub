@@ -3791,6 +3791,9 @@ function staShareText(r, url){ return staShareMsg(r, url).text; }
    เพิ่มคนใหม่: ใส่ "ชื่อแรก": 'ครับ' หรือ 'ค่ะ' ในรายการนี้ */
 const TRAINER_PARTICLE = { 'วัชระ':'ครับ', 'ไพรวัลย์':'ค่ะ' };
 const trainerParticle = name => TRAINER_PARTICLE[String(name||'').trim().split(/\s+/)[0]] || 'ค่ะ';
+/* ชื่อเล่นของผู้ตรวจ ใช้ในประโยค "สามารถติดต่อสอบถาม…" (ตรงกับ VISIT_TRAINER ในแผน) · ไม่มีในรายการใช้ชื่อเต็มตามเดิม */
+const TRAINER_NICK = { 'วัชระ':'ฟาง', 'ไพรวัลย์':'หนิง', 'กันตภณ':'กาย' };
+const trainerNick = name => TRAINER_NICK[String(name||'').trim().split(/\s+/)[0]] || '';
 /* ชื่อเรื่องในข้อความ แยกตามฟอร์ม */
 const SHARE_TOPIC = { FQA:'การตรวจ FQA และการ Re-Training', FSQ:'กรณี Complaint (FSQ)', VISIT:'การ Visit' };
 function fqaShareMsg(r, url){
@@ -3802,11 +3805,11 @@ function fqaShareMsg(r, url){
   const bName = pm ? 'สาขา'+pm[1].trim() : (br ? 'สาขา '+br : '');
   const d = String(r.date||'').slice(0,10), dm = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d);
   const dateTh = dm ? Number(dm[3])+' '+TH_MONTHS[Number(dm[2])-1]+' '+(Number(dm[1])+543) : fmtDMY(r.date);
-  const who = String(r.trainer||'').trim(), pt = trainerParticle(who);
+  const who = String(r.trainer||'').trim(), pt = trainerParticle(who), contact = trainerNick(who) || who;
   const lines = [
     'เรียน พี่ปอ '+(bz?bz+' ':'')+'และทุกท่านที่เกี่ยวข้อง', '',
     'ฝ่าย Operations Training ขอนำส่งรายงาน'+(SHARE_TOPIC[r.type]||SHARE_TOPIC.FQA)+' ร้านเจ๊แดงสามย่าน '+bName+' เมื่อวันที่ '+dateTh+' โดยมีรายละเอียดตามลิงก์แนบ'+pt].concat(url?[url]:[]).concat(['',
-    'หากมีข้อสงสัยหรือต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถาม'+(who||'ฝ่าย Operations Training ')+'ได้'+pt, '',
+    'หากมีข้อสงสัยหรือต้องการข้อมูลเพิ่มเติม สามารถติดต่อสอบถาม'+(contact||'ฝ่าย Operations Training ')+'ได้เลย'+(pt==='ค่ะ'?'นะคะ':pt), '',
     'ขอบคุณ'+pt]).concat(who?[who]:[]).concat(['Operations Training']
   ).filter((x,i,a)=>!(x==='' && a[i-1]==='' ) );
   const text = lines.join('\n');
