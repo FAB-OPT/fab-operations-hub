@@ -772,7 +772,7 @@ async function saveTeam(next){ team=next; await db.doc('config/team').set({membe
 async function saveCats(next){ cats=next; await db.doc('config/cats').set({items:next}); }
 /* ป้ายวันหยุดเป็นของใครของมัน: เก็บแยกตามชื่อผู้ใช้ที่ล็อกอิน */
 function holDocId(){ return 'config/holidays_'+(owner||'guest'); }
-async function saveHol(next){ hols=next; await db.doc(holDocId()).set({items:next}); }
+async function saveHol(next){ hols=next; paintAll(); await db.doc(holDocId()).set({items:next}); }
 async function savePlan(id,data){ await db.collection('plans').doc(id).set(data); }
 async function delPlan(id){
   const pl=plans.find(x=>x.id===id);
@@ -879,13 +879,14 @@ document.addEventListener('click',async e=>{
   if(t.closest('#addPlanBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,sel?`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`:null); }
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
   if(t.closest('#fMulti')){ const show=$('fDaysW').hidden; if(show){ $('fFrom').value=$('fDate').value; $('fTo').value=$('fDate').value; } $('fDaysW').hidden=!show; $('fDateW').hidden=show; $('fMulti').textContent=show?'ใช้วันที่เดียว':'+ ช่วงวันที่'; return; }
-  if(t.closest('#fDayOff')){ const iso=$('fDate').value; if(!iso) return toast('เลือกวันที่ก่อน'); await saveHol({...hols,[iso]:'Day Off'}); closeDlg(); return toast('ตั้งเป็น Day Off แล้ว'); }
+  if(t.closest('#fDayOff')){ if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง'); const iso=$('fDate').value; if(!iso) return toast('เลือกวันที่ก่อน'); await saveHol({...hols,[iso]:'Day Off'}); closeDlg(); return toast('ตั้งเป็น Day Off แล้ว'); }
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
   const v=t.closest('#view button'); if(v){ mode=v.dataset.view; paintAll(); return; }
   const hset=t.closest('.holset');
   if(hset){
     if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
+    if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง');
     const iso=hset.dataset.iso;
     const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:`วันที่ ${iso} · เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก`,input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
     if(!r) return;
@@ -895,6 +896,7 @@ document.addEventListener('click',async e=>{
   const hb=t.closest('[data-hol]');
   if(hb){
     if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
+    if(!owner) return toast('แก้ได้เฉพาะป้ายของตัวเอง');
     const iso=hb.dataset.hol;
     const r=await askBox({icon:'🏖',title:'ป้ายวันหยุด',msg:'เว้นว่างแล้วบันทึก เพื่อเอาป้ายออก',input:{label:'ชื่อป้าย',value:holLabel(iso),allowEmpty:true}});
     if(!r) return;
