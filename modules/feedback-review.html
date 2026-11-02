@@ -127,6 +127,15 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .cst .d{font-size:12.5px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .cst .pb{height:6px;border-radius:99px;background:var(--bg3);margin-top:6px;overflow:hidden}.cst .pb i{display:block;height:100%;background:var(--green);border-radius:99px}
 .covgrid{display:grid;grid-template-columns:minmax(300px,380px) minmax(0,1fr);gap:14px;align-items:start}
+.bgrid{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,.8fr) minmax(0,1.1fr);gap:14px;align-items:start;margin-top:14px}
+.bcol{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:14px 16px;min-width:0}
+.bh{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:10px}.bh b{font-size:15px}.bh small{font-size:12.5px;color:var(--text3)}
+.bcol .bcards{margin-top:0}
+.bcards:not(.all) .bcard.more{display:none}
+.iq{display:flex;flex-direction:column;gap:6px;margin-top:4px}
+.iq div{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:13px;font-weight:700;padding:8px 10px;border:1px solid var(--border);border-radius:10px;overflow-wrap:anywhere}
+.iq em{font-style:normal;font-size:12px;font-weight:700;color:var(--text3);white-space:nowrap}
+.iq div.now{border-color:#fdba74;background:#fff7ed}
 .ftags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0 12px}.ftags span{font-size:12px;font-weight:600;color:var(--text2);border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:3px 10px}
 .todo{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:12px 14px}
 .todo .th{display:flex;justify-content:space-between;align-items:center;font-size:15px;margin-bottom:8px}.todo .th span{color:#dc2626;font-size:12.5px;font-weight:700}
@@ -160,7 +169,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 .dk{display:inline-grid;place-items:center;min-width:30px;height:26px;border-radius:8px;font-size:13px;font-weight:800;padding:0 6px}
 .dk.ok{background:#d1fae5;color:#059669}.dk.part{background:#fef3c7;color:#b45309;cursor:pointer}.dk.miss{background:#fff;border:1px dashed #f87171;color:#dc2626;cursor:pointer}
 .dk.open{background:#fff;border:1px dashed var(--border2)}.dk.na{background:none;color:var(--text3)}
-@media(max-width:1100px){.covtop{grid-template-columns:repeat(2,minmax(0,1fr))}.covgrid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:1100px){.covtop{grid-template-columns:repeat(2,minmax(0,1fr))}.covgrid{grid-template-columns:minmax(0,1fr)}.bgrid{grid-template-columns:minmax(0,1fr)}}
 </style>
 </head>
 <body>
@@ -185,19 +194,24 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
       <div class="st"><b>4</b><span>ข้อมูลลงในระบบ</span></div>
     </div>
     <div class="covtop" id="covTop"></div>
-    <div class="covgrid">
-      <div class="covleft">
+    <div class="covpanel" id="covPanel"><div class="muted" style="padding:20px">กำลังโหลดตารางความครบของข้อมูล…</div></div>
+    <div class="bgrid">
+      <section class="bcol">
+        <div class="bh"><b>นำเข้าไฟล์</b><small>เลือกได้หลายไฟล์</small></div>
         <div class="drop" id="drop" tabindex="0" role="button" aria-label="เลือกไฟล์ดิบ">
           <div class="t">ลากไฟล์ .xlsx มาวางที่นี่</div>
           <div class="s">หรือแตะเพื่อเลือกไฟล์ · ระบบดูเองว่าเป็นไฟล์ชนิดไหน</div>
           <input type="file" id="file" accept=".xlsx,.xls" class="hide" multiple>
         </div>
         <div class="ftags"><span>VOC · rawdata_….xlsx</span><span>Facebook · สรุป_Complain_FB….xlsx</span></div>
-        <div id="covTodo"></div>
-        <div class="sec" style="margin:16px 0 8px;font-weight:800;font-size:15px">ชุดข้อมูลที่นำเข้า</div>
+        <div id="impQueue"></div>
+      </section>
+      <div id="covTodo"></div>
+      <section class="bcol">
+        <div class="bh"><b>ชุดข้อมูลล่าสุด</b><small id="bcount"></small></div>
         <div class="bcards" id="bcards"></div>
-      </div>
-      <div class="covright"><div class="covpanel" id="covPanel"><div class="muted" style="padding:20px">กำลังโหลดตารางความครบของข้อมูล…</div></div></div>
+        <button type="button" class="btn sm ghost hide" id="bmore" style="width:100%;margin-top:10px"></button>
+      </section>
     </div>
   </div>
 
@@ -521,16 +535,22 @@ async function showList() {
   try { S.batches = await FBStore.batches(); } catch (e) { box.innerHTML = `<div class="warn">โหลดรายการไม่ได้: ${esc(e.message)}</div>`; return; }
   loadCov();   // ตารางความครบของข้อมูล (เดือน × ชนิดข้อมูล)
   if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
-  box.innerHTML = S.batches.map(b => {
+  box.classList.remove("all");
+  box.innerHTML = S.batches.map((b, bi) => {
     const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
     let sv = null; try { sv = !live && JSON.parse(localStorage.getItem(viewKey(b.id))); } catch (e) {}
     const svChip = sv && sv.at ? `<span class="chip info" title="ตรวจค้างไว้ในเครื่องนี้ — เปิดชุดแล้วจะกลับไปตำแหน่งเดิม">ตรวจค้างไว้ที่แถว ${fmt(sv.at_row || 1)} · ${esc(new Date(sv.at).toLocaleString("th-TH", {dateStyle: "short", timeStyle: "short"}))}</span>` : "";
-    return `<div class="bcard" data-id="${b.id}">
+    return `<div class="bcard${bi >= 4 ? " more" : ""}" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
         <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${svChip}${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
       <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
   }).join("");
+  const nWait = S.batches.filter(b => b.status !== "approved").length;
+  $("#bcount").textContent = `${S.batches.length} ชุด${nWait ? " · รอตรวจ " + nWait : ""}`;
+  const more = $("#bmore"); more.classList.toggle("hide", S.batches.length <= 4);
+  more.textContent = `ดูทั้งหมด ${S.batches.length} ชุด`;
+  more.onclick = () => { const all = box.classList.toggle("all"); more.textContent = all ? "ย่อเหลือ 4 ชุดล่าสุด" : `ดูทั้งหมด ${S.batches.length} ชุด`; };
   box.onclick = async e => {
     const bt = e.target.closest("[data-a]"); if (!bt) return;
     const b = S.batches.find(x => x.id === bt.closest(".bcard").dataset.id);
@@ -544,11 +564,17 @@ function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-he
 /* ═════════ นำเข้าไฟล์ ═════════ */
 /* คิวนำเข้าหลายไฟล์: ตรวจทีละไฟล์ ปิดกล่องตรวจไฟล์นั้นแล้วค่อยไปไฟล์ถัดไป */
 const importQueue = [];
-let importBusy = false;
+let importBusy = false, importNow = null;
+function paintQueue() {
+  const box = $("#impQueue"); if (!box) return;
+  const list = (importNow ? [importNow] : []).concat(importQueue);
+  box.innerHTML = list.length ? `<div class="iq">${list.map((f, i) => `<div class="${i === 0 && importNow ? "now" : ""}">${esc(f.name)}<em>${i === 0 && importNow ? "กำลังตรวจ" : "รอคิว"}</em></div>`).join("")}</div>` : "";
+}
 function queueImport(files) {
   const list = Array.from(files || []).filter(f => /\.xlsx?$/i.test(f.name));
   if (!list.length) return toast("เลือกไฟล์ .xlsx หรือ .xls");
   importQueue.push(...list);
+  paintQueue();
   if (list.length > 1) toast(`เข้าคิว ${list.length} ไฟล์ ตรวจทีละไฟล์`);
   runImportQueue();
 }
@@ -558,12 +584,13 @@ async function runImportQueue() {
   try {
     while (importQueue.length) {
       const file = importQueue.shift();
+      importNow = file; paintQueue();
       window._lastMask = null;
       await importFile(file);
       const mask = window._lastMask;
       if (mask && mask.isConnected) await new Promise(res => { mask._onGone = res; });
     }
-  } finally { importBusy = false; }
+  } finally { importBusy = false; importNow = null; paintQueue(); }
 }
 async function importFile(file) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
