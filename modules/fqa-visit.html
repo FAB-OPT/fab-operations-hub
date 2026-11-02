@@ -6375,6 +6375,7 @@ const Sta68 = {
    แยกกลุ่มไม่ซ้อนกัน: never / ≤30 วัน / ≤90 วัน / >30 วัน / >90 วัน */
 const VISIT_FILTERS = [
   ['never','ยังไม่เคยเข้า (ปีนี้)'],
+  ['nomonth','ยังไม่เข้าในเดือนนี้'],
   ['in30','เข้าล่าสุดภายใน 30 วัน'],
   ['in90','เข้าล่าสุดภายใน 90 วัน'],
   ['out30','เข้าล่าสุดเกิน 30 วันแล้ว'],
@@ -6390,10 +6391,19 @@ function visitDaysMap(type){
   const out={}; Object.keys(last).forEach(k=>{ out[k]=Coverage.daysAgo(last[k]); });
   return out;
 }
-/* days = null ➜ ยังไม่เคยเข้า */
-function visitMatch(mode, days){
+/* เดือนนี้ = สาขาที่มีใบตรวจในเดือนปัจจุบัน (ทุกประเภทใบ ตามประเภทที่เลือก) */
+function visitMonthSet(type){
+  const ym=todayISO().slice(0,7), set=new Set();
+  inspections().filter(r=>!type||r.type===type).forEach(r=>{
+    const k=branchKey(r.branch); if(k && r.date && String(r.date).slice(0,7)===ym) set.add(k);
+  });
+  return set;
+}
+/* days = null ➜ ยังไม่เคยเข้า · inMonth = มีใบตรวจในเดือนนี้แล้วหรือยัง */
+function visitMatch(mode, days, inMonth){
   switch(mode){
     case 'never': return days===null;
+    case 'nomonth': return !inMonth;
     case 'in30':  return days!==null && days<=30;
     case 'in90':  return days!==null && days<=90;
     case 'out30': return days!==null && days>30;
@@ -6519,15 +6529,17 @@ const Coverage = {
       return r.days + ' วันก่อน';
     };
 
-    const STATE_LABEL = { in30:'เข้าล่าสุดภายใน 30 วัน', in90:'เข้าล่าสุดภายใน 90 วัน', out30:'เข้าล่าสุดเกิน 30 วันแล้ว', out90:'เข้าล่าสุดเกิน 90 วันแล้ว', never:'ยังไม่เคยเข้า', over:'เกินรอบ ' + this.cycle + ' วัน', due:'ใกล้ครบรอบ', ok:'ตามรอบ' };
+    const STATE_LABEL = { nomonth:'ยังไม่เข้าในเดือนนี้', in30:'เข้าล่าสุดภายใน 30 วัน', in90:'เข้าล่าสุดภายใน 90 วัน', out30:'เข้าล่าสุดเกิน 30 วันแล้ว', out90:'เข้าล่าสุดเกิน 90 วันแล้ว', never:'ยังไม่เคยเข้า', over:'เกินรอบ ' + this.cycle + ' วัน', due:'ใกล้ครบรอบ', ok:'ตามรอบ' };
     /* ตัวเลขสรุปด้านบนยังคิดจากทุกสาขาเสมอ ไม่ผูกกับตัวกรองสถานะ
        ไม่งั้น "ยังไม่เคยเข้า 3 สาขา" จะกลายเป็น 3 เสมอเมื่อเลือกกรองสถานะนั้น = ไม่มีความหมาย */
     if(!this._sized){ this.limit=Mobile.page(); this._sized=1; }
     const _isVF = VISIT_FILTERS.some(x => x[0] === this.state);
     const _vdm = visitDaysMap(this.type);   // เฉพาะปีนี้
     const _vd = r => { const d = _vdm[branchKey(r.name)]; return d === undefined ? null : d; };
+    const _vms = visitMonthSet(this.type);
+    const _vm = r => _vms.has(branchKey(r.name));
     const shownAll = this.only === 'gap' ? gap
-      : (this.state ? (_isVF ? rows.filter(r => visitMatch(this.state, _vd(r))) : rows.filter(r => r.state === this.state)) : rows);
+      : (this.state ? (_isVF ? rows.filter(r => visitMatch(this.state, _vd(r), _vm(r))) : rows.filter(r => r.state === this.state)) : rows);
     /* วาดทีละ 40 สาขา — เจ๊แดง 49 สาขา ซานตาเฟ่ 64 สาขา บนมือถือตารางกลายเป็นการ์ดต่อแถว
        ทั้งหมดรวดเดียวคือหน้ายาวสองหมื่นพิกเซล ปุ่มท้ายตารางบอกว่าเหลืออีกเท่าไร */
     const shown = shownAll.slice(0, this.limit);
@@ -6613,8 +6625,8 @@ const Coverage = {
               <select class="inp" onchange="Coverage.setState(this.value)">
                 <option value="">ทุกสถานะ</option>
                 <optgroup label="ตามช่วงวันที่เข้าล่าสุด">
-                ${['never','in30','in90','out30','out90'].map(k => {
-                  const n = rows.filter(r => visitMatch(k, _vd(r))).length;
+                ${['never','nomonth','in30','in90','out30','out90'].map(k => {
+                  const n = rows.filter(r => visitMatch(k, _vd(r), _vm(r))).length;
                   return `<option value="${k}"${this.state===k?' selected':''}>${STATE_LABEL[k]} (${n})</option>`;
                 }).join('')}
                 </optgroup>
@@ -6683,7 +6695,9 @@ const Plan = {
     /* กรองสาขาตามสถานะการเข้าตรวจ (ยังไม่เคยเข้า / เข้าล่าสุดภายใน 30, 90 วัน / เกิน 30, 90 วัน) */
     const vdm = visitDaysMap();
     const dOf = b => { const d = vdm[branchKey(b.name)]; return d === undefined ? null : d; };
-    let branchList = this.visitF ? byZone.filter(b => visitMatch(this.visitF, dOf(b))) : byZone;
+    const vms = visitMonthSet();
+    const mOf = b => vms.has(branchKey(b.name));
+    let branchList = this.visitF ? byZone.filter(b => visitMatch(this.visitF, dOf(b), mOf(b))) : byZone;
     /* สาขาที่มีแผน "รอตรวจ" ชนิดเดียวกันอยู่แล้ว (หรือเพิ่งใส่ในตารางรอบันทึก) ไม่ต้องขึ้นให้เลือกซ้ำ
        แผนที่ตรวจแล้วหรือเกินกำหนดไม่นับ เพราะอาจต้องนัดรอบใหม่ */
     const planned = new Set();
@@ -6712,7 +6726,7 @@ const Plan = {
             <div class="fld"><label class="lbl">ผู้จัดการเขต</label>
               <select class="inp" onchange="Plan.setBzm(this.value)"><option value="">— ทุกเขต —</option>${zs.map(z=>`<option ${z===this.selBzm?'selected':''}>${esc(z)}</option>`).join('')}</select></div>
             <div class="fld"><label class="lbl">สถานะการเข้าตรวจ</label>
-              <select class="inp" onchange="Plan.setVisitF(this.value)"><option value="">— ทุกสถานะ (${byZone.length}) —</option>${VISIT_FILTERS.map(([k,l])=>`<option value="${k}" ${k===this.visitF?'selected':''}>${l} (${byZone.filter(b=>visitMatch(k,dOf(b))).length})</option>`).join('')}</select></div>
+              <select class="inp" onchange="Plan.setVisitF(this.value)"><option value="">— ทุกสถานะ (${byZone.length}) —</option>${VISIT_FILTERS.map(([k,l])=>`<option value="${k}" ${k===this.visitF?'selected':''}>${l} (${byZone.filter(b=>visitMatch(k,dOf(b),mOf(b))).length})</option>`).join('')}</select></div>
             <div class="fld"><label class="lbl">สาขา${hidePlanned ? ` <span style="font-weight:500;color:var(--text3)" title="ซ่อนสาขาที่มีแผนรอตรวจอยู่แล้ว">· ซ่อน ${hidePlanned} สาขาที่มีแผนแล้ว</span>` : ''}</label>
               <select class="inp" id="plBranch"><option value="">— เลือกสาขา —</option>${branchList.map(b=>`<option>${esc(b.name)}</option>`).join('')}</select></div>
             ${planTypesOfBrand().length>1 ? `<div class="fld"><label class="lbl">ประเภทการตรวจ</label>
