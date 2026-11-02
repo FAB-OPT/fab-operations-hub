@@ -2551,7 +2551,18 @@ const FqaSB = {
       return data;
     });
   },
-  pull(brand, since){ return this._rpc('fqa_pull', { p_brand: brand || '', p_since: since || null }); },
+  /* ดึงทีละหน้า (300 ใบ) เพราะดึงทั้งก้อนครั้งเดียวได้ข้อมูลใหญ่เกิน แล้วรายการว่าง/ไม่ขึ้น
+     ถ้ายังไม่ได้รัน supabase/fqa-pull-page.sql จะกลับไปใช้ fqa_pull แบบเดิม */
+  pull(brand, since){
+    const b = brand || '', s = since || null;
+    const loop = (after, recs, del, guard) =>
+      this._rpc('fqa_pull_page', { p_brand: b, p_since: s, p_after: after, p_limit: 300 }).then(j => {
+        recs = recs.concat(j.records || []); del = del.concat(j.deleted || []);
+        if(!j.count || j.count < 300 || !j.last || guard > 200) return { ok: true, records: recs, deleted: del, now: j.serverNow, serverNow: j.serverNow };
+        return loop(j.last, recs, del, guard + 1);
+      });
+    return loop(null, [], [], 0).catch(() => this._rpc('fqa_pull', { p_brand: b, p_since: s }));
+  },
   one(id){ return this._rpc('fqa_one', { p_id: String(id) }); },
   save(rec){ return this._rpc('fqa_save', { rec: rec }); },
   del(id, brand){ return this._rpc('fqa_delete', { p_id: String(id), p_brand: brand || '' }); }
