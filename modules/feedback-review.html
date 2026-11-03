@@ -99,6 +99,9 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .bar .tx{flex:1;min-width:220px;font-size:14px}
 .bar .tx b{font-variant-numeric:tabular-nums}
 .ovl{position:fixed;inset:0;background:rgba(15,23,42,.45);display:grid;place-items:center;z-index:200;color:#fff;font-weight:700;text-align:center;padding:20px}
+.embed .mask,.embed .ovl{padding-top:calc(var(--vt,0px) + 24px);padding-bottom:calc(var(--vb,0px) + 24px)}  /* iframe สูงตามเนื้อหา: วางหน้าต่างในส่วนที่มองเห็นจริง */
+.embed .mask .modal{max-height:calc(var(--vh,100vh) - 48px);overflow-y:auto}
+.embed .toast{bottom:calc(var(--vb,0px) + 24px)}
 .ovl .bx{background:#111827;border-radius:16px;padding:18px 24px;min-width:240px}
 .ovl .pb{height:6px;border-radius:4px;background:#374151;margin-top:10px;overflow:hidden}.ovl .pb i{display:block;height:100%;background:var(--gold);width:0}
 .mtab{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
@@ -1243,6 +1246,16 @@ boot();
   try { new ResizeObserver(send).observe(document.body); } catch (e) {}
   window.addEventListener("load", send);
   send();
+  /* หน้าต่าง / ป้ายกำลังทำงาน / toast เป็น position:fixed ในกรอบที่สูงหลายพันพิกเซล จึงไปอยู่กลางกรอบซึ่งมองไม่เห็น
+     บอกตำแหน่งส่วนที่มองเห็นได้ (--vt บน, --vb ล่าง, --vh สูง) ให้ CSS วางของไว้ตรงนั้น */
+  const fit = () => { try {
+    const r = window.frameElement.getBoundingClientRect(), H = parent.innerHeight;
+    const top = Math.max(0, -r.top), bot = Math.min(r.height, H - r.top), st = document.documentElement.style;
+    st.setProperty("--vt", top + "px"); st.setProperty("--vb", Math.max(0, r.height - bot) + "px"); st.setProperty("--vh", Math.max(200, bot - top) + "px");
+  } catch (e) {} };
+  try { parent.addEventListener("scroll", fit, {passive: true, capture: true}); parent.addEventListener("resize", fit); } catch (e) {}
+  try { new ResizeObserver(fit).observe(document.body); } catch (e) {}
+  fit();
 })();
 </script>
 </body>
