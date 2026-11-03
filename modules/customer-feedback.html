@@ -247,9 +247,9 @@ body.fbfull .shell{max-width:1560px}
     </div>
 
     <div class="fbk">
-      <div class="fk dark"><div class="fk-h"><span>ทั้งหมด</span><em id="kTotB">–</em></div><div class="fk-n" id="kTot">–</div><div class="fk-s">รายการ</div></div>
-      <div class="fk"><div class="fk-h"><span>คำชม</span><em class="g" id="kGoodB">0%</em></div><div class="fk-n good" id="kGood">–</div><div class="fk-s">ของทั้งหมด</div></div>
-      <div class="fk"><div class="fk-h"><span>ข้อร้องเรียน</span><em class="r" id="kBadB">0%</em></div><div class="fk-n bad" id="kBad">–</div><div class="fk-bar" id="kBadBar"></div></div>
+      <div class="fk dark"><div class="fk-h"><span>ข้อร้องเรียนทั้งหมด</span><em id="kTotB">–</em></div><div class="fk-n" id="kTot">–</div><div class="fk-bar" id="kBadBar"></div></div>
+      <div class="fk"><div class="fk-h"><span>ยังไม่ปิดเรื่อง</span><em class="r" id="kOpenB">0%</em></div><div class="fk-n bad" id="kOpen">–</div><div class="fk-s" id="kOpenS">ใหม่ 0 · กำลังติดตาม 0</div></div>
+      <div class="fk"><div class="fk-h"><span>วัตถุดิบไม่สุก</span><em class="r" id="kRawB">0%</em></div><div class="fk-n bad" id="kRaw">–</div><div class="fk-s">ของข้อร้องเรียนทั้งหมด</div></div>
     </div>
 
     <div class="fbf">
@@ -257,7 +257,7 @@ body.fbfull .shell{max-width:1560px}
       <label class="fcard"><span>เดือน</span><select id="fMonth" aria-label="เดือน"></select></label>
       <label class="fcard"><span>แบรนด์</span><select id="fBrand" aria-label="แบรนด์"></select></label>
       <label class="fcard"><span>สาขา</span><select id="fBranch" aria-label="สาขา"></select></label>
-      <label class="fcard"><span>ประเภท</span><select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option><option value="good">คำชม</option><option value="complaint">ข้อร้องเรียน</option><option value="neutral">ทั่วไป</option></select></label>
+      <label class="fcard" hidden><span>ประเภท</span><select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option><option value="good">คำชม</option><option value="complaint">ข้อร้องเรียน</option><option value="neutral">ทั่วไป</option></select></label>
     </div>
 
     <div class="fbg">
@@ -420,11 +420,12 @@ function fillFilters(){
   $("#fBranch").innerHTML=`<option value="">ทุกสาขา</option>`+brs.map(([c,l])=>`<option value="${c}">${esc(l)}</option>`).join("");
   $("#fMonth").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
 function renderKpi(B){
-  const n=B.length, g=B.filter(r=>r.type==="good").length, c=B.filter(r=>r.type==="complaint").length;
+  /* Facebook มีแต่ข้อร้องเรียน: ทั้งหมด · ยังไม่ปิดเรื่อง (ใหม่ + กำลังติดตาม) · วัตถุดิบไม่สุก */
+  const n=B.length, nw=B.filter(r=>stOf(r)==="new").length, dg=B.filter(r=>stOf(r)==="doing").length, raw=B.filter(r=>catOf(r)==="วัตถุดิบไม่สุก").length;
   const pc=x=>n?Math.round(x/n*100)+"%":"0%", mo=$("#fMonth").value;
   $("#kTot").textContent=n; $("#kTotB").textContent=mo?monLbl(mo):"ทุกเดือน";
-  $("#kGood").textContent=g; $("#kGoodB").textContent=pc(g);
-  $("#kBad").textContent=c; $("#kBadB").textContent=pc(c);
+  $("#kOpen").textContent=nw+dg; $("#kOpenB").textContent=pc(nw+dg); $("#kOpenS").textContent=`ใหม่ ${nw} · กำลังติดตาม ${dg}`;
+  $("#kRaw").textContent=raw; $("#kRawB").textContent=pc(raw);
   const cc={}; B.filter(r=>r.type==="complaint").forEach(r=>{ const k=catOf(r); cc[k]=(cc[k]||0)+1; });
   $("#kBadBar").innerHTML=Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<i title="${esc(k)} ${v}" style="flex:${v};background:${catCol(k)}"></i>`).join(""); }
 /* ปฏิทิน / รายวัน / รายสัปดาห์ / สะสม */
