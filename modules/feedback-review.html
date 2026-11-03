@@ -178,6 +178,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 .cov tr.cg td{background:var(--bg3);text-align:left;padding:7px 12px;font-size:12.5px;font-weight:800;border-bottom:1px solid var(--border)}
 .cov tr.cg td em{float:right;font-style:normal;color:var(--green-ink)}.cov tr.cg td em.no{color:#dc2626}
 .dk.ok.clk{cursor:pointer}
+.dmiss{display:block;margin-top:3px;font-size:11px;font-weight:800;color:#dc2626;cursor:pointer;line-height:1.2}
 .cov td.cc{padding:7px 2px;border-bottom:1px solid var(--border);cursor:default}
 .cov td.cc.cur{background:#fffaf3}
 .dk{display:inline-grid;place-items:center;min-width:30px;height:26px;border-radius:8px;font-size:13px;font-weight:800;padding:0 6px}
@@ -522,7 +523,7 @@ function renderCov() {
         <div><b>${esc(x.d.name)}</b><small>${x.c.st === "part" ? "มีบางส่วน" : "ยังไม่มีข้อมูล"} · ${esc(x.d.src)}</small></div></div>`).join("")}</div>`
     : `<div class="todo okall"><div class="th"><b>${lastLbl} ข้อมูลครบทุกชนิดแล้ว</b></div></div>`;
   // ตาราง
-  const chip = (c, d) => c.st === "ok" ? `<i class="dk ok${d && d.kind === "set" ? " clk" : ""}">${c.txt || "✓"}</i>` : c.st === "part" ? `<i class="dk part" title="มีบางส่วน — กดดูรายละเอียด">${esc(c.txt)}</i>` : c.st === "miss" ? `<i class="dk miss" title="ยังขาด">✕</i>` : `<i class="dk open"></i>`;
+  const chip = (c, d) => c.st === "ok" ? `<i class="dk ok${d && d.kind === "set" ? " clk" : ""}">${c.txt || "✓"}</i>${d && d.kind === "set" && c.miss.length ? `<span class="dmiss" title="${esc(c.miss.slice().sort().map(covName).join(", "))}">ขาด ${c.miss.length}</span>` : ""}` : c.st === "part" ? `<i class="dk part" title="มีบางส่วน — กดดูรายละเอียด">${esc(c.txt)}</i>` : c.st === "miss" ? `<i class="dk miss" title="ยังขาด">✕</i>` : `<i class="dk open"></i>`;
   const head = ms.map((m, i) => { const isCur = m === cur, mi = T.filter(d => cellOf(d, m).st === "miss").length;
     const lab = m >= cur ? `<span class="mc">${isCur ? "ยังไม่ปิด" : "-"}</span>` : mi ? `<span class="mc no">ขาด ${mi}</span>` : `<span class="mc ok">✓ ครบ</span>`;
     return `<th class="mh${isCur ? " cur" : ""}"><span>${MON[i]}</span>${lab}</th>`; }).join("");
@@ -538,13 +539,15 @@ function renderCov() {
     <div class="cvw"><table class="cov"><tr><th class="cn" rowspan="2" style="vertical-align:bottom;padding:8px 12px;font-size:12.5px;color:var(--text3)">ข้อมูล</th><th class="yb" colspan="12">${Y}<em>${(() => { const yM = ms.filter(span); if (!yM.length) return ""; const ok = yM.filter(m => !T.some(d => cellOf(d, m).st === "miss")).length; return "ครบ " + ok + " จาก " + yM.length + " เดือน"; })()}</em></th></tr><tr>${head}</tr>${rows}</table></div>
     <div class="note" style="margin-top:10px">ตัวเลขในช่องเขียว = จำนวนคอมเมนต์ หรือจำนวนสาขา/BZM/Owner ที่มีในเดือนนั้น · กดช่องของแถวสาขา/BZM/Owner เพื่อดูว่ารายการไหนไม่พบในเดือนนั้น · กดช่องแดงเพื่อดูว่าต้องนำเข้าอะไร</div>`;
 }
+function covName(x) { if (!/^\d{4}$/.test(x)) return x; try { const b = HubMod.Branches.list().find(b => b.code === x); return b ? x + " " + b.name : x; } catch (e) { return x; } }
 function covDetail(id, m) {
   const d = COV.rowsDef.find(x => x.id === id); if (!d) return;
   const c = covCell(d, m), [y, mo] = m.split("-"), lbl = MON[+mo - 1] + " " + y;
   let body = "";
   if (d.kind === "count") body = `ไม่มีคอมเมนต์ ${esc(d.name)} ของ ${lbl} เลย · นำเข้าไฟล์ rawdata หรือไฟล์ Looker ของเดือนนี้`;
   else if (d.kind === "set") body = (c.st === "miss" ? "ไม่มีข้อมูลเลย" : `มี <b class="num">${fmt(c.v.length)}</b>`) + (c.miss.length ? ` · ไม่พบเดือนนี้ <b class="num">${c.miss.length}</b> รายการ (เทียบกับที่พบบ่อยใน 6 เดือนล่าสุด)` : " · พบครบทุกรายการที่พบบ่อย") +
-    (c.miss.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${c.miss.slice().sort().map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div>` : "");
+    (c.miss.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${c.miss.slice().sort().map(x => `<span class="chip bad">${esc(covName(x))}</span>`).join("")}</div>` : "") +
+    (d.id === "bKT" ? `<div class="note" style="margin-top:10px">เทียบกับสาขา Santa Fe ที่เปิดอยู่ในทะเบียนฮับตอนนี้ สาขาที่เพิ่งเปิดจะขึ้นว่าขาดในเดือนก่อนเปิด</div>` : "");
   else body = `ยังไม่มีไฟล์สรุป Complain Facebook ที่อนุมัติแล้วของ ${lbl}`;
   modal(d.name + " · " + lbl, `<div style="line-height:1.8">${body}</div>`, []);
 }
