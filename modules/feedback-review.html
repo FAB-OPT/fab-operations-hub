@@ -174,9 +174,10 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 .cov .mh{padding:6px 2px 8px;font-size:12.5px;font-weight:800;border-bottom:1px solid var(--border)}
 .cov .mh.cur{background:#fff7ed}
 .cov .mh .mb{display:block;height:4px;border-radius:99px;background:var(--bg3);margin:5px 12px 3px;overflow:hidden}.cov .mh .mb i{display:block;height:100%;background:var(--green)}
-.cov .mh .mc{font-size:11.5px;color:var(--text3);font-weight:600}
+.cov .mh .mc{display:block;margin-top:4px;font-size:11.5px;color:var(--text3);font-weight:700}.cov .mh .mc.ok{color:var(--green-ink)}.cov .mh .mc.no{color:#dc2626}
 .cov tr.cg td{background:var(--bg3);text-align:left;padding:7px 12px;font-size:12.5px;font-weight:800;border-bottom:1px solid var(--border)}
-.cov tr.cg td em{float:right;font-style:normal;color:var(--green-ink)}
+.cov tr.cg td em{float:right;font-style:normal;color:var(--green-ink)}.cov tr.cg td em.no{color:#dc2626}
+.dk.ok.clk{cursor:pointer}
 .cov td.cc{padding:7px 2px;border-bottom:1px solid var(--border);cursor:default}
 .cov td.cc.cur{background:#fffaf3}
 .dk{display:inline-grid;place-items:center;min-width:30px;height:26px;border-radius:8px;font-size:13px;font-weight:800;padding:0 6px}
@@ -373,7 +374,7 @@ function wire() {
   $("#toList").onclick = showList;
   $("#vList").addEventListener("click", e => {
     const y = e.target.closest("[data-cy]"); if (y){ COV.year = +y.dataset.cy; return renderCov(); }
-    const c = e.target.closest("[data-cell]"); if (c){ const [id, m] = c.dataset.cell.split("|"); const x = COV.rowsDef.find(d => d.id === id); if (x){ const st = covCell(x, m).st; if (st === "part" || st === "miss") covDetail(id, m); } return; }
+    const c = e.target.closest("[data-cell]"); if (c){ const [id, m] = c.dataset.cell.split("|"); const x = COV.rowsDef.find(d => d.id === id); if (x){ const st = covCell(x, m).st; if (st === "miss" || (st === "ok" && x.kind === "set")) covDetail(id, m); } return; }
     const t = e.target.closest("[data-todo]"); if (t){ const [id, m] = t.dataset.todo.split("|"); covDetail(id, m); }
   });
   $("#tRows").onclick = () => setTab("rows"); $("#tCsat").onclick = () => setTab("csat");
@@ -475,15 +476,14 @@ function covCell(d, m) {
   const cur = nowKey(), isCur = m === cur, future = m > cur;
   const v = d.get(m);
   let st, txt = "", miss = [];
+  /* มีข้อมูลเดือนนั้น = ครบ ไม่มี = ขาด · ไม่ตัดสินจากเกณฑ์เปอร์เซ็นต์ ตัวเลขในช่องเป็นจำนวนจริงไว้ดูประกอบ */
   if (d.kind === "count") {
     if (!v) st = isCur || future ? "open" : "miss";
-    else if (d.med && v < d.med * 0.4) { st = "part"; txt = fmt(v); }
-    else st = "ok";
+    else { st = "ok"; txt = fmt(v); }
   } else if (d.kind === "set") {
     const seen = new Set(v); miss = d.exp.filter(x => !seen.has(x));
     if (!v.length) st = isCur || future ? "open" : "miss";
-    else if (d.exp.length && (d.exp.length - miss.length) / d.exp.length < 0.9) { st = "part"; txt = (d.exp.length - miss.length) + "/" + d.exp.length; }   // ขาดเกิน 10% ถึงนับว่ามีบางส่วน
-    else st = "ok";
+    else { st = "ok"; txt = fmt(v.length); }
   } else { st = v ? "ok" : (isCur || future ? "open" : "miss"); }
   return {st, txt, miss, v};
 }
@@ -500,17 +500,18 @@ function renderCov() {
   // ค่าสรุป
   const firstM = [...all].sort()[0] || cur;
   const span = m => m >= firstM && m < cur;
-  let okN = 0, totN = 0;
-  T.forEach(d => ms.forEach(m => { if (!span(m)) return; totN++; if (cellOf(d, m).st === "ok") okN++; }));
+  const allM = [...new Set([...all])].filter(span).sort();
+  const missOf = m => T.filter(d => covCell(d, m).st === "miss").length;
+  const okMonths = allM.filter(m => !missOf(m)).length, missAll = allM.reduce((a, m) => a + missOf(m), 0);
   // เดือนล่าสุดที่ปิด
   const lastClosed = (() => { const [y, mo] = cur.split("-").map(Number); return mo === 1 ? mkey(y - 1, 12) : mkey(y, mo - 1); })();
   const todo = T.map(d => ({d, c: covCell(d, lastClosed)})).filter(x => x.c.st !== "ok");
   const latest = (S.batches || [])[0];
   const lm = lastClosed.split("-"), lastLbl = MON[+lm[1] - 1] + " " + lm[0];
   const first = firstM.split("-"), lastD = [...all].sort().filter(m => m < cur).pop() || firstM, lastp = lastD.split("-");
-  { const ftc = $("#ftCov"); if (ftc) ftc.textContent = (totN ? Math.round(okN / totN * 100) : 0) + "%"; }
+  { const ftc = $("#ftCov"); if (ftc) ftc.textContent = missAll ? "ขาด " + fmt(missAll) : "ครบ"; }
   $("#covTop").innerHTML = `
-    <div class="cst"><div class="l">ข้อมูลครบ</div><div class="v n">${totN ? Math.round(okN / totN * 100) : 0}%</div><div class="pb"><i style="width:${totN ? okN / totN * 100 : 0}%"></i></div><div class="d n">${fmt(okN)} จาก ${fmt(totN)} ช่อง · ${MON[+first[1] - 1]} ${first[0]} ถึง เดือนที่ปิดล่าสุด</div></div>
+    <div class="cst"><div class="l">เดือนที่ข้อมูลครบทุกชนิด</div><div class="v n">${fmt(okMonths)}<small>จาก ${fmt(allM.length)} เดือน</small></div><div class="d n">${missAll ? "ยังขาดรวม " + fmt(missAll) + " รายการ" : "ไม่มีรายการขาด"} · ${MON[+first[1] - 1]} ${first[0]} ถึงเดือนที่ปิดล่าสุด</div></div>
     <div class="cst ${todo.length ? "warn" : "okc"}"><div class="l">${lastLbl} ${todo.length ? "ยังขาด" : "ครบทุกชนิด"}</div><div class="v n">${todo.length ? todo.length + `<small>รายการ</small>` : "✓"}</div><div class="d">${todo.length ? esc(todo.slice(0, 2).map(x => x.d.name).join(" · ")) + (todo.length > 2 ? " …" : "") : "ไม่มีรายการค้าง"}</div></div>
     <div class="cst"><div class="l">นำเข้าล่าสุด</div><div class="v" style="font-size:16px;white-space:normal;line-height:1.3;max-height:2.6em">${latest ? esc(latest.file_name) : "—"}</div><div class="d">${latest ? esc(new Date(latest.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " · " + esc(latest.created_by || "") : ""}</div></div>
     <div class="cst"><div class="l">ข้อมูลในระบบ</div><div class="v" style="font-size:18px">${MON[+first[1] - 1]} ${first[0]} – ${MON[+lastp[1] - 1]} ${lastp[0]}</div><div class="d">VOC คอมเมนต์ ${fmt(Object.values(cm).reduce((a, v) => a + Object.values(v).reduce((b, x) => b + x.n, 0), 0))} แถว</div></div>`;
@@ -521,28 +522,28 @@ function renderCov() {
         <div><b>${esc(x.d.name)}</b><small>${x.c.st === "part" ? "มีบางส่วน" : "ยังไม่มีข้อมูล"} · ${esc(x.d.src)}</small></div></div>`).join("")}</div>`
     : `<div class="todo okall"><div class="th"><b>${lastLbl} ข้อมูลครบทุกชนิดแล้ว</b></div></div>`;
   // ตาราง
-  const chip = c => c.st === "ok" ? `<i class="dk ok">${c.txt || "✓"}</i>` : c.st === "part" ? `<i class="dk part" title="มีบางส่วน — กดดูรายละเอียด">${esc(c.txt)}</i>` : c.st === "miss" ? `<i class="dk miss" title="ยังขาด">✕</i>` : `<i class="dk open"></i>`;
-  const head = ms.map((m, i) => { const okc = T.filter(d => cellOf(d, m).st === "ok").length, isCur = m === cur, pct = Math.round(okc / T.length * 100);
-    return `<th class="mh${isCur ? " cur" : ""}"><span>${MON[i]}</span><span class="mb"><i style="width:${m > cur || (isCur && !okc) ? 0 : pct}%"></i></span><span class="mc">${m > cur || (isCur && !okc) ? "–" : okc + "/" + T.length}</span></th>`; }).join("");
+  const chip = (c, d) => c.st === "ok" ? `<i class="dk ok${d && d.kind === "set" ? " clk" : ""}">${c.txt || "✓"}</i>` : c.st === "part" ? `<i class="dk part" title="มีบางส่วน — กดดูรายละเอียด">${esc(c.txt)}</i>` : c.st === "miss" ? `<i class="dk miss" title="ยังขาด">✕</i>` : `<i class="dk open"></i>`;
+  const head = ms.map((m, i) => { const isCur = m === cur, mi = T.filter(d => cellOf(d, m).st === "miss").length;
+    const lab = m >= cur ? `<span class="mc">${isCur ? "ยังไม่ปิด" : "-"}</span>` : mi ? `<span class="mc no">ขาด ${mi}</span>` : `<span class="mc ok">✓ ครบ</span>`;
+    return `<th class="mh${isCur ? " cur" : ""}"><span>${MON[i]}</span>${lab}</th>`; }).join("");
   let g0 = "", rows = "";
   T.forEach(d => {
-    if (d.g !== g0) { g0 = d.g; const G = T.filter(x => x.g === g0); let o = 0, t = 0; G.forEach(x => ms.forEach(m => { if (!span(m)) return; t++; if (cellOf(x, m).st === "ok") o++; }));
-      rows += `<tr class="cg"><td colspan="13">${esc(g0)}<em>ปี ${Y} ครบ ${t ? Math.round(o / t * 100) : 0}%</em></td></tr>`; }
-    rows += `<tr><td class="cn"><b>${esc(d.name)}</b><small>${esc(d.src)}</small></td>${ms.map(m => { const c = cellOf(d, m); return `<td class="cc${m === cur ? " cur" : ""}" data-cell="${d.id}|${m}">${chip(c)}</td>`; }).join("")}</tr>`;
+    if (d.g !== g0) { g0 = d.g; const G = T.filter(x => x.g === g0); let mi = 0; G.forEach(x => ms.forEach(m => { if (span(m) && cellOf(x, m).st === "miss") mi++; }));
+      rows += `<tr class="cg"><td colspan="13">${esc(g0)}<em class="${mi ? "no" : ""}">ปี ${Y} ${mi ? "ขาด " + mi + " รายการ" : "ครบทุกเดือน"}</em></td></tr>`; }
+    rows += `<tr><td class="cn"><b>${esc(d.name)}</b><small>${esc(d.src)}</small></td>${ms.map(m => { const c = cellOf(d, m); return `<td class="cc${m === cur ? " cur" : ""}" data-cell="${d.id}|${m}">${chip(c, d)}</td>`; }).join("")}</tr>`;
   });
   const ytab = years.map(y => { const has = [...all].some(m => m.startsWith(y + "-")); return `<button type="button" data-cy="${y}" class="${y === Y ? "on" : ""}">${y}<small>${y === +cur.slice(0, 4) ? "ปีนี้" : has ? "มีข้อมูล" : "ไม่มี"}</small></button>`; }).join("");
-  $("#covPanel").innerHTML = `<div class="cvh"><h3>ข้อมูลในระบบ</h3><div class="cvleg"><span><i class="dk ok" style="min-width:20px;height:18px"></i>มีครบ</span><span><i class="dk part" style="min-width:20px;height:18px;font-size:11px">1/9</i>มีบางส่วน/น้อยผิดปกติ</span><span><i class="dk miss" style="min-width:20px;height:18px"></i>ยังขาด</span><span><i class="dk open" style="min-width:20px;height:18px"></i>เดือนนี้ยังไม่ปิด</span></div></div>
+  $("#covPanel").innerHTML = `<div class="cvh"><h3>ข้อมูลในระบบ</h3><div class="cvleg"><span><i class="dk ok" style="min-width:20px;height:18px;font-size:11px">12</i>มีข้อมูล (ตัวเลข = จำนวนจริง)</span><span><i class="dk miss" style="min-width:20px;height:18px"></i>ยังขาด</span><span><i class="dk open" style="min-width:20px;height:18px"></i>เดือนนี้ยังไม่ปิด</span></div></div>
     <div class="cyr">${ytab}</div>
-    <div class="cvw"><table class="cov"><tr><th class="cn" rowspan="2" style="vertical-align:bottom;padding:8px 12px;font-size:12.5px;color:var(--text3)">ข้อมูล</th><th class="yb" colspan="12">${Y}<em>${(() => { let o = 0, t = 0; T.forEach(d => ms.forEach(m => { if (!span(m)) return; t++; if (cellOf(d, m).st === "ok") o++; })); return t ? "ครบ " + Math.round(o / t * 100) + "%" : ""; })()}</em></th></tr><tr>${head}</tr>${rows}</table></div>
-    <div class="note" style="margin-top:10px">ช่อง "น้อยผิดปกติ" = จำนวนคอมเมนต์ต่ำกว่า 40% ของเดือนทั่วไป · ช่องสาขา/BZM/Owner แสดง "มี/ที่ควรมี" (สีเหลืองเมื่อขาดเกิน 10%) กดช่องสีเหลืองหรือแดงเพื่อดูว่าขาดอะไร</div>`;
+    <div class="cvw"><table class="cov"><tr><th class="cn" rowspan="2" style="vertical-align:bottom;padding:8px 12px;font-size:12.5px;color:var(--text3)">ข้อมูล</th><th class="yb" colspan="12">${Y}<em>${(() => { const yM = ms.filter(span); if (!yM.length) return ""; const ok = yM.filter(m => !T.some(d => cellOf(d, m).st === "miss")).length; return "ครบ " + ok + " จาก " + yM.length + " เดือน"; })()}</em></th></tr><tr>${head}</tr>${rows}</table></div>
+    <div class="note" style="margin-top:10px">ตัวเลขในช่องเขียว = จำนวนคอมเมนต์ หรือจำนวนสาขา/BZM/Owner ที่มีในเดือนนั้น · กดช่องของแถวสาขา/BZM/Owner เพื่อดูว่ารายการไหนไม่พบในเดือนนั้น · กดช่องแดงเพื่อดูว่าต้องนำเข้าอะไร</div>`;
 }
 function covDetail(id, m) {
   const d = COV.rowsDef.find(x => x.id === id); if (!d) return;
   const c = covCell(d, m), [y, mo] = m.split("-"), lbl = MON[+mo - 1] + " " + y;
   let body = "";
-  if (d.kind === "count") body = c.st === "miss" ? `ไม่มีคอมเมนต์ ${esc(d.name)} ของ ${lbl} เลย — นำเข้าไฟล์ rawdata หรือไฟล์ Looker ของเดือนนี้`
-    : `มี <b class="num">${fmt(c.v)}</b> แถว น้อยกว่า 40% ของค่ากลาง (<b class="num">${fmt(d.med)}</b>) — เดือนนี้ไฟล์ต้นทางอาจไม่ครบ ตรวจแล้วนำเข้าเพิ่มหรือใช้โหมด "แทนที่ข้อมูลช่วงนี้"`;
-  else if (d.kind === "set") body = `${c.st === "miss" ? "ไม่มีข้อมูลเลย" : "มีบางส่วน"} · ขาด <b class="num">${c.miss.length}</b> จาก <b class="num">${d.exp.length}</b>` +
+  if (d.kind === "count") body = `ไม่มีคอมเมนต์ ${esc(d.name)} ของ ${lbl} เลย · นำเข้าไฟล์ rawdata หรือไฟล์ Looker ของเดือนนี้`;
+  else if (d.kind === "set") body = (c.st === "miss" ? "ไม่มีข้อมูลเลย" : `มี <b class="num">${fmt(c.v.length)}</b>`) + (c.miss.length ? ` · ไม่พบเดือนนี้ <b class="num">${c.miss.length}</b> รายการ (เทียบกับที่พบบ่อยใน 6 เดือนล่าสุด)` : " · พบครบทุกรายการที่พบบ่อย") +
     (c.miss.length ? `<div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap">${c.miss.slice().sort().map(x => `<span class="chip">${esc(x)}</span>`).join("")}</div>` : "");
   else body = `ยังไม่มีไฟล์สรุป Complain Facebook ที่อนุมัติแล้วของ ${lbl}`;
   modal(d.name + " · " + lbl, `<div style="line-height:1.8">${body}</div>`, []);
