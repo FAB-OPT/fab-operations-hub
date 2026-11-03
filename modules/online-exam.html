@@ -500,6 +500,12 @@ input.fld.w1{width:15mm}input.fld.wd{width:9mm}input.fld.w2{width:34mm}input.fld
 .rd-q.blank::before{background:var(--gold-soft);color:var(--gold);border:1px solid var(--gold-line)}
 /* แถวที่ไม่บอกว่าถูกหรือผิด (คนที่ไม่ใช่แอดมิน) — เลขข้อสีกลาง ไม่มีแถบสี */
 .rd-fix{display:flex;gap:6px;margin-top:7px}
+.rd-pick{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.rd-pick button{padding:6px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg2);font-size:13px;font-weight:600;color:var(--text2);text-align:left;line-height:1.4;cursor:pointer}
+.rd-pick button i{font-style:normal;font-size:11px;font-weight:800;margin-left:6px;padding:1px 6px;border-radius:999px;background:var(--green-soft);color:#0b7a55}
+.rd-pick button.on{border-color:#0f172a;background:#0f172a;color:#fff}
+.rd-pick button.on.right{background:var(--green-soft);border-color:var(--green-line);color:#0b7a55}
+.rd-pick button.on:not(.right){background:var(--red-soft);border-color:var(--red-line);color:#a51c1c}
 .rd-fix button{padding:4px 12px;border-radius:8px;border:1px solid var(--border);background:var(--bg2);font-size:12.5px;font-weight:700;color:var(--text2)}
 .rd-fix button.ok.on{background:var(--green-soft);border-color:var(--green-line);color:#0b7a55}
 .rd-fix button.bad.on{background:var(--red-soft);border-color:var(--red-line);color:#a51c1c}
@@ -6818,14 +6824,8 @@ function _oeResDetailHtml(r){
     var tone = blank ? 'blank' : (key ? (ok ? 'ok' : 'bad') : 'plain');
     return '<li class="rd-q ' + tone + '" id="rdq' + i + '">' +
       '<div class="rd-q-t">' + esc(a.q || '') + (a.fixed && key ? '<span class="rd-fixed">แก้โดยแอดมิน</span>' : '') + '</div>' +
-      '<div class="rd-q-a">' +
-        (_oeAnsBlank(a)
-          ? '<b class="none">ไม่ได้ตอบ</b>'
-          : '<span>ตอบ</span><b>' + esc(a.my) + '</b>') +
-        ((ok && !_ed) || !_oeSeeKey() ? '' : '<i class="sep">·</i><span>เฉลย</span><b class="right">' + esc(a.correct || '—') + '</b>') +
-      '</div>' +
-      (_ed ? '<div class="rd-fix"><button type="button" class="ok' + (ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',true)">✓ ถูก</button>' +
-             '<button type="button" class="bad' + (!ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',false)">✗ ผิด</button></div>' : '') +
+      '<div class="rd-q-a">' + _oeQAHtml(_ed ? { my: _ed.my[i], correct: a.correct } : a, ok, _ed) + '</div>' +
+      (_ed ? _oeEdPickHtml(r, a, i, ok) : '') +
     '</li>';
   }).join('') + '</ol>';
   if(_ed) setTimeout(_oeEdSum, 0);
@@ -6931,10 +6931,49 @@ function _oeEdSum(){
       (c.pass !== was ? ' <b style="color:#b45309">· ผลเปลี่ยนจาก' + (was ? 'ผ่าน' : 'ไม่ผ่าน') + '</b>' : '')) +
     (changed ? '' : ' · <span style="color:var(--text3)">ยังไม่ได้แก้ข้อไหน</span>');
 }
+/* บรรทัด "ตอบ … · เฉลย …" ของแต่ละข้อ */
+function _oeQAHtml(a, ok, ed){
+  return (_oeAnsBlank(a) ? '<b class="none">ไม่ได้ตอบ</b>' : '<span>ตอบ</span><b>' + esc(a.my) + '</b>') +
+    ((ok && !ed) || !_oeSeeKey() ? '' : '<i class="sep">·</i><span>เฉลย</span><b class="right">' + esc(a.correct || '—') + '</b>');
+}
+/* ตัวเลือกของข้อนั้นจากชุดข้อสอบ (หาจากข้อความโจทย์) · ชุดถูกแก้จนหาไม่เจอ → null แล้วใช้ปุ่มถูก/ผิดแทน */
+function _oeQChoices(r, a){
+  var ex = _oeExamOf(r), key = String((a && a.q) || '').trim();
+  if(!ex || !key) return null;
+  var q = (ex.questions || []).find(function(x){ return x && String(x.q || '').trim() === key; });
+  if(!q) return null;
+  var ch = (q.choices || []).map(function(c){ return String(typeof c === 'string' ? c : ((c && c.text) || '')); }).filter(function(c){ return c.trim() !== ''; });
+  return ch.length > 1 ? ch : null;
+}
+/* โหมดแก้: เลือกคำตอบใหม่จากตัวเลือกของข้อ ระบบตัดสินถูก/ผิดเทียบกับเฉลยเอง */
+function _oeEdPickHtml(r, a, i, ok){
+  var ch = _oeQChoices(r, a);
+  if(!ch) return '<div class="rd-fix"><button type="button" class="ok' + (ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',true)">✓ ถูก</button>' +
+    '<button type="button" class="bad' + (!ok ? ' on' : '') + '" onclick="oeEditAnsSet(' + i + ',false)">✗ ผิด</button></div>';
+  var my = String(_oeEd.my[i] == null ? '' : _oeEd.my[i]).trim(), right = String(a.correct || '').trim();
+  return '<div class="rd-pick">' + ch.map(function(c, ci){
+    var t = c.trim();
+    return '<button type="button" class="' + (t === my ? 'on ' : '') + (t === right ? 'right' : '') + '" onclick="oeEditAnsPick(' + i + ',' + ci + ')">' +
+      esc(c) + (t === right ? '<i>เฉลย</i>' : '') + '</button>';
+  }).join('') + '</div>';
+}
+function oeEditAnsPick(i, ci){
+  if(!_oeEd) return;
+  var a = (_oeResAnswers(_oeEd.r) || [])[i], ch = _oeQChoices(_oeEd.r, a);
+  if(!a || !ch || ch[ci] == null) return;
+  var txt = ch[ci], ok = txt.trim() === String(a.correct || '').trim();
+  _oeEd.my[i] = txt;
+  oeEditAnsSet(i, ok);
+  var li = $('rdq' + i);
+  if(li){
+    var qa = li.querySelector('.rd-q-a'); if(qa) qa.innerHTML = _oeQAHtml({ my: txt, correct: a.correct }, ok, _oeEd);
+    li.querySelectorAll('.rd-pick button').forEach(function(b, k){ b.classList.toggle('on', k === ci); });
+  }
+}
 function oeEditAnsStart(){
   var r = _oeResCur, ans = _oeResAnswers(r);
   if(!r || !ans || !_oeCanEditAns()){ toast('ไม่มีสิทธิ์แก้ผลสอบ','err'); return; }
-  _oeEd = { r: r, ok: ans.map(_oeAnsOk), note: '' };
+  _oeEd = { r: r, ok: ans.map(_oeAnsOk), my: ans.map(function(a){ return a ? a.my : ''; }), note: '' };
   $('rdBody').innerHTML = _oeResDetailHtml(r);
 }
 function oeEditAnsCancel(){
@@ -6947,13 +6986,13 @@ function oeEditAnsSet(i, v){
   var li = $('rdq' + i);
   if(li){
     var a = (_oeResAnswers(_oeEd.r) || [])[i];
-    li.className = 'rd-q ' + (!v && _oeAnsBlank(a) ? 'blank' : (v ? 'ok' : 'bad'));
+    li.className = 'rd-q ' + (!v && _oeAnsBlank({ my: _oeEd.my ? _oeEd.my[i] : a.my }) ? 'blank' : (v ? 'ok' : 'bad'));
     var bs = li.querySelectorAll('.rd-fix button');
     if(bs[0]) bs[0].classList.toggle('on', !!v);
     if(bs[1]) bs[1].classList.toggle('on', !v);
   }
   var ans = _oeResAnswers(_oeEd.r) || [], nOk = _oeEd.ok.filter(Boolean).length;
-  var nBlank = ans.filter(function(a, k){ return !_oeEd.ok[k] && _oeAnsBlank(a); }).length;
+  var nBlank = ans.filter(function(a, k){ return !_oeEd.ok[k] && _oeAnsBlank({ my: _oeEd.my ? _oeEd.my[k] : a.my }); }).length;
   var nWrong = ans.length - nOk - nBlank, t = $('rdTally');
   if(t) t.innerHTML = '<i class="ok">ถูก ' + nOk + '</i>' + (nWrong ? '<i class="bad">ตอบผิด ' + nWrong + '</i>' : '') + (nBlank ? '<i class="blank">ไม่ได้ตอบ ' + nBlank + '</i>' : '');
   _oeEdSum();
@@ -6967,8 +7006,14 @@ async function oeEditAnsSave(){
   var changed = 0;
   var nextAns = ans.map(function(a, i){
     var n = {}; for(var k in a) n[k] = a[k];
-    var was = _oeAnsOk(a);
-    if(!!ed.ok[i] !== was){ n.ok = !!ed.ok[i]; n.fixed = true; n.origOk = was; changed++; }
+    var was = _oeAnsOk(a), myNew = ed.my ? ed.my[i] : a.my;
+    var myChg = String(myNew == null ? '' : myNew) !== String(a.my == null ? '' : a.my);
+    if(!!ed.ok[i] !== was || myChg){
+      n.ok = !!ed.ok[i]; n.fixed = true;
+      if(n.origOk == null) n.origOk = was;
+      if(myChg){ if(n.origMy == null) n.origMy = a.my; n.my = myNew; }
+      changed++;
+    }
     return n;
   });
   if(!changed){ toast('ยังไม่ได้แก้ข้อไหน', 'warn'); return; }
