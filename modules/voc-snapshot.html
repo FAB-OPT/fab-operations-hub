@@ -84,6 +84,24 @@ h1 .brand{white-space:nowrap}
 .strip .p span{font-weight:600;font-size:14px;color:var(--muted)}
 .strip .pos{color:var(--good-ink)} .strip .neg{color:var(--bad-ink)}
 @media (max-width:760px){.hero{grid-template-columns:minmax(0,1fr)}.h{min-height:120px}}
+/* แถบคะแนนบาง: CSAT · NPS · ความเห็น · พอใจ · ไม่พอใจ ในแถวเดียว (สีตัวเลข CSAT/NPS ตามระดับ) */
+.kstrip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.kc{padding:12px 20px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:1px;min-width:0}
+.kc:last-child{border-right:0}
+.kc small{font-size:13px;font-weight:800;color:var(--muted);letter-spacing:.02em}
+.kc b{font-size:clamp(26px,2.4vw,32px);font-weight:800;line-height:1.1;font-variant-numeric:tabular-nums;color:var(--fg)}
+.kc em{font-style:normal;font-size:13.5px;font-weight:600;color:var(--muted);display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.kc .lv:empty{display:none}.kc .lv{font-size:12px;font-weight:800;padding:2px 8px;border-radius:999px;background:var(--soft)}
+.kc[data-lv=g] b{color:#14803c}.kc[data-lv=g] .lv{background:var(--good-soft);color:var(--good-ink)}
+.kc[data-lv=a] b{color:#b45309}.kc[data-lv=a] .lv{background:#fef3c7;color:#92400e}
+.kc[data-lv=r] b{color:#c42323}.kc[data-lv=r] .lv{background:var(--bad-soft);color:var(--bad-ink)}
+.kc.pos b{color:var(--good-ink)}.kc.neg b{color:var(--bad-ink)}
+.kc .kbar{height:6px;border-radius:99px;background:var(--soft);display:flex;gap:2px;overflow:hidden;margin-top:6px;flex-wrap:nowrap}
+.kc .kbar i{display:block;height:100%;transition:width .5s}.kc .kbar .g{background:var(--good)}.kc .kbar .r{background:var(--bad)}
+@media (max-width:900px){.kstrip{grid-template-columns:repeat(2,minmax(0,1fr))}.kc{border-bottom:1px solid var(--line)}.kc:nth-child(2n){border-right:0}.kc:nth-child(3){grid-column:1/-1;border-right:0}}
+/* หัวข้อย่อยที่มีไม่พอใจ: พื้นแดงอ่อน */
+.cat tbody tr.hot td{background:#fff5f5}
+.cat tbody tr.hot:hover td,.cat tbody tr.hot.sel td{background:#fde8e6}
 
 /* การ์ดหมวด */
 .cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
@@ -261,17 +279,14 @@ body{zoom:1}
   </div>
 
   <div class="kpis">
-    <div class="hero">
-      <div class="h" id="heroCsat"><div><div class="l">CSAT</div><div class="v" id="kCsat">–</div></div><div class="r"><b>ความพึงพอใจ</b>เต็ม 100<span id="csatLv"></span></div></div>
-      <div class="h" id="heroNps"><div><div class="l">NPS</div><div class="v" id="kNps">–</div></div><div class="r"><b>Net Promoter</b>ช่วง -100 ถึง +100<span id="npsLv"></span></div></div>
+    <div class="kstrip">
+      <div class="kc" id="heroCsat"><small>CSAT</small><b id="kCsat">–</b><em>เต็ม 100 <span class="lv" id="csatLv"></span></em></div>
+      <div class="kc" id="heroNps"><small>NPS</small><b id="kNps">–</b><em>-100 ถึง +100 <span class="lv" id="npsLv"></span></em></div>
+      <div class="kc"><small>ความเห็นทั้งหมด</small><b id="kAll">0</b><em class="kbar" aria-hidden="true"><i class="g" id="barG" style="width:0"></i><i class="r" id="barR" style="width:0"></i></em></div>
+      <div class="kc pos"><small>พอใจ</small><b id="kPos">0</b><em id="kPosP">–</em></div>
+      <div class="kc neg"><small>ไม่พอใจ</small><b id="kNeg">0</b><em id="kNegP">–</em></div>
     </div>
-    <div class="strip">
-      <div class="tot">ความเห็นทั้งหมด <b id="kAll">0</b></div>
-      <div class="bar" aria-hidden="true"><i class="g" id="barG" style="width:0"></i><i class="r" id="barR" style="width:0"></i></div>
-      <div class="p pos">พอใจ<b id="kPos">0</b><span id="kPosP">–</span></div>
-      <div class="p neg">ไม่พอใจ<b id="kNeg">0</b><span id="kNegP">–</span></div>
-      <div class="zonenote" id="zoneNote" hidden><i aria-hidden="true">i</i><span>CSAT/NPS เป็นค่าระดับเขต (BZM) ที่สาขาของคุณสังกัด</span></div>
-    </div>
+    <div class="zonenote" id="zoneNote" hidden><i aria-hidden="true">i</i><span>CSAT/NPS เป็นค่าระดับเขต (BZM) ที่สาขาของคุณสังกัด</span></div>
   </div>
 
   <section class="cmp" id="cmpCard" hidden></section>
@@ -280,7 +295,7 @@ body{zoom:1}
     <section class="cat s"><div class="chead"><i class="cdot"></i><h2>หมวดพนักงานและบริการ</h2><span class="cpills" id="catSh"></span></div><div id="catS"></div></section>
     <section class="cat o"><div class="chead"><i class="cdot"></i><h2>หมวดอื่นๆ</h2><span class="cpills" id="catOh"></span></div><div id="catO"></div></section>
   </div>
-  <p class="note">คลิกหัวข้อย่อยในการ์ด เพื่อดูเฉพาะคอมเมนต์ของหัวข้อนั้นด้านล่าง</p>
+  <p class="note">หัวข้อย่อยเรียงตามจำนวนไม่พอใจมากสุดก่อน · คลิกหัวข้อย่อยในการ์ด เพื่อดูเฉพาะคอมเมนต์ของหัวข้อนั้นด้านล่าง</p>
 
   <section class="detcard">
     <div class="dethead"><h2>รายละเอียด Comment ต่างๆ</h2><span class="sub" id="detSub"></span><span id="chips"></span></div>
@@ -679,12 +694,12 @@ function renderAll(){
   for(const [main,id] of MAINS){
     const m = {};
     for(const r of rows) if(r.main===main && r.sub){ const x=(m[r.sub] ||= {p:0,n:0}); r.ty==='ไม่พอใจ'?x.n++:x.p++; }
-    const list = Object.entries(m).sort((a,b)=>b[1].p-a[1].p || b[1].n-a[1].n);
+    const list = Object.entries(m).sort((a,b)=>b[1].n-a[1].n || b[1].p-a[1].p);   // ไม่พอใจมากสุดก่อน
     const head = $(id+'h') || $('cat'+id.slice(3)+'h');
     if(!list.length){ $(id).innerHTML='<div class="empty">ไม่มีคอมเมนต์ในช่วงนี้</div>'; if(head) head.innerHTML=''; continue; }
     const maxP = Math.max(...list.map(x=>x[1].p), 1); let tp=0, tn=0;
     const body = list.map(([s,v])=>{ tp+=v.p; tn+=v.n; const [en,th]=splitSub(s);
-      return `<tr data-sub="${esc(s)}" class="${ui.sub===s?'sel':''}"><td class="nm"><div class="nmt" title="${esc(s)}"><span class="en">${esc(en)}</span>${th?`<span class="th">${esc(th)}</span>`:''}</div><div class="trk"><i style="width:${(v.p/maxP*100).toFixed(1)}%"></i></div></td><td class="n">${v.p?fmtN(v.p):'<span class="dash">–</span>'}</td><td class="n">${v.n?`<span class="npill">${fmtN(v.n)}</span>`:'<span class="dash">–</span>'}</td></tr>`; }).join('');
+      return `<tr data-sub="${esc(s)}" class="${ui.sub===s?'sel':''}${v.n?' hot':''}"><td class="nm"><div class="nmt" title="${esc(s)}"><span class="en">${esc(en)}</span>${th?`<span class="th">${esc(th)}</span>`:''}</div><div class="trk"><i style="width:${(v.p/maxP*100).toFixed(1)}%"></i></div></td><td class="n">${v.p?fmtN(v.p):'<span class="dash">–</span>'}</td><td class="n">${v.n?`<span class="npill">${fmtN(v.n)}</span>`:'<span class="dash">–</span>'}</td></tr>`; }).join('');
     $(id).innerHTML = `<table><thead><tr><th>หัวข้อย่อย</th><th class="n">พอใจ</th><th class="n">ไม่พอใจ</th></tr></thead><tbody>${body}</tbody></table>`;
     if(head) head.innerHTML = `<span class="pp">พอใจ ${fmtN(tp)}</span><span class="pn">ไม่พอใจ ${fmtN(tn)}</span>`;
   }
