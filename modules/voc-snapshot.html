@@ -140,13 +140,6 @@ td.ty{white-space:nowrap}
 .dethead{display:flex;flex-wrap:wrap;gap:6px 12px;align-items:baseline;justify-content:center;margin-bottom:12px}
 .dethead h2{font-family:var(--f-display);font-size:20px;font-weight:700;margin:0}
 .dethead .sub{color:var(--muted);font-size:15.5px}
-/* โหมดตรวจข้อความซ้ำ */
-.dupbtn{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:5px 14px;font:700 14.5px/1.2 var(--f-body);color:var(--fg);cursor:pointer;align-self:center}
-.dupbtn b{color:var(--bad-ink);margin-left:4px}
-.dupbtn[aria-pressed=true]{background:#171513;border-color:#171513;color:#fff}.dupbtn[aria-pressed=true] b{color:#fca5a5}
-table.det tr.dg td{background:#fffaf3}
-table.det tr.dgs td{border-top:2px solid #fdba74}
-.dupb{display:inline-block;margin-left:8px;font:800 12px/1 var(--f-body);padding:3px 8px;border-radius:999px;background:var(--bad-soft);color:var(--bad-ink);white-space:nowrap;vertical-align:1px}
 .chip{display:inline-flex;gap:6px;align-items:center;border:1px solid var(--line);background:var(--soft);border-radius:999px;padding:3px 6px 3px 12px;font-size:15.5px}
 .chip button{border:0;background:var(--line);border-radius:999px;width:22px;height:22px;cursor:pointer;line-height:1}
 .tw{overflow-x:auto}
@@ -305,7 +298,7 @@ body{zoom:1}
   <p class="note">หัวข้อย่อยเรียงตามจำนวนไม่พอใจมากสุดก่อน · คลิกหัวข้อย่อยในการ์ด เพื่อดูเฉพาะคอมเมนต์ของหัวข้อนั้นด้านล่าง</p>
 
   <section class="detcard">
-    <div class="dethead"><h2>รายละเอียด Comment ต่างๆ</h2><span class="sub" id="detSub"></span><span id="chips"></span><button type="button" class="dupbtn" id="dupBtn" aria-pressed="false">ตรวจข้อความซ้ำ</button></div>
+    <div class="dethead"><h2>รายละเอียด Comment ต่างๆ</h2><span class="sub" id="detSub"></span><span id="chips"></span></div>
     <div class="tw">
       <table class="det">
         <thead><tr id="detHead"></tr></thead>
@@ -392,7 +385,7 @@ function hubRows(rows){
 /* ---------- state ---------- */
 let DATA = {rows:[], csat:[], meta:{source:'sample', updated:null, files:[]}};
 let byBrand = {};
-const ui = {brand:'KT', sub:'', sortKey:'d', sortDir:-1, page:0, dup:false};
+const ui = {brand:'KT', sub:'', sortKey:'d', sortDir:-1, page:0};
 
 function loadSample(){
   DATA = {
@@ -712,41 +705,27 @@ function renderAll(){
 }
 /* หัวตารางแบบรายงาน "รายละเอียด Comment ต่างๆ": ลำดับ · ประเภท · สาขา · BZM · (Owner) · วันที่ · เวลา · คะแนน · คอมเมนต์ · หัวข้อย่อย · หัวข้อหลัก */
 const COLS = [['no',''],['ty','ประเภท'],['br','สาขา'],['z','BZM'],['o','Owner'],['d','วันที่'],['t','เวลา'],['s','คะแนน'],['c','คอมเมนต์'],['sub','หัวข้อย่อย'],['main','หัวข้อหลัก']];
-/* ข้อความซ้ำ: เทียบหลังตัดช่องว่าง/เครื่องหมาย และย่ออักษรซ้ำติดกัน (มากกกก = มาก) · ข้อความสั้นกว่า 10 ตัวอักษรไม่นับ (เช่น "อร่อย" ซ้ำได้ตามปกติ) */
-const dupKey = c => { const k = String(c||'').toLowerCase().replace(/[\s\p{P}\p{S}]+/gu,'').replace(/(.)\1{2,}/gu,'$1'); return k.length>=10 ? k : ''; };
-function dupGroups(list){
-  const g = new Map(); list.forEach(r=>{ const k=dupKey(r.c); if(k) (g.get(k)||g.set(k,[]).get(k)).push(r); });
-  return [...g.values()].filter(x=>x.length>1);
-}
 function renderDetail(rows){
   const cols = COLS.filter(c=>c[0]!=='o'||ui.brand==='FS');
   $('detHead').innerHTML = cols.map(([k,l])=>`<th data-k="${k}" ${ui.sortKey===k?`aria-sort="${ui.sortDir>0?'ascending':'descending'}"`:''}>${l}</th>`).join('');
   let list = ui.sub ? rows.filter(r=>r.sub===ui.sub) : rows;
   const k=ui.sortKey, d=ui.sortDir;
   list = list.slice().sort((a,b)=>{ const x=a[k], y=b[k]; const c = (typeof x==='number'&&typeof y==='number') ? x-y : String(x).localeCompare(String(y),'th'); return c*d || (a.d+a.t).localeCompare(b.d+b.t)*-1; });
-  const groups = dupGroups(list), dupN = groups.reduce((a,g)=>a+g.length,0);
-  $('dupBtn').innerHTML = `ตรวจข้อความซ้ำ${groups.length?`<b>${fmtN(groups.length)} กลุ่ม</b>`:''}`; $('dupBtn').setAttribute('aria-pressed', ui.dup);
-  const gi = new Map();   // แถว → [ลำดับกลุ่ม, จำนวนในกลุ่ม, สาขาเดียวกันทั้งกลุ่ม, แถวแรกของกลุ่ม]
-  if(ui.dup){
-    groups.sort((a,b)=>b.length-a.length || (b[0].d||'').localeCompare(a[0].d||''));
-    groups.forEach((g,n)=>{ const same = g.every(r=>r.br===g[0].br); g.forEach((r,i)=>gi.set(r,[n,g.length,same,i===0])); });
-    list = groups.flat();
-  }
   const per=25, pages=Math.max(1,Math.ceil(list.length/per)); ui.page=Math.min(ui.page,pages-1);
   const start=ui.page*per, slice=list.slice(start,start+per);
   const cell = (r,k,i)=>{
     if(k==='no') return `<td class="no">${start+i+1}.</td>`;
     if(k==='s'){ const n=r.s; const c = n===''||n==null ? '' : n>=10?'s10':n>=9?'s9':n>=8?'s8':n>=7?'s7':'lo'; return `<td><span class="sc ${c}">${n===''||n==null?'–':esc(n)}</span></td>`; }
     if(k==='ty') return `<td class="ty">${r.ty==='ไม่พอใจ'?'<span class="npill sm">ไม่พอใจ</span>':'<span class="ppill sm">พอใจ</span>'}</td>`;
-    if(k==='c'){ const g=gi.get(r); return `<td class="c">${esc(r.c)}${g?`<span class="dupb">ซ้ำ ${g[1]} ครั้ง${g[2]?' · สาขาเดียวกัน':''}</span>`:''}</td>`; }
+    if(k==='c') return `<td class="c">${esc(r.c)}</td>`;
     if(k==='sub') return `<td class="sb"><i class="d ${mainCls(r.main)}"></i>${esc(r.sub)}</td>`;
     if(k==='main') return `<td class="mn">${esc(r.main)}</td>`;
     if(k==='d') return `<td class="dt">${esc(fmtShort(r.d))}</td>`;
     if(k==='t') return `<td class="dt">${esc(r.t||'')}</td>`;
     return `<td class="nw">${esc(r[k])}</td>`;
   };
-  $('detBody').innerHTML = slice.length ? slice.map((r,i)=>{ const g=gi.get(r); return `<tr class="${g?(g[0]%2?'dg':'')+(g[3]?' dgs':''):''}">${cols.map(([k])=>cell(r,k,i)).join('')}</tr>`; }).join('')
-    : `<tr><td colspan="${cols.length}" class="empty">${ui.dup?'ไม่พบข้อความซ้ำตามตัวกรอง':'ไม่พบคอมเมนต์ตามตัวกรอง'}</td></tr>`;
+  $('detBody').innerHTML = slice.length ? slice.map((r,i)=>`<tr>${cols.map(([k])=>cell(r,k,i)).join('')}</tr>`).join('')
+    : `<tr><td colspan="${cols.length}" class="empty">ไม่พบคอมเมนต์ตามตัวกรอง</td></tr>`;
   $('pgInfo').textContent = list.length ? `${fmtN(start+1)}–${fmtN(start+slice.length)} / ${fmtN(list.length)}` : '0 / 0';
   $('pgPrev').disabled = ui.page===0; $('pgNext').disabled = ui.page>=pages-1;
   $('detSub').textContent = (ui.sortKey==='d'||ui.sortKey==='t') ? (ui.sortDir<0?'· ล่าสุดก่อน':'· เก่าสุดก่อน') : '';
@@ -762,7 +741,6 @@ $('fMonth').addEventListener('change',()=>{ applyMonth(); ui.page=0; renderAll()
 let st; $('fSearch').addEventListener('input',()=>{ clearTimeout(st); st=setTimeout(()=>{ ui.page=0; renderAll(); },250); });
 document.querySelector('.cats').addEventListener('click', e=>{ const tr=e.target.closest('tr[data-sub]'); if(!tr) return; ui.sub = ui.sub===tr.dataset.sub ? '' : tr.dataset.sub; ui.page=0; renderAll(); });
 $('chips').addEventListener('click', e=>{ if(e.target.id==='clrSub'){ ui.sub=''; ui.page=0; renderAll(); } });
-$('dupBtn').addEventListener('click', ()=>{ ui.dup=!ui.dup; ui.page=0; renderAll(); });
 $('detHead').addEventListener('click', e=>{ const k=e.target.closest('th')?.dataset.k; if(!k||k==='no') return; if(ui.sortKey===k) ui.sortDir*=-1; else { ui.sortKey=k; ui.sortDir=1; } ui.page=0; renderDetail(filtered()); });
 $('pgPrev').addEventListener('click',()=>{ ui.page--; renderDetail(filtered()); });
 $('pgNext').addEventListener('click',()=>{ ui.page++; renderDetail(filtered()); });
