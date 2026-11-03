@@ -294,7 +294,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
 <script src="hub-docstore.js?v=20261006b"></script>
 <script src="feedback-store.js?v=20261013b"></script>
-<script src="feedback-import.js?v=20261015p"></script>
+<script src="feedback-import.js?v=20261103a"></script>
 <script>
 "use strict";
 const {Hub, Cfg, Branches} = HubMod;
@@ -610,6 +610,7 @@ function queueImport(files) {
   const list = Array.from(files || []).filter(f => /\.xlsx?$/i.test(f.name));
   if (!list.length) return toast("เลือกไฟล์ .xlsx หรือ .xls");
   importQueue.push(...list);
+  importQueue.sort((a, b) => (/\.xls$/i.test(a.name) ? 1 : 0) - (/\.xls$/i.test(b.name) ? 1 : 0));   // อ่านไฟล์รุ่นใหม่ก่อน เพื่อจำ BZM ไว้ใช้กับไฟล์ .xls รุ่นเก่า
   paintQueue();
   if (list.length > 1) toast(`เข้าคิว ${list.length} ไฟล์ ตรวจทีละไฟล์`);
   runImportQueue();
@@ -654,6 +655,14 @@ async function runImportQueue() {
     }
   } finally { importBusy = false; importNow = null; paintQueue(); }
 }
+/* BZM ของแต่ละสาขาจากชีต "สาขา" ของไฟล์ Complain FB รุ่นใหม่ (มีคอลัมน์ BZM) · จำไว้ใช้กับไฟล์ .xls รุ่นเก่าที่ไม่มี BZM */
+function learnBzm(aoa) {
+  if (!aoa || !aoa.some(r => (r || []).map(x => String(x || "").trim()).includes("BZM"))) return;
+  const m = bzmMap(); let n = 0;
+  aoa.forEach(r => { const c = String((r || [])[0] || "").trim(), z = String((r || [])[2] || "").trim(); if (/^\d{4}$/.test(c) && z) { m[c] = z; n++; } });
+  if (n) try { localStorage.setItem("fbBzmMap", JSON.stringify(m)); } catch (e) {}
+}
+function bzmMap() { try { return JSON.parse(localStorage.getItem("fbBzmMap") || "{}") || {}; } catch (e) { return {}; } }
 async function importFile(file, hold) {
   busy(true, "กำลังอ่านไฟล์…"); await tick();
   let kind = "", aoa = null, branchAoa = null, vsParts = null;
@@ -665,20 +674,20 @@ async function importFile(file, hold) {
     const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
     /* ชื่อชีตอาจถูกเปลี่ยนตอนดาวน์โหลด — หาจากหัวคอลัมน์ (complain + แบรนด์) แทนถ้าชื่อไม่ตรง */
     const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n))
-      || (!rawName && !csName ? wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("complain") && (r || []).includes("แบรนด์"))) : null);
+      || (!rawName && !csName ? wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("complain") && ((r || []).includes("แบรนด์") || (r || []).includes("รหัส")))) : null);   // ไฟล์ .xls รุ่นเก่า (ม.ค.-มิ.ย. 2026) ไม่มีคอลัมน์แบรนด์ ชีตชื่อ "รายละเอียด_…"
     /* ไฟล์สรุป "Complain Voc" — ชีตที่จัดหัวข้อแล้วหรือชีตรายละเอียด (ไม่มีเคส Facebook/rawdata/CSAT) */
     const volParts = (rawName || csName || fbName) ? [] : wb.SheetNames.map(n => { const a = toAoa(n), k = I.vsKind(a); return k ? {kind: k, aoa: a} : null; }).filter(Boolean);
     if (csName) { kind = "csat"; aoa = toAoa(csName); }
     else if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
-    else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; }
+    else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; learnBzm(branchAoa); }
     else if (volParts.length) { kind = "vocsum"; vsParts = volParts; }
     else { const n = wb.SheetNames.find(x => !/dictionary/i.test(x)); kind = "voc"; aoa = toAoa(n); }
-  } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ — ต้องเป็น .xlsx"); }
+  } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ ต้องเป็น .xlsx หรือ .xls"); }
   if (kind === "csat") {                       // ไฟล์สรุป CSAT/NPS ตามป้าย (เช่น csat 6.69.xlsx)
     let r; try { r = I.parseCsatSummary(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
     busy(false); return previewCsat(file.name, r);
   }
-  const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip})
+  const parse = skip => kind === "facebook" ? I.parseFb(aoa, branchAoa, {skipSrc: skip, bzmMap: bzmMap(), month: I.monthFromName(file.name)})
     : kind === "vocsum" ? I.parseVocSummary(vsParts, {skipSrc: skip}) : I.parseRaw(aoa, {skipSrc: skip});
   let first;
   try { first = parse(); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }

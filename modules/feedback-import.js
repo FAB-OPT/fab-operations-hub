@@ -118,7 +118,7 @@
     var s = String(v).trim(), x = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})(?:[ T](\d{1,2}):(\d{2}))?/);
     if (x) return { d: x[1] + '-' + pad(x[2]) + '-' + pad(x[3]), t: x[4] ? pad(x[4]) + ':' + x[5] : '' };
     x = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})(?:\s+(\d{1,2}):(\d{2}))?/);
-    if (x) { var y = +x[3]; if (y > 2400) y -= 543; return { d: y + '-' + pad(x[2]) + '-' + pad(x[1]), t: x[4] ? pad(x[4]) + ':' + x[5] : '' }; }
+    if (x) { var y = +x[3]; if (y > 2400) y -= 543; if (+x[2] < 1 || +x[2] > 12 || +x[1] < 1 || +x[1] > 31) return null; return { d: y + '-' + pad(x[2]) + '-' + pad(x[1]), t: x[4] ? pad(x[4]) + ':' + x[5] : '' }; }
     return null;
   }
   function brandOf(type, brand) {
@@ -253,8 +253,9 @@
     var C = { brand: ix('แบรนด์'), d: ix('วันที่'), code: ix('รหัส'), br: ix('สาขา'), t: ix('complain'), cost: ix('ค่าใช้จ่าย'), doc: ix('เลขที่เอกสาร'), sev: ix('ระดับความรุนแรง'), closed: ix('วันที่ปิดเคส'), days: ix('จำนวนวันรวม'), note: ix('หมายเหตุ'), raw: ix('สเต๊กไม่สุก') };
     var cats = FB_CATS.map(function (c) { return [ix(c[0]), c[1]]; }).filter(function (c) { return c[0] >= 0; });
     var reg = {};
-    (branchAoa || []).forEach(function (r, k) { if (k && r && /^\d{4}$/.test(clean(r[0]))) reg[clean(r[0])] = { name: clean(r[1]), bzm: clean(r[2]) }; });
-    var skip = opts.skipSrc || {}, st = { cases: 0, dupSrc: 0, noBrand: 0, noDate: 0, dmin: '9999', dmax: '0000', byBrand: { KT: 0, FS: 0, JD: 0 }, closed: 0, nocat: 0 };
+    (branchAoa || []).forEach(function (r) { if (r && /^\d{4}$/.test(clean(r[0]))) reg[clean(r[0])] = { name: clean(r[1]), bzm: clean(r[2]) }; });
+    var bzmFb = opts.bzmMap || {}, month = opts.month || '';   // ไฟล์ .xls รุ่นเก่าไม่มี BZM → ใช้ BZM ล่าสุดที่ระบบจำไว้จากไฟล์รุ่นใหม่
+    var skip = opts.skipSrc || {}, st = { cases: 0, dupSrc: 0, noBrand: 0, noDate: 0, dmin: '9999', dmax: '0000', byBrand: { KT: 0, FS: 0, JD: 0 }, closed: 0, nocat: 0, dateFix: 0, bzmGuess: 0 };
     var rows = [], seen = {};
     for (var r = hi + 1; r < aoa.length; r++) {
       var a = aoa[r]; if (!a) continue;
@@ -262,7 +263,12 @@
       st.cases++;
       var code = clean(a[C.code]), b = brandOf(a[C.brand], '') || (/^8/.test(code) ? 'FS' : /^5/.test(code) ? 'KT' : '');
       if (!b) { st.noBrand++; continue; }
-      var dt = parseDT(a[C.d]); if (!dt) { st.noDate++; continue; }
+      var dt = parseDT(a[C.d]), dateNote = '';
+      /* ปีพิมพ์เป็น 2 หลัก (13/4/69) Excel อ่านเป็น ค.ศ. 1969 → พ.ศ. 2569 = 2026 */
+      if (dt && +dt.d.slice(0, 4) < 2000) { dt = { d: (1957 + +dt.d.slice(2, 4)) + dt.d.slice(4), t: dt.t }; st.dateFix++; }
+      /* วันที่ว่างหรือพิมพ์ผิด (01/0/2026) → ใช้วันที่ 1 ของเดือนตามชื่อไฟล์ และบอกไว้ในหมายเหตุ */
+      if (!dt && month) { dateNote = clean(a[C.d]) || 'ว่าง'; dt = { d: month + '-01', t: '' }; st.dateFix++; }
+      if (!dt) { st.noDate++; continue; }
       if (dt.d < st.dmin) st.dmin = dt.d; if (dt.d > st.dmax) st.dmax = dt.d;
       var m = maskPii(text), c = [];
       cats.forEach(function (k) { var v = a[k[0]]; if (v != null && clean(v) !== '' && clean(v) !== '0') c.push(k[1]); });
@@ -271,6 +277,7 @@
       var info = reg[code] || {}, closed = C.closed >= 0 ? parseDT(a[C.closed]) : null;
       if (!closed && C.closed >= 0 && clean(a[C.closed])) closed = { d: clean(a[C.closed]) };
       var extra = { status: closed ? 'done' : 'new' };
+      if (dateNote) extra.dateInFile = dateNote;
       if (closed) { extra.closedAt = closed.d; st.closed++; }
       if (C.cost >= 0 && clean(a[C.cost])) extra.cost = clean(a[C.cost]);
       if (C.doc >= 0 && clean(a[C.doc])) extra.docNo = clean(a[C.doc]);
@@ -283,8 +290,9 @@
       var src = 'fb|' + dt.d + '|' + code + '|' + hash(m.text.toLowerCase()), n = (seen[src] = (seen[src] || 0) + 1);
       if (n > 1) src += '#' + n;
       if (skip[src]) { st.dupSrc++; continue; }
-      var nm = info.name || clean(a[C.br]);
-      rows.push({ src_id: src, state: 'staging', b: b, d: dt.d, t: '', ty: 'ไม่พอใจ', br: (code + ' ' + nm).trim(), z: info.bzm || '', o: '', s: null, c: m.text, sub: c[0] || '', main: '', extra: extra, edited: false });
+      var nm = info.name || clean(a[C.br]), z = info.bzm || '';
+      if (!z && bzmFb[code]) { z = bzmFb[code]; extra.bzmFrom = 'map'; st.bzmGuess++; }
+      rows.push({ src_id: src, state: 'staging', b: b, d: dt.d, t: '', ty: 'ไม่พอใจ', br: (code + ' ' + nm).trim(), z: z, o: '', s: null, c: m.text, sub: c[0] || '', main: '', extra: extra, edited: false });
       st.byBrand[b]++;
     }
     return { rows: rows, csat: [], stats: st };
