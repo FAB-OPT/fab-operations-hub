@@ -102,6 +102,8 @@ table.tb{width:100%;border-collapse:separate;border-spacing:0;font-size:13.5px}
 .embed .mask,.embed .ovl{padding-top:calc(var(--vt,0px) + 24px);padding-bottom:calc(var(--vb,0px) + 24px)}  /* iframe สูงตามเนื้อหา: วางหน้าต่างในส่วนที่มองเห็นจริง */
 .embed .mask .modal{max-height:calc(var(--vh,100vh) - 48px);overflow-y:auto}
 .embed .toast{bottom:calc(var(--vb,0px) + 24px)}
+.trk{margin-top:12px;padding:12px 14px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa}
+.trk-h{font-weight:800;font-size:13.5px;color:#9a3412;margin-bottom:6px}
 .ovl .bx{background:#111827;border-radius:16px;padding:18px 24px;min-width:240px}
 .ovl .pb{height:6px;border-radius:4px;background:#374151;margin-top:10px;overflow:hidden}.ovl .pb i{display:block;height:100%;background:var(--gold);width:0}
 .mtab{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
@@ -1053,7 +1055,7 @@ function rowHtml(r, noTxt, live) {
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
     <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${sub}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
-    <td class="cm"><div class="tx">${esc(r.c)}</div>${r._f.some(f => f !== "sug") ? `<div class="tx2">${r._f.filter(f => f !== "sug").map(chipFor).join("")}</div>` : ""}</td></tr>`;
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r.extra && r.extra.note ? `<div class="muted" style="margin-top:4px">หมายเหตุ: ${esc(r.extra.note)}</div>` : ""}${r._f.some(f => f !== "sug") ? `<div class="tx2">${r._f.filter(f => f !== "sug").map(chipFor).join("")}</div>` : ""}</td></tr>`;
 }
 function syncSelects(root) { root.querySelectorAll("select.rsub,select.rst").forEach(x => { x.value = x.dataset.v; }); }
 function renderRows() {
@@ -1187,14 +1189,30 @@ function editRow(r) {
     ${r.extra && r.extra.was ? `<div class="note">หัวข้อเดิมจากแพลตฟอร์ม: ${esc(r.extra.was)} — ระบบแนะนำให้อยู่ในหัวข้อที่กำหนด เปลี่ยนได้</div>` : ""}
     ${r.extra && r.extra.cats && r.extra.cats.length ? `<div class="note">หัวข้ออื่นในใบเดียวกัน: ${esc(r.extra.cats.join(", "))}</div>` : ""}
     ${r.extra && (r.extra.docNo || r.extra.cost || r.extra.severity || r.extra.note || r.extra.closedAt) ? `<div class="note">${["docNo|เลขที่เอกสาร", "cost|ค่าใช้จ่าย", "severity|ระดับความรุนแรง", "closedAt|ปิดเคส", "note|หมายเหตุ"].map(x => { const [k, l] = x.split("|"); return r.extra[k] ? l + ": " + esc(r.extra[k]) : ""; }).filter(Boolean).join(" · ")}</div>` : ""}`;
-  const m = modal("แก้ไขคอมเมนต์", body, ro ? [] : [{text: "บันทึก", fn: async () => {
+  /* Facebook: ช่องติดตามเคส (สถานะ · ผู้รับผิดชอบ · ลิงก์ · หมายเหตุ) แก้ได้ที่นี่ที่เดียว ทั้งชุดรอตรวจและชุดที่ลงระบบแล้ว · หน้า Facebook ดูอย่างเดียว */
+  const fb = isFb(), ex = r.extra || {};
+  if (fb) body.insertAdjacentHTML("beforeend", `<div class="trk"><div class="trk-h">ติดตามเคส${ro ? " · แก้ได้แม้ชุดลงระบบแล้ว" : ""}</div>
+    <div class="g2"><div class="fld"><label>สถานะติดตาม</label><select id="xSt"><option value="new">ใหม่</option><option value="doing">กำลังติดตาม</option><option value="done">ปิดเรื่องแล้ว</option></select></div>
+    <div class="fld"><label>ผู้รับผิดชอบ</label><input id="xOw" maxlength="60" value="${esc(ex.owner || "")}"></div></div>
+    <div class="fld"><label>ลิงก์โพสต์ / คอมเมนต์</label><input id="xLk" type="url" value="${esc(ex.link || "")}"></div>
+    <div class="fld"><label>หมายเหตุ / การแก้ไข</label><textarea id="xNt" rows="4" maxlength="3000">${esc(ex.note || "")}</textarea></div></div>`);
+  const saveTrack = async () => {
+    const st = $("#xSt", body).value, t = {status: st, owner: $("#xOw", body).value.trim(), link: $("#xLk", body).value.trim(), note: $("#xNt", body).value.trim(), closedAt: st === "done" ? (ex.closedAt || new Date().toISOString().slice(0, 10)) : ""};
+    if (["status", "owner", "link", "note", "closedAt"].every(k => (ex[k] || "") === (t[k] || "") || (k === "status" && !ex.status && t.status === "new"))) return false;
+    await FBStore.setExtra(r.id, t, who());
+    r.extra = Object.assign({}, ex, t); notifyParent(); return true;
+  };
+  const btns = ro ? (fb ? [{text: "บันทึกการติดตาม", fn: async () => { if (await saveTrack()) { renderRows(); toast("บันทึกแล้ว"); } }}] : []) : [{text: "บันทึก", fn: async () => {
     const patch = {state: $("#eSt", body).value, ty: $("#eTy", body).value, br: $("#eBr", body).value.trim(), z: $("#eZ", body).value.trim(), o: $("#eO", body).value.trim(), sub: $("#eSub", body).value, c: $("#eC", body).value.trim()};
     patch.main = patch.sub ? (S.subMain[patch.sub] || (patch.sub === r.sub ? r.main : "")) : "";
     await FBStore.setRows(S.cur.id, [r.id], patch);
+    if (fb) await saveTrack();
     Object.assign(r, patch); r.edited = true; calc(r); renderRows(); renderKpi(); renderBar(); toast("บันทึกแล้ว");
-  }}]);
+  }}];
+  const m = modal(fb ? "แก้ไขเคส Facebook" : "แก้ไขคอมเมนต์", body, btns);
   $("#eSt", body).value = r.state === "live" ? "staging" : r.state; $("#eTy", body).value = r.ty; $("#eSub", body).value = r.sub;
-  if (ro) body.querySelectorAll("input,select,textarea").forEach(x => x.disabled = true);
+  if (fb) $("#xSt", body).value = ex.status || "new";
+  if (ro) body.querySelectorAll("input,select,textarea").forEach(x => { if (!x.closest(".trk")) x.disabled = true; });
 }
 
 /* ───── CSAT / NPS ───── */

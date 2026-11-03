@@ -163,6 +163,7 @@ body.fbfull .shell{max-width:1560px}
 .fbx-d .oth:first-of-type{border-top:0}.fbx-d .oth b{color:var(--text);margin-right:6px}.fbx-d .oth:hover{color:#c2410c}
 .fbx-d .act{display:flex;gap:8px;flex-wrap:wrap}
 .fbx-e{color:var(--text3);padding:40px 20px;text-align:center}
+.fbx-d.fbx-m{display:flex!important;padding:0}
 .fpanel{background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:18px 22px 16px;min-width:0}
 .fp-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .fp-t{font-size:18px;font-weight:800}.fp-t small{font-size:13.5px;font-weight:500;color:var(--text3);margin-left:6px}
@@ -495,17 +496,19 @@ function renderInbox(B,L){
   $("#bMore").classList.toggle("hide",L.length<=SHOWN);
   renderDetail(ALL().find(x=>x.id===FB.sel)); }
 function renderDetail(r){
-  const box=$("#fbDet"); if(!r){ box.innerHTML=`<div class="fbx-e">เลือกเคสจากรายการ</div>`; return; }
+  const box=$("#fbDet"); box.innerHTML=r?detailHtml(r):`<div class="fbx-e">เลือกเคสจากรายการ</div>`; }
+/* รายละเอียดเคส (ดูอย่างเดียว · แก้หมายเหตุ/ติดตามเคสที่หน้า นำเข้า & อนุมัติ) */
+function detailHtml(r){
   const c=catOf(r), ex=r.ex||{}, bz=bzmOf(r);
   const oth=ALL().filter(inScope).filter(x=>x.id!==r.id&&r.branchCode&&x.branchCode===r.branchCode).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
   const info=[ex.docNo&&"เลขที่เอกสาร "+esc(ex.docNo),ex.cost&&"ค่าใช้จ่าย "+esc(ex.cost),ex.severity&&"ความรุนแรง "+esc(ex.severity),ex.closedAt&&"ปิดเคส "+esc(fmtD(ex.closedAt))].filter(Boolean);
-  box.innerHTML=`<div class="meta"><span class="chip3"><i style="background:${catCol(c)}"></i>${esc(c)}</span><span class="chip3">${esc(fmtD(r.date))}</span>${r.brand?`<span class="chip3">${esc(r.brand)}</span>`:""}</div>
+  return `<div class="meta"><span class="chip3"><i style="background:${catCol(c)}"></i>${esc(c)}</span><span class="chip3">${esc(fmtD(r.date))}</span>${r.brand?`<span class="chip3">${esc(r.brand)}</span>`:""}</div>
     <h2>${esc(r.text)}</h2>
     <div class="g2"><div class="bx"><div class="l">สาขา</div><div class="v">${esc(r.branchLabel||"-")}</div></div><div class="bx"><div class="l">BZM</div><div class="v${bz?"":" mute"}">${esc(bz||"ไม่ระบุ")}</div></div></div>
     <div class="bx"><div class="l">หมายเหตุ / การแก้ไข</div>${r.note?`<div class="nt">${esc(r.note)}</div>`:`<div class="v mute">ยังไม่มีหมายเหตุ</div>`}</div>
     ${info.length?`<div class="bx"><div class="l">ข้อมูลจากไฟล์</div><div class="v" style="font-weight:600">${info.join(" · ")}</div></div>`:""}
     ${oth.length?`<div class="bx"><div class="l">เคสอื่นของสาขานี้ · ${oth.length} เคส</div>${oth.slice(0,5).map(x=>`<button type="button" class="oth" data-fbsel="${esc(x.id)}"><b>${esc(sDate(x.date))}</b>${esc(String(x.text).slice(0,70))}</button>`).join("")}</div>`:""}
-    ${can("manage")?`<div class="act"><button type="button" class="pbtn dark" data-fbedit="${esc(r.id)}">${r.central?"แก้หมายเหตุ / ติดตามเคส":"แก้ไขเคส"}</button></div>`:""}`; }
+`; }
 function markFilters(){ document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
 document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>c.addEventListener("click",e=>{ const sl=c.querySelector("select"); if(sl&&e.target!==sl&&!sl.contains(e.target)){ try{ sl.showPicker(); }catch(err){ sl.focus(); } } }));
 function renderFb(){ markFilters(); const B=baseFiltered(); renderTrend(); renderSum(B); renderInbox(B,filtered()); }
@@ -655,7 +658,7 @@ function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
   CH=c; document.body.classList.remove("onhome"); $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc"||c==="review"); document.body.classList.toggle("fbfull",c==="facebook");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook"); $("#tabRv").setAttribute("aria-selected",c==="review");
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook"); $("#viewRv").classList.toggle("hide",c!=="review");
-  if(c==="review"&&!$("#rvFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#rvFrame").getAttribute("src")) $("#rvFrame").setAttribute("src","feedback-review.html?v=20261103g"); });
+  if(c==="review"&&!$("#rvFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#rvFrame").getAttribute("src")) $("#rvFrame").setAttribute("src","feedback-review.html?v=20261103h"); });
   /* หน้า VOC อ่านสิทธิ์/ทะเบียนสาขาจากแคชของฮับ จึงรอโหลด config ก่อนค่อยเปิด */
   if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html?v=20261030a"); });
   $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":c==="review"?"นำเข้าไฟล์ดิบ → กรอง/แก้ไข → อนุมัติ → ข้อมูลลงระบบ":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
@@ -679,9 +682,8 @@ $("#viewFb").addEventListener("click",e=>{
   const c=e.target.closest("[data-fbcat]"); if(c){ FB.cat=FB.cat===c.dataset.fbcat?"":c.dataset.fbcat; SHOWN=40; return renderFb(); }
   const tm=e.target.closest("[data-trm]"); if(tm){ const f=$("#fMonth"); f.value=f.value===tm.dataset.trm?"":tm.dataset.trm; SHOWN=40; return renderFb(); }
   const bd=e.target.closest("[data-fbbrand]"); if(bd){ const f=$("#fBrand"); f.value=f.value===bd.dataset.fbbrand?"":bd.dataset.fbbrand; SHOWN=40; return renderFb(); }
-  const ed=e.target.closest("[data-fbedit]"); if(ed){ const r=ALL().find(x=>x.id===ed.dataset.fbedit); if(r) form(r); return; }
   const sl=e.target.closest("[data-fbsel]"); if(sl){ const r=ALL().find(x=>x.id===sl.dataset.fbsel); if(!r) return;
-    if(window.matchMedia("(max-width:1040px)").matches) return form(r);   // จอแคบไม่มีช่องรายละเอียด → เปิดหน้าต่างแทน
+    if(window.matchMedia("(max-width:1040px)").matches){ const w=document.createElement("div"); w.className="fbx-d fbx-m"; w.innerHTML=detailHtml(r); return modal("เคส Facebook",w,null); }   // จอแคบไม่มีช่องรายละเอียด → เปิดหน้าต่างแทน
     FB.sel=r.id; document.querySelectorAll("#fbList .fbi").forEach(x=>x.classList.toggle("on",x.dataset.fbsel===r.id)); return renderDetail(r); }
   const st=e.target.closest("[data-fbst]"); if(st){ e.stopPropagation(); return cycleStatus(st.dataset.fbst); }
   const row=e.target.closest("tr[data-fbid]"); if(row){ const r=ALL().find(x=>x.id===row.dataset.fbid); if(r) form(r); } });
