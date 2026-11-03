@@ -163,7 +163,17 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 #viewFb .fcard.fsearch{flex:1 1 240px;min-width:200px}   /* ค้นหายืดเต็มที่เหลือ · เดือน แบรนด์ สาขา กว้างตามตัวเลือกที่ยาวสุด */
 #viewFb .fbf .fcard:not(.fsearch){flex:0 0 auto;flex-direction:row;align-items:center;gap:10px;padding:10px 16px}
 #viewFb .fbf .fcard:not(.fsearch) span{font-size:15px;white-space:nowrap}
-#viewFb .fbf .fcard select{width:auto;max-width:none;font-size:18px}
+#viewFb .fbf .fcard select{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+#viewFb .fbf .fcard:not(.fsearch){position:relative;user-select:none}
+#viewFb .fbf .fcard.open{border-color:#fdba74;box-shadow:0 0 0 3px #fff1e6}
+.ddv{font-size:18px;font-weight:700;white-space:nowrap;color:var(--text)}
+.ddc{stroke:var(--text3);fill:none;stroke-width:2.2;flex:none;transition:transform .15s}.fcard.open .ddc{transform:rotate(180deg)}
+.ddpop{position:absolute;top:calc(100% + 6px);right:0;min-width:100%;width:max-content;max-width:360px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 14px 36px rgba(15,23,42,.16);padding:6px;z-index:60;cursor:default}
+.ddq{display:block;width:100%;box-sizing:border-box;margin:2px 0 6px;padding:9px 12px;border:1px solid var(--border2);border-radius:10px;font:inherit;font-size:15px}
+.ddl{max-height:min(380px,60vh);overflow-y:auto;scrollbar-width:thin}
+.ddl button{display:block;width:100%;text-align:left;border:0;background:none;padding:9px 12px;border-radius:9px;font:inherit;font-size:15.5px;font-weight:600;color:var(--text);cursor:pointer;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ddl button:hover{background:var(--bg3)}.ddl button.on{background:#fff1e6;color:#c2410c;font-weight:800}
+.dde{padding:12px;color:var(--text3)}
 @media(max-width:820px){#viewFb .fbf{flex-wrap:wrap}#viewFb .fcard.fsearch{flex:1 1 100%}#viewFb .fbf .fcard:not(.fsearch){flex:1 1 auto}}
 #viewFb .fcard span{font-size:14px}#viewFb .fcard select{font-size:17px}#viewFb .fcard.fsearch input{font-size:17px}
 .fbx{grid-template-columns:230px minmax(0,1fr)}   /* หมวด · รายการเคส (ไม่มีช่องรายละเอียด) */
@@ -497,8 +507,27 @@ function renderInbox(B,L){
     return `<div class="fbi"><span class="t"><i style="background:${catCol(c)}"></i><span>${esc(r.branchLabel||"ไม่ระบุสาขา")}</span><b class="fcat" style="color:${catCol(c)}">${esc(c)}</b><em>${sDate(r.date)}</em></span><p>${esc(r.text)}</p>${r.note?`<span class="fnote">หมายเหตุ: ${esc(r.note)}</span>`:""}</div>`; }).join("")
     :`<div class="fbx-e">ไม่พบเคสตามตัวกรอง</div>`;
   $("#bMore").classList.add("hide"); }
-function markFilters(){ document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
-document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>c.addEventListener("click",e=>{ const sl=c.querySelector("select"); if(sl&&e.target!==sl&&!sl.contains(e.target)){ try{ sl.showPicker(); }catch(err){ sl.focus(); } } }));
+function markFilters(){ syncDD(); document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
+/* ดรอปดาวน์ตัวกรอง (แทนรายการของเบราว์เซอร์) · ค่าจริงยังเก็บใน <select> เดิม เปลี่ยนแล้วส่ง change เหมือนเดิม */
+let ddOpen=null;
+const ddText=sl=>{ const o=sl.options[sl.selectedIndex]; return o?o.text:""; };
+function syncDD(){ document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"), v=c.querySelector(".ddv"); if(sl&&v) v.textContent=ddText(sl); }); }
+function closeDD(){ if(ddOpen){ ddOpen.closest(".fcard").classList.remove("open"); ddOpen.remove(); ddOpen=null; } }
+function openDD(card){
+  const sl=card.querySelector("select"), many=sl.options.length>12, pop=document.createElement("div");
+  pop.className="ddpop"; pop.innerHTML=(many?`<input type="search" class="ddq" placeholder="พิมพ์ชื่อหรือรหัสสาขา" aria-label="ค้นหาในรายการ">`:"")+`<div class="ddl" role="listbox"></div>`;
+  const paint=q=>{ pop.querySelector(".ddl").innerHTML=[...sl.options].filter(o=>!q||o.text.toLowerCase().includes(q)).map(o=>`<button type="button" role="option" data-v="${esc(o.value)}" class="${o.value===sl.value?"on":""}">${esc(o.text)}</button>`).join("")||`<div class="dde">ไม่พบ</div>`; };
+  paint(""); card.appendChild(pop); card.classList.add("open"); ddOpen=pop;
+  if(many){ const q=pop.querySelector(".ddq"); q.focus(); q.oninput=()=>paint(q.value.trim().toLowerCase()); }
+  const on=pop.querySelector("button.on"); if(on) on.scrollIntoView({block:"nearest"});
+  pop.addEventListener("click",e=>{ e.preventDefault(); e.stopPropagation(); const b=e.target.closest("button[data-v]"); if(!b) return; sl.value=b.dataset.v; closeDD(); sl.dispatchEvent(new Event("change")); });
+}
+document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch)").forEach(c=>{
+  c.insertAdjacentHTML("beforeend",`<b class="ddv"></b><svg class="ddc" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`);
+  c.addEventListener("click",e=>{ if(e.target.closest(".ddpop")) return; e.preventDefault(); const was=ddOpen&&ddOpen.closest(".fcard")===c; closeDD(); if(!was) openDD(c); });
+});
+document.addEventListener("click",e=>{ if(ddOpen&&!e.target.closest("#viewFb .fbf .fcard")) closeDD(); });
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDD(); });
 function renderFb(){ markFilters(); const B=baseFiltered(); renderTrend(); renderSum(B); renderInbox(B,filtered()); }
 /* เปลี่ยนสถานะติดตามทีละขั้น ใหม่ → กำลังติดตาม → ปิดแล้ว → ใหม่ */
 async function cycleStatus(id){
