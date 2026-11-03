@@ -395,8 +395,14 @@ button{cursor:pointer;border:0;background:none;padding:0}
 
 /* แถบซ้ายบนจอคอม: ติดอยู่กับที่ตอนเลื่อน · ย่อให้แสดงครบในจอเดียว · ปุ่มต่อจากการ์ดหมวดไม่เว้นช่อง
    พื้นคอลัมน์ซ้ายระบายด้วยพื้นหลังการ์ด จึงสีต่อเนื่องแม้แถบซ้ายสั้นกว่าปฏิทิน */
-.desk .app{background:linear-gradient(to right,#f6f7f9 0 231px,var(--line) 231px 232px,#fff 232px)}
-.desk .side{position:sticky;top:24px;align-self:start;max-height:calc(100vh - 48px);overflow-y:auto;padding:16px 14px;border-right:0}
+.desk .app{background:linear-gradient(to right,#f6f7f9 0 231px,var(--line) 231px 232px,#fff 232px calc(100% - 300px),var(--line) calc(100% - 300px) calc(100% - 299px),#fff calc(100% - 299px))}
+/* แบบ A: แถบขวาติดอยู่ ไม่มีแถบเลื่อนของตัวเอง แสดงวันนี้ + 5 แผนถัดไป · กดดูทั้งหมดแล้วแถบขวายาวตามหน้า */
+.desk .right{position:sticky;top:24px;align-self:start;border-left:0}
+.desk .right.all{position:static}
+.desk .right-in{position:static;overflow:visible;padding:22px 12px 18px 8px}
+.upmore{width:100%;height:36px;margin-top:6px;border-radius:10px;border:1px solid #fdba74;background:#fff7ed;color:#c2410c;font-weight:800;font-size:14px;font-family:inherit;cursor:pointer}
+@media (max-width:1100px){ .desk .app{background:linear-gradient(to right,#f6f7f9 0 199px,var(--line) 199px 200px,#fff 200px)} }
+.desk .side{position:sticky;top:24px;align-self:start;overflow:visible;padding:16px 14px;border-right:0}
 .desk .add{margin:10px 0 12px;height:38px}
 .desk .side>*{flex-shrink:0}  /* ห้ามหดตัวเมื่อแถบซ้ายจำกัดความสูง ปุ่มเพิ่มแผนจึงไม่แบน */
 .desk .scard{padding:6px 6px 4px;margin-bottom:8px}
@@ -709,6 +715,7 @@ function paintGrid(){
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
   $('grid').innerHTML=h;
 }
+let upAll=false;   /* แถบขวา: แสดงแผนถัดไปทั้งหมด (true) หรือแค่ 5 แผน */
 function paintRight(){
   /* แถวบนสุดของเมนูขวาเป็นวันปัจจุบันเสมอ (ถ้าเดือนที่เปิดอยู่คือเดือนนี้) */
   const d=(Y===new Date().getFullYear()&&M===new Date().getMonth())?new Date().getDate():(sel||1);
@@ -720,8 +727,10 @@ function paintRight(){
   $('selBox').innerHTML=list.length?list.map(p=>cardRow(p,true)).join(''):`<div class="empty">ไม่มีแผนวันนี้${canWrite?'<br>กดที่วันเพื่อเพิ่มแผน':''}</div>`;
   const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
   $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
-  const groups={}; later.forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
+  const groups={}; (upAll?later:later.slice(0,5)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
   $('up').innerHTML=Object.keys(groups).map(k=>{ const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7; return `<div class="ug${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}">${day} ${TH[M]}${k===todayISO()?' · วันนี้':''}</div>`+groups[k].map(p=>`<div class="ui dl" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(catOf(p.type).l)}</span></div><div class="dlt">${esc(p.title)}</div></div>`).join(''); }).join('');
+  if(later.length>5) $('up').insertAdjacentHTML('beforeend',`<button type="button" class="upmore" id="upMore">${upAll?'ย่อเหลือ 5 แผน':'ดูทั้งหมด '+later.length+' แผน'}</button>`);
+  const rp=document.querySelector('.right'); if(rp) rp.classList.toggle('all',upAll);
 }
 function cardRow(p,desk){
   const c=catOf(p.type);
@@ -926,6 +935,7 @@ function goToday(){ const n=new Date(); Y=n.getFullYear(); M=n.getMonth(); sel=n
 function hubBack(){ location.href='../index.html'; }
 function hubLogout(){ try{ sessionStorage.clear(); localStorage.removeItem('fab_session'); }catch(err){} location.href='../index.html'; }
 document.addEventListener('click',async e=>{
+  if(e.target.closest('#upMore')){ upAll=!upAll; paintRight(); return; }
   const t=e.target;
   if(t.id==='ask') return; /* คลิกนอกกล่องยืนยันไม่ปิด · ปิดด้วยปุ่มยกเลิกหรือบันทึกเท่านั้น */
   if(t.closest('.goHome')) return hubBack();
