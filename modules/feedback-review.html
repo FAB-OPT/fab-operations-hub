@@ -56,6 +56,11 @@ body.embed .shell{padding-top:14px;max-width:none}
 .flt{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 8px}
 .shell{max-width:1320px}
 .flt select{width:auto;flex:0 1 190px}
+.flt #bDup{min-height:38px;align-self:stretch}
+.dupg{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px}
+.dupg .t{font-weight:600;line-height:1.5}
+.dupg .l{font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.6}
+.dupg .l b{color:#b91c1c}
 .flt select,.flt input{padding:8px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:13.5px;min-height:38px;color:var(--text);max-width:100%}
 .flt input[type=search]{flex:1 1 220px;min-width:170px;width:auto}
 .fchips{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}
@@ -260,6 +265,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
         <select id="fSt" aria-label="สถานะ"></select>
         <select id="fSub" aria-label="หัวข้อ"></select>
         <select id="fBr" aria-label="สาขา"></select>
+        <button type="button" class="btn sm" id="bDup">ตรวจข้อความซ้ำ</button>
       </div>
       <div class="selbar hide" id="selbar"><span id="selN"></span><button class="btn sm ok" data-bk="keep">คงไว้ทั้งหมด</button><button class="btn sm no" data-bk="skip">ข้ามทั้งหมด</button><button class="btn sm ghost" id="selClear">ล้างการเลือก</button><span class="muted">Shift + คลิก = เลือกเป็นช่วง</span></div>
       <details class="bulk" id="bulk">
@@ -381,6 +387,7 @@ function wire() {
     const t = e.target.closest("[data-todo]"); if (t){ const [id, m] = t.dataset.todo.split("|"); covDetail(id, m); }
   });
   $("#tRows").onclick = () => setTab("rows"); $("#tCsat").onclick = () => setTab("csat");
+  $("#bDup").onclick = checkDup;
   $("#fQ").oninput = () => { S.f.q = $("#fQ").value.trim().toLowerCase(); S.page = 0; renderRows(); };
   [["fB", "b"], ["fTy", "ty"], ["fSt", "st"], ["fSub", "sub"], ["fBr", "br"]].forEach(([id, k]) => $("#" + id).onchange = () => { S.f[k] = $("#" + id).value; S.page = 0; S.sel.clear(); renderRows(); });
   $("#hFlag").onchange = e => { S.f.flag = e.target.value; S.page = 0; S.sel.clear(); renderRows(); };
@@ -1018,7 +1025,7 @@ function matches(r, skipFlag) {
   const f = S.f;
   if (f.b && r.b !== f.b) return false; if (f.ty && r.ty !== f.ty) return false; if (f.st && r.state !== f.st) return false;
   if (f.sub && (f.sub === "__none" ? r.sub : f.sub === "__out" ? (!r.sub || DEFSET.has(r.sub)) : r.sub !== f.sub)) return false; if (f.br && r.br !== f.br) return false;
-  if (!skipFlag && f.flag && !r._f.includes(f.flag)) return false;
+  if (!skipFlag && f.flag && !(f.flag === "dupt" ? !!r._dup : r._f.includes(f.flag))) return false;
   if (f.q && !(r.c + " " + r.br + " " + r.z + " " + r.o + " " + r.sub).toLowerCase().includes(f.q)) return false;
   return true;
 }
@@ -1031,6 +1038,8 @@ function renderChips() {
   base.forEach(r => r._f.forEach(f => { if (f !== "sug") n[f] = (n[f] || 0) + 1; }));
   const h = $("#hFlag");
   h.innerHTML = `<option value="">ทั้งหมด (${fmt(base.length)})</option>` + FLAG_ORDER.filter(f => n[f] || S.f.flag === f).map(f => `<option value="${f}">${esc(I.FLAG_LABEL[f])} (${fmt(n[f] || 0)})</option>`).join("");
+  const nd = base.filter(r => r._dup).length;
+  if (nd || S.f.flag === "dupt") h.insertAdjacentHTML("beforeend", `<option value="dupt">ข้อความซ้ำ (${fmt(nd)})</option>`);
   h.value = S.f.flag || "";
   const hs = $("#hSub"); if (hs && hs.value !== (S.f.sub || "")) hs.value = S.f.sub || "";
 }
@@ -1055,7 +1064,7 @@ function rowHtml(r, noTxt, live) {
     <td>${esc(r.z || r.o || "—")}${r.z && r.o ? `<div class="muted">${esc(r.o)}</div>` : ""}</td>
     <td class="bt"><span class="chip ${r.ty === "พอใจ" ? "live" : r.ty === "ไม่พอใจ" ? "bad" : "info"}">${esc(r.ty)}</span>${r.s != null ? `<div class="muted num">คะแนน ${esc(r.s)}</div>` : ""}</td>
     <td style="min-width:240px">${live ? esc(r.sub || "—") : `<select class="rsub${r.sub && !DEFSET.has(r.sub) ? " out" : ""}" data-v="${esc(r.sub)}" aria-label="หัวข้อ"><option value="">(ไม่มีหัวข้อ)</option>${sub}</select>${sugBtn(r)}`}<div class="muted">${esc(r.main)}</div></td>
-    <td class="cm"><div class="tx">${esc(r.c)}</div>${r.extra && r.extra.note ? `<div class="muted" style="margin-top:4px">หมายเหตุ: ${esc(r.extra.note)}</div>` : ""}${r._f.some(f => f !== "sug") ? `<div class="tx2">${r._f.filter(f => f !== "sug").map(chipFor).join("")}</div>` : ""}</td></tr>`;
+    <td class="cm"><div class="tx">${esc(r.c)}</div>${r.extra && r.extra.note ? `<div class="muted" style="margin-top:4px">หมายเหตุ: ${esc(r.extra.note)}</div>` : ""}${r._f.some(f => f !== "sug") ? `<div class="tx2">${r._f.filter(f => f !== "sug").map(chipFor).join("")}</div>` : ""}${r._dup ? `<div class="tx2"><span class="chip ${r._dup === "first" ? "wait" : "bad"}">${DUP_LABEL[r._dup]}</span></div>` : ""}</td></tr>`;
 }
 function syncSelects(root) { root.querySelectorAll("select.rsub,select.rst").forEach(x => { x.value = x.dataset.v; }); }
 function renderRows() {
@@ -1084,6 +1093,57 @@ function afterRowEdit(r) {
 }
 function updateBulkT() { const n = S.sel.size;
   const sb = $("#selbar"); if (sb) { sb.classList.toggle("hide", !n || locked()); $("#selN").innerHTML = `เลือกไว้ <b>${fmt(n)}</b> แถว`; } $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
+
+/* ───── ตรวจข้อความซ้ำ ─────
+   เทียบข้อความหลังตัดช่องว่าง/เครื่องหมาย และย่ออักษรซ้ำติดกัน (มากกกก = มาก) · ข้อความสั้นกว่า 10 ตัวอักษรไม่นับ (เช่น "อร่อย" ซ้ำได้ตามปกติ)
+   ซ้ำกันเองในชุด: เก็บแถวแรก (วันที่เก่าสุด) ที่เหลือแนะนำให้ข้าม · ซ้ำกับข้อมูลที่ลงระบบแล้ว (ชุดอื่น): แนะนำให้ข้ามทั้งหมด */
+const dupKey = c => { const k = String(c || "").toLowerCase().replace(/[\s\p{P}\p{S}]+/gu, "").replace(/(.)\1{2,}/gu, "$1"); return k.length >= 10 ? k : ""; };
+const DUP_LABEL = {first: "ข้อความซ้ำ · แถวแรก (เก็บไว้)", batch: "ข้อความซ้ำในชุดนี้", live: "ซ้ำกับข้อมูลที่ลงระบบแล้ว"};
+let LIVE_TXT = null;
+async function liveTexts() {
+  const chan = S.cur.channel === "facebook" ? "facebook" : "voc";
+  if (LIVE_TXT && LIVE_TXT.chan === chan && LIVE_TXT.bid === S.cur.id) return LIVE_TXT.m;
+  busy(true, "กำลังโหลดข้อความที่ลงระบบแล้ว…"); await tick();
+  try {
+    const rows = await FBStore.liveRows(chan, (a, n) => busy(true, "กำลังโหลดข้อความที่ลงระบบแล้ว…", a / n), "id,c,br,d");
+    const mine = new Set(S.rows.map(r => r.id)), m = new Map();
+    rows.forEach(r => { if (mine.has(r.id)) return; const k = dupKey(r.c); if (k) (m.get(k) || m.set(k, []).get(k)).push(r); });
+    LIVE_TXT = {chan, bid: S.cur.id, m}; return m;
+  } finally { busy(false); }
+}
+async function checkDup() {
+  let live; try { live = await liveTexts(); } catch (e) { return toast("โหลดข้อมูลในระบบไม่ได้: " + (e.message || e)); }
+  const g = new Map();
+  S.rows.forEach(r => { r._dup = ""; const k = dupKey(r.c); if (k) (g.get(k) || g.set(k, []).get(k)).push(r); });
+  const groups = [];
+  g.forEach((x, k) => {
+    const lv = live.get(k) || [];
+    if (x.length < 2 && !lv.length) return;
+    x.sort((a, b) => (a.d + (a.t || "")).localeCompare(b.d + (b.t || "")) || a.id - b.id);
+    x.forEach((r, i) => { r._dup = lv.length ? "live" : i ? "batch" : "first"; });
+    groups.push({x, lv});
+  });
+  groups.sort((a, b) => (b.x.length + b.lv.length) - (a.x.length + a.lv.length));
+  _view = null; renderRows();
+  const drop = S.rows.filter(r => (r._dup === "batch" || r._dup === "live") && r.state === "staging");
+  const nIn = groups.filter(q => q.x.length > 1).length, nLive = S.rows.filter(r => r._dup === "live").length;
+  const ln = r => `${esc(fmtD(r.d))} · ${esc(r.br || "-")}${r.state === "drop" ? " · ข้ามแล้ว" : ""}`;
+  const body = !groups.length ? `<div style="line-height:1.8">ไม่พบข้อความซ้ำในชุดนี้ และไม่ซ้ำกับข้อมูลที่ลงระบบแล้ว</div>` :
+    `<div style="line-height:1.8">ซ้ำกันเองในชุดนี้ <b class="num">${fmt(nIn)}</b> กลุ่ม · ซ้ำกับข้อมูลที่ลงระบบแล้ว <b class="num">${fmt(nLive)}</b> แถว${locked() ? "" : ` · แนะนำให้ข้าม <b class="num">${fmt(drop.length)}</b> แถว (เก็บแถวแรกของแต่ละกลุ่ม)`}</div>` +
+    groups.slice(0, 40).map(q => `<div class="dupg"><div class="t">${esc(String(q.x[0].c).slice(0, 160))}</div>
+      <div class="l">${q.x.map((r, i) => `${i && !q.lv.length ? "<b>ซ้ำ</b> " : ""}${ln(r)}`).join("<br>")}${q.lv.length ? `<br><b>ในระบบแล้ว</b> ${q.lv.slice(0, 3).map(r => `${esc(fmtD(r.d))} · ${esc(r.br || "-")}`).join(" / ")}${q.lv.length > 3 ? ` และอีก ${q.lv.length - 3}` : ""}` : ""}</div></div>`).join("") +
+    (groups.length > 40 ? `<div class="note" style="margin-top:8px">แสดง 40 จาก ${fmt(groups.length)} กลุ่ม · ดูทั้งหมดในตารางด้วยตัวกรอง “ข้อความซ้ำ”</div>` : "");
+  const btns = [];
+  if (groups.length) btns.push({text: "ดูในตาราง", fn: () => { S.f.flag = "dupt"; S.page = 0; S.sel.clear(); renderRows(); }});
+  if (drop.length && !locked()) btns.push({text: `ข้ามแถวที่ซ้ำ ${fmt(drop.length)} แถว`, cls: "no", fn: async () => {
+    const ids = drop.map(r => r.id);
+    busy(true, "กำลังบันทึก…");
+    try { await FBStore.setRows(S.cur.id, ids, {state: "drop"}); } finally { busy(false); }
+    drop.forEach(r => { r.state = "drop"; r.edited = true; calc(r); });
+    _view = null; renderRows(); renderKpi(); renderBar(); toast(`ข้ามแถวที่ซ้ำแล้ว ${fmt(ids.length)} แถว`);
+  }});
+  modal("ตรวจข้อความซ้ำ", body, btns);
+}
 
 /* ───── แก้ทีละกลุ่ม ───── */
 function targetIds() { return S.sel.size ? [...S.sel] : filtered().filter(r => r.state !== "live").map(r => r.id); }
