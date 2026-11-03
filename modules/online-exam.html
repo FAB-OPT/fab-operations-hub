@@ -6624,8 +6624,10 @@ function _oeRetakeAdminHtml(r){
     : '';
   return '<div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;justify-content:space-between;margin:10px 0;padding:11px 14px;border:1px solid var(--border);border-radius:12px;background:var(--bg2)">'
     + '<div style="font-size:13.5px"><b>สอบซ่อม</b> · ' + line + ext + '</div>'
+    + '<div style="display:flex;gap:6px;flex-wrap:wrap">'
+    + (extra ? '<button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="oeCancelRetakeExt()">ยกเลิกการขยาย</button>' : '')
     + '<button class="btn btn-soft btn-sm" data-oe-action="exam-approve" onclick="oeExtendRetake()">⏳ ขยายเวลาสอบซ่อม</button>'
-    + '</div>';
+    + '</div></div>';
 }
 async function oeExtendRetake(){
   var r = _oeResCur;
@@ -6673,6 +6675,39 @@ async function oeExtendRetake(){
       var m = String((e && e.message) || e || '');
       toast(/oe_extend_retake/.test(m) ? 'ยังไม่ได้เพิ่มฟังก์ชันหลังบ้าน — รันไฟล์ supabase/online-exam-retake-extend.sql ก่อน 1 ครั้ง' : 'ขยายเวลาไม่สำเร็จ - ' + _apiWhy(e), 'err');
     });
+}
+/* ยกเลิกการขยายเวลาสอบซ่อม: กลับเป็นกำหนดเดิม (วันที่ขยาย = 0) · ถ้าเลยกำหนดเดิมแล้วจะหมดสิทธิ์สอบซ่อมทันที */
+async function oeCancelRetakeExt(){
+  var r = _oeResCur;
+  if(!r) return;
+  if(!oeCan('exam-approve')){ toast('ไม่มีสิทธิ์แก้เวลาสอบซ่อม','err'); return; }
+  var extra = Number(r.retakeExtraDays) || 0;
+  if(!extra){ toast('ใบนี้ยังไม่ได้ขยายเวลา','warn'); return; }
+  var t = new Date(r.submittedAt);
+  var left0 = isNaN(t.getTime()) ? null : OE_RETAKE_DAY - Math.floor((Date.now() - t.getTime()) / 86400000);
+  var ok = await oeConfirm({
+    icon: '↩️', title: 'ยกเลิกการขยายเวลาสอบซ่อม',
+    text: 'ผู้สอบ: <b>' + esc(r.name || '') + '</b>',
+    facts: [
+      ['ขยายไว้', '+' + extra + ' วัน' + (r.retakeExtBy ? ' · โดย ' + r.retakeExtBy : '')],
+      ['หลังยกเลิก', left0 != null && left0 > 0 ? ('เหลือ ' + left0 + ' วัน ตามกำหนดเดิม') : 'หมดเวลาสอบซ่อมทันที']
+    ],
+    warn: 'กลับไปใช้กำหนดเดิม ' + OE_RETAKE_DAY + ' วันนับจากวันสอบ',
+    yes: 'ยกเลิกการขยาย'
+  });
+  if(!ok) return;
+  var sess = (typeof getHubSession === 'function' && getHubSession()) || {};
+  var by = sess.name || sess.nick || '';
+  apiPost({ type:'extend-retake', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '', extra: 0, by: by })
+    .then(function(res){
+      if(res && res.ok){
+        r.retakeExtraDays = 0; r.retakeExtBy = by; r.retakeExtAt = new Date().toISOString();
+        toast('ยกเลิกการขยายเวลาสอบซ่อมแล้ว');
+        if(_oeResCur === r) $('rdBody').innerHTML = _oeResDetailHtml(r);
+        loadResults(true);
+      } else toast('ยกเลิกไม่สำเร็จ: ' + ((res && res.error) || 'ไม่ทราบสาเหตุ'), 'err');
+    })
+    .catch(function(e){ toast('ยกเลิกไม่สำเร็จ - ' + _apiWhy(e), 'err'); });
 }
 function _oeResDetailHtml(r){
   var pass = isPass(r), nc = _oeRNoCrit(r);
@@ -6851,7 +6886,8 @@ async function oeEditInfo(){
    ผลที่แก้เก็บเป็นข้อ ๆ (a.fixed + a.ok) พร้อมคะแนนก่อนแก้ ใครแก้ เมื่อไร เหตุผล
    คะแนนรวม ผ่าน/ไม่ผ่าน และคะแนนรายส่วนคิดใหม่ให้จากรายข้อที่แก้ */
 var _oeEd = null;
-function _oeCanEditAns(){ return _oeSeeKey() && oeCan('exam-approve'); }
+/* แก้ผลรายข้อหลังสอบ: เฉพาะแอดมินเท่านั้น (ไม่เปิดตามสิทธิ์อนุมัติ) */
+function _oeCanEditAns(){ var s = (typeof getHubSession === 'function' && getHubSession()) || {}; return s.role === 'admin' && _oeSeeKey(); }
 function _oeEdCalc(r, okArr){
   var ans = _oeResAnswers(r) || [];
   var total = ans.length, correct = okArr.filter(Boolean).length;
