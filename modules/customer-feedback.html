@@ -155,6 +155,7 @@ body.fbfull .shell{max-width:1560px}
 .ftb tr.rw{cursor:pointer}.ftb tr.rw:hover td{background:#fbfaf8}.ftb tr:last-child td{border-bottom:0}
 .ftb .cat{white-space:nowrap;font-size:14px;font-weight:600}.ftb .cat i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:7px}
 .ftb .tx{line-height:1.5;overflow-wrap:anywhere}.ftb .tx .gd{display:inline-block;margin-right:6px;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:#e7f7ed;color:#14803c}
+.ftb .nt{font-size:13.5px;line-height:1.5;color:var(--text2);overflow-wrap:anywhere;min-width:180px}.ftb .nt .nt0{color:var(--text3)}
 .ftb .br{color:var(--text2);font-size:14px;white-space:nowrap}.ftb .bz{font-size:14px;white-space:nowrap}.ftb .dt{font-size:14px;color:var(--text3);white-space:nowrap;font-variant-numeric:tabular-nums}
 .sp{display:inline-flex;align-items:center;gap:6px;padding:4px 12px;border-radius:999px;font-size:13.5px;font-weight:700;border:0;white-space:nowrap}
 .sp::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor}.sp::after{content:"▾";font-size:10px;opacity:.7;margin-left:2px}
@@ -276,7 +277,7 @@ body.fbfull .shell{max-width:1560px}
       <div class="ft-h">
         <div class="ft-c" id="fbChips"></div>
       </div>
-      <div class="ft-w"><table class="ftb"><thead><tr><th>หมวด</th><th>ข้อความ</th><th>สาขา</th><th>BZM</th><th>วันที่</th></tr></thead><tbody id="fbRows"></tbody></table></div>
+      <div class="ft-w"><table class="ftb"><thead><tr><th>หมวด</th><th>ข้อความ</th><th>หมายเหตุ</th><th>สาขา</th><th>BZM</th><th>วันที่</th></tr></thead><tbody id="fbRows"></tbody></table></div>
       <div class="ft-f"><span id="fbFoot"></span></div>
     </section>
     <button class="btn ghost more hide" id="bMore">แสดงเพิ่ม</button>
@@ -469,11 +470,12 @@ function renderTable(B,L){
   const byStat=B.filter(r=>!FB.st||stOf(r)===FB.st), cc={}; byStat.forEach(r=>{ const k=catOf(r); cc[k]=(cc[k]||0)+1; });
   $("#fbChips").innerHTML=(Object.keys(cc).length?`<span>หมวด</span>`:"")+Object.entries(cc).sort((a,b)=>b[1]-a[1]).map(([k,v])=>`<button type="button" class="${FB.cat===k?"on":""}" data-fbcat="${esc(k)}"><i style="background:${catCol(k)}"></i>${esc(k)} ${v}</button>`).join("");
   const show=L.slice(0,SHOWN), can1=can("manage"), body=$("#fbRows");
-  if(!ALL().filter(inScope).length) body.innerHTML=`<tr><td colspan="5" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ยังไม่มีคอมเมนต์จาก Facebook<br>แอดมินนำเข้าไฟล์ที่แท็บ “นำเข้า &amp; อนุมัติ” หรือกด “เพิ่มคอมเมนต์” / “วางหลายรายการ”</td></tr>`;
-  else if(!L.length) body.innerHTML=`<tr><td colspan="5" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่พบรายการตามตัวกรอง</td></tr>`;
+  if(!ALL().filter(inScope).length) body.innerHTML=`<tr><td colspan="6" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ยังไม่มีคอมเมนต์จาก Facebook<br>แอดมินนำเข้าไฟล์ที่แท็บ “นำเข้า &amp; อนุมัติ” หรือกด “เพิ่มคอมเมนต์” / “วางหลายรายการ”</td></tr>`;
+  else if(!L.length) body.innerHTML=`<tr><td colspan="6" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่พบรายการตามตัวกรอง</td></tr>`;
   else body.innerHTML=show.map(r=>{ const c=catOf(r), s=stOf(r);
     return `<tr class="rw" data-fbid="${esc(r.id)}"><td class="cat"><i style="background:${catCol(c)}"></i>${esc(c)}</td>
       <td class="tx">${r.type==="good"?`<span class="gd">คำชม</span>`:""}${esc(r.text)}${r.who?` <small style="color:var(--text3)">— ${esc(r.who)}</small>`:""}</td>
+      <td class="nt">${r.note?esc(r.note):`<span class="nt0">-</span>`}</td>
       <td class="br">${esc(r.branchLabel||"—")}</td><td class="bz">${esc(bzmOf(r)||"—")}</td><td class="dt">${sDate(r.date)}</td></tr>`; }).join("");
   const anon=L.length&&L.every(r=>!r.who), brands=[...new Set(L.map(r=>r.brand).filter(Boolean))];
   $("#fbFoot").textContent=`แสดง ${show.length} จาก ${L.length} รายการ${anon?" · ทั้งหมดเป็นแบบไม่ระบุชื่อ":""}${brands.length?" · แบรนด์ "+brands.join(", "):""}`;
@@ -604,7 +606,7 @@ function formCentral(r){
     <div class="fbgrid"><div class="field"><label>สถานะติดตาม</label>${sel("c_status",Object.entries(STATUS),r.status||"new")}</div>
     <div class="field"><label>ผู้รับผิดชอบ</label><input id="c_owner" value="${esc(r.owner||"")}" maxlength="60"></div></div>
     <div class="field"><label>ลิงก์โพสต์ / คอมเมนต์</label><input id="c_link" type="url" value="${esc(r.link||"")}"></div>
-    <div class="field"><label>หมายเหตุ / การแก้ไข</label><input id="c_note" value="${esc(r.note||"")}" maxlength="300"></div>`;
+    <div class="field"><label>หมายเหตุ / การแก้ไข</label><textarea id="c_note" rows="4" maxlength="3000">${esc(r.note||"")}</textarea></div>`;
   modal("ติดตามเคส Facebook",w,async()=>{
     const status=$("#c_status",w).value, patch={status,owner:$("#c_owner",w).value.trim(),link:$("#c_link",w).value.trim(),note:$("#c_note",w).value.trim(),closedAt:status==="done"?(ex.closedAt||today()):""};
     try{ await FBStore.setExtra(r.rowId,patch,Hub.fullName()); }catch(e){ toast("บันทึกไม่สำเร็จ: "+(e.message||e)); return false; }
