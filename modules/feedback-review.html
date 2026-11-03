@@ -57,6 +57,13 @@ body.embed .shell{padding-top:14px;max-width:none}
 .shell{max-width:1320px}
 .flt select{width:auto;flex:0 1 190px}
 .flt #bDup{min-height:38px;align-self:stretch}
+.dupall{padding:18px 20px}
+.duph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}.duph b{font-size:17px}
+.dupc{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.dupc select{width:auto;min-height:38px;padding:7px 10px;border:1px solid var(--border2);border-radius:10px;background:var(--bg2);font-size:14px}
+.dupc .chk{display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px}
+.dupsum{margin:16px 0 4px;font-size:15px;line-height:1.7}
+.dupg .op{margin-left:8px}
 .dupg{border:1px solid var(--border);border-radius:12px;padding:10px 12px;margin-top:8px}
 .dupg .t{font-weight:600;line-height:1.5}
 .dupg .l{font-size:12.5px;color:var(--text2);margin-top:4px;line-height:1.6}
@@ -214,6 +221,7 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
       <button type="button" data-ft="wait">รอตรวจ / อนุมัติ<em id="ftWait"></em></button>
       <button type="button" data-ft="live">ลงระบบแล้ว<em id="ftLive"></em></button>
       <button type="button" data-ft="cov">ความครบของข้อมูล<em id="ftCov"></em></button>
+      <button type="button" data-ft="dup">ข้อความซ้ำ<em id="ftDup"></em></button>
     </nav>
     <div class="fpane" data-pane="imp">
       <div class="igrid">
@@ -237,6 +245,19 @@ table.cov{border-collapse:separate;border-spacing:0;width:100%;min-width:760px;f
     </div>
     <div class="fpane hide" data-pane="live">
       <section class="bcol"><div class="bh"><b>ลงระบบแล้ว</b><small id="lcount"></small></div><div class="bcards" id="bcardsLive"></div></section>
+    </div>
+    <div class="fpane hide" data-pane="dup">
+      <section class="card dupall">
+        <div class="duph"><b>ตรวจข้อความซ้ำทั้งระบบ</b><span class="muted">เทียบข้อมูลที่ลงระบบแล้วทุกชุด</span></div>
+        <div class="dupc">
+          <select id="dChan" aria-label="ช่องทาง"><option value="voc">VOC</option><option value="facebook">Facebook</option></select>
+          <select id="dBrand" aria-label="แบรนด์"><option value="">ทุกแบรนด์</option><option value="KT">Santa Fe KT</option><option value="FS">Santa Fe FS</option><option value="JD">เจ๊แดง</option></select>
+          <label class="chk"><input type="checkbox" id="dSame" checked> เฉพาะสาขาเดียวกัน</label>
+          <button type="button" class="btn" id="dRun">ตรวจ</button>
+        </div>
+        <div class="note" style="margin-top:8px">นับว่าซ้ำเมื่อข้อความเหมือนกันหลังตัดช่องว่างและเครื่องหมาย และย่ออักษรซ้ำติดกัน (มากกกก = มาก) · ข้อความสั้นกว่า 10 ตัวอักษรไม่นับ · "เฉพาะสาขาเดียวกัน" ตัดคอมเมนต์ทั่วไปที่หลายสาขาเขียนเหมือนกันออก เหลือที่น่าจะนำเข้าซ้ำ</div>
+        <div id="dOut"></div>
+      </section>
     </div>
     <div class="fpane hide" data-pane="cov">
       <div class="covtop" id="covTop"></div>
@@ -1144,6 +1165,30 @@ async function checkDup() {
   }});
   modal("ตรวจข้อความซ้ำ", body, btns);
 }
+
+/* ตรวจข้อความซ้ำทั้งระบบ (ข้อมูลที่ลงระบบแล้วทุกชุด) · แก้ไม่ได้ตรงนี้: เปิดชุดนั้น ถอนการอนุมัติ ข้ามแถวที่ซ้ำ แล้วอนุมัติใหม่ */
+async function checkDupAll() {
+  const chan = $("#dChan").value, br = $("#dBrand").value, same = $("#dSame").checked, out = $("#dOut");
+  out.innerHTML = `<div class="muted" style="padding:14px 0">กำลังโหลดข้อมูลที่ลงระบบแล้ว…</div>`;
+  let rows;
+  try { rows = await FBStore.liveRows(chan, (a, n) => { out.innerHTML = `<div class="muted" style="padding:14px 0">กำลังโหลดข้อมูลที่ลงระบบแล้ว… ${Math.round(a / n * 100)}%</div>`; }, "id,batch_id,b,d,t,br,c"); }
+  catch (e) { out.innerHTML = `<div class="warn">โหลดข้อมูลไม่ได้: ${esc(e.message || e)}</div>`; return; }
+  const g = new Map();
+  rows.forEach(r => { if (br && r.b !== br) return; const k = dupKey(r.c); if (!k) return; const key = same ? k + "|" + (String(r.br).match(/^\d{4}/) || [r.br])[0] : k; (g.get(key) || g.set(key, []).get(key)).push(r); });
+  const groups = [...g.values()].filter(x => x.length > 1).map(x => x.sort((a, b) => (a.d + (a.t || "")).localeCompare(b.d + (b.t || "")) || a.id - b.id)).sort((a, b) => b.length - a.length || String(b[0].d).localeCompare(String(a[0].d)));
+  const extra = groups.reduce((a, x) => a + x.length - 1, 0);
+  const bn = id => { const b = (S.batches || []).find(x => x.id === id); return b ? b.file_name || "(ไม่มีชื่อไฟล์)" : "ชุด #" + id; };
+  $("#ftDup").textContent = groups.length ? fmt(groups.length) : "";
+  out.innerHTML = !groups.length ? `<div class="dupsum">ไม่พบข้อความซ้ำ${br ? " ของแบรนด์นี้" : ""} จาก ${fmt(rows.length)} แถวที่ลงระบบแล้ว</div>` :
+    `<div class="dupsum">พบ <b class="num">${fmt(groups.length)}</b> กลุ่ม · แถวที่เกินมา <b class="num">${fmt(extra)}</b> แถว (เก็บแถวแรกของแต่ละกลุ่ม) จาก ${fmt(rows.length)} แถวที่ลงระบบแล้ว<br><span class="muted">จะเอาแถวที่ซ้ำออก: กด “เปิดชุด” → ถอนการอนุมัติ → กดปุ่ม “ตรวจข้อความซ้ำ” ในชุด → ข้ามแถวที่ซ้ำ → อนุมัติใหม่</span></div>` +
+    groups.slice(0, 150).map(x => `<div class="dupg"><div class="t">${esc(String(x[0].c).slice(0, 200))}</div>
+      <div class="l">${x.map((r, i) => `${i ? "<b>ซ้ำ</b> " : ""}${esc(fmtD(r.d))}${r.t ? " " + esc(r.t) : ""} · ${esc(r.br || "-")} · ${esc(bn(r.batch_id))}<button type="button" class="btn sm ghost op" data-open-batch="${r.batch_id}">เปิดชุด</button>`).join("<br>")}</div></div>`).join("") +
+    (groups.length > 150 ? `<div class="note" style="margin-top:8px">แสดง 150 จาก ${fmt(groups.length)} กลุ่ม · เลือกแบรนด์เพื่อดูให้แคบลง</div>` : "");
+}
+document.addEventListener("click", e => {
+  if (e.target.closest("#dRun")) return checkDupAll();
+  const ob = e.target.closest("[data-open-batch]"); if (ob) { const b = (S.batches || []).find(x => String(x.id) === ob.dataset.openBatch); if (b) openBatch(b); else toast("ไม่พบชุดนี้"); }
+});
 
 /* ───── แก้ทีละกลุ่ม ───── */
 function targetIds() { return S.sel.size ? [...S.sel] : filtered().filter(r => r.state !== "live").map(r => r.id); }
