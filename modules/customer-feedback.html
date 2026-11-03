@@ -144,13 +144,13 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 .fbx-n button:hover{background:#efede8}.fbx-n button.on{background:#171513;color:#fff}.fbx-n button.on b{color:#d1d5db}
 .fbx-l{min-width:0;display:flex;flex-direction:column}
 .fbx-c{padding:12px 16px;font-size:13px;color:var(--text3);font-weight:700;border-bottom:1px solid var(--border)}
-/* แถวเคสแบบ C: วันที่ตัวใหญ่เป็นคอลัมน์ซ้าย · สาขา + ป้ายหมวด บรรทัดบน · ข้อความบรรทัดล่าง */
-.fbi{display:grid;grid-template-columns:84px minmax(0,1fr);border-bottom:1px solid #f1efeb;padding:14px 20px 14px 0}
+/* แถวเคสแบบ B: เส้นสีหมวดด้านซ้าย · สาขา · หมวด (สีตามหมวด) · วันที่เป็นป้ายชิดขวา · ข้อความบรรทัดล่าง */
+.fbi{border-bottom:1px solid #f1efeb;padding:14px 20px 14px 22px;box-shadow:inset 4px 0 0 var(--c,#8A93A3)}
 .fbi:hover{background:#fbfaf8}
-.fbi .cd{display:flex;flex-direction:column;align-items:center;border-right:1px solid #f1efeb;margin-right:16px}
-.fbi .cd b{font-size:28px;font-weight:800;line-height:1;color:var(--text)}.fbi .cd span{font-size:13px;font-weight:700;color:var(--text3);margin-top:3px;white-space:nowrap}
-.fbi .ch{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:4px}.fbi .ch b{font-size:15.5px;color:var(--text2)}
-.fbi .chip{display:inline-flex;align-items:center;height:24px;padding:0 10px;border-radius:999px;font-size:13px;font-weight:800;white-space:nowrap}
+.fbi .bh{display:flex;align-items:baseline;gap:6px;margin-bottom:4px;min-width:0}
+.fbi .bh b{font-size:15.5px;color:var(--text2);font-weight:700;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fbi .bc{font-size:14.5px;font-weight:800;white-space:nowrap}
+.fbi .dtp{margin-left:auto;flex:none;font-size:14px;font-weight:800;color:var(--text2);background:#f4f2ee;border-radius:999px;padding:2px 11px}
 .fbi p{margin:0;font-size:17px;line-height:1.55;color:var(--text);white-space:pre-line;overflow-wrap:anywhere}
 .fbi .fnote{display:block;margin-top:5px;font-size:14.5px;color:var(--text2);line-height:1.5;white-space:pre-line}
 .fbx-l .more{margin:12px auto}
@@ -238,7 +238,7 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 .sp.ro{cursor:default}.sp.ro::after{display:none}
 .ft-f{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-top:10px;font-size:13px;color:var(--text3)}
 @media(max-width:1040px){.fbg{grid-template-columns:minmax(0,1fr)}.fbk{grid-template-columns:repeat(2,minmax(0,1fr))}.fbtr{grid-template-columns:minmax(0,1fr)}.fbx{grid-template-columns:180px minmax(0,1fr);background:linear-gradient(to right,#f8f7f4 0 180px,var(--border) 180px 181px,var(--bg2) 181px)}}
-@media(max-width:700px){.fbi{grid-template-columns:62px minmax(0,1fr);padding-right:14px}.fbi .cd{margin-right:12px}.fbi .cd b{font-size:22px}.fbx{grid-template-columns:minmax(0,1fr);background:var(--bg2)}.fbx-n{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);background:#f8f7f4;top:var(--tbh,64px);z-index:5;max-height:none}.fbx-n .h{display:none}.fbx-n button{white-space:nowrap;flex:none}.trbars{gap:4px;height:160px}.trb small{font-size:11px}}
+@media(max-width:700px){.fbi{padding:12px 14px 12px 18px}.fbx{grid-template-columns:minmax(0,1fr);background:var(--bg2)}.fbx-n{flex-direction:row;overflow-x:auto;border-right:0;border-bottom:1px solid var(--border);background:#f8f7f4;top:var(--tbh,64px);z-index:5;max-height:none}.fbx-n .h{display:none}.fbx-n button{white-space:nowrap;flex:none}.trbars{gap:4px;height:160px}.trb small{font-size:11px}}
 @media(max-width:560px){.fbk{grid-template-columns:minmax(0,1fr)}.fbh-a .pbtn{padding:8px 12px}.cal .d{min-height:44px;padding:4px 6px}}
 .brk svg text,.chart text,.chart circle,.chart rect{stroke:none}
 /* ตัวกรอง Facebook: ให้ดูว่ากดได้ (ลูกศร · เปลี่ยนสีเมื่อชี้/โฟกัส · ไฮไลต์เมื่อมีการเลือกอยู่) */
@@ -516,8 +516,8 @@ function renderInbox(B,L){
   const show=L;   // เคส Facebook มีไม่กี่ร้อย แสดงครบทุกเคส ไม่แบ่งหน้า
   $("#fbCount").textContent=L.length?`${L.length} เคส${FB.cat?" · "+FB.cat:""}`:"";
   $("#fbList").innerHTML=L.length?show.map(r=>{ const c=catOf(r);
-    const [y,m,d]=String(r.date||"").split("-"), col=catCol(c);
-    return `<div class="fbi"><div class="cd"><b>${d?+d:"-"}</b><span>${m?TH_MS[+m-1]+" "+(+y+543)%100:""}</span></div><div><div class="ch"><b>${esc(r.branchLabel||"ไม่ระบุสาขา")}</b><span class="chip" style="background:${col}1f;color:${col}">${esc(c)}</span></div><p>${esc(r.text)}</p>${r.note?`<span class="fnote">หมายเหตุ: ${esc(r.note)}</span>`:""}</div></div>`; }).join("")
+    const col=catCol(c);
+    return `<div class="fbi" style="--c:${col}"><div class="bh"><b>${esc(r.branchLabel||"ไม่ระบุสาขา")}</b><span class="bc" style="color:${col}">· ${esc(c)}</span><span class="dtp">${sDate(r.date)}</span></div><p>${esc(r.text)}</p>${r.note?`<span class="fnote">หมายเหตุ: ${esc(r.note)}</span>`:""}</div>`; }).join("")
     :`<div class="fbx-e">ไม่พบเคสตามตัวกรอง</div>`;
   $("#bMore").classList.add("hide"); }
 function markFilters(){ syncDD(); document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
