@@ -181,7 +181,9 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 .fbx-d .chip3{font-size:15px;height:32px;padding:0 14px}
 .fbx-d h2{font-size:26px}
 .fbx-d .bx{padding:16px 18px}.fbx-d .bx .l{font-size:14px}.fbx-d .bx .v{font-size:18.5px}.fbx-d .bx .nt{font-size:17px}
-.fbx-d .oth{font-size:16px;padding:9px 0}
+.fbx-d .oth{font-size:16px;padding:10px 0;line-height:1.55}
+.fbx-d .oth .od{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:8px;vertical-align:2px}
+.fbi .fnote{display:block;margin-top:4px;font-size:14.5px;color:var(--text2);line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .fpanel{background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:18px 22px 16px;min-width:0}
 .fp-h{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px}
 .fp-t{font-size:18px;font-weight:800}.fp-t small{font-size:13.5px;font-weight:500;color:var(--text3);margin-left:6px}
@@ -507,16 +509,21 @@ function renderInbox(B,L){
   if(!L.find(r=>r.id===FB.sel)) FB.sel=L.length?L[0].id:"";
   $("#fbCount").textContent=L.length?`${L.length} เคส${FB.cat?" · "+FB.cat:""}${L.length>show.length?" · แสดง "+show.length:""}`:"";
   $("#fbList").innerHTML=L.length?show.map(r=>{ const c=catOf(r);
-    return `<button type="button" class="fbi${r.id===FB.sel?" on":""}" data-fbsel="${esc(r.id)}"><span class="t"><i style="background:${catCol(c)}"></i><span>${esc(r.branchLabel||"ไม่ระบุสาขา")}</span><em>${sDate(r.date)}</em></span><p>${esc(r.text)}</p></button>`; }).join("")
+    return `<button type="button" class="fbi${r.id===FB.sel?" on":""}" data-fbsel="${esc(r.id)}"><span class="t"><i style="background:${catCol(c)}"></i><span>${esc(r.branchLabel||"ไม่ระบุสาขา")}</span><em>${sDate(r.date)}</em></span><p>${esc(r.text)}</p>${r.note?`<span class="fnote">หมายเหตุ: ${esc(r.note)}</span>`:""}</button>`; }).join("")
     :`<div class="fbx-e">ไม่พบเคสตามตัวกรอง</div>`;
   $("#bMore").classList.toggle("hide",L.length<=SHOWN);
   renderDetail(ALL().find(x=>x.id===FB.sel)); }
+/* ช่องขวา: เฉพาะเคสอื่นของสาขาเดียวกัน (ข้อความ สาขา หมายเหตุ ดูในรายการแล้ว) */
 function renderDetail(r){
-  const box=$("#fbDet"); box.innerHTML=r?detailHtml(r):`<div class="fbx-e">เลือกเคสจากรายการ</div>`; }
-/* รายละเอียดเคส (ดูอย่างเดียว · แก้หมายเหตุ/ติดตามเคสที่หน้า นำเข้า & อนุมัติ) */
+  const box=$("#fbDet"); if(!r){ box.innerHTML=`<div class="fbx-e">เลือกเคสจากรายการ</div>`; return; }
+  const oth=othersOf(r);
+  box.innerHTML=`<div class="bx"><div class="l">เคสอื่นของสาขานี้ · ${oth.length} เคส</div><div class="v" style="margin-bottom:4px">${esc(r.branchLabel||"-")}</div>
+    ${oth.length?oth.map(x=>`<button type="button" class="oth" data-fbsel="${esc(x.id)}"><b>${esc(sDate(x.date))}</b><i class="od" style="background:${catCol(catOf(x))}"></i>${esc(x.text)}</button>`).join(""):`<div class="v mute">ไม่มีเคสอื่นของสาขานี้</div>`}</div>`; }
+const othersOf=r=>ALL().filter(inScope).filter(x=>x.id!==r.id&&r.branchCode&&x.branchCode===r.branchCode).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+/* รายละเอียดเคสเต็ม ใช้ในหน้าต่างบนจอแคบ (ดูอย่างเดียว · แก้หมายเหตุ/ติดตามเคสที่หน้า นำเข้า & อนุมัติ) */
 function detailHtml(r){
   const c=catOf(r), ex=r.ex||{}, bz=bzmOf(r);
-  const oth=ALL().filter(inScope).filter(x=>x.id!==r.id&&r.branchCode&&x.branchCode===r.branchCode).sort((a,b)=>(b.date||"").localeCompare(a.date||""));
+  const oth=othersOf(r);
   const info=[ex.docNo&&"เลขที่เอกสาร "+esc(ex.docNo),ex.cost&&"ค่าใช้จ่าย "+esc(ex.cost),ex.severity&&"ความรุนแรง "+esc(ex.severity),ex.closedAt&&"ปิดเคส "+esc(fmtD(ex.closedAt))].filter(Boolean);
   return `<div class="meta"><span class="chip3"><i style="background:${catCol(c)}"></i>${esc(c)}</span><span class="chip3">${esc(fmtD(r.date))}</span>${r.brand?`<span class="chip3">${esc(r.brand)}</span>`:""}</div>
     <h2>${esc(r.text)}</h2>
