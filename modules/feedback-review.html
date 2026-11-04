@@ -11,7 +11,9 @@
 <style>
 /* นำเข้า → กรอง/แก้ไข → อนุมัติ — เฉพาะแอดมิน · โทน Instrument: แน่น อ่านตัวเลขง่าย */
 body.embed .topbar{display:none}
-body.embed .shell{padding-top:14px;max-width:none}
+body.embed .shell{padding-top:14px;padding-bottom:28px;max-width:none}
+/* ในกรอบ 100vh = ความสูงกรอบเอง ถ้าปล่อยไว้ scrollHeight จะไม่เคยเล็กลง กรอบจึงค้างสูง */
+body.embed{min-height:0}
 .num{font-variant-numeric:tabular-nums}
 .steps{display:flex;gap:0;margin:2px 0 16px;border:1px solid var(--border);border-radius:14px;background:var(--bg2);overflow:hidden}
 .steps .st{flex:1;padding:11px 14px;display:flex;gap:10px;align-items:center;font-size:13.5px;color:var(--text3);border-right:1px solid var(--border);min-width:0}
@@ -1378,9 +1380,17 @@ boot();
 /* ถูกฝังในหน้า Customer Feedback: ส่งความสูงจริงให้หน้าแม่ปรับ iframe ตาม · ตารางจึงไม่ต้องเลื่อนในกรอบ */
 (function () {
   if (window.parent === window) return;
-  const send = () => { try { parent.postMessage({type: "fr-height", h: Math.ceil(document.documentElement.scrollHeight)}, location.origin); } catch (e) {} };
-  try { new ResizeObserver(send).observe(document.body); } catch (e) {}
+  let last = 0, q = 0;
+  const measure = () => {
+    const sh = document.querySelector(".shell");
+    const c = sh ? Math.ceil(sh.getBoundingClientRect().bottom + window.scrollY) : 0;   /* ก้นเนื้อหาจริง */
+    return Math.max(160, Math.min(c || document.body.scrollHeight, document.body.scrollHeight));
+  };
+  const send = () => { q = 0; try { const h = measure(); if (Math.abs(h - last) < 2) return; last = h; parent.postMessage({type: "fr-height", h}, location.origin); } catch (e) {} };
+  const ping = () => { if (!q) q = setTimeout(send, 16); };   /* rAF ถูกหยุดเมื่อกรอบอยู่นอกจอ จึงใช้ timer */
+  try { new ResizeObserver(ping).observe(document.body); } catch (e) {}
   window.addEventListener("load", send);
+  setInterval(send, 1000);   /* กันพลาด: ถ้า ResizeObserver ไม่ทำงาน กรอบยังหดกลับเองได้ */
   send();
   /* หน้าต่าง / ป้ายกำลังทำงาน / toast เป็น position:fixed ในกรอบที่สูงหลายพันพิกเซล จึงไปอยู่กลางกรอบซึ่งมองไม่เห็น
      บอกตำแหน่งส่วนที่มองเห็นได้ (--vt บน, --vb ล่าง, --vh สูง) ให้ CSS วางของไว้ตรงนั้น */
