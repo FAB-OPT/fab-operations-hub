@@ -241,6 +241,32 @@ body{zoom:1}
 .cmpt{width:100%;border-collapse:collapse;font-size:13px}
 .cmpt th,.cmpt td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
 .cmpt th{color:var(--muted);font-weight:700}
+/* ═══ มือถือ: ตารางคอมเมนต์เป็นการ์ด (เดิมกว้าง 1180px ต้องเลื่อนข้าง คอมเมนต์อยู่นอกจอ) ═══ */
+@media (max-width:700px){
+  .tw{overflow-x:visible}
+  .det{min-width:0;display:block}
+  .det thead{display:none}
+  .det tbody{display:block}
+  .det tbody tr{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:5px 10px;align-items:center;padding:13px 4px;border-bottom:1px solid var(--line)}
+  .det tbody tr:last-child{border-bottom:0}
+  .det td,.det td:first-child{display:block;padding:0;border:0;width:auto;text-align:left;min-width:0;max-width:none}
+  .det tbody tr:hover td{background:none}
+  .det td[data-k="no"],.det td[data-k="t"],.det td[data-k="main"]{display:none}
+  .det td[data-k="ty"]{grid-column:1;grid-row:1}
+  .det td[data-k="br"]{grid-column:2;grid-row:1;font-weight:700;font-size:15.5px;line-height:1.3;white-space:normal}
+  .det td[data-k="d"]{grid-column:3;grid-row:1;font-size:13.5px}
+  .det td[data-k="c"]{grid-column:1/-1;grid-row:2;font-size:16px;line-height:1.55}
+  .det td[data-k="sub"]{grid-column:1/3;grid-row:3;font-size:14px;white-space:normal;color:var(--muted)}
+  .det td[data-k="s"]{grid-column:3;grid-row:3;justify-self:end}
+  .det td[data-k="z"]{grid-column:1/3;grid-row:4;font-size:13px;color:var(--muted);white-space:normal}
+  .det td[data-k="z"]::before{content:"BZM ";font-weight:700}
+  .det td[data-k="o"]{grid-column:3;grid-row:4;font-size:13px;color:var(--muted);white-space:normal;justify-self:end}
+  .det td[data-k="o"]::before{content:"Owner ";font-weight:700}
+  .det td.empty{grid-column:1/-1;text-align:center;padding:24px 0}
+  .detcard{padding-left:14px;padding-right:14px}
+  .dethead{justify-content:flex-start}
+  .dethead h2{font-size:18px}
+}
 </style>
 </head>
 <body>
@@ -751,7 +777,7 @@ function renderDetail(rows){
     if(k==='t') return `<td class="dt">${esc(r.t||'')}</td>`;
     return `<td class="nw">${esc(r[k])}</td>`;
   };
-  $('detBody').innerHTML = slice.length ? slice.map((r,i)=>`<tr>${cols.map(([k])=>cell(r,k,i)).join('')}</tr>`).join('')
+  $('detBody').innerHTML = slice.length ? slice.map((r,i)=>`<tr>${cols.map(([k])=>cell(r,k,i).replace('<td','<td data-k="'+k+'"')).join('')}</tr>`).join('')
     : `<tr><td colspan="${cols.length}" class="empty">ไม่พบคอมเมนต์ตามตัวกรอง</td></tr>`;
   $('pgInfo').textContent = list.length ? `${fmtN(start+1)}–${fmtN(start+slice.length)} / ${fmtN(list.length)}` : '0 / 0';
   $('pgPrev').disabled = ui.page===0; $('pgNext').disabled = ui.page>=pages-1;
