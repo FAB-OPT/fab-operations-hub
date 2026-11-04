@@ -176,10 +176,12 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 #viewFb .fbf .fcard.open{border-color:#fdba74;box-shadow:0 0 0 3px #fff1e6}
 #viewFb .fbf .fcard::after{content:none}   /* ใช้ลูกศร .ddc แทน ไม่ให้ซ้อนกัน */
 #viewFb .fbf .fcard:hover .ddc,#viewFb .fbf .fcard.open .ddc{stroke:#f26a10}
-#viewFb .tsmon{display:flex;flex-direction:row;align-items:center;gap:10px;padding:9px 16px;margin-bottom:14px;position:relative;user-select:none}
+.fbh-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+#viewFb .tsmon{display:flex;flex-direction:row;align-items:center;gap:10px;padding:8px 16px;margin:0;position:relative;user-select:none;min-width:0}
+#viewFb .tsmon .ddpop{left:0;right:auto;min-width:100%}
 #viewFb .tsmon span{font-size:15px;white-space:nowrap}
 #viewFb .tsmon select{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
-#viewFb .tsmon .ddv{margin-left:auto}
+#viewFb .tsmon .ddv{margin-left:6px;font-size:20px}
 #viewFb .tsmon.open{border-color:#fdba74;box-shadow:0 0 0 3px #fff1e6}
 #viewFb .tsmon:hover .ddc,#viewFb .tsmon.open .ddc{stroke:#f26a10}
 .ddv{font-size:18px;font-weight:700;white-space:nowrap;color:var(--text)}
@@ -315,7 +317,8 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
   <div id="viewFb" class="hide">
     <div class="fbh">
       <div class="fbh-t">
-        <h1>ข้อร้องเรียน <b>Facebook</b></h1>
+        <div class="fbh-row"><h1>ข้อร้องเรียน <b>Facebook</b></h1>
+          <label class="fcard tsmon"><span>เดือน</span><select id="fMonth2" aria-label="เลือกเดือน"></select></label></div>
         <p class="fbh-s" id="fbHint" hidden></p>
         <div class="fbhint hide" id="fbScope"></div>
       </div>
@@ -335,7 +338,6 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
         <div class="trbars" id="trBars"></div>
       </section>
       <section class="fpanel trsum">
-        <label class="fcard tsmon"><span>เลือกเดือน</span><select id="fMonth2" aria-label="เลือกเดือน"></select></label>
         <div class="tsl" id="tsL">ทั้งหมด</div>
         <div class="tsn" id="tsN">–</div>
         <div class="tscats" id="tsCats"></div>
@@ -476,7 +478,8 @@ const catCol=c=>CAT_COL[c]||"#8A93A3";
 const stOf=r=>r.type==="complaint"?(r.status||"new"):(r.status||"");
 const bzmOf=r=>{ if(r.bzm) return r.bzm; try{ const m=(HubMod.Branches.raw()||{}).bzmMap||{}; return m[r.branchCode]||""; }catch(e){ return ""; } };
 const sDate=d=>{ if(!d) return "—"; const [y,m,dd]=d.split("-"); return `${+dd}/${+m}/${(+y+543)%100}`; };
-const monLbl=mo=>{ const [y,m]=mo.split("-"); return `${TH_MS[+m-1]} ${+y+543}`; };
+const TH_MF=["มกราคม","กุมภาพันธ์","มีนาคม","เมษายน","พฤษภาคม","มิถุนายน","กรกฎาคม","สิงหาคม","กันยายน","ตุลาคม","พฤศจิกายน","ธันวาคม"];
+const monLbl=mo=>{ const [y,m]=mo.split("-"); return `${TH_MF[+m-1]} ${+y+543}`; };
 /* รายการหลังกรอง เดือน/แบรนด์/สาขา/ประเภท/ค้นหา (ยังไม่กรองสถานะ/หมวด) */
 function baseFiltered(anyMonth){
   const q=($("#fQ").value||"").trim().toLowerCase(), mo=anyMonth?"":$("#fMonth").value, br=$("#fBrand").value, bc=$("#fBranch").value, ty=$("#fType").value;
@@ -489,7 +492,7 @@ function fillFilters(){
   const keep={mo:$("#fMonth").value,br:$("#fBrand").value,bc:$("#fBranch").value};
   const V0=ALL().filter(inScope);
   const months=[...new Set(V0.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
-  $("#fMonth").innerHTML=`<option value="">ทุกเดือน</option>`+months.map(m=>{ const [y,mm]=m.split("-"); return `<option value="${m}">${["ม.ค.","ก.พ.","มี.ค.","เม.ย.","พ.ค.","มิ.ย.","ก.ค.","ส.ค.","ก.ย.","ต.ค.","พ.ย.","ธ.ค."][+mm-1]} ${+y+543}</option>`; }).join("");
+  $("#fMonth").innerHTML=`<option value="">ทุกเดือน</option>`+months.map(m=>{ const [y,mm]=m.split("-"); return `<option value="${m}">${monLbl(m)}</option>`; }).join("");
   const brands=[...new Set(V0.map(r=>r.brand).filter(Boolean))].sort();
   $("#fBrand").innerHTML=`<option value="">ทุกแบรนด์</option>`+brands.map(b=>`<option>${esc(b)}</option>`).join("");
   const brs=[...new Map(V0.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
