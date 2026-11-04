@@ -13,7 +13,7 @@
   --bg:#f3f1ee; --card:#fff; --fg:#1d1b19; --muted:#8a847b; --line:#ebe7e1; --soft:#f7f5f2; --ink:#171513;
   --accent:#f26a10; --accent-ink:#fff;
   --good:#16a34a; --good-soft:#e7f7ed; --good-ink:#14803c; --bad:#dc2626; --bad-soft:#fde8e6; --bad-ink:#b91c1c;
-  --q:#e8871e; --s:#2f9e4f; --o:#0aa3bf;
+  --q:#e8871e; --s:#2f9e4f; --o:#0aa3bf; --x:#8b7fa8;
   --f-display:"Sarabun",system-ui,sans-serif;
   --f-body:"Sarabun",system-ui,sans-serif;
   --f-mono:"Sarabun",system-ui,sans-serif;
@@ -107,7 +107,7 @@ h1 .brand{white-space:nowrap}
 .cats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;align-items:start}
 @media (max-width:1040px){.cats{grid-template-columns:minmax(0,1fr)}}
 .cat{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px 20px 12px;--c:var(--q)}
-.cat.s{--c:var(--s)} .cat.o{--c:var(--o)}
+.cat.s{--c:var(--s)} .cat.o{--c:var(--o)} .cat.x{--c:var(--x)}
 .chead{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:10px}
 .chead .cdot{width:9px;height:9px;border-radius:50%;background:var(--c);flex:none}
 .cat h2{font-family:var(--f-display);font-weight:700;font-size:16.5px;white-space:nowrap;margin:0;flex:0 1 auto;min-width:0}
@@ -274,7 +274,7 @@ body{zoom:1}
     <div class="f" id="wOwner"><label for="fOwner">Owner</label><select id="fOwner"></select></div>
     <div class="f" id="wBranch"><label for="fBranch">สาขา</label><select id="fBranch"></select></div>
     <div class="f"><label for="fType">ประเภท</label><select id="fType"><option value="">ทั้งหมด</option><option>พอใจ</option><option>ไม่พอใจ</option></select></div>
-    <div class="f"><label for="fMain">หัวข้อหลัก</label><select id="fMain"><option value="">ทั้งหมด</option><option>หมวดคุณภาพ</option><option>หมวดพนักงานและการบริการ</option><option>หมวดอื่นๆ</option></select></div>
+    <div class="f"><label for="fMain">หัวข้อหลัก</label><select id="fMain"><option value="">ทั้งหมด</option><option>หมวดคุณภาพ</option><option>หมวดพนักงานและการบริการ</option><option>หมวดอื่นๆ</option><option>นอกหัวข้อที่กำหนด</option></select></div>
     <div class="f search"><label for="fSearch">ค้นหาคอมเมนต์</label><input type="search" id="fSearch" placeholder="เช่น เค็ม, รอนาน"></div>
   </div>
 
@@ -294,6 +294,7 @@ body{zoom:1}
     <section class="cat q"><div class="chead"><i class="cdot"></i><h2>หมวดคุณภาพอาหาร</h2><span class="cpills" id="catQh"></span></div><div id="catQ"></div></section>
     <section class="cat s"><div class="chead"><i class="cdot"></i><h2>หมวดพนักงานและบริการ</h2><span class="cpills" id="catSh"></span></div><div id="catS"></div></section>
     <section class="cat o"><div class="chead"><i class="cdot"></i><h2>หมวดอื่นๆ</h2><span class="cpills" id="catOh"></span></div><div id="catO"></div></section>
+    <section class="cat x" id="catXsec" hidden><div class="chead"><i class="cdot"></i><h2>นอกหัวข้อที่กำหนด</h2><span class="cpills" id="catXh"></span></div><div id="catX"></div></section>
   </div>
   <p class="note">หัวข้อย่อยเรียงตามจำนวนไม่พอใจมากสุดก่อน · คลิกหัวข้อย่อยในการ์ด เพื่อดูเฉพาะคอมเมนต์ของหัวข้อนั้นด้านล่าง</p>
 
@@ -316,6 +317,9 @@ const SAMPLE = {"rows": [["KT", "2026-05-16", "17:36", "ไม่พอใจ", 
 
 const BRANDS = {KT:'Santa Fe KT', FS:'Santa Fe FS', JD:'เจ๊แดงสามย่าน'};
 const MAINS = [['หมวดคุณภาพ','catQ'],['หมวดพนักงานและการบริการ','catS'],['หมวดอื่นๆ','catO']];
+/* หัวข้อที่ไม่ได้อยู่ใน 3 หมวดข้างบน (รวมที่ยังไม่ได้ระบุหมวด) จะไปรวมในการ์ดนี้ */
+const MAIN_X = 'นอกหัวข้อที่กำหนด';
+const isMain = m => MAINS.some(x => x[0] === m);
 const MAIN_ALIAS = {'คุณภาพอาหาร':'หมวดคุณภาพ','หมวดคุณภาพอาหาร':'หมวดคุณภาพ','การบริการ':'หมวดพนักงานและการบริการ','หมวดอื่น ๆ':'หมวดอื่นๆ','อื่นๆ':'หมวดอื่นๆ'};
 const SUB_ALIAS = {'Restaurant Policy (นโยบายของร้าน)':'Restaurant Policy (นโยบายร้าน)'};
 const TH_M = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
@@ -630,7 +634,7 @@ function applyMonth(){
 function filtered(){
   const rows = byBrand[ui.brand]||[];
   const f=$('dFrom').value, t=$('dTo').value, z=$('fBzm').value, o=$('fOwner').value, br=$('fBranch').value, ty=$('fType').value, mn=$('fMain').value, q=$('fSearch').value.trim().toLowerCase();
-  return rows.filter(r => (!f||r.d>=f) && (!t||r.d<=t) && (!z||r.z===z) && (!o||ui.brand!=='FS'||r.o===o) && (!br||r.br===br) && (!ty||r.ty===ty) && (!mn||r.main===mn) && (!q||r.c.toLowerCase().includes(q)));
+  return rows.filter(r => (!f||r.d>=f) && (!t||r.d<=t) && (!z||r.z===z) && (!o||ui.brand!=='FS'||r.o===o) && (!br||r.br===br) && (!ty||r.ty===ty) && (!mn || (mn===MAIN_X ? !isMain(r.main) : r.main===mn)) && (!q||r.c.toLowerCase().includes(q)));
 }
 function refreshDropdowns(){
   const rows = byBrand[ui.brand]||[];
@@ -670,7 +674,7 @@ function rangeText(){
   return `${f?fmtD(f):'…'} – ${t?fmtD(t):'…'}`;
 }
 const splitSub = s => { const m=String(s).match(/^(.*?)\s*\((.*)\)\s*$/); return m ? [m[1].trim(), m[2].trim()] : [String(s),'']; };
-const mainCls = m => m===MAINS[0][0] ? 'q' : m===MAINS[1][0] ? 's' : 'o';
+const mainCls = m => m===MAINS[0][0] ? 'q' : m===MAINS[1][0] ? 's' : m===MAINS[2][0] ? 'o' : 'x';
 const fmtShort = iso => { if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${+d} ${TH_M[+m-1]} ${y.slice(2)}`; };
 function renderAll(){
   renderTabs(); refreshDropdowns(); renderCmp();
@@ -689,9 +693,17 @@ function renderAll(){
   const rt = rangeText();
   $('eyebrow').textContent = 'VOICE OF THE CUSTOMER · '+rt;
 
-  for(const [main,id] of MAINS){
+  for(const [main,id] of MAINS.concat([[MAIN_X,'catX']])){
+    const isX = main===MAIN_X;
     const m = {};
-    for(const r of rows) if(r.main===main && r.sub){ const x=(m[r.sub] ||= {p:0,n:0}); r.ty==='ไม่พอใจ'?x.n++:x.p++; }
+    for(const r of rows){
+      const hit = isX ? !isMain(r.main) : r.main===main;
+      if(!hit) continue;
+      const key = r.sub || '(ยังไม่ระบุหัวข้อย่อย)';
+      const x=(m[key] ||= {p:0,n:0}); r.ty==='ไม่พอใจ'?x.n++:x.p++;
+    }
+    // การ์ดนอกรายการโผล่เฉพาะตอนมีข้อมูลจริง ไม่งั้นซ่อนไว้ไม่ให้รก
+    if(isX){ const sec=$('catXsec'); if(sec) sec.hidden = !Object.keys(m).length; }
     const list = Object.entries(m).sort((a,b)=>b[1].n-a[1].n || b[1].p-a[1].p);   // ไม่พอใจมากสุดก่อน
     const head = $(id+'h') || $('cat'+id.slice(3)+'h');
     if(!list.length){ $(id).innerHTML='<div class="empty">ไม่มีคอมเมนต์ในช่วงนี้</div>'; if(head) head.innerHTML=''; continue; }
