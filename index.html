@@ -1821,6 +1821,12 @@ body.hub-clean .adm-group:first-child { margin-top: 2px; }
 .pm-side .pm-tl { font-size: 13px; font-weight: 700; line-height: 1.35; }
 .pm-side .pm-tab small { font-size: 11px; font-weight: 700; color: var(--gold); }
 .pm-mainc { min-width: 0; }
+.pm-subs { display: flex; gap: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; background: var(--bg3); margin-bottom: 14px; }
+.pm-subs button { flex: 1; font-family: inherit; border: none; border-right: 1px solid var(--border); background: none; padding: 11px 10px; font-size: 13px; font-weight: 700; color: var(--text3); cursor: pointer; }
+.pm-subs button:last-child { border-right: none; }
+.pm-subs button:hover { color: var(--text); background: rgba(0,0,0,.04); }
+.pm-subs button.on { background: var(--bg2); color: var(--text); box-shadow: inset 0 -3px 0 var(--gold); }
+.pm-subs b { font-size: 10.5px; background: rgba(255,122,26,.16); color: var(--gold); padding: 1px 7px; border-radius: 999px; margin-left: 4px; }
 @media (max-width: 760px) {
   .pm-lay { grid-template-columns: 1fr; gap: 10px; }
   .pm-side { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 6px; }
@@ -1847,7 +1853,7 @@ body.hub-clean .adm-group:first-child { margin-top: 2px; }
 .pm-card.pm-danger { border-color: rgba(239,68,68,.35); }
 .pm-ct { display: flex; align-items: center; justify-content: space-between; gap: 10px 14px; flex-wrap: wrap; }
 .pm-cl { font-size: 14px; font-weight: 700; flex: 1 1 220px; }
-.pm-ps { display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg3); flex: none; max-width: 100%; }
+.pm-ps { flex-wrap: wrap; display: flex; border: 1px solid var(--border); border-radius: 10px; overflow: hidden; background: var(--bg3); flex: none; max-width: 100%; }
 .pm-ps button { font-family: inherit; border: none; border-right: 1px solid var(--border); background: none; padding: 8px 12px; font-size: 12.5px; font-weight: 700; color: var(--text3); cursor: pointer; white-space: nowrap; }
 .pm-ps button:last-child { border-right: none; }
 .pm-ps button:hover { color: var(--text); background: rgba(0,0,0,.04); }
@@ -7677,10 +7683,21 @@ function _permRowState(tr) {
 }
 
 /* พรีเซ็ตตำแหน่ง — ส่วนใหญ่ตั้งแค่ 4 แบบนี้ ไม่ต้องติ๊กทีละช่อง (ถ้าไม่ตรงแบบไหน = "กำหนดเอง") */
+/* แบบฟอร์มออนไลน์ / แบบทดสอบก่อน–หลังอบรม / ประเมิน Silver·Gold = ระบบเดียวกันในฮับ (เข้าจากหน้าแบบฟอร์มออนไลน์)
+   หน้านี้จึงรวมเป็นรายการเดียว · ค่าสิทธิ์ยังเก็บแยกคีย์เดิม ระบบปลายทางไม่ต้องแก้ */
+var PERM_FAMILY = {
+  onlineform: { label: '📋 แบบฟอร์มออนไลน์', subs: [['onlineform', 'แบบฟอร์ม'], ['traintest', 'แบบทดสอบก่อน–หลังอบรม'], ['silvergold', 'ประเมิน Silver / Gold']] }
+};
+function _permFamOf(k) {
+  for (var f in PERM_FAMILY) if (PERM_FAMILY[f].subs.some(function(x){ return x[0] === k; })) return f;
+  return null;
+}
 var PERM_PRESETS = [
   { k: 'all',  l: 'ทุกตำแหน่ง',     r: ['admin','coo','vp','bzm','support','branch'] },
+  { k: 'bzms', l: 'ถึง BZM + Support', r: ['admin','coo','vp','bzm','support'] },
   { k: 'bzm',  l: 'ถึง BZM',        r: ['admin','coo','vp','bzm'] },
   { k: 'exec', l: 'ผู้บริหาร',       r: ['admin','coo','vp'] },
+  { k: 'adms', l: 'Admin + Support', r: ['admin','support'] },
   { k: 'adm',  l: 'Admin เท่านั้น', r: ['admin'] }
 ];
 var _permCustom = {};   // ปุ่มที่ผู้ใช้กด "กำหนดเอง" ค้างไว้ (กันการเด้งกลับเป็นพรีเซ็ตทันทีที่ติ๊กเท่ากัน)
@@ -7728,10 +7745,15 @@ function renderPermsUI() {
     : '';
   var sys = PERM_SYSTEMS[_permSys], perms = PERMS_ALL[_permSys] || {};
   var isLevel = _permMode(_permSys) === 'level';
-  var tabs = Object.keys(PERM_SYSTEMS).map(function(k){
-    var lv = _permMode(k) === 'level', pk = PERMS_ALL[k] || {};
-    var n = Object.keys(pk).reduce(function(s, id){ return s + _permExCount(pk[id], lv); }, 0);
-    return '<button class="pm-tab' + (k === _permSys ? ' on' : '') + '" onclick="setPermSys(\'' + k + '\')">' + '<span class="pm-tl">' + PERM_SYSTEMS[k].label + '</span>' +
+  var tabs = Object.keys(PERM_SYSTEMS).filter(function(k){ var f = _permFamOf(k); return !f || f === k; }).map(function(k){
+    var fam = PERM_FAMILY[k], keys = fam ? fam.subs.map(function(x){ return x[0]; }) : [k];
+    var n = keys.reduce(function(sum, kk){
+      var lv = _permMode(kk) === 'level', pk = PERMS_ALL[kk] || {};
+      return sum + Object.keys(pk).reduce(function(s2, id){ return s2 + _permExCount(pk[id], lv); }, 0);
+    }, 0);
+    var on = fam ? keys.indexOf(_permSys) >= 0 : k === _permSys;
+    return '<button class="pm-tab' + (on ? ' on' : '') + '" onclick="setPermSys(\'' + (on ? _permSys : k) + '\')">' +
+      '<span class="pm-tl">' + (fam ? fam.label : PERM_SYSTEMS[k].label) + '</span>' +
       (n ? '<small title="มีการยกเว้นรายคน ' + n + ' รายการ">ยกเว้น ' + n + ' คน</small>' : '') + '</button>';
   }).join('');
   var main;
@@ -7789,7 +7811,15 @@ function renderPermsUI() {
     main = '<div class="pm-help"><span>เลือกว่า <b>ตำแหน่งไหน</b> เห็นปุ่มนี้ — กดพรีเซ็ตทีเดียวจบ หรือ “กำหนดเอง” เพื่อเลือกทีละตำแหน่ง</span>' +
       '<span>⚙ “เพิ่มคน” = ให้ / ห้ามเฉพาะบุคคล (ห้ามชนะเสมอ)</span></div>' + cards;
   }
-  body.innerHTML = staleWarn + '<div class="pm-lay"><nav class="pm-side"><div class="pm-sideh">ระบบ</div>' + tabs + '</nav><div class="pm-mainc">' + main + '</div></div>';
+  var famK = _permFamOf(_permSys), subs = '';
+  if (famK) {
+    subs = '<div class="pm-subs">' + PERM_FAMILY[famK].subs.map(function(x){
+      var lv = _permMode(x[0]) === 'level', pk = PERMS_ALL[x[0]] || {};
+      var n = Object.keys(pk).reduce(function(s2, id){ return s2 + _permExCount(pk[id], lv); }, 0);
+      return '<button class="' + (x[0] === _permSys ? 'on' : '') + '" onclick="setPermSys(\'' + x[0] + '\')">' + x[1] + (n ? ' <b>' + n + '</b>' : '') + '</button>';
+    }).join('') + '</div>';
+  }
+  body.innerHTML = staleWarn + '<div class="pm-lay"><nav class="pm-side"><div class="pm-sideh">ระบบ</div>' + tabs + '</nav><div class="pm-mainc">' + subs + main + '</div></div>';
   body.onchange = function(e){
     var t = e.target; if (!t || !t.classList || !t.classList.contains('perm-lv')) return;
     t.setAttribute('data-lv', t.value); _permMarkDirty();
