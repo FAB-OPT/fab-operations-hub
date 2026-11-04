@@ -370,7 +370,7 @@ function toast(t){document.querySelectorAll(".toast").forEach(x=>x.remove());
 /* สิทธิ์ — ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.feedback ในฮับ */
 const PERM_KEY="feedback";
 const TEAM=["admin","coo","vp","bzm","support"];
-const PERM_DEFAULTS={ "view":TEAM, "manage":["admin","coo","vp","bzm","support"], "export":TEAM, "delete":["admin"] };
+const PERM_DEFAULTS={ "view":TEAM.concat(["branch"]), "view-all":TEAM.concat(["branch"]), "manage":["admin","coo","vp","bzm","support"], "export":TEAM, "delete":["admin"] };
 const can=a=>HubMod.can(PERM_KEY,a,PERM_DEFAULTS);
 
 const TYPES={good:"คำชม",complaint:"ข้อร้องเรียน",neutral:"ทั่วไป"};
@@ -447,6 +447,9 @@ function myBzmCodes(){
 function scopeCodes(){            /* null = เห็นทั้งหมด · Set = เฉพาะรหัสสาขาใน Set */
   const r=String(Hub.userRole()||"").toLowerCase();
   if(["admin","support","coo","vp"].includes(r)) return null;
+  /* ใครเห็นข้อมูลทุกสาขาได้บ้าง ตั้งที่ฮับ: ⚙️ → สิทธิ์ปุ่มแต่ละระบบ → 💬 Customer Feedback → 🌐 เห็นข้อมูลทุกสาขา
+     ไม่ติ๊ก = กลับไปจำกัดแบบเดิม (สาขา = ของตัวเอง · BZM = เขตที่รับผิดชอบ) */
+  if(can("view-all")) return null;
   if(r==="bzm") return myBzmCodes()||new Set();
   if(r==="branch"||Hub.isBranch()) return new Set([Hub.branchCode()].filter(Boolean));
   return new Set(); }
@@ -695,7 +698,7 @@ function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
   $("#viewVoc").classList.toggle("hide",c!=="voc"); $("#viewFb").classList.toggle("hide",c!=="facebook"); $("#viewRv").classList.toggle("hide",c!=="review");
   if(c==="review"&&!$("#rvFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#rvFrame").getAttribute("src")) $("#rvFrame").setAttribute("src","feedback-review.html?v=20261104b"); });
   /* หน้า VOC อ่านสิทธิ์/ทะเบียนสาขาจากแคชของฮับ จึงรอโหลด config ก่อนค่อยเปิด */
-  if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html?v=20261103d"); });
+  if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html?v=20261104a"); });
   $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":c==="review"?"นำเข้าไฟล์ดิบ → กรอง/แก้ไข → อนุมัติ → ข้อมูลลงระบบ":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
   if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
 $("#tileVoc").onclick=()=>setCh("voc");

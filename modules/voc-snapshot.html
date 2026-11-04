@@ -339,7 +339,8 @@ function mkRow(b,d,t,ty,br,z,o,s,c,sub,main){
 }
 
 /* ---------- สิทธิ์การมองเห็น (อ่านจาก session ของฮับ) ----------
-   admin = เห็นทั้งหมด + นำเข้าไฟล์ได้ · support / coo / vp = เห็นทั้งหมด · bzm = เฉพาะสาขาในเขตที่รับผิดชอบ · สาขา = เฉพาะสาขาตัวเอง
+   admin = เห็นทั้งหมด + นำเข้าไฟล์ได้ · support / coo / vp = เห็นทั้งหมด
+   bzm / สาขา = ตามสิทธิ์ "🌐 เห็นข้อมูลทุกสาขา" ที่ตั้งไว้ในฮับ (ค่าตั้งต้น = เห็นทั้งหมด) ถ้าไม่ติ๊กจะเหลือเฉพาะเขต/สาขาตัวเอง
    เปิดไฟล์นี้ตรง ๆ โดยไม่มี session ของฮับ = เปิดให้ครบ (ใช้งานในเครื่องตัวเอง)
    หมายเหตุ: กรองฝั่งหน้าจอ — ความลับจริงต้องเก็บข้อมูลกลางฝั่งเซิร์ฟเวอร์ */
 const NICK_EN={'รุต':'rut','นพ':'nop','ปิ๊ก':'pik','เจี๊ยบ':'jeb','หยี':'yee','เอ็ม':'m','บิ๊ก':'big','อีฟ':'eve','อ้อย':'aoy','อาร์ม':'arm'};
@@ -352,11 +353,25 @@ const SCOPE = (()=>{
   if(role==='admin') return {all:true, imp:true, csat:true, label:''};
   if(['support','coo','vp'].includes(role)) return {all:true, imp:false, csat:true, label:''};
   const cfg = ls('hubmod_config_v1')||{}, raw = (cfg.branches)||{};
+  /* "เห็นข้อมูลทุกสาขา" ตั้งที่ฮับ: ⚙️ → สิทธิ์ปุ่มแต่ละระบบ → 💬 Customer Feedback → 🌐 เห็นข้อมูลทุกสาขา
+     ติ๊กไว้ = เห็นทุกสาขาทุกเขตรวม CSAT/NPS · ไม่ติ๊ก = จำกัดแบบเดิม (สาขา = ของตัวเอง · BZM = เขตตัวเอง)
+     นำเข้าไฟล์ยังเป็นของแอดมินเท่านั้น ไม่เกี่ยวกับสิทธิ์นี้ */
+  const VIEW_ALL_DEF = ['admin','coo','vp','bzm','support','branch'];
+  const permOk = (sys, act, def) => {
+    const p = (((cfg.perms||{})[sys]||{})[act]) || {roles:def};
+    const code = String(sess.code||'');
+    if(code && (p.deny||[]).indexOf(code)>=0) return false;
+    if(code && (p.allow||[]).indexOf(code)>=0) return true;
+    return (p.roles||[]).indexOf(role)>=0;
+  };
+  const seeAll = permOk('feedback','view-all',VIEW_ALL_DEF);
   if(role==='branch'){
+    if(seeAll) return {all:true, imp:false, csat:true, label:''};
     const c = String(sess.branchCode||sess.code||'');
     return {all:false, branch:true, imp:false, csat:true, codes:new Set(c?[c]:[]), label:'สาขา '+c+' '+String(sess.branchName||sess.name||'').trim()};
   }
   if(role==='bzm'){
+    if(seeAll) return {all:true, imp:false, csat:true, label:''};
     let nick = String(sess.nick||'').trim();
     if(!nick){ const u=((cfg.users)||[]).find(x=>x&&String(x.code)===String(sess.code)); nick=u&&u.nick?String(u.nick).trim():''; }
     const map = raw.bzmMap||{}, nk = nickNorm(nick), codes = new Set(nk?Object.keys(map).filter(c=>nickNorm(map[c])===nk):[]);
