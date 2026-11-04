@@ -317,6 +317,26 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
   .ddl button{padding:13px 14px;font-size:16.5px;white-space:normal}
   .ddq{font-size:16px;padding:11px 12px}
 }
+/* ═══ แถบเมนูล่าง (มือถือ) — แทนแถบบน: กดด้วยนิ้วโป้งถึง ปุ่มใหญ่ มีไอคอน ═══ */
+.mnav{display:none}
+@media(max-width:700px){
+  .topbar{display:none}
+  .mnav{display:flex;position:fixed;left:0;right:0;bottom:0;z-index:900;gap:4px;padding:6px 8px calc(6px + env(safe-area-inset-bottom));
+    background:rgba(255,255,255,.97);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);border-top:1px solid var(--border);box-shadow:0 -6px 24px rgba(15,23,42,.07)}
+  .mnav button{flex:1 1 0;min-width:0;min-height:54px;position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+    padding:6px 0;border:0;border-radius:14px;background:none;font:inherit;font-size:11px;font-weight:700;color:var(--text3);line-height:1.15;white-space:nowrap;letter-spacing:-.02em;-webkit-tap-highlight-color:transparent}
+  .mnav button.hide{display:none}
+  .mnav svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round}
+  .mnav button[data-m="facebook"] svg{fill:currentColor;stroke:none}
+  .mnav button:active{background:var(--bg3)}
+  .mnav button.on{color:#f26a10;background:#fff1e6}
+  .mnav button.out{color:#b91c1c}
+  .mnav .mb{position:absolute;top:3px;left:calc(50% + 6px);min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#dc2626;color:#fff;font-size:11px;line-height:18px;text-align:center}
+  .mnav .mb.hide{display:none}
+  .toast{bottom:calc(84px + env(safe-area-inset-bottom))}
+  .shell{padding-top:14px;padding-bottom:calc(96px + env(safe-area-inset-bottom))}
+  body.onhome .home{padding-top:6px}
+}
 </style>
 </head>
 <body class="onhome">
@@ -419,6 +439,14 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 </div>
 
 <div id="modalHost"></div>
+<nav class="mnav" id="mnav" aria-label="เมนูหลัก">
+  <button type="button" data-m="back"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 11l8-7 8 7v9a1 1 0 0 1-1 1h-4v-6H9v6H5a1 1 0 0 1-1-1z"/></svg><span>หน้าหลัก</span></button>
+  <button type="button" data-m="voc"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/></svg><span>VOC</span></button>
+  <button type="button" data-m="facebook"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 21v-8h3l.5-3.5H14V7.4c0-1 .4-1.7 1.8-1.7H17.6V2.6C17.3 2.5 16.3 2.4 15.2 2.4 12.7 2.4 11 3.9 11 6.8v2.7H8V13h3v8z"/></svg><span>Facebook</span></button>
+  <button type="button" data-m="review" class="hide" id="mnRv"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M5 20h14"/></svg><span>นำเข้า</span><b class="mb hide" id="mnRvN">0</b></button>
+  <button type="button" data-m="out" class="out"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4H5a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4"/><path d="M16 8l4 4-4 4M20 12H9"/></svg><span>ออกจากระบบ</span></button>
+</nav>
+
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
@@ -759,7 +787,7 @@ function showHome(){ document.body.classList.remove("vocfull","fbfull"); documen
   $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
   $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
-  window.scrollTo({top:0}); }
+  window.scrollTo({top:0}); if(window.syncNav) syncNav(); }
 function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
   CH=c; document.body.classList.remove("onhome"); $("#home").classList.add("hide"); $("#main").classList.remove("hide"); document.body.classList.toggle("vocfull",c==="voc"||c==="review"); document.body.classList.toggle("fbfull",c==="facebook");
   $("#tabVoc").setAttribute("aria-selected",c==="voc"); $("#tabFb").setAttribute("aria-selected",c==="facebook"); $("#tabRv").setAttribute("aria-selected",c==="review");
@@ -768,7 +796,7 @@ function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
   /* หน้า VOC อ่านสิทธิ์/ทะเบียนสาขาจากแคชของฮับ จึงรอโหลด config ก่อนค่อยเปิด */
   if(c==="voc"&&!$("#vocFrame").getAttribute("src")) CFG_READY.then(()=>{ if(!$("#vocFrame").getAttribute("src")) $("#vocFrame").setAttribute("src","voc-snapshot.html?v=20261104a"); });
   $("#chnote").textContent=c==="voc"?"ช่องทาง VOC · แบบสำรวจความพึงพอใจ (KT · FS · JD)":c==="review"?"นำเข้าไฟล์ดิบ → กรอง/แก้ไข → อนุมัติ → ข้อมูลลงระบบ":"ช่องทาง Facebook · คอมเมนต์ชมและข้อร้องเรียนจากเพจ";
-  if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } }
+  if(!keep){ try{ localStorage.setItem("hub_cf_ch",c); history.replaceState(null,"","#"+c); }catch(e){} } if(window.syncNav) syncNav(); }
 $("#tileVoc").onclick=()=>setCh("voc");
 $("#tileFb").onclick=()=>{ setCh("facebook"); refresh(); };
 $("#homeBtn").onclick=showHome;
@@ -776,6 +804,12 @@ $("#tabVoc").onclick=()=>setCh("voc");
 $("#tabFb").onclick=()=>setCh("facebook");
 $("#tabRv").onclick=()=>setCh("review");
 $("#backBtn").onclick=()=>Hub.back();
+/* แถบเมนูล่าง (มือถือ): หน้าหลัก · VOC · Facebook · นำเข้า(แอดมิน) · ออกจากระบบ */
+function syncNav(){ document.querySelectorAll("#mnav button[data-m]").forEach(b=>b.classList.toggle("on",!document.body.classList.contains("onhome")&&b.dataset.m===CH)); }
+$("#mnav").addEventListener("click",e=>{ const b=e.target.closest("button[data-m]"); if(!b) return; const m=b.dataset.m;
+  if(m==="back") return Hub.back();
+  if(m==="out"){ if(confirm("ออกจากระบบ?")){ try{ sessionStorage.removeItem("fab_role"); localStorage.removeItem("fab_session"); }catch(x){} location.href="../index.html?logout=1"; } return; }
+  setCh(m); if(m==="facebook") refresh(); window.scrollTo({top:0}); });
 $("#bAdd").onclick=()=>form(null);
 $("#bPaste").onclick=pasteForm;
 $("#bImp").onclick=()=>{ if(isAdmin()) return setCh("review"); toast("นำเข้าข้อมูลได้เฉพาะแอดมิน"); };
@@ -825,7 +859,7 @@ async function pushVoc(force){
 async function updateRvBadge(){
   if(!isAdmin()) return;
   try{ const st=await FBStore.ready(); if(!st.ok) return; const b=await FBStore.batches("voc"); const n=b.filter(x=>x.status==="staging").length;
-    $("#rvN").textContent=n; $("#rvN").classList.toggle("hide",!n); }catch(e){}
+    $("#rvN").textContent=n; $("#rvN").classList.toggle("hide",!n); $("#mnRvN").textContent=n; $("#mnRvN").classList.toggle("hide",!n); }catch(e){}
 }
 window.addEventListener("message",e=>{
   if(!sameOrigin(e)||!e.data) return;
@@ -846,7 +880,7 @@ window.addEventListener("message",e=>{
   await CFG_READY;
   const gate=()=>{ const g=document.createElement("div"); g.className="gate"; g.innerHTML=`<div class="box"><div class="em-ic">🔒</div><h2>ไม่มีสิทธิ์เข้าระบบนี้</h2><p>บัญชีนี้ยังไม่ได้รับสิทธิ์ใน Customer Feedback Collection — ติดต่อผู้ดูแลระบบ</p><button class="btn full">กลับหน้าหลัก</button></div>`; $("button",g).onclick=()=>Hub.back(); document.body.appendChild(g); };
   if(!can("view")) return gate();
-  if(isAdmin()){ $("#tabRv").classList.remove("hide"); updateRvBadge(); } else $("#bImp").classList.add("hide");
+  if(isAdmin()){ $("#tabRv").classList.remove("hide"); $("#mnRv").classList.remove("hide"); updateRvBadge(); } else $("#bImp").classList.add("hide");
   loadFbCentral();
   if(!can("manage")){ $("#bAdd").classList.add("hide"); $("#bPaste").classList.add("hide"); $("#bImp").classList.add("hide"); }
   if(!can("export")) $("#bExp").classList.add("hide");
