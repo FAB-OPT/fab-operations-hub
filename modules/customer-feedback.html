@@ -747,7 +747,7 @@ function exportCsv(){
   const csv="﻿"+[head.map(q).join(",")].concat(L.map(r=>[r.date,r.branchLabel,r.brand,r.who,r.text,TYPES[r.type],r.cat,STATUS[r.status||"new"],r.owner,r.link,r.note].map(q).join(","))).join("\r\n");
   const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8"})); a.download=`facebook-feedback-${today()}.csv`; a.click(); setTimeout(()=>URL.revokeObjectURL(a.href),2000); }
 
-function refresh(){ fillFilters(); renderFb(); }
+function refresh(){ fillFilters(); renderFb(); updateHomeTile(); }
 
 /* ───── เคส Facebook ที่ลงระบบแล้ว (อ่านจาก Supabase) ───── */
 const ALL=()=>DATA.concat(CFB);
@@ -781,11 +781,15 @@ function fitVoc(){ const f=$("#vocFrame"); try{ const d=f.contentDocument; if(!d
 $("#vocFrame").addEventListener("load",()=>{ fitVoc();
   try{ const d=$("#vocFrame").contentDocument; if(d&&window.ResizeObserver) new ResizeObserver(fitVoc).observe(d.documentElement); }catch(e){}
   setTimeout(fitVoc,600); setTimeout(fitVoc,2000); });
+/* ไอคอน Facebook หน้าเลือกช่องทาง: เลขค้างติดตามแสดงเฉพาะคนที่มีสิทธิ์จัดการเคส
+   คนที่ดูอย่างเดียว (เช่น สาขา) ไม่มีเรื่องต้องตาม จึงไม่ขึ้นเลข/คำว่า "ค้าง" */
+function updateHomeTile(){
+  const open=can("manage")?ALL().filter(inScope).filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length:0;
+  $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
+  $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน"; }
 function showHome(){ document.body.classList.remove("vocfull","fbfull"); document.body.classList.add("onhome");
   $("#main").classList.add("hide"); $("#home").classList.remove("hide");
-  const open=ALL().filter(inScope).filter(r=>r.type==="complaint"&&(r.status||"new")!=="done").length;
-  $("#fbBadge").textContent=open; $("#fbBadge").classList.toggle("hide",!open); $("#fbTag").classList.toggle("hide",!!open);
-  $("#fbDs").textContent=open?`ร้องเรียนค้าง ${open} รายการ`:"คอมเมนต์ชมและข้อร้องเรียน";
+  updateHomeTile();
   try{ history.replaceState(null,"",location.pathname); }catch(e){}
   window.scrollTo({top:0}); if(window.syncNav) syncNav(); }
 function setCh(c,keep){ if(c==="review"&&!isAdmin()) c="voc";
