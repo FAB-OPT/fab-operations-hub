@@ -1810,6 +1810,23 @@ body.hub-clean .adm-group:first-child { margin-top: 2px; }
 
 /* ═══════════ หน้าสิทธิ์ปุ่มแต่ละระบบ + ยกเว้นรายคน (pm-) ═══════════
    หัวตารางลอยตามเลื่อน · ช่องติ๊กใหญ่กดทั้งช่อง · เลือกสิทธิ์รายคนเป็นปุ่ม 3 ทาง ไม่ใช่วงกลมจิ๋ว */
+/* เมนูเลือกระบบ: แถบรายการด้านซ้าย (เดิมเป็นแท็บเรียงหลายแถว กินที่และหาไม่เจอ) */
+.pm-lay { display: grid; grid-template-columns: 215px minmax(0,1fr); gap: 18px; align-items: start; }
+.pm-side { position: sticky; top: 0; display: flex; flex-direction: column; gap: 3px; }
+.pm-sideh { font-size: 11px; font-weight: 800; color: var(--text3); letter-spacing: .6px; padding: 0 12px 4px; }
+.pm-side .pm-tab { width: 100%; justify-content: flex-start; flex-direction: column; align-items: flex-start; gap: 1px; border: 1px solid transparent; background: none; border-radius: 11px; padding: 9px 12px; text-align: left; box-shadow: none; }
+.pm-side .pm-tab:hover { background: var(--bg3); border-color: transparent; }
+.pm-side .pm-tab.on { background: var(--osoft, rgba(255,122,26,.10)); border-color: rgba(255,122,26,.4); color: var(--text); box-shadow: none; }
+.pm-side .pm-tab.on .pm-tl { font-weight: 800; }
+.pm-side .pm-tl { font-size: 13px; font-weight: 700; line-height: 1.35; }
+.pm-side .pm-tab small { font-size: 11px; font-weight: 700; color: var(--gold); }
+.pm-mainc { min-width: 0; }
+@media (max-width: 760px) {
+  .pm-lay { grid-template-columns: 1fr; gap: 10px; }
+  .pm-side { position: static; flex-direction: row; overflow-x: auto; gap: 6px; padding-bottom: 6px; }
+  .pm-sideh { display: none; }
+  .pm-side .pm-tab { width: auto; flex: none; border-color: var(--border); }
+}
 .pm-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
 .pm-tab {
   font-family: inherit; font-size: 13px; font-weight: 700; padding: 9px 14px; border-radius: 11px;
@@ -7714,8 +7731,8 @@ function renderPermsUI() {
   var tabs = Object.keys(PERM_SYSTEMS).map(function(k){
     var lv = _permMode(k) === 'level', pk = PERMS_ALL[k] || {};
     var n = Object.keys(pk).reduce(function(s, id){ return s + _permExCount(pk[id], lv); }, 0);
-    return '<button class="pm-tab' + (k === _permSys ? ' on' : '') + '" onclick="setPermSys(\'' + k + '\')">' + PERM_SYSTEMS[k].label +
-      (n ? '<b title="มีการยกเว้นรายคน ' + n + ' รายการ">' + n + '</b>' : '') + '</button>';
+    return '<button class="pm-tab' + (k === _permSys ? ' on' : '') + '" onclick="setPermSys(\'' + k + '\')">' + '<span class="pm-tl">' + PERM_SYSTEMS[k].label + '</span>' +
+      (n ? '<small title="มีการยกเว้นรายคน ' + n + ' รายการ">ยกเว้น ' + n + ' คน</small>' : '') + '</button>';
   }).join('');
   var main;
   if (isLevel) {
@@ -7772,7 +7789,7 @@ function renderPermsUI() {
     main = '<div class="pm-help"><span>เลือกว่า <b>ตำแหน่งไหน</b> เห็นปุ่มนี้ — กดพรีเซ็ตทีเดียวจบ หรือ “กำหนดเอง” เพื่อเลือกทีละตำแหน่ง</span>' +
       '<span>⚙ “เพิ่มคน” = ให้ / ห้ามเฉพาะบุคคล (ห้ามชนะเสมอ)</span></div>' + cards;
   }
-  body.innerHTML = staleWarn + '<div class="pm-tabs">' + tabs + '</div>' + main;
+  body.innerHTML = staleWarn + '<div class="pm-lay"><nav class="pm-side"><div class="pm-sideh">ระบบ</div>' + tabs + '</nav><div class="pm-mainc">' + main + '</div></div>';
   body.onchange = function(e){
     var t = e.target; if (!t || !t.classList || !t.classList.contains('perm-lv')) return;
     t.setAttribute('data-lv', t.value); _permMarkDirty();
