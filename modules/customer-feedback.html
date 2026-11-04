@@ -176,6 +176,12 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 #viewFb .fbf .fcard.open{border-color:#fdba74;box-shadow:0 0 0 3px #fff1e6}
 #viewFb .fbf .fcard::after{content:none}   /* ใช้ลูกศร .ddc แทน ไม่ให้ซ้อนกัน */
 #viewFb .fbf .fcard:hover .ddc,#viewFb .fbf .fcard.open .ddc{stroke:#f26a10}
+#viewFb .tsmon{display:flex;flex-direction:row;align-items:center;gap:10px;padding:9px 16px;margin-bottom:14px;position:relative;user-select:none}
+#viewFb .tsmon span{font-size:15px;white-space:nowrap}
+#viewFb .tsmon select{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
+#viewFb .tsmon .ddv{margin-left:auto}
+#viewFb .tsmon.open{border-color:#fdba74;box-shadow:0 0 0 3px #fff1e6}
+#viewFb .tsmon:hover .ddc,#viewFb .tsmon.open .ddc{stroke:#f26a10}
 .ddv{font-size:18px;font-weight:700;white-space:nowrap;color:var(--text)}
 .ddc{stroke:var(--text3);fill:none;stroke-width:2.2;flex:none;transition:transform .15s}.fcard.open .ddc{transform:rotate(180deg)}
 .ddpop{position:absolute;top:calc(100% + 6px);right:0;min-width:100%;width:max-content;max-width:360px;background:#fff;border:1px solid var(--border);border-radius:14px;box-shadow:0 14px 36px rgba(15,23,42,.16);padding:6px;z-index:60;cursor:default}
@@ -329,6 +335,7 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
         <div class="trbars" id="trBars"></div>
       </section>
       <section class="fpanel trsum">
+        <label class="fcard tsmon"><span>เลือกเดือน</span><select id="fMonth2" aria-label="เลือกเดือน"></select></label>
         <div class="tsl" id="tsL">ทั้งหมด</div>
         <div class="tsn" id="tsN">–</div>
         <div class="tscats" id="tsCats"></div>
@@ -487,7 +494,7 @@ function fillFilters(){
   $("#fBrand").innerHTML=`<option value="">ทุกแบรนด์</option>`+brands.map(b=>`<option>${esc(b)}</option>`).join("");
   const brs=[...new Map(V0.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
   $("#fBranch").innerHTML=`<option value="">ทุกสาขา</option>`+brs.map(([c,l])=>`<option value="${c}">${esc(l)}</option>`).join("");
-  $("#fMonth").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
+  $("#fMonth2").innerHTML=$("#fMonth").innerHTML; $("#fMonth").value=keep.mo; $("#fMonth2").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
 /* ด้านบน: แท่งรายเดือน (ทั้งปีของเดือนที่เลือก หรือปีล่าสุดที่มีข้อมูล) แยกสีตามหมวด · กดแท่ง = กรองเดือนนั้น */
 function renderTrend(){
   const A=baseFiltered(true), mo=$("#fMonth").value;
@@ -525,14 +532,14 @@ function renderInbox(B,L){
     return `<div class="fbi" style="--c:${col}"><div class="bh"><b>${esc(r.branchLabel||"ไม่ระบุสาขา")}</b><span class="bc" style="color:${col}">· ${esc(c)}</span><span class="dtp">${sDate(r.date)}</span></div><p>${esc(r.text)}</p>${r.note?`<span class="fnote">หมายเหตุ: ${esc(r.note)}</span>`:""}</div>`; }).join("")
     :`<div class="fbx-e">ไม่พบเคสตามตัวกรอง</div>`;
   $("#bMore").classList.add("hide"); }
-function markFilters(){ syncDD(); document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
+function markFilters(){ $("#fMonth2").value=$("#fMonth").value; syncDD(); document.querySelectorAll("#viewFb .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"); c.classList.toggle("on",!!(sl&&sl.value)); }); }
 /* ดรอปดาวน์ตัวกรอง (แทนรายการของเบราว์เซอร์) · ค่าจริงยังเก็บใน <select> เดิม เปลี่ยนแล้วส่ง change เหมือนเดิม */
 /* แถบบนของฮับติดจออยู่แล้ว · แถบหมวดต้องติดใต้มัน ไม่ใช่ซ่อนอยู่ข้างหลัง */
 const setTbh=()=>{ const t=document.querySelector(".topbar"); document.documentElement.style.setProperty("--tbh",(t?t.offsetHeight:0)+"px"); };
 setTbh(); window.addEventListener("resize",setTbh);
 let ddOpen=null;
 const ddText=sl=>{ const o=sl.options[sl.selectedIndex]; return o?o.text:""; };
-function syncDD(){ document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch)").forEach(c=>{ const sl=c.querySelector("select"), v=c.querySelector(".ddv"); if(sl&&v) v.textContent=ddText(sl); }); }
+function syncDD(){ document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch), #viewFb .tsmon").forEach(c=>{ const sl=c.querySelector("select"), v=c.querySelector(".ddv"); if(sl&&v) v.textContent=ddText(sl); }); }
 function closeDD(){ if(ddOpen){ ddOpen.closest(".fcard").classList.remove("open"); ddOpen.remove(); ddOpen=null; } }
 function openDD(card){
   const sl=card.querySelector("select"), many=sl.options.length>12, pop=document.createElement("div");
@@ -543,11 +550,11 @@ function openDD(card){
   const on=pop.querySelector("button.on"); if(on) on.scrollIntoView({block:"nearest"});
   pop.addEventListener("click",e=>{ e.preventDefault(); e.stopPropagation(); const b=e.target.closest("button[data-v]"); if(!b) return; sl.value=b.dataset.v; closeDD(); sl.dispatchEvent(new Event("change")); });
 }
-document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch)").forEach(c=>{
+document.querySelectorAll("#viewFb .fbf .fcard:not(.fsearch), #viewFb .tsmon").forEach(c=>{
   c.insertAdjacentHTML("beforeend",`<b class="ddv"></b><svg class="ddc" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>`);
   c.addEventListener("click",e=>{ if(e.target.closest(".ddpop")) return; e.preventDefault(); const was=ddOpen&&ddOpen.closest(".fcard")===c; closeDD(); if(!was) openDD(c); });
 });
-document.addEventListener("click",e=>{ if(ddOpen&&!e.target.closest("#viewFb .fbf .fcard")) closeDD(); });
+document.addEventListener("click",e=>{ if(ddOpen&&!e.target.closest("#viewFb .fbf .fcard, #viewFb .tsmon")) closeDD(); });
 document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDD(); });
 function renderFb(){ markFilters(); const B=baseFiltered(); renderTrend(); renderSum(B); renderInbox(B,filtered()); }
 /* เปลี่ยนสถานะติดตามทีละขั้น ใหม่ → กำลังติดตาม → ปิดแล้ว → ใหม่ */
@@ -714,6 +721,7 @@ $("#bImp").onclick=()=>{ if(isAdmin()) return setCh("review"); toast("นำเ�
 $("#impFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; e.target.value=""; if(f) importFile(f); };
 $("#bExp").onclick=exportCsv;
 $("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
+$("#fMonth2").addEventListener("change",()=>{ $("#fMonth").value=$("#fMonth2").value; SHOWN=40; renderFb(); });
 ["fQ","fMonth","fBrand","fBranch","fType"].forEach(id=>{ const e=$("#"+id); e.addEventListener(id==="fQ"?"input":"change",()=>{ SHOWN=40; renderFb(); }); });
 $("#viewFb").addEventListener("click",e=>{
   const t=e.target.closest("[data-fbtab]"); if(t){ FB.st=t.dataset.fbtab; SHOWN=40; return renderFb(); }
