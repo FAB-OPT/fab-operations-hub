@@ -180,6 +180,9 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
 #viewFb .tsmon{display:flex;flex-direction:row;align-items:center;gap:10px;padding:7px 12px 7px 16px;margin:0;position:relative;user-select:none;min-width:0;border-radius:999px;align-self:center}
 #viewFb .tsmon::after{content:none!important}   /* ลูกศรเดิมของ .fcard ซ้อนกับ .ddc */
 #viewFb .tsmon span{display:none}
+#viewFb .tsmon[hidden]{display:none}
+#viewFb .tsmon .ddpop{max-width:min(92vw,340px)}
+#viewFb .tsmon .ddpop .ddl{max-height:280px}
 #viewFb .tsmon .ddpop{left:0;right:auto;min-width:100%}
 #viewFb .tsmon span{white-space:nowrap}
 #viewFb .tsmon select{position:absolute;opacity:0;pointer-events:none;width:1px;height:1px}
@@ -396,7 +399,9 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
     <div class="fbh">
       <div class="fbh-t">
         <div class="fbh-row"><h1>ข้อร้องเรียน <b>Facebook</b></h1>
-          <label class="fcard tsmon"><span>เดือน</span><select id="fMonth2" aria-label="เลือกเดือน"></select></label></div>
+          <label class="fcard tsmon"><span>เดือน</span><select id="fMonth2" aria-label="เลือกเดือน"></select></label>
+          <label class="fcard tsmon" id="cBzm"><span>BZM</span><select id="fBzm" aria-label="เลือก BZM"></select></label>
+          <label class="fcard tsmon" id="cBranch"><span>สาขา</span><select id="fBranch" aria-label="เลือกสาขา"></select></label></div>
         <p class="fbh-s" id="fbHint" hidden></p>
         <div class="fbhint hide" id="fbScope"></div>
       </div>
@@ -426,7 +431,6 @@ body.fbfull .shell{max-width:none;padding:16px 24px 60px}   /* เต็มค�
       <label class="fcard fsearch"><svg viewBox="0 0 24 24" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="M20 20l-4-4"/></svg><input type="search" id="fQ" placeholder="ค้นหาข้อความ / ชื่อ / สาขา" aria-label="ค้นหา"></label>
       <label class="fcard fmonth"><span>เดือน</span><select id="fMonth" aria-label="เดือน"></select></label>
       <label class="fcard"><span>แบรนด์</span><select id="fBrand" aria-label="แบรนด์"></select></label>
-      <label class="fcard"><span>สาขา</span><select id="fBranch" aria-label="สาขา"></select></label>
       <label class="fcard" hidden><span>ประเภท</span><select id="fType" aria-label="ประเภท"><option value="">ทุกประเภท</option><option value="good">คำชม</option><option value="complaint">ข้อร้องเรียน</option><option value="neutral">ทั่วไป</option></select></label>
     </div>
 
@@ -568,22 +572,32 @@ const TH_MF=["มกราคม","กุมภาพันธ์","มีนา
 const monLbl=mo=>{ const [y,m]=mo.split("-"); return `${TH_MF[+m-1]} ${+y+543}`; };
 /* รายการหลังกรอง เดือน/แบรนด์/สาขา/ประเภท/ค้นหา (ยังไม่กรองสถานะ/หมวด) */
 function baseFiltered(anyMonth){
-  const q=($("#fQ").value||"").trim().toLowerCase(), mo=anyMonth?"":$("#fMonth").value, br=$("#fBrand").value, bc=$("#fBranch").value, ty=$("#fType").value;
-  return ALL().filter(inScope).filter(r=>(!mo||(r.date||"").slice(0,7)===mo)&&(!br||r.brand===br)&&(!bc||r.branchCode===bc)&&(!ty||r.type===ty)
+  const q=($("#fQ").value||"").trim().toLowerCase(), mo=anyMonth?"":$("#fMonth").value, br=$("#fBrand").value, bc=$("#fBranch").value, bz=$("#fBzm").value, ty=$("#fType").value;
+  return ALL().filter(inScope).filter(r=>(!mo||(r.date||"").slice(0,7)===mo)&&(!br||r.brand===br)&&(!bc||r.branchCode===bc)&&(!bz||bzmOf(r)===bz)&&(!ty||r.type===ty)
     &&(!q||[r.text,r.who,r.branchLabel,r.cat,r.note,r.owner,bzmOf(r)].join(" ").toLowerCase().includes(q)))
     .sort((a,b)=>(b.date||"").localeCompare(a.date||"")||(b.createdAt||"").localeCompare(a.createdAt||"")); }
 /* รายการที่แสดงในตาราง/ส่งออก = กรองสถานะ + หมวดด้วย */
 function filtered(){ return baseFiltered().filter(r=>(!FB.st||stOf(r)===FB.st)&&(!FB.cat||catOf(r)===FB.cat)); }
 function fillFilters(){
-  const keep={mo:$("#fMonth").value,br:$("#fBrand").value,bc:$("#fBranch").value};
+  const keep={mo:$("#fMonth").value,br:$("#fBrand").value,bc:$("#fBranch").value,bz:$("#fBzm").value};
   const V0=ALL().filter(inScope);
   const months=[...new Set(V0.map(r=>(r.date||"").slice(0,7)).filter(Boolean))].sort().reverse();
   $("#fMonth").innerHTML=`<option value="">ทุกเดือน</option>`+months.map(m=>{ const [y,mm]=m.split("-"); return `<option value="${m}">${monLbl(m)}</option>`; }).join("");
   const brands=[...new Set(V0.map(r=>r.brand).filter(Boolean))].sort();
   $("#fBrand").innerHTML=`<option value="">ทุกแบรนด์</option>`+brands.map(b=>`<option>${esc(b)}</option>`).join("");
-  const brs=[...new Map(V0.filter(r=>r.branchCode).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
+  const bzs=[...new Set(V0.map(bzmOf).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"th"));
+  $("#fBzm").innerHTML=`<option value="">ทุก BZM</option>`+bzs.map(b=>`<option value="${esc(b)}">${esc(b)}</option>`).join("");
+  $("#fBzm").value=bzs.includes(keep.bz)?keep.bz:"";
+  fillBranchOpts(V0,keep.bc);
+  $("#fMonth2").innerHTML=$("#fMonth").innerHTML; $("#fMonth").value=keep.mo; $("#fMonth2").value=keep.mo; $("#fBrand").value=keep.br;
+  $("#cBzm").hidden=bzs.length<2; }
+/* รายการสาขาตาม BZM ที่เลือก · สาขาที่เลือกไว้แต่ไม่อยู่ในเขตนั้นให้ล้างทิ้ง · มีสาขาเดียว (ผู้ใช้ระดับสาขา) ไม่ต้องแสดงตัวเลือก */
+function fillBranchOpts(V0,want){
+  V0=V0||ALL().filter(inScope); const bz=$("#fBzm").value;
+  const brs=[...new Map(V0.filter(r=>r.branchCode&&(!bz||bzmOf(r)===bz)).map(r=>[r.branchCode,r.branchLabel])).entries()].sort();
   $("#fBranch").innerHTML=`<option value="">ทุกสาขา</option>`+brs.map(([c,l])=>`<option value="${c}">${esc(l)}</option>`).join("");
-  $("#fMonth2").innerHTML=$("#fMonth").innerHTML; $("#fMonth").value=keep.mo; $("#fMonth2").value=keep.mo; $("#fBrand").value=keep.br; $("#fBranch").value=keep.bc; }
+  const w=want===undefined?$("#fBranch").value:want; $("#fBranch").value=brs.some(x=>x[0]===w)?w:"";
+  $("#cBranch").hidden=new Set(V0.filter(r=>r.branchCode).map(r=>r.branchCode)).size<2; }
 /* ด้านบน: แท่งรายเดือน (ทั้งปีของเดือนที่เลือก หรือปีล่าสุดที่มีข้อมูล) แยกสีตามหมวด · กดแท่ง = กรองเดือนนั้น */
 function renderTrend(){
   const A=baseFiltered(true), mo=$("#fMonth").value;
@@ -819,6 +833,7 @@ $("#impFile").onchange=e=>{ const f=e.target.files&&e.target.files[0]; e.target.
 $("#bExp").onclick=exportCsv;
 $("#bMore").onclick=()=>{ SHOWN+=40; renderFb(); };
 $("#fMonth2").addEventListener("change",()=>{ $("#fMonth").value=$("#fMonth2").value; SHOWN=40; renderFb(); });
+$("#fBzm").addEventListener("change",()=>{ fillBranchOpts(); SHOWN=40; renderFb(); });
 ["fQ","fMonth","fBrand","fBranch","fType"].forEach(id=>{ const e=$("#"+id); e.addEventListener(id==="fQ"?"input":"change",()=>{ SHOWN=40; renderFb(); }); });
 $("#viewFb").addEventListener("click",e=>{
   const t=e.target.closest("[data-fbtab]"); if(t){ FB.st=t.dataset.fbtab; SHOWN=40; return renderFb(); }
