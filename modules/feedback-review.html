@@ -59,6 +59,7 @@ body.embed{min-height:0}
 .shell{max-width:1320px}
 .flt select{width:auto;flex:0 1 190px}
 .flt #bDup{min-height:38px;align-self:stretch}
+.flt select:disabled{opacity:.45;cursor:not-allowed}   /* ไม่มีข้อมูลให้เลือกหลังกรองช่องก่อนหน้า */
 .dupall{padding:18px 20px}
 .duph{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:12px}.duph b{font-size:17px}
 .dupc{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
@@ -1033,24 +1034,55 @@ function subOptionsHtml(extraSub) {
   if (extraSub && !DEF().has(extraSub)) h += `<optgroup label="นอกรายการที่กำหนด (ค่าเดิม)"><option value="${esc(extraSub)}">${esc(extraSub)}</option></optgroup>`;
   return h;
 }
+/* ดรอปดาวน์ไล่จากซ้ายไปขวา: แต่ละอันมีเฉพาะค่าที่ยังมีข้อมูลจริงหลังกรองด้วยอันก่อนหน้า (+ คำค้น/ธง)
+   อันไหนไม่เหลือค่าให้เลือกเลย จะถูกปิดไว้ · ถ้าค่าที่เลือกอยู่หายไป จะล้างค่านั้นแล้วไล่ต่อไปทางขวา */
+const FCHAIN = [
+  ["fB",   "b",   "ทุกแบรนด์",  base => [["KT", "Santa Fe KT"], ["FS", "Santa Fe FS"], ["JD", "เจ๊แดง"]].filter(([k]) => base.some(r => r.b === k))],
+  ["fTy",  "ty",  "ทุกประเภท",  base => [["พอใจ", "พอใจ"], ["ไม่พอใจ", "ไม่พอใจ"]].filter(([k]) => base.some(r => r.ty === k))],
+  ["fSt",  "st",  "ทุกสถานะ",   base => [["staging", "คงไว้"], ["drop", "ข้าม"], ["live", "ลงระบบแล้ว"]].filter(([k]) => base.some(r => r.state === k))],
+  ["fSub", "sub", "ทุกหัวข้อ",  base => [
+      ...(base.some(r => !r.sub) ? [["__none", "(ไม่มีหัวข้อ)"]] : []),
+      ...(!isFb() && base.some(r => r.sub && !DEFSET.has(r.sub)) ? [["__out", "(นอกรายการที่กำหนด)"]] : []),
+      ...uniq(base.map(r => r.sub)).map(x => [x, x])]],
+  ["fBr",  "br",  "ทุกสาขา",    base => uniq(base.map(r => r.br)).map(x => [x, x])],
+];
+function syncFilterOptions() {
+  let base = S.rows.filter(r => matchKey(r, "flag") && matchKey(r, "q"));
+  for (const [id, k, all, list] of FCHAIN) {
+    const el = $("#" + id); if (!el) continue;
+    const items = list(base);
+    if (S.f[k] && !items.some(([v]) => String(v) === String(S.f[k]))) S.f[k] = "";   /* ค่าที่เลือกไม่มีข้อมูลแล้ว */
+    opt(el, items, all);
+    el.value = S.f[k] || "";
+    el.disabled = !items.length;
+    el.title = items.length ? "" : "ไม่มีข้อมูลให้เลือกหลังกรองช่องก่อนหน้า";
+    base = base.filter(r => matchKey(r, k));
+  }
+  const hs = $("#hSub"); if (hs) { hs.innerHTML = $("#fSub").innerHTML; hs.value = S.f.sub || ""; }
+}
 function buildFilters() {
-  opt($("#fB"), [["KT", "Santa Fe KT"], ["FS", "Santa Fe FS"], ["JD", "เจ๊แดง"]].filter(([k]) => S.rows.some(r => r.b === k)), "ทุกแบรนด์");
-  opt($("#fTy"), [["พอใจ", "พอใจ"], ["ไม่พอใจ", "ไม่พอใจ"]], "ทุกประเภท");
-  opt($("#fSt"), [["staging", "คงไว้"], ["drop", "ข้าม"], ["live", "ลงระบบแล้ว"]], "ทุกสถานะ");
-  opt($("#fSub"), [["__none", "(ไม่มีหัวข้อ)"], ...(isFb() ? [] : [["__out", "(นอกรายการที่กำหนด)"]]), ...uniq(S.rows.map(r => r.sub)).map(x => [x, x])], "ทุกหัวข้อ");
-  opt($("#fBr"), uniq(S.rows.map(r => r.br)).map(x => [x, x]), "ทุกสาขา");
-  $("#hSub").innerHTML = $("#fSub").innerHTML;
+  syncFilterOptions();
   $("#bSub").innerHTML = `<option value="">— เลือกหัวข้อ —</option>` + subOptionsHtml();
   $("#bSugCell").classList.toggle("hide", isFb());
 }
 let DEFSET = new Set();
-function matches(r, skipFlag) {
+/* เช็กทีละเงื่อนไข เพื่อให้ดรอปดาวน์ไล่กรองกันเองได้ (ตัวมันเองไม่กรองตัวมันเอง) */
+function matchKey(r, k) {
   const f = S.f;
-  if (f.b && r.b !== f.b) return false; if (f.ty && r.ty !== f.ty) return false; if (f.st && r.state !== f.st) return false;
-  if (f.sub && (f.sub === "__none" ? r.sub : f.sub === "__out" ? (!r.sub || DEFSET.has(r.sub)) : r.sub !== f.sub)) return false; if (f.br && r.br !== f.br) return false;
-  if (!skipFlag && f.flag && !(f.flag === "dupt" ? !!r._dup : r._f.includes(f.flag))) return false;
-  if (f.q && !(r.c + " " + r.br + " " + r.z + " " + r.o + " " + r.sub).toLowerCase().includes(f.q)) return false;
+  switch (k) {
+    case "b":   return !f.b  || r.b === f.b;
+    case "ty":  return !f.ty || r.ty === f.ty;
+    case "st":  return !f.st || r.state === f.st;
+    case "sub": return !f.sub || !(f.sub === "__none" ? r.sub : f.sub === "__out" ? (!r.sub || DEFSET.has(r.sub)) : r.sub !== f.sub);
+    case "br":  return !f.br || r.br === f.br;
+    case "flag":return !f.flag || (f.flag === "dupt" ? !!r._dup : r._f.includes(f.flag));
+    case "q":   return !f.q || (r.c + " " + r.br + " " + r.z + " " + r.o + " " + r.sub).toLowerCase().includes(f.q);
+  }
   return true;
+}
+function matches(r, skipFlag) {
+  return matchKey(r, "b") && matchKey(r, "ty") && matchKey(r, "st") && matchKey(r, "sub") && matchKey(r, "br")
+    && (skipFlag || matchKey(r, "flag")) && matchKey(r, "q");
 }
 let _view = null;
 function filtered() { return _view || (_view = S.rows.filter(r => matches(r))); }
@@ -1092,6 +1124,7 @@ function rowHtml(r, noTxt, live) {
 function syncSelects(root) { root.querySelectorAll("select.rsub,select.rst").forEach(x => { x.value = x.dataset.v; }); }
 function renderRows() {
   _view = null;
+  syncFilterOptions();   /* ตัวเลือกของช่องถัดไปขึ้นกับช่องก่อนหน้า จึงต้องสร้างใหม่ทุกครั้งที่กรอง */
   renderChips();
   const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
   const no0 = S.page * PAGE;
@@ -1112,7 +1145,7 @@ function afterRowEdit(r) {
   if (!tr || !matches(r)) return renderRows();
   tr.outerHTML = rowHtml(r, tr.querySelector("td.no").textContent, false);
   syncSelects($("#tbody").querySelector(`tr.rw[data-id="${r.id}"]`));
-  renderChips(); updateBulkT();
+  syncFilterOptions(); renderChips(); updateBulkT();
 }
 function updateBulkT() { const n = S.sel.size;
   const sb = $("#selbar"); if (sb) { sb.classList.toggle("hide", !n || locked()); $("#selN").innerHTML = `เลือกไว้ <b>${fmt(n)}</b> แถว`; } $("#bulkT").textContent = n ? `· ใช้กับ ${fmt(n)} แถวที่เลือก` : `· ใช้กับทุกแถวที่กรองอยู่ (${fmt(filtered().length)})`; }
