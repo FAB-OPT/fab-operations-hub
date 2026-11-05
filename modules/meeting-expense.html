@@ -2324,6 +2324,20 @@ function xmerge(ws,r1,c1,r2,c2){ const m=ws.getCell(r1,c1);
   for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){ if(r===r1&&c===c1) continue; const x=ws.getCell(r,c); x.style=Object.assign({},m.style); }
   ws.mergeCells(r1,c1,r2,c2); }
 const firstWord=t=>String(t||"").trim().split(/\s+/)[0]||"";
+/* สาขาที่ปิดแล้ว / ไม่อยู่ในทะเบียนฮับ แต่มีเอกสารเบิก (เช่น ประวัติที่นำเข้า) → ต้องแสดงในรายงานด้วย ไม่ให้ยอดหาย
+   ชื่อต่อท้าย "(ปิดแล้ว)" · BZM = ตามทะเบียนฮับถ้ามี ไม่มีก็ใช้ชื่อ BZM ในไฟล์ที่นำเข้า · วงเงิน = งบในไฟล์ */
+function closedExtras(claims){
+  const open=new Set(Branches.list().map(b=>b.code)), all=Branches.list(true), out={};
+  claims.slice().sort((a,b)=>(a.submittedAt||"").localeCompare(b.submittedAt||"")).forEach(c=>{
+    const code=String(c.branchCode||""); if(!code||open.has(code)) return;
+    const hub=all.find(b=>b.code===code), o=out[code]||(out[code]={code,name:((hub?hub.name:(c.branchName||code))+" (ปิดแล้ว)"),brand:hub?hub.brand:Branches.brandOf(code),
+      brandName:hub?hub.brandName:Branches.brandName(Branches.brandOf(code)),closed:true,extra:true,bzmFile:"",budget:0});
+    if(c.bzm) o.bzmFile=c.bzm; if(Number(c.budget)>0) o.budget=Number(c.budget); });
+  return Object.values(out).sort((p,q)=>String(p.code).localeCompare(String(q.code),undefined,{numeric:true})); }
+function bzmOfB(b){
+  if(!b.extra||!b.bzmFile) return bzmOf(b.code);   /* สาขาที่ปิดแล้ว: ใช้ BZM ตามไฟล์ (ทะเบียนฮับอาจเก็บชื่อเก่า) */
+  const bn=CFG().bzmNames||{}, nick=Object.keys(bn).find(n=>String(bn[n]).split(/\s+/)[0]===b.bzmFile);
+  return nick?{key:nick,label:nick+" · "+bn[nick]}:{key:b.bzmFile,label:b.bzmFile}; }
 
 /* ── ข้อมูลรายงาน 1: สรุปเบิกตาม BZM (ทั้งปี รายเดือน) — ใช้ร่วมกันทั้ง Excel และ PDF ── */
 function rptBzmData(yr,basis){
@@ -2334,8 +2348,8 @@ function rptBzmData(yr,basis){
   const lastM=ids.length?Math.max(...ids.map(id=>+String(id).slice(5,7))):0;
   const byB={}; claims.forEach(c=>{ const m=+roundIdOf(c).slice(5,7); const o=byB[c.branchCode]||(byB[c.branchCode]=Array(13).fill(0)); if(m>=1&&m<=12) o[m]+=Number(c.amount)||0; });
   const limRid=yr+"-"+String(Math.max(lastM,1)).padStart(2,"0");
-  const g={}; Branches.list().forEach(b=>{ const lim=limitOf(limRid,b.code); if(!(lim>0)&&!byB[b.code]) return;
-    const z=bzmOf(b.code); (g[z.label]=g[z.label]||{label:z.label,key:z.key,rows:[]}).rows.push({b,lim,m:byB[b.code]||Array(13).fill(0)}); });
+  const g={}; Branches.list().concat(closedExtras(claims)).forEach(b=>{ const lim=b.extra?(b.budget||0):limitOf(limRid,b.code); if(!(lim>0)&&!byB[b.code]) return;
+    const z=bzmOfB(b); (g[z.label]=g[z.label]||{label:z.label,key:z.key,rows:[]}).rows.push({b,lim,m:byB[b.code]||Array(13).fill(0)}); });
   const groups=Object.values(g).sort((a,b)=>a.key?(b.key?a.label.localeCompare(b.label,"th"):-1):1);
   const colTot=Array(13).fill(0); let limTot=0, nBr=0;
   groups.forEach(z=>{
@@ -2354,12 +2368,12 @@ function rptMonthData(rid,basis){
   const rd=roundOf(rid)||{}, yr=rid.slice(0,4), mo=+rid.slice(5,7), be=+yr+543;
   const all=CLAIMS().filter(c=>roundIdOf(c)===rid&&!isRejected(c));
   const okC=basis==="all"?all:all.filter(c=>statusOf(c)==="อนุมัติ");
-  const list=Branches.list().map(b=>({b,lim:limitOf(rid,b.code),cs:all.filter(c=>c.branchCode===b.code),paid:okC.filter(c=>c.branchCode===b.code)}))
+  const list=Branches.list().concat(closedExtras(all)).map(b=>({b,lim:b.extra?(b.budget||0):limitOf(rid,b.code),cs:all.filter(c=>c.branchCode===b.code),paid:okC.filter(c=>c.branchCode===b.code)}))
     .filter(x=>x.lim>0||x.cs.length).sort((p,q)=>String(p.b.code).localeCompare(String(q.b.code),undefined,{numeric:true}));
   if(!list.length) return null;
   let tAmt=0,tReal=0,tLim=0,nSent=0;
   const rows=list.map((x,i)=>{
-    const last=x.cs.slice().sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""))[0]||null, p=payeeOf(x.b.code), z=bzmOf(x.b.code);
+    const last=x.cs.slice().sort((a,b)=>(b.submittedAt||"").localeCompare(a.submittedAt||""))[0]||null, p=payeeOf(x.b.code), z=bzmOfB(x.b);
     const amt=sumOf(x.paid), real=x.cs.length?x.cs.reduce((s,c)=>s+(Number(c.claimedAmount)||Number(c.amount)||0),0):null;
     const notes=[]; if(!x.cs.length) notes.push("ไม่ได้ส่งเบิก"); else if(!x.paid.length) notes.push("รอทำเบิก");
     x.cs.forEach(c=>{ if(c.note&&String(c.note).trim()) notes.push(String(c.note).trim()); });
@@ -2512,7 +2526,7 @@ function adminReport(body){
   body.querySelectorAll("[data-b]").forEach(b=>b.onclick=()=>{RV.basis=b.dataset.b;redo();});
   const inRange=id=>id>=RV.from&&id<=RV.to, okOnly=RV.basis==="ok";
   const cl=CLAIMS().filter(c=>!isRejected(c)&&inRange(roundIdOf(c))&&(!okOnly||statusOf(c)==="อนุมัติ"));
-  const brs=Branches.list(), byCode={}; brs.forEach(b=>byCode[b.code]=b);
+  const brs=Branches.list().concat(closedExtras(cl)), byCode={}; brs.forEach(b=>byCode[b.code]=b);
   const inList=cl.filter(c=>byCode[c.branchCode]);
   const out=$("#rout",body);
   const tot=sumOf(inList), nb=new Set(inList.map(c=>c.branchCode)).size;
@@ -2745,7 +2759,7 @@ function openImport(){
 /* ═════════════ นำเข้าประวัติการเบิกย้อนหลัง + ชื่อจริง BZM จาก Excel ═════════════
    ไฟล์ "รายชื่อทีมผู้จัดการสาขา (โอนเงิน …)" — ชีตรายเดือน (1-69 … 12-69) คอลัมน์ จำนวนเงิน · หมายเหตุ · ใช้จริง · งบในการใช้ + ชีต "สรุปเบิกตาม BZM-69" (ชื่อ-นามสกุล BZM)
    • เดือนที่มียอด (จำนวนเงิน > 0) → สร้างรอบ (ปิดแล้ว) + เอกสารเบิกสถานะ "ทำเบิกแล้ว" ต่อสาขา · เลขเอกสาร HX-ปปดด-รหัสสาขา (นำเข้าซ้ำได้ ไม่ซ้อน)
-   • สาขาที่เดือนนั้นมีเอกสารของระบบอยู่แล้ว → ข้าม ไม่ทับ · สาขาที่ไม่อยู่ในทะเบียนฮับ → ข้าม
+   • สาขาที่เดือนนั้นมีเอกสารของระบบอยู่แล้ว → ข้าม ไม่ทับ · สาขาที่ปิดแล้ว/ไม่อยู่ในทะเบียนฮับ → นำเข้าด้วย (แสดงในรายงานต่อท้าย "(ปิดแล้ว)")
    • ชื่อ BZM ในไฟล์ จับคู่กับชื่อเล่นในทะเบียนฮับด้วยสาขาที่ดูแล แล้วเก็บเป็นชื่อจริงที่ใช้ในรายงาน */
 function parseHistory(XLSX,wb){
   const norm=x=>String(x==null?"":x).replace(/\s+/g," ").trim();
@@ -2792,16 +2806,16 @@ function openHistImport(){
   const draw=()=>{
     const hp=$("#hp",f); if(!IMP.months.length){ hp.innerHTML=""; return; }
     const hubSet=new Set(Branches.list(true).map(b=>b.code));
-    const info=m=>{ const dup=m.rows.filter(x=>hubSet.has(x.code)&&activeClaim(m.rid,x.code)&&!S.get("claims","HX-"+m.rid.replace("-","")+"-"+x.code)).length;
+    const info=m=>{ const dup=m.rows.filter(x=>activeClaim(m.rid,x.code)&&!S.get("claims","HX-"+m.rid.replace("-","")+"-"+x.code)).length;
       const done=m.rows.filter(x=>S.get("claims","HX-"+m.rid.replace("-","")+"-"+x.code)).length, nohub=m.rows.filter(x=>!hubSet.has(x.code)).length;
-      return {dup,done,nohub,fresh:m.rows.length-dup-done-nohub}; };
+      return {dup,done,nohub,fresh:m.rows.length-dup-done}; };
     hp.innerHTML=(IMP.bzm.length?`<div class="muted" style="margin:0 2px 6px"><b>ชื่อจริง BZM</b> (จับคู่กับชื่อเล่นในทะเบียนฮับจากสาขาที่ดูแล)</div>
       <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${IMP.bzm.map(x=>`<span class="pill p-sent">${esc(x.nick)} → ${esc(x.full)}</span>`).join("")}</div>`:`<div class="muted" style="margin-bottom:12px">ไม่พบชีตสรุปตาม BZM — จะไม่เปลี่ยนชื่อ BZM</div>`)
       +`<div class="muted" style="margin:0 2px 6px"><b>ยอดเบิกย้อนหลังรายเดือน</b> (ติ๊กเดือนที่จะนำเข้า)</div>
       <div style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--bg2)">${IMP.months.map(m=>{ const i=info(m);
         return `<label style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer"><input type="checkbox" data-hm="${m.rid}" ${IMP.pick.has(m.rid)?"checked":""}>
           <b style="min-width:120px">${esc(roundLabel(m.rid))}</b><span class="num" style="min-width:110px">${baht(m.total)} บาท</span><span class="muted">${m.rows.length} สาขา</span>
-          <span style="margin-left:auto;font-size:12.5px;color:var(--text3)">ใหม่ ${i.fresh}${i.done?" · เคยนำเข้าแล้ว "+i.done:""}${i.dup?" · มีเอกสารระบบอยู่แล้ว (ข้าม) "+i.dup:""}${i.nohub?" · ไม่อยู่ในทะเบียนฮับ "+i.nohub:""}</span></label>`; }).join("")}</div>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--text3)">ใหม่ ${i.fresh}${i.done?" · เคยนำเข้าแล้ว "+i.done:""}${i.dup?" · มีเอกสารระบบอยู่แล้ว (ข้าม) "+i.dup:""}${i.nohub?" · สาขาที่ปิดแล้ว (นำเข้าด้วย) "+i.nohub:""}</span></label>`; }).join("")}</div>
       <div id="hprog" class="muted" style="margin-top:8px"></div>`;
     hp.querySelectorAll("[data-hm]").forEach(c=>c.onchange=()=>{ c.checked?IMP.pick.add(c.dataset.hm):IMP.pick.delete(c.dataset.hm); });
   };
@@ -2823,14 +2837,13 @@ function openHistImport(){
     IMP.months.filter(m=>IMP.pick.has(m.rid)).forEach(m=>{
       let any=false;
       m.rows.forEach(x=>{
-        if(!hubSet.has(x.code)) return;
         const docNo="HX-"+m.rid.replace("-","")+"-"+x.code;
         if(S.get("claims",docNo)||activeClaim(m.rid,x.code)) return;
         any=true;
         const last=new Date(m.yr,m.mo,0).getDate(), at=m.rid+"-"+String(last).padStart(2,"0")+"T12:00:00+07:00";
         jobs.push({col:"claims",id:docNo,data:{docNo,roundId:m.rid,branchCode:x.code,branchName:hubName[x.code]||x.branchName,claimantName:x.name,
           amount:x.amount,claimedAmount:x.real>0?x.real:x.amount,note:x.note,photos:[],payeeName:x.name,payeeEmpCode:x.empCode,payeePosition:x.position,
-          status:"อนุมัติ",submittedAt:new Date(at).toISOString(),submittedBy:"นำเข้าประวัติ",imported:true,importSource:IMP.file+" · ชีต "+m.sheet}});
+          status:"อนุมัติ",submittedAt:new Date(at).toISOString(),submittedBy:"นำเข้าประวัติ",imported:true,bzm:x.bzm,budget:x.budget,importSource:IMP.file+" · ชีต "+m.sheet}});
       });
       if(any&&!roundOf(m.rid)){ nRound++; jobs.unshift({col:"rounds",id:m.rid,data:{open:false,closed:true,imported:true,createdAt:nowISO(),createdBy:Hub.fullName(),note:"นำเข้าประวัติจากไฟล์ "+IMP.file}}); }
     });
