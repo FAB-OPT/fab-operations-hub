@@ -2427,6 +2427,31 @@ function rptBzmXlsx(ExcelJS,D){
   xput(ws,r,1,D.foot,{italic:true,size:11,color:"FF666666",box:false}); xmerge(ws,r,1,r,NC);
   return {wb,name:"สรุปเบิกตาม-BZM-"+D.be+".xlsx"};
 }
+/* ── ข้อมูลเอกสารเบิก (Excel ตามแบบสรุปจำนวนเงินค่าอาหาร) ──
+   คอลัมน์: NO. · แบรนด์ · BZM · สาขา · ชื่อสาขา · รหัสพนักงาน · ชื่อ-สกุล · ตำแหน่ง · จำนวนเงิน เบิก · วงเงินของสาขา
+   "จำนวนเงิน เบิก" = ยอดที่สาขากรอกมาในเอกสาร (ก่อนตัดตามวงเงิน) รวมทุกใบที่ไม่ถูกปฏิเสธ · สาขาที่ยังไม่ส่งเว้นว่าง · หลายรอบ = 1 ชีตต่อรอบ */
+function rptClaimXlsx(ExcelJS,Ds){
+  const wb=new ExcelJS.Workbook(); wb.creator="FAB Operations Hub";
+  Ds.forEach(D=>{
+    const ws=wb.addWorksheet(String(D.mo).padStart(2,"0")+"-"+String(D.be%100).padStart(2,"0"),{views:[{showGridLines:false,state:"frozen",ySplit:2}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
+    [6,11,13,9,32,14,30,27,17,17].forEach((w,i)=>ws.getColumn(i+1).width=w);
+    xput(ws,1,1,D.title,{bold:true,size:20,h:"left",box:false}); xmerge(ws,1,1,1,10); ws.getRow(1).height=50;
+    ["NO.","","BZM","สาขา","","รหัสพนักงาน","ชื่อ - สกุล","ตำแหน่ง","จำนวนเงิน เบิก","วงเงินของสาขา"].forEach((t,i)=>xput(ws,2,i+1,t,{bold:true,fill:i===9?"FFFFFFFF":X_YEL,h:"center"}));
+    xmerge(ws,2,4,2,5); ws.getRow(2).height=30;
+    let r=3, tReal=0, tLim=0;
+    D.rows.forEach(x=>{
+      const tn=brTint(String(x.code)), real=x.real==null?null:Number(x.real);
+      xput(ws,r,1,x.no,{h:"center",fill:tn}); xput(ws,r,2,x.brand,{italic:true,size:10,h:"center",fill:tn}); xput(ws,r,3,x.bzm,{h:"center",fill:tn});
+      xput(ws,r,4,x.code,{h:"center",fill:tn}); xput(ws,r,5,x.name,{fill:tn}); xput(ws,r,6,x.emp,{h:"center"}); xput(ws,r,7,x.pname); xput(ws,r,8,x.pos,{h:"center"});
+      xput(ws,r,9,real,{fmt:X_NUM,h:"right",bold:true}); xput(ws,r,10,x.lim,{fmt:X_NUM,h:"right"});
+      ws.getRow(r).height=24; tReal+=real||0; tLim+=x.lim||0; r++; });
+    xput(ws,r,1,"รวม "+D.rows.length+" สาขา · ส่งเบิกแล้ว "+D.nSent+" สาขา",{bold:true,fill:X_ORG,h:"right",size:13}); xmerge(ws,r,1,r,8);
+    xput(ws,r,9,tReal,{fmt:X_NUM,h:"right",bold:true,fill:X_ORG,size:13}); xput(ws,r,10,tLim,{fmt:X_NUM,h:"right",bold:true,fill:X_ORG,size:13}); ws.getRow(r).height=26;
+    r+=2; xput(ws,r,1,"จำนวนเงิน เบิก = ยอดที่สาขากรอกในเอกสารเบิก (ก่อนตัดตามวงเงิน) · วงเงินของสาขา = วงเงินของสาขาในรอบนี้",{italic:true,size:11,color:"FF666666",box:false}); xmerge(ws,r,1,r,10);
+  });
+  const tag=Ds.length===1?Ds[0].rid:"ทุกรอบ";
+  return {wb,name:"ข้อมูลเอกสารเบิก-"+tag+".xlsx"};
+}
 function rptMonthXlsx(ExcelJS,D){
   const wb=new ExcelJS.Workbook(); wb.creator="FAB Operations Hub";
   const ws=wb.addWorksheet(String(D.mo).padStart(2,"0")+"-"+String(D.be%100).padStart(2,"0"),{views:[{showGridLines:false,state:"frozen",ySplit:2}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
@@ -2902,7 +2927,7 @@ function adminIO(body){
     <div class="iog">
       <div class="glass-card ioc"><h3>${mi("excel",22)} ส่งออก</h3>${canExp?
         row("bars","รายงานเบิกเงินประชุม","สรุปตาม BZM ทั้งปี หรือรายสาขารายเดือน · เลือกไฟล์ Excel หรือ PDF (พิมพ์) ได้",`<button class="tbtn pri" id="xrep">ส่งออกรายงาน</button>`)
-        +row("doc","ข้อมูลเอกสารเบิก (CSV)","ทุกใบของรอบที่เลือก พร้อมผู้ทำการเบิก ผู้รับเงิน และสถานะ · กดส่งออกแล้วเลือกรอบ",`<button class="tbtn" id="xcsv">ส่งออก</button>`)
+        +row("doc","ข้อมูลเอกสารเบิก (Excel / CSV)","Excel ตามแบบสรุปจำนวนเงินค่าอาหาร (จำนวนเงิน เบิก = ยอดที่สาขากรอก) หรือ CSV รายใบ · กดส่งออกแล้วเลือกรอบ",`<button class="tbtn" id="xcsv">ส่งออก</button>`)
         :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์ส่งออก</div>`}</div>
       <div class="glass-card ioc"><h3>${mi("upload",22)} นำเข้า</h3>${canImp?
         row("people","รายชื่อทีมผู้จัดการสาขา + วงเงิน","จากไฟล์ Excel รายเดือน (ชีตเช่น 10-69) · ดูตัวอย่างและเลือกก่อนบันทึก",`<button class="tbtn pri" id="ximp">นำเข้า Excel</button>`)
@@ -2916,11 +2941,19 @@ function adminIO(body){
     const cr=currentRound(), def=cr&&rids.includes(cr.id)?cr.id:rids[0];
     const f=document.createElement("div");
     f.innerHTML=`<div class="field"><label>เลือกรอบที่จะส่งออก</label><select id="xr">${rids.map(id=>`<option value="${esc(id)}" ${id===def?"selected":""}>รอบ ${esc(roundLabel(id))}</option>`).join("")}<option value="_all">ทุกรอบ</option></select></div>
-      <div class="muted">ได้ไฟล์ .csv เปิดด้วย Excel ได้</div>`;
+      <div class="field"><label>รูปแบบไฟล์</label><select id="xfm"><option value="xlsx">Excel (.xlsx) — ตามแบบสรุปจำนวนเงินค่าอาหาร · ทุกสาขา เรียงตามรหัส</option><option value="csv">CSV — รายใบเอกสาร (ข้อมูลดิบ)</option></select></div>
+      <div class="muted" id="xfmh">จำนวนเงิน เบิก = ยอดที่สาขากรอก (ก่อนตัดตามวงเงิน) · สาขาที่ยังไม่ส่งเว้นว่าง · เลือก “ทุกรอบ” = 1 ชีตต่อรอบ</div>`;
     modal("ส่งออกข้อมูลเอกสารเบิก",f,async()=>{
-      const v=$("#xr",f).value, list=CLAIMS().filter(c=>v==="_all"||roundIdOf(c)===v).sort(byTime);
+      const v=$("#xr",f).value, fmt=$("#xfm",f).value, list=CLAIMS().filter(c=>v==="_all"||roundIdOf(c)===v).sort(byTime);
       if(!list.length) throw new Error("ไม่มีเอกสารในรอบที่เลือก");
-      exportCsv(list,v==="_all"?"ทุกรอบ":v);
+      if(fmt==="csv"){ exportCsv(list,v==="_all"?"ทุกรอบ":v); return; }
+      const ids=v==="_all"?[...new Set(list.map(roundIdOf))].sort():[v];
+      const Ds=ids.map(id=>{ const D=rptMonthData(id,"all"); if(D) D.rid=id; return D; }).filter(Boolean);
+      if(!Ds.length) throw new Error("ไม่มีข้อมูลในรอบที่เลือก");
+      const ExcelJS=await loadExcelJs(), out=rptClaimXlsx(ExcelJS,Ds), buf=await out.wb.xlsx.writeBuffer();
+      const a=document.createElement("a"); a.href=URL.createObjectURL(new Blob([buf],{type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"}));
+      a.download=out.name; document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove();},800);
+      toast("ส่งออก "+out.name+" แล้ว");
     },"ส่งออก");
   };
   if(g("ximp")) g("ximp").onclick=openImport;
