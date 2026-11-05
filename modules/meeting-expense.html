@@ -2037,7 +2037,7 @@ function exportCsv(list,tag){
   if(!list.length) return toast("ไม่มีรายการให้ส่งออก");
   const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด (จ่ายตามวงเงิน)","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย"]]
     .concat(list.map(c=>[c.docNo||c.id,roundLabel(roundIdOf(c)),c.branchCode,Branches.nameOf(c.branchCode)||c.branchName||"",
-      Branches.brandName(Branches.brandOf(c.branchCode)),c.claimantName||"",Number(c.amount)||0,c.payeeName||c.payee||"",c.payeeEmpCode||"",
+      brandLabel(c.branchCode),c.claimantName||"",Number(c.amount)||0,c.payeeName||c.payee||"",c.payeeEmpCode||"",
       c.payeePosition||"",statusOf(c),stamp(c.submittedAt),c.note||"",c.statusBy||""]));
   /* รหัสสาขา · รหัสพนักงาน ครอบด้วย ="" ให้ Excel ไม่ตัดเลขศูนย์หน้า */
   const cell=(v,i)=>{ const s=String(v==null?"":v); if([2,8].includes(i)&&s) return '="'+s.replace(/"/g,'""')+'"';
@@ -2332,9 +2332,10 @@ const firstWord=t=>String(t||"").trim().split(/\s+/)[0]||"";
 const BZM_ORDER=["P'Rut","P'Nop","P'Pik","P'Jeb","P'Yee","P'M","P'Big","P'Eve","P'Aoy"];
 const bzmRank=z=>{ if(!z.key) return 1000; const i=BZM_ORDER.indexOf(z.key); return i<0?100:i; };
 const bzmSort=(a,b)=>bzmRank(a)-bzmRank(b)||String(a.label).localeCompare(String(b.label),"th");
-/* สีช่องสาขาในรายงาน: รหัส 40xx = เขียว · 55xx = แดงอ่อน */
-const brTint=c=>/^40/.test(c)?"FFC6E0B4":/^55/.test(c)?"FFFFC7CE":null;
-const brStyle=c=>/^40/.test(c)?' style="background:#c6e0b4"':/^55/.test(c)?' style="background:#ffc7ce"':"";
+/* ไม่ลงสีแถวสาขาในรายงานแล้ว (เคยทำสีตามรหัส 40/55) — คงฟังก์ชันไว้ให้โค้ดเดิมเรียกได้ */
+const brTint=()=>null, brStyle=()=>"";
+/* ชื่อแบรนด์ในรายงาน: รหัสขึ้นต้น 55 = ซานตาเฟ่ อีซี่ */
+const brandLabel=c=>/^55/.test(String(c))?"ซานตาเฟ่ อีซี่":Branches.brandName(Branches.brandOf(c));
 /* สาขาที่ปิดแล้ว / ไม่อยู่ในทะเบียนฮับ แต่มีเอกสารเบิก (เช่น ประวัติที่นำเข้า) → ต้องแสดงในรายงานด้วย ไม่ให้ยอดหาย
    ชื่อต่อท้าย "(ปิดแล้ว)" · BZM = ตามทะเบียนฮับถ้ามี ไม่มีก็ใช้ชื่อ BZM ในไฟล์ที่นำเข้า · วงเงิน = งบในไฟล์ */
 function closedExtras(claims){
@@ -2389,7 +2390,7 @@ function rptMonthData(rid,basis){
     const notes=[]; if(!x.cs.length) notes.push("ไม่ได้ส่งเบิก"); else if(!x.paid.length) notes.push("รอทำเบิก");
     x.cs.forEach(c=>{ if(c.note&&String(c.note).trim()) notes.push(String(c.note).trim()); });
     tAmt+=amt; tReal+=real||0; tLim+=x.lim; if(x.cs.length) nSent++;
-    return {no:i+1,brand:Branches.brandName(Branches.brandOf(x.b.code)),bzm:firstWord(z.label.split(" · ")[1])||z.key||"—",code:String(x.b.code),name:x.b.name,
+    return {no:i+1,brand:brandLabel(x.b.code),bzm:firstWord(z.label.split(" · ")[1])||z.key||"—",code:String(x.b.code),name:x.b.name,
       emp:String((last?(last.payeeEmpCode||p.empCode):p.empCode)||""),pname:(last?(last.payeeName||last.payee||p.name):p.name)||"",pos:(last?(last.payeePosition||p.position):p.position)||"",
       amt,real,lim:x.lim,note:notes.join(" · "),sent:x.cs.length>0}; });
   const span=(rd.startDate&&rd.dueDate)?"รอบวันที่ "+thFullDate(rd.startDate)+"  ถึง วันที่ "+thFullDate(rd.dueDate):"รอบเดือน"+MONTHS_FULL[mo]+" "+be;
