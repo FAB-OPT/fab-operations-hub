@@ -2495,6 +2495,18 @@ function openReportExport(pref,opt){
     +`<div class="f2"><div class="field" style="margin-top:6px"><label>นับยอดเบิก</label><select id="xb"><option value="ok">เฉพาะที่ทำเบิกแล้ว</option><option value="all">รวมรอทำเบิก</option></select></div>
       <div class="field" style="margin-top:6px"><label>รูปแบบไฟล์</label><select id="xf"><option value="xlsx">Excel (.xlsx)</option><option value="pdf">PDF (พิมพ์ A4 แนวนอน)</option></select></div></div>
       <div class="muted" id="xhint" style="font-size:12.5px;margin-top:6px"></div>`;
+  /* เดือนก่อนหน้าที่ยังไม่มียอดเลย (เช่น ก่อนเริ่มใช้ระบบ) → ชวนนำเข้าประวัติจากไฟล์ Excel ได้จากตรงนี้ */
+  if(can("manage-payees")){
+    const have=new Set(CLAIMS().filter(c=>!isRejected(c)).map(roundIdOf)), y=yr0, lastM=Math.max(0,...rids.filter(id=>id.slice(0,4)===y).map(id=>+id.slice(5,7)));
+    const miss=[]; for(let m=1;m<lastM;m++){ if(!have.has(y+"-"+String(m).padStart(2,"0"))) miss.push(m); }
+    if(miss.length){
+      const box=document.createElement("div");
+      box.style.cssText="background:#fff7ed;border:1px solid #fed7aa;border-radius:14px;padding:12px 14px;margin-bottom:12px;font-size:14px;line-height:1.6";
+      box.innerHTML="<b>ปี "+(+y+543)+" ยังไม่มียอดเดือน "+miss.map(m=>MONTHS_FULL[m]).join(", ")+"</b><div class=\"muted\" style=\"margin:2px 0 8px\">ข้อมูลก่อนเริ่มใช้ระบบยังไม่ได้นำเข้า รายงานจึงขึ้น 0.00 · นำเข้าจากไฟล์ Excel รายชื่อทีมผู้จัดการสาขา (รวมสาขาที่ปิดแล้ว) ได้ที่นี่</div><button type=\"button\" class=\"tbtn pri\">นำเข้าประวัติเดิมจากไฟล์ Excel</button>";
+      box.querySelector("button").onclick=()=>{ const mk=f.closest(".mask"); if(mk) mk.remove(); openHistImport(); };
+      f.insertBefore(box,f.firstChild);
+    }
+  }
   const hint=()=>{ $("#xhint",f).textContent=$("#xf",f).value==="pdf"?"PDF: จะเปิดหน้าต่างพิมพ์ ให้เลือกเครื่องพิมพ์เป็น “บันทึกเป็น PDF” (Save as PDF)":""; };
   f.querySelectorAll("input[name=xk]").forEach(i=>i.onchange=()=>{ kind=i.value; f.querySelectorAll(".xrp").forEach(l=>{ const on=l.dataset.k===kind; l.style.borderColor=on?"#ff6b1a":"#e6e8ec"; l.style.background=on?"#fff8f2":"#fff"; }); });
   f.querySelectorAll("#xy,#xr").forEach(s=>s.addEventListener("focus",()=>{ const k=s.id==="xy"?"bzm":"month"; kind=k; const i=f.querySelector("input[value="+k+"]"); i.checked=true; i.onchange(); }));
