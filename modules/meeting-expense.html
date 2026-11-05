@@ -1107,10 +1107,13 @@ function frame(tabs,active,onTab,roundBox){
   $("#app").querySelectorAll(".nav .tab").forEach(b=>b.onclick=()=>onTab(b.dataset.k));
   return $("#body");
 }
-/* ชื่อ BZM ของสาขา: ชื่อจริงจากรายชื่อผู้ใช้ฮับ ไม่มีก็ใช้ชื่อเล่น */
+/* ชื่อจริงของ BZM ตามไฟล์รายชื่อทีมผู้จัดการสาขา (นำเข้าที่ ส่งออก/นำเข้า → ประวัติการเบิกย้อนหลัง) · ไม่มี = ใช้ชื่อในรายชื่อผู้ใช้ฮับ */
+const bzmReal=nick=>{ const m=(CFG().bzmNames)||{}; return m[nick]||""; };
+/* ชื่อ BZM ของสาขา: ชื่อจริงตามไฟล์ → ชื่อจากรายชื่อผู้ใช้ฮับ → ชื่อเล่น */
 function bzmName(code){
   const raw=Branches.raw()||{}, nick=(raw.bzmMap||{})[code]||"";
   if(!nick) return "—";
+  if(bzmReal(nick)) return bzmReal(nick);
   const users=(Cfg.data&&Cfg.data.users)||[];
   const u=users.find(x=>x&&x.nick===nick&&x.role==="bzm")||users.find(x=>x&&x.nick===nick);
   return u&&u.name?String(u.name).replace(/^(นาย|นางสาว|นาง)\s*/,"").trim():nick;
@@ -2552,7 +2555,7 @@ function bzmOf(code){
   if(!nick) return {key:"",label:"— ไม่ระบุ BZM —"};
   const users=(Cfg.data&&Cfg.data.users)||[];
   const u=users.find(x=>x&&x.nick===nick&&x.role==="bzm")||users.find(x=>x&&x.nick===nick);
-  const nm=u&&u.name?String(u.name).replace(/^(นาย|นางสาว|นาง)\s*/,"").trim():"";
+  const nm=bzmReal(nick)||(u&&u.name?String(u.name).replace(/^(นาย|นางสาว|นาง)\s*/,"").trim():"");
   return {key:nick,label:nick+(nm?" · "+nm:"")};
 }
 let BV={mode:"round",round:"",all:false,zone:""};   /* มุมมองสรุป: รอบเดียว / ทั้งปีรายเดือน */
@@ -2739,6 +2742,107 @@ function openImport(){
     toast("นำเข้าแล้ว · วงเงิน "+nLim+" สาขา · ผู้รับเงินใหม่ "+nNew+(nSwap?" · เปลี่ยนคน "+nSwap:"")+(nPos?" · อัปเดตตำแหน่ง "+nPos:""));
   },"นำเข้า");
 }
+/* ═════════════ นำเข้าประวัติการเบิกย้อนหลัง + ชื่อจริง BZM จาก Excel ═════════════
+   ไฟล์ "รายชื่อทีมผู้จัดการสาขา (โอนเงิน …)" — ชีตรายเดือน (1-69 … 12-69) คอลัมน์ จำนวนเงิน · หมายเหตุ · ใช้จริง · งบในการใช้ + ชีต "สรุปเบิกตาม BZM-69" (ชื่อ-นามสกุล BZM)
+   • เดือนที่มียอด (จำนวนเงิน > 0) → สร้างรอบ (ปิดแล้ว) + เอกสารเบิกสถานะ "ทำเบิกแล้ว" ต่อสาขา · เลขเอกสาร HX-ปปดด-รหัสสาขา (นำเข้าซ้ำได้ ไม่ซ้อน)
+   • สาขาที่เดือนนั้นมีเอกสารของระบบอยู่แล้ว → ข้าม ไม่ทับ · สาขาที่ไม่อยู่ในทะเบียนฮับ → ข้าม
+   • ชื่อ BZM ในไฟล์ จับคู่กับชื่อเล่นในทะเบียนฮับด้วยสาขาที่ดูแล แล้วเก็บเป็นชื่อจริงที่ใช้ในรายงาน */
+function parseHistory(XLSX,wb){
+  const norm=x=>String(x==null?"":x).replace(/\s+/g," ").trim();
+  const months=[];
+  wb.SheetNames.forEach(sn=>{
+    const mm=/^(\d{1,2})-(\d{2})$/.exec(sn.trim()); if(!mm) return;
+    const mo=+mm[1], yr=2500+(+mm[2])-543; if(mo<1||mo>12) return;
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:"",raw:true});
+    const hi=rows.findIndex(r=>String(r[0]).trim().toUpperCase()==="NO."); if(hi<0) return;
+    const H=rows[hi].map(norm), ix=n=>H.indexOf(n);
+    const cCode=ix("สาขา"), cEmp=ix("รหัสพนักงาน"), cName=H.findIndex(x=>x.replace(/\s/g,"")==="ชื่อ-สกุล"), cPos=ix("ตำแหน่ง"), cAmt=ix("จำนวนเงิน"), cNote=ix("หมายเหตุ"), cReal=ix("ใช้จริง"), cBud=ix("งบในการใช้"), cBzm=ix("BZM");
+    if(cCode<0||cAmt<0) return;
+    const num=v=>{ const n=Number(String(v).replace(/,/g,"")); return isFinite(n)?n:0; };
+    const list=[];
+    rows.slice(hi+1).forEach(r=>{
+      const code=String(r[cCode]).trim().replace(/\.0$/,""); if(!/^\d{4}$/.test(code)) return;
+      const amt=Math.round(num(r[cAmt])*100)/100; if(!(amt>0)) return;
+      list.push({code,branchName:norm(r[cCode+1]),bzm:cBzm>=0?norm(r[cBzm]):"",empCode:norm(r[cEmp]).replace(/\.0$/,""),name:cName>=0?norm(r[cName]):"",position:cPos>=0?norm(r[cPos]):"",
+        amount:amt,note:cNote>=0?norm(r[cNote]):"",real:cReal>=0?Math.round(num(r[cReal])*100)/100:0,budget:cBud>=0?num(r[cBud]):0});
+    });
+    months.push({sheet:sn,rid:yr+"-"+String(mo).padStart(2,"0"),mo,yr,rows:list,total:list.reduce((a,x)=>a+x.amount,0)});
+  });
+  months.sort((a,b)=>a.rid.localeCompare(b.rid));
+  /* ชื่อ-นามสกุล BZM จากชีตสรุป: หัวบล็อก "BZM นิรุต  เจริญศิลป์" + แถวสาขาของบล็อก (คอลัมน์ BZM = ชื่อต้น · คอลัมน์สาขา = รหัส) */
+  const names={}, votes={};
+  const ssn=wb.SheetNames.find(n=>/BZM/i.test(n)&&!/^\d{1,2}-\d{2}$/.test(n.trim()));
+  if(ssn){
+    const rows=XLSX.utils.sheet_to_json(wb.Sheets[ssn],{header:1,defval:"",raw:true});
+    const hit=rows.findIndex(r=>String(r[0]).trim().toUpperCase()==="NO.");
+    rows.forEach(r=>{ const t=norm(r[0])||norm(r[1]); const m=/^BZM\s+(.+)$/i.exec(t); if(m){ const full=norm(m[1]); const first=full.split(" ")[0]; if(first) names[first]=full; } });
+    const raw=Branches.raw()||{}, bz=raw.bzmMap||{};
+    rows.forEach(r=>{ const code=String(r[2]).trim().replace(/\.0$/,""), first=norm(r[1]); if(!/^\d{4}$/.test(code)||!first||!bz[code]) return;
+      const v=votes[first]||(votes[first]={}); v[bz[code]]=(v[bz[code]]||0)+1; });
+  }
+  const map={};
+  Object.keys(names).forEach(first=>{ const v=votes[first]||{}, best=Object.keys(v).sort((a,b)=>v[b]-v[a])[0]; if(best) map[best]={nick:best,full:names[first],n:v[best],all:Object.values(v).reduce((a,b)=>a+b,0)}; });
+  return {months,bzm:Object.values(map)};
+}
+function openHistImport(){
+  const IMP={months:[],bzm:[],pick:new Set(),file:""};
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="muted" style="margin-bottom:10px">เลือกไฟล์ Excel รายชื่อทีมผู้จัดการสาขา (ที่มีชีตรายเดือน เช่น <b>1-69 … 10-69</b> และ <b>สรุปเบิกตาม BZM-69</b>) ระบบแสดงตัวอย่างก่อน แล้วค่อยกดบันทึก</div>
+    <div class="field"><input id="hf" type="file" accept=".xlsx,.xls"></div><div id="hp" style="margin-top:10px"></div>`;
+  const draw=()=>{
+    const hp=$("#hp",f); if(!IMP.months.length){ hp.innerHTML=""; return; }
+    const hubSet=new Set(Branches.list(true).map(b=>b.code));
+    const info=m=>{ const dup=m.rows.filter(x=>hubSet.has(x.code)&&activeClaim(m.rid,x.code)&&!S.get("claims","HX-"+m.rid.replace("-","")+"-"+x.code)).length;
+      const done=m.rows.filter(x=>S.get("claims","HX-"+m.rid.replace("-","")+"-"+x.code)).length, nohub=m.rows.filter(x=>!hubSet.has(x.code)).length;
+      return {dup,done,nohub,fresh:m.rows.length-dup-done-nohub}; };
+    hp.innerHTML=(IMP.bzm.length?`<div class="muted" style="margin:0 2px 6px"><b>ชื่อจริง BZM</b> (จับคู่กับชื่อเล่นในทะเบียนฮับจากสาขาที่ดูแล)</div>
+      <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">${IMP.bzm.map(x=>`<span class="pill p-sent">${esc(x.nick)} → ${esc(x.full)}</span>`).join("")}</div>`:`<div class="muted" style="margin-bottom:12px">ไม่พบชีตสรุปตาม BZM — จะไม่เปลี่ยนชื่อ BZM</div>`)
+      +`<div class="muted" style="margin:0 2px 6px"><b>ยอดเบิกย้อนหลังรายเดือน</b> (ติ๊กเดือนที่จะนำเข้า)</div>
+      <div style="max-height:40vh;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--bg2)">${IMP.months.map(m=>{ const i=info(m);
+        return `<label style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--border);cursor:pointer"><input type="checkbox" data-hm="${m.rid}" ${IMP.pick.has(m.rid)?"checked":""}>
+          <b style="min-width:120px">${esc(roundLabel(m.rid))}</b><span class="num" style="min-width:110px">${baht(m.total)} บาท</span><span class="muted">${m.rows.length} สาขา</span>
+          <span style="margin-left:auto;font-size:12.5px;color:var(--text3)">ใหม่ ${i.fresh}${i.done?" · เคยนำเข้าแล้ว "+i.done:""}${i.dup?" · มีเอกสารระบบอยู่แล้ว (ข้าม) "+i.dup:""}${i.nohub?" · ไม่อยู่ในทะเบียนฮับ "+i.nohub:""}</span></label>`; }).join("")}</div>
+      <div id="hprog" class="muted" style="margin-top:8px"></div>`;
+    hp.querySelectorAll("[data-hm]").forEach(c=>c.onchange=()=>{ c.checked?IMP.pick.add(c.dataset.hm):IMP.pick.delete(c.dataset.hm); });
+  };
+  $("#hf",f).onchange=async e=>{
+    const file=e.target.files&&e.target.files[0]; if(!file) return;
+    try{
+      const XLSX=await loadXlsx(); const wb=XLSX.read(await file.arrayBuffer(),{type:"array"});
+      const r=parseHistory(XLSX,wb); IMP.months=r.months; IMP.bzm=r.bzm; IMP.file=file.name;
+      IMP.pick=new Set(r.months.filter(m=>m.total>0).map(m=>m.rid));
+      if(!r.months.length&&!r.bzm.length) throw new Error("ไม่พบชีตรายเดือน (เช่น 1-69) หรือชีตสรุป BZM ในไฟล์นี้");
+      draw();
+    }catch(err){ IMP.months=[]; IMP.bzm=[]; $("#hp",f).innerHTML=`<div class="empty">${esc(err.message)}</div>`; }
+  };
+  modal("นำเข้าประวัติการเบิกย้อนหลัง + ชื่อ BZM",f,async()=>{
+    if(!IMP.months.length&&!IMP.bzm.length) throw new Error("เลือกไฟล์ Excel ก่อน");
+    await S.refresh().catch(()=>{});
+    const hubSet=new Set(Branches.list(true).map(b=>b.code)), hubName={}; Branches.list(true).forEach(b=>hubName[b.code]=b.name);
+    const jobs=[]; let nRound=0;
+    IMP.months.filter(m=>IMP.pick.has(m.rid)).forEach(m=>{
+      let any=false;
+      m.rows.forEach(x=>{
+        if(!hubSet.has(x.code)) return;
+        const docNo="HX-"+m.rid.replace("-","")+"-"+x.code;
+        if(S.get("claims",docNo)||activeClaim(m.rid,x.code)) return;
+        any=true;
+        const last=new Date(m.yr,m.mo,0).getDate(), at=m.rid+"-"+String(last).padStart(2,"0")+"T12:00:00+07:00";
+        jobs.push({col:"claims",id:docNo,data:{docNo,roundId:m.rid,branchCode:x.code,branchName:hubName[x.code]||x.branchName,claimantName:x.name,
+          amount:x.amount,claimedAmount:x.real>0?x.real:x.amount,note:x.note,photos:[],payeeName:x.name,payeeEmpCode:x.empCode,payeePosition:x.position,
+          status:"อนุมัติ",submittedAt:new Date(at).toISOString(),submittedBy:"นำเข้าประวัติ",imported:true,importSource:IMP.file+" · ชีต "+m.sheet}});
+      });
+      if(any&&!roundOf(m.rid)){ nRound++; jobs.unshift({col:"rounds",id:m.rid,data:{open:false,closed:true,imported:true,createdAt:nowISO(),createdBy:Hub.fullName(),note:"นำเข้าประวัติจากไฟล์ "+IMP.file}}); }
+    });
+    let nameN=0;
+    if(IMP.bzm.length){ const cur=Object.assign({},CFG().bzmNames||{}); IMP.bzm.forEach(x=>{ if(cur[x.nick]!==x.full){ cur[x.nick]=x.full; nameN++; } }); if(nameN) await saveCfg({bzmNames:cur}); }
+    const prog=$("#hprog",f); let done=0, fail=0, i=0;
+    const worker=async()=>{ while(i<jobs.length){ const j=jobs[i++]; try{ await S.set(j.col,j.id,j.data); }catch(e){ fail++; } done++; if(prog) prog.textContent="กำลังบันทึก "+done+" / "+jobs.length+"…"; } };
+    await Promise.all(Array.from({length:Math.min(5,Math.max(1,jobs.length))},worker));
+    if(fail) throw new Error("บันทึกไม่สำเร็จ "+fail+" รายการ จาก "+jobs.length+" — กดนำเข้าอีกครั้ง ระบบจะข้ามที่นำเข้าแล้วและทำต่อให้");
+    toast("นำเข้าแล้ว · เอกสารเบิกย้อนหลัง "+(jobs.length-nRound)+" ใบ · รอบใหม่ "+nRound+(nameN?" · ชื่อ BZM "+nameN+" คน":""));
+  },"นำเข้า");
+}
 function limitForm(b){
   const cur=Number((CFG().limits||{})[b.code])||0;
   const f=document.createElement("div");
@@ -2766,6 +2870,7 @@ function adminIO(body){
         :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์ส่งออก</div>`}</div>
       <div class="glass-card ioc"><h3>${mi("upload",22)} นำเข้า</h3>${canImp?
         row("people","รายชื่อทีมผู้จัดการสาขา + วงเงิน","จากไฟล์ Excel รายเดือน (ชีตเช่น 10-69) · ดูตัวอย่างและเลือกก่อนบันทึก",`<button class="tbtn pri" id="ximp">นำเข้า Excel</button>`)
+        +row("doc","ประวัติการเบิกย้อนหลัง + ชื่อจริง BZM","จากไฟล์ Excel เดียวกัน (ชีต 1-69 … 10-69 และ สรุปเบิกตาม BZM) · ใส่ยอดเดือนที่ผ่านมา และใช้ชื่อ-นามสกุล BZM ในรายงาน",`<button class="tbtn pri" id="xhist">นำเข้าประวัติ</button>`)
         :`<div class="muted" style="padding:14px 0">บัญชีนี้ไม่มีสิทธิ์นำเข้า (ต้องมีสิทธิ์จัดการผู้รับเงิน)</div>`}</div>
     </div>`;
   const g=id=>body.querySelector("#"+id);
@@ -2783,6 +2888,7 @@ function adminIO(body){
     },"ส่งออก");
   };
   if(g("ximp")) g("ximp").onclick=openImport;
+  if(g("xhist")) g("xhist").onclick=openHistImport;
 }
 
 /* ═════════════ เริ่มต้น ═════════════ */
