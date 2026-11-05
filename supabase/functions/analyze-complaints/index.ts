@@ -109,13 +109,14 @@ Deno.serve(async (req: Request) => {
       .or("and(channel.eq.voc,s.lte.6),channel.eq.facebook").order("d", { ascending: false }).limit(60);
     if (error) throw error;
     const ids = (rows ?? []).map((r) => r.id);
-    const { data: have } = ids.length ? await db.from("fb_train_hints").select("row_id").in("row_id", ids) : { data: [] };
-    const done = new Set((have ?? []).map((h) => h.row_id));
+    const key = Deno.env.get("ANTHROPIC_API_KEY");
+    const { data: have } = ids.length ? await db.from("fb_train_hints").select("row_id,method").in("row_id", ids) : { data: [] };
+    /* มีคีย์ AI แล้ว → เคสที่เคยได้แค่ผลจากกฎคำสำคัญ ให้ AI วิเคราะห์ใหม่ด้วย */
+    const done = new Set((have ?? []).filter((h) => !key || h.method === "ai").map((h) => h.row_id));
     const todo = (rows ?? []).filter((r) => !done.has(r.id)).slice(0, 12);
     const pending = (rows ?? []).filter((r) => !done.has(r.id)).length - todo.length;
     if (!todo.length) return json({ ok: true, analyzed: 0, pending: 0, method: "none" });
 
-    const key = Deno.env.get("ANTHROPIC_API_KEY");
     const out = new Map<number, { modules: Mod[]; reason: string; method: string }>();
     if (key) {
       try {
