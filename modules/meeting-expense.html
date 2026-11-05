@@ -2431,8 +2431,8 @@ function rptMonthXlsx(ExcelJS,D){
   /* คอลัมน์: NO. · แบรนด์ · BZM · สาขา · ชื่อสาขา · รหัสพนักงาน · ชื่อ-สกุล · ตำแหน่ง · จำนวนเงิน เบิก · วงเงินของสาขา
      จำนวนเงิน เบิก = ยอดที่สาขากรอกในเอกสารเบิก (ก่อนตัดตามวงเงิน) รวมทุกใบที่ไม่ถูกปฏิเสธ · สาขาที่ยังไม่ส่งเว้นว่าง */
   const wb=new ExcelJS.Workbook(); wb.creator="FAB Operations Hub";
-  const ws=wb.addWorksheet(String(D.mo).padStart(2,"0")+"-"+String(D.be%100).padStart(2,"0"),{views:[{showGridLines:false,state:"frozen",ySplit:2}],pageSetup:{orientation:"landscape",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9}});
-  [6,11,13,9,32,14,30,27,17,17].forEach((w,k)=>ws.getColumn(k+1).width=w);
+  const ws=wb.addWorksheet(String(D.mo).padStart(2,"0")+"-"+String(D.be%100).padStart(2,"0"),{views:[{showGridLines:false,state:"frozen",ySplit:2}],pageSetup:{orientation:"portrait",fitToPage:true,fitToWidth:1,fitToHeight:0,paperSize:9,margins:{left:.3,right:.3,top:.4,bottom:.4,header:.2,footer:.2}}});
+  [5,9,10,7,25,10,25,20,13,13].forEach((w,k)=>ws.getColumn(k+1).width=w);
   xput(ws,1,1,D.title,{bold:true,size:20,h:"left",box:false}); xmerge(ws,1,1,1,10); ws.getRow(1).height=50;
   ["NO.","","BZM","สาขา","","รหัสพนักงาน","ชื่อ - สกุล","ตำแหน่ง","จำนวนเงิน เบิก","วงเงินของสาขา"].forEach((t,k)=>xput(ws,2,k+1,t,{bold:true,fill:k===9?"FFFFFFFF":X_YEL,h:"center"}));
   xmerge(ws,2,4,2,5); ws.getRow(2).height=30;
@@ -2470,7 +2470,7 @@ function rptBzmHtml(D){
 }
 function rptMonthHtml(D){
   const cg=`<colgroup><col style="width:4%"><col style="width:7%"><col style="width:7.5%"><col style="width:5.5%"><col style="width:19%"><col style="width:8.5%"><col style="width:18%"><col style="width:12.5%"><col style="width:9.5%"><col style="width:8.5%"></colgroup>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><title>สรุปเบิกตามเดือน-${String(D.mo).padStart(2,"0")}-${String(D.be%100).padStart(2,"0")}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"><style>${PDF_CSS}td,th{font-size:8.4pt}</style></head><body>
+  return `<!doctype html><html><head><meta charset="utf-8"><title>สรุปเบิกตามเดือน-${String(D.mo).padStart(2,"0")}-${String(D.be%100).padStart(2,"0")}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"><style>${PDF_CSS}@page{size:A4 portrait;margin:8mm}td,th{font-size:7.4pt;padding:2pt 3pt}h1{font-size:13pt}</style></head><body>
     <h1 style="text-align:left">${esc(D.title)}</h1><table>${cg}<thead><tr><th>NO.</th><th></th><th>BZM</th><th colspan="2">สาขา</th><th>รหัสพนักงาน</th><th>ชื่อ - สกุล</th><th>ตำแหน่ง</th><th>จำนวนเงิน เบิก</th><th style="background:#fff">วงเงินของสาขา</th></tr></thead><tbody>
     ${D.rows.map(x=>{ const bs=brStyle(String(x.code)); return `<tr><td class="c"${bs}>${x.no}</td><td class="c" style="font-size:7pt;font-style:italic${bs?';background:'+bs.slice(8,-1):''}">${esc(x.brand)}</td><td class="c"${bs}>${esc(x.bzm)}</td><td class="c"${bs}>${esc(x.code)}</td><td${bs}>${esc(x.name)}</td><td class="c">${esc(x.emp)}</td><td>${esc(x.pname)}</td><td class="c">${esc(x.pos)}</td><td class="r b">${x.real==null?"":pf(x.real)}</td><td class="r">${pf(x.lim)}</td></tr>`; }).join("")}
     <tr class="or b"><td colspan="8" class="r">รวม ${D.rows.length} สาขา · ส่งเบิกแล้ว ${D.nSent} สาขา</td><td class="r">${pf(D.tReal)}</td><td class="r">${pf(D.tLim)}</td></tr></tbody></table><div class="foot">${esc(D.foot)}</div></body></html>`;
