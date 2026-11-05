@@ -2328,6 +2328,13 @@ function xmerge(ws,r1,c1,r2,c2){ const m=ws.getCell(r1,c1);
   for(let r=r1;r<=r2;r++) for(let c=c1;c<=c2;c++){ if(r===r1&&c===c1) continue; const x=ws.getCell(r,c); x.style=Object.assign({},m.style); }
   ws.mergeCells(r1,c1,r2,c2); }
 const firstWord=t=>String(t||"").trim().split(/\s+/)[0]||"";
+/* ลำดับ BZM ตามไฟล์ "รายชื่อทีมผู้จัดการสาขา" : นิรุต · นพชัย · พัทธดนย์ · สีวิกา · ศุกร์แสง · อนุรักษ์ · ณธวรรท · จุรีพร · พิมพ์พิชชา — คนอื่นต่อท้าย ไม่ระบุ BZM อยู่ท้ายสุด */
+const BZM_ORDER=["P'Rut","P'Nop","P'Pik","P'Jeb","P'Yee","P'M","P'Big","P'Eve","P'Aoy"];
+const bzmRank=z=>{ if(!z.key) return 1000; const i=BZM_ORDER.indexOf(z.key); return i<0?100:i; };
+const bzmSort=(a,b)=>bzmRank(a)-bzmRank(b)||String(a.label).localeCompare(String(b.label),"th");
+/* สีช่องสาขาในรายงาน: รหัส 40xx = เขียว · 55xx = แดงอ่อน */
+const brTint=c=>/^40/.test(c)?"FFC6E0B4":/^55/.test(c)?"FFFFC7CE":null;
+const brStyle=c=>/^40/.test(c)?' style="background:#c6e0b4"':/^55/.test(c)?' style="background:#ffc7ce"':"";
 /* สาขาที่ปิดแล้ว / ไม่อยู่ในทะเบียนฮับ แต่มีเอกสารเบิก (เช่น ประวัติที่นำเข้า) → ต้องแสดงในรายงานด้วย ไม่ให้ยอดหาย
    ชื่อต่อท้าย "(ปิดแล้ว)" · BZM = ตามทะเบียนฮับถ้ามี ไม่มีก็ใช้ชื่อ BZM ในไฟล์ที่นำเข้า · วงเงิน = งบในไฟล์ */
 function closedExtras(claims){
@@ -2354,7 +2361,7 @@ function rptBzmData(yr,basis){
   const limRid=yr+"-"+String(Math.max(lastM,1)).padStart(2,"0");
   const g={}; Branches.list().concat(closedExtras(claims)).forEach(b=>{ const lim=b.extra?(b.budget||0):limitOf(limRid,b.code); if(!(lim>0)&&!byB[b.code]) return;
     const z=bzmOfB(b); (g[z.label]=g[z.label]||{label:z.label,key:z.key,rows:[]}).rows.push({b,lim,m:byB[b.code]||Array(13).fill(0)}); });
-  const groups=Object.values(g).sort((a,b)=>a.key?(b.key?a.label.localeCompare(b.label,"th"):-1):1);
+  const groups=Object.values(g).sort(bzmSort);
   const colTot=Array(13).fill(0); let limTot=0, nBr=0;
   groups.forEach(z=>{
     z.rows.sort((p,q)=>String(p.b.code).localeCompare(String(q.b.code),undefined,{numeric:true}));
@@ -2405,7 +2412,7 @@ function rptBzmXlsx(ExcelJS,D){
     for(let m=1;m<=12;m++) xput(ws,r,MC+m-1,MONTHS_FULL[m],{bold:true,fill:X_YEL,h:"center"});
     xput(ws,r,NC,"รวม",{bold:true,fill:X_YEL,h:"center"}); ws.getRow(r).height=22; r++;
     z.rows.forEach((x,i)=>{
-      xput(ws,r,1,i+1,{h:"center"}); xput(ws,r,2,z.short,{h:"center"}); xput(ws,r,3,String(x.b.code),{h:"center"}); xput(ws,r,4,x.b.name);
+      { const tn=brTint(String(x.b.code)); xput(ws,r,1,i+1,{h:"center",fill:tn}); xput(ws,r,2,z.short,{h:"center",fill:tn}); xput(ws,r,3,String(x.b.code),{h:"center",fill:tn}); xput(ws,r,4,x.b.name,{fill:tn}); }
       xput(ws,r,5,x.lim,{fmt:X_NUM,h:"right",fill:X_ORG,bold:true});
       for(let m=1;m<=12;m++) xput(ws,r,MC+m-1,m<=lastM?x.m[m]:null,{fmt:X_NUM,h:"right"});
       xput(ws,r,NC,x.sum,{fmt:X_NUM,h:"right",bold:true,fill:X_GRY2}); r++; });
@@ -2429,8 +2436,8 @@ function rptMonthXlsx(ExcelJS,D){
     .forEach((t,i)=>xput(ws,2,i+1,t,{bold:true,fill:i===10?X_GRY:X_YEL,h:"center"})); ws.getRow(2).height=26;
   let r=3;
   D.rows.forEach(x=>{
-    xput(ws,r,1,x.no,{h:"center"}); xput(ws,r,2,x.brand,{italic:true,size:10,h:"center"}); xput(ws,r,3,x.bzm,{h:"center"});
-    xput(ws,r,4,x.code,{h:"center"}); xput(ws,r,5,x.name); xput(ws,r,6,x.emp,{h:"center"}); xput(ws,r,7,x.pname); xput(ws,r,8,x.pos,{h:"center"});
+    { const tn=brTint(String(x.code)); xput(ws,r,1,x.no,{h:"center",fill:tn}); xput(ws,r,2,x.brand,{italic:true,size:10,h:"center",fill:tn}); xput(ws,r,3,x.bzm,{h:"center",fill:tn});
+    xput(ws,r,4,x.code,{h:"center",fill:tn}); xput(ws,r,5,x.name,{fill:tn}); } xput(ws,r,6,x.emp,{h:"center"}); xput(ws,r,7,x.pname); xput(ws,r,8,x.pos,{h:"center"});
     xput(ws,r,9,x.amt,{fmt:X_NUM,h:"right",bold:true,fill:x.amt?null:X_GRY2});
     xput(ws,r,10,x.note,{wrap:true,color:x.sent?"FF000000":"FFB91C1C"});
     xput(ws,r,11,x.real,{fmt:X_NUM,h:"right",fill:X_GRY2}); xput(ws,r,12,x.lim,{fmt:X_NUM,h:"right"}); r++; });
@@ -2455,7 +2462,7 @@ function rptBzmHtml(D){
   const mc=(arr,cls)=>Array.from({length:12},(_,i)=>`<td class="r ${cls||""}">${i+1<=D.lastM?pf(arr[i+1]):""}</td>`).join("");
   const blocks=D.groups.map(z=>`<div class="blk"><div class="hd"><div class="l">BZM  ${esc(z.full)}</div><div class="rt">เบิกเงินประชุมร้าน ปี${D.be}</div></div>
     <table class="mt">${cg}<thead><tr><th>NO.</th><th>BZM</th><th colspan="2">สาขา</th><th>วงเงินประชุม</th>${mh}<th>รวม</th></tr></thead><tbody>
-    ${z.rows.map((x,i)=>`<tr><td class="c">${i+1}</td><td class="c">${esc(z.short)}</td><td class="c">${esc(String(x.b.code))}</td><td>${esc(x.b.name)}</td><td class="r b or">${pf(x.lim)}</td>${mc(x.m)}<td class="r b gy">${pf(x.sum)}</td></tr>`).join("")}
+    ${z.rows.map((x,i)=>{ const bs=brStyle(String(x.b.code)); return `<tr><td class="c"${bs}>${i+1}</td><td class="c"${bs}>${esc(z.short)}</td><td class="c"${bs}>${esc(String(x.b.code))}</td><td${bs}>${esc(x.b.name)}</td><td class="r b or">${pf(x.lim)}</td>${mc(x.m)}<td class="r b gy">${pf(x.sum)}</td></tr>`; }).join("")}
     <tr class="gy b"><td colspan="4" class="r">รวม BZM ${esc(z.full)} (${z.rows.length} สาขา)</td><td class="r">${pf(z.lim)}</td>${mc(z.t,"b")}<td class="r">${pf(z.tot)}</td></tr></tbody></table></div>`).join("");
   const grand=`<div class="blk"><table class="mt">${cg}<tbody><tr class="or b" style="font-size:10pt"><td colspan="4" class="r">รวมทุก BZM (${D.nBr} สาขา)</td><td class="r">${pf(D.limTot)}</td>${mc(D.colTot,"b")}<td class="r">${pf(D.colTot.reduce((a,b)=>a+b,0))}</td></tr></tbody></table><div class="foot">${esc(D.foot)}</div></div>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>สรุปเบิกตาม-BZM-${D.be}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"><style>${PDF_CSS}</style></head><body>${blocks}${grand}</body></html>`;
@@ -2464,7 +2471,7 @@ function rptMonthHtml(D){
   const cg=`<colgroup><col style="width:3.5%"><col style="width:6%"><col style="width:6.5%"><col style="width:5%"><col style="width:17%"><col style="width:7.5%"><col style="width:15%"><col style="width:12.5%"><col style="width:8%"><col style="width:9.5%"><col style="width:5.2%"><col style="width:5.2%"></colgroup>`;
   return `<!doctype html><html><head><meta charset="utf-8"><title>สรุปเบิกตามเดือน-${String(D.mo).padStart(2,"0")}-${String(D.be%100).padStart(2,"0")}</title><link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;700&display=swap" rel="stylesheet"><style>${PDF_CSS}td,th{font-size:8pt}</style></head><body>
     <h1>${esc(D.title)}</h1><table>${cg}<thead><tr><th>NO.</th><th>แบรนด์</th><th>BZM</th><th>สาขา</th><th>ชื่อสาขา</th><th>รหัสพนักงาน</th><th>ชื่อ - สกุล</th><th>ตำแหน่ง</th><th>จำนวนเงิน</th><th>หมายเหตุ</th><th style="background:#d9d9d9">ใช้จริง</th><th>งบในการใช้</th></tr></thead><tbody>
-    ${D.rows.map(x=>`<tr><td class="c">${x.no}</td><td class="c" style="font-size:7pt;font-style:italic">${esc(x.brand)}</td><td class="c">${esc(x.bzm)}</td><td class="c">${esc(x.code)}</td><td>${esc(x.name)}</td><td class="c">${esc(x.emp)}</td><td>${esc(x.pname)}</td><td class="c">${esc(x.pos)}</td><td class="r b ${x.amt?"":"gy"}">${pf(x.amt)}</td><td style="color:${x.sent?"#000":"#b91c1c"}">${esc(x.note)}</td><td class="r gy">${x.real==null?"":pf(x.real)}</td><td class="r">${pf(x.lim)}</td></tr>`).join("")}
+    ${D.rows.map(x=>{ const bs=brStyle(String(x.code)); return `<tr><td class="c"${bs}>${x.no}</td><td class="c" style="font-size:7pt;font-style:italic${bs?';background:'+bs.slice(8,-1):''}">${esc(x.brand)}</td><td class="c"${bs}>${esc(x.bzm)}</td><td class="c"${bs}>${esc(x.code)}</td><td${bs}>${esc(x.name)}</td><td class="c">${esc(x.emp)}</td><td>${esc(x.pname)}</td><td class="c">${esc(x.pos)}</td><td class="r b ${x.amt?"":"gy"}">${pf(x.amt)}</td><td style="color:${x.sent?"#000":"#b91c1c"}">${esc(x.note)}</td><td class="r gy">${x.real==null?"":pf(x.real)}</td><td class="r">${pf(x.lim)}</td></tr>`; }).join("")}
     <tr class="or b"><td colspan="8" class="r">รวม ${D.rows.length} สาขา · ส่งเบิกแล้ว ${D.nSent} สาขา</td><td class="r">${pf(D.tAmt)}</td><td></td><td class="r">${pf(D.tReal)}</td><td class="r">${pf(D.tLim)}</td></tr></tbody></table><div class="foot">${esc(D.foot)}</div></body></html>`;
 }
 function printHtml(html){
@@ -2641,7 +2648,7 @@ function adminBzm(body,r){
   if($("#byr",body)) $("#byr",body).onchange=e=>{BV.year=e.target.value;adminBzm(body,r);};
   if($("#ball",body)) $("#ball",body).onchange=e=>{BV.all=e.target.checked;adminBzm(body,r);};
   const out=$("#bout",body); let csvRows=[];
-  const grp=(fn)=>{ const g={}; Branches.list().forEach(b=>{ const z=bzmOf(b.code); (g[z.label]=g[z.label]||{label:z.label,key:z.key,list:[]}).list.push(b); }); return Object.values(g).sort((a,b)=>a.key?(b.key?a.label.localeCompare(b.label,"th"):-1):1).map(x=>(fn&&fn(x),x)); };
+  const grp=(fn)=>{ const g={}; Branches.list().forEach(b=>{ const z=bzmOf(b.code); (g[z.label]=g[z.label]||{label:z.label,key:z.key,list:[]}).list.push(b); }); return Object.values(g).sort(bzmSort).map(x=>(fn&&fn(x),x)); };
   if(BV.mode==="round"){
     const rid=BV.round;
     if(!rid){ out.innerHTML=`<div class="empty">ยังไม่มีรอบเบิก</div>`; return; }
