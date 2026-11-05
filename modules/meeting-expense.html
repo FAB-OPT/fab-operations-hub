@@ -1108,7 +1108,11 @@ function frame(tabs,active,onTab,roundBox){
   return $("#body");
 }
 /* ชื่อจริงของ BZM ตามไฟล์รายชื่อทีมผู้จัดการสาขา (นำเข้าที่ ส่งออก/นำเข้า → ประวัติการเบิกย้อนหลัง) · ไม่มี = ใช้ชื่อในรายชื่อผู้ใช้ฮับ */
-const bzmReal=nick=>{ const m=(CFG().bzmNames)||{}; return m[nick]||""; };
+/* ชื่อ-นามสกุลจริงของ BZM ตามไฟล์ "รายชื่อทีมผู้จัดการสาขา (โอนเงิน 31-8-69)" · ใช้ได้ทันทีโดยไม่ต้องนำเข้า
+   ถ้านำเข้าไฟล์ใหม่ (ส่งออก/นำเข้า → นำเข้าประวัติ) ค่าที่เก็บในระบบจะมาก่อนค่าชุดนี้ · BZM ที่ไม่อยู่ในนี้ใช้ชื่อจากรายชื่อผู้ใช้ฮับ */
+const BZM_REAL_DEFAULT={"P'Rut":"นิรุต เจริญศิลป์","P'Nop":"นพชัย จันทร์รุ่ง","P'Pik":"พัทธดนย์ วัฒนายุทธ","P'Jeb":"สีวิกา สังข์ด้วง","P'Yee":"ศุกร์แสง วัฒนาฟุ้งเจริญ",
+  "P'M":"อนุรักษ์ สอนภักดี","P'Big":"ณธวรรท ศิริเมธานณ","P'Eve":"จุรีพร ทองอาจ","P'Aoy":"พิมพ์พิชชา ชัชวาลย์"};
+const bzmReal=nick=>{ const m=(CFG().bzmNames)||{}; return m[nick]||BZM_REAL_DEFAULT[nick]||""; };
 /* ชื่อ BZM ของสาขา: ชื่อจริงตามไฟล์ → ชื่อจากรายชื่อผู้ใช้ฮับ → ชื่อเล่น */
 function bzmName(code){
   const raw=Branches.raw()||{}, nick=(raw.bzmMap||{})[code]||"";
@@ -2336,7 +2340,7 @@ function closedExtras(claims){
   return Object.values(out).sort((p,q)=>String(p.code).localeCompare(String(q.code),undefined,{numeric:true})); }
 function bzmOfB(b){
   if(!b.extra||!b.bzmFile) return bzmOf(b.code);   /* สาขาที่ปิดแล้ว: ใช้ BZM ตามไฟล์ (ทะเบียนฮับอาจเก็บชื่อเก่า) */
-  const bn=CFG().bzmNames||{}, nick=Object.keys(bn).find(n=>String(bn[n]).split(/\s+/)[0]===b.bzmFile);
+  const bn=Object.assign({},BZM_REAL_DEFAULT,CFG().bzmNames||{}), nick=Object.keys(bn).find(n=>String(bn[n]).split(/\s+/)[0]===b.bzmFile);
   return nick?{key:nick,label:nick+" · "+bn[nick]}:{key:b.bzmFile,label:b.bzmFile}; }
 
 /* ── ข้อมูลรายงาน 1: สรุปเบิกตาม BZM (ทั้งปี รายเดือน) — ใช้ร่วมกันทั้ง Excel และ PDF ── */
