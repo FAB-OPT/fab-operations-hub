@@ -625,14 +625,27 @@ function populateFilterDropdowns_() {
   var coSel = document.getElementById('courseFilter');
   var bdSel = document.getElementById('brandFilter');
   if (!brSel || !coSel) return;
+  /* ตัวกรอง 3 ช่อง (หลักสูตร · แบรนด์ · สาขา) เชื่อมโยงกัน:
+     ตัวเลือกของแต่ละช่องแสดงเฉพาะที่มีใบรับรองจริงภายใต้ค่าที่เลือกในอีกสองช่อง
+     ถ้าช่องที่เลือกไว้ก่อนหน้าไม่มีข้อมูลร่วมกับช่องที่เพิ่งเปลี่ยน → ล้างช่องนั้นเป็น "ทั้งหมด" (ช่องที่เพิ่งเปลี่ยนถูกเก็บไว้เสมอ) */
+  var cur = { br: brSel.value || 'all', co: coSel.value || 'all', bd: bdSel ? (bdSel.value || 'all') : 'all' };
+  var hit = function(d, o, skip) {
+    return (skip === 'br' || o.br === 'all' || d.branch === o.br) &&
+           (skip === 'co' || o.co === 'all' || d.course === o.co) &&
+           (skip === 'bd' || o.bd === 'all' || _certBrand(d) === o.bd);
+  };
+  var last = window._fhFilterLast;
+  ['br', 'bd', 'co'].forEach(function(k){
+    if (k !== last && cur[k] !== 'all' && !matchData.some(function(d){ return hit(d, cur); })) cur[k] = 'all';
+  });
   var brSet = {}, coSet = {}, bdSet = {};
   matchData.forEach(function(d){
-    if (d.branch && d.branch !== '—') brSet[d.branch] = true;
-    if (d.course) coSet[d.course] = true;
-    var bd = _certBrand(d); if (bd && bd !== '—') bdSet[bd] = true;
+    if (hit(d, cur, 'br') && d.branch && d.branch !== '—') brSet[d.branch] = true;
+    if (hit(d, cur, 'co') && d.course) coSet[d.course] = true;
+    if (hit(d, cur, 'bd')) { var bd = _certBrand(d); if (bd && bd !== '—') bdSet[bd] = true; }
   });
-  var currBr = brSel.value, currCo = coSel.value;
-  /* โชว์ "รหัส · ชื่อสาขา" และเรียงตามรหัส (สาขาที่ไม่มีรหัสในทะเบียนไปท้ายสุด)
+  var currBr = cur.br, currCo = cur.co;
+  /* โชว์ "รหัส · ชื่อสาขา" และเรียงตามรหัส (สาขาที่ไม่มีรหัสในทะเบียนไปท้ายสุด
      value ยังเป็น "ชื่อสาขา" เหมือนเดิม — ตัวกรอง (d.branch === brf) จึงทำงานปกติ */
   brSel.innerHTML = '<option value="all">🏢 ทุกสาขา</option>' + Object.keys(brSet).sort(function(a, b){
     var ca = _branchCodeOf(a), cb = _branchCodeOf(b);
@@ -648,11 +661,13 @@ function populateFilterDropdowns_() {
     return '<option value="'+escapeAttr(c)+'"'+(c===currCo?' selected':'')+'>'+escapeHtml(_courseShort(c))+'</option>';
   }).join('');
   if (bdSel) {
-    var currBd = bdSel.value;
+    var currBd = cur.bd;
     bdSel.innerHTML = '<option value="all">🏷️ ทุกแบรนด์</option>' + Object.keys(bdSet).sort().map(function(b){
       return '<option value="'+escapeAttr(b)+'"'+(b===currBd?' selected':'')+'>'+escapeHtml(b)+'</option>';
     }).join('');
   }
+  /* ตั้งค่าที่เลือกอีกครั้ง (บางช่องอาจถูกล้างเพราะไม่มีข้อมูลร่วมกัน) */
+  brSel.value = cur.br; coSel.value = cur.co; if (bdSel) bdSel.value = cur.bd;
 }
 
 /* ═══ ตัวกรองวันหมดอายุ ═══
