@@ -1410,6 +1410,9 @@ function renderNav(){
     `<button class="tab-b" ${cur===k?'aria-current="page"':''} onclick="go('${k}')">${TAB_ICON[k]}<span>${esc(SHORT[k] || k)}</span></button>`).join('');
   document.body.classList.toggle('has-tabbar', tabs.length > 1 && tab !== 'run' && !editing);
 }
+/* กดดูผล/ออกรายงานจากการ์ดของการอบรมไหน → ไปหน้านั้นพร้อมเลือกการอบรมนั้นให้เลย (ล้างตัวกรองสาขา/ชื่อเดิมด้วย) */
+window.goResults = function(key){ rf.training = key; rf.branch = ''; rf.q = ''; rf.show = true; return go('results'); };
+window.goReport = function(key){ rp.training = key; return go('report'); };
 window.go = async function(t){
   if (!tabAllowed(t)){ tab = 'list'; renderNav(); renderList(); return msg('ไม่มีสิทธิ์เข้าหน้านี้', 'warn'); }
   if (t !== 'run') run = null;
@@ -1469,7 +1472,7 @@ function renderList(){
     }).join('');
     const foot = now
       ? `<div class="tk-go"><button class="btn btn-primary" onclick="startRun('${esc(t.key)}','${now.ph}')">${now.ph === 'eval' ? 'ประเมินอบรม' : 'ทำแบบทดสอบ' + now.name} ›</button></div>`
-      : staff ? `<div class="tk-go"><button class="btn btn-line" onclick="go('results')">ดูผล</button><button class="btn btn-dark" onclick="go('report')">ออกรายงาน</button></div>`
+      : staff ? `<div class="tk-go"><button class="btn btn-line" onclick="goResults('${esc(t.key)}')">ดูผล</button><button class="btn btn-dark" onclick="goReport('${esc(t.key)}')">ออกรายงาน</button></div>`
       : st.some(x => x.on) ? `<div class="tk-go"><button class="btn btn-line" onclick="showScores('${esc(t.key)}')">ดูคะแนน ก่อน–หลัง</button></div>`
       : '<div class="tk-go"><span class="tk-done" style="color:var(--muted)">ยังไม่เปิดให้ทำ</span></div>';
     const sub = [t.description || '', t.trainer ? 'วิทยากร ' + t.trainer : ''].filter(Boolean).join(' · ');
