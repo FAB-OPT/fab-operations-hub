@@ -4,6 +4,19 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>ระบบสอบออนไลน์ · FAB Hub</title>
+<style>
+.an-note{background:var(--soft,#F5F5F5);border:1px solid var(--line,#E5E5E5);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--text2,#4A4A4A);margin-bottom:12px;line-height:1.55}
+.an-note summary{cursor:pointer;font-weight:800;margin-top:4px}.an-note ul{margin:6px 0 0 18px}
+.an-empty{padding:36px 16px;text-align:center;color:var(--text2,#4A4A4A);font-weight:700;background:#fff;border:1px dashed var(--line,#E5E5E5);border-radius:14px}
+.an-list{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
+.an-card{background:#fff;border:1px solid var(--line,#E5E5E5);border-left:4px solid #D97706;border-radius:14px;padding:12px 14px;display:grid;gap:5px}
+.an-card.an-same{border-left-color:#DC2626}.an-card.an-stuck{border-left-color:#7C3AED}.an-card.an-burst{border-left-color:#2563EB}
+.an-h{display:flex;justify-content:space-between;gap:8px;align-items:center}.an-tag{font-size:12px;font-weight:800;background:#FEF3C7;color:#92400E;border-radius:999px;padding:2px 11px}
+.an-same .an-tag{background:#FEE2E2;color:#B91C1C}.an-stuck .an-tag{background:#EDE9FE;color:#5B21B6}.an-burst .an-tag{background:#DBEAFE;color:#1E40AF}
+.an-when{font-size:12px;color:#767676}.an-who{font-size:15px}.an-who span{margin-left:8px;font-size:12.5px;color:#767676}
+.an-ex{font-size:12.5px;color:#767676}.an-ev{font-size:13.5px;line-height:1.5}.an-act{display:flex;gap:8px;margin-top:4px;flex-wrap:wrap}
+.an-foot{margin-top:12px;font-size:12.5px;color:#767676;text-align:center}.an-link{border:0;background:none;color:#C2410C;font-weight:800;cursor:pointer;text-decoration:underline}
+</style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
@@ -2293,6 +2306,10 @@ label.fld>span>b{font-weight:800}
         <svg viewBox="0 0 24 24"><path d="M9 12l2 2 4-4"/><path d="M21 12a9 9 0 11-6.2-8.6"/></svg>
         <span>คำขอสอบ</span><em id="cntReqs">0</em>
       </button>
+      <button class="seg" id="tabAnom" data-oe-action="exam-approve" onclick="switchTab('anom')">
+        <svg viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9L1.8 18a2 2 0 001.7 3h17a2 2 0 001.7-3L13.7 3.9a2 2 0 00-3.4 0z"/></svg>
+        <span>ความผิดปกติ</span><em id="cntAnom" hidden>0</em>
+      </button>
       <button class="seg" id="tabMine" data-oe-action="request-exam" onclick="switchTab('mine')">
         <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 013 3L7 19l-4 1 1-4z"/></svg>
         <span>การสอบ</span>
@@ -2351,6 +2368,9 @@ label.fld>span>b{font-weight:800}
     </div>
 
     <!-- ══ แท็บ: ผลสอบ ══ -->
+    <!-- ══ แท็บ: ความผิดปกติ — ระบบชี้เป้าให้ตรวจ ไม่ได้ตัดสินแทนคน ══ -->
+    <div id="paneAnom" class="hidden"><div id="anomBody"></div></div>
+
     <div id="paneResults" class="hidden">
       <div class="toolbar">
         <div class="search">
@@ -2552,7 +2572,13 @@ label.fld>span>b{font-weight:800}
                   <input class="txt" id="edEnd" type="date">
                   <em class="fld-hint">ว่างไว้ = ไม่กำหนดวันปิด</em></label>
               </div>
-              <div class="switch-row" style="margin-top:12px"><div><div class="sw-t">ต้องขออนุมัติก่อนเข้าสอบ</div><div class="sw-d">สาขากด “ขอสิทธิ์สอบ” → ผู้ดูแลอนุมัติ → ทำได้ครั้งเดียว ส่งแล้วปิดทันที</div></div><label class="sw"><input type="checkbox" id="edNeedApprove" checked><span class="track"></span></label></div>
+              <label class="fld" style="margin-top:12px"><span>การขอสิทธิ์ก่อนเข้าสอบ</span>
+                <select class="txt" id="edApproveMode">
+                  <option value="admin">ต้องให้ผู้ดูแลอนุมัติ</option>
+                  <option value="auto">อนุมัติอัตโนมัติ — ระบบตรวจกติกาแล้วออกรหัสให้ทันที</option>
+                  <option value="none">ไม่ต้องขอสิทธิ์ — สาขากดทำได้เลย</option>
+                </select>
+                <em class="fld-hint">ทุกแบบ: ทำได้ครั้งเดียว ส่งแล้วปิดทันที · “อัตโนมัติ” = รหัสอายุ 24 ชั่วโมง · ขอได้ไม่เกิน 20 ครั้งต่อชั่วโมงต่อสาขา · สอบแล้วขอซ้ำไม่ได้ (ตกซ่อมได้ตามกติกา 14 วัน) · มีแท็บ “ความผิดปกติ” ให้ผู้ดูแลตามตรวจ</em></label>
               </div></div>
               <div class="grp"><div class="grp-h">🛡 กันทุจริตระหว่างสอบ</div><div class="grp-b">
               <div class="p-row"><div class="p-lb">เตือนได้กี่ครั้ง<small>สลับแท็บ / ออกจอ / จับภาพ ได้กี่ครั้งก่อนถูกตัดสิทธิ์</small></div>
@@ -4534,6 +4560,8 @@ var OE_TABS = [
     title:'ชุดข้อสอบ',  sub:'สร้าง แก้ไข และเปิด-ปิดชุดข้อสอบให้สาขาทำ' },
   { id:'reqs',    btn:'tabReqs',    pane:'paneReqs',    perm:'exam-approve',
     title:'คำขอสอบ',   sub:'อนุมัติสิทธิ์สอบให้พนักงานที่ขอเข้ามา' },
+  { id:'anom',    btn:'tabAnom',    pane:'paneAnom',    perm:'exam-approve',
+    title:'ความผิดปกติ', sub:'ระบบชี้เป้าผลสอบและคำขอที่ควรตรวจ — ใช้เป็นเบาะแส ไม่ใช่หลักฐานว่าทุจริต' },
   { id:'mine',    btn:'tabMine',    pane:'paneMine',    perm:'request-exam',
     title:'การสอบ',    sub:'แสดงชุดข้อสอบและขอสิทธิ์การทำข้อสอบ' },
   { id:'results', btn:'tabResults', pane:'paneResults', perm:'view-results',
@@ -4542,6 +4570,7 @@ var OE_TABS = [
 /* หัวเรื่องเดิมเป็น "ภาพรวมระบบสอบ" ค้างอยู่อันเดียวทุกแท็บ สลับแท็บแล้ว
    ข้างบนไม่ขยับ เลยดูเหมือนหน้าเดิม · ให้เปลี่ยนตามแท็บที่เลือกไปเลย */
 function switchTab(t){
+  if(t === 'anom') setTimeout(renderAnomalies, 0);
   /* แต่ละแท็บซ่อน/โชว์ของบนหัวเพจไม่เหมือนกัน ใช้คลาสที่ body เป็นตัวสั่ง
      จะได้เขียนเป็นกติกาใน CSS ที่เดียว ไม่ต้องไล่ซ่อนทีละชิ้นในโค้ด */
   document.body.classList.toggle('tab-mine', t === 'mine');
@@ -5058,7 +5087,7 @@ function openExamEditor(id){
   oeBranchSelSet((ex && ex.visibleBranches) ? ex.visibleBranches.slice() : []);
   if($('edBranchSearch')) $('edBranchSearch').value = '';
   oeBranchSelPaint();
-  $('edNeedApprove').checked = ex ? ex.requireApproval!==false : true;
+  $('edApproveMode').value = ex ? oeApproveMode(ex) : 'admin';
   /* ต้องเป็น ===true — ชุดเก่าที่ไม่มีค่านี้ถือว่าไม่ใช้รหัส กดเริ่มได้เลย */
   $('edShufQ').checked = ex ? ex.shuffleQuestions!==false : true;
   $('edShufC').checked = ex ? ex.shuffleChoices!==false : true;
@@ -6067,7 +6096,7 @@ function collectExamFromForm(){
     startDate: $('edStart').value,
     endDate: $('edEnd').value,
     visibleBranches: branches,
-    requireApproval: $('edNeedApprove').checked,
+    approvalMode: $('edApproveMode').value, requireApproval: $('edApproveMode').value !== 'none',
     shuffleQuestions: $('edShufQ').checked,
     shuffleChoices: $('edShufC').checked,
     requireFullscreen: $('edFs').checked,
@@ -6286,6 +6315,7 @@ function loadResults(force){
     RESULTS = _oeScopeResults(_all);
     fillBranchFilter();
     renderResults();
+    try { paintAnomCount(); } catch(e){}
     renderAdminExams();   // การ์ดชุดข้อสอบโชว์สถิติผลสอบด้วย — ผลมาถึงทีหลังต้องวาดใหม่
     /* สิทธิ์สอบใหม่ตัดสินจากผลสอบ ซึ่งเพิ่งมาถึงตอนนี้ · การ์ดคำขอต้องวาดใหม่
        ไม่งั้นปุ่มสอบใหม่ไม่โผล่จนกว่าจะสลับแท็บหรือรีเฟรชเอง */
@@ -9812,7 +9842,183 @@ var REQ_STATUS = {
 function _reqSt(s){ return REQ_STATUS[s] || REQ_STATUS.pending; }
 
 /* ชุดข้อสอบที่ไม่ได้ตั้งค่าไว้ = ต้องขออนุมัติ (ของเดิมทุกชุดจึงเข้าเงื่อนไขนี้อัตโนมัติ) */
-function examNeedsApproval(ex){ return !ex || ex.requireApproval !== false; }
+/* โหมดการขอสิทธิ์: admin = ผู้ดูแลอนุมัติ (ค่าเดิม) · auto = ระบบอนุมัติให้ตามกติกา · none = ไม่ต้องขอ
+   ชุดเก่าที่ไม่เคยตั้ง approvalMode อิงสวิตช์เดิม (requireApproval) จึงทำงานเหมือนเดิมทุกอย่าง */
+function oeApproveMode(ex){
+  if(ex && (ex.approvalMode === 'admin' || ex.approvalMode === 'auto' || ex.approvalMode === 'none')) return ex.approvalMode;
+  return (ex && ex.requireApproval === false) ? 'none' : 'admin';
+}
+
+/* ═════════════════════ ตรวจความผิดปกติ ═════════════════════
+   อ่านจากผลสอบ (เวลาเริ่ม/ส่ง + คำตอบรายข้อ) กับคำขอสอบที่โหลดมาอยู่แล้ว — ไม่ต้องมีตารางใหม่
+   ผลลัพธ์เป็นเบาะแส: ปกติได้ เช่น ผู้สอนนั่งสอนรวมกลุ่ม · เน็ตหลุดตอนสอน · อ่านเร็ว
+   "ตรวจแล้วปกติ" จำไว้ในเครื่องนี้ (ยังไม่ใช้ร่วมกันทุกเครื่อง) */
+var OE_ANOM = { fastPct: 0.3, fastSecPerQ: 5, minSample: 5, sameWrong: 5, sameWindowMin: 30, stuckCount: 2, stuckDays: 7 };
+var _oeAnomOk = (function(){ try { return JSON.parse(localStorage.getItem('oe_anom_ok') || '{}') || {}; } catch(e){ return {}; } })();
+function oeAnomDismiss(i){
+  var it = (window._oeAnomList || [])[i]; if(!it) return;
+  _oeAnomOk[it.key] = 1;
+  try { localStorage.setItem('oe_anom_ok', JSON.stringify(_oeAnomOk)); } catch(e){}
+  renderAnomalies(); paintAnomCount();
+}
+function oeAnomClear(){ _oeAnomOk = {}; try { localStorage.removeItem('oe_anom_ok'); } catch(e){} renderAnomalies(); paintAnomCount(); }
+function _oeAnomMedian(a){ var b = a.slice().sort(function(x, y){ return x - y; }), m = Math.floor(b.length / 2); return b.length % 2 ? b[m] : (b[m - 1] + b[m]) / 2; }
+function _oeAnomScan(){
+  var out = [], res = (ALL_RESULTS || []).filter(function(r){ return r && !r.deleted; }), reqs = EXAM_REQS || [];
+  var byEx = {};
+  res.forEach(function(r){ (byEx[r.examId] = byEx[r.examId] || []).push(r); });
+  Object.keys(byEx).forEach(function(eid){
+    var list = byEx[eid], title = (list[0] && list[0].examTitle) || eid;
+    /* 1) ทำเสร็จเร็วผิดปกติ */
+    var mins = list.map(_oeUsedMin).filter(function(m){ return m != null; });
+    var med = mins.length >= OE_ANOM.minSample ? _oeAnomMedian(mins) : null;
+    list.forEach(function(r){
+      var m = _oeUsedMin(r); if(m == null) return;
+      var q = Number(r.total) || (_oeResAnswers(r) || []).length || 0;
+      var bySec = q ? (m * 60 / q) < OE_ANOM.fastSecPerQ : false, byMed = med != null && m < med * OE_ANOM.fastPct;
+      if(!(bySec || byMed)) return;
+      out.push({ type: 'fast', key: 'fast|' + eid + '|' + (r.empId || r.name) + '|' + r.submittedAt, name: r.name, branch: r.branch, title: title,
+        ev: 'ใช้เวลา ' + _oeFmtMin(m) + (q ? ' · ' + q + ' ข้อ (เฉลี่ย ' + Math.round(m * 60 / q) + ' วินาที/ข้อ)' : '') + (med != null ? ' · ค่ากลางของชุดนี้ ' + _oeFmtMin(med) : '') + (r.pct != null ? ' · ได้ ' + r.pct + '%' : ''), when: r.submittedAt });
+    });
+    /* 2) คำตอบเหมือนกันระหว่างคน (เน้นข้อที่ตอบผิดเหมือนกัน) */
+    var rows = list.slice(0, 400).map(function(r){
+      var a = _oeResAnswers(r) || [], map = {};
+      a.forEach(function(x){ if(x && x.q != null) map[String(x.q)] = { my: String(x.my == null ? '' : x.my), ok: !!x.ok }; });
+      return { r: r, map: map, t: new Date(r.startedAt || r.submittedAt || 0).getTime(), who: (r.empId || '') + '|' + (r.name || '') };
+    }).filter(function(x){ return Object.keys(x.map).length; });
+    for(var i = 0; i < rows.length; i++){
+      for(var j = i + 1; j < rows.length; j++){
+        var A = rows[i], B = rows[j];
+        if(A.who === B.who) continue;
+        var gap = Math.abs(A.t - B.t) / 60000;
+        if(!(gap <= OE_ANOM.sameWindowMin)) continue;
+        var common = 0, same = 0, sameWrong = 0;
+        Object.keys(A.map).forEach(function(k){
+          var b = B.map[k]; if(!b) return;
+          common++;
+          if(A.map[k].my === b.my && A.map[k].my !== '' && A.map[k].my !== '(ไม่ตอบ)'){ same++; if(!A.map[k].ok && !b.ok) sameWrong++; }
+        });
+        if(sameWrong >= OE_ANOM.sameWrong || (common >= 10 && same / common >= 0.95 && sameWrong >= 1)){
+          out.push({ type: 'same', key: 'same|' + eid + '|' + A.who + '|' + B.who, name: A.r.name + ' ↔ ' + B.r.name, branch: (A.r.branch || '—') + ' / ' + (B.r.branch || '—'), title: title,
+            ev: 'ตอบผิดเหมือนกัน ' + sameWrong + ' ข้อ · ตอบเหมือนกัน ' + same + ' จาก ' + common + ' ข้อที่ตรงกัน · เริ่มสอบห่างกัน ' + Math.round(gap) + ' นาที', when: A.r.submittedAt });
+        }
+      }
+    }
+  });
+  /* 3) ใช้รหัสเริ่มสอบแล้วไม่ส่งผล */
+  var since = Date.now() - OE_ANOM.stuckDays * 86400000, by = {};
+  reqs.forEach(function(q){
+    if(q.status !== 'used' || q.deleted) return;
+    var t = new Date(q.usedAt || q.approvedAt || q.createdAt || 0).getTime();
+    if(!(t >= since)) return;
+    if(_oeResultOfReq(q)) return;
+    var k = (q.empId || '') + '|' + (q.name || '');
+    (by[k] = by[k] || []).push(q);
+  });
+  Object.keys(by).forEach(function(k){
+    var l = by[k]; if(l.length < OE_ANOM.stuckCount) return;
+    var last = l.map(function(q){ return String(q.usedAt || q.approvedAt || q.createdAt || ''); }).sort().pop();
+    out.push({ type: 'stuck', key: 'stuck|' + k + '|' + last, name: l[0].name, branch: l[0].branchName, title: l.map(function(q){ return q.examTitle; }).filter(function(v, i, a){ return a.indexOf(v) === i; }).join(', '),
+      ev: 'ใช้รหัสเริ่มสอบ ' + l.length + ' ครั้งใน ' + OE_ANOM.stuckDays + ' วัน แต่ไม่มีผลสอบถูกส่ง (อาจเน็ตหลุดหรือถูกตัดสิทธิ์ ควรสอบถาม)', when: last });
+  });
+  /* 4) สาขาขอสิทธิ์ถี่ผิดปกติ */
+  var byBr = {};
+  reqs.forEach(function(q){ if(q.deleted) return; (byBr[q.branchName || '—'] = byBr[q.branchName || '—'] || []).push(new Date(q.createdAt || 0).getTime()); });
+  Object.keys(byBr).forEach(function(b){
+    var ts = byBr[b].filter(function(t){ return t > 0; }).sort(function(x, y){ return x - y; }), best = 0, bestAt = 0, lo = 0;
+    for(var hi = 0; hi < ts.length; hi++){
+      while(ts[hi] - ts[lo] > OE_AUTO_RATE_MIN * 60000) lo++;
+      if(hi - lo + 1 > best){ best = hi - lo + 1; bestAt = ts[hi]; }
+    }
+    if(best >= OE_AUTO_RATE) out.push({ type: 'burst', key: 'burst|' + b + '|' + Math.floor(bestAt / 3600000), name: b, branch: b, title: 'คำขอสอบ',
+      ev: 'ขอสิทธิ์สอบ ' + best + ' ครั้งภายใน ' + OE_AUTO_RATE_MIN + ' นาที (เกณฑ์ ' + OE_AUTO_RATE + ' ครั้ง)', when: new Date(bestAt).toISOString() });
+  });
+  out.sort(function(a, b){ return String(b.when || '').localeCompare(String(a.when || '')); });
+  return out;
+}
+function _oeAnomVisible(){ return _oeAnomScan().filter(function(x){ return !_oeAnomOk[x.key]; }); }
+function paintAnomCount(){
+  var el = $('cntAnom'); if(!el) return;
+  var n = 0; try { n = _oeAnomVisible().length; } catch(e){ n = 0; }
+  el.textContent = n; el.hidden = !n;
+  var tab = $('tabAnom'); if(tab) tab.classList.toggle('has-new', n > 0);
+}
+var OE_ANOM_TYPES = {
+  fast:  { t: 'ทำเสร็จเร็วผิดปกติ',   c: 'an-fast' },
+  same:  { t: 'คำตอบเหมือนกัน',        c: 'an-same' },
+  stuck: { t: 'เริ่มแล้วไม่ส่งผล',    c: 'an-stuck' },
+  burst: { t: 'ขอสิทธิ์ถี่ผิดปกติ',  c: 'an-burst' }
+};
+function renderAnomalies(){
+  var host = $('anomBody'); if(!host) return;
+  var all = _oeAnomScan(), list = all.filter(function(x){ return !_oeAnomOk[x.key]; });
+  window._oeAnomList = list;
+  var hidden = all.length - list.length;
+  var h = '<div class="an-note">เป็นเบาะแสให้ตรวจ ไม่ใช่หลักฐานว่าทุจริต — ปกติได้ เช่น ผู้สอนนั่งสอนรวมกลุ่ม เน็ตหลุดตอนสอบ หรืออ่านเร็วจริง ๆ ' +
+    '<details><summary>เกณฑ์ที่ใช้</summary><ul>' +
+    '<li>ทำเสร็จเร็ว: เวลาน้อยกว่า ' + Math.round(OE_ANOM.fastPct * 100) + '% ของค่ากลางของชุดนั้น (เมื่อมีผลอย่างน้อย ' + OE_ANOM.minSample + ' ราย) หรือเฉลี่ยน้อยกว่า ' + OE_ANOM.fastSecPerQ + ' วินาที/ข้อ</li>' +
+    '<li>คำตอบเหมือนกัน: สองคนเริ่มสอบห่างกันไม่เกิน ' + OE_ANOM.sameWindowMin + ' นาที และตอบ<b>ผิดเหมือนกัน</b>ตั้งแต่ ' + OE_ANOM.sameWrong + ' ข้อ (หรือเหมือนกันเกือบทุกข้อ)</li>' +
+    '<li>เริ่มแล้วไม่ส่ง: ใช้รหัสตั้งแต่ ' + OE_ANOM.stuckCount + ' ครั้งใน ' + OE_ANOM.stuckDays + ' วันโดยไม่มีผลสอบ</li>' +
+    '<li>ขอสิทธิ์ถี่: สาขาเดียวขอตั้งแต่ ' + OE_AUTO_RATE + ' ครั้งภายใน ' + OE_AUTO_RATE_MIN + ' นาที</li></ul></details></div>';
+  if(!list.length){
+    h += '<div class="an-empty">✓ ยังไม่พบความผิดปกติ' + (hidden ? ' · ซ่อนที่ตรวจแล้ว ' + hidden + ' รายการ' : '') + '</div>';
+  } else {
+    h += '<div class="an-list">' + list.map(function(x, i){
+      var ty = OE_ANOM_TYPES[x.type] || { t: x.type, c: '' };
+      return '<article class="an-card ' + ty.c + '"><div class="an-h"><span class="an-tag">' + ty.t + '</span><span class="an-when">' + esc(x.when ? _oeDate(String(x.when).slice(0, 10)) : '') + '</span></div>' +
+        '<div class="an-who"><b>' + esc(x.name) + '</b>' + (x.branch ? '<span>' + esc(x.branch) + '</span>' : '') + '</div>' +
+        '<div class="an-ex">' + esc(x.title) + '</div><div class="an-ev">' + esc(x.ev) + '</div>' +
+        '<div class="an-act">' + ((x.type === 'fast' || x.type === 'same') ? '<button class="btn btn-soft btn-sm" onclick="oeSeeMyResult(\'' + _oeAttr(String(x.name).split(' ↔ ')[0]) + '\')">ดูผลสอบ</button>' : '') +
+        '<button class="btn btn-soft btn-sm" onclick="oeAnomDismiss(' + i + ')">ตรวจแล้วปกติ</button></div></article>';
+    }).join('') + '</div>';
+    if(hidden) h += '<div class="an-foot">ซ่อนที่ตรวจแล้ว ' + hidden + ' รายการ · <button class="an-link" onclick="oeAnomClear()">แสดงกลับ</button></div>';
+  }
+  host.innerHTML = h;
+  paintAnomCount();
+}
+
+function examNeedsApproval(ex){ return !ex || oeApproveMode(ex) !== 'none'; }
+function examAutoApprove(ex){ return !!ex && oeApproveMode(ex) === 'auto'; }
+var OE_AUTO_BY = 'ระบบอัตโนมัติ';
+var OE_AUTO_CODE_HOURS = 24;     /* รหัสที่ระบบอนุมัติให้ใช้ได้กี่ชั่วโมง */
+var OE_AUTO_RATE = 20;           /* ขอสิทธิ์ได้กี่ครั้งต่อสาขา ในช่วง OE_AUTO_RATE_MIN นาที */
+var OE_AUTO_RATE_MIN = 60;
+function _oeAutoExpired(q){
+  return !!q && q.status === 'approved' && q.approvedBy === OE_AUTO_BY && !!q.approvedAt &&
+    (Date.now() - new Date(q.approvedAt).getTime()) > OE_AUTO_CODE_HOURS * 3600000;
+}
+/* กติกาก่อนอนุมัติอัตโนมัติ — คืนข้อความที่ต้องบอกผู้ขอ หรือ '' ถ้าผ่าน
+   ไม่ตรวจทะเบียนพนักงาน (คนโยกสาขาบ่อย ทะเบียนมักไม่ทันสมัย) ตรวจที่ตัวชุดข้อสอบ ตัวคำขอ และประวัติการขอแทน */
+function oeAutoCheck(ex, req){
+  if(ex.active === false) return 'ชุดข้อสอบนี้ปิดอยู่ ยังทำไม่ได้';
+  var t = todayStr();
+  if(ex.startDate && t < ex.startDate) return 'ยังไม่ถึงวันเปิดให้ทำ (' + _oeDate(ex.startDate) + ')';
+  if(ex.endDate && t > ex.endDate) return 'เลยวันปิดรับแล้ว (' + _oeDate(ex.endDate) + ')';
+  if(!examOpenForBranch(ex)) return 'ชุดข้อสอบนี้ยังไม่เปิดให้สาขานี้ทำ';
+  var key = function(o){ return [o.examId, String(o.name || '').trim(), String(o.empId || '').trim(), o.track || ''].join('|'); };
+  var k = key(req);
+  var used = (EXAM_REQS || []).filter(function(q){ return q.status === 'used' && key(q) === k; })[0];
+  if(used) return 'ใช้สิทธิ์สอบชุดนี้ไปแล้ว — ถ้ารอบแรกยังไม่ผ่าน กด “สอบใหม่” ในรายการคำขอ (ภายใน ' + OE_RETAKE_DAY + ' วัน) หรือแจ้งผู้ดูแล';
+  var since = Date.now() - OE_AUTO_RATE_MIN * 60000;
+  var n = (EXAM_REQS || []).filter(function(q){
+    return String(q.branchName || '') === String(req.branchName || '') && new Date(q.createdAt || 0).getTime() >= since;
+  }).length;
+  if(n >= OE_AUTO_RATE) return 'สาขานี้ขอสิทธิ์ถี่เกินไป (' + n + ' ครั้งใน ' + OE_AUTO_RATE_MIN + ' นาที) — รอสักครู่ หรือแจ้งผู้ดูแล';
+  return '';
+}
+/* รหัสอัตโนมัติหมดอายุ → ปิดคำขอเก่า (ไม่งั้นระบบจะคืนรหัสเดิมให้ตอนขอใหม่) แล้วเปิดฟอร์มขอใหม่ */
+function oeAutoRenew(id){
+  var q = EXAM_REQS.filter(function(x){ return x.id === id; })[0]; if(!q) return;
+  apiPost({ type: 'decide-exam-request', id: id, decision: 'reject', by: OE_AUTO_BY, note: 'รหัสหมดอายุ (เกิน ' + OE_AUTO_CODE_HOURS + ' ชั่วโมง)' }).then(function(){
+    return loadExamRequests();
+  }).then(function(){ openReqForm(q.examId); }).catch(function(){ openReqForm(q.examId); });
+}
+function _oeAutoGuard(reqId){
+  var q = EXAM_REQS.filter(function(x){ return x.id === reqId; })[0];
+  if(!_oeAutoExpired(q)) return false;
+  showExamInfo('รหัสหมดอายุ', 'รหัสนี้อนุมัติไว้เกิน ' + OE_AUTO_CODE_HOURS + ' ชั่วโมงแล้ว กด “ขอสิทธิ์ใหม่” ที่การ์ดคำขอเพื่อรับรหัสใหม่');
+  return true;
+}
 /* รหัสเป็นของเสริม ใช้ตอนอยากคุมว่าเริ่มสอบได้เมื่อไร (นัดสอบพร้อมกัน)
    ปกติปิด — อนุมัติแล้วสาขากดเริ่มได้เลย ระบบยังปิดสิทธิ์ให้หลังส่งเหมือนเดิม
    ไม่มีอนุมัติ = ไม่มีรหัสให้พูดถึง */
@@ -9919,6 +10125,7 @@ function paintReqCount(){
   /* ป้ายคำขอเป็นสัญญาณเตือน ไม่ใช่สถิติ — ไม่มีของค้างก็ไม่ต้องขึ้นเลข 0 ให้รก */
   var el = $('cntReqs'); if(el){ el.textContent = n; el.hidden = !n; }
   var dot = $('tabReqs'); if(dot) dot.classList.toggle('has-new', n > 0);
+  try { paintAnomCount(); } catch(e){}
   /* มีของใหม่เข้ามาระหว่างที่เปิดหน้าค้างไว้ — บอกให้รู้ ไม่ใช่ให้ไปสังเกตเลขเอง
      รอบแรกไม่นับ (ยังไม่รู้ค่าเดิม) จะได้ไม่เด้งทักตอนเพิ่งเปิดหน้า
      นับเฉพาะคำขอของคนอื่น — ที่ตัวเองเพิ่งกดขอไปเอง ไม่ต้องเด้งบอกตัวเอง
@@ -10235,6 +10442,11 @@ function submitExamRequest(){
   };
   /* จดไว้ว่ารอบนี้เราขอให้ใคร ชุดไหน — ใช้จับคู่ตอนของจริงกลับมา
      เผื่อ id ที่หลังบ้านตอบมาหายไประหว่างทาง จะได้ไม่หลุดจากสายตา */
+  var _auto = examAutoApprove(_reqExam);
+  if(_auto){
+    var _why = oeAutoCheck(_reqExam, req);
+    if(_why){ $('reqFormMsg').textContent = _why; return; }
+  }
   _oeMyReqMark(req);
 
   /* ขึ้นการ์ด "รออนุมัติ" ไว้ก่อนเลย · id ขึ้นต้นด้วย _tmp_ เพื่อให้รู้ว่ายังไม่ใช่ของจริง
@@ -10250,17 +10462,40 @@ function submitExamRequest(){
   /* เข้ามาจากลิงก์ ไม่มีรายการชุดข้อสอบให้กลับไปดู — บอกผลบนการ์ดตรงนั้นเลย */
   var _guest = document.body.classList.contains('oe-guest');
   if(_guest){
-    _oeGuestSay('⏳', 'ส่งคำขอแล้ว',
-      'รอผู้ดูแลอนุมัติ · อนุมัติแล้วจะส่งลิงก์เข้าสอบให้ ใช้ลิงก์นั้นเข้าสอบได้เลย');
+    if(_auto) _oeGuestSay('⏳', 'กำลังตรวจสอบสิทธิ์…', 'ระบบกำลังอนุมัติให้ รอสักครู่');
+    else _oeGuestSay('⏳', 'ส่งคำขอแล้ว',
+      'รอผู้ดูแลอนุมัติ · อนุมัติแล้วจะส่งลิงก์เข้าสอบให้ ใช้ลิงก์นั้นเข้าสอบได้เลย')
   } else {
     renderBranchExams();
-    toast('ส่งคำขอแล้ว — รอผู้ดูแลอนุมัติ');
+    toast(_auto ? 'กำลังตรวจสอบสิทธิ์…' : 'ส่งคำขอแล้ว — รอผู้ดูแลอนุมัติ');
   }
 
   apiPost({ type: 'request-exam', req: req }).then(function(res){
     if(!res || !res.ok) throw new Error((res && res.error) || 'ส่งคำขอไม่สำเร็จ');
     /* จำไว้ว่าคำขอนี้ขอจากเครื่องนี้ — ใช้ตอนกรองให้เห็นเฉพาะของตัวเอง */
     _oeMyReqAdd(res.id);
+    /* อนุมัติอัตโนมัติ: คำขอผ่านกติกาแล้ว → ให้ระบบอนุมัติทันที (มีอนุมัติไว้แล้วก็ใช้ของเดิม) */
+    if(_auto && res.id){
+      var _finish = function(code){
+        var appr = { id: res.id, createdAt: new Date().toISOString(), status: 'approved', approvedBy: OE_AUTO_BY, approvedAt: new Date().toISOString(),
+          examId: req.examId, examTitle: req.examTitle, brand: req.brand, branchCode: req.branchCode, branchName: req.branchName,
+          name: req.name, empId: req.empId, position: req.position, track: req.track, code: code || '' };
+        EXAM_REQS = EXAM_REQS.filter(function(x){ return x.id !== tmpId && x.id !== res.id; }).concat([appr]);
+        if(_guest){
+          _oeGuestSay('✅', 'อนุมัติแล้ว', 'ทำได้ครั้งเดียว ส่งแล้วสิทธิ์ปิดทันที · รหัสใช้ได้ ' + OE_AUTO_CODE_HOURS + ' ชั่วโมง',
+            '<button class="btn btn-primary" onclick="startWithCode(\'' + esc(res.id) + '\')">เริ่มทำข้อสอบ</button>');
+        } else {
+          renderBranchExams();
+          toast('อนุมัติแล้ว — กดเริ่มทำข้อสอบได้เลย');
+        }
+        if(!_guest) loadExamRequests();
+      };
+      if(res.duplicate && res.status === 'approved') return _finish(res.code);
+      return apiPost({ type: 'decide-exam-request', id: res.id, decision: 'approve', by: OE_AUTO_BY, note: 'อนุมัติอัตโนมัติ' }).then(function(d){
+        if(!d || !d.ok) throw new Error((d && d.error) || 'อนุมัติอัตโนมัติไม่สำเร็จ — รอผู้ดูแลอนุมัติ');
+        _finish(d.code);
+      });
+    }
     if(res.duplicate){
       if(_guest) _oeGuestSay('⏳', 'มีคำขอนี้อยู่แล้ว', 'รอผู้ดูแลอนุมัติอยู่ ไม่ต้องส่งซ้ำ');
       else toast('มีคำขอนี้อยู่แล้ว รออนุมัติอยู่');
@@ -10314,7 +10549,8 @@ function renderBranchReqs(){
       + '<div class="reqcards">' + live.map(function(r){
         var st = _reqSt(r.status);
         var again = _oeReqRetake(r);
-        var ready = r.status === 'approved' || !!again;
+        var expired = _oeAutoExpired(r);
+        var ready = (r.status === 'approved' && !expired) || !!again;
         return '<article class="reqcard' + (ready ? ' is-ready' : '') + '">'
           /* แถวบน: สถานะซ้าย ถังขยะขวา — สองอย่างนี้เป็นเรื่องของ "คำขอ" ไม่ใช่เรื่องของตัวคน */
           + '<div class="rq-head"><span class="st ' + st.c + '">' + st.t + '</span>'
@@ -10334,6 +10570,9 @@ function renderBranchReqs(){
           + (again
               ? '<div class="rq-again">รอบแรกยังไม่ผ่าน · สอบใหม่ได้อีก 1 ครั้ง ภายใน <b>' + again
                 + ' วัน</b><span>' + (oeExamLatest(_oeExamOf(r)) ? 'นับคะแนนจริงของรอบล่าสุด' : 'คะแนนรอบสองนับเป็น ' + OE_PASS_PCT + '% ทุกกรณี') + '</span></div>'
+              : '')
+          + (expired
+              ? '<div class="rq-again">รหัสหมดอายุแล้ว (อนุมัติอัตโนมัติไว้เกิน ' + OE_AUTO_CODE_HOURS + ' ชั่วโมง)<span>กด “ขอสิทธิ์ใหม่” เพื่อรับรหัสใหม่</span></div><div class="rq-act"><button class="btn btn-primary btn-sm" onclick="oeAutoRenew(\'' + esc(r.id) + '\')">ขอสิทธิ์ใหม่</button></div>'
               : '')
           + (ready
               ? '<div class="rq-act"><button class="btn btn-primary btn-sm" data-oe-action="take-exam" onclick="'
@@ -10428,6 +10667,7 @@ function oeSeeMyResult(name){
 /* เริ่มสอบจากคำขอที่อนุมัติแล้ว — ตรวจรหัสกับหลังบ้านอีกรอบก่อนเปิดข้อสอบ
    กันกรณีหน้าจอค้างข้อมูลเก่าไว้ แล้วรหัสถูกใช้ไปแล้วจากอีกเครื่อง */
 function startWithCode(reqId){
+  if(_oeAutoGuard(reqId)) return;
   var r = EXAM_REQS.find(function(x){ return x.id === reqId; });
   if(!r) return;
   var ex = _examOf(r.examId);
