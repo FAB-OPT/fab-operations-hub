@@ -9981,7 +9981,9 @@ function examNeedsApproval(ex){ return !ex || oeApproveMode(ex) !== 'none'; }
 function examAutoApprove(ex){ return !!ex && oeApproveMode(ex) === 'auto'; }
 var OE_AUTO_BY = 'ระบบอัตโนมัติ';
 var OE_AUTO_CODE_HOURS = 24;     /* รหัสที่ระบบอนุมัติให้ใช้ได้กี่ชั่วโมง */
-var OE_AUTO_RATE = 20;           /* ขอสิทธิ์ได้กี่ครั้งต่อสาขา ในช่วง OE_AUTO_RATE_MIN นาที */
+var OE_AUTO_PER_DAY = 3;         /* ขอสิทธิ์ได้ไม่เกินกี่ครั้งต่อวัน ต่อคน */
+var OE_AUTO_PER_MONTH = 5;       /* ...และไม่เกินกี่ครั้งต่อเดือน ต่อคน */
+var OE_AUTO_RATE = 20;           /* แจ้งเตือนในแท็บความผิดปกติ: สาขาเดียวขอถึงกี่ครั้ง ภายใน OE_AUTO_RATE_MIN นาที (ตรวจพบอย่างเดียว ไม่บล็อก) */
 var OE_AUTO_RATE_MIN = 60;
 function _oeAutoExpired(q){
   return !!q && q.status === 'approved' && q.approvedBy === OE_AUTO_BY && !!q.approvedAt &&
@@ -9999,11 +10001,21 @@ function oeAutoCheck(ex, req){
   var k = key(req);
   var used = (EXAM_REQS || []).filter(function(q){ return q.status === 'used' && key(q) === k; })[0];
   if(used) return 'ใช้สิทธิ์สอบชุดนี้ไปแล้ว — ถ้ารอบแรกยังไม่ผ่าน กด “สอบใหม่” ในรายการคำขอ (ภายใน ' + OE_RETAKE_DAY + ' วัน) หรือแจ้งผู้ดูแล';
-  var since = Date.now() - OE_AUTO_RATE_MIN * 60000;
-  var n = (EXAM_REQS || []).filter(function(q){
-    return String(q.branchName || '') === String(req.branchName || '') && new Date(q.createdAt || 0).getTime() >= since;
-  }).length;
-  if(n >= OE_AUTO_RATE) return 'สาขานี้ขอสิทธิ์ถี่เกินไป (' + n + ' ครั้งใน ' + OE_AUTO_RATE_MIN + ' นาที) — รอสักครู่ หรือแจ้งผู้ดูแล';
+  /* จำกัดต่อคน: ไม่เกิน OE_AUTO_PER_DAY ครั้ง/วัน และ OE_AUTO_PER_MONTH ครั้ง/เดือน (นับทุกชุดข้อสอบรวมกัน)
+     ระบุตัวคนด้วยรหัสพนักงาน — ไม่มีรหัสค่อยใช้ชื่อ · คำขอที่ระบบปิดเองเพราะรหัสหมดอายุไม่นับ */
+  var pid = function(o){ var e = String(o.empId || '').trim().toLowerCase(); return e || ('n:' + String(o.name || '').trim().toLowerCase()); };
+  var me = pid(req), now = new Date(), dKey = todayStr(), mKey = dKey.slice(0, 7);
+  var dayN = 0, monN = 0;
+  (EXAM_REQS || []).forEach(function(q){
+    if(q.deleted || String(q.id || '').indexOf('_tmp_') === 0) return;
+    if(q.status === 'rejected' && q.approvedBy === OE_AUTO_BY) return;
+    if(pid(q) !== me) return;
+    var c = new Date(q.createdAt || 0); if(isNaN(c)) return;
+    var cs = c.getFullYear() + '-' + String(c.getMonth() + 1).padStart(2, '0') + '-' + String(c.getDate()).padStart(2, '0');
+    if(cs.slice(0, 7) === mKey){ monN++; if(cs === dKey) dayN++; }
+  });
+  if(dayN >= OE_AUTO_PER_DAY) return 'วันนี้ขอสิทธิ์สอบครบ ' + OE_AUTO_PER_DAY + ' ครั้งแล้ว — ขอใหม่ได้พรุ่งนี้ หรือแจ้งผู้ดูแล';
+  if(monN >= OE_AUTO_PER_MONTH) return 'เดือนนี้ขอสิทธิ์สอบครบ ' + OE_AUTO_PER_MONTH + ' ครั้งแล้ว — ขอใหม่ได้เดือนหน้า หรือแจ้งผู้ดูแล';
   return '';
 }
 /* รหัสอัตโนมัติหมดอายุ → ปิดคำขอเก่า (ไม่งั้นระบบจะคืนรหัสเดิมให้ตอนขอใหม่) แล้วเปิดฟอร์มขอใหม่ */
