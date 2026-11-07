@@ -655,7 +655,9 @@ function populateFilterDropdowns_() {
     return a.localeCompare(b);
   }).map(function(b){
     var c = _branchCodeOf(b);
-    return '<option value="'+escapeAttr(b)+'"'+(b===currBr?' selected':'')+'>'+escapeHtml(c ? (c + ' · ' + b) : b)+'</option>';
+    /* ชื่อสาขาในข้อมูลมักขึ้นต้นด้วยรหัสอยู่แล้ว ("4001 เจ๊แดง...") → ตัดรหัสออกก่อนต่อหน้า ไม่งั้นโชว์ซ้ำ "4001 · 4001 ..." */
+    var nm = c ? String(b).replace(new RegExp('^\\s*' + c + '[\\s·:\\-]*'), '') : b;
+    return '<option value="'+escapeAttr(b)+'"'+(b===currBr?' selected':'')+'>'+escapeHtml(c ? (c + ' · ' + (nm || b)) : b)+'</option>';
   }).join('');
   coSel.innerHTML = '<option value="all">📚 ทุกหลักสูตร</option>' + Object.keys(coSet).sort().map(function(c){
     return '<option value="'+escapeAttr(c)+'"'+(c===currCo?' selected':'')+'>'+escapeHtml(_courseShort(c))+'</option>';
