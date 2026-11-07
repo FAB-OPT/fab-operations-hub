@@ -29,6 +29,8 @@ const CATALOG: Record<string, { name: string; subs: string[] }> = {
   C005: { name: "มาตรฐานการทำงาน (ครัว)", subs: ["5.1 Customer Experience Management (CEM)", "5.2 Operations Standard Skill (OSS)", "5.3 Voice Of Customer (VOC)"] },
 };
 type Mod = { id: string; subs: string[]; why?: string };
+/* Module "มาตรฐานการทำงาน" (CEM/OSS/VOC) กว้างเกินไป เข้าได้กับทุกคอมเพลน → ไม่แนะนำอัตโนมัติ (ผู้ใช้เพิ่มเองได้) */
+const GENERIC = new Set(["S005", "C005"]);
 
 /* ---------- กฎคำสำคัญ (ใช้เมื่อไม่มี AI) ---------- */
 const RULES: { re: RegExp; why: string; mods: Mod[] }[] = [
@@ -36,7 +38,7 @@ const RULES: { re: RegExp; why: string; mods: Mod[] }[] = [
   { re: /พาสต้า|เส้น.*(แข็ง|เละ|ดิบ)/, why: "คุณภาพพาสต้า", mods: [{ id: "C004", subs: ["4.3 พาสต้า"] }] },
   { re: /ผม|เส้นผม|แมลง|หนอน|สิ่งแปลกปลอม|พลาสติก|เศษ|ท้องเสีย|ปนเปื้อน|เน่า|บูด|หืน|หมดอายุ/, why: "สุขอนามัย/สิ่งแปลกปลอมในอาหาร", mods: [{ id: "C001", subs: ["1.1 สุขลักษณะส่วนบุคคล", "1.2 พื้นที่ปฎิบัติงาน"] }, { id: "C003", subs: ["3.4 อายุและจัดเก็บวัตถุดิบ/การหยิบใช้วัตถุดิบ"] }] },
   { re: /รอนาน|นานมาก|นานเกิน|ช้า|รอ\s?\d+|คิว|ไม่มาสักที/, why: "ใช้เวลารอนาน", mods: [{ id: "S004", subs: ["4.5 เวลามาตรฐานการทำงาน", "4.7 การจัดลำดับงาน"] }, { id: "C003", subs: ["3.5 การจัดลำดับงาน"] }] },
-  { re: /ไม่แจ้ง|แจ้งล่วงหน้า|หมด|ไม่มีเมนู|ชดเชย|แก้ไข|ขอโทษ|แก้ปัญหา|ร้องเรียน/, why: "การแจ้งลูกค้า/แก้ปัญหาเมื่อพลาด", mods: [{ id: "S004", subs: ["4.6 การดูแลลูกค้าและการแก้ไขปัญหาลูกค้า"] }, { id: "S006", subs: ["6.5 การแก้ไขปัญหาสถานการณ์เฉพาะหน้า"] }, { id: "S005", subs: ["5.3 Voice Of Customer (VOC)"] }] },
+  { re: /ไม่แจ้ง|แจ้งล่วงหน้า|หมด|ไม่มีเมนู|ชดเชย|แก้ไข|ขอโทษ|แก้ปัญหา|ร้องเรียน/, why: "การแจ้งลูกค้า/แก้ปัญหาเมื่อพลาด", mods: [{ id: "S004", subs: ["4.6 การดูแลลูกค้าและการแก้ไขปัญหาลูกค้า"] }, { id: "S006", subs: ["6.5 การแก้ไขปัญหาสถานการณ์เฉพาะหน้า"] }] },
   { re: /พนักงาน|เหวี่ยง|ไม่สุภาพ|หน้าบึ้ง|ไม่ยิ้ม|ไม่ใส่ใจ|ไม่สนใจ|เมินเฉย|พูดจา|ท่าที|ทัศนคติ|ต้อนรับ|เรียกไม่/, why: "การบริการ/ท่าทีพนักงาน", mods: [{ id: "S004", subs: ["4.6 การดูแลลูกค้าและการแก้ไขปัญหาลูกค้า"] }, { id: "S006", subs: ["6.1 บุคลิกภาพของพนักงานต้อนรับ", "6.2 การสื่อสารในงานบริการ"] }] },
   { re: /ผิด|ไม่ตรง|ไม่ได้สั่ง|ลืม|ตกหล่น|ไม่ได้รับ|คีย์/, why: "รับ/คีย์ออร์เดอร์ผิดหรือตกหล่น", mods: [{ id: "S004", subs: ["4.3 การรับรายการอาหาร", "4.4 การคีย์รายการอาหาร"] }] },
   { re: /สกปรก|ไม่สะอาด|เหม็น|ห้องน้ำ|โต๊ะ.*(เปื้อน|เหนียว|ไม่เก็บ)|จานเก่า/, why: "ความสะอาด", mods: [{ id: "S004", subs: ["4.2 การเก็บโต๊ะและเซ็ตโต๊ะ"] }, { id: "S001", subs: ["1.2 พื้นที่ปฎิบัติงาน"] }] },
@@ -48,7 +50,7 @@ const RULES: { re: RegExp; why: string; mods: Mod[] }[] = [
 function ruleAnalyze(text: string): { modules: Mod[]; reason: string } {
   const hits: { why: string; mods: Mod[] }[] = [];
   for (const r of RULES) if (r.re.test(text)) hits.push(r);
-  if (!hits.length) return { modules: [{ id: "S005", subs: ["5.3 Voice Of Customer (VOC)"] }], reason: "ไม่พบคำสำคัญเฉพาะ — ทบทวนการรับฟังเสียงลูกค้า (VOC)" };
+  if (!hits.length) return { modules: [], reason: "ไม่พบคำสำคัญเฉพาะ — เลือก Module เองได้" };
   const byId = new Map<string, { subs: Set<string>; why: string }>();
   for (const h of hits) for (const m of h.mods) { const e = byId.get(m.id) ?? { subs: new Set<string>(), why: h.why }; m.subs.forEach((x) => e.subs.add(x)); byId.set(m.id, e); }
   const modules = [...byId.entries()].slice(0, 3).map(([id, e]) => ({ id, subs: [...e.subs].slice(0, 3), why: e.why }));
@@ -60,7 +62,7 @@ const CATALOG_TEXT = Object.entries(CATALOG).map(([id, m]) => `${id} ${m.name}\n
 function clean(mods: unknown): Mod[] {
   const out: Mod[] = [];
   for (const m of Array.isArray(mods) ? mods : []) {
-    const c = CATALOG[(m as Mod)?.id]; if (!c) continue;
+    const c = CATALOG[(m as Mod)?.id]; if (!c || GENERIC.has((m as Mod).id)) continue;
     const subs = ((m as Mod).subs ?? []).filter((s) => c.subs.includes(s)).slice(0, 3);
     out.push({ id: (m as Mod).id, subs: subs.length ? subs : [c.subs[0]], why: String((m as Mod).why ?? "").slice(0, 110) });
     if (out.length >= 3) break;
@@ -77,6 +79,8 @@ ${CATALOG_TEXT}
 - ต่อ 1 คอมเมนต์ เลือกได้ไม่เกิน 3 Module และแต่ละ Module ไม่เกิน 3 หัวข้อย่อย
 - ใช้ข้อความหัวข้อย่อยให้ตรงตามแคตตาล็อกทุกตัวอักษร
 - เลือกตามต้นเหตุของปัญหา ไม่ใช่ตามหัวข้อที่ลูกค้าติ๊ก (เช่น ไก่ไม่สุก = งานครัว/การย่าง ส่วนไม่แจ้งเมนูหมด = การดูแลลูกค้า)
+- ห้ามเลือก Module มาตรฐานการทำงาน (S005, C005 / CEM · OSS · VOC) เพราะกว้างเกินไปและเข้ากับทุกคอมเพลน — เลือกเฉพาะ Module ทักษะที่เป็นต้นเหตุตรงๆ
+- ถ้าคอมเมนต์ไม่มีต้นเหตุที่สอนได้ชัดเจน (เช่น คลุมเครือ ไม่ระบุปัญหา) ให้ตอบ modules เป็น [] อย่าเดา
 - reason: ภาษาไทย ไม่เกิน 70 ตัวอักษร สรุปต้นเหตุของคอมเมนต์นี้
 - why (ในแต่ละ Module): ภาษาไทย ไม่เกิน 60 ตัวอักษร ตอบว่า "ทำไมต้องสอนหัวข้อนี้" เชื่อมกับสิ่งที่ลูกค้าเจอ (เช่น "ไก่ไม่สุก เพราะย่างไม่ได้มาตรฐาน")
 - ตอบเป็น JSON array เท่านั้น ไม่มีข้อความอื่น: [{"id":<เลข id ของคอมเมนต์>,"modules":[{"id":"C004","subs":["4.1 การย่างสเต็ก"],"why":"..."}],"reason":"..."}]
@@ -113,7 +117,7 @@ Deno.serve(async (req: Request) => {
     const key = Deno.env.get("ANTHROPIC_API_KEY");
     const { data: have } = ids.length ? await db.from("fb_train_hints").select("row_id,method,modules").in("row_id", ids) : { data: [] };
     /* มีคีย์ AI แล้ว → เคสที่เคยได้แค่ผลจากกฎคำสำคัญ ให้ AI วิเคราะห์ใหม่ด้วย */
-    const done = new Set((have ?? []).filter((h) => !key || (h.method === "ai" && Array.isArray(h.modules) && h.modules.length > 0 && h.modules.every((m: Mod) => m.why))).map((h) => h.row_id));
+    const done = new Set((have ?? []).filter((h) => !key || (h.method === "ai" && Array.isArray(h.modules) && h.modules.every((m: Mod) => m.why && !GENERIC.has(m.id)))).map((h) => h.row_id));
     const todo = (rows ?? []).filter((r) => !done.has(r.id)).slice(0, 12);
     const pending = (rows ?? []).filter((r) => !done.has(r.id)).length - todo.length;
     if (!todo.length) return json({ ok: true, analyzed: 0, pending: 0, method: "none" });
@@ -122,7 +126,8 @@ Deno.serve(async (req: Request) => {
     if (key) {
       try {
         for (const a of await aiAnalyze(todo, key)) {
-          const mods = clean(a.modules); if (mods.length) out.set(Number(a.id), { modules: mods, reason: String(a.reason ?? "").slice(0, 140), method: "ai" });
+          if (!Array.isArray(a.modules)) continue;
+          const mods = clean(a.modules); out.set(Number(a.id), { modules: mods, reason: String(a.reason ?? "").slice(0, 140), method: "ai" });
         }
       } catch (_e) { /* ใช้กฎคำสำคัญแทนด้านล่าง */ }
     }
