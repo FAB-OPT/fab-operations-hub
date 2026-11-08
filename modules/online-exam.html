@@ -8765,7 +8765,7 @@ var DOC_SIGS = {
     { sig: 'f_A38_1', name: 'nm_A38', who: 'ผู้ประเมิน (Branch Manager / Area manager)' },
     { sig: 'f_C38_1', name: 'nm_C38', who: 'รับทราบ (Head Of Operations)' },
     { sig: 'f_E38_1', name: 'nm_E38', who: 'ผู้อนุมัติ (Human Resource)' },
-    { sig: 'f_C42_1', name: 'nm_C42', who: 'ผู้รับการประเมิน' }
+    { sig: 'f_C42_1', name: 'nm_C42', who: 'ผู้รับการประเมิน', wide: true }
   ]
 };
 function _docSigNameOf(el){
@@ -8801,8 +8801,14 @@ function _docAddNameRows(html, kind){
         f.setAttribute('data-d', it.spec.name);
         f.removeAttribute('value');
         var sp = f.parentNode;
-        if(sp && sp.classList && sp.classList.contains('dfld')) sp.classList.add('xu');
+        if(sp && sp.classList && sp.classList.contains('dfld')){ sp.classList.add('xu'); sp.style.width = 'calc(100% - 44px)'; f.style.width = '100%'; }
         [].forEach.call(c.childNodes, function(x){ if(x.nodeType === 3 && x.nodeValue.trim()) x.nodeValue = 'ชื่อ-สกุล'; });
+        /* ช่องแคบ (ผู้รับการประเมิน) ขยายคร่อมช่องว่างข้างขวาอีกสองคอลัมน์ ชื่อยาวจะได้ไม่ต้องย่อจนเล็ก */
+        if(it.spec.wide){
+          var span = parseInt(c.getAttribute('colspan') || '1', 10), nx = c.nextElementSibling, k = 0;
+          while(nx && k < 2 && !nx.textContent.trim() && !nx.querySelector('input')){ var d = nx; nx = nx.nextElementSibling; span += parseInt(d.getAttribute('colspan') || '1', 10); d.parentNode.removeChild(d); k++; }
+          c.setAttribute('colspan', span);
+        }
       } else if(isLabel && /ลงชื่อ|ผู้รับการประเมิน/.test(c.textContent)){
         c.textContent = 'ชื่อ-สกุล';
         c.style.fontSize = '7.4pt';
@@ -9003,7 +9009,25 @@ function _docSetSign(el, uri){
   img.src = uri;
 }
 
+/* ช่องกรอกที่ข้อความยาวเกินความกว้าง (ชื่อยาว ชื่อสาขาในวงเล็บ) ย่อตัวอักษรลงจนพอดี
+   ไม่ตัดท้ายทิ้ง · ย่อเพิ่มอีกนิดเผื่อตอนพิมพ์ขนาดกระดาษต่างจากบนจอเล็กน้อย
+   ย่อได้ไม่เกินครึ่ง — ยาวกว่านั้นผู้กรอกควรย่อข้อความเอง */
+function _docFitText(root){
+  [].forEach.call((root || document).querySelectorAll('#docsSheets input.xi, #docsSheets input.fld'), function(el){
+    if(el.type === 'checkbox' || el.type === 'hidden') return;
+    el.style.fontSize = '';
+    if(!el.clientWidth || !el.value) return;
+    var base = parseFloat(getComputedStyle(el).fontSize) || 12, fs = base, shrunk = false;
+    while(el.scrollWidth > el.clientWidth && fs > base * 0.5){ fs -= 0.5; el.style.fontSize = fs + 'px'; shrunk = true; }
+    if(shrunk) el.style.fontSize = Math.max(base * 0.5, fs - 0.8) + 'px';
+  });
+}
+document.addEventListener('input', function(e){
+  var t = e.target;
+  if(t && t.closest && t.closest('#docsSheets') && t.tagName === 'INPUT') _docFitText(t.parentNode);
+});
 function _docFitWidth(){
+  _docFitText();
   var host = $('docsSheets'); if(!host) return;
   host.style.transform = ''; host.style.marginBottom = '';
   var sheet = host.querySelector('.sheet'); if(!sheet) return;
