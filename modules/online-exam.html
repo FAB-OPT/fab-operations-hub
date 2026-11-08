@@ -7714,10 +7714,10 @@ function openExamRunner(exam, isPreview, ticket){
     /* สาขาที่ระบุไว้ตอนขอสิทธิ์ ถือเป็นค่าตั้งต้น — ยังเปลี่ยนได้ถ้าย้ายสาขา */
     var want = currentBranchName || R.student.branch || '';
     if(currentBranchName){
-      bsel.innerHTML = '<option>' + esc(currentBranchName) + '</option>';
+      bsel.innerHTML = _oeBrOpt(currentBranchName, branchPin);
     } else {
       bsel.innerHTML = '<option value="">— เลือกสาขา —</option>' +
-        reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('') +
+        reg.map(function(b){ return _oeBrOpt(b.name, b.code); }).join('') +
         (reg.length ? '' : '<option value="">(ยังไม่มีทะเบียนสาขาในเครื่องนี้)</option>');
     }
     bsel.value = want;
@@ -10720,14 +10720,20 @@ function oeReqPosPick(){
 /* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนก็ให้เลือกเอง
    ทะเบียนว่าง = เครื่องนี้ยังไม่เคยได้ข้อมูลจากฮับ ไปดึงมาแล้วเติมให้ใหม่
    ระหว่างรอบอกไว้ในช่องด้วย ไม่ใช่ปล่อยให้เห็นแต่ '— เลือกสาขา —' แล้วงงว่าพัง */
+/* <option> ของสาขา: แสดง "รหัส ชื่อ" · value เป็นชื่อสาขา (ที่เก็บในคำขอ/ผลสอบเป็นชื่ออยู่แล้ว) */
+function _oeBrOpt(name, code){
+  name = String(name == null ? '' : name).trim(); code = String(code == null ? '' : code).trim();
+  var shown = (code && name.indexOf(code) !== 0) ? code + ' ' + name : name;   // ชื่อที่ขึ้นต้นด้วยรหัสอยู่แล้วไม่ต้องใส่ซ้ำ
+  return '<option value="' + esc(name) + '">' + esc(shown) + '</option>';
+}
 function _oeFillReqBranch(){
   var sel = $('reqBranch'); if(!sel) return 0;
   var keep = sel.value;
   var reg = currentBranchName ? [] : oeBranchRegistry();
   sel.innerHTML = currentBranchName
-    ? '<option>' + esc(currentBranchName) + '</option>'
+    ? _oeBrOpt(currentBranchName, branchPin)
     : '<option value="">' + (reg.length ? '— เลือกสาขา —' : '— ยังโหลดรายชื่อสาขาไม่ได้ —') + '</option>' +
-      reg.map(function(b){ return '<option>' + esc(b.name) + '</option>'; }).join('');
+      reg.map(function(b){ return _oeBrOpt(b.name, b.code); }).join('');
   sel.value = currentBranchName || keep || '';
   return currentBranchName ? 1 : reg.length;
 }
