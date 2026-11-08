@@ -3785,7 +3785,8 @@ function oePosList(ex){
             var by = x.by === 'pct' ? 'pct' : 'n';
             var cat = Array.isArray(x.cat) ? x.cat.map(function(c){
               return { name: String((c && c.name) == null ? '' : c.name).trim(), n: Math.max(0, parseInt(c && c.n, 10) || 0),
-                       p: Math.min(100, Math.max(0, Number(c && c.p) || 0)) };
+                       p: Math.min(100, Math.max(0, Number(c && c.p) || 0)),
+                       pass: (c && c.pass !== '' && c.pass != null && isFinite(Number(c.pass))) ? Math.min(100, Math.max(0, Number(c.pass))) : null };
             }).filter(function(c){ return by === 'pct' ? c.p > 0 : c.n > 0; }) : [];
             return { name: String(x.name).trim(), pass: Math.min(100, Math.max(0, Number(x.pass) || 0)),
                      draw: Math.max(0, parseInt(x.draw, 10) || 0), cat: cat,
@@ -3828,17 +3829,44 @@ function oePosCatPlan(ex, entry){
   if(!total) return null;   // หมวดที่ตั้งไว้ไม่มีข้อในคลังเลย — ถอยกลับไปใช้ค่าของชุด ไม่ให้ได้ข้อสอบว่าง
   return { rows: rows, total: total };
 }
-function oePosCatPick(ex, qs, entry){
+function oePosCatPick(ex, qs, entry, only){
   var plan = oePosCatPlan(ex, entry); if(!plan) return qs;
   var by = {};
   qs.forEach(function(o){ var c = o.cat || ''; (by[c] = by[c] || []).push(o); });
   var out = [];
   plan.rows.forEach(function(r){
+    if(only && only.indexOf(r.name) < 0) return;   // สอบซ่อม: ข้ามหมวดที่ผ่านแล้ว
     var g = by[r.name] || [];
     out = out.concat(r.take < g.length ? shuffle(g).slice(0, r.take) : g);
   });
   if(!ex.shuffleQuestions) out.sort(function(a, b){ return a.origIndex - b.origIndex; });
   return out;
+}
+/* ── เกณฑ์ผ่านรายหมวด ──
+   ตำแหน่งที่ตั้ง "เกณฑ์ผ่านหมวด" อย่างน้อยหนึ่งหมวด ตัดสินผ่าน/ตกแยกรายหมวด ต้องผ่านทุกหมวดที่ตั้งเกณฑ์ (ไม่ดูคะแนนรวม)
+   หมวดที่ไม่ตั้งเกณฑ์ออกสอบตามปกติและนับในคะแนนรวมที่แสดง แต่ไม่ตัดผ่าน/ตก
+   ตกหมวดไหนสอบซ่อมได้เฉพาะหมวดนั้น · หมวดที่ผ่านแล้วเก็บคะแนนเดิม คืน null = ตำแหน่งนี้ไม่ได้ตัดรายหมวด */
+function oeCatGate(ex, pos){
+  if(!ex || oeNoCrit(ex) || oePartMode(ex)) return null;
+  var e = oePosEntry(ex, pos); if(!e || !e.cat || !e.cat.length) return null;
+  var pl = oePosCatPlan(ex, e); if(!pl) return null;
+  var pm = {}; e.cat.forEach(function(c){ pm[c.name] = c.pass; });
+  var rows = pl.rows.map(function(r){ return { name: r.name, label: r.label, take: r.take, pass: pm[r.name] == null ? null : pm[r.name] }; });
+  return rows.some(function(r){ return r.pass != null; }) ? rows : null;
+}
+function oePosPassText(ex, x){ return oeCatGate(ex, x.name) ? ' · ผ่านทุกหมวดที่ตั้งเกณฑ์' : ' · เกณฑ์ผ่าน ' + x.pass + '%'; }
+/* ผลรอบก่อนของคนนี้กับชุดนี้ (ใบล่าสุด) — สอบซ่อมใช้ดูว่าหมวดไหนตก */
+function _oePrevOf(ex, st){
+  if(!ex || !st) return null;
+  var k = _oeResIdent({ examId: ex.id, name: st.name, empId: st.id }), hit = null;
+  _oeAllResults().forEach(function(x){
+    if(_oeResIdent(x) !== k) return;
+    if(!hit || String(x.submittedAt || '') > String(hit.submittedAt || '')) hit = x;
+  });
+  return hit;
+}
+function _oeFailCats(r){
+  return (r && r.catGate && Array.isArray(r.cats)) ? r.cats.filter(function(c){ return c.pass === false; }) : [];
 }
 /* จำนวนข้อที่ตำแหน่งนี้ได้จริง (ไม่ระบุตำแหน่ง/ไม่ได้ตั้งไว้ = ตามค่าของชุด) */
 function oeCountFor(ex, pos){
@@ -3998,6 +4026,7 @@ function _oeAttempt(r){
 /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ */
 function _oeCapped(r){
   if(_oeRNoCrit(r)) return false;
+  if(r && r.catGate) return false;
   if(oeExamLatest(_oeExamOf(r))) return false;
   return _oeAttempt(r) >= 2 && (Number(r && r.pct) || 0) > OE_PASS_PCT;
 }
@@ -4169,7 +4198,7 @@ function oeGuestRetake(id){
     $('guestGate').classList.add('hidden');
     openExamRunner(exam, false, {
       code: '', name: rec.name, empId: rec.empId,
-      position: rec.position, branchName: rec.branch, retake: true, track: rec.track || ''
+      position: rec.position, branchName: rec.branch, retake: true, track: rec.track || '', prev: rec
     });
     if(R) R.verify = null;   // สิทธิ์รอบสองตรวจจากผลสอบไปแล้ว ไม่มีรหัสให้ถาม
   }).catch(function(e){
@@ -5348,7 +5377,7 @@ function oePosCatToggle(btn){
   try { syncDraftFromDOM(); } catch(e){}
   var rows = oeCatRows({ questions: draftQuestions });
   var by = row.getAttribute('data-by') === 'pct' ? 'pct' : 'n', pct = by === 'pct';
-  var cur = {}; _oePosCatGet(row).forEach(function(c){ cur[c.name] = pct ? c.p : c.n; });
+  var cur = {}, curP = {}; _oePosCatGet(row).forEach(function(c){ cur[c.name] = pct ? c.p : c.n; curP[c.name] = c.pass; });
   var tot0 = parseInt(row.getAttribute('data-total'), 10) || 0;
   var only = rows.length <= 1 && (!rows[0] || rows[0].name === '');
   if(only){
@@ -5358,12 +5387,13 @@ function oePosCatToggle(btn){
       '<button type="button" class="' + (pct ? 'on' : '') + '" onclick="oePosCatBy(this,\'pct\')">ตามสัดส่วน %</button></div>' +
       (pct ? '<div class="cat-tot"><span>รวมออกสอบ</span><input class="pos-ct" type="number" min="1" placeholder="กี่ข้อ" value="' + (tot0 > 0 ? tot0 : '') + '" oninput="oePosCatInput(this)"><span>ข้อ <em>(เว้นว่าง = คิดจากทุกข้อของหมวดที่เลือก)</em></span></div>' : '') +
       '<div class="pos-cat-note">' + (pct
-        ? 'ใส่สัดส่วน % ของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ รวมกันต้องได้ 100% · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ผ่าน/ตกยังตัดจากคะแนนภาพรวม'
-        : 'ใส่จำนวนข้อของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ผ่าน/ตกยังตัดจากคะแนนภาพรวม ไม่ได้ตัดแยกตามหมวด') + '</div>' +
-      '<table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">' + (pct ? 'สัดส่วน (%)' : 'ออกสอบ') + '</th></tr></thead><tbody>' +
+        ? 'ใส่สัดส่วน % ของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ รวมกันต้องได้ 100% · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ใส่ "เกณฑ์ผ่านหมวด" อย่างน้อยหนึ่งหมวด = ตัดผ่าน/ตกแยกรายหมวด ต้องผ่านทุกหมวดที่ใส่ (ไม่ดูคะแนนรวม) ตกหมวดไหนสอบซ่อมได้เฉพาะหมวดนั้น · เว้นว่างทั้งหมด = ตัดจากคะแนนภาพรวมเหมือนเดิม'
+        : 'ใส่จำนวนข้อของแต่ละหมวดที่ตำแหน่งนี้ต้องสอบ · <b>หมวดที่เว้นว่าง = ไม่ออกในตำแหน่งนี้</b> · ใส่ "เกณฑ์ผ่านหมวด" อย่างน้อยหนึ่งหมวด = ตัดผ่าน/ตกแยกรายหมวด ต้องผ่านทุกหมวดที่ใส่ (ไม่ดูคะแนนรวม) ตกหมวดไหนสอบซ่อมได้เฉพาะหมวดนั้น · เว้นว่างทั้งหมด = ตัดจากคะแนนภาพรวมเหมือนเดิม') + '</div>' +
+      '<table class="cat-tbl"><thead><tr><th>หมวด</th><th class="n">ในคลัง</th><th class="n">' + (pct ? 'สัดส่วน (%)' : 'ออกสอบ') + '</th><th class="n">เกณฑ์ผ่านหมวด (%)</th></tr></thead><tbody>' +
       rows.map(function(r){
         return '<tr><td>' + esc(r.label) + '</td><td class="n">' + r.pool + '</td><td class="n"><input class="pos-cn" type="number" min="0" ' + (pct ? 'max="100" step="any"' : 'max="' + r.pool + '"') + ' ' +
-          'data-name="' + esc(r.name) + '" value="' + (cur[r.name] > 0 ? cur[r.name] : '') + '" oninput="oePosCatInput(this)">' + (pct ? ' %' : '') + '</td></tr>';
+          'data-name="' + esc(r.name) + '" value="' + (cur[r.name] > 0 ? cur[r.name] : '') + '" oninput="oePosCatInput(this)">' + (pct ? ' %' : '') + '</td>' +
+          '<td class="n"><input class="pos-cp" type="number" min="0" max="100" step="any" placeholder="ไม่เช็ก" data-name="' + esc(r.name) + '" value="' + (curP[r.name] != null && curP[r.name] !== '' ? curP[r.name] : '') + '" oninput="oePosCatInput(this)"> %</td></tr>';
       }).join('') + '</tbody></table><div class="pos-cat-sum" id=""></div>';
     oePosCatInput(box.querySelector('.pos-cn'));
   }
@@ -5381,16 +5411,23 @@ function oePosCatInput(el){
   var by = row.getAttribute('data-by') === 'pct' ? 'pct' : 'n', pct = by === 'pct';
   /* เก็บทั้งจำนวนข้อ (n) และ % (p) ของแต่ละหมวดไว้ในแถวเดียวกัน · ช่องที่กำลังแก้อยู่เขียนทับเฉพาะฝั่งของมัน */
   var old = {}, order = [];
-  _oePosCatGet(row).forEach(function(c){ if(!(c.name in old)) order.push(c.name); old[c.name] = { name: c.name, n: c.n || 0, p: c.p || 0 }; });
+  _oePosCatGet(row).forEach(function(c){ if(!(c.name in old)) order.push(c.name); old[c.name] = { name: c.name, n: c.n || 0, p: c.p || 0, pass: c.pass == null ? null : c.pass }; });
   [].forEach.call(row.querySelectorAll('.pos-cn'), function(i){
     var nm = i.getAttribute('data-name') || '';
-    if(!(nm in old)){ order.push(nm); old[nm] = { name: nm, n: 0, p: 0 }; }
+    if(!(nm in old)){ order.push(nm); old[nm] = { name: nm, n: 0, p: 0, pass: null }; }
     if(pct) old[nm].p = Math.min(100, Math.max(0, Number(i.value) || 0));
     else {
       var n = Math.max(0, parseInt(i.value, 10) || 0), mx = parseInt(i.getAttribute('max'), 10) || 0;
       if(n > mx && mx > 0) n = mx;
       old[nm].n = n;
     }
+  });
+  /* เกณฑ์ผ่านของแต่ละหมวด — ว่าง = ไม่เช็กหมวดนั้น */
+  [].forEach.call(row.querySelectorAll('.pos-cp'), function(i){
+    var nm = i.getAttribute('data-name') || '';
+    if(!(nm in old)){ order.push(nm); old[nm] = { name: nm, n: 0, p: 0, pass: null }; }
+    var v = String(i.value).trim();
+    old[nm].pass = v === '' ? null : Math.min(100, Math.max(0, Number(v) || 0));
   });
   var ct = row.querySelector('.pos-ct');
   if(ct) row.setAttribute('data-total', Math.max(0, parseInt(ct.value, 10) || 0) || '');
@@ -6623,12 +6660,16 @@ function _oeRuleNote(r, isRound2){
   /* ตอนเพิ่งสอบเสร็จ ผลรอบนี้ยังไม่ทันเข้ารายการ นับรอบจากรายการจึงยังได้ 1
      ผู้เรียกที่รู้อยู่แล้วว่ากำลังทำรอบสอง ส่งมาบอกตรง ๆ ได้ */
   var out = [];
-  var capped = _oeCapped(r) || (isRound2 && !oeExamLatest(_oeExamOf(r)) && (Number(r.pct) || 0) > OE_PASS_PCT);
+  var capped = !(r && r.catGate) && (_oeCapped(r) || (isRound2 && !oeExamLatest(_oeExamOf(r)) && (Number(r.pct) || 0) > OE_PASS_PCT));
   if(capped) out.push('<span class="rn warn">สอบรอบที่ 2 — ทำได้ ' + esc(r.pct)
     + '% นับเป็น ' + OE_PASS_PCT + '% ตามกติกา</span>');
   var left = isRound2 ? null : _oeRetakeLeft(r);
-  if(left != null) out.push('<span class="rn warn">สอบใหม่ได้อีก 1 ครั้ง ภายใน ' + left
-    + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่</span>');
+  if(left != null){
+    var _fc = _oeFailCats(r);
+    out.push('<span class="rn warn">' + (_fc.length
+      ? 'สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน (' + esc(_fc.map(function(c){ return c.label || c.name || OE_NOCAT; }).join(', ')) + ') ได้อีก 1 ครั้ง ภายใน ' + left + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่ · หมวดที่ผ่านแล้วใช้คะแนนเดิม'
+      : 'สอบใหม่ได้อีก 1 ครั้ง ภายใน ' + left + ' วัน โดยไม่ต้องขอสิทธิ์ใหม่') + '</span>');
+  }
   var bump = isPass(r) ? _oeBump(capped ? OE_PASS_PCT : _oeEffPct(r), _oeExamOf(r)) : 0;
   if(bump) out.push('<span class="rn ok">ได้ฐานเงินเดือนเพิ่ม ' + bump.toLocaleString() + ' บาท</span>');
   return out.length ? '<div class="rd-rules">' + out.join('') + '</div>' : '';
@@ -6653,6 +6694,19 @@ function _oePartsHtml(r){
         '<span>ถูก ' + esc(p.correct) + '/' + esc(p.total) + ' ข้อ · <strong>' + esc(p.pct) + '%</strong></span>' +
         (nc ? '' : '<em>เกณฑ์ ' + esc(p.passMark) + '%</em>' +
           '<i>' + (p.pass ? (info ? 'ถึงเกณฑ์' : 'ผ่าน') : (info ? 'ต่ำกว่าเกณฑ์' : 'ไม่ผ่าน')) + '</i>') + '</div>';
+    }).join('') + '</div>';
+}
+/* ผลรายหมวดของใบที่ตัดรายหมวด */
+function _oeCatsHtml(r){
+  if(!r || !r.catGate || !Array.isArray(r.cats) || !r.cats.length) return '';
+  var rc = (r.retakeCats && r.retakeCats.length)
+    ? '<div class="rd-parts-h">สอบซ่อมเฉพาะหมวด <b>' + esc(r.retakeCats.map(function(c){ return c || OE_NOCAT; }).join(', ')) + '</b> · หมวดที่ผ่านแล้วใช้คะแนนเดิมจากรอบแรก</div>' : '';
+  return '<div class="rd-parts"><div class="rd-parts-h">ตัดสินรายหมวด · ต้องผ่านทุกหมวดที่ตั้งเกณฑ์ (ไม่ดูคะแนนรวม)</div>' + rc +
+    r.cats.map(function(c){
+      var chk = c.passMark != null;
+      return '<div class="rd-part ' + (chk ? (c.pass ? 'ok' : 'no') : 'info') + '"><b>' + esc(c.label || c.name || OE_NOCAT) + '</b>' +
+        '<span>ถูก ' + esc(c.correct) + '/' + esc(c.total) + ' ข้อ · <strong>' + esc(c.pct) + '%</strong>' + (c.from === 2 ? ' · สอบซ่อม' : '') + '</span>' +
+        (chk ? '<em>เกณฑ์ ' + esc(c.passMark) + '%</em><i>' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</i>' : '<em>ไม่ตั้งเกณฑ์</em>') + '</div>';
     }).join('') + '</div>';
 }
 /* สอบซ่อม: บอกสถานะ + ให้ผู้มีสิทธิ์อนุมัติขยายเวลาได้ (เฉพาะผลที่ตกและยังไม่ได้สอบรอบสอง) */
@@ -6780,7 +6834,7 @@ function _oeResDetailHtml(r){
     '</div></div>';
 
   var rid = _oeResId(r);
-  h += _oePartsHtml(r);
+  h += _oePartsHtml(r) + _oeCatsHtml(r);
   h += _oeRuleNote(r);
   h += _oeRetakeAdminHtml(r);
 
@@ -6959,6 +7013,20 @@ function _oeEdCalc(r, okArr){
       : [ sc(tr, OE_TRACKS[tr] || tr, function(q){ return oeInPart(q, tr); }) ];
     if(!_nc) pass = parts[0].pass;
   }
+  /* ผลที่ตัดรายหมวด: คิดเฉพาะหมวดที่มีข้อในใบนี้ใหม่ · หมวดที่ผ่านมาจากรอบแรก (สอบซ่อม) คงเดิม */
+  if(r.catGate && Array.isArray(r.cats) && !_nc && ans.every(function(a){ return a && a.cat != null; })){
+    var cm = {};
+    ans.forEach(function(a, i){ var c = String(a.cat || ''), g = cm[c] || (cm[c] = { c:0, t:0 }); g.t++; if(okArr[i]) g.c++; });
+    var cats = r.cats.map(function(x){
+      var o = {}; for(var k in x) o[k] = x[k];
+      var g = cm[x.name];
+      if(g && g.t){ o.correct = g.c; o.total = g.t; o.pct = Math.round(g.c / g.t * 100); }
+      if(o.passMark != null) o.pass = o.pct >= o.passMark;
+      return o;
+    });
+    var cc = cats.reduce(function(a, x){ return a + x.correct; }, 0), tt = cats.reduce(function(a, x){ return a + x.total; }, 0);
+    return { correct: cc, total: tt, pct: tt ? Math.round(cc / tt * 100) : 0, mark: mark, pass: cats.every(function(x){ return x.passMark == null || x.pass; }), parts: null, cats: cats };
+  }
   return { correct: correct, total: total, pct: pct, mark: mark, pass: pass, parts: parts };
 }
 function _oeEdSum(){
@@ -6969,7 +7037,7 @@ function _oeEdSum(){
   ans.forEach(function(a, i){ if(!!_oeEd.ok[i] !== _oeAnsOk(a)) changed++; });
   var _nc2 = _oeRNoCrit(r);
   el.innerHTML = 'แก้แล้ว <b>' + changed + '</b> ข้อ · ถูก <b>' + c.correct + '/' + c.total + '</b> = <b>' + c.pct + '%</b>' +
-    (_nc2 ? '' : ' · <b style="color:' + (c.pass ? '#0b7a55' : '#a51c1c') + '">' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</b> (เกณฑ์ ' + c.mark + '%)' +
+    (_nc2 ? '' : ' · <b style="color:' + (c.pass ? '#0b7a55' : '#a51c1c') + '">' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน') + '</b> (' + (c.cats ? 'ตามเกณฑ์รายหมวด' : 'เกณฑ์ ' + c.mark + '%') + ')' +
       (c.pass !== was ? ' <b style="color:#b45309">· ผลเปลี่ยนจาก' + (was ? 'ผ่าน' : 'ไม่ผ่าน') + '</b>' : '')) +
     (changed ? '' : ' · <span style="color:var(--text3)">ยังไม่ได้แก้ข้อไหน</span>');
 }
@@ -7086,6 +7154,7 @@ async function oeEditAnsSave(){
     editedBy: by, editedAt: new Date().toISOString()
   };
   if(c.parts) patch.parts = c.parts;
+  if(c.cats) patch.cats = c.cats;
   apiPost({ type:'edit-result', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '', patch: patch, by: by })
     .then(function(res){
       if(res && res.ok){
@@ -7551,6 +7620,7 @@ function openExamRunner(exam, isPreview, ticket){
     track:(ticket && ticket.track) || '',   // ชุดที่แบ่งส่วน: service / kitchen / all
     trackLocked: !!(ticket && ticket.track) // มาจากคำขอที่ระบุส่วนไว้ = เปลี่ยนไม่ได้
   };
+  if(R.isRetake) R.prev = (ticket && ticket.prev) || _oePrevOf(exam, R.student);
   var CFG=exam;
   /* หาแบรนด์ให้เจอก่อน — ชุดข้อสอบบางชุดเก็บ brand เป็นชื่อ ไม่ใช่คีย์ */
   var _bi = _oeBrandFor(CFG);
@@ -7701,7 +7771,7 @@ function oeRetakeNow(){
   var ex = R.exam, st = R.student || {}, code = R.accessCode;
   openExamRunner(ex, false, {
     code: code, name: st.name, empId: st.id,
-    position: st.position, branchName: st.branch, retake: true, track: R.track || ''
+    position: st.position, branchName: st.branch, retake: true, track: R.track || '', prev: R.record
   });
 }
 function closeExamOverlay(){
@@ -7737,7 +7807,7 @@ function _oePosFieldPaint(){
   sel.innerHTML = '<option value="">— เลือกตำแหน่งของคุณ —</option>' +
     list.map(function(x){
       return '<option value="' + esc(x.name) + '"' + (keep && keep.name === x.name ? ' selected' : '') + '>' +
-        esc(x.name) + (oeNoCrit(R.exam) ? '' : ' · เกณฑ์ผ่าน ' + x.pass + '%') + '</option>';
+        esc(x.name) + (oeNoCrit(R.exam) ? '' : oePosPassText(R.exam, x)) + '</option>';
     }).join('');
   inp.value = keep ? keep.name : '';
   oePosPick();
@@ -7748,7 +7818,7 @@ function oePosPick(){
   inp.value = sel.value;
   if(sel.parentNode && sel.parentNode.classList) sel.parentNode.classList.remove('bad');
   var mp = $('mP');
-  if(mp && R && oePosMode(R.exam) && !oeNoCrit(R.exam)) mp.textContent = sel.value ? oePassForPos(R.exam, sel.value) + '%' : oePassLabel(R.exam);
+  if(mp && R && oePosMode(R.exam) && !oeNoCrit(R.exam)) mp.textContent = sel.value ? (oeCatGate(R.exam, sel.value) ? 'ผ่านทุกหมวด' : oePassForPos(R.exam, sel.value) + '%') : oePassLabel(R.exam);
   var mq = $('mQ');   // จำนวนข้อตามตำแหน่งที่เลือก
   if(mq && R && oePosMode(R.exam)) mq.textContent = sel.value ? oeCountFor(R.exam, sel.value) : oeCountLabel(R.exam);
 }
@@ -7796,6 +7866,7 @@ function _oeRunSave(){
       v: OE_RUN_V,
       examId: R.exam.id, code: R.accessCode || '', isRetake: !!R.isRetake,
       track: R.track || '',
+      onlyCats: R.onlyCats || null,
       student: R.student,
       questions: R.questions, answers: R.answers, current: R.current,
       startedAt: R.startedAt.toISOString(),
@@ -7877,6 +7948,8 @@ async function _oeRunResume(d){
      และรอบสองมีกติกาคิดคะแนนคนละแบบ หายไปแล้วผลจะเพี้ยน */
   if(d.code) R.accessCode = d.code;
   R.isRetake = !!d.isRetake;
+  R.onlyCats = d.onlyCats || null;
+  if(R.isRetake && !R.prev) R.prev = _oePrevOf(R.exam, d.student);
   /* ส่วนที่สอบ (ชุดที่แบ่งส่วน) ต้องกลับมาด้วย — ตอนตัดสินใช้เลือกว่าตัดสินส่วนไหน */
   R.track = d.track || R.track || '';
   R.questions = d.questions;
@@ -7974,6 +8047,12 @@ function beginExam(){
   /* จำนวนข้อ/สัดส่วนหมวดตามตำแหน่งของผู้สอบ (ถ้าตั้งไว้) */
   var _pe = oePosEntry(CFG, R.student && R.student.position);
   var _posCat = !_pm && !!oePosCatPlan(CFG, _pe);
+  /* สอบซ่อมตามเกณฑ์รายหมวด: ออกเฉพาะหมวดที่รอบก่อนไม่ผ่าน (ไม่มีผลรอบก่อนให้ดู = ออกครบเหมือนเดิม) */
+  R.onlyCats = null;
+  if(_posCat && R.isRetake && R.prev && R.prev.catGate && oeCatGate(CFG, R.student && R.student.position)){
+    var _fail = _oeFailCats(R.prev).map(function(c){ return c.name; });
+    if(_fail.length) R.onlyCats = _fail;
+  }
   var _mk = function(item, qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
     if(CFG.shuffleChoices) choices=shuffle(choices);
@@ -7993,7 +8072,7 @@ function beginExam(){
   } else {
     (CFG.questions||[]).forEach(function(item,qi){ qs.push(_mk(item, qi)); });
     /* ชุดที่แบ่งสัดส่วนตามหมวด: หยิบข้อของแต่ละหมวดตามจำนวนที่ตั้งไว้ */
-    if(_posCat) qs = oePosCatPick(CFG, qs, _pe);          // ตำแหน่งนี้ตั้งสัดส่วนหมวดไว้เอง
+    if(_posCat) qs = oePosCatPick(CFG, qs, _pe, R.onlyCats);          // ตำแหน่งนี้ตั้งสัดส่วนหมวดไว้เอง
     else if(oeCatMode(CFG)) qs = oeCatPick(CFG, qs);
   }
   /* เวลาสอบ: ชุดที่แบ่งส่วนใช้เวลาของทางที่เลือก */
@@ -8010,6 +8089,7 @@ function beginExam(){
     if(!CFG.shuffleQuestions) qs.sort(function(a,b){ return a.origIndex-b.origIndex; });
   } else if(CFG.shuffleQuestions) qs=shuffle(qs);
   R.questions=qs; R.answers={}; R.current=0;
+  if(R.onlyCats) toast('สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน: ' + R.onlyCats.map(function(c){ return c || OE_NOCAT; }).join(', ') + ' (' + qs.length + ' ข้อ)');
   R.timeLeft=_lim*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
   /* มาจากการกด "เริ่มใหม่" ทับของค้าง — ใช้เวลาเริ่มเดิม นาฬิกาจึงไม่ได้เริ่มใหม่ */
   if(_oeKeepStart){
@@ -8329,6 +8409,32 @@ function computeAndShow(){
     }
     pass = _nc ? null : parts[0].pass;
   }
+  /* เกณฑ์ผ่านรายหมวด: ผ่านต้องผ่านทุกหมวดที่ตั้งเกณฑ์ · สอบซ่อมรวมคะแนนหมวดที่ผ่านแล้วจากรอบแรก */
+  var _gate = (!_nc && !parts) ? oeCatGate(R.exam, R.student && R.student.position) : null;
+  var gcats = null;
+  if(_gate){
+    var _cm = {};
+    R.questions.forEach(function(q,i){
+      var c = q.cat || '', m = _cm[c] || (_cm[c] = { c:0, t:0 });
+      m.t++; var s = R.answers[i]; if(s != null && q.choices[s].correct) m.c++;
+    });
+    var _pv = (R.isRetake && R.prev && R.prev.catGate && Array.isArray(R.prev.cats)) ? R.prev.cats : [];
+    gcats = _gate.map(function(g){
+      var m = _cm[g.name];
+      if(m){
+        var pp = Math.round(m.c / m.t * 100);
+        return { name:g.name, label:g.label, correct:m.c, total:m.t, pct:pp, passMark:g.pass, pass: g.pass == null ? null : pp >= g.pass, from: R.isRetake ? 2 : 1 };
+      }
+      var pc = _pv.filter(function(x){ return x.name === g.name; })[0];
+      if(pc) return { name:g.name, label:g.label, correct:pc.correct, total:pc.total, pct:pc.pct, passMark:g.pass, pass: g.pass == null ? null : pc.pct >= g.pass, from:1 };
+      return { name:g.name, label:g.label, correct:0, total:0, pct:0, passMark:g.pass, pass: g.pass == null ? null : false, from:1 };
+    });
+    correct = gcats.reduce(function(a, c){ return a + c.correct; }, 0);
+    total = gcats.reduce(function(a, c){ return a + c.total; }, 0);
+    wrong = total - correct;
+    pct = total ? Math.round(correct / total * 100) : 0;
+    pass = gcats.every(function(c){ return c.passMark == null || c.pass; });
+  }
   /* ชุดที่แบ่งหมวด: คะแนนรายหมวดไว้ให้ผู้สอบดู (ไม่ใช้ตัดผ่าน/ไม่บันทึกขึ้นระบบ) */
   var cats=null;
   if(oeCatMode(R.exam) && !parts){
@@ -8341,11 +8447,11 @@ function computeAndShow(){
     });
     cats=_co.map(function(c){ var x=_cm[c]; x.pct=x.total?Math.round(x.correct/x.total*100):0; return x; });
   }
-  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts,passMark:_nc ? null : _mark,cats:cats};
+  R.result={correct:correct,wrong:wrong,total:total,pct:pct,pass:pass,parts:parts,passMark:_nc ? null : _mark,cats:gcats||cats,catGate:!!gcats};
 
   /* รอบสองที่ทำได้เกินเกณฑ์ ถูกตัดลงมาเท่าเกณฑ์ตามกติกา — เลขบนวงต้องตรงกับ
      ที่บันทึกไว้จริง ไม่งั้นคนสอบเห็น 85% แล้วไปเห็น 70% ในผลสอบทีหลัง */
-  var shown = (!_nc && R.isRetake && pct > _mark) ? _mark : pct;
+  var shown = (!_nc && !gcats && R.isRetake && pct > _mark) ? _mark : pct;
   var arc=$('ringArc'), C=351.9;
   arc.style.stroke = _nc ? 'var(--gold)' : (pass ? '#10b981' : '#ef4444');
   arc.style.strokeDashoffset = C-(C*shown/100);
@@ -8355,7 +8461,7 @@ function computeAndShow(){
   /* คำตัดสินพูดครั้งเดียว แล้วใช้สีเป็นตัวบอกว่าผ่านหรือไม่ */
   var head=$('resHead');
   head.className = _nc ? '' : (pass ? 'ok' : 'no');
-  head.textContent = _nc ? 'คะแนนของคุณ' : (pass ? 'ผ่านเกณฑ์' : 'ยังไม่ผ่านเกณฑ์');
+  head.textContent = _nc ? 'คะแนนของคุณ' : (pass ? 'ผ่านเกณฑ์' : (gcats ? 'ยังไม่ผ่านบางหมวด' : 'ยังไม่ผ่านเกณฑ์'));
   $('resSub').innerHTML = parts
     ? ('สอบส่วน <b>' + esc(OE_TRACKS[R.track] || '') + '</b> · ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ' +
        '<span class="res-parts">' + parts.map(function(p){
@@ -8366,14 +8472,17 @@ function computeAndShow(){
            '% <i>เกณฑ์ ' + p.passMark + '%</i> ' +
            (p.pass ? (_info ? 'ถึงเกณฑ์' : 'ผ่าน') : (_info ? 'ต่ำกว่าเกณฑ์' : 'ไม่ผ่าน')) + '</span>';
        }).join('') + '</span>')
-    : ('ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ' + (_nc ? '' : ' · เกณฑ์ผ่าน ' + _mark + '%' +
+    : ('ตอบถูก <b>' + correct + '</b> จาก ' + total + ' ข้อ' + (_nc ? '' : (gcats ? ' · ต้องผ่านทุกหมวดที่ตั้งเกณฑ์' : ' · เกณฑ์ผ่าน ' + _mark + '%') +
        (oePosMode(R.exam) && R.student.position ? ' (ตำแหน่ง ' + esc(R.student.position) + ')' : '')));
   var _rc=$('resCats');
   if(_rc){
     var _cats = R.result.cats;
-    _rc.hidden = !(_cats && _cats.length > 1);
-    _rc.innerHTML = _rc.hidden ? '' : '<div class="rc-h">คะแนนรายหมวด</div>' + _cats.map(function(c){
-      return '<div class="rc"><span>' + esc(c.label) + '</span><span class="bar"><i style="width:' + c.pct + '%"></i></span><span><b>' + c.correct + '/' + c.total + '</b> · ' + c.pct + '%</span></div>';
+    _rc.hidden = !(_cats && (_cats.length > 1 || R.result.catGate));
+    _rc.innerHTML = _rc.hidden ? '' : '<div class="rc-h">' + (R.result.catGate ? 'ผลรายหมวด' : 'คะแนนรายหมวด') + '</div>' + _cats.map(function(c){
+      var g = R.result.catGate && c.passMark != null;
+      return '<div class="rc"><span>' + esc(c.label) + '</span><span class="bar"><i style="width:' + c.pct + '%"></i></span><span><b>' + c.correct + '/' + c.total + '</b> · ' + c.pct + '%' +
+        (g ? ' · เกณฑ์ ' + c.passMark + '% <b style="color:' + (c.pass ? '#0b7a55' : '#a51c1c') + '">' + (c.pass ? '✓ ผ่าน' : '✕ ไม่ผ่าน') + '</b>' : '') +
+        (R.result.catGate && R.isRetake && c.from === 1 ? ' <i style="font-style:normal;color:var(--text3)">(คะแนนรอบแรก)</i>' : '') + '</span></div>';
     }).join('');
   }
   _oePaintResNote();
@@ -8433,9 +8542,11 @@ function _oeRunResult(){
       scoreOnly: oeNoCrit(R.exam),
       violations:R.violations, finishReason:R.finishReason,
       track: R.track || '', parts: (R.result && R.result.parts) || null,
+      catGate: !!(R.result && R.result.catGate), cats: (R.result && R.result.catGate) ? R.result.cats : null,
+      retakeCats: R.onlyCats || null,
       accessCode: R.accessCode || '',
       startedAt: R.startedAt? R.startedAt.toISOString():'', submittedAt:new Date().toISOString(),
-      answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })};
+      answers: R.questions.map(function(q,i){ var sel=R.answers[i]; return { q:q.q, cat:q.cat||'', my: sel!=null? q.choices[sel].text : '(ไม่ตอบ)', correct: (q.choices.find(function(c){return c.correct;})||{}).text, ok: sel!=null && q.choices[sel].correct }; })};
 }
 /* ═══ ผลสอบที่ยังไม่ขึ้นระบบ ═══
    คนสอบทำจนจบแล้ว สายที่สะดุดไม่ควรแปลว่าต้องกลับมาสอบใหม่
@@ -8640,6 +8751,13 @@ function _docSheetExam(r){
       kv('การเตือนระหว่างสอบ', (Number(r.violations) || 0) + ' ครั้ง') +
       kv('จบการสอบโดย', r.finishReason || 'ส่งด้วยตนเอง') +
     '</table>' +
+    ((r.catGate && Array.isArray(r.cats) && r.cats.length)
+      ? '<div class="exs-sec">ผลรายหมวด' + (r.retakeCats && r.retakeCats.length ? ' (สอบซ่อมเฉพาะหมวดที่ไม่ผ่านรอบแรก)' : '') + '</div><table class="sh-kv">' +
+        r.cats.map(function(c){
+          return kv(c.label || c.name || OE_NOCAT, c.correct + '/' + c.total + ' ข้อ · ' + c.pct + '%' +
+            (c.passMark != null ? ' · เกณฑ์ ' + c.passMark + '% · ' + (c.pass ? 'ผ่าน' : 'ไม่ผ่าน') : ' · ไม่ตั้งเกณฑ์') + (c.from === 2 ? ' (สอบซ่อม)' : ''));
+        }).join('') + '</table>'
+      : '') +
     '<div class="sh-note">เอกสารนี้ออกจากระบบสอบออนไลน์โดยอัตโนมัติ ตัวเลขทั้งหมดตรงกับที่บันทึกไว้ในระบบ ' +
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
@@ -10566,7 +10684,7 @@ function _oeReqPosPaint(){
   sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
   var _hc = $('reqPosHintC'); if(_hc) _hc.hidden = oeNoCrit(_reqExam);
   sel.innerHTML = '<option value="">— เลือกตำแหน่งที่จะสอบ —</option>' +
-    list.map(function(x){ return '<option value="' + esc(x.name) + '">' + esc(x.name) + (oeNoCrit(_reqExam) ? '' : ' · เกณฑ์ผ่าน ' + x.pass + '%') + '</option>'; }).join('');
+    list.map(function(x){ return '<option value="' + esc(x.name) + '">' + esc(x.name) + (oeNoCrit(_reqExam) ? '' : oePosPassText(_reqExam, x)) + '</option>'; }).join('');
   sel.value = '';
   inp.value = '';
 }
