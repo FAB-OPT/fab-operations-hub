@@ -6740,20 +6740,21 @@ function _oePartsHtml(r){
 /* ── ซานตาเฟ่: เส้นทางเติบโต (จากหนังสือ Management Team / Team Member Career Path) ──
    [ตำแหน่งที่สอบ (ชื่อตามชุดข้อสอบ), [ตำแหน่งปัจจุบันที่ขึ้นมาสอบ]]
    ผู้สอบเลือก "ตำแหน่งปัจจุบัน" ระบบเชื่อมกับตำแหน่งที่สอบให้เอง · ใช้เฉพาะแบรนด์ซานตาเฟ่
-   Supervisor ← Service Gold / Cook Gold เป็นข้อสันนิษฐาน (หนังสือไม่ได้ระบุว่าพนักงานขึ้นหัวหน้ากะจากตำแหน่งไหน) */
+   Shift Supervisor ← Service Gold / Cook Gold เป็นข้อสันนิษฐาน (หนังสือไม่ได้ระบุว่าพนักงานขึ้นหัวหน้ากะจากตำแหน่งไหน)
+   ชุดข้อสอบที่ยังตั้งชื่อตำแหน่งว่า "Supervisor" ถือเป็น Shift Supervisor (ดู oeSfLabel) */
 var OE_SF_PATH = [
   ['Service Silver',            ['Service Basic']],
   ['Service Gold',              ['Service Silver']],
   ['Cook Silver',               ['Cook Basic']],
   ['Cook Gold',                 ['Cook Silver']],
-  ['Supervisor',                ['Service Gold', 'Cook Gold']],
-  ['Assistant Manager',         ['Trainee Manager']],
+  ['Shift Supervisor',          ['Service Gold', 'Cook Gold']],
+  ['Assistant Manager',         ['Shift Supervisor', 'Trainee Manager']],
   ['Senior Assistant Manager',  ['Assistant Manager']],
   ['Restaurant Manager',        ['Senior Assistant Manager']],
   ['Restaurant General Manager',['Senior Assistant Manager']],
   ['Senior Restaurant Manager', ['Restaurant General Manager']]
 ];
-var OE_SF_COMPANY = 'บริษัท เคที เรสทัวรองค์ จำกัด';
+var OE_SF_COMPANY = 'บริษัท เคที เรสทัวรองท์ จำกัด';
 function oeIsSf(x){
   /* ชื่อแบรนด์ที่ติดมากับชุด/คำขอ/ผลสอบ (เช่น "Santa Fe") ตัดสินได้เลย — ไม่ต้องรอทะเบียนแบรนด์โหลด */
   if(/santa\s*fe|santafe|ซานตาเฟ่/i.test(String((x && x.brand) || ''))) return true;
@@ -6761,8 +6762,13 @@ function oeIsSf(x){
   return !!(b && b.key === 'santafe');
 }
 function _oePn(s){ return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+/* ชื่อตำแหน่งที่ใช้แสดง/จับคู่: Supervisor → Shift Supervisor และตัดช่องว่างซ้ำ (เช่น "Senior Assistant  Manager") */
+function oeSfLabel(p){
+  var t = String(p == null ? '' : p).replace(/\s+/g, ' ').trim();
+  return /^supervisor$/i.test(t) ? 'Shift Supervisor' : t;
+}
 function oeSfFromOf(to){
-  var k = _oePn(to), hit = OE_SF_PATH.filter(function(x){ return _oePn(x[0]) === k; })[0];
+  var k = _oePn(oeSfLabel(to)), hit = OE_SF_PATH.filter(function(x){ return _oePn(x[0]) === k; })[0];
   return hit ? hit[1].slice() : [];
 }
 /* ตัวเลือก "ตำแหน่งปัจจุบัน" ของชุดนี้ — ต้องครอบคลุมทุกตำแหน่งที่สอบได้ ไม่งั้นใช้แบบเดิม (เลือกตำแหน่งที่สอบตรง ๆ) */
@@ -6786,7 +6792,8 @@ function oeFromPos(x){
 /* ข้อความตำแหน่งในรายการ: "ตำแหน่งเดิม → ตำแหน่งที่สอบ" */
 function oePosTxt(x){
   var f = oeFromPos(x), p = x && x.position;
-  return f && p ? f + ' → ' + p : (p || '');
+  if(!oeIsSf(x)) return p || '';
+  return f && p ? oeSfLabel(f) + ' → ' + oeSfLabel(p) : (p ? oeSfLabel(p) : '');
 }
 /* ผลรายหมวดของใบที่ตัดรายหมวด */
 function _oeCatsHtml(r){
@@ -7918,7 +7925,8 @@ function _oePosLine(){
   var pos = String(($('inPosition') || {}).value || '').trim();
   el.hidden = !pos;
   var fp = R && R.student && R.student.fromPosition;
-  el.textContent = pos ? (fp ? 'สอบเลื่อนจาก ' + fp + ' เป็น ' + pos : 'สอบตำแหน่ง ' + pos) : '';
+  var _sf = R && R.exam && oeIsSf(R.exam), _l = function(v){ return _sf ? oeSfLabel(v) : v; };
+  el.textContent = pos ? (fp ? 'สอบเลื่อนจาก ' + _l(fp) + ' เป็น ' + _l(pos) : 'สอบตำแหน่ง ' + _l(pos)) : '';
 }
 function _oeCatPlanPaint(){
   _oePosLine();
@@ -8878,7 +8886,7 @@ function _docSheetExam(r){
     '<table class="sh-kv">' +
       kv('ชื่อ – นามสกุล', r.name || '-') +
       kv('รหัสพนักงาน', r.empId || '-') +
-      (oeFromPos(r) ? kv('ตำแหน่งเดิม', oeFromPos(r)) + kv('สอบเป็นตำแหน่ง', r.position || '-') : kv('ตำแหน่ง', r.position || '-')) +
+      (oeFromPos(r) ? kv('ตำแหน่งเดิม', oeSfLabel(oeFromPos(r))) + kv('สอบเป็นตำแหน่ง', oeSfLabel(r.position) || '-') : kv('ตำแหน่ง', (oeIsSf(r) ? oeSfLabel(r.position) : r.position) || '-')) +
       kv('สาขา / หน่วยงาน', r.branch || '-') +
     '</table>' +
     '<div class="exs-sec">รายละเอียดการสอบ</div>' +
@@ -9822,7 +9830,7 @@ function docsPickForm(kind, on){
     _docSet('emp_company', _docLegal(_docR));
     /* ซานตาเฟ่: ตำแหน่ง = ตำแหน่งเดิม · แถว "ตำแหน่ง" ในตารางการเปลี่ยนแปลง เดิม → ใหม่ */
     var _fp = oeFromPos(_docR);
-    if(_fp){ _docSet('emp_pos', _fp); _docSet('f_G26', _fp); _docSet('f_V26', _docR.position); }
+    if(_fp){ _docSet('emp_pos', oeSfLabel(_fp)); _docSet('f_G26', oeSfLabel(_fp)); _docSet('f_V26', oeSfLabel(_docR.position)); }
     _docMarkSign();
     _docLoadDraft();
     _docPayWire();          // ต้องหลังโหลดร่าง — ฐานเดิมที่เคยพิมพ์ไว้ต้องถูกคิดใหม่
@@ -10831,7 +10839,7 @@ function _oeReqPosPaint(){
     sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
     var _hc0 = $('reqPosHintC'); if(_hc0) _hc0.hidden = true;
     sel.innerHTML = '<option value="">— เลือกตำแหน่งปัจจุบัน —</option>' +
-      _fo.map(function(o){ return '<option value="' + esc(o.from) + '" data-to="' + esc(o.to) + '">' + esc(o.from) + '</option>'; }).join('');
+      _fo.map(function(o){ return '<option value="' + esc(o.from) + '" data-to="' + esc(o.to) + '">' + esc(oeSfLabel(o.from)) + '</option>'; }).join('');
     sel.value = ''; inp.value = '';
     return;
   }
@@ -10855,7 +10863,7 @@ function oeReqPosPick(){
     if(nx){
       var pe = to ? oePosEntry(_reqExam, to) : null;
       nx.hidden = !to;
-      nx.innerHTML = to ? 'สอบเลื่อนเป็นตำแหน่ง <b>' + esc(to) + '</b>' + (pe && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, pe)) : '') : '';
+      nx.innerHTML = to ? 'สอบเลื่อนเป็นตำแหน่ง <b>' + esc(oeSfLabel(to)) + '</b>' + (pe && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, pe)) : '') : '';
     }
     return;
   }
