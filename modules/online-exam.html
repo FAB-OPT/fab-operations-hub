@@ -6750,8 +6750,8 @@ var OE_SF_PATH = [
   ['Shift Supervisor',          ['Service Gold', 'Cook Gold']],
   ['Assistant Manager',         ['Shift Supervisor', 'Trainee Manager']],
   ['Senior Assistant Manager',  ['Assistant Manager']],
-  ['Restaurant Manager',        ['Senior Assistant Manager']],
-  ['Restaurant General Manager',['Senior Assistant Manager']],
+  ['Restaurant Manager',        ['Senior Assistant Manager', 'Assistant Manager']],   // บางเคส Assistant Manager ขึ้น Restaurant Manager ตรง ๆ
+  ['Restaurant General Manager',['Senior Assistant Manager', 'Assistant Manager']],
   ['Senior Restaurant Manager', ['Restaurant General Manager']]
 ];
 var OE_SF_COMPANY = 'บริษัท เคที เรสทัวรองท์ จำกัด';
@@ -6798,10 +6798,17 @@ function oeSfFromOptions(ex){
   if(!oeIsSf(ex)) return [];
   var list = oePosList(ex);
   if(!list.length || !list.every(function(p){ return oeSfFromOf(p.name).length; })) return [];
+  /* ตำแหน่งปัจจุบันหนึ่งตำแหน่งอาจสอบเลื่อนได้หลายตำแหน่ง (เช่น Assistant Manager → Senior Assistant Manager หรือ Restaurant Manager)
+     tos = ตำแหน่งที่สอบได้ทั้งหมด · to = ตัวแรก (ใช้เมื่อมีทางเดียว) */
   var out = [];
   list.forEach(function(p){
-    oeSfFromOf(p.name).forEach(function(f){ if(!out.some(function(o){ return o.from === f; })) out.push({ from: f, to: p.name }); });
+    oeSfFromOf(p.name).forEach(function(f){
+      var o = out.filter(function(x){ return x.from === f; })[0];
+      if(!o){ o = { from: f, tos: [] }; out.push(o); }
+      if(o.tos.indexOf(p.name) < 0) o.tos.push(p.name);
+    });
   });
+  out.forEach(function(o){ o.to = o.tos[0]; });
   return out;
 }
 /* ตำแหน่งเดิมของผลสอบ/คำขอใบนี้: ที่เก็บไว้ → ไม่มีก็เดาจากเส้นทาง (เฉพาะกรณีทางเดียว) · ไม่ใช่ซานตาเฟ่ = ว่าง */
@@ -10863,7 +10870,7 @@ function _oeReqPosPaint(){
     sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
     var _hc0 = $('reqPosHintC'); if(_hc0) _hc0.hidden = true;
     sel.innerHTML = '<option value="">— เลือกตำแหน่งปัจจุบัน —</option>' +
-      _fo.map(function(o){ return '<option value="' + esc(o.from) + '" data-to="' + esc(o.to) + '">' + esc(oeSfLabel(o.from)) + '</option>'; }).join('');
+      _fo.map(function(o){ return '<option value="' + esc(o.from) + '" data-tos="' + esc(o.tos.join('|')) + '">' + esc(oeSfLabel(o.from)) + '</option>'; }).join('');
     sel.value = ''; inp.value = '';
     return;
   }
@@ -10876,18 +10883,26 @@ function _oeReqPosPaint(){
   sel.value = '';
   inp.value = '';
 }
+function oeReqToPick(v){ var inp = $('reqPosition'); if(inp) inp.value = v || ''; }
 function oeReqPosPick(){
   var sel = $('reqPositionSel'), inp = $('reqPosition');
   if(!(sel && inp)) return;
   if(oeSfFromOptions(_reqExam).length){
     /* ตำแหน่งปัจจุบัน → ตำแหน่งที่สอบ (ช่องเดิม #reqPosition เก็บตำแหน่งที่สอบ โค้ดที่เหลืออ่านจากช่องเดิมเหมือนเดิม) */
-    var op = sel.options[sel.selectedIndex], to = (op && op.getAttribute('data-to')) || '';
+    var op = sel.options[sel.selectedIndex], tos = ((op && op.getAttribute('data-tos')) || '').split('|').filter(Boolean);
+    var to = tos.length === 1 ? tos[0] : '';
     _reqFrom = sel.value; inp.value = to;
     var nx = $('reqPosNext');
     if(nx){
       var pe = to ? oePosEntry(_reqExam, to) : null;
-      nx.hidden = !to;
-      nx.innerHTML = to ? 'สอบเลื่อนเป็นตำแหน่ง <b>' + esc(oeSfLabel(to)) + '</b>' + (pe && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, pe)) : '') : '';
+      nx.hidden = !tos.length;
+      if(tos.length > 1){
+        /* ตำแหน่งปัจจุบันนี้สอบเลื่อนได้มากกว่าหนึ่งตำแหน่ง — ให้เลือกว่าจะสอบตำแหน่งไหน */
+        nx.innerHTML = 'สอบเลื่อนเป็นตำแหน่ง <select class="txt" id="reqToSel" onchange="oeReqToPick(this.value)" style="margin-top:6px"><option value="">— เลือกตำแหน่งที่จะสอบ —</option>' +
+          tos.map(function(t){ var p2 = oePosEntry(_reqExam, t); return '<option value="' + esc(t) + '">' + esc(oeSfLabel(t)) + (p2 && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, p2)) : '') + '</option>'; }).join('') + '</select>';
+      } else {
+        nx.innerHTML = to ? 'สอบเลื่อนเป็นตำแหน่ง <b>' + esc(oeSfLabel(to)) + '</b>' + (pe && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, pe)) : '') : '';
+      }
     }
     return;
   }
