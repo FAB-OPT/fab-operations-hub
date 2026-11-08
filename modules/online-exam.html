@@ -1494,6 +1494,7 @@ button.rq-done-it:hover{background:var(--bg3)}
 .meta .n{font-variant-numeric:tabular-nums;font-size:23px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.03em}
 .meta .l{font-size:11px;color:var(--text3);margin-top:6px;font-weight:600}
 .rules{border:1px solid var(--border);border-radius:15px;padding:2px 8px;margin-bottom:18px;background:var(--bg2)}
+.ch .ex-pos{margin-top:4px;font-size:15px;font-weight:800;color:#b23a10}
 /* หน้าเริ่มสอบ: หมวด · จำนวนข้อ · เกณฑ์ผ่าน (ชุดที่ตัดรายหมวด) */
 .catplan{border:1px solid var(--border);border-radius:15px;padding:10px 14px 6px;margin-bottom:14px;background:#fff}
 .catplan .cp-h{font-size:12.5px;font-weight:800;color:var(--text2);margin-bottom:4px}
@@ -2086,7 +2087,6 @@ label.fld>span>b{font-weight:800}
 .wa-l{font-size:11.5px;font-weight:700;color:#b23a10;letter-spacing:.02em}
 .wa-n{font-size:17px;font-weight:800;line-height:1.3;margin-top:3px;color:var(--text)}
 .wa-s{font-size:13px;color:var(--text2);line-height:1.5;margin-top:3px}
-.wa-p{display:inline-block;margin-top:6px;background:#fff;border:1px solid var(--gold-line);border-radius:999px;padding:2px 13px;font-size:13.5px;font-weight:800;color:#b23a10}
 .wa-edit{margin-top:9px;font-size:12.5px;font-weight:700;color:#b23a10;
   text-decoration:underline;padding:2px 0}
 
@@ -2789,6 +2789,7 @@ label.fld>span>b{font-weight:800}
         <div class="ch">
           <div class="ex-brand" id="exBrand"></div>
           <h1 id="exStartTitle">แบบทดสอบ</h1>
+          <div class="ex-pos" id="exPosLine" hidden></div>
           <p>กรุณากรอกข้อมูลและอ่านกติกาก่อนเริ่มทำข้อสอบ</p>
         </div>
         <div class="cb">
@@ -2810,7 +2811,6 @@ label.fld>span>b{font-weight:800}
           <div class="whoami" id="exWhoAmI">
             <div class="wa-l">สอบในนาม</div>
             <div class="wa-n" id="waName"></div>
-            <div class="wa-p" id="waPos" hidden></div>
             <div class="wa-s" id="waSub"></div>
             <button class="wa-edit" onclick="oeEditWhoAmI()">แก้ไขข้อมูล</button>
           </div>
@@ -7716,6 +7716,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('inId').value = R.student.id || '';
   $('inPosition').value = R.student.position || '';
   var _cp0 = $('exCatPlan'); if(_cp0){ _cp0.hidden = true; _cp0.innerHTML = ''; }
+  _oePosLine();
   _oePosFieldPaint();
   $('inName').readOnly = false;
   $('inId').readOnly = false;
@@ -7760,9 +7761,8 @@ function _oeWhoAmI(isPreview){
   fields.style.display = ready ? 'none' : '';
   if(!ready) return;
   $('waName').textContent = name;
-  /* ตำแหน่งที่สอบขึ้นเป็นป้ายเด่น แยกจากรหัส/สาขา — เกณฑ์และหมวดของข้อสอบผูกกับตำแหน่งนี้ */
-  var wp = $('waPos'); if(wp){ wp.hidden = !pos; wp.textContent = 'สอบตำแหน่ง ' + pos; }
-  $('waSub').textContent = [id, br].filter(Boolean).join(' · ');
+  $('waSub').textContent = [id, pos, br].filter(Boolean).join(' · ');
+  _oePosLine();
 }
 /* ปุ่มเลือกส่วนที่จะสอบ — บอกจำนวนข้อกับเกณฑ์ของแต่ละทางไว้ในปุ่มเลย ไม่ต้องเดา
    ส่วนที่ไม่มีข้อเลยกดไม่ได้ · ตัวเลขหัวหน้า (ข้อ/เกณฑ์ผ่าน) เปลี่ยนตามที่เลือก */
@@ -7854,7 +7854,14 @@ function _oePosFieldPaint(){
 }
 /* หน้าเริ่มสอบ: ตำแหน่งนี้ตัดรายหมวด → บอกว่ามีหมวดไหน กี่ข้อ เกณฑ์เท่าไร ต้องถูกกี่ข้อ
    สอบซ่อม → บอกเฉพาะหมวดที่ต้องสอบใหม่ (หมวดที่ผ่านแล้วขึ้นจาง ใช้คะแนนเดิม) */
+function _oePosLine(){
+  var el = $('exPosLine'); if(!el) return;
+  var pos = String(($('inPosition') || {}).value || '').trim();
+  el.hidden = !pos;
+  el.textContent = pos ? 'สอบตำแหน่ง ' + pos : '';
+}
 function _oeCatPlanPaint(){
+  _oePosLine();
   var box = $('exCatPlan'); if(!box) return;
   var pos = ($('inPosition') || {}).value || '';
   var g = (R && R.exam && pos) ? oeCatGate(R.exam, pos) : null;
@@ -7869,7 +7876,7 @@ function _oeCatPlanPaint(){
       '<span class="cp-q">' + (skip ? 'ผ่านแล้ว' : r.take + ' ข้อ') + '</span>' +
       '<span class="cp-p">' + (skip ? 'ใช้คะแนนเดิม' : (r.pass != null ? 'เกณฑ์ผ่าน ' + r.pass + '% · ต้องถูก ' + need + ' ข้อ' : 'ไม่ตั้งเกณฑ์')) + '</span></div>';
   }).join('');
-  box.innerHTML = '<div class="cp-h">สอบตำแหน่ง ' + esc(pos) + ' · ' + (re ? 'สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน' : 'หมวด จำนวนข้อ และเกณฑ์ผ่าน') + '</div>' + rows;
+  box.innerHTML = '<div class="cp-h">' + (re ? 'สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน' : 'หมวด จำนวนข้อ และเกณฑ์ผ่าน') + '</div>' + rows;
   box.hidden = false;
   var mq = $('mQ'); if(mq && re) mq.textContent = sum;   // สอบซ่อม: จำนวนข้อจริงของรอบนี้
 }
