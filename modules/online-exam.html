@@ -168,6 +168,8 @@ input.fld.w1{width:15mm}input.fld.wd{width:9mm}input.fld.w2{width:34mm}input.fld
 .sh-sign>div{flex:0 1 54mm;text-align:center;font-size:10pt}
 .sh-sign .ln{border-bottom:0.75pt dotted #6b7280;height:9mm;width:52mm;max-width:100%;margin:0 auto 1.5mm}
 .sh-sign b{display:block;font-weight:700}
+.sh-sign .ln.nm{height:6mm}
+.sh-sign .ln.nm .xi{width:100%;text-align:center}
 .sh-sign span{display:block;color:#4b5563;margin-top:.6mm}
 /* วัน/เดือน/ปี ต้องอยู่บรรทัดเดียวกัน · .fld มี min-width ไว้กันช่องแคบเกิน
    แต่ช่องวันที่ตั้งใจให้แคบ ต้องปลดออก ไม่งั้นดันกันจนตกบรรทัด */
@@ -261,8 +263,6 @@ input.fld.w1{width:15mm}input.fld.wd{width:9mm}input.fld.w2{width:34mm}input.fld
 /* ช่องเซ็นที่ต้องเซ็นด้วยมือ (มีช่องชื่อคู่กัน) — แตะแล้วเปิดกรอบเซ็น ไม่ใช่ช่องพิมพ์ */
 .xi.sigonly{cursor:pointer}
 .xi.sigonly::placeholder{color:#9a8f6a;font-size:.9em}
-/* ช่องชื่อ/ลายเซ็นที่ยังขาดตอนกดพิมพ์ — เห็นเฉพาะบนจอ */
-.sig-miss{outline:1.5px solid #dc2626!important;outline-offset:1px;background:#fee2e2!important}
 .modal-box.sig-box{max-width:520px}
 .sig-pad{position:relative;border:1px dashed var(--border2);border-radius:12px;
   background:var(--bg2);overflow:hidden;touch-action:none}
@@ -343,7 +343,6 @@ input.fld.w1{width:15mm}input.fld.wd{width:9mm}input.fld.w2{width:34mm}input.fld
   #docsSheets{transform:none!important;margin-bottom:0!important}
   .sigbtn{display:none!important}
   .xi.sigonly::placeholder{color:transparent}
-  .sig-miss{outline:none!important}
 }
 /* ข้อความที่มีไว้ให้เครื่องอ่านหน้าจอ ไม่ต้องเห็นบนจอ */
 .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;
@@ -8639,8 +8638,10 @@ function _docSheetExam(r){
       'ใบนี้ไม่มีคำถามและเฉลย</div>' +
     '<div class="sh-sign">' +
       '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_taker"></div>' +
+        '<div class="ln nm"><input class="xi" data-d="nm_exam_taker" value="' + esc(r.name || '') + '"></div>' +
         '<b>ผู้เข้าสอบ</b>' + _docDateFld('dt_taker') + '</div>' +
       '<div><div class="ln"><input class="xi sigline" data-d="sig_exam_zm"></div>' +
+        '<div class="ln nm"><input class="xi" data-d="nm_exam_zm"></div>' +
         '<b>ผู้จัดการเขต</b>' + _docDateFld('dt_zm') + '</div>' +
     '</div>' +
   '</article>';
@@ -8740,18 +8741,30 @@ function _docFabLogoSwap(html){
 }
 /* ── ชื่อ-สกุล + ลายเซ็น บังคับทั้งสองอย่าง ──
    ช่องเซ็นของสองใบนี้เซ็นด้วยนิ้ว/เมาส์เท่านั้น (พิมพ์ชื่อลงช่องเซ็นไม่ได้อีก)
-   ชื่อ-สกุลพิมพ์ในช่องใต้เส้นเซ็น · ขาดอย่างใดอย่างหนึ่งสั่งพิมพ์/บันทึก PDF ไม่ได้
-   ช่องที่กรรมการ/ฝ่ายบุคคลเซ็นทีหลังบนกระดาษถูกล็อกไว้อยู่แล้ว จึงไม่นับ */
+   ชื่อ-สกุลพิมพ์ในช่องใต้เส้นเซ็น · ไม่บังคับ — เว้นว่างแล้วพิมพ์/บันทึก PDF ได้ตามปกติ (เซ็นสดบนกระดาษได้)
+   ทุกใบในชุดมีช่องเซ็น + ช่องชื่อ: ใบปรับสภาพ · ใบประเมินทดลองงาน · ใบประเมินบริการ/ครัว · ใบรายงานผลสอบ */
 var DOC_SIGS = {
   adjust: [
     { sig: 'f_E41', name: 'nm_E41', who: 'ผู้บังคับบัญชาโดยตรง' },
     { sig: 'f_E44', name: 'nm_E44', who: 'ผู้บังคับบัญชาตามสายงาน' },
     { sig: 'f_E47', name: 'nm_E47', who: 'ผู้บังคับบัญชาระดับสูง' }
   ],
+  exam: [
+    { sig: 'sig_exam_taker', name: 'nm_exam_taker', who: 'ผู้เข้าสอบ' },
+    { sig: 'sig_exam_zm', name: 'nm_exam_zm', who: 'ผู้จัดการเขต' }
+  ],
+  service: [
+    { sig: 'sg_team', name: 'nm_team', who: 'ทีมบริหารสาขา' },
+    { sig: 'sg_eval', name: 'nm_eval', who: 'ผู้ประเมิน' }
+  ],
+  kitchen: [
+    { sig: 'sg_team', name: 'nm_team', who: 'ทีมบริหารสาขา' },
+    { sig: 'sg_eval', name: 'nm_eval', who: 'ผู้ประเมิน' }
+  ],
   evaluate: [
     { sig: 'f_A38_1', name: 'nm_A38', who: 'ผู้ประเมิน (Branch Manager / Area manager)' },
-    { sig: 'f_C38_1', name: 'nm_C38', who: 'รับทราบ (Head Of Operations)', opt: true },
-    { sig: 'f_E38_1', name: 'nm_E38', who: 'ผู้อนุมัติ (Human Resource)', opt: true },
+    { sig: 'f_C38_1', name: 'nm_C38', who: 'รับทราบ (Head Of Operations)' },
+    { sig: 'f_E38_1', name: 'nm_E38', who: 'ผู้อนุมัติ (Human Resource)' },
     { sig: 'f_C42_1', name: 'nm_C42', who: 'ผู้รับการประเมิน' }
   ]
 };
@@ -8804,6 +8817,44 @@ function _docAddNameRows(html, kind){
   });
   return box.innerHTML;
 }
+/* ใบประเมินบริการ/ครัว: ท้ายตารางประเมินมีแต่ป้าย "ทีมบริหารสาขา : / ผู้ประเมิน :" ไม่มีช่องให้เซ็น
+   เติมสองแถวใต้ป้าย — แถวเซ็น (สูงพอให้เซ็น) กับแถวชื่อ-สกุล */
+function _docAddFootSign(html, kind){
+  var box = document.createElement('div');
+  box.innerHTML = html;
+  var tr = [].filter.call(box.querySelectorAll('tr'), function(r){
+    return /ทีมบริหารสาขา\s*:/.test(r.textContent) && /ผู้ประเมิน\s*:/.test(r.textContent) && !r.querySelector('input');
+  })[0];
+  if(!tr) return html;
+  var specs = DOC_SIGS[kind] || [];
+  var cell = function(src, inner){
+    var td = document.createElement('td');
+    ['colspan', 'style'].forEach(function(a){ if(src.getAttribute(a)) td.setAttribute(a, src.getAttribute(a)); });
+    td.style.fontWeight = '400'; td.style.whiteSpace = 'nowrap';
+    td.innerHTML = inner;
+    return td;
+  };
+  var sg = document.createElement('tr'), nm = document.createElement('tr');
+  sg.style.height = '24pt'; nm.style.height = '15pt';
+  var k = 0;
+  [].forEach.call(tr.children, function(td){
+    if(!td.textContent.trim()){ sg.appendChild(td.cloneNode(false)); nm.appendChild(td.cloneNode(false)); return; }
+    var s = specs[k++];
+    if(!s){ sg.appendChild(td.cloneNode(false)); nm.appendChild(td.cloneNode(false)); return; }
+    var f = function(n, c){ return '<span class="dfld xu" style="width:92%"><input class="xi ' + c + '" data-d="' + n + '" style="width:100%"></span>'; };
+    sg.appendChild(cell(td, f(s.sig, 'sigline')));
+    nm.appendChild(cell(td, '<span style="font-size:7.4pt;margin-right:4px">ชื่อ-สกุล</span>' + f(s.name, '').replace('width:92%', 'width:calc(100% - 48px)')));
+  });
+  /* เส้นเปล่าที่ต้นฉบับเว้นไว้ใต้ป้ายสองช่องนี้ (ระบบเคยแปลงเป็นช่องพิมพ์ชื่อ) ซ้ำกับช่องเซ็น/ชื่อใหม่แล้ว — เอาออก */
+  var nx = tr.nextElementSibling;
+  for(var n = 0; nx && n < 3; n++){
+    var cur = nx; nx = nx.nextElementSibling;
+    if(cur.querySelector('input') && !cur.textContent.replace(/[\s.]+/g, '')) cur.parentNode.removeChild(cur);
+  }
+  tr.parentNode.insertBefore(sg, tr.nextSibling);
+  tr.parentNode.insertBefore(nm, sg.nextSibling);
+  return box.innerHTML;
+}
 /* ร่าง/ไฟล์นำเข้าเก่าที่พิมพ์ชื่อลงช่องเซ็น → ย้ายไปช่องชื่อ แล้วให้ช่องเซ็นรอเซ็นจริง */
 function _docSigUpgrade(){
   [].forEach.call(document.querySelectorAll('#docsSheets input.xi, #docsSheets input.sigline'), function(el){
@@ -8815,25 +8866,6 @@ function _docSigUpgrade(){
     }
   });
 }
-/* คืนรายการที่ยังขาด (ว่าง = ครบ) พร้อมไฮไลต์ช่องที่ขาดบนจอ */
-function _docSigCheck(){
-  var miss = [];
-  Object.keys(DOC_SIGS).forEach(function(kind){
-    var sheet = document.querySelector('#docsSheets [data-doc="' + kind + '"]');
-    if(!sheet) return;
-    DOC_SIGS[kind].forEach(function(s){
-      var sg = sheet.querySelector('[data-d="' + s.sig + '"]'), nm = sheet.querySelector('[data-d="' + s.name + '"]');
-      if(!sg || !nm || s.opt) return;    // opt = ไม่บังคับ (ยังเซ็น/ใส่ชื่อได้ แต่ไม่ขวางการพิมพ์)
-      var noName = !String(nm.value || '').trim(), noSig = !(sg.dataset && sg.dataset.sig);
-      var wrap = sg.closest ? (sg.closest('.sigwrap') || sg) : sg;
-      nm.classList.toggle('sig-miss', noName);
-      wrap.classList.toggle('sig-miss', noSig);
-      if(noName || noSig) miss.push({ kind: kind, who: s.who, noName: noName, noSig: noSig, el: noSig ? sg : nm });
-    });
-  });
-  return miss;
-}
-
 function _docMarkSign(){
   [].forEach.call(document.querySelectorAll('#docsSheets input.sigline'), _docMakeSignable);
   var rows = document.querySelectorAll('#docsSheets .xt tr');
@@ -8880,7 +8912,7 @@ function sigOpen(target){
   _sigTarget = target;
   $('sigDrop').hidden = !(target.dataset && target.dataset.sig);
   $('sigWho').textContent = _docSigNameOf(target)
-    ? 'เซ็นในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้" · อย่าลืมพิมพ์ชื่อ-สกุลในช่องใต้เส้นเซ็นด้วย (ต้องมีทั้งสองอย่าง)'
+    ? 'เซ็นในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้" · พิมพ์ชื่อ-สกุลในช่องใต้เส้นเซ็นด้วย'
     : 'ลากนิ้วหรือเมาส์ในกรอบด้านล่าง แล้วกด "ใช้ลายเซ็นนี้" · หรือปิดกล่องนี้แล้วพิมพ์ชื่อลงช่องก็ได้';
   $('sigModal').classList.add('show');
   setTimeout(_sigInit, 30);
@@ -8964,7 +8996,6 @@ function _sigTrim(c){
 /* วางรูปลายเซ็นทับเส้น — เก็บไว้ที่ตัวช่องเอง ร่างจะได้บันทึกไปด้วย */
 function _docSetSign(el, uri){
   el.dataset.sig = uri || '';
-  if(uri){ var _w = el.closest ? (el.closest('.sigwrap') || el) : el; _w.classList.remove('sig-miss'); }
   var host = el.classList.contains('sigslot') ? el : el.parentNode;
   var img = host.querySelector('.sigimg');
   if(!uri){ if(img) img.remove(); return; }
@@ -9513,7 +9544,7 @@ function docsPickForm(kind, on){
     var art = document.createElement('article');
     art.className = 'sheet xsheet';
     art.setAttribute('data-doc', kind);
-    art.innerHTML = _docAddNameRows(html, kind);
+    art.innerHTML = (kind === 'service' || kind === 'kitchen') ? _docAddFootSign(html, kind) : _docAddNameRows(html, kind);
     _docPlace(box, art, kind);
     _docMarkSign();
     if(kind === 'evaluate') _docEvalFill(_docR);   // ก่อนโหลดร่าง — ร่างที่พิมพ์เองต้องทับได้
@@ -9881,19 +9912,6 @@ async function docsClear(){
    (CSS @media print ซ่อนทุกอย่างนอกจากกระดาษ) */
 function docsPrint(){
   _docSaveDraft(true);
-  var miss = _docSigCheck();
-  if(miss.length){
-    var lab = { adjust: 'ใบปรับสภาพ', evaluate: 'แบบประเมินทดลองงาน' };
-    showExamInfo('ใส่ชื่อและลายเซ็นให้ครบก่อนพิมพ์',
-      '<p style="margin:0 0 8px">ช่องลงนามต้องมี <b>ชื่อ-สกุล</b> และ <b>ลายเซ็น</b> ทั้งสองอย่าง จึงพิมพ์ / บันทึก PDF ได้ (บันทึกร่างไว้ให้แล้ว)</p>' +
-      '<ul style="margin:0;padding-left:18px;line-height:1.7">' + miss.map(function(m){
-        return '<li><b>' + esc(lab[m.kind] || m.kind) + '</b> · ' + esc(m.who) + ' — ขาด' +
-          (m.noName && m.noSig ? 'ชื่อ-สกุลและลายเซ็น' : (m.noName ? 'ชื่อ-สกุล' : 'ลายเซ็น')) + '</li>';
-      }).join('') + '</ul>');
-    var go = miss[0].el;
-    setTimeout(function(){ try{ go.scrollIntoView({ block: 'center', behavior: 'smooth' }); }catch(e){} }, 150);
-    return;
-  }
   window.print();
 }
 
