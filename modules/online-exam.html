@@ -6767,6 +6767,28 @@ function oeSfLabel(p){
   var t = String(p == null ? '' : p).replace(/\s+/g, ' ').trim();
   return /^supervisor$/i.test(t) ? 'Shift Supervisor' : t;
 }
+/* ── ชื่อสาขาเต็มในเอกสาร: "5065 ซานตาเฟ่ เกตเวย์ เอกมัย" (รหัสสาขา + แบรนด์ + ชื่อสาขา) ──
+   รหัสมาจากทะเบียนสาขาของฮับ (จับคู่ด้วยชื่อสาขา) · ไม่มีรหัส/ไม่รู้แบรนด์ก็ข้ามส่วนนั้น · ไม่ซ้ำถ้าชื่อมีอยู่แล้ว */
+function _oeBranchCodeByName(name){
+  var obj = _oeBranchStore(), k = String(name || '').replace(/\s+/g, '');
+  if(!obj || !obj.branches || !k) return '';
+  var hit = Object.keys(obj.branches).filter(function(c){ return String(obj.branches[c] || '').replace(/\s+/g, '') === k; })[0];
+  return hit || '';
+}
+function oeBranchFull(r, withBrand){
+  var name = String((r && r.branch) || '').trim();
+  if(!name) return '';
+  var code = String((r && r.branchCode) || '').trim() || _oeBranchCodeByName(name);
+  var parts = [];
+  if(code && name.indexOf(code) !== 0) parts.push(code);
+  if(withBrand !== false){
+    var bi = _oeBrandOfResult(r) || {}, d = DEFAULT_EXAM_BRANDS.filter(function(x){ return x.key === bi.key; })[0];
+    var brand = oeIsSf(r) ? 'ซานตาเฟ่' : (d ? d.name : (bi.name || ''));
+    if(brand && _oePn(name).indexOf(_oePn(brand)) < 0) parts.push(brand);
+  }
+  parts.push(name);
+  return parts.join(' ');
+}
 function oeSfFromOf(to){
   var k = _oePn(oeSfLabel(to)), hit = OE_SF_PATH.filter(function(x){ return _oePn(x[0]) === k; })[0];
   return hit ? hit[1].slice() : [];
@@ -7385,7 +7407,7 @@ function _oeReportHtml(r){
     ['ชุดข้อสอบ', esc(r.examTitle || '-'), 1],
     ['ชื่อ - นามสกุล', esc(r.name || '-'), 1],
     ['รหัสพนักงาน', esc(r.empId || '-'), 1],
-    ['สาขา / หน่วยงาน', esc(r.branch || '-'), 1],
+    ['สาขา / หน่วยงาน', esc(oeBranchFull(r) || '-'), 1],
     ['วันที่สอบ', esc(fmtDT(r.submittedAt)), 1],
     ['เวลาที่ใช้สอบ',
       'ทั้งหมด <b>' + esc(_oeFmtMin(um) || '-') + '</b>' +
@@ -8887,7 +8909,7 @@ function _docSheetExam(r){
       kv('ชื่อ – นามสกุล', r.name || '-') +
       kv('รหัสพนักงาน', r.empId || '-') +
       (oeFromPos(r) ? kv('ตำแหน่งเดิม', oeSfLabel(oeFromPos(r))) + kv('สอบเป็นตำแหน่ง', oeSfLabel(r.position) || '-') : kv('ตำแหน่ง', (oeIsSf(r) ? oeSfLabel(r.position) : r.position) || '-')) +
-      kv('สาขา / หน่วยงาน', r.branch || '-') +
+      kv('สาขา / หน่วยงาน', oeBranchFull(r) || '-') +
     '</table>' +
     '<div class="exs-sec">รายละเอียดการสอบ</div>' +
     '<table class="sh-kv">' +
@@ -9826,7 +9848,7 @@ function docsPickForm(kind, on){
     _docSet('emp_id', _docR.empId);
     _docSet('emp_name', _docR.name);
     _docSet('emp_pos', _docR.position);
-    _docSet('emp_branch', _docR.branch);
+    _docSet('emp_branch', oeBranchFull(_docR));
     _docSet('emp_company', _docLegal(_docR));
     /* ซานตาเฟ่: ตำแหน่ง = ตำแหน่งเดิม · แถว "ตำแหน่ง" ในตารางการเปลี่ยนแปลง เดิม → ใหม่ */
     var _fp = oeFromPos(_docR);
@@ -10018,7 +10040,8 @@ function _docEvalFill(r){
     if(v) _docSet('f_' + ref + '_1', v);
   }
   if(!_docGet('f_F4_1')) _docSet('f_F4_1', _docDate());     // วันที่ = วันที่ทำเอกสาร
-  _docSet('hd_brand', (_oeBrandOfResult(r) || {}).name);
+  _docSet('hd_brand', oeBranchFull(r));                     // แบรนด์/สาขา: 5065 ซานตาเฟ่ เกตเวย์ เอกมัย
+  _docSet('f_F6_1', oeBranchFull(r, false));                // สาขา: 5065 เกตเวย์ เอกมัย
   _docSet('hd_company', _docLegal(r));
   _docSet('nm_C42', r && r.name);                           // ผู้รับการประเมิน = เจ้าของผลสอบ
 }
