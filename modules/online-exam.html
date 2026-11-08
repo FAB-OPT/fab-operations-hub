@@ -1090,6 +1090,7 @@ select.txt{appearance:none;-webkit-appearance:none;
 .cat-tbl td{padding:8px 10px;border-bottom:1px solid var(--border)}
 .cat-tbl .n{text-align:right;white-space:nowrap}
 .cat-tbl .cn{font-weight:700}
+.pos-need{font-size:11.5px;line-height:1.45;color:var(--text3);margin-top:4px;text-align:right;white-space:nowrap}.pos-need:empty{display:none}.pos-need b{color:var(--text)}
 .cat-tbl .cn.nocat{color:var(--text3);font-weight:600}
 .cat-tbl input{width:84px;border:1.5px solid var(--border2);border-radius:8px;padding:7px 9px;font:inherit;text-align:right;background:#fff}
 .cat-tbl .get{font-size:12px;color:var(--text3);margin-left:8px}
@@ -5393,7 +5394,8 @@ function oePosCatToggle(btn){
       rows.map(function(r){
         return '<tr><td>' + esc(r.label) + '</td><td class="n">' + r.pool + '</td><td class="n"><input class="pos-cn" type="number" min="0" ' + (pct ? 'max="100" step="any"' : 'max="' + r.pool + '"') + ' ' +
           'data-name="' + esc(r.name) + '" value="' + (cur[r.name] > 0 ? cur[r.name] : '') + '" oninput="oePosCatInput(this)">' + (pct ? ' %' : '') + '</td>' +
-          '<td class="n"><input class="pos-cp" type="number" min="0" max="100" step="any" placeholder="ไม่เช็ก" data-name="' + esc(r.name) + '" value="' + (curP[r.name] != null && curP[r.name] !== '' ? curP[r.name] : '') + '" oninput="oePosCatInput(this)"> %</td></tr>';
+          '<td class="n"><input class="pos-cp" type="number" min="0" max="100" step="any" placeholder="ไม่เช็ก" data-name="' + esc(r.name) + '" value="' + (curP[r.name] != null && curP[r.name] !== '' ? curP[r.name] : '') + '" oninput="oePosCatInput(this)"> %' +
+          '<div class="pos-need" data-name="' + esc(r.name) + '"></div></td></tr>';
       }).join('') + '</tbody></table><div class="pos-cat-sum" id=""></div>';
     oePosCatInput(box.querySelector('.pos-cn'));
   }
@@ -5434,6 +5436,15 @@ function oePosCatInput(el){
   var all = order.map(function(k){ return old[k]; }).filter(function(c){ return c.n > 0 || c.p > 0; });
   row.setAttribute('data-cat', JSON.stringify(all));
   var cat = all.filter(function(c){ return pct ? c.p > 0 : c.n > 0; });
+  /* ใต้ช่องเกณฑ์ผ่านหมวด: ต้องถูกกี่ข้อ/ผิดได้กี่ข้อ — คิดด้วยสูตรเดียวกับตอนตัดผลจริง (ปัดเปอร์เซ็นต์เป็นจำนวนเต็มก่อนเทียบเกณฑ์) */
+  var _plan = oePosCatPlan({ questions: draftQuestions }, { cat: cat, by: by, total: parseInt(row.getAttribute('data-total'), 10) || 0 }), _take = {};
+  if(_plan) _plan.rows.forEach(function(x){ _take[x.name] = x.take; });
+  [].forEach.call(row.querySelectorAll('.pos-need'), function(nb){
+    var nm = nb.getAttribute('data-name') || '', tk = _take[nm] || 0, pv = old[nm] ? old[nm].pass : null;
+    if(pv == null || !tk){ nb.innerHTML = ''; return; }
+    var need = 0; while(need < tk && Math.round(need / tk * 100) < pv) need++;
+    nb.innerHTML = 'ต้องถูก <b>' + need + '</b> จาก ' + tk + ' ข้อ<br>ผิดได้ <b>' + (tk - need) + '</b> ข้อ';
+  });
   var sum = pct ? _oePosCatCount(row) : _oePosCatSum(cat), has = cat.length > 0;
   var ps = cat.reduce(function(a, c){ return a + c.p; }, 0);
   var sBox = row.querySelector('.pos-cat-sum');
