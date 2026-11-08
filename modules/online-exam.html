@@ -1494,6 +1494,15 @@ button.rq-done-it:hover{background:var(--bg3)}
 .meta .n{font-variant-numeric:tabular-nums;font-size:23px;font-weight:800;color:var(--text);line-height:1;letter-spacing:-.03em}
 .meta .l{font-size:11px;color:var(--text3);margin-top:6px;font-weight:600}
 .rules{border:1px solid var(--border);border-radius:15px;padding:2px 8px;margin-bottom:18px;background:var(--bg2)}
+/* หน้าเริ่มสอบ: หมวด · จำนวนข้อ · เกณฑ์ผ่าน (ชุดที่ตัดรายหมวด) */
+.catplan{border:1px solid var(--border);border-radius:15px;padding:10px 14px 6px;margin-bottom:14px;background:#fff}
+.catplan .cp-h{font-size:12.5px;font-weight:800;color:var(--text2);margin-bottom:4px}
+.catplan .cp-r{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:2px 14px;align-items:baseline;padding:8px 0;border-top:1px dashed var(--border)}
+.catplan .cp-n{font-weight:800;font-size:14px}
+.catplan .cp-q{font-size:13px;font-weight:700;white-space:nowrap}
+.catplan .cp-p{font-size:12.5px;color:var(--text2);white-space:nowrap;text-align:right}
+.catplan .cp-r.off{opacity:.55}
+@media(max-width:560px){.catplan .cp-r{grid-template-columns:minmax(0,1fr) auto}.catplan .cp-p{grid-column:1/-1;text-align:left}}
 /* นาฬิกาย่อบนแถบบนสุดของหน้าสอบ — ซ่อนบนจอกว้าง เพราะการ์ดสถานะเห็นอยู่แล้ว */
 .et-clock{display:none;align-items:center;gap:6px;flex:0 0 auto;
   font-variant-numeric:tabular-nums;font-size:17px;font-weight:800;letter-spacing:-.02em}
@@ -2788,6 +2797,7 @@ label.fld>span>b{font-weight:800}
             <div class="meta"><div class="n" id="mP">–</div><div class="l">เกณฑ์ผ่าน</div></div>
             <div class="meta"><div class="n" id="mV">–</div><div class="l">เตือนได้ (ครั้ง)</div></div>
           </div>
+          <div class="catplan" id="exCatPlan" hidden></div>
           <div class="rules" id="exRules"></div>
           <!-- ชุดที่แบ่งส่วน: ผู้สอบเลือกเองว่าสอบส่วนไหน ปุ่มบอกจำนวนข้อกับเกณฑ์ไว้เลย -->
           <div class="trackpick" id="exTrack" hidden>
@@ -7703,6 +7713,7 @@ function openExamRunner(exam, isPreview, ticket){
   $('inName').value = isPreview ? '(ทดลอง) Admin' : (R.student.name || '');
   $('inId').value = R.student.id || '';
   $('inPosition').value = R.student.position || '';
+  var _cp0 = $('exCatPlan'); if(_cp0){ _cp0.hidden = true; _cp0.innerHTML = ''; }
   _oePosFieldPaint();
   $('inName').readOnly = false;
   $('inId').readOnly = false;
@@ -7837,6 +7848,27 @@ function _oePosFieldPaint(){
   inp.value = keep ? keep.name : '';
   oePosPick();
 }
+/* หน้าเริ่มสอบ: ตำแหน่งนี้ตัดรายหมวด → บอกว่ามีหมวดไหน กี่ข้อ เกณฑ์เท่าไร ต้องถูกกี่ข้อ
+   สอบซ่อม → บอกเฉพาะหมวดที่ต้องสอบใหม่ (หมวดที่ผ่านแล้วขึ้นจาง ใช้คะแนนเดิม) */
+function _oeCatPlanPaint(){
+  var box = $('exCatPlan'); if(!box) return;
+  var pos = ($('inPosition') || {}).value || '';
+  var g = (R && R.exam && pos) ? oeCatGate(R.exam, pos) : null;
+  if(!g){ box.hidden = true; box.innerHTML = ''; return; }
+  var failed = (R.isRetake && R.prev && R.prev.catGate) ? _oeFailCats(R.prev).map(function(c){ return c.name; }) : [];
+  var re = failed.length > 0, sum = 0;
+  var rows = g.map(function(r){
+    var skip = re && failed.indexOf(r.name) < 0;
+    if(!skip) sum += r.take;
+    var need = 0; if(r.pass != null && r.take){ while(need < r.take && Math.round(need / r.take * 100) < r.pass) need++; }
+    return '<div class="cp-r' + (skip ? ' off' : '') + '"><span class="cp-n">' + esc(r.label) + '</span>' +
+      '<span class="cp-q">' + (skip ? 'ผ่านแล้ว' : r.take + ' ข้อ') + '</span>' +
+      '<span class="cp-p">' + (skip ? 'ใช้คะแนนเดิม' : (r.pass != null ? 'เกณฑ์ผ่าน ' + r.pass + '% · ต้องถูก ' + need + ' ข้อ' : 'ไม่ตั้งเกณฑ์')) + '</span></div>';
+  }).join('');
+  box.innerHTML = '<div class="cp-h">' + (re ? 'สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน' : 'หมวด จำนวนข้อ และเกณฑ์ผ่าน') + '</div>' + rows;
+  box.hidden = false;
+  var mq = $('mQ'); if(mq && re) mq.textContent = sum;   // สอบซ่อม: จำนวนข้อจริงของรอบนี้
+}
 function oePosPick(){
   var sel = $('inPositionSel'), inp = $('inPosition');
   if(!sel || !inp) return;
@@ -7846,6 +7878,7 @@ function oePosPick(){
   if(mp && R && oePosMode(R.exam) && !oeNoCrit(R.exam)) mp.textContent = sel.value ? (oeCatGate(R.exam, sel.value) ? 'ผ่านทุกหมวด' : oePassForPos(R.exam, sel.value) + '%') : oePassLabel(R.exam);
   var mq = $('mQ');   // จำนวนข้อตามตำแหน่งที่เลือก
   if(mq && R && oePosMode(R.exam)) mq.textContent = sel.value ? oeCountFor(R.exam, sel.value) : oeCountLabel(R.exam);
+  _oeCatPlanPaint();
 }
 /* ชุด "บอกแค่คะแนน" — ซ่อนช่องเกณฑ์ผ่านในแถบตัวเลขหน้าเริ่มสอบ (เหลือ 3 ช่อง) */
 function _oeMetaPass(ex){
