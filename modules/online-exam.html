@@ -2505,7 +2505,7 @@ label.fld>span>b{font-weight:800}
                ผู้สอบเลือกตำแหน่งของตัวเองก่อนเริ่ม แล้วระบบตัดสินด้วยเกณฑ์ของตำแหน่งนั้น -->
           <div class="switch-row"><div><div class="sw-t">ตั้งค่าแยกตามตำแหน่ง</div><div class="sw-d">เกณฑ์ผ่าน · จำนวนข้อ · สัดส่วนหมวด ต่างกันตามตำแหน่งได้ · ผู้สอบเลือกตำแหน่งเองก่อนเริ่มสอบ</div></div><label class="sw"><input type="checkbox" id="edPosMode" onchange="oePosModeToggle()"><span class="track"></span></label></div>
           <div class="pos-pass" id="edPosBox" hidden>
-            <p class="p-note" style="margin:0 0 6px">แต่ละตำแหน่งตั้งได้ 3 อย่าง · <b>จำนวนข้อ</b> และ <b>สัดส่วนหมวด</b> ที่เว้นว่าง = ใช้ค่าของชุดข้อสอบ · ผ่าน/ตกตัดจากคะแนนรวมเทียบเกณฑ์ผ่านของตำแหน่ง</p>
+            <p class="p-note" style="margin:0 0 6px">แต่ละตำแหน่งตั้งได้ 3 อย่าง · <b>จำนวนข้อ</b> และ <b>สัดส่วนหมวด</b> ที่เว้นว่าง = ใช้ค่าของชุดข้อสอบ · ผ่าน/ตกตัดจากคะแนนรวมเทียบเกณฑ์ผ่านของตำแหน่ง · ถ้าตั้ง "เกณฑ์ผ่านหมวด" ไว้ จะตัดรายหมวดแทน (ไม่ใช้เกณฑ์รวม)</p>
             <div id="edPosRows"></div>
             <datalist id="oePosNames"></datalist>
             <div class="pos-acts">
@@ -3984,9 +3984,11 @@ function oePassLabel(ex){
   if(oeNoCrit(ex)) return 'ไม่มี';
   if(oePosMode(ex)){
     /* หลายตำแหน่ง = หลายเกณฑ์ · ช่องเดียวใส่ไม่หมด บอกเป็นช่วงแล้วแจกแจงบรรทัดล่าง */
-    var v = oePosList(ex).map(function(x){ return x.pass; });
+    var all = oePosList(ex), pl = all.filter(function(x){ return !oeCatGate(ex, x.name); });
+    if(!pl.length) return 'ผ่านรายหมวด';
+    var v = pl.map(function(x){ return x.pass; });
     var lo = Math.min.apply(null, v), hi = Math.max.apply(null, v);
-    return lo === hi ? lo + '%' : lo + '–' + hi + '%';
+    return (lo === hi ? lo + '%' : lo + '–' + hi + '%') + (pl.length < all.length ? ' · บางตำแหน่งรายหมวด' : '');
   }
   if(!oePartMode(ex)) return (ex && ex.passingScorePercent != null ? ex.passingScorePercent : OE_PASS_PCT) + '%';
   return oePartPass(ex, 'all') + '%';
@@ -3994,7 +3996,7 @@ function oePassLabel(ex){
 /* เกณฑ์ของแต่ละส่วน จะพูดถึงก็ต่อเมื่อไม่เท่ากับเกณฑ์รวม — เท่ากันหมดไม่ต้องบอกซ้ำ */
 function oePassDetail(ex){
   if(oeNoCrit(ex)) return 'บอกแค่คะแนน';
-  if(oePosMode(ex)) return oePosList(ex).map(function(x){ return x.name + ' ' + x.pass + '%'; }).join(' · ');
+  if(oePosMode(ex)) return oePosList(ex).map(function(x){ return x.name + ' ' + (oeCatGate(ex, x.name) ? 'รายหมวด' : x.pass + '%'); }).join(' · ');
   if(!oePartMode(ex)) return '';
   var a = oePartPass(ex, 'all'), sv = oePartPass(ex, 'service'), ki = oePartPass(ex, 'kitchen');
   if(sv === a && ki === a) return '';
@@ -5348,13 +5350,15 @@ function _oePosCatCount(row){
 function _oePosRowHtml(name, pass, draw, cat, by, total){
   var v = pass == null ? 70 : Math.min(100, Math.max(0, pass));
   cat = cat || []; by = by === 'pct' ? 'pct' : 'n';
+  var gate = cat.some(function(c){ return c && c.pass != null && c.pass !== ''; });
   var hasCat = cat.length > 0, sum = (by === 'pct' ? (total > 0 ? total : '—') : _oePosCatSum(cat));
   return '<div class="pos-row" data-by="' + by + '" data-total="' + (total > 0 ? total : '') + '" data-cat="' + esc(JSON.stringify(cat)).replace(/"/g, '&quot;') + '">' +
     '<input class="pos-n" list="oePosNames" placeholder="เช่น ผู้ช่วยผู้จัดการ" oninput="_oePosSugPaint()" value="' + esc(name || '') + '">' +
     '<button type="button" class="pos-del" title="ลบตำแหน่งนี้" onclick="this.parentNode.remove();_oePosBoxPaint()">✕</button>' +
     '<div class="pos-chips">' +
-      '<span class="pchip so-hide">เกณฑ์ผ่าน <input class="pos-p" type="number" min="0" max="100" value="' + v + '" ' +
+      '<span class="pchip so-hide pos-passchip"' + (gate ? ' hidden' : '') + '>เกณฑ์ผ่าน <input class="pos-p" type="number" min="0" max="100" value="' + v + '" ' +
         'oninput="_oePosSync(this,false)" onblur="_oePosSync(this,false,true)" aria-label="เกณฑ์ผ่าน %">%</span>' +
+      '<span class="pchip so-hide pos-gatechip"' + (gate ? '' : ' hidden') + ' title="ตำแหน่งนี้ตัดผ่าน/ตกรายหมวด ไม่ใช้เกณฑ์รวม">ผ่านตามเกณฑ์รายหมวด</span>' +
       '<span class="pchip pos-dchip"' + (hasCat ? ' hidden' : '') + '>จำนวนข้อ <input class="pos-d" type="number" min="0" placeholder="ตามชุด" value="' + (draw > 0 && !hasCat ? draw : '') + '" aria-label="จำนวนข้อที่ต้องสอบ"> ข้อ</span>' +
       '<span class="pchip pos-dtot"' + (hasCat ? '' : ' hidden') + '>จำนวนข้อ <b class="pcs2">' + sum + '</b> <em>(จากหมวด)</em></span>' +
       '<button type="button" class="pos-cat-btn' + (hasCat ? ' on' : '') + '" onclick="oePosCatToggle(this)">' + (hasCat ? 'แก้สัดส่วนหมวด ▾' : '+ สัดส่วนหมวด') + '</button>' +
@@ -5454,6 +5458,11 @@ function oePosCatInput(el){
   var s2 = row.querySelector('.pcs2'); if(s2) s2.textContent = sum;
   var b = row.querySelector('.pos-cat-btn');
   if(b){ b.classList.toggle('on', has); b.textContent = has ? 'แก้สัดส่วนหมวด ▾' : '+ สัดส่วนหมวด'; }
+  /* ใส่เกณฑ์ผ่านหมวดอย่างน้อยหนึ่งหมวด = ตัดรายหมวด · ช่องเกณฑ์ผ่านรวมไม่มีผลแล้ว จึงซ่อน (ค่าเดิมยังเก็บไว้ เผื่อเอาเกณฑ์หมวดออก) */
+  var _g = cat.some(function(c){ return c.pass != null; });
+  var pc = row.querySelector('.pos-passchip'), gc = row.querySelector('.pos-gatechip');
+  if(pc) pc.hidden = _g;
+  if(gc) gc.hidden = !_g;
   var dc = row.querySelector('.pos-dchip'), dt = row.querySelector('.pos-dtot');
   if(dc) dc.hidden = has;
   if(dt) dt.hidden = !has;
