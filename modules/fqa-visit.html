@@ -7066,7 +7066,15 @@ const PDF = {
   name(kind){ return `FQA_${kind}_${IO.bTag()}_${IO.stamp()}.pdf`; },
 
   /* ชื่อไฟล์ใบตรวจรายฉบับ */
-  recordFile(r){ return `FQA_ใบตรวจ_${(r.branch||'').replace(/[\\/:*?"<>|\s]+/g,'')}_${r.date}.pdf`; },
+  /* ชื่อไฟล์: ผล visit สาขา <ชื่อสาขา> <วัน-เดือน-ปี พ.ศ.> (ตัดรหัสสาขานำหน้า · ใช้ - แทน / เพราะชื่อไฟล์ใส่ / ไม่ได้) */
+  _fileDate(d){
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(d || ''));
+    return m ? m[3] + '-' + m[2] + '-' + (Number(m[1]) + 543) : String(d || '').replace(/[\\/:*?"<>|\s]+/g, '-');
+  },
+  recordFile(r){
+    const nm = String(r.branch || '').replace(/^\s*\d{3,6}\s*/, '').replace(/[\\/:*?"<>|]+/g, ' ').replace(/\s+/g, ' ').trim();
+    return ['ผล visit สาขา', nm || '-', this._fileDate(r.date)].filter(Boolean).join(' ') + '.pdf';
+  },
 
   /* หัวใบ STA: ชื่อสาขา+ผล · คะแนนครั้งนี้ · สองแท่งเทียบครั้งก่อน · ข้อมูลการตรวจ */
   staHead(r, kv){
@@ -7318,7 +7326,7 @@ const PDF = {
     if(!list.length) return App.toast('ยังไม่ได้เลือกใบตรวจ');
     if(list.length === 1) return this.record(list[0].id);
     const body = list.map(r => this.recordDoc(r)).join('<div class="pdfbreak"></div>');
-    const file = `FQA_ใบตรวจ_${list.length}ใบ_${IO.stamp()}.pdf`;
+    const file = `ผล visit รวม ${list.length} ใบ ${this._fileDate(new Date().toISOString().slice(0,10))}.pdf`;
     return this.render(body, file);
   },
 
