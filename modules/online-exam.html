@@ -3003,8 +3003,9 @@ label.fld>span>b{font-weight:800}
         <select class="txt" id="reqBranch"></select></label>
       <label class="fld"><span>ชื่อ–สกุลผู้เข้าสอบ <b class="req">*</b></span>
         <input class="txt" id="reqName" placeholder="เช่น สมชาย ใจดี" autocomplete="off"></label>
-      <label class="fld"><span>ตำแหน่ง <b class="req">*</b></span>
+      <label class="fld"><span id="reqPosLbl">ตำแหน่ง <b class="req">*</b></span>
         <select class="txt" id="reqPositionSel" hidden onchange="oeReqPosPick()"></select>
+        <em class="fld-hint" id="reqPosNext" hidden></em>
         <input class="txt" id="reqPosition" placeholder="เช่น พนักงานครัว / ผู้ช่วยผู้จัดการ" autocomplete="off">
         <em class="fld-hint" id="reqPosHint" hidden><span id="reqPosHintC">เกณฑ์ผ่านขึ้นกับตำแหน่ง · </span>เลือกแล้วเปลี่ยนตอนสอบไม่ได้</em></label>
       <label class="fld" style="margin-bottom:0"><span>รหัสพนักงาน <b class="req">*</b></span>
@@ -4217,7 +4218,7 @@ function oeGuestRetake(id){
     $('guestGate').classList.add('hidden');
     openExamRunner(exam, false, {
       code: '', name: rec.name, empId: rec.empId,
-      position: rec.position, branchName: rec.branch, retake: true, track: rec.track || '', prev: rec
+      position: rec.position, fromPosition: oeFromPos(rec), branchName: rec.branch, retake: true, track: rec.track || '', prev: rec
     });
     if(R) R.verify = null;   // สิทธิ์รอบสองตรวจจากผลสอบไปแล้ว ไม่มีรหัสให้ถาม
   }).catch(function(e){
@@ -6533,7 +6534,7 @@ function _oeResCard(r){
     ' onkeydown="_oeRowKey(event,' + _oeResKey(r) + ')">' +
     '<div class="rc-exam">' + esc(r.examTitle || '—') + '</div>' +
     '<div class="rc-who"><b>' + esc(r.name) + '</b>' +
-      '<span>' + ([r.empId, r.position].filter(Boolean).map(esc).join(' · ') || '—') + '</span>' +
+      '<span>' + ([r.empId, oePosTxt(r)].filter(Boolean).map(esc).join(' · ') || '—') + '</span>' +
       '<span>' + esc(r.branch || '—') + '</span></div>' +
     '<div class="rc-band">' +
       '<b>' + _oeEffPct(r) + '<i>%</i></b>' +
@@ -6736,6 +6737,57 @@ function _oePartsHtml(r){
           '<i>' + (p.pass ? (info ? 'ถึงเกณฑ์' : 'ผ่าน') : (info ? 'ต่ำกว่าเกณฑ์' : 'ไม่ผ่าน')) + '</i>') + '</div>';
     }).join('') + '</div>';
 }
+/* ── ซานตาเฟ่: เส้นทางเติบโต (จากหนังสือ Management Team / Team Member Career Path) ──
+   [ตำแหน่งที่สอบ (ชื่อตามชุดข้อสอบ), [ตำแหน่งปัจจุบันที่ขึ้นมาสอบ]]
+   ผู้สอบเลือก "ตำแหน่งปัจจุบัน" ระบบเชื่อมกับตำแหน่งที่สอบให้เอง · ใช้เฉพาะแบรนด์ซานตาเฟ่
+   Supervisor ← Service Gold / Cook Gold เป็นข้อสันนิษฐาน (หนังสือไม่ได้ระบุว่าพนักงานขึ้นหัวหน้ากะจากตำแหน่งไหน) */
+var OE_SF_PATH = [
+  ['Service Silver',            ['Service Basic']],
+  ['Service Gold',              ['Service Silver']],
+  ['Cook Silver',               ['Cook Basic']],
+  ['Cook Gold',                 ['Cook Silver']],
+  ['Supervisor',                ['Service Gold', 'Cook Gold']],
+  ['Assistant Manager',         ['Trainee Manager']],
+  ['Senior Assistant Manager',  ['Assistant Manager']],
+  ['Restaurant Manager',        ['Senior Assistant Manager']],
+  ['Restaurant General Manager',['Senior Assistant Manager']],
+  ['Senior Restaurant Manager', ['Restaurant General Manager']]
+];
+var OE_SF_COMPANY = 'บริษัท เคที เรสทัวรองค์ จำกัด';
+function oeIsSf(x){
+  /* ชื่อแบรนด์ที่ติดมากับชุด/คำขอ/ผลสอบ (เช่น "Santa Fe") ตัดสินได้เลย — ไม่ต้องรอทะเบียนแบรนด์โหลด */
+  if(/santa\s*fe|santafe|ซานตาเฟ่/i.test(String((x && x.brand) || ''))) return true;
+  var b = _oeBrandFor(x);
+  return !!(b && b.key === 'santafe');
+}
+function _oePn(s){ return String(s == null ? '' : s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+function oeSfFromOf(to){
+  var k = _oePn(to), hit = OE_SF_PATH.filter(function(x){ return _oePn(x[0]) === k; })[0];
+  return hit ? hit[1].slice() : [];
+}
+/* ตัวเลือก "ตำแหน่งปัจจุบัน" ของชุดนี้ — ต้องครอบคลุมทุกตำแหน่งที่สอบได้ ไม่งั้นใช้แบบเดิม (เลือกตำแหน่งที่สอบตรง ๆ) */
+function oeSfFromOptions(ex){
+  if(!oeIsSf(ex)) return [];
+  var list = oePosList(ex);
+  if(!list.length || !list.every(function(p){ return oeSfFromOf(p.name).length; })) return [];
+  var out = [];
+  list.forEach(function(p){
+    oeSfFromOf(p.name).forEach(function(f){ if(!out.some(function(o){ return o.from === f; })) out.push({ from: f, to: p.name }); });
+  });
+  return out;
+}
+/* ตำแหน่งเดิมของผลสอบ/คำขอใบนี้: ที่เก็บไว้ → ไม่มีก็เดาจากเส้นทาง (เฉพาะกรณีทางเดียว) · ไม่ใช่ซานตาเฟ่ = ว่าง */
+function oeFromPos(x){
+  if(!x || !oeIsSf(x)) return '';
+  if(x.fromPosition) return String(x.fromPosition);
+  var f = oeSfFromOf(x.position);
+  return f.length === 1 ? f[0] : '';
+}
+/* ข้อความตำแหน่งในรายการ: "ตำแหน่งเดิม → ตำแหน่งที่สอบ" */
+function oePosTxt(x){
+  var f = oeFromPos(x), p = x && x.position;
+  return f && p ? f + ' → ' + p : (p || '');
+}
 /* ผลรายหมวดของใบที่ตัดรายหมวด */
 function _oeCatsHtml(r){
   if(!r || !r.catGate || !Array.isArray(r.cats) || !r.cats.length) return '';
@@ -6861,7 +6913,7 @@ function _oeResDetailHtml(r){
   h += '<div class="rd-hero ' + (nc ? 'neutral' : (pass ? 'pass' : 'fail')) + '">' +
     '<div class="rd-hero-l">' +
       '<div class="rd-name">' + esc(r.name || '—') + '</div>' +
-      '<div class="rd-meta">' + [r.empId, r.position, r.branch].filter(Boolean).map(esc).join(' · ') + '</div>' +
+      '<div class="rd-meta">' + [r.empId, oePosTxt(r), r.branch].filter(Boolean).map(esc).join(' · ') + '</div>' +
       '<div class="rd-exam">' + esc(r.examTitle || '') + '</div>' +
     '</div>' +
     '<div class="rd-hero-r">' +
@@ -7652,6 +7704,7 @@ function openExamRunner(exam, isPreview, ticket){
     isRetake: !!(ticket && ticket.retake),
     student:{name:(ticket&&ticket.name)||'',id:(ticket&&ticket.empId)||'',
              position:(ticket&&ticket.position)||'',
+             fromPosition:(ticket&&ticket.fromPosition)||'',
              branch:currentBranchName||(ticket&&ticket.branchName)||''},
     questions:[], answers:{}, current:0,
     timeLeft:0, timerId:null,
@@ -7817,7 +7870,7 @@ function oeRetakeNow(){
   var ex = R.exam, st = R.student || {}, code = R.accessCode;
   openExamRunner(ex, false, {
     code: code, name: st.name, empId: st.id,
-    position: st.position, branchName: st.branch, retake: true, track: R.track || '', prev: R.record
+    position: st.position, fromPosition: st.fromPosition || '', branchName: st.branch, retake: true, track: R.track || '', prev: R.record
   });
 }
 function closeExamOverlay(){
@@ -7864,7 +7917,8 @@ function _oePosLine(){
   var el = $('exPosLine'); if(!el) return;
   var pos = String(($('inPosition') || {}).value || '').trim();
   el.hidden = !pos;
-  el.textContent = pos ? 'สอบตำแหน่ง ' + pos : '';
+  var fp = R && R.student && R.student.fromPosition;
+  el.textContent = pos ? (fp ? 'สอบเลื่อนจาก ' + fp + ' เป็น ' + pos : 'สอบตำแหน่ง ' + pos) : '';
 }
 function _oeCatPlanPaint(){
   _oePosLine();
@@ -8089,7 +8143,11 @@ function beginExam(){
     return false;
   }
 
-  R.student={ name:name, id:empId, branch:branch, position:position };
+  /* ตำแหน่งเดิม (ซานตาเฟ่) ติดมากับคำขอ — ต้องเอาไปด้วย ไม่งั้นหายตอนสร้างข้อมูลผู้สอบใหม่จากช่องกรอก
+     ถ้าผู้สอบแก้ตำแหน่งที่สอบเป็นตัวอื่น ตำแหน่งเดิมที่ติดมาไม่ตรงกับตัวใหม่แล้ว ให้เดาใหม่จากเส้นทาง */
+  var _fp0 = (R.student && R.student.fromPosition) || '';
+  if(_fp0 && R.student && R.student.position && R.student.position !== position) _fp0 = '';
+  R.student={ name:name, id:empId, branch:branch, position:position, fromPosition:_fp0 || oeFromPos({ brand: R.exam && R.exam.brand, position: position }) };
 
   /* ตรวจรหัสยังไม่จบ (เน็ตช้ากว่าคนกรอกฟอร์ม) — รอให้จบก่อน ห้ามเปิดคำถาม
      ตรวจไม่ผ่านก็ปิดหน้าสอบแล้วบอกเหตุผล */
@@ -8611,6 +8669,7 @@ function _oeRunResult(){
   return {
       examId:R.exam.id, examTitle:R.exam.title, brand:R.exam.brand||'',
       name:R.student.name, empId:R.student.id, branch:R.student.branch, position:R.student.position||'',
+      fromPosition: R.student.fromPosition || '',
       pct:R.result.pct, correct:R.result.correct, total:R.result.total,
       passMark: R.result.passMark != null ? R.result.passMark : null,
       result: oeNoCrit(R.exam) ? 'ไม่มีเกณฑ์' : (R.result.pass?'ผ่าน':'ไม่ผ่าน'), pass: oeNoCrit(R.exam) ? null : R.result.pass,
@@ -8733,6 +8792,11 @@ function _docCo(r){
 /* ชื่อบริษัทบนหัวกระดาษ — หยิบจากใบปรับสภาพ จะได้ตรงกันทั้งชุด
    ทะเบียนแบรนด์ในระบบเก็บชื่อไว้เป็นภาษาอังกฤษ ใช้ตรง ๆ แล้วหน้านี้จะแปลกกว่าใบอื่น */
 var _docCoLine = 'บริษัท ส้มตำเจ๊แดงสามย่าน จำกัด';   // เดิมหยิบจากหัวกระดาษใบปรับสภาพ — ฟอร์มใหม่ไม่มีบรรทัดนี้แล้วจึงตรึงไว้ตรงนี้
+/* ชื่อนิติบุคคลในช่อง "สังกัดบริษัท" — ซานตาเฟ่ใช้ชื่อบริษัทเต็ม แบรนด์อื่นใช้ตามเดิม (หัวใบรายงานไม่เปลี่ยน) */
+function _docLegal(r){
+  var bi = _oeBrandOfResult(r) || {};
+  return (bi.key === 'santafe' || oeIsSf(r)) ? OE_SF_COMPANY : _docCoName(_docCo(r));
+}
 function _docCoName(co){
   /* ทะเบียนแบรนด์มีชื่อนิติบุคคลก็ใช้อันนั้น · แบรนด์อื่นที่ไม่มี ใช้ชื่อแบรนด์ — ข้อความในใบปรับสภาพเป็นของเจ๊แดง ห้ามเอาไปขึ้นหัวใบของแบรนด์อื่น */
   if(co && co.company) return co.company;
@@ -8814,7 +8878,7 @@ function _docSheetExam(r){
     '<table class="sh-kv">' +
       kv('ชื่อ – นามสกุล', r.name || '-') +
       kv('รหัสพนักงาน', r.empId || '-') +
-      kv('ตำแหน่ง', r.position || '-') +
+      (oeFromPos(r) ? kv('ตำแหน่งเดิม', oeFromPos(r)) + kv('สอบเป็นตำแหน่ง', r.position || '-') : kv('ตำแหน่ง', r.position || '-')) +
       kv('สาขา / หน่วยงาน', r.branch || '-') +
     '</table>' +
     '<div class="exs-sec">รายละเอียดการสอบ</div>' +
@@ -9755,7 +9819,10 @@ function docsPickForm(kind, on){
     _docSet('emp_name', _docR.name);
     _docSet('emp_pos', _docR.position);
     _docSet('emp_branch', _docR.branch);
-    _docSet('emp_company', _docCoName(_docCo(_docR)));
+    _docSet('emp_company', _docLegal(_docR));
+    /* ซานตาเฟ่: ตำแหน่ง = ตำแหน่งเดิม · แถว "ตำแหน่ง" ในตารางการเปลี่ยนแปลง เดิม → ใหม่ */
+    var _fp = oeFromPos(_docR);
+    if(_fp){ _docSet('emp_pos', _fp); _docSet('f_G26', _fp); _docSet('f_V26', _docR.position); }
     _docMarkSign();
     _docLoadDraft();
     _docPayWire();          // ต้องหลังโหลดร่าง — ฐานเดิมที่เคยพิมพ์ไว้ต้องถูกคิดใหม่
@@ -9944,7 +10011,7 @@ function _docEvalFill(r){
   }
   if(!_docGet('f_F4_1')) _docSet('f_F4_1', _docDate());     // วันที่ = วันที่ทำเอกสาร
   _docSet('hd_brand', (_oeBrandOfResult(r) || {}).name);
-  _docSet('hd_company', _docCoName(_docCo(r)));
+  _docSet('hd_company', _docLegal(r));
   _docSet('nm_C42', r && r.name);                           // ผู้รับการประเมิน = เจ้าของผลสอบ
 }
 /* รวมคะแนนให้เอง — สิบข้อข้อละ 10 คะแนน คนกรอกไม่ต้องบวกเลขเอง
@@ -10751,9 +10818,23 @@ function openReqForm(examId){
 }
 /* ชุดที่ตั้งเกณฑ์ผ่านตามตำแหน่ง — เลือกตำแหน่งตั้งแต่ตอนขอสิทธิ์
    ผู้อนุมัติจะได้เห็นว่าขอสอบในเกณฑ์ไหน และตอนเข้าสอบไม่ต้องเลือกซ้ำ (ล็อกตามใบที่อนุมัติ) */
+var _reqFrom = '';
 function _oeReqPosPaint(){
   var sel = $('reqPositionSel'), inp = $('reqPosition'), hint = $('reqPosHint');
   if(!sel || !inp) return;
+  _reqFrom = '';
+  var _fo = oeSfFromOptions(_reqExam), _lb = $('reqPosLbl'), _nx = $('reqPosNext');
+  if(_nx){ _nx.hidden = true; _nx.innerHTML = ''; }
+  if(_lb) _lb.innerHTML = (_fo.length ? 'ตำแหน่งปัจจุบัน' : 'ตำแหน่ง') + ' <b class="req">*</b>';
+  if(_fo.length){
+    /* ซานตาเฟ่: เลือกตำแหน่งที่ทำอยู่ตอนนี้ — ระบบเชื่อมกับตำแหน่งที่จะสอบถัดไปให้เอง */
+    sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
+    var _hc0 = $('reqPosHintC'); if(_hc0) _hc0.hidden = true;
+    sel.innerHTML = '<option value="">— เลือกตำแหน่งปัจจุบัน —</option>' +
+      _fo.map(function(o){ return '<option value="' + esc(o.from) + '" data-to="' + esc(o.to) + '">' + esc(o.from) + '</option>'; }).join('');
+    sel.value = ''; inp.value = '';
+    return;
+  }
   var list = oePosList(_reqExam);
   if(!list.length){ sel.hidden = true; inp.hidden = false; if(hint) hint.hidden = true; return; }
   sel.hidden = false; inp.hidden = true; if(hint) hint.hidden = false;
@@ -10765,7 +10846,20 @@ function _oeReqPosPaint(){
 }
 function oeReqPosPick(){
   var sel = $('reqPositionSel'), inp = $('reqPosition');
-  if(sel && inp) inp.value = sel.value;   /* โค้ดที่เหลืออ่านค่าจากช่องเดิมเหมือนเดิม */
+  if(!(sel && inp)) return;
+  if(oeSfFromOptions(_reqExam).length){
+    /* ตำแหน่งปัจจุบัน → ตำแหน่งที่สอบ (ช่องเดิม #reqPosition เก็บตำแหน่งที่สอบ โค้ดที่เหลืออ่านจากช่องเดิมเหมือนเดิม) */
+    var op = sel.options[sel.selectedIndex], to = (op && op.getAttribute('data-to')) || '';
+    _reqFrom = sel.value; inp.value = to;
+    var nx = $('reqPosNext');
+    if(nx){
+      var pe = to ? oePosEntry(_reqExam, to) : null;
+      nx.hidden = !to;
+      nx.innerHTML = to ? 'สอบเลื่อนเป็นตำแหน่ง <b>' + esc(to) + '</b>' + (pe && !oeNoCrit(_reqExam) ? esc(oePosPassText(_reqExam, pe)) : '') : '';
+    }
+    return;
+  }
+  inp.value = sel.value;   /* โค้ดที่เหลืออ่านค่าจากช่องเดิมเหมือนเดิม */
 }
 /* สาขาที่ล็อกอินอยู่มีตัวเดียวก็ล็อกไว้ตัวนั้น · ไม่ได้ผูกกับสาขาไหนก็ให้เลือกเอง
    ทะเบียนว่าง = เครื่องนี้ยังไม่เคยได้ข้อมูลจากฮับ ไปดึงมาแล้วเติมให้ใหม่
@@ -10829,6 +10923,7 @@ function submitExamRequest(){
     branchCode: branchPin || '', branchName: branch,
     name: name, empId: $('reqEmpId').value.trim(), position: position,
     track: oePartMode(_reqExam) ? _reqTrack : '',
+    fromPosition: oeSfFromOptions(_reqExam).length ? _reqFrom : '',
     /* ผูกคำขอกับคนกดขอ ไม่ใช่กับเบราว์เซอร์ — เปลี่ยนเครื่องแล้วยังตามเจอ */
     requestedBy: String(_who.code || currentBranchName || '').trim(),
     requestedByName: String(_who.nick || _who.name || currentBranchName || '').trim()
@@ -10849,7 +10944,7 @@ function submitExamRequest(){
     id: tmpId, createdAt: new Date().toISOString(), status: 'pending',
     examId: req.examId, examTitle: req.examTitle, brand: req.brand,
     branchCode: req.branchCode, branchName: req.branchName,
-    name: req.name, empId: req.empId, position: req.position, track: req.track, code: ''
+    name: req.name, empId: req.empId, position: req.position, fromPosition: req.fromPosition || '', track: req.track, code: ''
   }]);
   closeReqForm();
   /* เข้ามาจากลิงก์ ไม่มีรายการชุดข้อสอบให้กลับไปดู — บอกผลบนการ์ดตรงนั้นเลย */
@@ -10952,7 +11047,7 @@ function renderBranchReqs(){
             + '<path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button></div>'
           + '<div class="rq-who"><b>' + esc(r.name) + '</b>'
           + (r.empId || r.position
-              ? '<span class="rq-id">' + [r.empId, r.position].filter(Boolean).map(esc).join(' · ') + '</span>'
+              ? '<span class="rq-id">' + [r.empId, oePosTxt(r)].filter(Boolean).map(esc).join(' · ') + '</span>'
               : '') + '</div>'
           + '<div class="rq-ex">'
             + '<svg viewBox="0 0 24 24" width="14" height="14">'
@@ -11069,7 +11164,7 @@ function startWithCode(reqId){
   /* เปิดหน้าเตรียมสอบให้เลย แล้วตรวจรหัสคู่ขนานไป */
   openExamRunner(ex, false, {
     code: code, name: r.name, empId: r.empId,
-    position: r.position, branchName: r.branchName, track: r.track || ''
+    position: r.position, fromPosition: oeFromPos(r), branchName: r.branchName, track: r.track || ''
   });
 
   /* รอบสองใช้คำขอใบเดิม ซึ่งหลังบ้านปิดไปแล้วตั้งแต่รอบแรก ถามไปก็ตอบว่าใช้ไม่ได้
@@ -11156,7 +11251,7 @@ function _reqRow(r){
     + '<td class="num" style="color:var(--text2)">' + esc(fmtDT(r.createdAt)) + '</td>'
     + '<td><div class="who-n">' + esc(r.name) + '</div>'
     + (r.empId || r.position
-        ? '<div class="who-s">' + [r.empId, r.position].filter(Boolean).map(esc).join(' · ') + '</div>'
+        ? '<div class="who-s">' + [r.empId, oePosTxt(r)].filter(Boolean).map(esc).join(' · ') + '</div>'
         : '') + '</td>'
     + '<td>' + esc(r.branchName || '—') + '</td>'
     + '<td>' + esc(r.examTitle) + _oeReqTrackTag(r) + '</td>'
