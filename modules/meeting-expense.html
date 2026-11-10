@@ -949,7 +949,7 @@ const PERM_KEY="meetexpense";
 const PERM_DEFAULTS={
   "view-claims":["admin","coo","vp","bzm"],
   "update-status":["admin"], "delete-claims":["admin"],
-  "manage-rounds":["admin"], "manage-limits":["admin"], "manage-payees":["admin"],
+  "manage-rounds":["admin"], "manage-limits":["admin"], "manage-payees":["admin"], "edit-amount":["admin"],
   "submit-claim":["branch"], "delete-own":["branch"], "request-payee":["branch"]
 };
 const can=a=>HubMod.can(PERM_KEY,a,PERM_DEFAULTS);
@@ -1620,7 +1620,7 @@ function slip(x,admin,compact){
     </div>
     ${false?`<div class="note-cut">ขอเบิก ${money(x.claimedAmount)} ฿ · ตัดตามวงเงิน เหลือ ${money(x.amount)} ฿</div>`:""}
     ${x.note?`<div class="desc">${esc(x.note)}</div>`:""}
-    ${x.reviewNote?`<div class="note-no">ผู้ดูแล: ${esc(x.reviewNote)}</div>`:""}`;
+    ${x.reviewNote?`<div class="note-no">ผู้ดูแล: ${esc(x.reviewNote)}</div>`:""}${editNote(x)}`;
   const ph=photoStrip(x.photos);
   if(ph.children.length) s.appendChild(ph);
   const a=document.createElement("div"); a.className="acts";
@@ -1727,6 +1727,33 @@ function editClaim(x){
     renderBranch();
   },"บันทึกการแก้ไข");
 }
+/* ผู้ดูแลแก้ยอดเบิกได้ทุกสถานะ โดยต้องระบุเหตุผล · เก็บประวัติทุกครั้ง (ยอดเดิม → ยอดใหม่ · เหตุผล · ใคร · เมื่อไร) */
+const editsOf=x=>Array.isArray(x.amountEdits)?x.amountEdits:[];
+function editNote(x){ const e=editsOf(x); if(!e.length) return "";
+  const l=e[e.length-1]; return '<div class="note-no" style="background:#fff4e6;color:#9a4a00">ผู้ดูแลปรับยอดเบิก '+baht(l.from)+' → '+baht(l.to)+' บาท · เหตุผล: '+esc(l.reason||"-")+(e.length>1?" (แก้ "+e.length+" ครั้ง)":"")+'</div>'; }
+function adminEditAmount(x,after){
+  if(!can("edit-amount")) return toast("ไม่มีสิทธิ์แก้ไขยอดเบิก");
+  const f=document.createElement("div");
+  f.innerHTML=`<div class="muted" style="margin-bottom:10px">เลขที่ ${esc(x.docNo||x.id)} · ${esc(Branches.label(x.branchCode,x.branchName))} · ยอดปัจจุบัน <b>${baht(x.amount)} บาท</b></div>
+    <div class="field"><label>ยอดเบิกใหม่ <span style="color:var(--gold)">*</span></label><div class="amtbox"><input id="aa" inputmode="decimal" value="${esc(x.amount||"")}"><span>บาท</span></div></div>
+    <div class="field"><label>เหตุผลที่แก้ยอด <span style="color:var(--gold)">*</span></label><textarea id="ar" placeholder="เช่น ใบเสร็จจริงยอด 800 บาท สาขากรอกผิด"></textarea></div>
+    <div class="muted" style="font-size:13px">ระบบบันทึกประวัติ (ยอดเดิม · ยอดใหม่ · เหตุผล · ชื่อผู้แก้ · เวลา) และสาขาจะเห็นเหตุผลที่ปรับยอด</div>`;
+  const aa=$("#aa",f);
+  aa.addEventListener("input",()=>{ let v=aa.value.replace(/[^0-9.]/g,""); const d=v.indexOf("."); if(d>=0) v=v.slice(0,d+1)+v.slice(d+1).replace(/\./g,"").slice(0,2); aa.value=v; });
+  modal("แก้ไขยอดเบิก",f,async()=>{
+    const amountStr=aa.value.trim(), reason=$("#ar",f).value.trim();
+    if(!/^[0-9]{1,7}(\.[0-9]{1,2})?$/.test(amountStr)||!(Number(amountStr)>0)) throw new Error("ยอดเงินไม่ถูกต้อง");
+    if(reason.length<3) throw new Error("กรุณาระบุเหตุผลที่แก้ยอด");
+    await S.refresh().catch(()=>{});
+    const cur=S.get("claims",x.id); if(!cur) throw new Error("ไม่พบเอกสารนี้แล้ว");
+    const to=Math.round(Number(amountStr)*100)/100, from=Number(cur.amount)||0;
+    if(Math.abs(to-from)<0.005) throw new Error("ยอดใหม่เท่ากับยอดเดิม");
+    const rec={from,to,reason,by:Hub.fullName(),at:nowISO()};
+    await S.update("claims",x.id,{amount:to,originalAmount:cur.originalAmount!=null?cur.originalAmount:from,amountEdits:editsOf(cur).concat([rec]),amountEditedAt:rec.at,amountEditedBy:rec.by},cur.status==null?null:{status:cur.status});
+    toast("แก้ไขยอดเบิกเป็น "+baht(to)+" บาท แล้ว");
+    if(after) after();
+  },"บันทึกยอดใหม่");
+}
 function removeClaim(x){
   const f=document.createElement("div");
   f.innerHTML=`<div style="font-size:15px">ยืนยันลบเอกสาร <b class="docno">${esc(x.docNo||x.id)}</b> ?</div>
@@ -1763,6 +1790,7 @@ function detail(x){
         <div><span>วงเงินสาขา · รอบ ${esc(roundLabel(rid))}</span><b>${lim?baht(used(rid,x.branchCode))+" / "+baht(lim)+" บาท":"ยังไม่ได้ตั้ง"}</b></div>
         <div><span>สถานะ</span><b>${pill(st)}</b></div>
         ${rej&&x.reason?`<div><span>เหตุผลที่ไม่อนุมัติ</span><b style="color:#b42318">${esc(x.reason)}</b></div>`:""}
+        ${editsOf(x).length?`<div><span>ประวัติแก้ยอดเบิก</span><b style="font-weight:600">${editsOf(x).map(e=>esc(stamp(e.at))+" · "+esc(e.by||"-")+": "+baht(e.from)+" → "+baht(e.to)+" บาท ("+esc(e.reason||"-")+")").join("<br>")}</b></div>`:""}
       </div>
       <div class="dact" id="adAct"></div></div>
     <div class="dmr" style="background:#f4f5f8;border-radius:16px;padding:16px"><div class="dmh" style="margin-bottom:12px"><h3 style="font-size:16px">เอกสารแนบ</h3><span class="cnt">${photos.length} ไฟล์</span></div>
@@ -1784,6 +1812,7 @@ function detail(x){
     if(ok||rej) mk("ส่งแล้ว","ยกเลิกผล","ghost");
     else mk("อนุมัติ","ทำเบิก","yes");
   }
+  if(can("edit-amount")){ const eb=Object.assign(document.createElement("button"),{className:"ab ghost",textContent:"✏️ แก้ไขยอดเบิก"}); eb.style.margin="0"; eb.onclick=()=>adminEditAmount(x,()=>{ if(box) box.remove(); }); act.appendChild(eb); }
   box=modal("รายละเอียดเอกสาร",d,null);
   const mb=box.querySelector(".modal"); if(mb) mb.style.maxWidth="980px";
 }
@@ -1848,6 +1877,7 @@ function openRowMenu(btn){
     if(st==="อนุมัติ"||st==="ไม่อนุมัติ") items.push(["ส่งแล้ว","ยกเลิกผล",""]);
     else{ items.push(["อนุมัติ","ทำเบิก","ok"]); }
   }
+  if(can("edit-amount")) items.push(["_amt","แก้ไขยอดเบิก",""]);
   if(can("delete-claims")) items.push(["_del","ลบเอกสาร","no"]);
   if(!items.length) return;
   const m=document.createElement("div"); m.className="rmenu";
@@ -1855,7 +1885,7 @@ function openRowMenu(btn){
   document.body.appendChild(m);
   const r=btn.getBoundingClientRect();
   m.style.top=(r.bottom+6)+"px"; m.style.left=Math.max(8,r.right-m.offsetWidth)+"px";
-  m.onclick=e=>{ const b=e.target.closest("button"); if(!b) return; closeRowMenu(); if(b.dataset.k==="_del") removeClaim(x); else rowAct(id,b.dataset.k,b); };
+  m.onclick=e=>{ const b=e.target.closest("button"); if(!b) return; closeRowMenu(); if(b.dataset.k==="_del") removeClaim(x); else if(b.dataset.k==="_amt") adminEditAmount(x); else rowAct(id,b.dataset.k,b); };
   setTimeout(()=>document.addEventListener("click",closeRowMenu,{once:true}),0);
 }
 const brandChips=()=>[["","ทุกแบรนด์"]].concat(Branches.brands().map(k=>[k,Branches.brandName(k)]))
@@ -2027,18 +2057,18 @@ function tableHtml(list,manage){
       <td><b style="font-size:16px">${esc(Branches.label(c.branchCode,c.branchName))}</b><small>BZM ${esc(bzmName(c.branchCode))}</small></td>
       <td>${esc(c.claimantName||"-")}</td>
       <td style="white-space:nowrap">${esc(stamp(c.submittedAt))}</td>
-      <td><b style="font-size:16px">${baht(c.amount)} บาท</b><small>วงเงิน ${lim?baht(lim):"—"}</small></td>
+      <td><b style="font-size:16px">${baht(c.amount)} บาท</b><small>วงเงิน ${lim?baht(lim):"—"}</small>${editsOf(c).length?`<small style="color:#c2570a" title="${esc(editsOf(c)[editsOf(c).length-1].reason||"")}">แก้ยอดจาก ${baht(editsOf(c)[0].from)}</small>`:""}</td>
       <td class="c"><b>${(c.photos||[]).length}</b> รูป</td>
       <td data-st-cell="${esc(c.id)}">${pill(st)}</td>
-      <td style="white-space:nowrap"><button class="ab ghost view" data-open="${esc(c.id)}">${mi("eye",18)} ดูรายละเอียด</button>${(manage||del)?`<button class="ab ghost ico" data-menu="${esc(c.id)}" title="เพิ่มเติม" aria-label="เพิ่มเติม">⋯</button>`:""}</td>
+      <td style="white-space:nowrap"><button class="ab ghost view" data-open="${esc(c.id)}">${mi("eye",18)} ดูรายละเอียด</button>${(manage||del||can("edit-amount"))?`<button class="ab ghost ico" data-menu="${esc(c.id)}" title="เพิ่มเติม" aria-label="เพิ่มเติม">⋯</button>`:""}</td>
     </tr>`;}).join("")}</tbody></table></div>`;
 }
 function exportCsv(list,tag){
   if(!list.length) return toast("ไม่มีรายการให้ส่งออก");
-  const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด (จ่ายตามวงเงิน)","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย"]]
+  const rows=[["เลขเอกสาร","รอบ","รหัสสาขา","สาขา","แบรนด์","ผู้ทำการเบิก","ยอด (จ่ายตามวงเงิน)","ผู้รับเงิน","รหัสพนักงาน","ตำแหน่งผู้รับเงิน","สถานะ","ส่งเมื่อ","หมายเหตุ","อัปเดตสถานะโดย","ยอดเดิมก่อนแก้","เหตุผลแก้ยอด"]]
     .concat(list.map(c=>[c.docNo||c.id,roundLabel(roundIdOf(c)),c.branchCode,Branches.nameOf(c.branchCode)||c.branchName||"",
       brandLabel(c.branchCode),c.claimantName||"",Number(c.amount)||0,c.payeeName||c.payee||"",c.payeeEmpCode||"",
-      c.payeePosition||"",statusOf(c),stamp(c.submittedAt),c.note||"",c.statusBy||""]));
+      c.payeePosition||"",statusOf(c),stamp(c.submittedAt),c.note||"",c.statusBy||"",editsOf(c).length?editsOf(c)[0].from:"",editsOf(c).map(e=>e.reason).join(" | ")]));
   /* รหัสสาขา · รหัสพนักงาน ครอบด้วย ="" ให้ Excel ไม่ตัดเลขศูนย์หน้า */
   const cell=(v,i)=>{ const s=String(v==null?"":v); if([2,8].includes(i)&&s) return '="'+s.replace(/"/g,'""')+'"';
     return /[",\r\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s; };
