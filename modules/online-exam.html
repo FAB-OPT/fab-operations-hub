@@ -7475,7 +7475,12 @@ function _oeKeyOf(ex){
 function oeRegradeScan(ex){
   var key = _oeKeyOf(ex), rows = [], skipped = 0;
   (ALL_RESULTS || []).forEach(function(r){
-    if(!(r.examId === ex.id || (!r.examId && r.examTitle === ex.title))) return;
+    /* ผลสอบของชุดนี้ + ผลสอบของ "ชุดเดิมที่ถูกลบไปแล้ว" (ไม่มีชุดไหนในระบบเป็นเจ้าของอีก) ให้ยึดเฉลยชุดใหม่
+       จับคู่ด้วยข้อความคำถามเหมือนเดิม ข้อไหนข้อความตรงกันแต่เฉลยต่างกัน = คิดใหม่ตามชุดนี้ */
+    var own = (r.examId === ex.id || (!r.examId && r.examTitle === ex.title));
+    var orph = !own && (r.examId ? !(EXAMS || []).some(function(x){ return x.id === r.examId; })
+                                 : !(EXAMS || []).some(function(x){ return x.title === r.examTitle; }));
+    if(!own && !orph) return;
     var ans = _oeResAnswers(r); if(!ans || !ans.length) return;
     var changes = [];
     var next = ans.map(function(a){
@@ -7493,7 +7498,7 @@ function oeRegradeScan(ex){
     if(!changes.length) return;
     var c = _oeEdCalc(r, next.map(_oeAnsOk));
     if(c.err){ skipped++; return; }
-    rows.push({ r: r, next: next, changes: changes, c: c, wasPass: isPass(r), nc: _oeRNoCrit(r) });
+    rows.push({ r: r, next: next, changes: changes, c: c, wasPass: isPass(r), nc: _oeRNoCrit(r), orph: orph });
   });
   rows.skipped = skipped;
   return rows;
@@ -7529,9 +7534,9 @@ async function oeRegradeExam(id){
     }).join('') + '</table></div>' + (sorted.length > 40 ? '<div style="font-size:12px;color:var(--text3)">แสดง 40 ใบแรก จากทั้งหมด ' + sorted.length + ' ใบ (ผลเปลี่ยนมาก่อน)</div>' : '');
   var go = await oeConfirm({
     icon: '🔁', title: 'คิดคะแนนใหม่ตามเฉลยที่แก้',
-    text: '<div style="font-size:13px">ผลสอบเหล่านี้ยังคิดตามเฉลยเดิม ระบบจะคิดตามเฉลยปัจจุบันของชุด <b>' + esc(ex.title || '') + '</b></div>' + qHtml + tbl,
+    text: '<div style="font-size:13px">ผลสอบเหล่านี้ยังคิดตามเฉลยเดิม ระบบจะคิดตามเฉลยปัจจุบันของชุด <b>' + esc(ex.title || '') + '</b>' + (rows.some(function(x){ return x.orph; }) ? '<br><span style="color:var(--text3)">รวมผลสอบของชุดเดิมที่ถูกลบไปแล้ว ข้อที่คำถามตรงกับชุดนี้แต่เฉลยไม่ตรง จะยึดเฉลยชุดนี้</span>' : '') + '</div>' + qHtml + tbl,
     facts: [
-      ['ผลสอบที่ได้รับผลกระทบ', rows.length + ' ใบ'],
+      ['ผลสอบที่ได้รับผลกระทบ', rows.length + ' ใบ' + (rows.some(function(x){ return x.orph; }) ? ' (มาจากชุดเดิมที่ถูกลบ ' + rows.filter(function(x){ return x.orph; }).length + ' ใบ)' : '')],
       ['ไม่ผ่าน → ผ่าน', up + ' ใบ'],
       ['ผ่าน → ไม่ผ่าน', down + ' ใบ']
     ],
