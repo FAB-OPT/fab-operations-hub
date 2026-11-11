@@ -218,6 +218,12 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .dlg-acts-row{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 14px}
 .chipbtn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #d6dbe2;background:#fff;color:#1f2937;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
 .chipbtn:hover{background:#f3f4f6}
+.aibox{border:1px dashed var(--accent);border-radius:14px;padding:8px 12px;margin:0 0 12px;background:#fffaf5}
+.aibox summary{cursor:pointer;font-weight:800;color:var(--accent-ink);font-size:14px;padding:4px 0}
+.aibox textarea{width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical;background:#fff}
+.aiacts{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.aihint{font-size:12px;color:var(--ink3)}
+.aimsg{margin-top:8px;font-size:13px;line-height:1.5}.aimsg b{font-weight:800}.aimsg .aiwarn{color:var(--red);font-weight:700}
+.aimsg ul{margin:4px 0 0;padding-left:18px}
 .mpk{border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 14px;background:#fafbfc}
 .mpk-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .mpk-h b{font-size:14.5px}.mpk-h button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:16px}
@@ -702,6 +708,11 @@ button{cursor:pointer;border:0;background:none;padding:0}
 <!-- ป๊อปอัปงาน Catering / Booth -->
 <div class="dlg" id="jobDlg" hidden><div class="dlg-box wide">
   <div class="hd"><span id="jobTitle">เพิ่มงาน</span><button class="x" id="jobX" aria-label="ปิด">✕</button></div>
+  <details class="aibox" id="aiBox"><summary>✨ วางข้อความจากไลน์ ให้ AI กรอกให้</summary>
+    <textarea id="aiText" rows="6" placeholder="วางข้อความงานที่ลูกค้าคอนเฟิร์ม (รูปแบบ ลูกค้า โทร วันที่ เวลา สถานที่ จำนวนแขก เมนู ราคา) แล้วกดปุ่มด้านล่าง"></textarea>
+    <div class="aiacts"><button type="button" class="chipbtn" id="aiGo">✨ ให้ AI อ่านและกรอกให้</button><span class="aihint">ตรวจความถูกต้องอีกครั้งก่อนกดบันทึก</span></div>
+    <div class="aimsg" id="aiMsg"></div>
+  </details>
   <div class="jseg" id="jType"><button type="button" data-t="catering">🍽️ Catering</button><button type="button" data-t="booth">🎪 Booth</button></div>
   <label class="field"><span>ชื่องาน <b style="color:#c2410c">*</b></span><input id="jName" placeholder="เช่น Catering บริษัท ABC / Booth YMC UCR" autocomplete="off"></label>
   <label class="field"><span>สถานที่</span><input id="jPlace" placeholder="เช่น ยูซีอาร์ สุขุมวิท 39" autocomplete="off"></label>
@@ -911,6 +922,7 @@ function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
 /* ผู้จัดการทีมเห็นแผนของทีมด้วย (เพิ่มให้คนอื่นได้จึงต้องเห็นที่บันทึกไป) */
 function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)&&(!boothSel||p.booth===boothSel)); }
 /* Day Off ไม่เป็นรายการในช่องวัน แสดงเป็นป้ายข้างตัวเลขวันแทน (นับจำนวนคนที่หยุด) */
+function offPlansByDay(){ const c={}; visible().filter(p=>p.type==='off').slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (c[d]=c[d]||[]).push(p); }); return c; }
 function offNames(){ const c={}; visible().filter(p=>p.type==='off').slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (c[d]=c[d]||[]).push(p.person); }); return c; }
 function offCounts(){ const c={}; visible().filter(p=>p.type==='off').forEach(p=>{ const d=+String(p.date).slice(8,10); c[d]=(c[d]||0)+1; }); return c; }
 function byDay(){ const m={}; visible().filter(p=>p.type!=='off').slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
@@ -987,15 +999,15 @@ function placeBands(BP){
 }
 window.addEventListener('resize',()=>{ try{ placeBands(); }catch(e){} });
 function paintGrid(){
-  const m=byDay(), offC=offCounts(), offN=offNames(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
+  const m=byDay(), offC=offCounts(), offP=offPlansByDay(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
   let h='';
   for(let i=0;i<off;i++) h+=`<div class="c out"><span class="dn">${prev-off+1+i}</span></div>`;
   const t=todayISO(), BP=bandPlan();
   for(let d=1; d<=n; d++){
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0, spN=BP.lanes[Math.floor((off+d-1)/7)]||0;
+    const list=(offP[d]||[]).concat(m[d]||[]), hl=holLabel(iso), oc=offC[d]||0, spN=BP.lanes[Math.floor((off+d-1)/7)]||0;
     const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
-    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab" title="Day Off: ${esc((offN[d]||[]).join(', '))}">Day Off · ${esc((offN[d]||[]).join(', '))}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${spN?`<span class="bsp" style="display:block;height:${spN*35+2}px"></span>`:''}${list.slice(0,4).map(q=>evHtml(q,iso)).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${hl?`<span class="hol">${esc(hl)}</span>`:''}${spN?`<span class="bsp" style="display:block;height:${spN*35+2}px"></span>`:''}${list.slice(0,4).map(q=>evHtml(q,iso)).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
   }
   const rest=(7-((off+n)%7))%7;
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
@@ -1070,10 +1082,63 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
 async function saveHelp(next){ helpBr=next; await db.doc('bconfig/helpbranches').set({items:next}); }
 async function saveBooths(next){ booths=next; await db.doc('bconfig/booths').set({items:next}); }
 /* กล่องกรอกงาน Catering / Booth — ช่องที่ต้องกรอกต่างกันตามชนิด · จำนวนวันคิดจากวันที่เริ่ม-สิ้นสุดอัตโนมัติ */
+/* ───── วางข้อความจากไลน์ → ให้ AI อ่านแล้วกรอกฟอร์มงาน ─────
+   เรียกฟังก์ชัน parse-job-text (Supabase) · ใช้ไม่ได้ (ไม่มีคีย์ AI / ออฟไลน์) = ตัวอ่านพื้นฐานในหน้านี้แทน
+   วันที่ไม่ติดกัน (เช่น 14, 21, 28) แยกเป็นงานละวัน เพื่อให้แท่งงานบนปฏิทินไม่คร่อมวันที่ไม่ได้ออกงาน */
+const TH_MON_IDX={'มกราคม':0,'ม.ค.':0,'กุมภาพันธ์':1,'ก.พ.':1,'มีนาคม':2,'มี.ค.':2,'เมษายน':3,'เม.ย.':3,'พฤษภาคม':4,'พ.ค.':4,'มิถุนายน':5,'มิ.ย.':5,'กรกฎาคม':6,'ก.ค.':6,'สิงหาคม':7,'ส.ค.':7,'กันยายน':8,'ก.ย.':8,'ตุลาคม':9,'ต.ค.':9,'พฤศจิกายน':10,'พ.ย.':10,'ธันวาคม':11,'ธ.ค.':11};
+function parseJobTextLocal(text){
+  const t=String(text||'').replace(/\r/g,''), lines=t.split('\n');
+  const label=names=>{ const re=new RegExp('^[\\s\\d().\\-]*(?:'+names+')\\s*[:：]\\s*(.+)$'); for(const l of lines){ const m=re.exec(l.trim()); if(m) return m[1].trim(); } return ''; };
+  const n1=s=>Number(String(s||'').replace(/,/g,''))||0;
+  const cust=label('ลูกค้า'), place=label('สถานที่'), format=label('รูปแบบ');
+  const phone=(label('โทร|เบอร์')||'').replace(/[^\d\-]/g,'');
+  const gm=/(\d[\d,]*)/.exec(label('จำนวนแขก')||''), guests=gm?n1(gm[1]):0;
+  const tm=/(\d{1,2})[.:](\d{2})\s*(?:-|ถึง|–)\s*(\d{1,2})[.:](\d{2})/.exec(label('เวลาเสิร์ฟ|เวลา')||'');
+  const pad=x=>String(x).padStart(2,'0'), timeFrom=tm?pad(tm[1])+':'+tm[2]:'', timeTo=tm?pad(tm[3])+':'+tm[4]:'';
+  const isBooth=/บูธ|booth/i.test(t)&&!/catering/i.test(t);
+  /* วันที่ */
+  const dl=label('วันที่'); let mon=-1, ml='';
+  Object.keys(TH_MON_IDX).forEach(k=>{ if(mon<0&&dl.indexOf(k)>=0){ mon=TH_MON_IDX[k]; ml=k; } });
+  const now=new Date(), todayIso=`${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}`;
+  const mk=(d)=>{ let y=now.getFullYear(); let iso=`${y}-${pad(mon+1)}-${pad(d)}`; if(iso<todayIso){ y++; iso=`${y}-${pad(mon+1)}-${pad(d)}`; } return iso; };
+  let days=[];
+  if(mon>=0){
+    const head=dl.slice(0,dl.indexOf(ml)), rg=/(\d{1,2})\s*(?:-|ถึง|–)\s*(\d{1,2})/.exec(head);
+    if(rg&&head.indexOf('(')<0){ days=[{from:mk(+rg[1]),to:mk(+rg[2]),who:[]}]; }
+    else { const re=/(\d{1,2})(?:\s*(?:พี่|น้อง|คุณ)\s*([^\s,()\d]+))?/g; let m; while((m=re.exec(head))){ const d=+m[1]; if(d>=1&&d<=31){ const iso=mk(d); days.push({from:iso,to:iso,who:m[2]?[m[2]]:[]}); } } }
+  }
+  if(!days.length) return {jobs:[],declaredTotal:0};
+  /* เมนู + ค่าบริการรายวัน */
+  const mm=/(?:รับ)?\s*([^\s\d:：]+(?:\s[^\s\d:：]+)?)\s*ราคา\s*([\d,]+)\s*บาท\s*จำนวน\s*([\d,]+)/.exec(t);
+  const perDay=/วันละ\s*([\d,]+)\s*(?:กล่อง|ชุด|ที่)/.exec(t);
+  const fee=/(?:ค่าใช้จ่าย|ค่า)\s*([A-Za-zก-๙ ]*?)\s*(?:จำนวน\s*\d+\s*วัน\s*)?วันละ\s*([\d,]+)\s*บาท/.exec(t);
+  const tot=[...t.matchAll(/รวม\s*([\d,]+)\s*บาท/g)].map(x=>n1(x[1])).sort((a,b)=>b-a)[0]||0;
+  const name0=(isBooth?'Booth ':'Catering ')+(/^(บริษัท|บจก|หจก|ห้างหุ้นส่วน)/.test(place)?place:(cust||place));
+  const jobs=days.map(d=>{
+    const menus=[]; if(mm){ const total=n1(mm[3]); const q=days.length>1?(perDay?n1(perDay[1]):Math.round(total/days.length)):total; menus.push({n:mm[1].replace(/^รับ/,'').trim(),q,p:n1(mm[2])}); }
+    if(fee) menus.push({n:'ค่าบริการ '+(fee[1]||'Catering').trim(),q:1,p:n1(fee[2])});
+    return {type:isBooth?'booth':'catering',name:name0.trim(),place,from:d.from,to:d.to,timeFrom,timeTo,format,guests,contactName:cust,contactPhone:phone,rent:0,bzm:'',staff:d.who,menus};
+  });
+  return {jobs,declaredTotal:tot};
+}
+async function aiParseJob(text){
+  try{
+    if(visitClient&&visitClient.functions){
+      const r=await visitClient.functions.invoke('parse-job-text',{body:{text}});
+      if(r&&!r.error&&r.data&&r.data.ok&&r.data.method==='ai'&&Array.isArray(r.data.jobs)&&r.data.jobs.length) return {method:'ai',jobs:r.data.jobs,declaredTotal:Number(r.data.declaredTotal)||0};
+    }
+  }catch(e){}
+  const l=parseJobTextLocal(text); return {method:'local',jobs:l.jobs,declaredTotal:l.declaredTotal};
+}
+/* จับชื่อเล่นที่ AI/ข้อความได้ กับรายชื่อทีม (เช่น "อีฟ" ตรงกับ "อีฟ") */
+function matchStaffNames(list){ const ok=[], miss=[]; (list||[]).forEach(s=>{ const k=String(s||'').replace(/^(พี่|น้อง|คุณ)/,'').trim(); if(!k) return; const hit=team.find(t=>t===k||t.indexOf(k)>=0||k.indexOf(t)>=0); if(hit){ if(!ok.includes(hit)) ok.push(hit); } else miss.push(k); }); return {ok,miss}; }
+const jobSum=j=>(j.menus||[]).reduce((a,m)=>a+(Number(m.q)||0)*(Number(m.p)||0),0);
 function askJob(b,preset){
   return new Promise(res=>{
     const dlg=$('jobDlg'); let type=(b&&b.type)||preset||'catering', menus=(b&&b.menus&&b.menus.length?b.menus:[{n:'',q:'',p:''}]).map(m=>({...m}));
     const setv=(id,v)=>{ $(id).value=v==null?'':v; };
+    let extras=[];
+    $('aiBox').hidden=!!b; $('aiBox').open=false; $('aiText').value=''; $('aiMsg').innerHTML='';
     $('jobTitle').textContent=b?'แก้ไขงาน':'เพิ่มงาน Catering / Booth';
     $('jBzmList').innerHTML=BZM_LIST.map(x=>`<option value="${esc(x)}"></option>`).join('');
     setv('jName',b&&b.name); setv('jPlace',b&&b.place); setv('jTF',snapT(b&&b.timeFrom)); setv('jTT',snapT(b&&b.timeTo)); setv('jF',b&&b.from); setv('jT',b&&b.to);
@@ -1087,9 +1152,30 @@ function askJob(b,preset){
       $('jMenus').innerHTML=menus.map((m,i)=>`<div class="jm" data-i="${i}"><input data-f="n" value="${esc(m.n||'')}" placeholder="ชื่อเมนู"><input data-f="q" type="number" min="0" step="any" inputmode="decimal" value="${esc(m.q)}" placeholder="จำนวน"><input data-f="p" type="number" min="0" step="any" inputmode="decimal" value="${esc(m.p)}" placeholder="ราคา/หน่วย"><span class="jt">${money((Number(m.q)||0)*(Number(m.p)||0))}</span><button type="button" class="jx" data-x="${i}" aria-label="ลบเมนู">✕</button></div>`).join('');
       grand();
     };
+    const applyJob=j=>{
+      type=j.type==='booth'?'booth':'catering'; paintType();
+      setv('jName',j.name); setv('jPlace',j.place); setv('jTF',snapT(j.timeFrom)); setv('jTT',snapT(j.timeTo)); setv('jF',j.from); setv('jT',j.to);
+      setv('jFmt',j.format); setv('jGuests',j.guests||''); setv('jCN',j.contactName); setv('jCPc',j.contactPhone); setv('jCPb',j.contactPhone); setv('jRent',j.rent||''); if(j.bzm) setv('jBzm',j.bzm);
+      menus=(j.menus&&j.menus.length?j.menus:[{n:'',q:'',p:''}]).map(m=>({...m})); paintMenus();
+      const st=new Set(j.staff||[]); document.querySelectorAll('#jStaff input').forEach(x=>{ x.checked=st.has(x.value); }); calcDays();
+    };
+    const runAi=async()=>{
+      const txt=$('aiText').value.trim(); if(txt.length<10) return toast('วางข้อความงานก่อน');
+      const btn=$('aiGo'), old=btn.textContent; btn.disabled=true; btn.textContent='กำลังอ่าน…';
+      let r; try{ r=await aiParseJob(txt); }finally{ btn.disabled=false; btn.textContent=old; }
+      if(!r.jobs.length){ $('aiMsg').innerHTML='<span class="aiwarn">อ่านวันที่จากข้อความไม่ได้ ตรวจว่ามีวันที่และเดือน หรือกรอกเอง</span>'; return; }
+      const multi=r.jobs.length>1, miss=new Set();
+      const prepared=r.jobs.map(j=>{ const sm=matchStaffNames(j.staff); sm.miss.forEach(x=>miss.add(x)); const o={...j,staff:sm.ok,timeFrom:snapT(j.timeFrom),timeTo:snapT(j.timeTo),menus:(j.menus||[]).filter(m=>Number(m.p)>0)}; if(!o.name) o.name=j.type==='booth'?'Booth':'Catering'; if(multi) o.name=o.name+' · '+dmy(j.from); return o; });
+      applyJob(prepared[0]); extras=prepared.slice(1);
+      const sum=prepared.reduce((a,j)=>a+jobSum(j),0);
+      const chk=r.declaredTotal?(Math.abs(sum-r.declaredTotal)<1?`✅ ยอดรวมทุกวันตรงกับในข้อความ (${money(r.declaredTotal)} บาท)`:`<span class="aiwarn">⚠️ ยอดที่คิดได้ ${money(sum)} บาท ไม่ตรงกับในข้อความ ${money(r.declaredTotal)} บาท ตรวจเมนูและราคาอีกครั้ง</span>`):`ยอดรวมที่คิดได้ ${money(sum)} บาท`;
+      const rows=multi?`<ul>${prepared.map(j=>`<li><b>${dmy(j.from)}</b> ${j.staff.length?esc(j.staff.join(', ')):'ยังไม่ระบุพนักงาน'} · ${money(jobSum(j))} บาท</li>`).join('')}</ul>`:'';
+      $('aiMsg').innerHTML=`${r.method==='ai'?'✨ AI':'อ่านด้วยตัวอ่านพื้นฐาน (AI ยังไม่พร้อม)'} อ่านได้ <b>${prepared.length} งาน</b>${multi?' (วันที่ไม่ติดกัน แยกเป็นงานละวัน · งานแรกกรอกในฟอร์มนี้แล้ว อีก '+(prepared.length-1)+' งานจะถูกเพิ่มให้ตอนกดบันทึก)':' กรอกลงฟอร์มแล้ว'}${rows}<div>${chk}</div>${miss.size?`<div class="aiwarn">ไม่พบในทีม: ${esc([...miss].join(', '))} (เลือกพนักงานเองในฟอร์ม)</div>`:''}`;
+    };
     paintType(); paintMenus(); calcDays(); dlg.hidden=false; setTimeout(()=>$('jName').focus(),30);
     const done=v=>{ dlg.hidden=true; dlg.onclick=dlg.oninput=dlg.onchange=null; $('jSave').onclick=$('jCancel').onclick=$('jobX').onclick=null; res(v); };
     dlg.onclick=e=>{
+      if(e.target.closest('#aiGo')){ runAi(); return; }
       const tb=e.target.closest('#jType button'); if(tb){ type=tb.dataset.t; paintType(); return; }
       if(e.target.closest('#jAddMenu')){ menus.push({n:'',q:'',p:''}); paintMenus(); const l=$('jMenus').querySelector('.jm:last-child input'); if(l) l.focus(); return; }
       const x=e.target.closest('[data-x]'); if(x){ menus.splice(+x.dataset.x,1); if(!menus.length) menus.push({n:'',q:'',p:''}); paintMenus(); return; }
@@ -1109,6 +1195,7 @@ function askJob(b,preset){
       if(type==='catering') Object.assign(o,{format:$('jFmt').value.trim(),guests:Number($('jGuests').value)||0,contactName:$('jCN').value.trim(),contactPhone:$('jCPc').value.trim(),
         menus:menus.filter(m=>String(m.n||'').trim()||Number(m.q)||Number(m.p)).map(m=>({n:String(m.n||'').trim(),q:Number(m.q)||0,p:Number(m.p)||0}))});
       else Object.assign(o,{contactPhone:$('jCPb').value.trim(),rent:Number($('jRent').value)||0});
+      if(!b&&extras.length) o.__extra=extras;
       done(o);
     };
   });
@@ -1219,11 +1306,16 @@ function paintMTl(){
       <div class="n">${esc(b.name)}</div><div class="s">${esc(b.place||'')} · ${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''} (${n} วัน)</div>${key?`<div class="k">${esc(key)}</div>`:''}${on?`<div style="margin-top:8px">${jobDetailHtml(b)}</div>`:''}</div></div>`; }).join('')
     :`<div class="empty" style="padding:26px 10px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth${canMgr?'<br>กด “⚙️ จัดการ” เพื่อเพิ่มงาน':''}</div>`;
 }
+async function addJobsFrom(r){
+  const list=[r,...(r.__extra||[])].map(x=>{ const y={...x}; delete y.__extra; return y; });
+  const dup=list.find(x=>booths.some(b=>b.name===x.name&&b.type===x.type)); if(dup){ toast('มีงานชื่อนี้แล้ว: '+dup.name); return false; }
+  const t0=Date.now(); await saveBooths([...booths,...list.map((x,i)=>({k:'j'+(t0+i).toString(36),...x}))]);
+  toast(list.length>1?`เพิ่มงานแล้ว ${list.length} งาน`:'เพิ่มงานแล้ว'); return true;
+}
 async function tlAddJob(type){
   if(!canMgr) return toast('เฉพาะแอดมินที่จัดการงานได้');
   const r=await askJob(null,type); if(!r) return;
-  if(booths.some(x=>x.name===r.name&&x.type===r.type)) return toast('มีงานชื่อนี้แล้ว');
-  await saveBooths([...booths,{k:'j'+Date.now().toString(36),...r}]); toast('เพิ่มงานแล้ว');
+  if(!await addJobsFrom(r)) return;
   if(r.from&&r.from.slice(0,7)!==mkey()){ Y=+r.from.slice(0,4); M=+r.from.slice(5,7)-1; sel=+r.from.slice(8,10); mSel=sel; subscribeMonth(); }
 }
 /* ───── Planner พนักงาน: ตารางพนักงาน x วัน ว่าใครออกงานไหน วันไหน (งานที่ติ๊กพนักงานไว้ + แผนของคนนั้น) ───── */
@@ -1475,7 +1567,7 @@ document.addEventListener('click',async e=>{
   const mt=t.closest('[data-mtab]'); if(mt){ mgrTab=mt.dataset.mtab; paintMgr(); return; }
   const bgo=t.closest('[data-bgo]'); if(bgo){ const b=boothOf(bgo.dataset.bgo); if(!b) return; boothSel=b.k; if(b.from){ Y=+b.from.slice(0,4); M=+b.from.slice(5,7)-1; sel=+b.from.slice(8,10); mSel=sel; subscribeMonth(); } $('mgr').hidden=true; paintAll(); return; }
   const adt=t.closest('[data-addtype]');
-  if(adt||t.closest('#addBoothSide')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการงานได้'); const r=await askJob(null,adt?adt.dataset.addtype:null); if(!r) return; if(booths.some(x=>x.name===r.name&&x.type===r.type)) return toast('มีงานชื่อนี้แล้ว'); await saveBooths([...booths,{k:'j'+Date.now().toString(36),...r}]); toast('เพิ่มงานแล้ว'); return; }
+  if(adt||t.closest('#addBoothSide')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการงานได้'); const r=await askJob(null,adt?adt.dataset.addtype:null); if(!r) return; await addJobsFrom(r); return; }
   const bedit=t.closest('[data-bedit]');
   if(bedit){ const b=boothOf(bedit.dataset.bedit); if(!b) return; const r=await askJob(b); if(!r) return; await saveBooths(booths.map(x=>x.k===b.k?{...x,...r}:x)); toast('แก้ไขงานแล้ว'); return; }
   const bdel=t.closest('[data-bdel]');
