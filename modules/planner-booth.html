@@ -100,7 +100,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .jobc tfoot td{font-weight:800;border-bottom:0}
 .jobc .stf{display:flex;flex-wrap:wrap;gap:4px}.jobc .stf i{font-style:normal;background:#eef1f4;border-radius:999px;padding:0 8px;font-size:12.5px}
 @media(max-width:560px){.j2{grid-template-columns:1fr}.jm{grid-template-columns:minmax(0,1fr) 54px 72px 72px 26px}}
-.mg-cols2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:10px}
+.mg-cols2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-top:10px}
 .jm-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:8px}
 .jm-tabs{display:flex;gap:6px;flex-wrap:wrap}.jm-tabs button{height:38px;padding:0 14px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:800;font-size:14px}
 .jm-tabs button em{font-style:normal;font-weight:700;color:var(--ink3);margin-left:4px}.jm-tabs button.on{border-color:var(--accent);background:#fff3e8;color:var(--accent-ink)}
@@ -189,6 +189,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .side-seg button{font-size:11.5px;padding:0 2px;white-space:nowrap}
 .band{position:absolute;height:31px;border-radius:9px;background:var(--c);color:#fff;font-size:15px;font-weight:800;padding:0 12px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:2;box-shadow:0 1px 3px rgba(15,23,42,.2)}
 .band.cl{border-top-left-radius:0;border-bottom-left-radius:0;padding-left:8px}.band.cr{border-top-right-radius:0;border-bottom-right-radius:0}
+.nofld{display:none!important}
 .boothlab{display:block;font-size:12.5px;font-weight:800;color:#c2410c;background:#FFEDE3;border-radius:7px;padding:2px 8px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bst{display:inline-block;font-size:11.5px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:6px;color:#fff;background:var(--c,#9aa3a0)}
 .scard .person.bo{height:auto;min-height:48px;padding:8px 10px;align-items:flex-start;gap:6px}
@@ -638,10 +639,11 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <label class="field"><span>ตั้งแต่วันที่</span><input type="date" id="fFrom"></label>
     <label class="field"><span>ถึงวันที่</span><input type="date" id="fTo"></label>
   </div>
-  <label class="field"><span>งาน (Catering / Booth)</span><select id="fBooth"></select></label>
-  <label class="field"><span>ขั้นตอน (หมวด)</span><select id="fType"></select></label>
-  <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ขนของขึ้นรถ รอบเช้า"></label>
-  <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น ยูซีอาร์ สุขุมวิท 39"></label>
+  <label class="field"><span>ประเภท</span><select id="fType"></select></label>
+  <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา</span><select id="fHelp"></select></label>
+  <div class="j2"><label class="field"><span>เวลาเริ่ม</span><input type="time" id="fTF"></label><label class="field"><span>เวลาสิ้นสุด</span><input type="time" id="fTT"></label></div>
+  <label class="field"><span>หมายเหตุ (ไม่บังคับ)</span><input id="fTitle" placeholder="เช่น ครึ่งวันเช้า / ช่วยกะเย็น"></label>
+  <label class="field nofld"><span>สถานที่</span><input id="fPlace"></label>
   <label class="field" id="fLBrandW" hidden><span>แบรนด์</span><select id="fLBrand"></select></label>
   <label class="field" id="fBranchW" hidden><span>สาขา (ระบบ Visit)</span><select id="fBranch"></select></label>
   <label class="field" id="fPtypeW" hidden><span>ประเภทการตรวจ</span><select id="fPtype"><option value="FQA">FQA</option><option value="FSQ">Complaint</option><option value="VISIT">Visit</option></select></label>
@@ -685,12 +687,9 @@ button{cursor:pointer;border:0;background:none;padding:0}
 /* ───── ค่าเริ่มต้น ───── */
 const DEFAULT_TEAM = ["ใย","อีฟ","ป้าแต๋น","เหมย","ไมค์","ไม้","แม่น้อย","ลุงอ้วน"];   /* พนักงานที่ออกงาน Catering / Booth (แก้ได้ที่หน้าจัดการ) */
 const DEFAULT_CATS = [
-  {k:'plan',l:'วางแผน / ประสานงาน',c:'#6d5ef0'},{k:'buy',l:'จัดซื้อ / เตรียมวัตถุดิบ',c:'#16804d'},
-  {k:'equip',l:'เตรียมอุปกรณ์ (ยืม–คืน)',c:'#0b7e8c'},{k:'move',l:'ขนย้าย',c:'#c27700'},
-  {k:'setup',l:'ติดตั้งบูธ',c:'#2563eb'},{k:'sell',l:'ออกบูธ / ขายหน้างาน',c:'#e0562a'},
-  {k:'strike',l:'รื้อถอน / คืนของ',c:'#9b3fb5'},{k:'train',l:'อบรม / Briefing ทีมบูธ',c:'#c026d3'},
-  {k:'report',l:'สรุปยอด / สรุปงาน',c:'#5a6470'},{k:'leave',l:'ลา',c:'#c8364b'},{k:'off',l:'วันหยุด',c:'#9aa3a0'}
+  {k:'off',l:'หยุด',c:'#9aa3a0'},{k:'vac',l:'พักร้อน',c:'#2563eb'},{k:'extra',l:'Extra',c:'#c27700'},{k:'help',l:'ไปช่วยสาขา',c:'#e0562a'}
 ];
+const DEFAULT_HELP = ['สามเสน','เซ็นทรัลเวิร์ล','ดุสิตธานี','สยาม','ฟอร์จูน','พารากอน'];
 const DOW=['จ','อ','พ','พฤ','ศ','ส','อา'], DOWF=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์','อาทิตย์'];
 /* สีประจำวัน (จ=0 … อา=6) ตามประเพณีไทย */
 const WEEK_COLOR=['#facc15','#f472b6','#22c55e','#fb923c','#60a5fa','#c084fc','#f87171'];
@@ -699,6 +698,7 @@ const TH=['มกราคม','กุมภาพันธ์','มีนาค
 /* ───── สถานะ ───── */
 let db=null, unsubMonth=null, unsubTeam=null, unsubCats=null, unsubHol=null;
 let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
+let helpBr=DEFAULT_HELP.slice();   /* สาขาที่พนักงานไปช่วย: เก็บที่ bconfig/helpbranches */
 let booths=[];   /* บูธ / งาน: [{k,name,place,from,to}] เก็บที่ bconfig/booths ทุกคนเห็นตรงกัน */
 let boothSel=null;   /* กรองดูเฉพาะบูธนี้ */
 const boothOf=k=>booths.find(b=>b.k===k)||null;
@@ -707,6 +707,8 @@ const ptitle=p=>{ const t=boothTag(p); return t?(t+' · '+p.title):p.title; };
 /* สถานะของบูธคิดจากวันที่ให้เอง: ก่อนวันออกบูธ = เตรียมงาน · ระหว่างวัน = กำลังออกบูธ · หลังจากนั้น = จบงาน */
 function boothState(b){ const t=todayISO(); if(!b.from||!b.to) return {l:'ยังไม่ระบุวัน',c:'#9aa3a0'};
   if(t<b.from) return {l:'เตรียมงาน',c:'#c27700'}; if(t>b.to) return {l:'จบงาน',c:'#9aa3a0'}; return {l:'กำลังออกบูธ',c:'#e0562a'}; }
+const ptime=p=>(p&&(p.timeFrom||p.timeTo))?`${p.timeFrom||''}${p.timeTo?'–'+p.timeTo:''}`:'';
+const ptitleT=p=>(ptime(p)?ptime(p)+' ':'')+ptitle(p);
 const dmy=iso=>iso?iso.slice(8,10)+'/'+iso.slice(5,7):'';
 /* งานมี 2 ชนิด: Catering (เมนู/ราคา/จำนวนลูกค้า) กับ Booth (ค่าเช่าบูธ) · ข้อมูลบูธเก่าที่ไม่มีชนิด = Booth */
 const JTYPE={catering:{l:'Catering',ic:'🍽️',c:'#0b7e8c'},booth:{l:'Booth',ic:'🎪',c:'#e0562a'}};
@@ -961,13 +963,13 @@ function paintRight(){
   const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
   $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
   const groups={}; (upAll?later:later.slice(0,5)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
-  $('up').innerHTML=Object.keys(groups).map(k=>{ const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7; return `<div class="ug${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}">${day} ${TH[M]}${k===todayISO()?' · วันนี้':''}</div>`+groups[k].map(p=>`<div class="ui dl" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(catOf(p.type).l)}</span></div><div class="dlt">${esc(ptitle(p))}</div></div>`).join(''); }).join('');
+  $('up').innerHTML=Object.keys(groups).map(k=>{ const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7; return `<div class="ug${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}">${day} ${TH[M]}${k===todayISO()?' · วันนี้':''}</div>`+groups[k].map(p=>`<div class="ui dl" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(catOf(p.type).l)}</span></div><div class="dlt">${esc(ptitleT(p))}</div></div>`).join(''); }).join('');
   if(later.length>5) $('up').insertAdjacentHTML('beforeend',`<button type="button" class="upmore" id="upMore">${upAll?'ย่อเหลือ 5 แผน':'ดูทั้งหมด '+later.length+' แผน'}</button>`);
   const rp=document.querySelector('.right'); if(rp) rp.classList.toggle('all',upAll);
 }
 function cardRow(p,desk){
   const c=catOf(p.type);
-  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(ptitle(p))}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
+  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(ptitleT(p))}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
 }
 function paintStrip(){
   const m=byDay(), n=nDays(), d0=mSel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
@@ -987,7 +989,7 @@ function paintStrip(){
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
   $('dsAdd').hidden=!canWrite;
-  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitle(p))}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้</div>`;
+  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitleT(p))}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้</div>`;
 }
 /* กล่องยืนยันแบบเดียวกับแอป: askBox({...}) → true/false, หรือ {name,color} เมื่อมี input */
 function askBox({icon='❔',title,msg='',danger=false,input=null}){
@@ -1013,6 +1015,7 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
     /* คลิกนอกกล่องไม่ปิด · ปิดได้ด้วยปุ่มยกเลิกหรือบันทึก/ตกลงเท่านั้น */
   });
 }
+async function saveHelp(next){ helpBr=next; await db.doc('bconfig/helpbranches').set({items:next}); }
 async function saveBooths(next){ booths=next; await db.doc('bconfig/booths').set({items:next}); }
 /* กล่องกรอกงาน Catering / Booth — ช่องที่ต้องกรอกต่างกันตามชนิด · จำนวนวันคิดจากวันที่เริ่ม-สิ้นสุดอัตโนมัติ */
 function askJob(b,preset){
@@ -1082,7 +1085,8 @@ function paintMgr(){
     <div class="jm-list">${list.length?list.map(jobCard).join(''):`<div class="empty" style="padding:22px 10px;text-align:center">ยังไม่มีงาน${mgrTab==='all'?'':' ชนิดนี้'}<br>กด “+ Catering” หรือ “+ Booth” ด้านบนเพื่อเพิ่ม</div>`}</div>
     <details class="jm-more"><summary>ตั้งค่าเพิ่มเติม · รายชื่อพนักงาน (${team.length}) และขั้นตอน (${cats.length})</summary>
       <div class="mg-cols2"><div class="mg-col"><div class="mg-h">พนักงาน / ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
-      <div class="mg-col"><div class="mg-h">ขั้นตอน (หมวด) <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มหมวด</button></div></div></details>`;
+      <div class="mg-col"><div class="mg-h">ประเภทแผน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มประเภท</button></div>
+      <div class="mg-col"><div class="mg-h">สาขาที่ไปช่วย <em>${helpBr.length}</em></div>${helpBr.map(b=>`<div class="mg-row"><div class="tx">${esc(b)}</div><button class="ic" data-hedit="${esc(b)}" aria-label="แก้ไขชื่อสาขา">✎</button><button class="ic danger" data-hdel="${esc(b)}" aria-label="ลบสาขา">✕</button></div>`).join('')}<button class="mini addrow" id="addHelp">+ เพิ่มสาขา</button></div></div></details>`;
 }
 /* มือถือ: รายการของทั้งเดือนจัดกลุ่มตามวัน */
 let agendaAutoKey=null;   /* เดือนที่เลื่อนรายการไปวันนี้แล้ว */
@@ -1093,7 +1097,7 @@ function paintAgenda(){
   $('agenda').innerHTML=keys.length?keys.map(k=>{
     const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7;
     const hl=holLabel(k);
-    return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitle(p))}</div></div>`; }).join('');
+    return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitleT(p))}</div></div>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
   const td=$('agenda').querySelector('.agh.isToday');
   if(td && agendaAutoKey!==mkey()){ agendaAutoKey=mkey(); requestAnimationFrame(()=>td.scrollIntoView({block:'start'})); }
@@ -1197,7 +1201,7 @@ function paintStaff(){
   const card=`<div class="tlcard">${head}${rows}${td?`<div class="g-today" style="left:calc(230px + (100% - 230px)*${(td-.5)/n})"></div>`:''}</div><div class="stf-hint">กดชื่อพนักงานเพื่อดูงานและแผนของคนนั้น · ดับเบิลคลิกช่องว่างในแถวเพื่อเพิ่มแผนให้ตรงวัน${canWrite?'':' (สิทธิ์ดูอย่างเดียว)'} · จุดสี = แผนของคนนั้น · ⚠ = ถูกจัดงานซ้อนวันกัน</div>`;
   const sn=stfSel&&team.includes(stfSel)?stfSel:(team[0]||null), L2=sn?stfLanes(sn):{items:[]}, mine=sn?plans.filter(p=>p.person===sn&&p.type!=='off').slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
   const jl=L2.items.map(x=>{ const t1=jtype(x.j); return `<div class="pl-row" style="--c:${t1.c};cursor:default"><b>${x.b.s}${x.b.e!==x.b.s?'–'+x.b.e:''} ${TH[M].slice(0,3)}</b><span>${t1.ic} ${esc(x.j.name)}<small>${esc(x.j.place||'')} · ${t1.l}${x.j.timeFrom?' · '+esc(x.j.timeFrom)+'–'+esc(x.j.timeTo||''):''}</small></span></div>`; }).join('');
-  const pl=mine.map(p=>`<div class="pl-row" style="--c:${catOf(p.type).c}" data-id="${esc(p.id)}"><b>${+String(p.date).slice(8,10)} ${TH[M].slice(0,3)}</b><span>${esc(ptitle(p))}<small>${esc(catOf(p.type).l)}</small></span></div>`).join('');
+  const pl=mine.map(p=>`<div class="pl-row" style="--c:${catOf(p.type).c}" data-id="${esc(p.id)}"><b>${+String(p.date).slice(8,10)} ${TH[M].slice(0,3)}</b><span>${esc(ptitleT(p))}<small>${esc(catOf(p.type).l)}</small></span></div>`).join('');
   const bottom=sn?`<div class="tl-bot" style="grid-template-columns:1fr 1fr"><div class="tlc"><h4>งานที่ ${esc(sn)} ออกในเดือนนี้ (${L2.items.length})</h4>${jl||'<div class="mut" style="font-size:13px">ยังไม่ได้ถูกจัดเข้างานไหน · เลือกชื่อในฟอร์มงาน “พนักงานที่ออกงาน”</div>'}</div>
     <div class="tlc"><h4>แผนของ ${esc(sn)} (${mine.length})</h4><div id="tlPlans">${pl||'<div class="mut" style="font-size:13px">ยังไม่มีแผน</div>'}</div>${canWrite?`<button class="pb pri" style="margin-top:8px" data-addfor="${esc(sn)}">+ เพิ่มแผนให้ ${esc(sn)}</button>`:''}</div></div>`:'';
   host.innerHTML=headStaffTabs('staff')+card+bottom;
@@ -1273,13 +1277,14 @@ function openPlanDlg(id,dateIso){
   $('dlgTitle').textContent=p?'แก้ไขแผน':'เพิ่มแผน';
   const pOpts=canMgr?team:[owner].filter(Boolean);
   $('fPerson').innerHTML=pOpts.map(n=>`<option ${(p?p.person:(canMgr?(presetPerson||person||team[0]):owner))===n?'selected':''}>${esc(n)}</option>`).join('');
-  const curB=p?(p.booth||''):(boothSel||'');
-  $('fBooth').innerHTML='<option value="">— ไม่ระบุงาน —</option>'+booths.map(b=>`<option value="${esc(b.k)}" ${curB===b.k?'selected':''}>${jtype(b).ic} ${esc(b.name)}${b.place?' · '+esc(b.place):''}</option>`).join('');
   presetPerson=null;
   $('fType').innerHTML=cats.map(c=>`<option value="${esc(c.k)}" ${(p?p.type:cats[0]&&cats[0].k)===c.k?'selected':''}>${esc(c.l)}</option>`).join('');
   $('fDate').value=p?p.date:(dateIso||todayISO());
-  $('fTitle').value=p?p.title:'';
+  $('fTitle').value=p?(p.note!=null?p.note:(cats.some(c=>c.k===p.type)&&['off','vac','extra','help'].includes(p.type)?'':p.title)):'';
   $('fPlace').value=p?(p.place||''):'';
+  const hb=helpBr.slice(); if(p&&p.branch&&!hb.includes(p.branch)) hb.push(p.branch);
+  $('fHelp').innerHTML=hb.map(b=>`<option ${p&&p.branch===b?'selected':''}>${esc(b)}</option>`).join('')||'<option value="">— ยังไม่มีรายชื่อสาขา —</option>';
+  $('fTF').value=p?(p.timeFrom||''):''; $('fTT').value=p?(p.timeTo||''):'';
   $('fDel').hidden=!p;
   $('fDateW').hidden=false;
   $('fDaysW').hidden=true;
@@ -1288,15 +1293,20 @@ function openPlanDlg(id,dateIso){
   $('fMulti').textContent='+ ติ๊กหลายวัน';
   if(!p){ const d0=dateIso||todayISO(); $('fFrom').value=d0; $('fTo').value=d0; }
   syncBranchField(p);
+  syncHelp();
   $('dlg').hidden=false;
   setTimeout(()=>$('fTitle').focus(),50);
 }
+function syncHelp(){ $('fHelpW').hidden=$('fType').value!=='help'; document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
 function closeDlg(){ $('dlg').hidden=true; }
 async function saveDlg(){
   if(editingId && String(editingId).startsWith('wo:')) return toast('Day Off อัตโนมัติแก้ไม่ได้ ให้ลบแล้วเพิ่มใหม่');
   const title=$('fTitle').value.trim(), date=$('fDate').value;
-  /* หัวข้อไม่บังคับ ถ้าว่างใช้ชื่อหมวดแทน */
-  const titleFinal=title||catOf($('fType').value).l;
+  /* ชื่อแผนประกอบอัตโนมัติ: ประเภท (+ สาขา) (+ หมายเหตุ) */
+  const typeK=$('fType').value, helpBranch=typeK==='help'?($('fHelp').value||''):'';
+  if(typeK==='help'&&!helpBranch){ toast('เลือกสาขาที่ไปช่วยก่อน'); return; }
+  if($('fTF').value&&$('fTT').value&&$('fTT').value<$('fTF').value){ toast('เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่ม'); return; }
+  const titleFinal=(typeK==='help'?`ช่วยสาขา ${helpBranch}`:catOf(typeK).l)+(title?' · '+title:'');
   /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
   /* ช่วงวันที่ (ตั้งแต่ - ถึง) สร้างแผนทุกวันในช่วง ไม่เกิน 62 วัน */
   const multi=!$('fDaysW').hidden;
@@ -1315,7 +1325,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,place:$('fPlace').value.trim(),booth:$('fBooth').value||'',updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
@@ -1375,7 +1385,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
+  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel],#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const ct=t.closest('[data-cup],[data-cdn]');
   if(ct){ const up=ct.dataset.cup!==undefined; const k=ct.dataset.cup||ct.dataset.cdn; const i=cats.findIndex(x=>x.k===k); const j=up?i-1:i+1; if(i<0||j<0||j>=cats.length) return; const next=cats.slice(); [next[i],next[j]]=[next[j],next[i]]; await saveCats(next); toast('เรียงหมวดใหม่แล้ว'); return; }
   const mt=t.closest('[data-mtab]'); if(mt){ mgrTab=mt.dataset.mtab; paintMgr(); return; }
@@ -1389,6 +1399,11 @@ document.addEventListener('click',async e=>{
     if(!await askBox({icon:'🎪',title:`ลบงาน “${b.name}”?`,msg:(used?`มีแผนที่ผูกอยู่ ${used} รายการในเดือนนี้ (เดือนอื่นอาจมีอีก) `:'')+'แผนจะยังอยู่ แต่จะไม่แสดงชื่องานนี้',danger:true})) return;
     await saveBooths(booths.filter(x=>x.k!==b.k)); if(boothSel===b.k) boothSel=null; toast('ลบงานแล้ว'); return; }
   const bsel=t.closest('[data-b]'); if(bsel){ const v=bsel.dataset.b||null; boothSel=(boothSel===v)?null:v; paintAll(); return; }
+  if(t.closest('#addHelp')){ const r=await askBox({icon:'🏬',title:'เพิ่มสาขาที่ไปช่วย',input:{label:'ชื่อสาขา'}}); if(!r) return; if(helpBr.includes(r.name)) return toast('มีสาขานี้แล้ว'); await saveHelp([...helpBr,r.name]); toast('เพิ่มสาขาแล้ว'); return; }
+  const hed=t.closest('[data-hedit]');
+  if(hed){ const old=hed.dataset.hedit; const r=await askBox({icon:'🏬',title:'แก้ไขชื่อสาขา',input:{label:'ชื่อสาขา',value:old}}); if(!r||r.name===old) return; if(helpBr.includes(r.name)) return toast('มีสาขานี้แล้ว'); await saveHelp(helpBr.map(x=>x===old?r.name:x)); toast('แก้ไขแล้ว'); return; }
+  const hdl=t.closest('[data-hdel]');
+  if(hdl){ const b=hdl.dataset.hdel; if(!await askBox({icon:'🏬',title:`ลบสาขา “${b}” ออกจากรายการ?`,msg:'แผนที่เคยลงไว้จะยังอยู่',danger:true})) return; await saveHelp(helpBr.filter(x=>x!==b)); toast('ลบสาขาแล้ว'); return; }
   const tdel=t.closest('[data-tdel]');
   const tedit=t.closest('[data-tedit]');
   if(tedit){
@@ -1420,7 +1435,7 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('change',e=>{
-  if(e.target.id==='fBooth'){ const b=boothOf(e.target.value); if(b&&b.place&&!$('fPlace').value.trim()) $('fPlace').value=b.place; return; }
+  if(e.target.id==='fType'){ syncHelp(); return; }
   const c=e.target.closest('[data-c]'); if(!c) return;
   const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
   paintAll();
@@ -1454,6 +1469,7 @@ async function start(){
     paintAll(); return;
   }
     unsubTeam=db.doc('bconfig/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
+  db.doc('bconfig/helpbranches').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it){ helpBr=it.slice(); } });
   db.doc('bconfig/booths').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:[]; booths=it.map(x=>({...x})); if(boothSel&&!boothOf(boothSel)) boothSel=null; paintAll(); });
   unsubCats=db.doc('bconfig/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
   db.doc('bconfig/offskip').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; offSkip={...it}; paintAll(); });
