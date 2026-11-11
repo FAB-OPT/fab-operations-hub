@@ -218,6 +218,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .dlg-acts-row{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 14px}
 .chipbtn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #d6dbe2;background:#fff;color:#1f2937;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
 .chipbtn:hover{background:#f3f4f6}
+.othint{margin:-6px 0 12px;font-size:13px;font-weight:700;color:var(--ink2)}.othint b{color:var(--accent-ink)}.othint.ot{color:#9a3412;background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:6px 10px}
 .aibox{border:1px dashed var(--accent);border-radius:14px;padding:8px 12px;margin:0 0 12px;background:#fffaf5}
 .aibox summary{cursor:pointer;font-weight:800;color:var(--accent-ink);font-size:14px;padding:4px 0}
 .aibox textarea{width:100%;margin:8px 0;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit;font-size:14px;resize:vertical;background:#fff}
@@ -676,6 +677,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <label class="field"><span>ประเภท</span><select id="fType"></select></label>
   <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา</span><input id="fHelp" list="fHelpList" placeholder="พิมพ์ค้นหาหรือเลือกสาขา (ชื่อ / รหัส / BZM)" autocomplete="off"><datalist id="fHelpList"></datalist></label>
   <div class="j2"><label class="field"><span id="fTFl">เวลาเริ่ม</span><select class="tsel" id="fTF"></select></label><label class="field"><span id="fTTl">เวลาสิ้นสุด</span><select class="tsel" id="fTT"></select></label></div>
+  <div class="othint" id="fOt" hidden></div>
   <label class="field"><span>หมายเหตุ (ไม่บังคับ)</span><input id="fTitle" placeholder="เช่น ครึ่งวันเช้า / ช่วยกะเย็น"></label>
   <label class="field nofld"><span>สถานที่</span><input id="fPlace"></label>
   <label class="field" id="fLBrandW" hidden><span>แบรนด์</span><select id="fLBrand"></select></label>
@@ -763,7 +765,12 @@ const ptitle=p=>{ const t=boothTag(p); return t?(t+' · '+p.title):p.title; };
 function boothState(b){ const t=todayISO(); if(!b.from||!b.to) return {l:'ยังไม่ระบุวัน',c:'#9aa3a0'};
   if(t<b.from) return {l:'เตรียมงาน',c:'#c27700'}; if(t>b.to) return {l:'จบงาน',c:'#9aa3a0'}; return {l:'กำลังออกบูธ',c:'#e0562a'}; }
 const ptime=p=>(p&&(p.timeFrom||p.timeTo))?`${p.timeFrom||''}${p.timeTo?'–'+p.timeTo:''}`:'';
-const ptitleT=p=>(ptime(p)?ptime(p)+' ':'')+ptitle(p);
+/* โอที: ทำงานเกิน 9 ชั่วโมง (เวลาเริ่ม-สิ้นสุด) ส่วนที่เกินคิดเป็นโอที · คำนวณจากเวลาเสมอ แผนเก่าที่ไม่ได้เก็บค่าก็ได้ผลเหมือนกัน */
+const OT_AFTER=9;
+const workHrs=(f,t)=>{ const a=/^(\d{1,2}):(\d{2})/.exec(f||''), b=/^(\d{1,2}):(\d{2})/.exec(t||''); if(!a||!b) return 0; const h=((+b[1]*60+ +b[2])-(+a[1]*60+ +a[2]))/60; return h>0?Math.round(h*2)/2:0; };
+const otOf=p=>Math.max(0,workHrs(p&&p.timeFrom,p&&p.timeTo)-OT_AFTER);
+const fmtH=h=>String(+h.toFixed(1)).replace(/\.0$/,'');
+const ptitleT=p=>(ptime(p)?ptime(p)+' ':'')+ptitle(p)+(otOf(p)?` · OT ${fmtH(otOf(p))} ชม.`:'');
 const dmy=iso=>iso?iso.slice(8,10)+'/'+iso.slice(5,7):'';
 /* งานมี 2 ชนิด: Catering (เมนู/ราคา/จำนวนลูกค้า) กับ Booth (ค่าเช่าบูธ) · ข้อมูลบูธเก่าที่ไม่มีชนิด = Booth */
 const JTYPE={catering:{l:'Catering',ic:'🍽️',c:'#0b7e8c'},booth:{l:'Booth',ic:'🎪',c:'#e0562a'}};
@@ -1449,15 +1456,18 @@ function openPlanDlg(id,dateIso){
   $('fMulti').textContent='+ ติ๊กหลายวัน';
   pickSet=new Set();
   syncBranchField(p);
-  syncHelp();
+  syncHelp(); updOt();
   $('dlg').hidden=false;
   setTimeout(()=>$('fTitle').focus(),50);
 }
 /* รายการสาขาให้เลือก: ทะเบียนของฮับแยกแบรนด์ (พร้อม BZM) · โหลดไม่ได้ = ใช้รายชื่อสำรองที่ตั้งไว้ในหน้าจัดการ */
 function helpAll(){ const out=[]; Object.keys(BRANCHES).forEach(bk=>(BRANCHES[bk]||[]).forEach(b=>out.push({name:b.name,bzm:b.bzm||'',brand:BR_BRAND_TH[bk]||bk})));
-  if(!out.length) helpBr.forEach(b=>out.push({name:b,bzm:'',brand:''})); return out; }
+  if(!out.length) helpBr.forEach(b=>out.push({name:b,bzm:'',brand:''}));
+  if(!out.some(b=>b.name==='ครัวกลาง')) out.push({name:'ครัวกลาง',bzm:'',brand:'ส่วนกลาง'});   /* ไม่อยู่ในทะเบียนสาขาของฮับ จึงเพิ่มให้เสมอ */
+  return out; }
 function helpFind(name){ const k=String(name||'').trim(); return helpAll().find(b=>b.name===k)||null; }
 function fillHelp(){ $('fHelpList').innerHTML=helpAll().map(b=>`<option value="${esc(b.name)}" label="${esc([b.brand,b.bzm?'BZM '+b.bzm:''].filter(Boolean).join(' · '))}"></option>`).join(''); }
+function updOt(){ const h=workHrs($('fTF').value,$('fTT').value), o=Math.max(0,h-OT_AFTER), el=$('fOt'); el.hidden=!h; el.className='othint'+(o?' ot':''); el.innerHTML=h?(o?`ทำงาน <b>${fmtH(h)} ชม.</b> · เกิน ${OT_AFTER} ชม. คิดเป็น <b>โอที ${fmtH(o)} ชม.</b>`:`ทำงาน ${fmtH(h)} ชม. (ไม่เกิน ${OT_AFTER} ชม. ไม่มีโอที)`):''; }
 function syncHelp(){ const hp=$('fType').value==='help'; $('fHelpW').hidden=!hp; $('fTFl').textContent='เวลาเริ่ม'+(hp?' *':''); $('fTTl').textContent='เวลาสิ้นสุด'+(hp?' *':''); document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
 /* เลือกหลายวัน: แตะวันบนปฏิทินเล็กเพื่อติ๊ก/เอาออก (ข้ามเดือนได้) แล้วกดบันทึกครั้งเดียว */
 let pickSet=new Set(), pickY=0, pickM=0;
@@ -1497,7 +1507,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,bzm:(typeK==='help'?(helpFind(helpBranch)||{}).bzm||'':''),timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,bzm:(typeK==='help'?(helpFind(helpBranch)||{}).bzm||'':''),timeFrom:$('fTF').value,timeTo:$('fTT').value,ot:Math.max(0,workHrs($('fTF').value,$('fTT').value)-OT_AFTER),booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
@@ -1612,6 +1622,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='fType'){ syncHelp(); return; }
+  if(e.target.id==='fTF'||e.target.id==='fTT'){ updOt(); return; }
   const c=e.target.closest('[data-c]'); if(!c) return;
   const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
   paintAll();
