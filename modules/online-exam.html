@@ -6,6 +6,25 @@
 <title>ระบบสอบออนไลน์ · FAB Hub</title>
 <style>
 .an-note{background:var(--soft,#F5F5F5);border:1px solid var(--line,#E5E5E5);border-radius:12px;padding:10px 14px;font-size:13px;color:var(--text2,#4A4A4A);margin-bottom:12px;line-height:1.55}
+.qs-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}
+.qs-kpis>div{background:#fff;border:1px solid var(--line,#E5E5E5);border-radius:12px;padding:10px 14px}
+.qs-kpis small{display:block;color:var(--text3,#777);font-size:12px}.qs-kpis b{font-size:22px;font-weight:800}
+.qs-list{display:grid;gap:8px}
+.qs-row{background:#fff;border:1px solid var(--line,#E5E5E5);border-radius:14px;padding:12px 14px;cursor:pointer}
+.qs-row.hot{border-left:4px solid #D97706}
+.qs-top{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px 16px;align-items:start}
+.qs-q{font-weight:700;font-size:14.5px;line-height:1.4}
+.qs-meta{font-size:12px;color:var(--text3,#777);margin-top:2px}
+.qs-nums{display:flex;gap:14px;text-align:center;white-space:nowrap}
+.qs-nums div b{display:block;font-size:18px;font-weight:800}.qs-nums div small{font-size:11.5px;color:var(--text3,#777)}
+.qs-nums .ok b{color:#0b7a55}.qs-nums .bad b{color:#a51c1c}
+.qs-bar{height:7px;background:#FBE0E0;border-radius:4px;overflow:hidden;margin-top:8px}.qs-bar i{display:block;height:100%;background:#16a34a}
+.qs-tag{display:inline-block;font-size:11.5px;font-weight:700;border-radius:999px;padding:1px 9px;margin-left:6px;background:#FEF3C7;color:#92400E}
+.qs-tag.r{background:#FDE4E8;color:#a51c1c}
+.qs-det{margin-top:10px;border-top:1px dashed var(--line,#E5E5E5);padding-top:8px;display:grid;gap:5px;font-size:13px}
+.qs-opt{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px}
+.qs-opt i{font-style:normal;font-size:11px;font-weight:800;color:#0b7a55;background:#DDF5EA;border-radius:999px;padding:0 7px;margin-left:6px}
+@media(max-width:760px){.qs-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}.qs-top{grid-template-columns:1fr}.qs-nums{justify-content:flex-start}}
 .an-note summary{cursor:pointer;font-weight:800;margin-top:4px}.an-note ul{margin:6px 0 0 18px}
 .an-empty{padding:36px 16px;text-align:center;color:var(--text2,#4A4A4A);font-weight:700;background:#fff;border:1px dashed var(--line,#E5E5E5);border-radius:14px}
 .an-list{display:grid;gap:10px;grid-template-columns:repeat(auto-fill,minmax(320px,1fr))}
@@ -2341,6 +2360,10 @@ label.fld>span>b{font-weight:800}
         <svg viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>
         <span>ผลสอบ</span><em id="cntResults" hidden>0</em>
       </button>
+      <button class="seg" id="tabQStat" data-oe-action="exam-create" onclick="switchTab('qstat')">
+        <svg viewBox="0 0 24 24"><path d="M3 3v18h18"/><path d="M7 15l4-4 3 3 5-6"/></svg>
+        <span>สถิติรายข้อ</span>
+      </button>
       <!-- อยู่ในแถบเดียวกับแท็บ เพราะเป็นปุ่มที่นิ้วโป้งไปหาที่เดียวกัน
            ไม่ใช่แท็บ จึงไม่มีสถานะ active และไม่นับรวมตอนตัดสินใจซ่อนแถบ -->
       <button class="seg seg-back" onclick="backToHub()">
@@ -2393,6 +2416,7 @@ label.fld>span>b{font-weight:800}
     <!-- ══ แท็บ: ผลสอบ ══ -->
     <!-- ══ แท็บ: ความผิดปกติ — ระบบชี้เป้าให้ตรวจ ไม่ได้ตัดสินแทนคน ══ -->
     <div id="paneAnom" class="hidden"><div id="anomBody"></div></div>
+    <div id="paneQStat" class="hidden"><div id="qsBody"></div></div>
 
     <div id="paneResults" class="hidden">
       <div class="toolbar">
@@ -4626,12 +4650,15 @@ var OE_TABS = [
   { id:'mine',    btn:'tabMine',    pane:'paneMine',    perm:'request-exam',
     title:'การสอบ',    sub:'แสดงชุดข้อสอบและขอสิทธิ์การทำข้อสอบ' },
   { id:'results', btn:'tabResults', pane:'paneResults', perm:'view-results',
-    title:'ผลสอบ',     sub:'ดูคะแนน สรุปผล และพิมพ์เอกสารประกอบผลสอบ' }
+    title:'ผลสอบ',     sub:'ดูคะแนน สรุปผล และพิมพ์เอกสารประกอบผลสอบ' },
+  { id:'qstat',   btn:'tabQStat',   pane:'paneQStat',   perm:'exam-create',
+    title:'สถิติรายข้อ', sub:'แต่ละข้อออกไปแล้วกี่ครั้ง ตอบถูกกี่ครั้ง ตอบผิดกี่ครั้ง — ข้อที่ผิดเยอะควรตรวจเฉลย' }
 ];
 /* หัวเรื่องเดิมเป็น "ภาพรวมระบบสอบ" ค้างอยู่อันเดียวทุกแท็บ สลับแท็บแล้ว
    ข้างบนไม่ขยับ เลยดูเหมือนหน้าเดิม · ให้เปลี่ยนตามแท็บที่เลือกไปเลย */
 function switchTab(t){
   if(t === 'anom') setTimeout(renderAnomalies, 0);
+  if(t === 'qstat') setTimeout(oeQStatOpen, 0);
   /* แต่ละแท็บซ่อน/โชว์ของบนหัวเพจไม่เหมือนกัน ใช้คลาสที่ body เป็นตัวสั่ง
      จะได้เขียนเป็นกติกาใน CSS ที่เดียว ไม่ต้องไล่ซ่อนทีละชิ้นในโค้ด */
   document.body.classList.toggle('tab-mine', t === 'mine');
@@ -7304,6 +7331,133 @@ async function oeEditAnsSave(){
    เก็บมาเป็นข้อความ ไม่ใช่ดัชนี จึงต้องตัดช่องว่างหัวท้ายก่อนเทียบ */
 /* ไม่ได้ตอบ ต่างจากตอบผิด — คนถูกตัดสิทธิ์กลางคันจะได้ "ไม่ตอบ" ยาวเป็นพรืด
    ถ้านับรวมเป็นตอบผิดหมด จะอ่านไม่ออกว่าเขาไม่รู้ หรือแค่ทำไม่ทัน */
+/* ═══ สถิติรายข้อ — ข้อสอบแต่ละข้อออกไปแล้วกี่ครั้ง ตอบถูก/ผิดกี่ครั้ง ═══
+   นับจากผลสอบทุกใบที่เก็บคำตอบรายข้อไว้ (ใบที่เก็บแต่ผลสรุปไม่นับ) · ข้อเดียวกัน = ชุดข้อสอบเดียวกัน + ข้อความคำถามเดียวกัน
+   ถูก/ผิดตามผลที่ตัดสินแล้ว (รวมข้อที่แอดมินแก้ผล/คิดใหม่) · ไม่ตอบนับเป็นผิด
+   การกระจายคำตอบและป้ายเฉลย เห็นเฉพาะคนที่ดูเฉลยได้ (แอดมิน/BZM) */
+var _oeQS = { exam: '', q: '', sort: 'wrongn', min: 1, shown: 40, open: {} };
+function oeQStatOpen(){
+  var host = $('qsBody'); if(!host) return;
+  if(ALL_RESULTS && ALL_RESULTS.length){ oeQStatRender(); return; }
+  host.innerHTML = '<div class="center-load"><span class="loading dark"></span> กำลังโหลดผลสอบ…</div>';
+  loadResults(false).then(function(){ oeQStatRender(); }).catch(function(){ oeQStatRender(); });
+}
+function oeQStatAgg(){
+  var map = {}, list = [];
+  (ALL_RESULTS || []).forEach(function(r){
+    var ans = _oeResAnswers(r); if(!ans) return;
+    var ex = r.examTitle || '';
+    ans.forEach(function(a){
+      if(!a || !a.q) return;
+      var q = String(a.q).trim(), k = (r.examId || ex) + '|' + q;
+      var o = map[k];
+      if(!o){ o = map[k] = { exam: ex, examId: r.examId || '', q: q, n: 0, ok: 0, blank: 0, cat: a.cat || '', opts: {}, keys: {}, people: {}, last: '' }; list.push(o); }
+      var blank = _oeAnsBlank(a);
+      o.n++; if(_oeAnsOk(a)) o.ok++; if(blank) o.blank++;
+      var my = blank ? '(ไม่ตอบ)' : String(a.my).trim();
+      o.opts[my] = (o.opts[my] || 0) + 1;
+      var kt = String(a.correct == null ? '' : a.correct).trim();
+      if(kt) o.keys[kt] = (o.keys[kt] || 0) + 1;
+      o.people[r.empId || r.name || ('x' + o.n)] = 1;
+      var t = String(r.submittedAt || ''); if(t > o.last) o.last = t;
+    });
+  });
+  return list;
+}
+function _oeQKeyNow(o){
+  var ex = (EXAMS || []).find(function(e){ return (o.examId && e.id === o.examId) || (!o.examId && e.title === o.exam); });
+  if(!ex) return '';
+  var q = (ex.questions || []).find(function(x){ return String(x.q || '').trim() === o.q; });
+  if(!q) return '';
+  var ch = q.choices || [], i = Number(q.answer);
+  return (isFinite(i) && ch[i] != null) ? String(ch[i]).trim() : '';
+}
+function oeQStatRender(){
+  var host = $('qsBody'); if(!host) return;
+  var all = oeQStatAgg(), see = _oeSeeKey();
+  var exams = {}; all.forEach(function(o){ exams[o.exam] = 1; });
+  var F = _oeQS, qtxt = F.q.trim().toLowerCase();
+  var list = all.filter(function(o){
+    if(F.exam && o.exam !== F.exam) return false;
+    if(o.n < F.min) return false;
+    if(qtxt && o.q.toLowerCase().indexOf(qtxt) < 0) return false;
+    return true;
+  });
+  var wr = function(o){ return o.n ? (o.n - o.ok) / o.n : 0; };
+  var sorters = {
+    wrongn: function(a, b){ return (b.n - b.ok) - (a.n - a.ok) || b.n - a.n; },
+    wrongp: function(a, b){ return wr(b) - wr(a) || b.n - a.n; },
+    timesn: function(a, b){ return b.n - a.n; },
+    okp:    function(a, b){ return wr(a) - wr(b) || b.n - a.n; },
+    exam:   function(a, b){ return String(a.exam).localeCompare(String(b.exam), 'th') || (b.n - b.ok) - (a.n - a.ok); }
+  };
+  list.sort(sorters[F.sort] || sorters.wrongn);
+  var tot = list.reduce(function(a, o){ a.n += o.n; a.ok += o.ok; return a; }, { n: 0, ok: 0 });
+  var hot = list.filter(function(o){ return o.n >= 5 && wr(o) >= 0.6; }).length;
+  var h = '<div class="toolbar">' +
+    '<div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>' +
+    '<input id="qsSearch" type="text" placeholder="ค้นหาคำถาม" value="' + esc(F.q) + '" oninput="_oeQS.q=this.value;_oeQS.shown=40;oeQStatRender(true)"></div>' +
+    '<div class="sel"><select onchange="_oeQS.exam=this.value;_oeQS.shown=40;oeQStatRender()"><option value="">ทุกชุดข้อสอบ</option>' +
+      Object.keys(exams).sort().map(function(t){ return '<option value="' + esc(t) + '"' + (F.exam === t ? ' selected' : '') + '>' + esc(t) + '</option>'; }).join('') + '</select></div>' +
+    '<div class="sel"><select onchange="_oeQS.sort=this.value;oeQStatRender()">' +
+      [['wrongn','เรียง: ตอบผิดมากครั้งสุด'],['wrongp','เรียง: % ผิดสูงสุด'],['timesn','เรียง: ออกบ่อยสุด'],['okp','เรียง: % ถูกสูงสุด'],['exam','เรียง: ตามชุดข้อสอบ']].map(function(x){ return '<option value="' + x[0] + '"' + (F.sort === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>' +
+    '<div class="sel"><select onchange="_oeQS.min=Number(this.value);_oeQS.shown=40;oeQStatRender()">' +
+      [[1,'ออกกี่ครั้งก็ได้'],[3,'ออกอย่างน้อย 3 ครั้ง'],[5,'ออกอย่างน้อย 5 ครั้ง'],[10,'ออกอย่างน้อย 10 ครั้ง'],[30,'ออกอย่างน้อย 30 ครั้ง']].map(function(x){ return '<option value="' + x[0] + '"' + (F.min === x[0] ? ' selected' : '') + '>' + x[1] + '</option>'; }).join('') + '</select></div>' +
+    '<button class="btn btn-soft" onclick="oeQStatCsv()"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3"/></svg> ดาวน์โหลด CSV</button></div>';
+  h += '<div class="qs-kpis">' +
+    '<div><small>ข้อที่เคยออกสอบ</small><b>' + list.length + '</b></div>' +
+    '<div><small>ครั้งที่ออกรวม</small><b>' + tot.n.toLocaleString('en-US') + '</b></div>' +
+    '<div><small>ตอบถูกรวม</small><b>' + (tot.n ? Math.round(tot.ok / tot.n * 100) : 0) + '%</b></div>' +
+    '<div><small>ข้อที่ผิดเกิน 60% (ออก ≥5 ครั้ง)</small><b style="color:' + (hot ? '#a51c1c' : 'inherit') + '">' + hot + '</b></div></div>';
+  if(!list.length){
+    h += '<div class="an-empty">ยังไม่มีผลสอบที่เก็บคำตอบรายข้อ' + (all.length ? ' ตามตัวกรองนี้' : '') + '</div>';
+  } else {
+    h += '<div class="qs-list">' + list.slice(0, F.shown).map(function(o, i){
+      var wrong = o.n - o.ok, pOk = o.n ? Math.round(o.ok / o.n * 100) : 0, key = o.exam + '|' + o.q;
+      var isHot = o.n >= 5 && wr(o) >= 0.6, nKeys = Object.keys(o.keys).length;
+      var tags = (isHot ? '<span class="qs-tag r">ผิดเกินครึ่ง ควรตรวจเฉลย</span>' : '') +
+        (see && nKeys > 1 ? '<span class="qs-tag">เฉลยในผลสอบไม่ตรงกัน ' + nKeys + ' แบบ</span>' : '');
+      var det = '';
+      if(_oeQS.open[key]){
+        var kn = see ? _oeQKeyNow(o) : '';
+        det = '<div class="qs-det"><div style="color:var(--text3)">ผู้สอบ ' + Object.keys(o.people).length + ' คน · ไม่ตอบ ' + o.blank + ' ครั้ง · ล่าสุด ' + esc(o.last ? _oeDate(String(o.last).slice(0, 10)) : '-') + '</div>' +
+          (see ? Object.keys(o.opts).sort(function(a, b){ return o.opts[b] - o.opts[a]; }).map(function(t){
+            var isKey = kn && t === kn;
+            return '<div class="qs-opt"><span>' + esc(t) + (isKey ? '<i>เฉลย</i>' : '') + '</span><b>' + o.opts[t] + ' ครั้ง · ' + Math.round(o.opts[t] / o.n * 100) + '%</b></div>';
+          }).join('') + (nKeys > 1 ? '<div style="color:#92400E">ผลสอบบางใบเก็บเฉลยคนละแบบ: แก้เฉลยในชุดหลังมีคนสอบ — กด "🔁 คิดคะแนนใหม่" ที่การ์ดชุดข้อสอบ</div>' : '')
+           : '<div style="color:var(--text3)">การกระจายคำตอบเห็นได้เฉพาะแอดมิน/BZM</div>') + '</div>';
+      }
+      return '<article class="qs-row' + (isHot ? ' hot' : '') + '" onclick="oeQStatToggle(' + i + ')" data-k="' + _oeAttr(key) + '">' +
+        '<div class="qs-top"><div><div class="qs-q">' + esc(o.q) + tags + '</div>' +
+          '<div class="qs-meta">' + esc(o.exam || '-') + (o.cat ? ' · หมวด ' + esc(o.cat) : '') + '</div></div>' +
+          '<div class="qs-nums"><div><b>' + o.n + '</b><small>ออกแล้ว (ครั้ง)</small></div><div class="ok"><b>' + o.ok + '</b><small>ถูก</small></div><div class="bad"><b>' + wrong + '</b><small>ผิด</small></div><div><b>' + pOk + '%</b><small>ถูก</small></div></div></div>' +
+        '<div class="qs-bar"><i style="width:' + pOk + '%"></i></div>' + det + '</article>';
+    }).join('') + '</div>' +
+    (list.length > F.shown ? '<div style="text-align:center;margin:12px 0"><button class="btn btn-soft" onclick="_oeQS.shown+=40;oeQStatRender()">แสดงเพิ่ม (เหลือ ' + (list.length - F.shown) + ' ข้อ)</button></div>' : '');
+  }
+  window._oeQSList = list;
+  var keep = document.activeElement && document.activeElement.id === 'qsSearch';
+  host.innerHTML = h;
+  if(keep){ var el = $('qsSearch'); if(el){ el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch(e){} } }
+}
+function oeQStatToggle(i){
+  var o = (window._oeQSList || [])[i]; if(!o) return;
+  var k = o.exam + '|' + o.q;
+  _oeQS.open[k] = !_oeQS.open[k];
+  oeQStatRender();
+}
+function oeQStatCsv(){
+  var list = window._oeQSList || [];
+  if(!list.length){ toast('ไม่มีข้อมูลให้ดาวน์โหลด', 'err'); return; }
+  var see = _oeSeeKey();
+  var head = ['ชุดข้อสอบ', 'หมวด', 'คำถาม', 'ออกแล้ว(ครั้ง)', 'ตอบถูก', 'ตอบผิด', 'ไม่ตอบ', '%ถูก', 'ผู้สอบ(คน)'].concat(see ? ['เฉลยปัจจุบัน'] : []);
+  var rows = [head].concat(list.map(function(o){
+    return [o.exam, o.cat, o.q, o.n, o.ok, o.n - o.ok, o.blank, o.n ? Math.round(o.ok / o.n * 100) : 0, Object.keys(o.people).length].concat(see ? [_oeQKeyNow(o)] : []);
+  }));
+  var csv = '\ufeff' + rows.map(function(row){ return row.map(function(c){ return '"' + String(c == null ? '' : c).replace(/"/g, '""') + '"'; }).join(','); }).join('\r\n');
+  var a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+  a.download = 'สถิติรายข้อ_' + todayStr() + '.csv'; a.click();
+}
 /* ═══ คิดคะแนนย้อนหลังเมื่อแก้เฉลยในชุดข้อสอบ (แอดมิน) ═══
    ผลสอบเก็บ "ข้อความที่ตอบ" กับ "ข้อความเฉลย ณ ตอนนั้น" รายข้อ — แก้เฉลยในชุดแล้วผลเก่าไม่เปลี่ยนเอง
    ฟังก์ชันนี้เทียบเฉลยปัจจุบันของชุดกับเฉลยที่เก็บในผลสอบทุกใบ ข้อที่ต่างกันคิดใหม่
