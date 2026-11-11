@@ -893,13 +893,13 @@ function jobDetailHtml(b){
   rows.push(['พนักงานที่ออกงาน',(b.staff&&b.staff.length)?`<span class="stf">${b.staff.map(x=>`<i>${esc(x)}</i>`).join('')}</span>`:''],['BZM ที่ดูแล',b.bzm]);
   const dl=rows.filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='ผู้ติดต่อ'||r[0]==='เบอร์ติดต่อ'||r[0]==='พนักงานที่ออกงาน'?r[1]:esc(r[1])}</dd>`).join('');
   const menu=(b.type==='catering'&&(b.menus||[]).length)?`<table><thead><tr><th>เมนู</th><th>จำนวน</th><th>ราคา</th><th>รวม</th></tr></thead><tbody>${b.menus.map(m=>`<tr><td>${esc(m.n||'')}</td><td>${money(m.q)}</td><td>${money(m.p)}</td><td>${money((Number(m.q)||0)*(Number(m.p)||0))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">ราคารวมทั้งหมด</td><td>${money(menuTotal(b))}</td></tr></tfoot></table>`:'';
-  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span><span class="bst" style="--c:${st.c}">${st.l}</span>${canMgr?`<button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
+  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canMgr?`<button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
   const cards=live.map(b=>{ const st=boothState(b), t=jtype(b), n=daysOf(b);
     const key=b.type==='catering'?[b.format,b.guests?money(b.guests)+' คน':'',menuTotal(b)?money(menuTotal(b))+' บาท':''].filter(Boolean).join(' · '):[b.rent?'เช่า '+money(b.rent)+' บาท':'',b.contactPhone].filter(Boolean).join(' · ');
-    return `<button class="sj" style="--c:${t.c}" data-jp="${esc(b.k)}"><div class="r1"><span class="tp">${t.ic} ${t.l}</span><span class="bst" style="--c:${st.c}">${st.l}</span></div><div class="n">${esc(b.name)}</div>
+    return `<button class="sj" style="--c:${t.c}" data-jp="${esc(b.k)}"><div class="r1"><span class="tp">${t.ic} ${t.l}</span></div><div class="n">${esc(b.name)}</div>
       <div class="s">${esc(b.place||'')}${b.from?`${b.place?' · ':''}${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''}${n>1?` (${n} วัน)`:''}`:''}</div>${key?`<div class="k">${esc(key)}</div>`:''}</button>`; }).join('');
   $('booths').innerHTML=(live.length?cards:`<div class="sj-empty">ยังไม่มีงาน</div>`)
     +(canMgr?`<div class="sj-add"><button data-tl="add-catering">+ Catering</button><button data-tl="add-booth">+ Booth</button></div>`:'');
@@ -1075,7 +1075,7 @@ function jobCard(b){
     ?[b.format,b.guests?`${money(b.guests)} คน`:'',(b.menus||[]).length?`${(b.menus||[]).length} เมนู`:'',menuTotal(b)?`รวม ${money(menuTotal(b))} บาท`:''].filter(Boolean).join(' · ')
     :[b.rent?`ค่าเช่าบูธ ${money(b.rent)} บาท`:'',b.contactPhone?`โทร ${b.contactPhone}`:''].filter(Boolean).join(' · ');
   const who=[(b.staff&&b.staff.length)?`พนักงาน: ${b.staff.join(', ')}`:'',b.bzm?`BZM: ${b.bzm}`:''].filter(Boolean).join(' · ');
-  return `<div class="jcard" style="--c:${t.c}"><div class="jc-h"><span class="jt">${t.ic} ${t.l}</span><b>${esc(b.name)}</b><span class="bst" style="--c:${st.c}">${st.l}</span></div>
+  return `<div class="jcard" style="--c:${t.c}"><div class="jc-h"><span class="jt">${t.ic} ${t.l}</span><b>${esc(b.name)}</b></div>
     <div class="jc-l">${esc(b.place||'-')} · ${when}${time}</div>${money1?`<div class="jc-l strong">${esc(money1)}</div>`:''}${who?`<div class="jc-l">${esc(who)}</div>`:''}
     <div class="jc-a"><button class="mini" data-bgo="${esc(b.k)}">📅 ดูในปฏิทิน</button><button class="mini" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="mini dng" data-bdel="${esc(b.k)}">✕ ลบ</button>${used?`<small>${used} แผนในเดือนนี้</small>`:''}</div></div>`;
 }
@@ -1168,7 +1168,7 @@ function paintMTl(){
   const jobs=tlJobs(), sj=boothOf(tlSel);
   host.innerHTML=jobs.length?jobs.map(b=>{ const t1=jtype(b), st=boothState(b), n=daysOf(b), on=sj&&sj.k===b.k;
     const key=b.type==='catering'?[b.format,b.guests?money(b.guests)+' คน':'',menuTotal(b)?'รวม '+money(menuTotal(b))+' บาท':''].filter(Boolean).join(' · '):[b.rent?'ค่าเช่า '+money(b.rent)+' บาท':'',b.contactPhone].filter(Boolean).join(' · ');
-    return `<div class="mtl-i" style="--c:${t1.c}"><span class="dot"></span><div class="mtl-c ${on?'on':''}" data-jr="${esc(b.k)}"><div style="display:flex;gap:6px;justify-content:space-between;align-items:center"><span class="badge2" style="font-size:12px;font-weight:800;color:#fff;background:${t1.c};border-radius:999px;padding:1px 9px">${t1.ic} ${t1.l}</span><span class="bst" style="--c:${st.c}">${st.l}</span></div>
+    return `<div class="mtl-i" style="--c:${t1.c}"><span class="dot"></span><div class="mtl-c ${on?'on':''}" data-jr="${esc(b.k)}"><div style="display:flex;gap:6px;justify-content:space-between;align-items:center"><span class="badge2" style="font-size:12px;font-weight:800;color:#fff;background:${t1.c};border-radius:999px;padding:1px 9px">${t1.ic} ${t1.l}</span></div>
       <div class="n">${esc(b.name)}</div><div class="s">${esc(b.place||'')} · ${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''} (${n} วัน)</div>${key?`<div class="k">${esc(key)}</div>`:''}${on?`<div style="margin-top:8px">${jobDetailHtml(b)}</div>`:''}</div></div>`; }).join('')
     :`<div class="empty" style="padding:26px 10px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth${canMgr?'<br>กด “⚙️ จัดการ” เพื่อเพิ่มงาน':''}</div>`;
 }
