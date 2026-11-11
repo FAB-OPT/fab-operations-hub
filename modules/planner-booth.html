@@ -94,7 +94,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .jobc{background:#fff;border:1px solid var(--line);border-left:5px solid var(--c,#e0562a);border-radius:14px;padding:12px 14px;margin:0 0 12px}
 .jobc .jh{display:flex;align-items:center;flex-wrap:wrap;gap:6px}.jobc .jh b{font-size:16px;flex:1 1 100%;order:2}
 .jobc .jt{font-size:12px;font-weight:800;color:#fff;background:var(--c);border-radius:999px;padding:1px 9px}
-.jobc .jedit{margin-left:auto;border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px 10px;font-weight:700;font-size:12.5px}
+.jobc .jacts{margin-left:auto;display:flex;gap:6px}.jobc .jdel{color:var(--red);border-color:#f3c4cf}
+.jobc .jedit{border:1px solid var(--line);background:#fff;border-radius:999px;padding:2px 10px;font-weight:700;font-size:12.5px}
 .jobc dl{margin:8px 0 0;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;font-size:13.5px}.jobc dt{color:var(--ink3);font-weight:600}.jobc dd{margin:0;font-weight:700}
 .jobc table{width:100%;border-collapse:collapse;margin-top:8px;font-size:12.5px}.jobc th,.jobc td{padding:3px 4px;border-bottom:1px solid var(--line);text-align:right}.jobc th:first-child,.jobc td:first-child{text-align:left}
 .jobc tfoot td{font-weight:800;border-bottom:0}
@@ -218,6 +219,18 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .dlg-acts-row{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 0 14px}
 .chipbtn{display:inline-flex;align-items:center;gap:8px;height:36px;padding:0 14px;border-radius:999px;border:1px solid #d6dbe2;background:#fff;color:#1f2937;font-weight:700;font-size:13px;cursor:pointer;white-space:nowrap}
 .chipbtn:hover{background:#f3f4f6}
+.mpk{border:1px solid var(--line);border-radius:14px;padding:10px;margin:0 0 14px;background:#fafbfc}
+.mpk-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.mpk-h b{font-size:14.5px}.mpk-h button{width:34px;height:34px;border-radius:10px;border:1px solid var(--line);background:#fff;font-size:16px}
+.mpk-g{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;text-align:center}
+.mpk-g .w{font-size:11.5px;font-weight:800;color:var(--ink3);padding:2px 0}
+.mpk-g .w.we{color:var(--red)}
+.mpk-g button{height:38px;border-radius:10px;font-weight:700;font-size:14px;background:#fff;border:1px solid transparent}
+.mpk-g button.we{color:var(--red)}
+.mpk-g button:hover{background:var(--accent-soft)}
+.mpk-g button.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+.mpk-s{margin-top:8px;font-size:12.5px;color:var(--ink2);font-weight:700}
+.mpk-s em{font-style:normal;color:var(--accent-ink)}
 .chipbtn.dayoff{background:#fff7ed;border-color:#fed7aa;color:#9a3412}
 .chipbtn.dayoff:hover{background:#ffedd5}
 .chipbtn.dayoff i{width:8px;height:8px;border-radius:50%;background:#f59e0b;display:inline-block}
@@ -655,8 +668,11 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <button type="button" class="chipbtn dayoff" id="fDayOff"><i></i>เพิ่ม Day Off ให้คนนี้</button>
   </div>
   <div id="fDaysW" hidden>
-    <label class="field"><span>ตั้งแต่วันที่</span><input type="date" id="fFrom"></label>
-    <label class="field"><span>ถึงวันที่</span><input type="date" id="fTo"></label>
+    <div class="mpk">
+      <div class="mpk-h"><button type="button" id="mpPrev" aria-label="เดือนก่อน">‹</button><b id="mpTitle"></b><button type="button" id="mpNext" aria-label="เดือนถัดไป">›</button></div>
+      <div class="mpk-g" id="mpGrid"></div>
+      <div class="mpk-s" id="mpSum"></div>
+    </div>
   </div>
   <label class="field"><span>ประเภท</span><select id="fType"></select></label>
   <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา (ดึงจากทะเบียนสาขาของฮับ)</span><input id="fHelpQ" placeholder="พิมพ์ค้นหาชื่อสาขา / รหัส" autocomplete="off"><select id="fHelp"></select></label>
@@ -916,7 +932,7 @@ function jobDetailHtml(b){
   rows.push(['พนักงานที่ออกงาน',(b.staff&&b.staff.length)?`<span class="stf">${b.staff.map(x=>`<i>${esc(x)}</i>`).join('')}</span>`:''],['BZM ที่ดูแล',b.bzm]);
   const dl=rows.filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='ผู้ติดต่อ'||r[0]==='เบอร์ติดต่อ'||r[0]==='พนักงานที่ออกงาน'?r[1]:esc(r[1])}</dd>`).join('');
   const menu=(b.type==='catering'&&(b.menus||[]).length)?`<table><thead><tr><th>เมนู</th><th>จำนวน</th><th>ราคา</th><th>รวม</th></tr></thead><tbody>${b.menus.map(m=>`<tr><td>${esc(m.n||'')}</td><td>${money(m.q)}</td><td>${money(m.p)}</td><td>${money((Number(m.q)||0)*(Number(m.p)||0))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">ราคารวมทั้งหมด</td><td>${money(menuTotal(b))}</td></tr></tfoot></table>`:'';
-  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canMgr?`<button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
+  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canMgr?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
@@ -1257,7 +1273,7 @@ function closeJobPop(){ $('jobPop').hidden=true; }
 document.addEventListener('click',e=>{
   const jp=e.target.closest('[data-jp]'); if(jp&&!e.target.closest('#jobPop')){ openJobPop(jp.dataset.jp); return; }
   if(e.target.closest('#jpX')||e.target.id==='jobPop'){ closeJobPop(); return; }
-  if(e.target.closest('#jobPop [data-bedit]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
+  if(e.target.closest('#jobPop [data-bedit],#jobPop [data-bdel]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAddMenu(); if(!$('jobPop').hidden) closeJobPop(); } });
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
@@ -1330,7 +1346,7 @@ function openPlanDlg(id,dateIso){
   $('fMulti').hidden=!!p;
   $('fDayOff').hidden=!!p;
   $('fMulti').textContent='+ ติ๊กหลายวัน';
-  if(!p){ const d0=dateIso||todayISO(); $('fFrom').value=d0; $('fTo').value=d0; }
+  pickSet=new Set();
   syncBranchField(p);
   syncHelp();
   $('dlg').hidden=false;
@@ -1348,6 +1364,18 @@ function fillHelp(q,cur){
   $('fHelp').innerHTML=h||'<option value="">— ไม่พบสาขา —</option>';
 }
 function syncHelp(){ $('fHelpW').hidden=$('fType').value!=='help'; document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
+/* เลือกหลายวัน: แตะวันบนปฏิทินเล็กเพื่อติ๊ก/เอาออก (ข้ามเดือนได้) แล้วกดบันทึกครั้งเดียว */
+let pickSet=new Set(), pickY=0, pickM=0;
+function paintPick(){
+  const first=(new Date(pickY,pickM,1).getDay()+6)%7, n=new Date(pickY,pickM+1,0).getDate();
+  const iso=d=>`${pickY}-${String(pickM+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+  $('mpTitle').textContent=`${TH[pickM]} ${pickY+543}`;
+  $('mpGrid').innerHTML=DOW.map((x,i)=>`<div class="w ${i>=5?'we':''}">${x}</div>`).join('')+Array.from({length:first},()=>'<span></span>').join('')
+    +Array.from({length:n},(_,i)=>i+1).map(d=>`<button type="button" class="${((first+d-1)%7)>=5?'we':''} ${pickSet.has(iso(d))?'on':''}" data-pk="${iso(d)}">${d}</button>`).join('');
+  const all=[...pickSet].sort();
+  $('mpSum').innerHTML=all.length?`เลือกแล้ว <em>${all.length} วัน</em>: ${all.slice(0,8).map(x=>+x.slice(8)+'/'+(+x.slice(5,7))).join(', ')}${all.length>8?' ...':''}`:'แตะวันที่ต้องการ (ข้ามเดือนได้ ไม่ต้องติดกัน)';
+}
+function pickShift(n){ const d=new Date(pickY,pickM+n,1); pickY=d.getFullYear(); pickM=d.getMonth(); paintPick(); }
 function closeDlg(){ $('dlg').hidden=true; }
 async function saveDlg(){
   if(editingId && String(editingId).startsWith('wo:')) return toast('Day Off อัตโนมัติแก้ไม่ได้ ให้ลบแล้วเพิ่มใหม่');
@@ -1360,14 +1388,11 @@ async function saveDlg(){
   /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
   /* ช่วงวันที่ (ตั้งแต่ - ถึง) สร้างแผนทุกวันในช่วง ไม่เกิน 62 วัน */
   const multi=!$('fDaysW').hidden;
-  const from=$('fFrom').value, to=$('fTo').value;
   let dates=[date];
   if(!editingId && multi){
-    if(!from||!to||to<from){ toast('ช่วงวันที่ไม่ถูกต้อง'); return; }
-    dates=[];
-    for(let d=new Date(from+'T00:00:00'); d<=new Date(to+'T00:00:00') && dates.length<62; d.setDate(d.getDate()+1)){
-      dates.push(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`);
-    }
+    dates=[...pickSet].sort();
+    if(!dates.length){ toast('แตะเลือกวันที่อย่างน้อยหนึ่งวัน'); return; }
+    if(dates.length>62){ toast('เลือกได้ไม่เกิน 62 วันต่อครั้ง'); return; }
   }
   if(!dates.length || !dates[0] || dates[0].endsWith('-undefined')){ toast('เลือกวันที่อย่างน้อยหนึ่งวัน'); return; }
   if(editingId){ const old=plans.find(x=>x.id===editingId); if(!old||!canEditPlan(old)) return toast('แก้ไขได้เฉพาะแผนของตัวเอง'); }
@@ -1417,7 +1442,11 @@ document.addEventListener('click',async e=>{
   if(t.closest('#today')) return goToday();
   if(t.closest('#addPlanBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,sel?`${Y}-${String(M+1).padStart(2,'0')}-${String(sel).padStart(2,'0')}`:null); }
   if(t.closest('#fCancel')||t.closest('#dlgX')) return closeDlg();
-  if(t.closest('#fMulti')){ const show=$('fDaysW').hidden; if(show){ $('fFrom').value=$('fDate').value; $('fTo').value=$('fDate').value; } $('fDaysW').hidden=!show; $('fDateW').hidden=show; $('fMulti').textContent=show?'ใช้วันที่เดียว':'+ ช่วงวันที่'; return; }
+  if(t.closest('#fMulti')){ const show=$('fDaysW').hidden;
+    if(show){ const d0=$('fDate').value||todayISO(); pickSet=new Set([d0]); pickY=+d0.slice(0,4); pickM=+d0.slice(5,7)-1; paintPick(); }
+    $('fDaysW').hidden=!show; $('fDateW').hidden=show; $('fMulti').textContent=show?'ใช้วันที่เดียว':'+ ติ๊กหลายวัน'; return; }
+  if(t.closest('#mpPrev')) return pickShift(-1); if(t.closest('#mpNext')) return pickShift(1);
+  const pk=t.closest('[data-pk]'); if(pk){ const k=pk.dataset.pk; if(pickSet.has(k)) pickSet.delete(k); else pickSet.add(k); paintPick(); return; }
   if(t.closest('#fDayOff')){ const dt=$('fDate').value; if(!dt) return toast('เลือกวันที่ก่อน'); const id='p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6); await savePlan(id,{person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:'off',title:'Day Off',place:'',updatedAt:new Date().toISOString()}); closeDlg(); return toast('เพิ่ม Day Off ให้แล้ว'); }
   if(t.closest('#fSave')) return saveDlg();
   if(t.closest('#fDel')){ if(!editingId) return; const dp=plans.find(x=>x.id===editingId); if(!dp||!canEditPlan(dp)) return toast('ลบได้เฉพาะแผนของตัวเอง'); if(!await askBox({icon:'🗑',title:'ลบแผนนี้?',msg:'แผนจะถูกลบออกจากปฏิทินของทุกคน',danger:true})) return; try{ await delPlan(editingId); closeDlg(); toast('ลบแล้ว'); }catch(e){ toast('ลบไม่สำเร็จ'); } return; }
