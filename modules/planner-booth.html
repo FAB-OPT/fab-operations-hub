@@ -149,7 +149,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .pl-row{display:grid;grid-template-columns:54px 1fr;gap:8px;align-items:start;padding:6px 8px;border-radius:10px;border-left:4px solid var(--c);background:#f8fafc;margin-bottom:6px;cursor:pointer;font-size:13px}
 .pl-row small{display:block;color:var(--ink3);font-size:12px}.pl-row b{font-weight:800}
 .wl{display:grid;grid-template-columns:78px 1fr 30px;gap:8px;align-items:center;margin:6px 0;font-weight:700;font-size:13.5px}.wl i{display:block;height:10px;border-radius:6px;background:#eceff3;overflow:hidden}.wl i s{display:block;height:100%;background:var(--accent);border-radius:6px}
-.ro .tl-w{display:none!important}.nomgr .tl-m{display:none!important}
+.ro .tl-w{display:none!important}.nomgr .tl-m{display:none!important}.nojobs .tl-j{display:none!important}
 /* มือถือ: ไทม์ไลน์แนวตั้ง */
 #mtl{display:none;padding:10px 14px 0}
 .mob.tl #mtl{display:block}.mob.tl #agenda,.mob.tl #strip,.mob.tl #mseg,.mob.tl #mbooths,.mob.tl #mjob{display:none!important}
@@ -696,8 +696,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="hd"><span>เพิ่มอะไร</span><button class="x" id="apX" aria-label="ปิด">✕</button></div>
   <div class="apl">
 <button data-tl="add-plan" class="tl-w"><span class="mi">📅</span><span>แผนพนักงาน<small>หยุด / พักร้อน / Extra / ไปช่วยสาขา</small></span></button>
-<button data-tl="add-catering" class="tl-m"><span class="mi">🍽️</span><span>งาน Catering<small>วัน เวลา เมนู ผู้ติดต่อ</small></span></button>
-<button data-tl="add-booth" class="tl-m"><span class="mi">🎪</span><span>งาน Booth<small>สถานที่ ค่าเช่า พนักงาน</small></span></button>
+<button data-tl="add-catering" class="tl-j"><span class="mi">🍽️</span><span>งาน Catering<small>วัน เวลา เมนู ผู้ติดต่อ</small></span></button>
+<button data-tl="add-booth" class="tl-j"><span class="mi">🎪</span><span>งาน Booth<small>สถานที่ ค่าเช่า พนักงาน</small></span></button>
   </div>
 </div></div>
 
@@ -783,7 +783,7 @@ let hols={}; /* ป้ายวันหยุดที่แก้เอง: {'
 let plans=[];
 let Y=new Date().getFullYear(), M=new Date().getMonth();
 let tlSel=null;   /* งานที่เลือกในไทม์ไลน์ */
-let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='cal', canWrite=false, canMgr=false, editingId=null;
+let person=null, mode='person', sel=null, mSel=null, mTab='cal', mView='cal', canWrite=false, canMgr=false, canJobs=false, editingId=null;
 /* สิทธิ์: ผู้ใช้ทั่วไปเห็นและแก้ได้เฉพาะแผนของตัวเอง · แอดมินทั้งหมด · พี่จอยเห็นทั้งหมดแต่แก้ได้เฉพาะของตัวเอง · COO เห็นทั้งหมดดูอย่างเดียว */
 const MEMBER_BY_CODE={'601183':'กาย','690201':'ฟาง','690202':'พี่หนิง','621338':'เบนซ์','690173':'ใบชา','690153':'พี่จอย'};
 let owner=null, seeAll=false;
@@ -791,7 +791,7 @@ const PERSON_ORDER=['พี่จอย','กาย','เบนซ์','ฟา�
 const personRank=n=>{ const i=PERSON_ORDER.findIndex(k=>n===k||String(n).startsWith(k+' ')); return i<0?99:i; };
 const teamVis=()=>(seeAll?team:team.filter(n=>n===owner)).slice().sort((a,b)=>personRank(a)-personRank(b));
 /* สิทธิ์ตั้งได้ที่หน้า "สิทธิ์ปุ่มแต่ละระบบ" ของฮับ (ค่าตั้งต้นด้านล่างต้องตรงกับที่ฮับนิยามไว้) */
-const PLANNER_PERM_DEFAULTS={'view-all':['admin','coo','support'],'add-own':['admin','support'],'edit-all':['admin'],'manage-team':['admin']};
+const PLANNER_PERM_DEFAULTS={'view-all':['admin','coo','support'],'add-own':['admin','support'],'edit-all':['admin'],'manage-jobs':['admin'],'manage-team':['admin']};
 let canEditAll=false, canAddOwn=false;
 const canEditPlan=p=>canEditAll||(canAddOwn&&!!owner&&p.person===owner);
 /* คนที่ผูกกับระบบ Visit: ชื่อผู้ตรวจ (trainer) และแบรนด์ที่ล็อกไว้ */
@@ -961,7 +961,7 @@ function jobDetailHtml(b){
   rows.push(['พนักงานที่ออกงาน',(b.staff&&b.staff.length)?`<span class="stf">${b.staff.map(x=>`<i>${esc(x)}</i>`).join('')}</span>`:''],['BZM ที่ดูแล',b.bzm]);
   const dl=rows.filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='ผู้ติดต่อ'||r[0]==='เบอร์ติดต่อ'||r[0]==='พนักงานที่ออกงาน'?r[1]:esc(r[1])}</dd>`).join('');
   const menu=(b.type==='catering'&&(b.menus||[]).length)?`<table><thead><tr><th>เมนู</th><th>จำนวน</th><th>ราคา</th><th>รวม</th></tr></thead><tbody>${b.menus.map(m=>`<tr><td>${esc(m.n||'')}</td><td>${money(m.q)}</td><td>${money(m.p)}</td><td>${money((Number(m.q)||0)*(Number(m.p)||0))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">ราคารวมทั้งหมด</td><td>${money(menuTotal(b))}</td></tr></tfoot></table>`:'';
-  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canMgr?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
+  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canJobs?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
@@ -1271,7 +1271,7 @@ function weekendOffs(){
 }
 function allPlans(){ return dbPlans.slice(); }   /* ไม่มีแผน Visit / Day Off อัตโนมัติ */
 async function saveOffSkip(key){ offSkip={...offSkip,[key]:true}; paintAll(); await db.doc('bconfig/offskip').set({items:offSkip}); }
-function paintAll(){ plans=allPlans(); paintHead(); paintTL(); paintMTl(); paintStaff(); paintMStaff(); paintBooths(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); $('mob').classList.toggle('tl',mView==='tl'); $('mob').classList.toggle('stf',mView==='stf'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
+function paintAll(){ plans=allPlans(); paintHead(); paintTL(); paintMTl(); paintStaff(); paintMStaff(); paintBooths(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); $('mob').classList.toggle('tl',mView==='tl'); $('mob').classList.toggle('stf',mView==='stf'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); document.body.classList.toggle('nojobs',!canJobs); }
 
 /* ───── ไทม์ไลน์ทั้งเดือน (แท่งต่อ 1 งาน) ───── */
 function tlJobs(){
@@ -1287,7 +1287,7 @@ function paintTL(){
   const wkend=d=>{ const dow=(mon()+d-1)%7; return dow>4; };
   const header=`<div class="bar"><h2>Plan งานบูธเจ๊แดง</h2><div class="seg2"><button class="on" data-tl="view-tl">📊 ไทม์ไลน์งาน</button><button data-tl="view-staff">👥 Planner พนักงาน</button><button data-tl="view-cal">📅 ปฏิทิน</button></div><span class="sp"></span>
     <button class="nb" data-tl="prev" aria-label="เดือนก่อน">‹</button><span class="mt">${TH[M]} ${Y+543}</span><button class="nb" data-tl="next" aria-label="เดือนถัดไป">›</button><button class="pb" data-tl="today">วันนี้</button>
-    <button class="pb pri tl-m" data-tl="add-catering">+ Catering</button><button class="pb pri tl-m" data-tl="add-booth">+ Booth</button><button class="pb tl-w" data-tl="add-plan">+ เพิ่มแผน</button><button class="pb tl-m" data-tl="manage">⚙️ จัดการ</button>
+    <button class="pb pri tl-j" data-tl="add-catering">+ Catering</button><button class="pb pri tl-j" data-tl="add-booth">+ Booth</button><button class="pb tl-w" data-tl="add-plan">+ เพิ่มแผน</button><button class="pb tl-m" data-tl="manage">⚙️ จัดการ</button>
     <button class="pb" data-tl="home">← หน้าหลัก</button><button class="pb" data-tl="out" style="color:#c8364b">ออกจากระบบ</button></div>`;
   const dots=(list)=>list.map(p=>{ const d=+String(p.date).slice(8,10); return `<i class="g-pd" style="left:calc(${(d-.5)/n*100}% - 4px);background:${catOf(p.type).c}" title="${esc(d+' · '+catOf(p.type).l+' · '+p.title)}"></i>`; }).join('');
   const we=Array.from({length:n},(_,i)=>i+1).filter(wkend).map(d=>`<i class="g-we" style="left:${(d-1)/n*100}%;width:${100/n}%"></i>`).join('');
@@ -1295,7 +1295,7 @@ function paintTL(){
     return `<div class="g-row ${sj&&sj.k===b.k?'on':''}" data-jr="${esc(b.k)}"><div class="g-name">${t1.ic} ${esc(b.name)}<small>${esc(b.place||'')} · ${boothState(b).l}</small></div>
       <div class="g-track" style="--n:${n}">${we}<div class="g-bar" style="--c:${t1.c};left:${(bar.s-1)/n*100}%;width:${bar.n/n*100}%">${daysOf(b)} วัน${who?' · '+esc(who):''}</div>${dots(mine)}</div></div>`; }).join('');
   const loose=plans.filter(p=>!p.booth&&p.type!=='off'), looseRow=loose.length?`<div class="g-row" style="cursor:default"><div class="g-name">🗂 แผนทั่วไป<small>ไม่ผูกกับงานไหน · ${loose.length} แผน</small></div><div class="g-track" style="--n:${n}">${we}${dots(loose)}</div></div>`:'';
-  const empty=!jobs.length?`<div class="empty" style="padding:34px 12px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth<br>${canMgr?'กด “+ Catering” หรือ “+ Booth” ด้านบนเพื่อเพิ่ม':''}</div>`:'';
+  const empty=!jobs.length?`<div class="empty" style="padding:34px 12px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth<br>${canJobs?'กด “+ Catering” หรือ “+ Booth” ด้านบนเพื่อเพิ่ม':''}</div>`:'';
   const gantt=`<div class="tlcard"><div class="g-head"><div></div><div class="g-days" style="grid-template-columns:repeat(${n},1fr)">${Array.from({length:n},(_,i)=>`<span class="${i+1===td?'t':''} ${wkend(i+1)?'we':''}">${i+1}</span>`).join('')}</div></div>${rows}${looseRow}${empty}${td?`<div class="g-today" style="left:calc(230px + (100% - 230px)*${(td-.5)/n})"></div>`:''}</div>`;
   /* ด้านล่าง: รายละเอียดงานที่เลือก + แผนของงานนั้น · ภาระงานพนักงาน */
   const mine=sj?plans.filter(p=>p.booth===sj.k&&p.type!=='off').slice().sort((a,b)=>String(a.date).localeCompare(String(b.date))):[];
@@ -1311,7 +1311,7 @@ function paintMTl(){
     const key=b.type==='catering'?[b.format,b.guests?money(b.guests)+' คน':'',menuTotal(b)?'รวม '+money(menuTotal(b))+' บาท':''].filter(Boolean).join(' · '):[b.rent?'ค่าเช่า '+money(b.rent)+' บาท':'',b.contactPhone].filter(Boolean).join(' · ');
     return `<div class="mtl-i" style="--c:${t1.c}"><span class="dot"></span><div class="mtl-c ${on?'on':''}" data-jr="${esc(b.k)}"><div style="display:flex;gap:6px;justify-content:space-between;align-items:center"><span class="badge2" style="font-size:12px;font-weight:800;color:#fff;background:${t1.c};border-radius:999px;padding:1px 9px">${t1.ic} ${t1.l}</span></div>
       <div class="n">${esc(b.name)}</div><div class="s">${esc(b.place||'')} · ${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''} (${n} วัน)</div>${key?`<div class="k">${esc(key)}</div>`:''}${on?`<div style="margin-top:8px">${jobDetailHtml(b)}</div>`:''}</div></div>`; }).join('')
-    :`<div class="empty" style="padding:26px 10px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth${canMgr?'<br>กด “⚙️ จัดการ” เพื่อเพิ่มงาน':''}</div>`;
+    :`<div class="empty" style="padding:26px 10px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth${canJobs?'<br>กด “⚙️ จัดการ” เพื่อเพิ่มงาน':''}</div>`;
 }
 async function addJobsFrom(r){
   const list=[r,...(r.__extra||[])].map(x=>{ const y={...x}; delete y.__extra; return y; });
@@ -1320,7 +1320,7 @@ async function addJobsFrom(r){
   toast(list.length>1?`เพิ่มงานแล้ว ${list.length} งาน`:'เพิ่มงานแล้ว'); return true;
 }
 async function tlAddJob(type){
-  if(!canMgr) return toast('เฉพาะแอดมินที่จัดการงานได้');
+  if(!canJobs) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   const r=await askJob(null,type); if(!r) return;
   if(!await addJobsFrom(r)) return;
   if(r.from&&r.from.slice(0,7)!==mkey()){ Y=+r.from.slice(0,4); M=+r.from.slice(5,7)-1; sel=+r.from.slice(8,10); mSel=sel; subscribeMonth(); }
@@ -1335,7 +1335,7 @@ function stfLanes(name){
 function headStaffTabs(active){
   return `<div class="bar"><h2>Plan งานบูธเจ๊แดง</h2><div class="seg2"><button class="${active==='tl'?'on':''}" data-tl="view-tl">📊 ไทม์ไลน์งาน</button><button class="${active==='staff'?'on':''}" data-tl="view-staff">👥 Planner พนักงาน</button><button data-tl="view-cal">📅 ปฏิทิน</button></div><span class="sp"></span>
     <button class="nb" data-tl="prev" aria-label="เดือนก่อน">‹</button><span class="mt">${TH[M]} ${Y+543}</span><button class="nb" data-tl="next" aria-label="เดือนถัดไป">›</button><button class="pb" data-tl="today">วันนี้</button>
-    <button class="pb pri tl-m" data-tl="add-catering">+ Catering</button><button class="pb pri tl-m" data-tl="add-booth">+ Booth</button><button class="pb tl-w" data-tl="add-plan">+ เพิ่มแผน</button><button class="pb tl-m" data-tl="manage">⚙️ จัดการ</button>
+    <button class="pb pri tl-j" data-tl="add-catering">+ Catering</button><button class="pb pri tl-j" data-tl="add-booth">+ Booth</button><button class="pb tl-w" data-tl="add-plan">+ เพิ่มแผน</button><button class="pb tl-m" data-tl="manage">⚙️ จัดการ</button>
     <button class="pb" data-tl="home">← หน้าหลัก</button><button class="pb" data-tl="out" style="color:#c8364b">ออกจากระบบ</button></div>`;
 }
 function paintStaff(){
@@ -1571,13 +1571,14 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel],#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
+  if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
+  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const ct=t.closest('[data-cup],[data-cdn]');
   if(ct){ const up=ct.dataset.cup!==undefined; const k=ct.dataset.cup||ct.dataset.cdn; const i=cats.findIndex(x=>x.k===k); const j=up?i-1:i+1; if(i<0||j<0||j>=cats.length) return; const next=cats.slice(); [next[i],next[j]]=[next[j],next[i]]; await saveCats(next); toast('เรียงหมวดใหม่แล้ว'); return; }
   const mt=t.closest('[data-mtab]'); if(mt){ mgrTab=mt.dataset.mtab; paintMgr(); return; }
   const bgo=t.closest('[data-bgo]'); if(bgo){ const b=boothOf(bgo.dataset.bgo); if(!b) return; boothSel=b.k; if(b.from){ Y=+b.from.slice(0,4); M=+b.from.slice(5,7)-1; sel=+b.from.slice(8,10); mSel=sel; subscribeMonth(); } $('mgr').hidden=true; paintAll(); return; }
   const adt=t.closest('[data-addtype]');
-  if(adt||t.closest('#addBoothSide')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการงานได้'); const r=await askJob(null,adt?adt.dataset.addtype:null); if(!r) return; await addJobsFrom(r); return; }
+  if(adt||t.closest('#addBoothSide')){ if(!canJobs) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth'); const r=await askJob(null,adt?adt.dataset.addtype:null); if(!r) return; await addJobsFrom(r); return; }
   const bedit=t.closest('[data-bedit]');
   if(bedit){ const b=boothOf(bedit.dataset.bedit); if(!b) return; const r=await askJob(b); if(!r) return; await saveBooths(booths.map(x=>x.k===b.k?{...x,...r}:x)); toast('แก้ไขงานแล้ว'); return; }
   const bdel=t.closest('[data-bdel]');
@@ -1645,6 +1646,7 @@ async function start(){
     canEditAll=HubMod.can('plannerbooth','edit-all',PLANNER_PERM_DEFAULTS);
     canWrite=canAddOwn||canEditAll;
     canMgr=HubMod.can('plannerbooth','manage-team',PLANNER_PERM_DEFAULTS);
+    canJobs=canMgr||HubMod.can('plannerbooth','manage-jobs',PLANNER_PERM_DEFAULTS);   /* จัดการทีมได้ = จัดการงานได้ด้วยเสมอ */
     db=makeDb(client);
     visitClient=client;
     loadBranches();
