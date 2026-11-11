@@ -19,7 +19,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 /* ───── เดสก์ท็อป ───── */
 .desk{display:none;min-height:100vh;padding:24px}
 .desk .app{max-width:none}
-.app{margin:0 auto;background:#fff;border-radius:22px;box-shadow:0 18px 50px rgba(15,23,42,.12);display:grid;grid-template-columns:232px 1fr 300px;overflow:hidden;min-height:calc(100vh - 48px)}
+.app{margin:0 auto;background:#fff;border-radius:22px;box-shadow:0 18px 50px rgba(15,23,42,.12);display:grid;grid-template-columns:232px 1fr;overflow:hidden;min-height:calc(100vh - 48px)}
 .side{background:#f6f7f9;border-right:1px solid var(--line);padding:22px 16px;display:flex;flex-direction:column;gap:6px;min-width:0}
 .desk .app{overflow:clip}  /* ตัดมุมโดยไม่สร้างกรอบเลื่อน เพื่อให้แถบซ้ายติดจอได้ */
 .desk .side{align-self:stretch;overflow-y:auto}  /* แถบซ้ายยืดเต็มความสูงของการ์ด พื้นหลังต่อเนื่องตอนเลื่อน */
@@ -190,6 +190,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .band{position:absolute;height:31px;border-radius:9px;background:var(--c);color:#fff;font-size:15px;font-weight:800;padding:0 12px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:2;box-shadow:0 1px 3px rgba(15,23,42,.2)}
 .band.cl{border-top-left-radius:0;border-bottom-left-radius:0;padding-left:8px}.band.cr{border-top-right-radius:0;border-bottom-right-radius:0}
 .nofld{display:none!important}
+.right{display:none!important}
 .boothlab{display:block;font-size:12.5px;font-weight:800;color:#c2410c;background:#FFEDE3;border-radius:7px;padding:2px 8px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bst{display:inline-block;font-size:11.5px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:6px;color:#fff;background:var(--c,#9aa3a0)}
 .scard .person.bo{height:auto;min-height:48px;padding:8px 10px;align-items:flex-start;gap:6px}
@@ -516,7 +517,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 
 /* แถบซ้ายบนจอคอม: ติดอยู่กับที่ตอนเลื่อน · ย่อให้แสดงครบในจอเดียว · ปุ่มต่อจากการ์ดหมวดไม่เว้นช่อง
    พื้นคอลัมน์ซ้ายระบายด้วยพื้นหลังการ์ด จึงสีต่อเนื่องแม้แถบซ้ายสั้นกว่าปฏิทิน */
-.desk .app{background:linear-gradient(to right,#f6f7f9 0 231px,var(--line) 231px 232px,#fff 232px calc(100% - 300px),var(--line) calc(100% - 300px) calc(100% - 299px),#fff calc(100% - 299px))}
+.desk .app{background:linear-gradient(to right,#f6f7f9 0 231px,var(--line) 231px 232px,#fff 232px)}
 /* แบบ A: แถบขวาติดอยู่ ไม่มีแถบเลื่อนของตัวเอง แสดงวันนี้ + 5 แผนถัดไป · กดดูทั้งหมดแล้วแถบขวายาวตามหน้า */
 .desk .right{position:sticky;top:24px;align-self:start;border-left:0}
 .desk .right.all{position:static}
@@ -640,7 +641,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <label class="field"><span>ถึงวันที่</span><input type="date" id="fTo"></label>
   </div>
   <label class="field"><span>ประเภท</span><select id="fType"></select></label>
-  <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา</span><select id="fHelp"></select></label>
+  <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา (ดึงจากทะเบียนสาขาของฮับ)</span><input id="fHelpQ" placeholder="พิมพ์ค้นหาชื่อสาขา / รหัส" autocomplete="off"><select id="fHelp"></select></label>
   <div class="j2"><label class="field"><span>เวลาเริ่ม</span><input type="time" id="fTF"></label><label class="field"><span>เวลาสิ้นสุด</span><input type="time" id="fTT"></label></div>
   <label class="field"><span>หมายเหตุ (ไม่บังคับ)</span><input id="fTitle" placeholder="เช่น ครึ่งวันเช้า / ช่วยกะเย็น"></label>
   <label class="field nofld"><span>สถานที่</span><input id="fPlace"></label>
@@ -653,6 +654,12 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <button class="btn" id="fCancel">ยกเลิก</button>
     <button class="btn pri" id="fSave">บันทึก</button>
   </div>
+</div></div>
+
+<!-- ป๊อปอัปรายละเอียดงาน (กดแท่งงานบนปฏิทิน / การ์ดงาน) -->
+<div class="dlg" id="jobPop" hidden><div class="dlg-box wide">
+  <div class="hd"><span>รายละเอียดงาน</span><button class="x" id="jpX" aria-label="ปิด">✕</button></div>
+  <div id="jpBody"></div>
 </div></div>
 
 <!-- ป๊อปอัปงาน Catering / Booth -->
@@ -677,7 +684,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <div class="j2"><label class="field"><span>เบอร์ติดต่อ</span><input id="jCPb" inputmode="tel" autocomplete="off"></label><label class="field"><span>ค่าเช่าบูธ (บาท)</span><input type="number" id="jRent" min="0" step="any" inputmode="decimal"></label></div>
   </div>
   <div class="field"><span>พนักงานที่ออกงาน</span><div class="jstaff" id="jStaff"></div></div>
-  <label class="field"><span>BZM ที่ดูแล</span><input id="jBzm" placeholder="ชื่อ BZM" autocomplete="off"></label>
+  <label class="field"><span>BZM ที่ดูแล (เลือกจากรายชื่อ BZM ของฮับ หรือพิมพ์เอง)</span><input id="jBzm" list="jBzmList" placeholder="พิมพ์ค้นหาชื่อ BZM" autocomplete="off"><datalist id="jBzmList"></datalist></label>
   <div class="acts"><button class="btn" id="jCancel" type="button">ยกเลิก</button><button class="btn pri" id="jSave" type="button">บันทึก</button></div>
 </div></div>
 
@@ -736,12 +743,15 @@ const canEditPlan=p=>canEditAll||(canAddOwn&&!!owner&&p.person===owner);
 const HUB_CONFIG_URL='https://script.google.com/macros/s/AKfycbyjGvhSuDrnnOkWdwoq4CsR5jM3__lp58ZWe_BjcrxDIoOtnlFaiEdKUXX10EANUFCRXA/exec';
 const VISIT_OWNER={'กาย':{trainer:'กันตภณ ลาภมงคลนาวิน',brand:'santafe'},'ฟาง':{trainer:'วัชระ อารีเอื้อ',brand:'jaedaeng'},'พี่หนิง':{trainer:'ไพรวัลย์ กิ่งทุม',brand:'jaedaeng'}};
 let BRANCHES={jaedaeng:[],santafe:[],yamachan:[],topsecret:[]};
+let BZM_LIST=[];   /* รายชื่อ BZM จากทะเบียนผู้ใช้ของฮับ */
+const BR_BRAND_TH={jaedaeng:'เจ๊แดง',santafe:'Santa Fe',yamachan:'ยามะจัง',topsecret:'Top Secret'};
 /* ทะเบียนสาขาจากฮับ (แหล่งกลาง) ใช้ชุดเดียวกับระบบ Visit */
 async function loadBranches(){
   try{
     const res=await fetch(`${HUB_CONFIG_URL}?action=config&_=${Date.now()}`).then(r=>r.json());
     if(!res||!res.ok) return;
     const users=Array.isArray(res.users)?res.users:[];
+    BZM_LIST=[...new Set(users.filter(u=>u&&u.role==='bzm').map(u=>{ const nm=String(u.name||'').trim().replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/,'').trim(), nick=String(u.nick||'').trim(); return nm?(nick?`${nm} (${nick})`:nm):nick; }).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
     const bzmName=nick=>{ const n=String(nick||'').trim(); if(!n) return ''; const hit=users.find(u=>u&&u.role==='bzm'&&String(u.nick||'').trim()===n); return (hit&&String(hit.name||'').trim())||n; };
     if(Array.isArray(res.jaedaengBranches)) BRANCHES.jaedaeng=res.jaedaengBranches.filter(b=>b&&b.name).map(b=>{
       const nm=(b.manager||'').trim().replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/,'').trim(), nick=(b.managerNick||'').trim();
@@ -894,9 +904,9 @@ function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
   const cards=live.map(b=>{ const st=boothState(b), t=jtype(b), n=daysOf(b);
     const key=b.type==='catering'?[b.format,b.guests?money(b.guests)+' คน':'',menuTotal(b)?money(menuTotal(b))+' บาท':''].filter(Boolean).join(' · '):[b.rent?'เช่า '+money(b.rent)+' บาท':'',b.contactPhone].filter(Boolean).join(' · ');
-    return `<button class="sj ${boothSel===b.k?'on':''}" style="--c:${t.c}" data-b="${esc(b.k)}"><div class="r1"><span class="tp">${t.ic} ${t.l}</span><span class="bst" style="--c:${st.c}">${st.l}</span></div><div class="n">${esc(b.name)}</div>
+    return `<button class="sj" style="--c:${t.c}" data-jp="${esc(b.k)}"><div class="r1"><span class="tp">${t.ic} ${t.l}</span><span class="bst" style="--c:${st.c}">${st.l}</span></div><div class="n">${esc(b.name)}</div>
       <div class="s">${esc(b.place||'')}${b.from?`${b.place?' · ':''}${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''}${n>1?` (${n} วัน)`:''}`:''}</div>${key?`<div class="k">${esc(key)}</div>`:''}</button>`; }).join('');
-  $('booths').innerHTML=(live.length?`<div class="sj-all"><button class="${!boothSel?'on':''}" data-b="">ทุกงาน ${booths.length}</button></div>${cards}`:`<div class="sj-empty">ยังไม่มีงาน</div>`)
+  $('booths').innerHTML=(live.length?cards:`<div class="sj-empty">ยังไม่มีงาน</div>`)
     +(canMgr?`<div class="sj-add"><button data-tl="add-catering">+ Catering</button><button data-tl="add-booth">+ Booth</button></div>`:'');
   const bsel=boothOf(boothSel), jh=bsel?jobDetailHtml(bsel):'';
   $('jobBox').hidden=!bsel; $('jobBox').innerHTML=jh;
@@ -927,7 +937,7 @@ function placeBands(BP){
   BP.segs.forEach(sg=>{ const L=cells[sg.w*7+sg.c0], R=cells[sg.w*7+sg.c1]; if(!L||!R) return;
     const sp=L.querySelector('.bsp')||R.querySelector('.bsp'); if(!sp) return;
     const lr=L.getBoundingClientRect(), rr=R.getBoundingClientRect(), tr=sp.getBoundingClientRect(), t1=jtype(sg.b);
-    const el=document.createElement('div'); el.className='band'+(sg.startsHere?'':' cl')+(sg.endsHere?'':' cr'); el.dataset.b=sg.b.k;
+    const el=document.createElement('div'); el.className='band'+(sg.startsHere?'':' cl')+(sg.endsHere?'':' cr'); el.dataset.jp=sg.b.k;
     el.style.cssText=`--c:${t1.c};left:${lr.left-gr.left+(sg.startsHere?5:0)}px;width:${rr.right-lr.left-(sg.startsHere?5:0)-(sg.endsHere?5:0)}px;top:${tr.top-gr.top+sg.lane*35}px`;
     el.title=sg.b.name+(sg.b.place?' · '+sg.b.place:'')+' · '+daysOf(sg.b)+' วัน';
     el.textContent=(sg.startsHere||sg.c0===0?t1.ic+' '+sg.b.name:'')+(sg.startsHere&&sg.b.place&&sg.c1-sg.c0>=2?' · '+sg.b.place:'');
@@ -969,7 +979,7 @@ function paintRight(){
 }
 function cardRow(p,desk){
   const c=catOf(p.type);
-  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(ptitleT(p))}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
+  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(ptitleT(p))}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}${p.bzm?' · BZM '+esc(p.bzm):''}</div></div></div>`;
 }
 function paintStrip(){
   const m=byDay(), n=nDays(), d0=mSel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
@@ -1023,6 +1033,7 @@ function askJob(b,preset){
     const dlg=$('jobDlg'); let type=(b&&b.type)||preset||'catering', menus=(b&&b.menus&&b.menus.length?b.menus:[{n:'',q:'',p:''}]).map(m=>({...m}));
     const setv=(id,v)=>{ $(id).value=v==null?'':v; };
     $('jobTitle').textContent=b?'แก้ไขงาน':'เพิ่มงาน Catering / Booth';
+    $('jBzmList').innerHTML=BZM_LIST.map(x=>`<option value="${esc(x)}"></option>`).join('');
     setv('jName',b&&b.name); setv('jPlace',b&&b.place); setv('jTF',b&&b.timeFrom); setv('jTT',b&&b.timeTo); setv('jF',b&&b.from); setv('jT',b&&b.to);
     setv('jFmt',b&&b.format); setv('jGuests',b&&b.guests); setv('jCN',b&&b.contactName); setv('jCPc',b&&b.contactPhone); setv('jCPb',b&&b.contactPhone); setv('jRent',b&&b.rent); setv('jBzm',b&&b.bzm);
     const staffSet=new Set((b&&b.staff)||[]), names=[...new Set([...team,...staffSet])];
@@ -1086,7 +1097,7 @@ function paintMgr(){
     <details class="jm-more"><summary>ตั้งค่าเพิ่มเติม · รายชื่อพนักงาน (${team.length}) และขั้นตอน (${cats.length})</summary>
       <div class="mg-cols2"><div class="mg-col"><div class="mg-h">พนักงาน / ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
       <div class="mg-col"><div class="mg-h">ประเภทแผน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มประเภท</button></div>
-      <div class="mg-col"><div class="mg-h">สาขาที่ไปช่วย <em>${helpBr.length}</em></div>${helpBr.map(b=>`<div class="mg-row"><div class="tx">${esc(b)}</div><button class="ic" data-hedit="${esc(b)}" aria-label="แก้ไขชื่อสาขา">✎</button><button class="ic danger" data-hdel="${esc(b)}" aria-label="ลบสาขา">✕</button></div>`).join('')}<button class="mini addrow" id="addHelp">+ เพิ่มสาขา</button></div></div></details>`;
+      <div class="mg-col"><div class="mg-h">สาขาสำรอง <em>${helpBr.length}</em></div><div class="mut" style="font-size:11.5px;margin:-4px 2px 6px;color:var(--ink3)">ใช้เมื่อโหลดทะเบียนสาขาของฮับไม่ได้</div>${helpBr.map(b=>`<div class="mg-row"><div class="tx">${esc(b)}</div><button class="ic" data-hedit="${esc(b)}" aria-label="แก้ไขชื่อสาขา">✎</button><button class="ic danger" data-hdel="${esc(b)}" aria-label="ลบสาขา">✕</button></div>`).join('')}<button class="mini addrow" id="addHelp">+ เพิ่มสาขา</button></div></div></details>`;
 }
 /* มือถือ: รายการของทั้งเดือนจัดกลุ่มตามวัน */
 let agendaAutoKey=null;   /* เดือนที่เลื่อนรายการไปวันนี้แล้ว */
@@ -1218,12 +1229,21 @@ document.addEventListener('click',e=>{
   const af=e.target.closest('[data-addfor]'); if(af){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); presetPerson=af.dataset.addfor; return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel||new Date().getDate()).padStart(2,'0')}`); }
   const sp=e.target.closest('[data-sp]'); if(sp&&!e.target.closest('.g-bar')){ stfSel=sp.dataset.sp; paintStaff(); }
 });
+document.addEventListener('input',e=>{ if(e.target.id==='fHelpQ') fillHelp(e.target.value,$('fHelp').value); });
 document.addEventListener('dblclick',e=>{
   const tr=e.target.closest('[data-trk]'); if(!tr||e.target.closest('.g-bar')) return;
   if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
   const r=tr.getBoundingClientRect(), n=nDays(), d=Math.min(n,Math.max(1,Math.floor((e.clientX-r.left)/r.width*n)+1));
   presetPerson=tr.dataset.trk; openPlanDlg(null,`${mkey()}-${String(d).padStart(2,'0')}`);
 });
+function openJobPop(k){ const b=boothOf(k); if(!b) return; $('jpBody').innerHTML=jobDetailHtml(b); $('jobPop').hidden=false; }
+function closeJobPop(){ $('jobPop').hidden=true; }
+document.addEventListener('click',e=>{
+  const jp=e.target.closest('[data-jp]'); if(jp&&!e.target.closest('#jobPop')){ openJobPop(jp.dataset.jp); return; }
+  if(e.target.closest('#jpX')||e.target.id==='jobPop'){ closeJobPop(); return; }
+  if(e.target.closest('#jobPop [data-bedit]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
+});
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('jobPop').hidden) closeJobPop(); });
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
 document.addEventListener('click',e=>{
   const jr=e.target.closest('[data-jr]'); if(jr){ const k=jr.dataset.jr; tlSel=(tlSel===k&&jr.classList.contains('mtl-c'))?null:k; paintTL(); paintMTl(); return; }
@@ -1282,8 +1302,7 @@ function openPlanDlg(id,dateIso){
   $('fDate').value=p?p.date:(dateIso||todayISO());
   $('fTitle').value=p?(p.note!=null?p.note:(cats.some(c=>c.k===p.type)&&['off','vac','extra','help'].includes(p.type)?'':p.title)):'';
   $('fPlace').value=p?(p.place||''):'';
-  const hb=helpBr.slice(); if(p&&p.branch&&!hb.includes(p.branch)) hb.push(p.branch);
-  $('fHelp').innerHTML=hb.map(b=>`<option ${p&&p.branch===b?'selected':''}>${esc(b)}</option>`).join('')||'<option value="">— ยังไม่มีรายชื่อสาขา —</option>';
+  $('fHelpQ').value=''; fillHelp('',p&&p.branch||'');
   $('fTF').value=p?(p.timeFrom||''):''; $('fTT').value=p?(p.timeTo||''):'';
   $('fDel').hidden=!p;
   $('fDateW').hidden=false;
@@ -1296,6 +1315,17 @@ function openPlanDlg(id,dateIso){
   syncHelp();
   $('dlg').hidden=false;
   setTimeout(()=>$('fTitle').focus(),50);
+}
+/* รายการสาขาให้เลือก: ทะเบียนของฮับแยกแบรนด์ (พร้อม BZM) · โหลดไม่ได้ = ใช้รายชื่อสำรองที่ตั้งไว้ในหน้าจัดการ */
+function fillHelp(q,cur){
+  const k=String(q||'').trim().toLowerCase(); let h='', n=0;
+  Object.keys(BRANCHES).forEach(bk=>{ const list=(BRANCHES[bk]||[]).filter(b=>!k||b.name.toLowerCase().includes(k)||String(b.bzm||'').toLowerCase().includes(k));
+    if(!list.length) return; n+=list.length;
+    h+=`<optgroup label="${esc(BR_BRAND_TH[bk]||bk)}">${list.map(b=>`<option value="${esc(b.name)}" data-bzm="${esc(b.bzm||'')}" ${cur===b.name?'selected':''}>${esc(b.name)}${b.bzm?' · BZM '+esc(b.bzm):''}</option>`).join('')}</optgroup>`; });
+  const fb=helpBr.filter(b=>!k||b.toLowerCase().includes(k));
+  if(!n&&fb.length) h=fb.map(b=>`<option value="${esc(b)}" data-bzm="" ${cur===b?'selected':''}>${esc(b)}</option>`).join('');
+  if(cur&&!h.includes('value="'+esc(cur)+'"')) h=`<option value="${esc(cur)}" data-bzm="" selected>${esc(cur)}</option>`+h;
+  $('fHelp').innerHTML=h||'<option value="">— ไม่พบสาขา —</option>';
 }
 function syncHelp(){ $('fHelpW').hidden=$('fType').value!=='help'; document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
 function closeDlg(){ $('dlg').hidden=true; }
@@ -1325,7 +1355,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,bzm:(typeK==='help'&&$('fHelp').selectedOptions[0]?$('fHelp').selectedOptions[0].dataset.bzm||'':''),timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
@@ -1436,6 +1466,7 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='fType'){ syncHelp(); return; }
+  if(e.target.id==='fHelpQ'){ fillHelp(e.target.value,''); return; }
   const c=e.target.closest('[data-c]'); if(!c) return;
   const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
   paintAll();
@@ -1460,6 +1491,7 @@ async function start(){
     canMgr=HubMod.can('plannerbooth','manage-team',PLANNER_PERM_DEFAULTS);
     db=makeDb(client);
     visitClient=client;
+    loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
     $('fLBrand').addEventListener('change',()=>syncBranchField(null));
