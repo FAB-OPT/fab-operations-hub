@@ -167,6 +167,22 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .sj .tp{font-size:11.5px;font-weight:800;color:#fff;background:var(--c);border-radius:999px;padding:0 8px}
 .sj .n{font-weight:800;font-size:14px;margin-top:3px;line-height:1.25}.sj .s{font-size:11.5px;color:var(--ink3);line-height:1.3}.sj .k{font-size:12px;font-weight:700;margin-top:2px}
 .sj-empty{margin:0 8px 8px;font-size:12.5px;color:var(--ink3)}
+.addm{margin:14px 0 14px;position:relative}
+.addm .split{display:flex}
+.addm .split .m{flex:1;height:44px;border-radius:14px 0 0 14px;background:var(--accent);color:#fff;font-weight:800;font-size:15px;box-shadow:0 8px 18px rgba(255,122,26,.28)}
+.addm .split .c{width:46px;height:44px;border-radius:0 14px 14px 0;background:#e86a0a;color:#fff;border-left:1px solid rgba(255,255,255,.35);font-size:13px}
+.addm .split button:hover{filter:brightness(1.05)}
+.addm .menu{margin-top:8px;background:#fff;border-radius:14px;box-shadow:0 12px 30px rgba(15,23,42,.18),0 0 0 1px var(--line);padding:6px;position:relative;z-index:6}
+.addm .menu[hidden]{display:none}
+.addm .menu button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 10px;border-radius:10px;font-weight:700;font-size:13.5px}
+.addm .menu button:hover{background:var(--accent-soft)}
+.addm .menu .mi{font-size:18px;width:24px;text-align:center}
+.addm .menu small{display:block;font-weight:500;color:var(--ink3);font-size:11.5px;line-height:1.3}
+.ro .addm{display:none}
+.sjr{display:flex;align-items:center;gap:9px;width:100%;text-align:left;padding:9px 10px;border-radius:11px;cursor:pointer}
+.sjr:hover{background:var(--accent-soft)}
+.sjr .dot{width:10px;height:10px;border-radius:50%;background:var(--c);flex:none}
+.sjr b{display:block;font-size:13.5px;line-height:1.25}.sjr small{font-size:11.5px;color:var(--ink3)}
 .sj-add{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:4px 4px 6px}
 .sj-add button{height:34px;border-radius:10px;border:1px dashed var(--accent);background:var(--accent-soft);color:var(--accent-ink);font-weight:800;font-size:13px;cursor:pointer}
 .side-foot{display:grid;gap:6px;margin-top:10px}
@@ -546,7 +562,14 @@ button{cursor:pointer;border:0;background:none;padding:0}
  <div class="app">
   <aside class="side">
     <div class="brand"><h1>Plan งานบูธเจ๊แดง</h1></div>
-    <button class="add" id="addPlanBtn">+ เพิ่มแผน</button>
+    <div class="addm" id="addm">
+      <div class="split"><button class="m" id="addMenuBtn" aria-haspopup="true" aria-expanded="false">+ เพิ่ม</button><button class="c" id="addMenuCaret" aria-label="เปิดเมนูเพิ่ม">▾</button></div>
+      <div class="menu" id="addMenu" hidden role="menu">
+        <button data-tl="add-plan" class="tl-w" role="menuitem"><span class="mi">📅</span><span>แผนพนักงาน<small>หยุด / พักร้อน / Extra / ไปช่วยสาขา</small></span></button>
+        <button data-tl="add-catering" class="tl-m" role="menuitem"><span class="mi">🍽️</span><span>งาน Catering<small>วัน เวลา เมนู ผู้ติดต่อ</small></span></button>
+        <button data-tl="add-booth" class="tl-m" role="menuitem"><span class="mi">🎪</span><span>งาน Booth<small>สถานที่ ค่าเช่า พนักงาน</small></span></button>
+      </div>
+    </div>
     <div class="scard"><h4>งาน Catering / Booth</h4><div id="booths"></div></div>
     <div class="scard sc-off"><h4>ทีม</h4><div id="team"></div></div>
     <div class="scard sc-off"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
@@ -897,12 +920,10 @@ function jobDetailHtml(b){
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
-  const cards=live.map(b=>{ const st=boothState(b), t=jtype(b), n=daysOf(b);
-    const key=b.type==='catering'?[b.format,b.guests?money(b.guests)+' คน':'',menuTotal(b)?money(menuTotal(b))+' บาท':''].filter(Boolean).join(' · '):[b.rent?'เช่า '+money(b.rent)+' บาท':'',b.contactPhone].filter(Boolean).join(' · ');
-    return `<button class="sj" style="--c:${t.c}" data-jp="${esc(b.k)}"><div class="r1"><span class="tp">${t.ic} ${t.l}</span></div><div class="n">${esc(b.name)}</div>
-      <div class="s">${esc(b.place||'')}${b.from?`${b.place?' · ':''}${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''}${n>1?` (${n} วัน)`:''}`:''}</div>${key?`<div class="k">${esc(key)}</div>`:''}</button>`; }).join('');
-  $('booths').innerHTML=(live.length?cards:`<div class="sj-empty">ยังไม่มีงาน</div>`)
-    +(canMgr?`<div class="sj-add"><button data-tl="add-catering">+ Catering</button><button data-tl="add-booth">+ Booth</button></div>`:'');
+  const cards=live.map(b=>{ const t=jtype(b), n=daysOf(b);
+    const when=b.from?`${dmy(b.from)}${b.to&&b.to!==b.from?' - '+dmy(b.to):''}${n>1?` (${n} วัน)`:''}`:'';
+    return `<button class="sjr" style="--c:${t.c}" data-jp="${esc(b.k)}" title="${esc(t.l)}${b.place?' · '+esc(b.place):''}"><span class="dot"></span><span><b>${esc(b.name)}</b><small>${esc(t.l)}${b.place?' · '+esc(b.place):''}${when?' · '+when:''}</small></span></button>`; }).join('');
+  $('booths').innerHTML=(live.length?cards:`<div class="sj-empty">ยังไม่มีงาน กด “+ เพิ่ม” เพื่อเริ่ม</div>`);
   const bsel=boothOf(boothSel), jh=bsel?jobDetailHtml(bsel):'';
   $('jobBox').hidden=!bsel; $('jobBox').innerHTML=jh;
   $('mjob').hidden=!bsel; $('mjob').innerHTML=bsel?`<div style="padding:0 14px 10px">${jh}</div>`:'';
@@ -1238,9 +1259,12 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#jpX')||e.target.id==='jobPop'){ closeJobPop(); return; }
   if(e.target.closest('#jobPop [data-bedit]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
 });
-document.addEventListener('keydown',e=>{ if(e.key==='Escape'&&!$('jobPop').hidden) closeJobPop(); });
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAddMenu(); if(!$('jobPop').hidden) closeJobPop(); } });
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
+function closeAddMenu(){ const m=$('addMenu'); if(!m) return; m.hidden=true; $('addMenuBtn').setAttribute('aria-expanded','false'); }
 document.addEventListener('click',e=>{
+  if(e.target.closest('#addMenuBtn,#addMenuCaret')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); const m=$('addMenu'); m.hidden=!m.hidden; $('addMenuBtn').setAttribute('aria-expanded',String(!m.hidden)); return; }
+  if(!e.target.closest('#addm')||e.target.closest('#addMenu button')) closeAddMenu();
   const jr=e.target.closest('[data-jr]'); if(jr){ const k=jr.dataset.jr; tlSel=(tlSel===k&&jr.classList.contains('mtl-c'))?null:k; paintTL(); paintMTl(); return; }
   if(e.target.closest('#toTl')){ setView('tl'); return; }
   const a=e.target.closest('[data-tl]'); if(!a) return; const k=a.dataset.tl;
