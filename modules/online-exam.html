@@ -2568,7 +2568,7 @@ label.fld>span>b{font-weight:800}
               <div class="grp"><div class="grp-h">🛡 ระหว่างทำข้อสอบ</div><div class="grp-b">
               <div class="switch-row"><div><div class="sw-t">บังคับเต็มจอ</div><div class="sw-d">เข้าโหมดเต็มจอตอนเริ่มทำข้อสอบ · iPhone สั่งไม่ได้ ระบบจะข้ามให้เอง</div></div><label class="sw"><input type="checkbox" id="edFs" checked><span class="track"></span></label></div>
               <div class="switch-row"><div><div class="sw-t">สลับลำดับข้อ</div><div class="sw-d">แต่ละคนได้ลำดับคำถามไม่เหมือนกัน</div></div><label class="sw"><input type="checkbox" id="edShufQ" checked><span class="track"></span></label></div>
-              <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
+              <div class="switch-row"><div><div class="sw-t">สลับตัวเลือก</div><div class="sw-d">ลำดับ ก ข ค ง ของแต่ละข้อสลับกัน · เฉลยกระจายทุกตำแหน่งเท่าๆ กัน · ตัวเลือกแบบ “ถูกทุกข้อ” “ข้อ ก และ ข” จะคงไว้ท้ายสุด</div></div><label class="sw"><input type="checkbox" id="edShufC" checked><span class="track"></span></label></div>
               </div></div>
             </div>
           </section>
@@ -8001,7 +8001,59 @@ function startBranchExam(id){
    ═════════════════════════════════════════════════════════════ */
 var R = null; // runner state
 
-function shuffle(arr){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=Math.floor(Math.random()*(i+1)); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+/* ตัวสุ่มของข้อสอบ: crypto.getRandomValues + rejection sampling → ทุกค่ามีโอกาสเท่ากันจริง ไม่เอนเอียง
+   (Math.random คาดเดารูปแบบได้ในทางทฤษฎี และ % ตรง ๆ ทำให้บางค่าออกบ่อยกว่า) · ไม่มี crypto ให้ใช้ Math.random */
+function oeRandInt(n){
+  if(n<=1) return 0;
+  var c = window.crypto || window.msCrypto;
+  if(c && c.getRandomValues){
+    var lim = Math.floor(4294967296/n)*n, b = new Uint32Array(1);
+    do { c.getRandomValues(b); } while(b[0] >= lim);
+    return b[0] % n;
+  }
+  return Math.floor(Math.random()*n);
+}
+function shuffle(arr){ var a=arr.slice(); for(var i=a.length-1;i>0;i--){ var j=oeRandInt(i+1); var t=a[i]; a[i]=a[j]; a[j]=t; } return a; }
+/* ตัวเลือกที่ความหมายขึ้นกับตำแหน่ง/ตัวเลือกอื่น เช่น "ถูกทุกข้อ" "ข้อ ก และ ข" "ไม่มีข้อใดถูก"
+   สลับแล้วโจทย์เพี้ยน → ไม่สลับ ตรึงไว้ท้ายสุดตามลำดับเดิม */
+var OE_ANCHOR_RE = new RegExp('^\\s*(' +
+  '(ถูก|ผิด)\\s*(ทุก\\s*ข้อ|ทั้งหมด|ทั้ง\\s*(สอง|สาม|ข้อ))|ทุก\\s*ข้อ|ทั้งหมด(ข้างต้น|ที่กล่าวมา|นี้|ถูก|ผิด)?|ถูกต้องทั้งหมด|' +
+  'ไม่มี\\s*(ข้อ)?\\s*(ใด|ไหน)?\\s*(ข้อ)?\\s*(ถูก|ผิด)|ไม่มี(คำตอบ|ข้อ)ที่ถูก|ไม่มีข้อ(ใด)?เลย|' +
+  '(ข้อ\\s*)?[กขคงabcd1-4]\\s*(และ|หรือ|กับ|,|&|and|or)\\s*(ข้อ\\s*)?[กขคงabcd1-4](?![ก-๙a-z0-9])|' +
+  '(all|none|both|neither)\\s+of\\s+the\\s+above|all\\s+(are\\s+)?(correct|true)|none\\s+(are\\s+)?(correct|true)' +
+  ')', 'i');
+function oeIsAnchored(text){ return OE_ANCHOR_RE.test(String(text==null?'':text)); }
+/* จัดตัวเลือกของทุกข้อในชุดที่ออกให้ผู้สอบคนนี้ (เรียกหลังเลือกข้อแล้ว ตามลำดับที่จะแสดง)
+   - ตัวเลือกปกติ: สลับด้วยตัวสุ่มที่ไม่เอนเอียง
+   - ตัวเลือกที่ตรึง (ถูกทุกข้อ ฯลฯ): ไว้ท้ายสุดตามลำดับเดิม
+   - ตำแหน่งของเฉลยกระจายสม่ำเสมอทั้งชุด: ทุกตำแหน่ง ก/ข/ค/ง ได้จำนวนใกล้เคียงกัน (ต่างกันไม่เกิน 1 ต่อกลุ่มจำนวนตัวเลือก)
+     และไม่ให้เฉลยตำแหน่งเดียวกันติดกันเกิน 2 ข้อ — ผู้สอบเดาแพทเทิร์นจากตำแหน่งเฉลยไม่ได้ */
+function oeArrangeChoices(qs){
+  var cnt = {}, prev = [];
+  qs.forEach(function(q){
+    var mov = [], fix = [];
+    q.choices.forEach(function(c){ (oeIsAnchored(c.text) ? fix : mov).push(c); });
+    if(mov.length < 2){ q.choices = mov.concat(fix); prev.push(-1); return; }   // ไม่มีอะไรให้สลับ
+    var ci = -1;
+    for(var i=0;i<mov.length;i++) if(mov[i].correct){ ci = i; break; }
+    if(ci < 0){ q.choices = shuffle(mov).concat(fix); prev.push(-1); return; }  // เฉลยอยู่ในตัวเลือกที่ตรึง
+    var k = mov.length, key = String(k), c0 = cnt[key] || (cnt[key] = []);
+    for(var z=0; z<k; z++) if(c0[z]==null) c0[z] = 0;
+    var p1 = prev.length ? prev[prev.length-1] : -1, p2 = prev.length>1 ? prev[prev.length-2] : -2;
+    var best = [], min = 1e9;
+    for(var pos=0; pos<k; pos++){
+      if(pos===p1 && pos===p2) continue;                  // ห้ามเฉลยตำแหน่งเดิมติดกัน 3 ข้อ
+      if(c0[pos] < min){ min = c0[pos]; best = [pos]; } else if(c0[pos]===min) best.push(pos);
+    }
+    if(!best.length) for(var pq=0; pq<k; pq++) best.push(pq);
+    var target = best[oeRandInt(best.length)];
+    c0[target]++; prev.push(target);
+    var correct = mov[ci], others = shuffle(mov.filter(function(_, idx){ return idx !== ci; }));
+    var arranged = []; for(var t=0, o=0; t<k; t++) arranged.push(t===target ? correct : others[o++]);
+    q.choices = arranged.concat(fix);
+  });
+  return qs;
+}
 function pad(n){ return String(n).padStart(2,'0'); }
 function fmtClock(sec){ return pad(Math.floor(sec/60))+':'+pad(sec%60); }
 function exShow(scr){ document.querySelectorAll('.exam-scr').forEach(function(s){ s.classList.remove('active'); }); $(scr).classList.add('active'); }
@@ -8501,7 +8553,6 @@ function beginExam(){
   }
   var _mk = function(item, qi){
     var choices=item.choices.map(function(text,i){ return {text:text, correct:i===item.answer}; });
-    if(CFG.shuffleChoices) choices=shuffle(choices);
     var o = { q:item.q, choices:choices, origIndex:qi, cat:oeQCat(item) };
     /* จำส่วนของแต่ละข้อติดไปด้วย ตอนตัดสินจะได้แยกคะแนนรายส่วนได้ */
     if(_pm) o.part = oeQPart(item);
@@ -8534,6 +8585,8 @@ function beginExam(){
     qs=shuffle(qs).slice(0,draw);
     if(!CFG.shuffleQuestions) qs.sort(function(a,b){ return a.origIndex-b.origIndex; });
   } else if(CFG.shuffleQuestions) qs=shuffle(qs);
+  /* สลับตัวเลือก + กระจายตำแหน่งเฉลยทั้งชุด (หลังได้ข้อและลำดับสุดท้ายแล้ว) */
+  if(CFG.shuffleChoices) oeArrangeChoices(qs);
   R.questions=qs; R.answers={}; R.current=0;
   if(R.onlyCats) toast('สอบซ่อมเฉพาะหมวดที่ไม่ผ่าน: ' + R.onlyCats.map(function(c){ return c || OE_NOCAT; }).join(', ') + ' (' + qs.length + ' ข้อ)');
   R.timeLeft=_lim*60; R.violations=0; R.violationLog=[]; R.finished=false; R.startedAt=new Date();
