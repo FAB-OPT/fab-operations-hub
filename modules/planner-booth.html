@@ -186,7 +186,9 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .mstf-j{display:flex;gap:8px;align-items:flex-start;margin-top:6px;font-size:13px;border-left:4px solid var(--c);padding-left:8px}.mstf-j small{display:block;color:var(--ink3);font-size:12px}
 #mstf{display:none;padding:10px 14px 0}
 .mob.stf #mstf{display:block}.mob.stf #agenda,.mob.stf #strip,.mob.stf #mseg,.mob.stf #mbooths,.mob.stf #mjob,.mob.stf #mtl{display:none!important}
-.side-seg button{font-size:12px;padding:0 4px}
+.side-seg button{font-size:11.5px;padding:0 2px;white-space:nowrap}
+.band{position:absolute;height:23px;border-radius:7px;background:var(--c);color:#fff;font-size:12px;font-weight:800;padding:0 9px;display:flex;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;z-index:2;box-shadow:0 1px 3px rgba(15,23,42,.2)}
+.band.cl{border-top-left-radius:0;border-bottom-left-radius:0;padding-left:6px}.band.cr{border-top-right-radius:0;border-bottom-right-radius:0}
 .boothlab{display:block;font-size:12.5px;font-weight:800;color:#c2410c;background:#FFEDE3;border-radius:7px;padding:2px 8px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .bst{display:inline-block;font-size:11.5px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:6px;color:#fff;background:var(--c,#9aa3a0)}
 .scard .person.bo{height:auto;min-height:48px;padding:8px 10px;align-items:flex-start;gap:6px}
@@ -905,20 +907,46 @@ function paintCats(){
 }
 function evHtml(p,iso){ const c=catOf(p.type);
   const bb=p.booth?boothOf(p.booth):null, tt=(bb&&iso&&bb.from&&bb.from<=iso&&iso<=(bb.to||bb.from))?p.title:ptitle(p); return `<div class="evw" style="--c:${c.c}"><span class="evd"></span>${!person?`<span class="evn">${esc(p.person)}</span>`:''}<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(ptitle(p))}">${esc(tt)}</button></div>`; }
+/* งานหลายวันเป็นแท่งยาวต่อเนื่องข้ามช่องวัน (ตัดเป็นท่อนตามสัปดาห์) · แท่งซ้อนกันเรียงเป็นชั้น */
+function bandPlan(){
+  const off=mon(), n=nDays(), first=`${mkey()}-01`, last=`${mkey()}-${String(n).padStart(2,'0')}`, segs=[], lanes={};
+  const jobs=booths.filter(b=>b.from&&b.from<=last&&(b.to||b.from)>=first&&(!boothSel||boothSel===b.k)).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  const byWeek={};
+  jobs.forEach(b=>{ const bar=tlBar(b); const w0=Math.floor((off+bar.s-1)/7), w1=Math.floor((off+bar.e-1)/7);
+    for(let w=w0; w<=w1; w++){ const ds=Math.max(bar.s,w*7-off+1), de=Math.min(bar.e,w*7+6-off+1);
+      (byWeek[w]=byWeek[w]||[]).push({b,w,c0:(off+ds-1)%7,c1:(off+de-1)%7,startsHere:ds===bar.s&&(b.from>=first),endsHere:de===bar.e&&((b.to||b.from)<=last)}); } });
+  Object.keys(byWeek).forEach(w=>{ const ends=[]; byWeek[w].forEach(sg=>{ let li=ends.findIndex(e=>e<sg.c0); if(li<0){ li=ends.length; ends.push(0); } ends[li]=sg.c1; sg.lane=li; segs.push(sg); }); lanes[w]=ends.length; });
+  return {segs,lanes};
+}
+function placeBands(BP){
+  const g=$('grid'); if(!g) return; g.querySelectorAll('.band').forEach(x=>x.remove());
+  BP=BP||window._BP; if(!BP) return; window._BP=BP;
+  g.style.position='relative'; const gr=g.getBoundingClientRect(), cells=g.children;
+  BP.segs.forEach(sg=>{ const L=cells[sg.w*7+sg.c0], R=cells[sg.w*7+sg.c1]; if(!L||!R) return;
+    const sp=L.querySelector('.bsp')||R.querySelector('.bsp'); if(!sp) return;
+    const lr=L.getBoundingClientRect(), rr=R.getBoundingClientRect(), tr=sp.getBoundingClientRect(), t1=jtype(sg.b);
+    const el=document.createElement('div'); el.className='band'+(sg.startsHere?'':' cl')+(sg.endsHere?'':' cr'); el.dataset.b=sg.b.k;
+    el.style.cssText=`--c:${t1.c};left:${lr.left-gr.left+(sg.startsHere?5:0)}px;width:${rr.right-lr.left-(sg.startsHere?5:0)-(sg.endsHere?5:0)}px;top:${tr.top-gr.top+sg.lane*25}px`;
+    el.title=sg.b.name+(sg.b.place?' · '+sg.b.place:'')+' · '+daysOf(sg.b)+' วัน';
+    el.textContent=(sg.startsHere||sg.c0===0?t1.ic+' '+sg.b.name:'')+(sg.startsHere&&sg.b.place&&sg.c1-sg.c0>=2?' · '+sg.b.place:'');
+    g.appendChild(el); });
+}
+window.addEventListener('resize',()=>{ try{ placeBands(); }catch(e){} });
 function paintGrid(){
   const m=byDay(), offC=offCounts(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
   let h='';
   for(let i=0;i<off;i++) h+=`<div class="c out"><span class="dn">${prev-off+1+i}</span></div>`;
-  const t=todayISO();
+  const t=todayISO(), BP=bandPlan();
   for(let d=1; d<=n; d++){
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0, bl=booths.filter(b=>b.from&&b.from<=iso&&iso<=(b.to||b.from)&&(!boothSel||boothSel===b.k));
+    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0, spN=BP.lanes[Math.floor((off+d-1)/7)]||0;
     const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
-    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab">Day Off${oc>1?` · ${oc} คน`:''}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${bl.slice(0,2).map(b=>`<span class="boothlab" title="${esc(b.name)}${b.place?' · '+esc(b.place):''}">${jtype(b).ic} ${esc(b.name)}</span>`).join('')}${list.slice(0,4).map(q=>evHtml(q,iso)).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab">Day Off${oc>1?` · ${oc} คน`:''}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${spN?`<span class="bsp" style="display:block;height:${spN*25+2}px"></span>`:''}${list.slice(0,4).map(q=>evHtml(q,iso)).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
   }
   const rest=(7-((off+n)%7))%7;
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
   $('grid').innerHTML=h;
+  placeBands(BP);
 }
 let upAll=false;   /* แถบขวา: แสดงแผนถัดไปทั้งหมด (true) หรือแค่ 5 แผน */
 function paintRight(){
