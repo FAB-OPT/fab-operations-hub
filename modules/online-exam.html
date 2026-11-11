@@ -4902,6 +4902,7 @@ function _oeExamRow(ex){
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="openExamEditor(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 013 3L12 15l-4 1 1-4z"/></svg> แก้ไข</button>' +
       '<button class="btn btn-soft btn-sm" data-oe-action="exam-create" onclick="previewExam(\'' + ex.id + '\')"><svg viewBox="0 0 24 24"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg> ทดลอง</button>' +
       '<button class="btn btn-soft btn-sm btn-icon" onclick="oePick(\'exam\',\'' + ex.id + '\')" title="เปิด/ส่งลิงก์เข้าทำข้อสอบ"><svg viewBox=\"0 0 24 24\"><path d=\"M10 13a5 5 0 007.5.5l3-3a5 5 0 00-7-7l-1.7 1.7\"/><path d=\"M14 11a5 5 0 00-7.5-.5l-3 3a5 5 0 007 7l1.7-1.7\"/></svg></button>' +
+      (_oeCanEditAns() ? '<button class="btn btn-soft btn-sm" onclick="oeRegradeExam(\'' + ex.id + '\')" title="เฉลยในชุดถูกแก้หลังมีคนสอบแล้ว: คิดคะแนนผลสอบเก่าใหม่ตามเฉลยปัจจุบัน">🔁 คิดคะแนนใหม่</button>' : '') +
       '<button class="btn btn-danger btn-sm btn-icon" data-oe-action="exam-delete" onclick="deleteExam(\'' + ex.id + '\')" title="ลบชุดข้อสอบ"><svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2m3 0v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6"/></svg></button>' +
     '</div></article>';
 }
@@ -6273,6 +6274,7 @@ function _saveExamNow(exam, btn, old){
       if(i>=0) EXAMS[i]=exam; else EXAMS.push(exam);
       _oeStash('exams', EXAMS);
       renderAdminExams(); fillExamFilter();
+      setTimeout(function(){ try { oeRegradeOffer(exam); } catch(e){} }, 500);   /* แก้เฉลยแล้วมีผลเก่าตามเฉลยเดิมไหม */
     } else { toast('บันทึกไม่สำเร็จ: '+((res&&res.error)||'ไม่ทราบสาเหตุ'),'err'); }
   }).catch(function(e){ toast('เชื่อมต่อ backend ไม่ได้: '+e.message,'err'); })
     .finally(function(){ btn.innerHTML=old; btn.disabled=false; });
@@ -7302,6 +7304,121 @@ async function oeEditAnsSave(){
    เก็บมาเป็นข้อความ ไม่ใช่ดัชนี จึงต้องตัดช่องว่างหัวท้ายก่อนเทียบ */
 /* ไม่ได้ตอบ ต่างจากตอบผิด — คนถูกตัดสิทธิ์กลางคันจะได้ "ไม่ตอบ" ยาวเป็นพรืด
    ถ้านับรวมเป็นตอบผิดหมด จะอ่านไม่ออกว่าเขาไม่รู้ หรือแค่ทำไม่ทัน */
+/* ═══ คิดคะแนนย้อนหลังเมื่อแก้เฉลยในชุดข้อสอบ (แอดมิน) ═══
+   ผลสอบเก็บ "ข้อความที่ตอบ" กับ "ข้อความเฉลย ณ ตอนนั้น" รายข้อ — แก้เฉลยในชุดแล้วผลเก่าไม่เปลี่ยนเอง
+   ฟังก์ชันนี้เทียบเฉลยปัจจุบันของชุดกับเฉลยที่เก็บในผลสอบทุกใบ ข้อที่ต่างกันคิดใหม่
+   (ข้อที่แอดมินแก้ผลเองรายข้อไปแล้ว ไม่แตะ) แล้วคิดคะแนนรวม ผ่าน/ไม่ผ่าน คะแนนรายส่วน/รายหมวดใหม่
+   บันทึกผ่านฟังก์ชันเดียวกับ "แก้ผลรายข้อ" พร้อมเก็บค่าเดิม ใครแก้ เมื่อไร เหตุผล */
+function _oeKeyOf(ex){
+  var m = {};
+  ((ex && ex.questions) || []).forEach(function(q){
+    var t = String(q.q || '').trim(); if(!t) return;
+    var ch = q.choices || [], i = Number(q.answer);
+    if(isFinite(i) && ch[i] != null) m[t] = String(ch[i]).trim();
+  });
+  return m;
+}
+function oeRegradeScan(ex){
+  var key = _oeKeyOf(ex), rows = [], skipped = 0;
+  (ALL_RESULTS || []).forEach(function(r){
+    if(!(r.examId === ex.id || (!r.examId && r.examTitle === ex.title))) return;
+    var ans = _oeResAnswers(r); if(!ans || !ans.length) return;
+    var changes = [];
+    var next = ans.map(function(a){
+      if(!a || a.fixed) return a;
+      var q = String(a.q || '').trim(), k = key[q];
+      if(k == null) return a;
+      var cur = String(a.correct == null ? '' : a.correct).trim();
+      if(k === cur) return a;
+      var n = {}; for(var p in a) n[p] = a[p];
+      if(n.origCorrectTxt == null) n.origCorrectTxt = a.correct;
+      n.correct = k; n.keyFixed = true;
+      changes.push({ q: q, from: cur, to: k, was: _oeAnsOk(a), now: _oeAnsOk(n) });
+      return n;
+    });
+    if(!changes.length) return;
+    var c = _oeEdCalc(r, next.map(_oeAnsOk));
+    if(c.err){ skipped++; return; }
+    rows.push({ r: r, next: next, changes: changes, c: c, wasPass: isPass(r), nc: _oeRNoCrit(r) });
+  });
+  rows.skipped = skipped;
+  return rows;
+}
+async function oeRegradeExam(id){
+  var ex = (EXAMS || []).find(function(x){ return x.id === id; });
+  if(!ex) return;
+  if(!_oeCanEditAns()){ toast('ไม่มีสิทธิ์แก้ผลสอบ (เฉพาะแอดมิน)', 'err'); return; }
+  toast('กำลังตรวจผลสอบทุกใบของชุดนี้…');
+  try { await loadResults(true); } catch(e){}
+  var rows = oeRegradeScan(ex);
+  if(!rows.length){
+    toast(rows.skipped ? ('มี ' + rows.skipped + ' ใบที่คิดใหม่ไม่ได้ (ข้อสอบถูกแก้ข้อความไปแล้ว)') : 'ผลสอบทุกใบตรงกับเฉลยปัจจุบันแล้ว ไม่ต้องคิดใหม่', rows.skipped ? 'warn' : 'ok');
+    return;
+  }
+  var up = rows.filter(function(x){ return !x.nc && !x.wasPass && x.c.pass; }).length;
+  var down = rows.filter(function(x){ return !x.nc && x.wasPass && !x.c.pass; }).length;
+  var qs = {}, qOrder = [];
+  rows.forEach(function(x){ x.changes.forEach(function(ch){ if(!qs[ch.q]){ qs[ch.q] = ch; qOrder.push(ch.q); } }); });
+  var qHtml = qOrder.slice(0, 5).map(function(q){
+    return '<div style="margin:4px 0;font-size:13px">• ' + esc(q.length > 70 ? q.slice(0, 70) + '…' : q) +
+      '<br><span style="color:var(--text3)">เฉลยเดิมที่ผลสอบเก็บไว้: ' + esc(qs[q].from || '—') + ' → เฉลยปัจจุบัน: <b>' + esc(qs[q].to) + '</b></span></div>';
+  }).join('') + (qOrder.length > 5 ? '<div style="font-size:12px;color:var(--text3)">และอีก ' + (qOrder.length - 5) + ' ข้อ</div>' : '');
+  var sorted = rows.slice().sort(function(a, b){
+    var fa = (!a.nc && a.wasPass !== a.c.pass) ? 0 : 1, fb = (!b.nc && b.wasPass !== b.c.pass) ? 0 : 1; return fa - fb;
+  });
+  var tbl = '<div style="max-height:190px;overflow:auto;margin-top:8px;border:1px solid var(--border);border-radius:8px"><table style="width:100%;font-size:12.5px">' +
+    sorted.slice(0, 40).map(function(x){
+      var b = (x.r.pct != null ? x.r.pct : '—') + '%' + (x.nc ? '' : ' ' + (x.wasPass ? 'ผ่าน' : 'ไม่ผ่าน'));
+      var a = x.c.pct + '%' + (x.nc ? '' : ' ' + (x.c.pass ? 'ผ่าน' : 'ไม่ผ่าน'));
+      var flip = !x.nc && x.wasPass !== x.c.pass;
+      return '<tr><td style="padding:4px 8px">' + esc(x.r.name || '') + '</td><td style="padding:4px 8px;white-space:nowrap">' + esc(b) + ' → <b style="color:' + (flip ? (x.c.pass ? '#0b7a55' : '#a51c1c') : 'inherit') + '">' + esc(a) + '</b></td></tr>';
+    }).join('') + '</table></div>' + (sorted.length > 40 ? '<div style="font-size:12px;color:var(--text3)">แสดง 40 ใบแรก จากทั้งหมด ' + sorted.length + ' ใบ (ผลเปลี่ยนมาก่อน)</div>' : '');
+  var go = await oeConfirm({
+    icon: '🔁', title: 'คิดคะแนนใหม่ตามเฉลยที่แก้',
+    text: '<div style="font-size:13px">ผลสอบเหล่านี้ยังคิดตามเฉลยเดิม ระบบจะคิดตามเฉลยปัจจุบันของชุด <b>' + esc(ex.title || '') + '</b></div>' + qHtml + tbl,
+    facts: [
+      ['ผลสอบที่ได้รับผลกระทบ', rows.length + ' ใบ'],
+      ['ไม่ผ่าน → ผ่าน', up + ' ใบ'],
+      ['ผ่าน → ไม่ผ่าน', down + ' ใบ']
+    ],
+    warn: 'บันทึกแล้วคะแนน ผ่าน/ไม่ผ่าน ฐานเงินเดือน และสิทธิ์สอบซ่อมของใบเหล่านี้จะคิดใหม่ · เก็บค่าเดิมไว้ย้อนดูได้' + (rows.skipped ? ' · มี ' + rows.skipped + ' ใบที่คิดใหม่ไม่ได้ (ข้ามไว้)' : ''),
+    yes: 'คิดใหม่ ' + rows.length + ' ใบ', no: 'ไว้ทีหลัง'
+  });
+  if(!go) return;
+  var sess = (typeof getHubSession === 'function' && getHubSession()) || {};
+  var by = sess.name || sess.nick || '', done = 0, fail = 0, i = 0;
+  var one = function(x){
+    var r = x.r, c = x.c, nc = x.nc;
+    var patch = {
+      answers: x.next, correct: c.correct, pct: c.pct, pass: nc ? null : c.pass, result: nc ? 'ไม่มีเกณฑ์' : (c.pass ? 'ผ่าน' : 'ไม่ผ่าน'),
+      origCorrect: r.origCorrect != null ? r.origCorrect : r.correct,
+      origPct: r.origPct != null ? r.origPct : r.pct,
+      origResult: r.origResult != null ? r.origResult : (nc ? 'ไม่มีเกณฑ์' : (x.wasPass ? 'ผ่าน' : 'ไม่ผ่าน')),
+      origPass: r.origPass != null ? r.origPass : (nc ? null : x.wasPass),
+      editNote: 'คิดคะแนนใหม่ตามเฉลยที่แก้ในชุดข้อสอบ (' + x.changes.length + ' ข้อ)', editCount: (Number(r.editCount) || 0) + 1,
+      editedBy: by, editedAt: new Date().toISOString()
+    };
+    if(c.parts) patch.parts = c.parts;
+    if(c.cats) patch.cats = c.cats;
+    return apiPost({ type: 'edit-result', submittedAt: r.submittedAt, empId: r.empId || '', examId: r.examId || '', patch: patch, by: by })
+      .then(function(res){ if(res && res.ok) done++; else fail++; })
+      .catch(function(){ fail++; });
+  };
+  while(i < rows.length){
+    await Promise.all(rows.slice(i, i + 4).map(one)); i += 4;
+    toast('กำลังคิดคะแนนใหม่ ' + Math.min(i, rows.length) + ' / ' + rows.length + '…');
+  }
+  toast('คิดคะแนนใหม่แล้ว ' + done + ' ใบ' + (fail ? ' · ไม่สำเร็จ ' + fail + ' ใบ (ลองกดอีกครั้ง)' : ''), fail ? 'warn' : 'ok');
+  loadResults(true);
+}
+/* แก้ชุดข้อสอบเสร็จ: ถ้ามีผลสอบเก่าที่ยังตามเฉลยเดิม ถามว่าจะคิดใหม่เลยไหม */
+function oeRegradeOffer(exam){
+  if(!exam || !_oeCanEditAns()) return;
+  loadResults(true).then(function(){
+    var rows = oeRegradeScan(exam);
+    if(rows.length) oeRegradeExam(exam.id);
+  }).catch(function(){});
+}
 /* เฉลยขึ้นเฉพาะคนที่ดูแลเนื้อข้อสอบเอง — คนอื่นที่เปิดกล่องนี้ได้ (BZM/ผู้ดูแลสาขา) เห็นแค่ว่า
    เขาตอบอะไรไปและถูกหรือผิด · เฉลยคือเนื้อของข้อสอบ ยิ่งเห็นกว้างยิ่งรั่วง่าย
    คนที่แก้ชุดข้อสอบได้อยู่แล้วก็เปิดดูเฉลยจากหน้าแก้ข้อสอบได้ตามเดิม */

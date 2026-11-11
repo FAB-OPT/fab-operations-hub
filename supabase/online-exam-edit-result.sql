@@ -27,7 +27,7 @@ begin
   if p_patch is null or jsonb_typeof(p_patch) <> 'object' then return jsonb_build_object('ok', false, 'error', 'bad patch'); end if;
   select coalesce(jsonb_object_agg(k, v), '{}'::jsonb) into v_clean
     from jsonb_each(p_patch) as t(k, v)
-   where k in ('answers', 'correct', 'pct', 'pass', 'result', 'parts',
+   where k in ('answers', 'correct', 'pct', 'pass', 'result', 'parts', 'cats',
                'origCorrect', 'origPct', 'origResult', 'origPass',
                'editedBy', 'editedAt', 'editNote', 'editCount');
   if v_clean = '{}'::jsonb then return jsonb_build_object('ok', false, 'error', 'empty patch'); end if;
