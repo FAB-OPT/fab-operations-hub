@@ -77,6 +77,12 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .c.today{background:#eef4ff}
 .c.today .dn{background:var(--accent);color:#fff}
 .dn{font-size:16px;font-weight:800;width:30px;height:30px;display:grid;place-items:center;border-radius:50%}
+.boothlab{display:block;font-size:12.5px;font-weight:800;color:#c2410c;background:#FFEDE3;border-radius:7px;padding:2px 8px;margin:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bst{display:inline-block;font-size:11.5px;font-weight:800;border-radius:999px;padding:1px 8px;margin-left:6px;color:#fff;background:var(--c,#9aa3a0)}
+.scard .person.bo{height:auto;min-height:48px;padding:8px 10px;align-items:flex-start;gap:6px}
+.scard .person.bo .bst{margin:2px 0 0 auto;flex:0 0 auto}
+.bsub{display:block;font-size:12.5px;font-weight:600;color:var(--ink3)}
+.mg-cols{grid-template-columns:1fr 1fr 1fr!important}
 .hol{display:block;width:100%;text-align:left;font-size:13px;font-weight:800;color:#4b5563;background:#eef1f4;border:0;border-radius:7px;padding:3px 8px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
 .hol:hover{background:#e2e6eb}
 .offlab{display:inline-block;margin-left:6px;vertical-align:middle;font-size:11.5px;font-weight:800;color:#4b5563;background:#eef1f4;border-radius:6px;padding:1px 6px;white-space:nowrap}
@@ -315,7 +321,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .ask[hidden]{display:none}
 @keyframes fadeIn{from{opacity:0}to{opacity:1}}
 @keyframes rise{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:none}}
-.mgr-box{width:min(680px,100%);border-radius:22px;padding:20px 20px 22px;box-shadow:0 30px 70px rgba(15,23,42,.28);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
+.mgr-box{width:min(1040px,100%);border-radius:22px;padding:20px 20px 22px;box-shadow:0 30px 70px rgba(15,23,42,.28);animation:rise .22s cubic-bezier(.2,.8,.2,1)}
 .mgr-sub{font-size:12.5px;color:var(--ink3);font-weight:600;margin:-6px 0 12px}
 .mg-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 .mg-col{min-width:0}
@@ -427,10 +433,11 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <aside class="side">
     <div class="brand"><h1>Plan งานบูธเจ๊แดง</h1></div>
     <button class="add" id="addPlanBtn">+ เพิ่มแผน</button>
+    <div class="scard"><h4>บูธ / งาน</h4><div id="booths"></div></div>
     <div class="scard"><h4>ทีม</h4><div id="team"></div></div>
-    <div class="scard"><h4>หมวด</h4><div id="cats"></div></div>
+    <div class="scard"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
     <div class="foot">ทุกคนเห็นข้อมูลตรงกัน</div>
-    <div class="addone"><button class="addbtn" id="addOne">+ เพิ่มทีม / หมวด</button></div>
+    <div class="addone"><button class="addbtn" id="addOne">+ จัดการบูธ / ทีม / หมวด</button></div>
     <div class="sidenav"><button class="goHome">← กลับหน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
   </aside>
   <section class="main">
@@ -457,6 +464,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="mtop">
     <div class="mhead"><h1>Plan งานบูธเจ๊แดง</h1><div class="mo"><button id="mprev" aria-label="เดือนก่อน">‹</button><b id="mtitle"></b><button id="mnext" aria-label="เดือนถัดไป">›</button></div></div>  </div>
   <div class="notice" id="notice" hidden></div>
+  <div class="people" id="mbooths"></div>
   <div class="people" id="mpeople"></div>  <div class="agenda" id="agenda"></div>
   <div class="strip" id="strip"></div>
 </div>
@@ -480,8 +488,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
 
 <!-- ป๊อปอัปจัดการทีมและหมวด -->
 <div class="mgr" id="mgr" hidden><div class="mgr-box">
-  <div class="hd"><span>จัดการทีมและหมวดงาน</span><button class="x" id="mgrX" aria-label="ปิด">✕</button></div>
-  <p class="mgr-sub">เพิ่ม แก้ไข หรือลบทีมและหมวดงาน ทุกคนเห็นการเปลี่ยนแปลงทันที</p>
+  <div class="hd"><span>จัดการบูธ ทีม และหมวดงาน</span><button class="x" id="mgrX" aria-label="ปิด">✕</button></div>
+  <p class="mgr-sub">เพิ่ม แก้ไข หรือลบบูธ / งาน ทีม และหมวดงาน (ขั้นตอน) ทุกคนเห็นการเปลี่ยนแปลงทันที</p>
   <div id="mgrBody"></div>
 </div></div>
 
@@ -507,9 +515,10 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <label class="field"><span>ตั้งแต่วันที่</span><input type="date" id="fFrom"></label>
     <label class="field"><span>ถึงวันที่</span><input type="date" id="fTo"></label>
   </div>
-  <label class="field"><span>หมวด</span><select id="fType"></select></label>
-  <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ติดตั้งบูธ YMC UCR สุขุมวิท"></label>
-  <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น SKV71"></label>
+  <label class="field"><span>บูธ / งาน</span><select id="fBooth"></select></label>
+  <label class="field"><span>ขั้นตอน (หมวด)</span><select id="fType"></select></label>
+  <label class="field"><span>หัวข้อ</span><input id="fTitle" placeholder="เช่น ขนของขึ้นรถ รอบเช้า"></label>
+  <label class="field"><span>สถานที่</span><input id="fPlace" placeholder="เช่น ยูซีอาร์ สุขุมวิท 39"></label>
   <label class="field" id="fLBrandW" hidden><span>แบรนด์</span><select id="fLBrand"></select></label>
   <label class="field" id="fBranchW" hidden><span>สาขา (ระบบ Visit)</span><select id="fBranch"></select></label>
   <label class="field" id="fPtypeW" hidden><span>ประเภทการตรวจ</span><select id="fPtype"><option value="FQA">FQA</option><option value="FSQ">Complaint</option><option value="VISIT">Visit</option></select></label>
@@ -527,9 +536,11 @@ button{cursor:pointer;border:0;background:none;padding:0}
 /* ───── ค่าเริ่มต้น ───── */
 const DEFAULT_TEAM = ["พี่จอย","กาย","เบนซ์","พี่น้อย","ฟาง JD","พี่หนิง JD","ใบชา"];
 const DEFAULT_CATS = [
-  {k:'prep',l:'เตรียมงาน',c:'#6d5ef0'},{k:'setup',l:'ติดตั้ง / ขนย้าย',c:'#0b7e8c'},{k:'booth',l:'ออกบูธ',c:'#e0562a'},
-  {k:'strike',l:'เก็บงาน / รื้อถอน',c:'#9b3fb5'},{k:'meet',l:'ประชุม',c:'#c27700'},{k:'stock',l:'อุปกรณ์ / สต๊อก',c:'#16804d'},
-  {k:'leave',l:'ลา',c:'#c8364b'},{k:'off',l:'วันหยุด',c:'#9aa3a0'}
+  {k:'plan',l:'วางแผน / ประสานงาน',c:'#6d5ef0'},{k:'buy',l:'จัดซื้อ / เตรียมวัตถุดิบ',c:'#16804d'},
+  {k:'equip',l:'เตรียมอุปกรณ์ (ยืม–คืน)',c:'#0b7e8c'},{k:'move',l:'ขนย้าย',c:'#c27700'},
+  {k:'setup',l:'ติดตั้งบูธ',c:'#2563eb'},{k:'sell',l:'ออกบูธ / ขายหน้างาน',c:'#e0562a'},
+  {k:'strike',l:'รื้อถอน / คืนของ',c:'#9b3fb5'},{k:'train',l:'อบรม / Briefing ทีมบูธ',c:'#c026d3'},
+  {k:'report',l:'สรุปยอด / สรุปงาน',c:'#5a6470'},{k:'leave',l:'ลา',c:'#c8364b'},{k:'off',l:'วันหยุด',c:'#9aa3a0'}
 ];
 const DOW=['จ','อ','พ','พฤ','ศ','ส','อา'], DOWF=['จันทร์','อังคาร','พุธ','พฤหัสบดี','ศุกร์','เสาร์','อาทิตย์'];
 /* สีประจำวัน (จ=0 … อา=6) ตามประเพณีไทย */
@@ -539,6 +550,15 @@ const TH=['มกราคม','กุมภาพันธ์','มีนาค
 /* ───── สถานะ ───── */
 let db=null, unsubMonth=null, unsubTeam=null, unsubCats=null, unsubHol=null;
 let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
+let booths=[];   /* บูธ / งาน: [{k,name,place,from,to}] เก็บที่ bconfig/booths ทุกคนเห็นตรงกัน */
+let boothSel=null;   /* กรองดูเฉพาะบูธนี้ */
+const boothOf=k=>booths.find(b=>b.k===k)||null;
+const boothTag=p=>{ const b=p&&p.booth?boothOf(p.booth):null; return b?b.name:''; };
+const ptitle=p=>{ const t=boothTag(p); return t?(t+' · '+p.title):p.title; };
+/* สถานะของบูธคิดจากวันที่ให้เอง: ก่อนวันออกบูธ = เตรียมงาน · ระหว่างวัน = กำลังออกบูธ · หลังจากนั้น = จบงาน */
+function boothState(b){ const t=todayISO(); if(!b.from||!b.to) return {l:'ยังไม่ระบุวัน',c:'#9aa3a0'};
+  if(t<b.from) return {l:'เตรียมงาน',c:'#c27700'}; if(t>b.to) return {l:'จบงาน',c:'#9aa3a0'}; return {l:'กำลังออกบูธ',c:'#e0562a'}; }
+const dmy=iso=>iso?iso.slice(8,10)+'/'+iso.slice(5,7):'';
 let hols={}; /* ป้ายวันหยุดที่แก้เอง: {'2026-11-07': 'ชื่อป้าย' | ''} ('' = เอาป้ายออก) */
 let plans=[];
 let Y=new Date().getFullYear(), M=new Date().getMonth();
@@ -679,7 +699,7 @@ const OFFICIAL_HOL={
 function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
 /* แผนทุกหมวดต้องขึ้นในปฏิทิน (หมวดที่ไม่มีในรายการจะขึ้นเป็นสีเทา) ไม่ให้จำนวนนับแล้วแต่มองไม่เห็น */
 /* ผู้จัดการทีมเห็นแผนของทีมด้วย (เพิ่มให้คนอื่นได้จึงต้องเห็นที่บันทึกไป) */
-function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)); }
+function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)&&(!boothSel||p.booth===boothSel)); }
 /* Day Off ไม่เป็นรายการในช่องวัน แสดงเป็นป้ายข้างตัวเลขวันแทน (นับจำนวนคนที่หยุด) */
 function offCounts(){ const c={}; visible().filter(p=>p.type==='off').forEach(p=>{ const d=+String(p.date).slice(8,10); c[d]=(c[d]||0)+1; }); return c; }
 function byDay(){ const m={}; visible().filter(p=>p.type!=='off').slice().sort((a,b)=>personRank(a.person)-personRank(b.person)).forEach(p=>{ const d=+String(p.date).slice(8,10); (m[d]=m[d]||[]).push(p); }); return m; }
@@ -698,10 +718,18 @@ function paintTeam(){
   $('mpeople').hidden=!seeAll;
   $('mpeople').innerHTML=(seeAll?`<button class="pill all ${!person?'on':''}" data-p="">ทั้งทีม</button>`:'')+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
 }
+function paintBooths(){
+  const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
+  $('booths').innerHTML=`<button class="person all ${!boothSel?'on':''}" data-b="">ทุกบูธ<span class="n">${booths.length}</span></button>`+(live.length?live.map(b=>{ const st=boothState(b), c=plans.filter(p=>p.booth===b.k).length;
+    return `<button class="person bo ${boothSel===b.k?'on':''}" data-b="${esc(b.k)}"><span style="flex:1;min-width:0;line-height:1.25">${esc(b.name)}<span class="bsub">${esc(b.place||'')}${b.from?` · ${dmy(b.from)}–${dmy(b.to||b.from)}`:''}</span></span><span class="bst" style="--c:${st.c}">${st.l}</span></button>`; }).join(''):`<div class="empty" style="padding:6px 10px;font-size:13px">ยังไม่มีบูธ<br>${canMgr?'กด “จัดการบูธ / ทีม / หมวด” เพื่อเพิ่ม':''}</div>`);
+  $('mbooths').hidden=!booths.length;
+  $('mbooths').innerHTML=booths.length?`<button class="pill all ${!boothSel?'on':''}" data-b="">ทุกบูธ</button>`+booths.map(b=>`<button class="pill ${boothSel===b.k?'on':''}" data-b="${esc(b.k)}">🎪 ${esc(b.name)}</button>`).join(''):'';
+}
 function paintCats(){
   $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" ${catOff.has(c.k)?'':'checked'}><span class="cn">${esc(c.l)}</span></label>`).join('');
 }
-function evHtml(p){ const c=catOf(p.type); return `<div class="evw" style="--c:${c.c}"><span class="evd"></span>${!person?`<span class="evn">${esc(p.person)}</span>`:''}<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(p.title)}">${esc(p.title)}</button></div>`; }
+function evHtml(p,iso){ const c=catOf(p.type);
+  const bb=p.booth?boothOf(p.booth):null, tt=(bb&&iso&&bb.from&&bb.from<=iso&&iso<=(bb.to||bb.from))?p.title:ptitle(p); return `<div class="evw" style="--c:${c.c}"><span class="evd"></span>${!person?`<span class="evn">${esc(p.person)}</span>`:''}<button class="ev" style="--c:${c.c}" data-id="${esc(p.id)}" title="${esc(p.person)} · ${esc(ptitle(p))}">${esc(tt)}</button></div>`; }
 function paintGrid(){
   const m=byDay(), offC=offCounts(); const off=mon(), n=nDays(), prev=new Date(Y,M,0).getDate();
   let h='';
@@ -709,9 +737,9 @@ function paintGrid(){
   const t=todayISO();
   for(let d=1; d<=n; d++){
     const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
-    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0;
+    const list=m[d]||[], hl=holLabel(iso), oc=offC[d]||0, bl=booths.filter(b=>b.from&&b.from<=iso&&iso<=(b.to||b.from)&&(!boothSel||boothSel===b.k));
     const cls=['c',wkend(d)?'we':'',iso===t?'today':'',d===sel?'sel':''].join(' ');
-    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab">Day Off${oc>1?` · ${oc} คน`:''}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${list.slice(0,4).map(evHtml).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
+    h+=`<div class="${cls}" data-d="${d}"><span class="dn">${d}</span>${oc?`<span class="offlab">Day Off${oc>1?` · ${oc} คน`:''}</span>`:''}${hl?`<span class="hol">${esc(hl)}</span>`:''}${bl.slice(0,2).map(b=>`<span class="boothlab" title="${esc(b.name)}${b.place?' · '+esc(b.place):''}">🎪 ${esc(b.name)}</span>`).join('')}${list.slice(0,4).map(q=>evHtml(q,iso)).join('')}${list.length>4?`<div class="more">+${list.length-4} รายการ</div>`:''}</div>`;
   }
   const rest=(7-((off+n)%7))%7;
   for(let i=1;i<=rest;i++) h+=`<div class="c out"><span class="dn">${i}</span></div>`;
@@ -730,13 +758,13 @@ function paintRight(){
   const later=visible().filter(p=>p.date>iso).sort((a,b)=>a.date.localeCompare(b.date));
   $('upLab').textContent=`ถัดไป · ${later.length} แผน`;
   const groups={}; (upAll?later:later.slice(0,5)).forEach(p=>{ (groups[p.date]=groups[p.date]||[]).push(p); });
-  $('up').innerHTML=Object.keys(groups).map(k=>{ const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7; return `<div class="ug${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}">${day} ${TH[M]}${k===todayISO()?' · วันนี้':''}</div>`+groups[k].map(p=>`<div class="ui dl" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(catOf(p.type).l)}</span></div><div class="dlt">${esc(p.title)}</div></div>`).join(''); }).join('');
+  $('up').innerHTML=Object.keys(groups).map(k=>{ const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7; return `<div class="ug${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}">${day} ${TH[M]}${k===todayISO()?' · วันนี้':''}</div>`+groups[k].map(p=>`<div class="ui dl" data-id="${esc(p.id)}" style="--c:${catOf(p.type).c}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(catOf(p.type).l)}</span></div><div class="dlt">${esc(ptitle(p))}</div></div>`).join(''); }).join('');
   if(later.length>5) $('up').insertAdjacentHTML('beforeend',`<button type="button" class="upmore" id="upMore">${upAll?'ย่อเหลือ 5 แผน':'ดูทั้งหมด '+later.length+' แผน'}</button>`);
   const rp=document.querySelector('.right'); if(rp) rp.classList.toggle('all',upAll);
 }
 function cardRow(p,desk){
   const c=catOf(p.type);
-  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(p.title)}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
+  return `<div class="up" data-id="${esc(p.id)}" style="--c:${c.c};grid-template-columns:1fr;cursor:pointer"><div><div class="t">${esc(ptitle(p))}</div><div class="s">${esc(c.l)} · ${esc(p.person)}${p.place?' · '+esc(p.place):''}</div></div></div>`;
 }
 function paintStrip(){
   const m=byDay(), n=nDays(), d0=mSel||(Y===new Date().getFullYear()&&M===new Date().getMonth()?new Date().getDate():1);
@@ -756,7 +784,7 @@ function paintStrip(){
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
   $('dsAdd').hidden=!canWrite;
-  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้</div>`;
+  $('cards').innerHTML=list.length?list.map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitle(p))}${p.place?`<small>${esc(p.place)}</small>`:''}</div></div>`; }).join(''):`<div class="emptyd">ไม่มีแผนในวันนี้</div>`;
 }
 /* กล่องยืนยันแบบเดียวกับแอป: askBox({...}) → true/false, หรือ {name,color} เมื่อมี input */
 function askBox({icon='❔',title,msg='',danger=false,input=null}){
@@ -782,10 +810,31 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
     /* คลิกนอกกล่องไม่ปิด · ปิดได้ด้วยปุ่มยกเลิกหรือบันทึก/ตกลงเท่านั้น */
   });
 }
+async function saveBooths(next){ booths=next; await db.doc('bconfig/booths').set({items:next}); }
+/* กล่องกรอกบูธ: ชื่อ · สถานที่/ห้าง · วันที่ออกบูธ (ตั้งแต่-ถึง) */
+function askBooth(b){
+  return new Promise(res=>{
+    const box=$('ask'), ok=$('askOk'), no=$('askNo');
+    $('askIc').textContent='🎪'; $('askIc').classList.remove('danger');
+    $('askT').textContent=b?'แก้ไขบูธ / งาน':'เพิ่มบูธ / งาน'; $('askM').hidden=true;
+    $('askF').innerHTML=`<label class="field"><span>ชื่อบูธ / งาน</span><input id="bN" value="${esc(b?b.name:'')}" placeholder="เช่น YMC UCR สุขุมวิท" autocomplete="off"></label>
+      <label class="field"><span>สถานที่ / ห้าง</span><input id="bP" value="${esc(b?b.place||'':'')}" placeholder="เช่น ยูซีอาร์ สุขุมวิท 39" autocomplete="off"></label>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><label class="field"><span>ออกบูธตั้งแต่วันที่</span><input type="date" id="bF" value="${esc(b?b.from||'':'')}"></label>
+      <label class="field"><span>ถึงวันที่</span><input type="date" id="bT" value="${esc(b?b.to||'':'')}"></label></div>`;
+    ok.textContent='บันทึก'; ok.className='btn pri'; box.hidden=false; setTimeout(()=>$('bN').focus(),0);
+    const done=v=>{ box.hidden=true; ok.onclick=no.onclick=null; res(v); };
+    ok.onclick=()=>{ const name=$('bN').value.trim(), from=$('bF').value, to=$('bT').value||from;
+      if(!name) return $('bN').focus(); if(from&&to<from){ toast('วันที่สิ้นสุดต้องไม่ก่อนวันเริ่ม'); return; }
+      done({name,place:$('bP').value.trim(),from,to}); };
+    no.onclick=()=>done(null);
+  });
+}
 function paintMgr(){
   const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
   const catRows=cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="ic sm" data-cup="${esc(c.k)}" aria-label="เลื่อนขึ้น">▲</button><button class="ic sm" data-cdn="${esc(c.k)}" aria-label="เลื่อนลง">▼</button><button class="ic" data-cedit="${esc(c.k)}" aria-label="แก้ไข">✎</button><button class="ic danger" data-cdel="${esc(c.k)}" aria-label="ลบ">✕</button></div>`; }).join('');
+  const boothRows=booths.map(b=>{ const n=plans.filter(p=>p.booth===b.k).length, st=boothState(b); return `<div class="mg-row"><div class="tx">${esc(b.name)}<small>${esc(b.place||'-')}${b.from?` · ${dmy(b.from)}–${dmy(b.to||b.from)}`:''} · ${st.l}${n?` · ${n} แผน`:''}</small></div><button class="ic" data-bedit="${esc(b.k)}" aria-label="แก้ไขบูธ">✎</button><button class="ic danger" data-bdel="${esc(b.k)}" aria-label="ลบบูธ">✕</button></div>`; }).join('');
   $('mgrBody').innerHTML=`<div class="mg-cols">
+    <div class="mg-col"><div class="mg-h">บูธ / งาน <em>${booths.length}</em></div>${boothRows}<button class="mini addrow" id="addBooth">+ เพิ่มบูธ / งาน</button></div>
     <div class="mg-col"><div class="mg-h">ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
     <div class="mg-col"><div class="mg-h">หมวดงาน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มหมวด</button></div>
   </div>`;
@@ -799,7 +848,7 @@ function paintAgenda(){
   $('agenda').innerHTML=keys.length?keys.map(k=>{
     const day=+k.slice(8,10), dow=(new Date(k+'T00:00:00').getDay()+6)%7;
     const hl=holLabel(k);
-    return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(p.title)}</div></div>`; }).join('');
+    return `<div class="agh${k===todayISO()?' isToday':''}" style="--c:${WEEK_COLOR[dow]}"><span>${DOW[dow]} ${day} ${TH[M]}${groups[k].length?` (${groups[k].length} แผน)`:(hl?'':' (ไม่มีแผน)')}</span>${hl?`<em class="hol2">${esc(hl)}</em>`:''}</div>`+groups[k].map(p=>{ const c=catOf(p.type); return `<div class="dl" style="--c:${c.c}" data-id="${esc(p.id)}"><div class="dlr"><span class="dld"></span><span class="dln">${esc(p.person)}</span><span class="dlc">${esc(c.l)}</span></div><div class="dlt">${esc(ptitle(p))}</div></div>`; }).join('');
   }).join(''):`<div class="emptyd">ยังไม่มีแผนในเดือนนี้<br>แตะ + เพื่อเพิ่มแผน</div>`;
   const td=$('agenda').querySelector('.agh.isToday');
   if(td && agendaAutoKey!==mkey()){ agendaAutoKey=mkey(); requestAnimationFrame(()=>td.scrollIntoView({block:'start'})); }
@@ -826,7 +875,7 @@ function weekendOffs(){
 }
 function allPlans(){ return dbPlans.slice(); }   /* ไม่มีแผน Visit / Day Off อัตโนมัติ */
 async function saveOffSkip(key){ offSkip={...offSkip,[key]:true}; paintAll(); await db.doc('bconfig/offskip').set({items:offSkip}); }
-function paintAll(){ plans=allPlans(); paintHead(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
+function paintAll(){ plans=allPlans(); paintHead(); paintBooths(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); }
 
 /* ───── ข้อมูล (Supabase FAB HUB · planner_docs) ───── */
 async function saveTeam(next){ team=next; await db.doc('bconfig/team').set({members:next}); }
@@ -868,6 +917,8 @@ function openPlanDlg(id,dateIso){
   $('dlgTitle').textContent=p?'แก้ไขแผน':'เพิ่มแผน';
   const pOpts=canMgr?team:[owner].filter(Boolean);
   $('fPerson').innerHTML=pOpts.map(n=>`<option ${(p?p.person:(canMgr?(person||team[0]):owner))===n?'selected':''}>${esc(n)}</option>`).join('');
+  const curB=p?(p.booth||''):(boothSel||'');
+  $('fBooth').innerHTML='<option value="">— ไม่ระบุบูธ —</option>'+booths.map(b=>`<option value="${esc(b.k)}" ${curB===b.k?'selected':''}>${esc(b.name)}${b.place?' · '+esc(b.place):''}</option>`).join('');
   $('fType').innerHTML=cats.map(c=>`<option value="${esc(c.k)}" ${(p?p.type:cats[0]&&cats[0].k)===c.k?'selected':''}>${esc(c.l)}</option>`).join('');
   $('fDate').value=p?p.date:(dateIso||todayISO());
   $('fTitle').value=p?p.title:'';
@@ -907,7 +958,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,place:$('fPlace').value.trim(),updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,place:$('fPlace').value.trim(),booth:$('fBooth').value||'',updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
@@ -967,9 +1018,17 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
+  if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addBooth,[data-bedit],[data-bdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const ct=t.closest('[data-cup],[data-cdn]');
   if(ct){ const up=ct.dataset.cup!==undefined; const k=ct.dataset.cup||ct.dataset.cdn; const i=cats.findIndex(x=>x.k===k); const j=up?i-1:i+1; if(i<0||j<0||j>=cats.length) return; const next=cats.slice(); [next[i],next[j]]=[next[j],next[i]]; await saveCats(next); toast('เรียงหมวดใหม่แล้ว'); return; }
+  if(t.closest('#addBooth')){ const r=await askBooth(null); if(!r) return; if(booths.some(x=>x.name===r.name)) return toast('มีบูธชื่อนี้แล้ว'); await saveBooths([...booths,{k:'b'+Date.now().toString(36),...r}]); toast('เพิ่มบูธแล้ว'); return; }
+  const bedit=t.closest('[data-bedit]');
+  if(bedit){ const b=boothOf(bedit.dataset.bedit); if(!b) return; const r=await askBooth(b); if(!r) return; await saveBooths(booths.map(x=>x.k===b.k?{...x,...r}:x)); toast('แก้ไขบูธแล้ว'); return; }
+  const bdel=t.closest('[data-bdel]');
+  if(bdel){ const b=boothOf(bdel.dataset.bdel); if(!b) return; const used=plans.filter(p=>p.booth===b.k).length;
+    if(!await askBox({icon:'🎪',title:`ลบบูธ “${b.name}”?`,msg:(used?`มีแผนที่ผูกอยู่ ${used} รายการในเดือนนี้ (เดือนอื่นอาจมีอีก) `:'')+'แผนจะยังอยู่ แต่จะไม่แสดงชื่อบูธนี้',danger:true})) return;
+    await saveBooths(booths.filter(x=>x.k!==b.k)); if(boothSel===b.k) boothSel=null; toast('ลบบูธแล้ว'); return; }
+  const bsel=t.closest('[data-b]'); if(bsel){ const v=bsel.dataset.b||null; boothSel=(boothSel===v)?null:v; paintAll(); return; }
   const tdel=t.closest('[data-tdel]');
   const tedit=t.closest('[data-tedit]');
   if(tedit){
@@ -1001,6 +1060,7 @@ document.addEventListener('click',async e=>{
   }
 });
 document.addEventListener('change',e=>{
+  if(e.target.id==='fBooth'){ const b=boothOf(e.target.value); if(b&&b.place&&!$('fPlace').value.trim()) $('fPlace').value=b.place; return; }
   const c=e.target.closest('[data-c]'); if(!c) return;
   const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
   paintAll();
@@ -1034,6 +1094,7 @@ async function start(){
     paintAll(); return;
   }
     unsubTeam=db.doc('bconfig/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
+  db.doc('bconfig/booths').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:[]; booths=it.map(x=>({...x})); if(boothSel&&!boothOf(boothSel)) boothSel=null; paintAll(); });
   unsubCats=db.doc('bconfig/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
   db.doc('bconfig/offskip').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; offSkip={...it}; paintAll(); });
   unsubHol=db.doc(holDocId()).onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
