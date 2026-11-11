@@ -78,7 +78,12 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .c.today .dn{background:var(--accent);color:#fff}
 .dn{font-size:16px;font-weight:800;width:30px;height:30px;display:grid;place-items:center;border-radius:50%}
 /* หน้านี้โฟกัสที่บูธ: ซ่อนรายชื่อทีมและรายการขั้นตอนในแถบซ้าย/มือถือ (ยังเลือกชื่อคนและขั้นตอนได้ในฟอร์มแผน และจัดการได้ในหน้าจัดการ) */
-.scard.sc-off,#mpeople{display:none!important}
+.scard.sc-off{display:none!important}
+.pfil{display:flex;gap:6px;flex-wrap:wrap;align-items:center;padding:0 24px 12px}
+.pfil[hidden]{display:none}
+.pfil .pf-l{font-size:12.5px;font-weight:800;color:var(--ink3);margin:0 2px 0 4px}
+.pfil .pf-sep{width:1px;height:22px;background:var(--line);margin:0 6px}
+.pfil .pill{height:34px;font-size:13px;padding:0 13px}
 .dlg-box.wide{width:min(640px,100%);max-height:92vh}
 .jseg{display:flex;gap:6px;margin:0 0 12px}.jseg button{flex:1;height:44px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-weight:800;font-size:15px}
 .jseg button.on{border-color:var(--accent);background:#fff3e8;color:var(--accent-ink)}
@@ -586,6 +591,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
       <button class="iconb" id="next" aria-label="เดือนถัดไป">›</button>
       <button class="btn" id="today" style="margin-left:auto">วันนี้</button>
     </div>
+    <div class="pfil" id="pfil" hidden></div>
     <div class="wd" id="wd"></div>
     <div class="grid" id="grid"></div>
   </section>
@@ -662,8 +668,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
     </div>
   </div>
   <label class="field"><span>ประเภท</span><select id="fType"></select></label>
-  <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา (ดึงจากทะเบียนสาขาของฮับ)</span><input id="fHelpQ" placeholder="พิมพ์ค้นหาชื่อสาขา / รหัส" autocomplete="off"><select id="fHelp"></select></label>
-  <div class="j2"><label class="field"><span>เวลาเริ่ม</span><input type="time" id="fTF"></label><label class="field"><span>เวลาสิ้นสุด</span><input type="time" id="fTT"></label></div>
+  <label class="field" id="fHelpW" hidden><span>ไปช่วยสาขา</span><input id="fHelp" list="fHelpList" placeholder="พิมพ์ค้นหาหรือเลือกสาขา (ชื่อ / รหัส / BZM)" autocomplete="off"><datalist id="fHelpList"></datalist></label>
+  <div class="j2"><label class="field"><span id="fTFl">เวลาเริ่ม</span><select class="tsel" id="fTF"></select></label><label class="field"><span id="fTTl">เวลาสิ้นสุด</span><select class="tsel" id="fTT"></select></label></div>
   <label class="field"><span>หมายเหตุ (ไม่บังคับ)</span><input id="fTitle" placeholder="เช่น ครึ่งวันเช้า / ช่วยกะเย็น"></label>
   <label class="field nofld"><span>สถานที่</span><input id="fPlace"></label>
   <label class="field" id="fLBrandW" hidden><span>แบรนด์</span><select id="fLBrand"></select></label>
@@ -699,7 +705,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="jseg" id="jType"><button type="button" data-t="catering">🍽️ Catering</button><button type="button" data-t="booth">🎪 Booth</button></div>
   <label class="field"><span>ชื่องาน <b style="color:#c2410c">*</b></span><input id="jName" placeholder="เช่น Catering บริษัท ABC / Booth YMC UCR" autocomplete="off"></label>
   <label class="field"><span>สถานที่</span><input id="jPlace" placeholder="เช่น ยูซีอาร์ สุขุมวิท 39" autocomplete="off"></label>
-  <div class="j2"><label class="field"><span>เวลาเริ่ม</span><input type="time" id="jTF"></label><label class="field"><span>เวลาสิ้นสุด</span><input type="time" id="jTT"></label></div>
+  <div class="j2"><label class="field"><span>เวลาเริ่ม</span><select class="tsel" id="jTF"></select></label><label class="field"><span>เวลาสิ้นสุด</span><select class="tsel" id="jTT"></select></label></div>
   <div class="j2"><label class="field"><span>วันที่เริ่มต้น <b style="color:#c2410c">*</b></span><input type="date" id="jF"></label><label class="field"><span>วันที่สิ้นสุด</span><input type="date" id="jT"></label></div>
   <div class="jdays" id="jDays"></div>
   <div class="j-cat">
@@ -783,10 +789,10 @@ async function loadBranches(){
     if(!res||!res.ok) return;
     const users=Array.isArray(res.users)?res.users:[];
     BZM_LIST=[...new Set(users.filter(u=>u&&u.role==='bzm').map(u=>{ const nm=String(u.name||'').trim().replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/,'').trim(), nick=String(u.nick||'').trim(); return nm?(nick?`${nm} (${nick})`:nm):nick; }).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'th'));
-    const bzmName=nick=>{ const n=String(nick||'').trim(); if(!n) return ''; const hit=users.find(u=>u&&u.role==='bzm'&&String(u.nick||'').trim()===n); return (hit&&String(hit.name||'').trim())||n; };
+    const bzmName=nick=>String(nick||'').trim();   /* BZM แสดงเป็นชื่อเล่นอย่างเดียว */
     if(Array.isArray(res.jaedaengBranches)) BRANCHES.jaedaeng=res.jaedaengBranches.filter(b=>b&&b.name).map(b=>{
       const nm=(b.manager||'').trim().replace(/^(นางสาว|นาง|นาย|น\.ส\.|ดร\.|ด\.ช\.|ด\.ญ\.)\s*/,'').trim(), nick=(b.managerNick||'').trim();
-      return {name:String(b.name).trim(), bzm:(!nm&&!nick)?'':(nick?`คุณ ${nm} (${nick})`.replace(/\s+/g,' ').trim():`คุณ ${nm}`)};
+      return {name:String(b.name).trim(), bzm:nick||nm.split(' ')[0]||''};
     });
     const sf=res.branches;
     if(sf&&sf.branches){ const st=sf.statusMap||{}, bz=sf.bzmMap||{};
@@ -801,6 +807,10 @@ async function loadBranches(){
     }
   }catch(err){}
 }
+/* เวลาเลือกได้เฉพาะ :00 / :30 · ค่าเก่าที่เป็นนาทีอื่นปัดเป็นครึ่งชั่วโมงที่ใกล้สุด */
+const TIME_OPTS='<option value="">ไม่ระบุ</option>'+Array.from({length:48},(_,i)=>{ const v=`${String(Math.floor(i/2)).padStart(2,'0')}:${i%2?'30':'00'}`; return `<option value="${v}">${v}</option>`; }).join('');
+function snapT(v){ const m=/^(\d{1,2}):(\d{2})/.exec(String(v||'')); if(!m) return ''; let t=Math.round((+m[1]*60+ +m[2])/30)*30; if(t>=1440) t=1410; return `${String(Math.floor(t/60)).padStart(2,'0')}:${t%60?'30':'00'}`; }
+['fTF','fTT','jTF','jTT'].forEach(id=>{ const el=document.getElementById(id); if(el) el.innerHTML=TIME_OPTS; });
 function syncBranchField(p){
   const isVisit=$('fType').value==='visit';
   $('fBranchW').hidden=!isVisit;
@@ -916,7 +926,9 @@ function paintTeam(){
   $('team').innerHTML=seeAll?html:'';
   $('team').closest('.scard').hidden=!seeAll; /* เห็นเฉพาะของตัวเอง = ไม่แสดงรายชื่อทีม */
   $('mpeople').hidden=!seeAll;
-  $('mpeople').innerHTML=(seeAll?`<button class="pill all ${!person?'on':''}" data-p="">ทั้งทีม</button>`:'')+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
+  $('pfil').hidden=!seeAll||!teamVis().length;
+  $('pfil').innerHTML=`<span class="pf-l">ดู</span><button class="pill ${!person?'on':''}" data-p="">👥 ทั้งหมด</button><span class="pf-sep"></span><span class="pf-l">รายบุคคล</span>`+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
+  $('mpeople').innerHTML=(seeAll?`<button class="pill all ${!person?'on':''}" data-p="">👥 ดูทั้งหมด</button>`:'')+teamVis().map(n=>`<button class="pill ${person===n?'on':''}" data-p="${esc(n)}">${esc(n)}</button>`).join('');
 }
 function jobDetailHtml(b){
   const t=jtype(b), st=boothState(b), n=daysOf(b);
@@ -1063,7 +1075,7 @@ function askJob(b,preset){
     const setv=(id,v)=>{ $(id).value=v==null?'':v; };
     $('jobTitle').textContent=b?'แก้ไขงาน':'เพิ่มงาน Catering / Booth';
     $('jBzmList').innerHTML=BZM_LIST.map(x=>`<option value="${esc(x)}"></option>`).join('');
-    setv('jName',b&&b.name); setv('jPlace',b&&b.place); setv('jTF',b&&b.timeFrom); setv('jTT',b&&b.timeTo); setv('jF',b&&b.from); setv('jT',b&&b.to);
+    setv('jName',b&&b.name); setv('jPlace',b&&b.place); setv('jTF',snapT(b&&b.timeFrom)); setv('jTT',snapT(b&&b.timeTo)); setv('jF',b&&b.from); setv('jT',b&&b.to);
     setv('jFmt',b&&b.format); setv('jGuests',b&&b.guests); setv('jCN',b&&b.contactName); setv('jCPc',b&&b.contactPhone); setv('jCPb',b&&b.contactPhone); setv('jRent',b&&b.rent); setv('jBzm',b&&b.bzm);
     const staffSet=new Set((b&&b.staff)||[]), names=[...new Set([...team,...staffSet])];
     $('jStaff').innerHTML=names.map(n=>`<label><input type="checkbox" value="${esc(n)}" ${staffSet.has(n)?'checked':''}>${esc(n)}</label>`).join('')||'<span class="muted">ยังไม่มีรายชื่อทีม</span>';
@@ -1258,7 +1270,6 @@ document.addEventListener('click',e=>{
   const af=e.target.closest('[data-addfor]'); if(af){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); presetPerson=af.dataset.addfor; return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel||new Date().getDate()).padStart(2,'0')}`); }
   const sp=e.target.closest('[data-sp]'); if(sp&&!e.target.closest('.g-bar')){ stfSel=sp.dataset.sp; paintStaff(); }
 });
-document.addEventListener('input',e=>{ if(e.target.id==='fHelpQ') fillHelp(e.target.value,$('fHelp').value); });
 document.addEventListener('dblclick',e=>{
   const tr=e.target.closest('[data-trk]'); if(!tr||e.target.closest('.g-bar')) return;
   if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว');
@@ -1335,8 +1346,8 @@ function openPlanDlg(id,dateIso){
   $('fDate').value=p?p.date:(dateIso||todayISO());
   $('fTitle').value=p?(p.note!=null?p.note:(cats.some(c=>c.k===p.type)&&['off','vac','extra','help'].includes(p.type)?'':p.title)):'';
   $('fPlace').value=p?(p.place||''):'';
-  $('fHelpQ').value=''; fillHelp('',p&&p.branch||'');
-  $('fTF').value=p?(p.timeFrom||''):''; $('fTT').value=p?(p.timeTo||''):'';
+  fillHelp(); $('fHelp').value=p&&p.branch||'';
+  $('fTF').value=p?snapT(p.timeFrom):''; $('fTT').value=p?snapT(p.timeTo):'';
   $('fDel').hidden=!p;
   $('fDateW').hidden=false;
   $('fDaysW').hidden=true;
@@ -1350,17 +1361,11 @@ function openPlanDlg(id,dateIso){
   setTimeout(()=>$('fTitle').focus(),50);
 }
 /* รายการสาขาให้เลือก: ทะเบียนของฮับแยกแบรนด์ (พร้อม BZM) · โหลดไม่ได้ = ใช้รายชื่อสำรองที่ตั้งไว้ในหน้าจัดการ */
-function fillHelp(q,cur){
-  const k=String(q||'').trim().toLowerCase(); let h='', n=0;
-  Object.keys(BRANCHES).forEach(bk=>{ const list=(BRANCHES[bk]||[]).filter(b=>!k||b.name.toLowerCase().includes(k)||String(b.bzm||'').toLowerCase().includes(k));
-    if(!list.length) return; n+=list.length;
-    h+=`<optgroup label="${esc(BR_BRAND_TH[bk]||bk)}">${list.map(b=>`<option value="${esc(b.name)}" data-bzm="${esc(b.bzm||'')}" ${cur===b.name?'selected':''}>${esc(b.name)}${b.bzm?' · BZM '+esc(b.bzm):''}</option>`).join('')}</optgroup>`; });
-  const fb=helpBr.filter(b=>!k||b.toLowerCase().includes(k));
-  if(!n&&fb.length) h=fb.map(b=>`<option value="${esc(b)}" data-bzm="" ${cur===b?'selected':''}>${esc(b)}</option>`).join('');
-  if(cur&&!h.includes('value="'+esc(cur)+'"')) h=`<option value="${esc(cur)}" data-bzm="" selected>${esc(cur)}</option>`+h;
-  $('fHelp').innerHTML=h||'<option value="">— ไม่พบสาขา —</option>';
-}
-function syncHelp(){ $('fHelpW').hidden=$('fType').value!=='help'; document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
+function helpAll(){ const out=[]; Object.keys(BRANCHES).forEach(bk=>(BRANCHES[bk]||[]).forEach(b=>out.push({name:b.name,bzm:b.bzm||'',brand:BR_BRAND_TH[bk]||bk})));
+  if(!out.length) helpBr.forEach(b=>out.push({name:b,bzm:'',brand:''})); return out; }
+function helpFind(name){ const k=String(name||'').trim(); return helpAll().find(b=>b.name===k)||null; }
+function fillHelp(){ $('fHelpList').innerHTML=helpAll().map(b=>`<option value="${esc(b.name)}" label="${esc([b.brand,b.bzm?'BZM '+b.bzm:''].filter(Boolean).join(' · '))}"></option>`).join(''); }
+function syncHelp(){ const hp=$('fType').value==='help'; $('fHelpW').hidden=!hp; $('fTFl').textContent='เวลาเริ่ม'+(hp?' *':''); $('fTTl').textContent='เวลาสิ้นสุด'+(hp?' *':''); document.querySelectorAll('#fTitle').forEach(()=>{}); const pw=$('fPlace').closest('.field'); if(pw) pw.hidden=true; }
 /* เลือกหลายวัน: แตะวันบนปฏิทินเล็กเพื่อติ๊ก/เอาออก (ข้ามเดือนได้) แล้วกดบันทึกครั้งเดียว */
 let pickSet=new Set(), pickY=0, pickM=0;
 function paintPick(){
@@ -1378,8 +1383,10 @@ async function saveDlg(){
   if(editingId && String(editingId).startsWith('wo:')) return toast('Day Off อัตโนมัติแก้ไม่ได้ ให้ลบแล้วเพิ่มใหม่');
   const title=$('fTitle').value.trim(), date=$('fDate').value;
   /* ชื่อแผนประกอบอัตโนมัติ: ประเภท (+ สาขา) (+ หมายเหตุ) */
-  const typeK=$('fType').value, helpBranch=typeK==='help'?($('fHelp').value||''):'';
+  const typeK=$('fType').value, helpBranch=typeK==='help'?($('fHelp').value||'').trim():'';
   if(typeK==='help'&&!helpBranch){ toast('เลือกสาขาที่ไปช่วยก่อน'); return; }
+  if(typeK==='help'&&helpAll().length&&!helpFind(helpBranch)&&!(editingId&&(plans.find(x=>x.id===editingId)||{}).branch===helpBranch)){ toast('เลือกสาขาจากรายการที่ขึ้นมา'); return; }
+  if(typeK==='help'&&(!$('fTF').value||!$('fTT').value)){ toast('ไปช่วยสาขาต้องระบุเวลาเริ่มและเวลาสิ้นสุด'); return; }
   if($('fTF').value&&$('fTT').value&&$('fTT').value<$('fTF').value){ toast('เวลาสิ้นสุดต้องไม่ก่อนเวลาเริ่ม'); return; }
   const titleFinal=(typeK==='help'?`ช่วยสาขา ${helpBranch}`:catOf(typeK).l)+(title?' · '+title:'');
   /* เพิ่มแผนใหม่ = ติ๊กได้หลายวันในเดือนเดียวกัน · แก้ไข = วันเดียว */
@@ -1397,7 +1404,7 @@ async function saveDlg(){
   try{
     for(const dt of dates){
       const id=editingId||('p'+Date.now().toString(36)+Math.random().toString(36).slice(2,6));
-      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,bzm:(typeK==='help'&&$('fHelp').selectedOptions[0]?$('fHelp').selectedOptions[0].dataset.bzm||'':''),timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
+      const data={person:$('fPerson').value,date:dt,month:dt.slice(0,7),type:$('fType').value,title:titleFinal,note:title,place:helpBranch,branch:helpBranch,bzm:(typeK==='help'?(helpFind(helpBranch)||{}).bzm||'':''),timeFrom:$('fTF').value,timeTo:$('fTT').value,booth:(editingId&&plans.find(x=>x.id===editingId)||{}).booth||'',updatedAt:new Date().toISOString()};
       if(data.type==='visit' && LOCAL_VISIT[data.person]){
         const bk=$('fLBrand').value, bn=(BRANCHES[bk]||[]).length?$('fBranch').value:$('fLBranch').value.trim();
         if(!bk||!bn) return toast('เลือกแบรนด์และสาขาก่อน');
@@ -1512,7 +1519,6 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('change',e=>{
   if(e.target.id==='fType'){ syncHelp(); return; }
-  if(e.target.id==='fHelpQ'){ fillHelp(e.target.value,''); return; }
   const c=e.target.closest('[data-c]'); if(!c) return;
   const k=c.dataset.c; if(c.checked) catOff.delete(k); else catOff.add(k);
   paintAll();
