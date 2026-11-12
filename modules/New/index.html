@@ -659,7 +659,9 @@ function allowedBrands(){
 function myRole(){if(S.isOwner)return"owner";const m=S.uid&&S.members[S.uid];return m?m.role:null}
 /* โหมดเพิ่มงาน (?add=catering|booth): ฝังเป็นหน้าต่างซ้อนในหน้า Plan งาน — เปิดตรงฟอร์มลงทะเบียนงาน ไม่มีเมนู · บันทึกแล้วบอกหน้าแม่ให้ปิดและรีเฟรช */
 const ADDQ=(new URLSearchParams(location.search).get("add")||"").toLowerCase()==="booth"?"booth":(new URLSearchParams(location.search).get("add")?"catering":"");
-if(ADDQ)document.documentElement.classList.add("addmode");
+/* ?event=<id>: เปิดหน้างานนั้นตรง ๆ (กดงานในปฏิทิน Plan งาน) — ไม่มีเมนู ไม่มีหัว เหมือนโหมดเพิ่มงาน */
+const EVQ=ADDQ?"":(new URLSearchParams(location.search).get("event")||"");
+if(ADDQ||EVQ)document.documentElement.classList.add("addmode");
 /* ฝังในหน้ารวมของฮับ (ไม่ใช่โหมดเพิ่มงาน): ไม่มีปุ่ม Add new event ที่นี่ — เพิ่มงานที่แท็บ Plan งาน กด "+ เพิ่ม" (ฟอร์มเดียวกัน) */
 const NOADD=/[?&]embed=1/.test(location.search)&&!ADDQ;
 function applyAccess(){
@@ -670,7 +672,7 @@ function applyAccess(){
   if(S.brand&&al.includes(S.brand)){rerender();return}
   if(S.brand)leaveBrand();
   const saved=ls("bc.brand");
-  if(ADDQ&&al.includes("jaedang"))enterBrand("jaedang");   /* โหมดเพิ่มงานจากหน้า Plan: เจ๊แดงเสมอ */
+  if((ADDQ||EVQ)&&al.includes("jaedang"))enterBrand("jaedang");   /* โหมดเพิ่มงานจากหน้า Plan: เจ๊แดงเสมอ */
   else if(al.length===1)enterBrand(al[0]);
   else if(saved&&al.includes(saved))enterBrand(saved);
   else showGate();
@@ -729,6 +731,7 @@ function enterBrand(b){
   S.brand=b;ls("bc.brand",b);document.body.dataset.brand=b;
   $("#gate").hidden=true;$("#app").hidden=false;S.view=ADDQ?"new":"home";S.eventId=null;
   if(S.platformReady)subscribe();render();
+  if(EVQ)go("event",{id:EVQ});
 }
 document.addEventListener("click",ev=>{
   const p=ev.target.closest("[data-pick]");if(p){enterBrand(p.dataset.pick);return}

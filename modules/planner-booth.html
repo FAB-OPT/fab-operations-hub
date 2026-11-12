@@ -12,6 +12,7 @@
 <script src="hub-docstore.js?v=20261030a"></script>
 <style>
 :root{--ink:#111827;--ink2:#4b5563;--ink3:#9ca3af;--line:#e5e7eb;--line2:#f1f3f6;--accent:#ff7a1a;--accent-soft:#fff3e8;--accent-ink:#c2530a;--red:#be123c;--red-soft:#fff1f2;--blue:#ff7a1a;--gold-ink:#d95f0e;--today:#fff7ed;--weekend:#fbfbfd}
+.mdesk{padding:0 14px 8px}.mdesk .addbtn{width:100%}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
 *{box-sizing:border-box}
@@ -589,6 +590,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <div class="scard sc-off"><h4>ทีม</h4><div id="team"></div></div>
     <div class="scard sc-off"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
     <div class="side-foot">
+      <button class="addbtn" id="deskBtn" hidden>📊 รายงาน &amp; ตั้งค่า (P&amp;L · เมนู &amp; BOM)</button>
       <button class="addbtn tl-m" id="addOne">⚙️ จัดการงาน / ทีม / หมวด</button>
       <div class="row2"><button class="goHome">← หน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
       <div class="foot">ทุกคนเห็นข้อมูลตรงกัน</div>
@@ -622,6 +624,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="mtop">
     <div class="mhead"><h1>Plan งานบูธเจ๊แดง</h1><div class="mo"><button id="mprev" aria-label="เดือนก่อน">‹</button><b id="mtitle"></b><button id="mnext" aria-label="เดือนถัดไป">›</button></div></div>  </div>
   <div class="mlinks"><button class="goHome">← หน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
+  <div class="mdesk" id="mdesk" hidden><button class="addbtn" id="deskBtnM">📊 รายงาน &amp; ตั้งค่า (P&amp;L · เมนู &amp; BOM)</button></div>
   <div class="notice" id="notice" hidden></div>
   <div class="people" id="mbooths"></div>
   <div id="mjob" hidden></div>
@@ -766,7 +769,9 @@ function mergeBooths(){ booths=legacyBooths.concat(deskJobs); if(boothSel&&!boot
 /* เพิ่มงาน Catering/Booth: เปิดฟอร์มลงทะเบียนของทะเบียนงานเป็นหน้าต่างซ้อนในหน้า Plan (หน้ารวม booth.html) · ถ้าเปิดหน้านี้เดี่ยวๆ พาไปแท็บทะเบียนงาน */
 function goAdd(type){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'add-job',type:type==='booth'?'booth':'catering'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
 window.addEventListener('message',e=>{ if(e.origin===location.origin&&e.data&&e.data.bs==='refresh'&&deskClient) pullDesk(deskClient); });
-function goDesk(){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'open-desk'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
+/* goDesk(รหัสงาน) = เปิดหน้างาน & P&L ของงานนั้น · goDesk() = เปิดรายงาน & ตั้งค่า (Dashboard · งานทั้งหมด · Feasibility · เมนู & BOM) — เป็นหน้าต่างซ้อนในหน้ารวม */
+const evIdOf=k=>String(k||'').split(':')[1]||'';
+function goDesk(id){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage(id?{bs:'open-event',id}:{bs:'open-desk'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
 /* งานจากทะเบียนงาน & P&L (bc_docs · เจ๊แดง) → งานในปฏิทิน Plan · ไม่เก็บซ้ำ ไม่มีตัวเลขการเงิน · วันที่ไม่ติดกันแยกเป็นช่วงละงาน */
 async function pullDesk(client){
   try{
@@ -989,7 +994,7 @@ function jobDetailHtml(b){
   rows.push(['พนักงานที่ออกงาน',(b.staff&&b.staff.length)?`<span class="stf">${b.staff.map(x=>`<i>${esc(x)}</i>`).join('')}</span>`:''],['BZM ที่ดูแล',b.bzm]);
   const dl=rows.filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='ผู้ติดต่อ'||r[0]==='เบอร์ติดต่อ'||r[0]==='พนักงานที่ออกงาน'?r[1]:esc(r[1])}</dd>`).join('');
   const menu=(b.type==='catering'&&(b.menus||[]).length)?`<table><thead><tr><th>เมนู</th><th>จำนวน</th><th>ราคา</th><th>รวม</th></tr></thead><tbody>${b.menus.map(m=>`<tr><td>${esc(m.n||'')}</td><td>${money(m.q)}</td><td>${money(m.p)}</td><td>${money((Number(m.q)||0)*(Number(m.p)||0))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">ราคารวมทั้งหมด</td><td>${money(menuTotal(b))}</td></tr></tfoot></table>`:'';
-  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${b.desk?`<span class="jacts"><button class="jedit" data-opendesk="1">🧾 เปิดในทะเบียนงาน</button></span>`:canJobs?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
+  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${b.desk?`<span class="jacts"><button class="jedit" data-opendesk="${esc(evIdOf(b.k))}">🧾 งาน &amp; P&amp;L</button></span>`:canJobs?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
@@ -1246,7 +1251,7 @@ function jobCard(b){
   const who=[(b.staff&&b.staff.length)?`พนักงาน: ${b.staff.join(', ')}`:'',b.bzm?`BZM: ${b.bzm}`:''].filter(Boolean).join(' · ');
   return `<div class="jcard" style="--c:${t.c}"><div class="jc-h"><span class="jt">${t.ic} ${t.l}</span><b>${esc(b.name)}</b></div>
     <div class="jc-l">${esc(b.place||'-')} · ${when}${time}</div>${money1?`<div class="jc-l strong">${esc(money1)}</div>`:''}${who?`<div class="jc-l">${esc(who)}</div>`:''}
-    <div class="jc-a"><button class="mini" data-bgo="${esc(b.k)}">📅 ดูในปฏิทิน</button>${b.desk?`<button class="mini" data-bedit="${esc(b.k)}">🧾 แก้ที่ทะเบียนงาน</button>`:`<button class="mini" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="mini dng" data-bdel="${esc(b.k)}">✕ ลบ</button>`}${used?`<small>${used} แผนในเดือนนี้</small>`:''}</div></div>`;
+    <div class="jc-a"><button class="mini" data-bgo="${esc(b.k)}">📅 ดูในปฏิทิน</button>${b.desk?`<button class="mini" data-bedit="${esc(b.k)}">🧾 งาน &amp; P&amp;L</button>`:`<button class="mini" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="mini dng" data-bdel="${esc(b.k)}">✕ ลบ</button>`}${used?`<small>${used} แผนในเดือนนี้</small>`:''}</div></div>`;
 }
 function paintMgr(){
   const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
@@ -1409,8 +1414,8 @@ document.addEventListener('dblclick',e=>{
 function openJobPop(k){ const b=boothOf(k); if(!b) return; $('jpBody').innerHTML=jobDetailHtml(b); $('jobPop').hidden=false; }
 function closeJobPop(){ $('jobPop').hidden=true; }
 document.addEventListener('click',e=>{
-  const jp=e.target.closest('[data-jp]'); if(jp&&!e.target.closest('#jobPop')){ openJobPop(jp.dataset.jp); return; }
-  if(e.target.closest('[data-opendesk]')){ closeJobPop(); goDesk(); return; }
+  const jp=e.target.closest('[data-jp]'); if(jp&&!e.target.closest('#jobPop')){ const jb=boothOf(jp.dataset.jp); if(jb&&jb.desk&&deskOn){ goDesk(evIdOf(jb.k)); return; } openJobPop(jp.dataset.jp); return; }   /* งานจากทะเบียน: กดแล้วเปิดหน้างาน & P&L เลย */
+  { const od=e.target.closest('[data-opendesk]'); if(od){ closeJobPop(); goDesk(od.dataset.opendesk); return; } }
   if(e.target.closest('#jpX')||e.target.id==='jobPop'){ closeJobPop(); return; }
   if(e.target.closest('#jobPop [data-bedit],#jobPop [data-bdel]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
 });
@@ -1600,10 +1605,11 @@ document.addEventListener('click',async e=>{
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
   if(t.closest('#dsAdd')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
+  if(t.closest('#deskBtn,#deskBtnM')){ goDesk(); return; }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
   if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); goAdd(ad?ad.dataset.addtype:'catering'); return; }
-  { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
+  { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(evIdOf(bb.k)); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
   if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const ct=t.closest('[data-cup],[data-cdn]');
@@ -1685,7 +1691,7 @@ async function start(){
     /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
     deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
     deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
-    if(deskOn){ deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
+    if(deskOn){ $('deskBtn').hidden=false; $('mdesk').hidden=false; deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
