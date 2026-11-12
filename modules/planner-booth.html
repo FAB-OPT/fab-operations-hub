@@ -15,6 +15,13 @@
 .mdesk{padding:0 14px 8px;display:flex;flex-direction:column;gap:6px}.mdesk[hidden]{display:none}.mdesk .addbtn{width:100%}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
+/* ฝังในหน้ารวม: จัดการทีม/หมวด เป็นอีกหน้าเต็ม ไม่ใช่ป๊อปอัป */
+html.embed .mgr{display:block;padding:0;background:#f6f7f9;overflow:auto;backdrop-filter:none;-webkit-backdrop-filter:none}
+html.embed .mgr[hidden]{display:none}
+html.embed .mgr-box{width:100%;max-width:1100px;margin:0 auto;border-radius:0;box-shadow:none;max-height:none;animation:none;background:transparent;padding:16px 20px 40px}
+html.embed .mgr .hd{justify-content:flex-start;gap:14px;font-size:19px}
+html.embed .mgr .hd .x{width:auto;height:36px;padding:0 16px;border-radius:999px;font-size:14px;font-weight:800;border:1px solid var(--line);background:#fff;cursor:pointer;white-space:nowrap}
+html.embed .mgr-sub{margin:0 0 12px}
 *{box-sizing:border-box}
 html,body{margin:0;background:#f5f6f8;color:var(--ink);font-family:'Sarabun',sans-serif;font-size:14px;line-height:1.45;-webkit-text-size-adjust:100%}
 button,input,select{font:inherit;color:inherit}
@@ -592,7 +599,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <div class="side-foot">
       <button class="addbtn" id="deskBtn" hidden>📊 รายงาน &amp; P&amp;L</button>
       <button class="addbtn" id="menuBtn" hidden>🍽️ เมนู &amp; BOM</button>
-      <button class="addbtn tl-m" id="addOne">⚙️ จัดการงาน / ทีม / หมวด</button>
+      <button class="addbtn tl-m" id="addOne">⚙️ <span id="addOneT">จัดการงาน / ทีม / หมวด</span></button>
       <div class="row2"><button class="goHome">← หน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
       <div class="foot">ทุกคนเห็นข้อมูลตรงกัน</div>
     </div>
@@ -651,8 +658,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
 
 <!-- ป๊อปอัปจัดการทีมและหมวด -->
 <div class="mgr" id="mgr" hidden><div class="mgr-box">
-  <div class="hd"><span>จัดการงาน Catering / Booth</span><button class="x" id="mgrX" aria-label="ปิด">✕</button></div>
-  <p class="mgr-sub">รายการงานทั้งหมด เพิ่ม แก้ไข หรือลบได้ · ทุกคนเห็นการเปลี่ยนแปลงทันที</p>
+  <div class="hd"><button class="x" id="mgrX" aria-label="กลับ">← กลับ Plan งาน</button><span id="mgrTtl">จัดการงาน Catering / Booth</span></div>
+  <p class="mgr-sub" id="mgrSub">รายการงานทั้งหมด เพิ่ม แก้ไข หรือลบได้ · ทุกคนเห็นการเปลี่ยนแปลงทันที</p>
   <div id="mgrBody"></div>
 </div></div>
 
@@ -1257,14 +1264,18 @@ function jobCard(b){
 function paintMgr(){
   const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
   const catRows=cats.map(c=>{ const n=plans.filter(p=>p.type===c.k).length; return `<div class="mg-row"><span class="sw" style="background:${esc(c.c)}"></span><div class="tx">${esc(c.l)}<small>${n} แผน</small></div><button class="ic sm" data-cup="${esc(c.k)}" aria-label="เลื่อนขึ้น">▲</button><button class="ic sm" data-cdn="${esc(c.k)}" aria-label="เลื่อนลง">▼</button><button class="ic" data-cedit="${esc(c.k)}" aria-label="แก้ไข">✎</button><button class="ic danger" data-cdel="${esc(c.k)}" aria-label="ลบ">✕</button></div>`; }).join('');
-  const cnt={all:booths.length,catering:booths.filter(b=>b.type==='catering').length,booth:booths.filter(b=>b.type!=='catering').length};
-  const list=booths.filter(b=>mgrTab==='all'||(mgrTab==='catering'?b.type==='catering':b.type!=='catering')).slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
+  /* มีทะเบียนงานแล้ว: งานใหม่ดูและแก้ที่ปุ่ม รายงาน & P&L / ปฏิทิน — หน้านี้เหลือแค่ทีม/หมวด (และงานเก่าที่ยังไม่ได้ย้ายถ้ามี) */
+  const bs=deskOn?booths.filter(b=>!b.desk):booths;
+  $('mgrTtl').textContent=deskOn?'จัดการทีม / หมวด':'จัดการงาน Catering / Booth';
+  $('mgrSub').textContent=deskOn?(bs.length?'งานใหม่ลงทะเบียนและดู P&L ที่ปุ่ม “รายงาน & P&L” · ด้านล่างคืองานเก่าที่ยังไม่ได้ย้ายเข้าทะเบียนงาน':'ตั้งชื่อทีม ประเภทแผน และสาขา · งานดูและแก้ที่ปุ่ม “รายงาน & P&L” หรือกดงานในปฏิทิน'):'รายการงานทั้งหมด เพิ่ม แก้ไข หรือลบได้ · ทุกคนเห็นการเปลี่ยนแปลงทันที';
+  const cnt={all:bs.length,catering:bs.filter(b=>b.type==='catering').length,booth:bs.filter(b=>b.type!=='catering').length};
+  const list=bs.filter(b=>mgrTab==='all'||(mgrTab==='catering'?b.type==='catering':b.type!=='catering')).slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
   const cTot=list.filter(b=>b.type==='catering').reduce((t,b)=>t+menuTotal(b),0), rTot=list.filter(b=>b.type!=='catering').reduce((t,b)=>t+(Number(b.rent)||0),0);
-  $('mgrBody').innerHTML=`<div class="jm-top"><div class="jm-tabs">${[['all','ทั้งหมด'],['catering','🍽️ Catering'],['booth','🎪 Booth']].map(([k,l])=>`<button class="${mgrTab===k?'on':''}" data-mtab="${k}">${l} <em>${cnt[k]}</em></button>`).join('')}</div>
+  const jobsHtml=`<div class="jm-top"><div class="jm-tabs">${[['all','ทั้งหมด'],['catering','🍽️ Catering'],['booth','🎪 Booth']].map(([k,l])=>`<button class="${mgrTab===k?'on':''}" data-mtab="${k}">${l} <em>${cnt[k]}</em></button>`).join('')}</div>
       <div class="jm-add"><button class="btn pri" data-addtype="catering">+ Catering</button><button class="btn pri" data-addtype="booth">+ Booth</button></div></div>
     <div class="jm-sum"><span><b>${list.length}</b> งาน</span>${cTot?`<span>ค่า Catering รวม <b>${money(cTot)}</b> บาท</span>`:''}${rTot?`<span>ค่าเช่าบูธรวม <b>${money(rTot)}</b> บาท</span>`:''}</div>
-    <div class="jm-list">${list.length?list.map(jobCard).join(''):`<div class="empty" style="padding:22px 10px;text-align:center">ยังไม่มีงาน${mgrTab==='all'?'':' ชนิดนี้'}<br>กด “+ Catering” หรือ “+ Booth” ด้านบนเพื่อเพิ่ม</div>`}</div>
-    <details class="jm-more"><summary>ตั้งค่าเพิ่มเติม · รายชื่อพนักงาน (${team.length}) และขั้นตอน (${cats.length})</summary>
+    <div class="jm-list">${list.length?list.map(jobCard).join(''):`<div class="empty" style="padding:22px 10px;text-align:center">ยังไม่มีงาน${mgrTab==='all'?'':' ชนิดนี้'}<br>กด “+ Catering” หรือ “+ Booth” ด้านบนเพื่อเพิ่ม</div>`}</div>`;
+  $('mgrBody').innerHTML=(deskOn&&!bs.length?'':jobsHtml)+`<details class="jm-more"${deskOn?' open':''}><summary>ตั้งค่าเพิ่มเติม · รายชื่อพนักงาน (${team.length}) และขั้นตอน (${cats.length})</summary>
       <div class="mg-cols2"><div class="mg-col"><div class="mg-h">พนักงาน / ทีม <em>${team.length}</em></div>${teamRows}<button class="mini addrow" id="addTeam">+ เพิ่มสมาชิก</button></div>
       <div class="mg-col"><div class="mg-h">ประเภทแผน <em>${cats.length}</em></div>${catRows}<button class="mini addrow" id="addCat">+ เพิ่มประเภท</button></div>
       <div class="mg-col"><div class="mg-h">สาขาสำรอง <em>${helpBr.length}</em></div><div class="mut" style="font-size:11.5px;margin:-4px 2px 6px;color:var(--ink3)">ใช้เมื่อโหลดทะเบียนสาขาของฮับไม่ได้</div>${helpBr.map(b=>`<div class="mg-row"><div class="tx">${esc(b)}</div><button class="ic" data-hedit="${esc(b)}" aria-label="แก้ไขชื่อสาขา">✎</button><button class="ic danger" data-hdel="${esc(b)}" aria-label="ลบสาขา">✕</button></div>`).join('')}<button class="mini addrow" id="addHelp">+ เพิ่มสาขา</button></div></div></details>`;
@@ -1715,7 +1726,7 @@ async function start(){
     /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
     deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
     deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
-    if(deskOn){ $('deskBtn').hidden=false; $('mdesk').hidden=false; if(HubMod.can('plannerbooth','desk-admin',DESK_DEF)){ $('menuBtn').hidden=false; $('menuBtnM').hidden=false; } deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
+    if(deskOn){ $('addOneT').textContent='จัดการทีม / หมวด'; $('deskBtn').hidden=false; $('mdesk').hidden=false; if(HubMod.can('plannerbooth','desk-admin',DESK_DEF)){ $('menuBtn').hidden=false; $('menuBtnM').hidden=false; } deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
