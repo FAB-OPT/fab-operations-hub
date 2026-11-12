@@ -20,6 +20,14 @@ body{display:flex;flex-direction:column;background:var(--bg)}
 .stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
 .stage iframe[hidden]{display:none}
 @media(max-width:760px){.tabrow{padding:8px 14px}.tabrow .hint{display:none}}
+/* หน้าต่างซ้อน: ลงทะเบียนงาน Catering/Booth จากหน้า Plan งาน (ฟอร์มของทะเบียนงาน) */
+.addov{position:fixed;inset:0;z-index:2000;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;padding:20px}
+.addov[hidden]{display:none}
+.addbox{background:var(--bg);border-radius:18px;box-shadow:0 20px 60px rgba(15,23,42,.3);width:min(1120px,100%);height:100%;max-height:calc(100vh - 40px);display:flex;flex-direction:column;overflow:hidden}
+.addhd{display:flex;align-items:center;gap:10px;padding:12px 18px;background:var(--bg2);border-bottom:1px solid var(--border);font-weight:800}
+.addhd .addx{margin-left:auto;border:1px solid var(--border);background:#fff;border-radius:10px;width:34px;height:34px;font-size:16px;cursor:pointer}
+.addbox iframe{flex:1;min-height:0;border:0;width:100%;background:var(--bg)}
+@media(max-width:760px){.addov{padding:0}.addbox{border-radius:0;max-height:none}}
 </style>
 </head>
 <body>
@@ -43,6 +51,11 @@ body{display:flex;flex-direction:column;background:var(--bg)}
 <div class="stage">
   <iframe id="fPlan" title="Plan งาน" src="planner-booth.html?embed=1"></iframe>
   <iframe id="fDesk" title="ทะเบียนงาน และ P&L" data-src="New/index.html?embed=1" hidden></iframe>
+</div>
+
+<div class="addov" id="addOv" hidden>
+  <div class="addbox"><div class="addhd"><span id="addTtl">ลงทะเบียนงาน</span><button class="addx" id="addX" aria-label="ปิด">✕</button></div>
+    <iframe id="fAdd" title="ลงทะเบียนงาน"></iframe></div>
 </div>
 
 <script>
@@ -69,7 +82,23 @@ body{display:flex;flex-direction:column;background:var(--bg)}
     $('hint').textContent = HINT[t];
     try { sessionStorage.setItem('bs_tab', t); } catch (e) {}
   }
-  window.addEventListener('message', function (e) { if (e.origin === location.origin && e.data && e.data.bs === 'open-desk') show('desk'); });   /* ปุ่มใน Plan งาน → ไปแท็บทะเบียนงาน */
+  function closeAdd() { $('addOv').hidden = true; $('fAdd').src = 'about:blank'; }
+  $('addX').onclick = closeAdd;
+  $('addOv').addEventListener('click', function (e) { if (e.target === $('addOv')) closeAdd(); });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('addOv').hidden) closeAdd(); });
+  window.addEventListener('message', function (e) {
+    if (e.origin !== location.origin || !e.data) return;
+    if (e.data.bs === 'open-desk') show('desk');
+    else if (e.data.bs === 'add-job' && canDesk) {   /* ปุ่มเพิ่มงานใน Plan → ฟอร์มลงทะเบียนของทะเบียนงานเป็นหน้าต่างซ้อน */
+      var ty = e.data.type === 'booth' ? 'booth' : 'catering';
+      $('addTtl').textContent = ty === 'booth' ? 'ลงทะเบียนงาน Booth' : 'ลงทะเบียนงาน Catering';
+      $('fAdd').src = 'New/index.html?embed=1&add=' + ty; $('addOv').hidden = false;
+    } else if (e.data.bs === 'added') {   /* ลงทะเบียนเสร็จ: ปิดหน้าต่าง · Plan ดึงงานใหม่ · แท็บทะเบียนงานโหลดใหม่ */
+      closeAdd();
+      try { $('fPlan').contentWindow.postMessage({ bs: 'refresh' }, location.origin); } catch (x) {}
+      if ($('fDesk').getAttribute('src')) $('fDesk').src = $('fDesk').getAttribute('src');
+    }
+  });   /* ปุ่มใน Plan งาน → ไปแท็บทะเบียนงาน */
   $('tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-t]'); if (b && !b.hidden) show(b.dataset.t); });
 
   /* แท็บทะเบียนงานโชว์เฉพาะคนที่มีสิทธิ์ข้อใดข้อหนึ่งของส่วนนี้ (หน้าสิทธิ์ของฮับ) */

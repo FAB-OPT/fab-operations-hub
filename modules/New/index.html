@@ -657,6 +657,9 @@ function allowedBrands(){
   const m=S.uid&&S.members[S.uid];return m?(m.brands||[]).filter(b=>BRANDS[b]):[];
 }
 function myRole(){if(S.isOwner)return"owner";const m=S.uid&&S.members[S.uid];return m?m.role:null}
+/* โหมดเพิ่มงาน (?add=catering|booth): ฝังเป็นหน้าต่างซ้อนในหน้า Plan งาน — เปิดตรงฟอร์มลงทะเบียนงาน ไม่มีเมนู · บันทึกแล้วบอกหน้าแม่ให้ปิดและรีเฟรช */
+const ADDQ=(new URLSearchParams(location.search).get("add")||"").toLowerCase()==="booth"?"booth":(new URLSearchParams(location.search).get("add")?"catering":"");
+if(ADDQ)document.documentElement.classList.add("addmode");
 function applyAccess(){
   const al=allowedBrands(),role=myRole();
   S.isSys=S.isOwner||(role==="sysadmin"&&!!S.levelAdmin);
@@ -665,7 +668,8 @@ function applyAccess(){
   if(S.brand&&al.includes(S.brand)){rerender();return}
   if(S.brand)leaveBrand();
   const saved=ls("bc.brand");
-  if(al.length===1)enterBrand(al[0]);
+  if(ADDQ&&al.includes("jaedang"))enterBrand("jaedang");   /* โหมดเพิ่มงานจากหน้า Plan: เจ๊แดงเสมอ */
+  else if(al.length===1)enterBrand(al[0]);
   else if(saved&&al.includes(saved))enterBrand(saved);
   else showGate();
 }
@@ -721,7 +725,7 @@ function showGate(){
 function enterBrand(b){
   if(!allowedBrands().includes(b))return;
   S.brand=b;ls("bc.brand",b);document.body.dataset.brand=b;
-  $("#gate").hidden=true;$("#app").hidden=false;S.view="home";S.eventId=null;
+  $("#gate").hidden=true;$("#app").hidden=false;S.view=ADDQ?"new":"home";S.eventId=null;
   if(S.platformReady)subscribe();render();
 }
 document.addEventListener("click",ev=>{
@@ -1026,7 +1030,7 @@ function calView(){
 const FORMATS=["Catering A (Snack box)","Catering B (Buffet)","Booth"];
 const safeUrl=u=>/^https:\/\/\S+$/i.test(String(u||""));
 const isBooth=e=>e.format==="Booth";
-function blankEvent(){return{format:"Catering A (Snack box)",customer:"",phone:"",dates:[],serveFrom:"08:00",serveTo:"13:00",venue:"",guests:"",
+function blankEvent(){return{format:ADDQ==="booth"?"Booth":"Catering A (Snack box)",customer:"",phone:"",dates:[],serveFrom:"08:00",serveTo:"13:00",venue:"",guests:"",
   packages:[{menuId:"",name:"",price:"",qty:""}],distributionNote:"",cateringFeePerDay:"",vatIncluded:true,status:"confirmed",note:""}}
 function viewForm(){
   if(!S.isAdmin)return `<div class="empty">เฉพาะผู้ดูแลที่ลงทะเบียนงานได้</div>`;
@@ -2030,7 +2034,9 @@ function bind(){
           await S.db.collection(base+"/events/"+ref.id+"/payments").doc().set(pay);
           logAct("slip",{id:ref.id,...body},"แนบสลิป");toast("ยืนยันงานและแนบสลิปแล้ว");
         }catch(x){toast("บันทึกงานแล้ว แต่แนบสลิปไม่สำเร็จ แนบใหม่ได้ในหน้างาน")}}
-        S.slipFile=null;go("event",{id:ref.id})}
+        S.slipFile=null;
+        if(ADDQ){try{window.parent.postMessage({bs:"added",id:ref.id},location.origin)}catch(_){}toast("ลงทะเบียนงานแล้ว");return}
+        go("event",{id:ref.id})}
       else if(sub){sub.disabled=false;sub.textContent=S.editEvent?"บันทึกการแก้ไข":"ยืนยันงาน"}
     });
   }

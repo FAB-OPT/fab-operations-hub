@@ -12,7 +12,6 @@
 <script src="hub-docstore.js?v=20261030a"></script>
 <style>
 :root{--ink:#111827;--ink2:#4b5563;--ink3:#9ca3af;--line:#e5e7eb;--line2:#f1f3f6;--accent:#ff7a1a;--accent-soft:#fff3e8;--accent-ink:#c2530a;--red:#be123c;--red-soft:#fff1f2;--blue:#ff7a1a;--gold-ink:#d95f0e;--today:#fff7ed;--weekend:#fbfbfd}
-body.deskjobs .tl-j,body.deskjobs #addBoothSide,body.deskjobs [data-addtype]{display:none!important}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
 *{box-sizing:border-box}
@@ -761,9 +760,12 @@ let db=null, unsubMonth=null, unsubTeam=null, unsubCats=null, unsubHol=null;
 let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
 let helpBr=DEFAULT_HELP.slice();   /* สาขาที่พนักงานไปช่วย: เก็บที่ bconfig/helpbranches */
 let booths=[];   /* บูธ / งาน: [{k,name,place,from,to}] = legacyBooths (bconfig/booths ทุกคนเห็นตรงกัน) + deskJobs (ดึงจากทะเบียนงาน อ่านอย่างเดียว) */
-let legacyBooths=[], deskJobs=[], deskOn=false, deskReg=false, deskSig='';
+let legacyBooths=[], deskJobs=[], deskOn=false, deskReg=false, deskSig='', deskClient=null;
 const DESK_DEF={'desk-view':['admin','coo','support'],'desk-register':['admin','support'],'desk-sales':['admin','support'],'desk-admin':['admin']};   /* ตรงกับ modules/booth.html */
 function mergeBooths(){ booths=legacyBooths.concat(deskJobs); if(boothSel&&!boothOf(boothSel)) boothSel=null; }
+/* เพิ่มงาน Catering/Booth: เปิดฟอร์มลงทะเบียนของทะเบียนงานเป็นหน้าต่างซ้อนในหน้า Plan (หน้ารวม booth.html) · ถ้าเปิดหน้านี้เดี่ยวๆ พาไปแท็บทะเบียนงาน */
+function goAdd(type){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'add-job',type:type==='booth'?'booth':'catering'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
+window.addEventListener('message',e=>{ if(e.origin===location.origin&&e.data&&e.data.bs==='refresh'&&deskClient) pullDesk(deskClient); });
 function goDesk(){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'open-desk'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
 /* งานจากทะเบียนงาน & P&L (bc_docs · เจ๊แดง) → งานในปฏิทิน Plan · ไม่เก็บซ้ำ ไม่มีตัวเลขการเงิน · วันที่ไม่ติดกันแยกเป็นช่วงละงาน */
 async function pullDesk(client){
@@ -1346,8 +1348,8 @@ async function addJobsFrom(r){
   toast(list.length>1?`เพิ่มงานแล้ว ${list.length} งาน`:'เพิ่มงานแล้ว'); return true;
 }
 async function tlAddJob(type){
-  if(deskReg){ toast('ลงทะเบียนงานที่แท็บ “ทะเบียนงาน & P&L” กรอกครั้งเดียว Plan ดึงมาแสดงเอง'); goDesk(); return; }
-  if(deskOn) return toast('ลงทะเบียนงานที่แท็บทะเบียนงาน (ต้องมีสิทธิ์ลงทะเบียนงาน)');
+  if(deskReg){ goAdd(type); return; }
+  if(deskOn) return toast('ลงทะเบียนงานต้องมีสิทธิ์ “ลงทะเบียนงาน” ในส่วนทะเบียนงาน');
   if(!canJobs) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   const r=await askJob(null,type); if(!r) return;
   if(!await addJobsFrom(r)) return;
@@ -1416,7 +1418,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAddMenu(); i
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
 function closeAddMenu(){ const m=$('addPop'); if(m) m.hidden=true; }
 document.addEventListener('click',e=>{
-  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); if(deskOn){ openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel||new Date().getDate()).padStart(2,'0')}`); return; } $('addPop').hidden=false; return; }
+  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('addPop').hidden=false; return; }
   if(e.target.id==='addPop'||e.target.closest('#apX')||e.target.closest('#addPop [data-tl]')) closeAddMenu();
   const jr=e.target.closest('[data-jr]'); if(jr){ const k=jr.dataset.jr; tlSel=(tlSel===k&&jr.classList.contains('mtl-c'))?null:k; paintTL(); paintMTl(); return; }
   if(e.target.closest('#toTl')){ setView('tl'); return; }
@@ -1600,7 +1602,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ toast('ลงทะเบียนงานที่แท็บ “ทะเบียนงาน & P&L” กรอกครั้งเดียว Plan ดึงมาแสดงเอง'); goDesk(); return; }
+  if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); goAdd(ad?ad.dataset.addtype:'catering'); return; }
   { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
   if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
@@ -1683,7 +1685,7 @@ async function start(){
     /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
     deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
     deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
-    if(deskOn){ document.body.classList.add('deskjobs'); pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนที่แท็บทะเบียนงานที่เดียว: ซ่อนปุ่มเพิ่มงานใน Plan */
+    if(deskOn){ deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
