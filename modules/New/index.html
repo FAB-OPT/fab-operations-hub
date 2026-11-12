@@ -660,6 +660,8 @@ function myRole(){if(S.isOwner)return"owner";const m=S.uid&&S.members[S.uid];ret
 /* โหมดเพิ่มงาน (?add=catering|booth): ฝังเป็นหน้าต่างซ้อนในหน้า Plan งาน — เปิดตรงฟอร์มลงทะเบียนงาน ไม่มีเมนู · บันทึกแล้วบอกหน้าแม่ให้ปิดและรีเฟรช */
 const ADDQ=(new URLSearchParams(location.search).get("add")||"").toLowerCase()==="booth"?"booth":(new URLSearchParams(location.search).get("add")?"catering":"");
 if(ADDQ)document.documentElement.classList.add("addmode");
+/* ฝังในหน้ารวมของฮับ (ไม่ใช่โหมดเพิ่มงาน): ไม่มีปุ่ม Add new event ที่นี่ — เพิ่มงานที่แท็บ Plan งาน กด "+ เพิ่ม" (ฟอร์มเดียวกัน) */
+const NOADD=/[?&]embed=1/.test(location.search)&&!ADDQ;
 function applyAccess(){
   const al=allowedBrands(),role=myRole();
   S.isSys=S.isOwner||(role==="sysadmin"&&!!S.levelAdmin);
@@ -809,12 +811,12 @@ function viewEvents(){
   else if(S.filter==="past")list=list.filter(e=>{const ds=sortedDates(e);return ds.length&&ds[ds.length-1]<t}).reverse();
   const head=`<div class="row" style="justify-content:space-between">
     <h1>งานที่คอนเฟิร์มแล้ว</h1>
-    <div class="row">${S.downloads&&S.events.length?xMenu([["pdfAll","PDF","สรุปงานทั้งหมด"],["jpgAll","JPEG","รูปภาพ ส่งต่อในไลน์"]]):""}${S.isAdmin?`<button class="btn" data-view="new" type="button">+ Add new event</button>`:""}</div></div>
+    <div class="row">${S.downloads&&S.events.length?xMenu([["pdfAll","PDF","สรุปงานทั้งหมด"],["jpgAll","JPEG","รูปภาพ ส่งต่อในไลน์"]]):""}${S.isAdmin&&!NOADD?`<button class="btn" data-view="new" type="button">+ Add new event</button>`:""}</div></div>
     ${S.evReady?calView():""}
     <div class="row" style="gap:8px">${S.calDay?`<span class="chip" style="background:var(--brand-soft);color:var(--ink);padding:6px 8px 6px 14px">งานวันที่ ${dLabel(S.calDay)} <button class="x" data-calclear type="button" aria-label="ล้างวันที่">×</button></span>`
       :`<div class="filters">${[["upcoming","กำลังจะถึง"],["past","จบแล้ว"],["all","ทั้งหมด"]].map(([k,l])=>`<button class="fbtn" data-filter="${k}" aria-pressed="${S.filter===k}" type="button">${l} <span class="num">${counts[k]}</span></button>`).join("")}</div>`}</div>`;
   if(!S.evReady)return head+`<div class="empty">กำลังโหลดรายการงาน…</div>`;
-  if(!list.length)return head+`<div class="empty">ยังไม่มีงานในหมวดนี้${S.isAdmin?"<br>กด “+ Add new event” เพื่อเพิ่มงานแรก":""}</div>`;
+  if(!list.length)return head+`<div class="empty">ยังไม่มีงานในหมวดนี้${S.isAdmin?(NOADD?"<br>เพิ่มงานที่แท็บ “Plan งาน” กด “+ เพิ่ม” แล้วเลือก Catering / Booth":"<br>กด “+ Add new event” เพื่อเพิ่มงานแรก"):""}</div>`;
   return head+`<div class="evlist">${list.map(e=>{
     const ds=sortedDates(e),[cls,lab]=eventStatus(e),f=ds[0];
     const dd=f?f.split("-"):null;
@@ -855,7 +857,7 @@ function goSales(){const tb=todayBooths();
 function homeItems(){
   const role=myRole(),it=[];
   it.push(["events","list","งานทั้งหมด"],["cal","cal","ปฏิทินงาน"]);
-  if(S.isAdmin)it.push(["feas","feas","Run Feasibility"],["new","plus","Add new event"]);
+  if(S.isAdmin){it.push(["feas","feas","Run Feasibility"]);if(!NOADD)it.push(["new","plus","Add new event"])}
   if(S.canSales)it.push(["sales","pos","กรอกยอดขาย"]);
   it.push(["dash","chart","Dashboard"]);
   if(S.isOwner||role==="management")it.push(["overall","pie","ภาพรวม 2 แบรนด์"]);
@@ -889,8 +891,8 @@ const isDesk=()=>window.matchMedia("(min-width:821px)").matches;
 function sideNav(u){
   const role=myRole(),v=S.view==="event"?"events":S.view==="home"?"dash":S.view;
   const it=(k,ic,l,extra="")=>`<button class="side-it" data-home="${k}" type="button" aria-current="${v===k?"page":"false"}">${ico(ic,22)}<span>${l}</span>${extra}</button>`;
-  let h=S.isAdmin?`<button class="side-new" data-home="new" type="button">${ico("plus",20)}<span>Add new event</span></button>`
-    :S.canSales?`<button class="side-new" data-home="sales" type="button">${ico("pos",20)}<span>กรอกยอดขาย</span></button>`:"";
+  let h=(S.isAdmin&&!NOADD)?`<button class="side-new" data-home="new" type="button">${ico("plus",20)}<span>Add new event</span></button>`
+    :(S.canSales&&!S.isAdmin)?`<button class="side-new" data-home="sales" type="button">${ico("pos",20)}<span>กรอกยอดขาย</span></button>`:"";
   h+=it("dash","chart","Dashboard")+it("events","list","งานทั้งหมด")+it("cal","cal","ปฏิทินงาน");
   if(S.isAdmin)h+=it("feas","feas","Run Feasibility");
   if(S.isAdmin&&S.canSales)h+=it("sales","pos","กรอกยอดขาย");
@@ -902,7 +904,7 @@ function sideNav(u){
   return h+`<div class="side-sec">บริการอื่น</div>`+o.join("");
 }
 function bottomNav(u){
-  const role=myRole(),c=S.isAdmin?["new","plus","Add event"]:S.canSales?["sales","pos","กรอกยอด"]:["events","list","งาน"];
+  const role=myRole(),c=(S.isAdmin&&!NOADD)?["new","plus","Add event"]:S.canSales?["sales","pos","กรอกยอด"]:["events","list","งาน"];
   const v=S.view==="event"?"events":S.view;
   const b=(k,ic,l)=>`<button class="bn${v===k||(k==="events"&&v==="events")?" on":""}" data-home="${k}" type="button">${ico(ic,22)}<span>${l}</span>${k==="notif"&&u?`<span class="nbadge">${u>99?"99+":u}</span>`:""}</button>`;
   return b("home","home","หน้าแรก")+b("events","list","งานทั้งหมด")+`<button class="bn-c" data-home="${c[0]}" type="button" aria-label="${c[2]}"><span>${ico(c[1],28)}</span><em>${c[2]}</em></button>`+b("dash","chart","Dashboard")+b("notif","bell","แจ้งเตือน");
@@ -923,7 +925,7 @@ function viewFeas(){
   const z=fzState(),e=fzEvent(z),c=calcFeas(e),tsc=inlineFc();
   const inp=(id,l,v,ph="",st="")=>`<label>${l}<input id="${id}" type="number" min="0" step="any" inputmode="decimal" value="${esc(v)}" placeholder="${ph}" ${st}></label>`;
   return `<div class="row" style="justify-content:space-between"><div><div class="sectionlabel">ประเมินก่อนรับงาน · ยังไม่ต้องสร้างงาน</div><h1>Run Feasibility</h1></div>
-    <div class="row"><button class="btn sec" data-view="new" type="button">← Add new event</button>${S.downloads?xMenu([["fzPdf","PDF",""],["fzJpg","JPEG","รูปภาพ"],["fzXlsx","Excel",".xlsx"]]):""}<button class="btn sec" id="fzReset" type="button">ล้างค่า</button></div></div>
+    <div class="row">${NOADD?"":`<button class="btn sec" data-view="new" type="button">← Add new event</button>`}${S.downloads?xMenu([["fzPdf","PDF",""],["fzJpg","JPEG","รูปภาพ"],["fzXlsx","Excel",".xlsx"]]):""}<button class="btn sec" id="fzReset" type="button">ล้างค่า</button></div></div>
   <section class="panel" id="fzForm" style="display:flex;flex-direction:column;gap:12px">
     <label>ชื่องาน / สถานที่ (ไม่บังคับ)<input id="fz-name" value="${esc(z.name)}" placeholder="เช่น เซ็นทรัลลาดพร้าว"></label>
     <div class="grid">
