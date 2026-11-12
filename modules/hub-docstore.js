@@ -118,10 +118,12 @@
         /* เจ๊แดง: ทะเบียนจริงของฮับคือรายการ jaedaengBranches (ชื่อร้าน) — เก็บเฉพาะชื่อไว้ใช้กรองรหัส 40xx ที่ถูกลบออกจากฮับแล้ว */
         var jd = Array.isArray(m.jaedaengBranches) ? m.jaedaengBranches.map(function (x) { return String((x && x.name) || x || ''); }) : null;
         self.data = { branches: m.branches, perms: m.perms || prev.perms || null, brands: m.brands || prev.brands || null, jaedaengBranches: jd };
-        lsSet(CFG_KEY, self.data);
+        lsSet(CFG_KEY, self.data); lsSet(CFG_KEY + '_at', Date.now());
         return self.data;
       });
     },
+    /* โหลดสิทธิ์ล่าสุดจากฮับไม่เกิน maxMs ที่แล้ว (หน้าแม่โหลดไว้ให้แล้ว) — ใช้ข้ามการรอตอนเปิดหน้าซ้อน */
+    fresh: function (maxMs) { var at = +lsGet(CFG_KEY + '_at') || 0; return !!(this.data && at && Date.now() - at < (maxMs || 120000)); },
     load: function () {
       var self = this;
       return this.loadSb().catch(function () { return self.loadSheets(); });

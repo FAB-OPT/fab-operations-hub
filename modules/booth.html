@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap">
 <link rel="stylesheet" href="hub-mod.css?v=20261112">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
-<script src="hub-docstore.js?v=20261030a"></script>
+<script src="hub-docstore.js?v=20261112a"></script>
 <style>
 /* หน้ารวมหน้าเดียว: Plan งาน (ปฏิทิน) เป็นหน้าหลัก · ทะเบียนงาน & P&L เป็นหน้าต่างซ้อนที่เปิดจากงานในปฏิทิน หรือปุ่ม "รายงาน & ตั้งค่า" */
 html,body{height:100%;overflow:hidden}
@@ -76,15 +76,16 @@ body{display:flex;flex-direction:column;background:var(--bg)}
       showOv(ty === 'booth' ? 'ลงทะเบียนงาน Booth' : 'ลงทะเบียนงาน Catering', 'New/index.html?embed=1&add=' + ty);
     } else if (d.bs === 'open-event' && d.id) {   /* กดงานในปฏิทิน → หน้างาน: สลิป ยอดขาย P&L */
       showOv('งาน & P&L', 'New/index.html?embed=1&event=' + encodeURIComponent(d.id));
-    } else if (d.bs === 'open-desk') {   /* รายงาน & ตั้งค่า: Dashboard · งานทั้งหมด · Feasibility · เมนู & BOM */
-      showOv('รายงาน & ตั้งค่า · ทะเบียนงาน & P&L', 'New/index.html?embed=1', true);
+    } else if (d.bs === 'open-desk') {   /* ปุ่มแยก: รายงาน & P&L (dash) · เมนู & BOM (menus) */
+      var vw = d.view === 'menus' ? 'menus' : 'dash';
+      showOv(vw === 'menus' ? 'เมนู & BOM' : 'รายงาน & P&L · ทะเบียนงาน', 'New/index.html?embed=1&view=' + vw, true);
     } else if (d.bs === 'added') { closeOv(true); }
   });
 
   /* ส่วนทะเบียนงานเปิดให้เฉพาะคนที่มีสิทธิ์ข้อใดข้อหนึ่งของส่วนนี้ (หน้าสิทธิ์ของฮับ) */
   function decide() {
     canDesk = Object.keys(DEF).some(function (k) { return H.can('plannerbooth', k, DEF); });
-    if (canDesk && new URLSearchParams(location.search).get('tab') === 'desk') showOv('รายงาน & ตั้งค่า · ทะเบียนงาน & P&L', 'New/index.html?embed=1', true);
+    if (canDesk && new URLSearchParams(location.search).get('tab') === 'desk') showOv('รายงาน & P&L · ทะเบียนงาน', 'New/index.html?embed=1&view=dash', true);
   }
   var done = false, t = setTimeout(function () { if (!done) { done = true; decide(); } }, 4000);
   H.Cfg.loadSb().then(function () { clearTimeout(t); if (!done) { done = true; decide(); } }, function () { clearTimeout(t); if (!done) { done = true; decide(); } });

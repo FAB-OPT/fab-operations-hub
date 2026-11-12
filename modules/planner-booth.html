@@ -9,10 +9,10 @@
 <!-- สร้างจาก modules/planner.html: โครงเดียวกัน แยกข้อมูล (col ขึ้นต้นด้วย b) แยกสิทธิ์ (plannerbooth) ไม่ซิงก์ Visit -->
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
-<script src="hub-docstore.js?v=20261030a"></script>
+<script src="hub-docstore.js?v=20261112a"></script>
 <style>
 :root{--ink:#111827;--ink2:#4b5563;--ink3:#9ca3af;--line:#e5e7eb;--line2:#f1f3f6;--accent:#ff7a1a;--accent-soft:#fff3e8;--accent-ink:#c2530a;--red:#be123c;--red-soft:#fff1f2;--blue:#ff7a1a;--gold-ink:#d95f0e;--today:#fff7ed;--weekend:#fbfbfd}
-.mdesk{padding:0 14px 8px}.mdesk .addbtn{width:100%}
+.mdesk{padding:0 14px 8px;display:flex;flex-direction:column;gap:6px}.mdesk[hidden]{display:none}.mdesk .addbtn{width:100%}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
 *{box-sizing:border-box}
@@ -590,7 +590,8 @@ button{cursor:pointer;border:0;background:none;padding:0}
     <div class="scard sc-off"><h4>ทีม</h4><div id="team"></div></div>
     <div class="scard sc-off"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
     <div class="side-foot">
-      <button class="addbtn" id="deskBtn" hidden>📊 รายงาน &amp; ตั้งค่า (P&amp;L · เมนู &amp; BOM)</button>
+      <button class="addbtn" id="deskBtn" hidden>📊 รายงาน &amp; P&amp;L</button>
+      <button class="addbtn" id="menuBtn" hidden>🍽️ เมนู &amp; BOM</button>
       <button class="addbtn tl-m" id="addOne">⚙️ จัดการงาน / ทีม / หมวด</button>
       <div class="row2"><button class="goHome">← หน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
       <div class="foot">ทุกคนเห็นข้อมูลตรงกัน</div>
@@ -624,7 +625,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="mtop">
     <div class="mhead"><h1>Plan งานบูธเจ๊แดง</h1><div class="mo"><button id="mprev" aria-label="เดือนก่อน">‹</button><b id="mtitle"></b><button id="mnext" aria-label="เดือนถัดไป">›</button></div></div>  </div>
   <div class="mlinks"><button class="goHome">← หน้าหลัก</button><button class="goOut">ออกจากระบบ</button></div>
-  <div class="mdesk" id="mdesk" hidden><button class="addbtn" id="deskBtnM">📊 รายงาน &amp; ตั้งค่า (P&amp;L · เมนู &amp; BOM)</button></div>
+  <div class="mdesk" id="mdesk" hidden><button class="addbtn" id="deskBtnM">📊 รายงาน &amp; P&amp;L</button><button class="addbtn" id="menuBtnM" hidden>🍽️ เมนู &amp; BOM</button></div>
   <div class="notice" id="notice" hidden></div>
   <div class="people" id="mbooths"></div>
   <div id="mjob" hidden></div>
@@ -771,7 +772,7 @@ function goAdd(type){ try{ if(window.parent&&window.parent!==window){ window.par
 window.addEventListener('message',e=>{ if(e.origin===location.origin&&e.data&&e.data.bs==='refresh'&&deskClient) pullDesk(deskClient); });
 /* goDesk(รหัสงาน) = เปิดหน้างาน & P&L ของงานนั้น · goDesk() = เปิดรายงาน & ตั้งค่า (Dashboard · งานทั้งหมด · Feasibility · เมนู & BOM) — เป็นหน้าต่างซ้อนในหน้ารวม */
 const evIdOf=k=>String(k||'').split(':')[1]||'';
-function goDesk(id){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage(id?{bs:'open-event',id}:{bs:'open-desk'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
+function goDesk(id,view){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage(id?{bs:'open-event',id}:{bs:'open-desk',view:view||'dash'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
 /* งานจากทะเบียนงาน & P&L (bc_docs · เจ๊แดง) → งานในปฏิทิน Plan · ไม่เก็บซ้ำ ไม่มีตัวเลขการเงิน · วันที่ไม่ติดกันแยกเป็นช่วงละงาน */
 async function pullDesk(client){
   try{
@@ -1605,7 +1606,8 @@ document.addEventListener('click',async e=>{
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
   if(t.closest('#dsAdd')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
-  if(t.closest('#deskBtn,#deskBtnM')){ goDesk(); return; }
+  if(t.closest('#deskBtn,#deskBtnM')){ goDesk(null,'dash'); return; }
+  if(t.closest('#menuBtn,#menuBtnM')){ goDesk(null,'menus'); return; }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
   if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); goAdd(ad?ad.dataset.addtype:'catering'); return; }
@@ -1691,7 +1693,7 @@ async function start(){
     /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
     deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
     deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
-    if(deskOn){ $('deskBtn').hidden=false; $('mdesk').hidden=false; deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
+    if(deskOn){ $('deskBtn').hidden=false; $('mdesk').hidden=false; if(HubMod.can('plannerbooth','desk-admin',DESK_DEF)){ $('menuBtn').hidden=false; $('menuBtnM').hidden=false; } deskClient=client; pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนผ่านฟอร์มของทะเบียนงาน (หน้าต่างซ้อนในหน้านี้) แล้วดึงมาแสดงเอง */
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));

@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <style>:root{color-scheme:light;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
-<script src="../hub-docstore.js"></script>
+<script src="../hub-docstore.js?v=20261112a"></script>
 <script>
 /* ประตูของฮับ — เปิดหน้านี้ได้เฉพาะผ่านฮับ และต้องมีสิทธิ์ใดสิทธิ์หนึ่งของ "Booth & Catering Desk" ในหน้าสิทธิ์ของฮับ
    ไม่มีหน้าล็อกอินของแอปแล้ว: ตัวตนมาจากฮับ · บทบาทในแอปมาจากสิทธิ์ที่ติ๊กในฮับ (ระบบ "งานบูธ & Catering เจ๊แดง" ส่วนทะเบียนงาน & P&L)
@@ -43,6 +43,7 @@
     var s = H.Hub.session() || {}, code = H.Hub.userCode() || String(s.nick || s.name || 'unknown');
     open({ uid: 'hub:' + code, code: code, name: H.Hub.fullName() || code, role: role, brands: ['jaedang', 'tsc'] });
   };
+  if (H.Cfg.fresh && H.Cfg.fresh(120000)) { decide(); return; }      /* หน้าแม่ (Plan งาน) เพิ่งโหลดสิทธิ์มาให้แล้ว ไม่ต้องรอซ้ำ */
   var t = setTimeout(decide, 6000);                                   /* โหลดสิทธิ์ล่าสุดไม่ทัน ใช้ที่แคชไว้ (ไม่มีแคช = ค่าตั้งต้น) */
   H.Cfg.loadSb().then(function () { clearTimeout(t); decide(); }, function () { clearTimeout(t); decide(); });
 })();
@@ -661,6 +662,8 @@ function myRole(){if(S.isOwner)return"owner";const m=S.uid&&S.members[S.uid];ret
 const ADDQ=(new URLSearchParams(location.search).get("add")||"").toLowerCase()==="booth"?"booth":(new URLSearchParams(location.search).get("add")?"catering":"");
 /* ?event=<id>: เปิดหน้างานนั้นตรง ๆ (กดงานในปฏิทิน Plan งาน) — ไม่มีเมนู ไม่มีหัว เหมือนโหมดเพิ่มงาน */
 const EVQ=ADDQ?"":(new URLSearchParams(location.search).get("event")||"");
+/* ?view=dash|events|feas|menus|...: เปิดหน้านั้นตรง ๆ (ปุ่มแยกในหน้า Plan งาน: รายงาน & P&L / เมนู & BOM) */
+const VQ=(ADDQ||EVQ)?"":((v=>["dash","events","feas","menus","users","overall","sales","notif"].includes(v)?v:"")(new URLSearchParams(location.search).get("view")||""));
 if(ADDQ||EVQ)document.documentElement.classList.add("addmode");
 /* ฝังในหน้ารวมของฮับ (ไม่ใช่โหมดเพิ่มงาน): ไม่มีปุ่ม Add new event ที่นี่ — เพิ่มงานที่แท็บ Plan งาน กด "+ เพิ่ม" (ฟอร์มเดียวกัน) */
 const NOADD=/[?&]embed=1/.test(location.search)&&!ADDQ;
@@ -732,6 +735,7 @@ function enterBrand(b){
   $("#gate").hidden=true;$("#app").hidden=false;S.view=ADDQ?"new":"home";S.eventId=null;
   if(S.platformReady)subscribe();render();
   if(EVQ)go("event",{id:EVQ});
+  else if(VQ)go(VQ);
 }
 document.addEventListener("click",ev=>{
   const p=ev.target.closest("[data-pick]");if(p){enterBrand(p.dataset.pick);return}
