@@ -785,8 +785,8 @@ async function pullDesk(client){
       const runs=[[ds[0],ds[0]]]; for(let i=1;i<ds.length;i++){ const cur=runs[runs.length-1]; if(dd(ds[i])-dd(cur[1])===864e5) cur[1]=ds[i]; else runs.push([ds[i],ds[i]]); }
       const cat=e.format!=='Booth';
       runs.forEach((rg,i)=>out.push({k:'bc:'+row.id+(runs.length>1?':'+i:''),desk:true,type:cat?'catering':'booth',name:e.customer||'(ไม่มีชื่อลูกค้า)',place:e.venue||'',from:rg[0],to:rg[1],
-        timeFrom:e.serveFrom||'',timeTo:e.serveTo||'',format:e.format||'',guests:Number(e.guests)||0,contactName:e.customer||'',contactPhone:e.phone||'',
-        rent:Number(e.feas&&e.feas.rent)||0,menus:(e.packages||[]).map(p=>({n:p.name||'',q:p.qty,p:p.price})),staff:[],bzm:''}));
+        timeFrom:e.serveFrom||'',timeTo:e.serveTo||'',format:e.formatNote||e.format||'',guests:Number(e.guests)||0,contactName:e.contact||e.customer||'',contactPhone:e.phone||'',
+        rent:Number(e.feas&&e.feas.rent)||0,menus:(e.packages||[]).map(p=>({n:p.name||'',q:p.qty,p:p.price})),staff:Array.isArray(e.staff)?e.staff:[],bzm:e.bzm||''}));
     });
     const sig=JSON.stringify(out); if(sig===deskSig) return; deskSig=sig; deskJobs=out; mergeBooths(); paintAll();
   }catch(e){}
@@ -1347,16 +1347,38 @@ function paintMTl(){
       <div class="n">${esc(b.name)}</div><div class="s">${esc(b.place||'')} · ${dmy(b.from)}${b.to&&b.to!==b.from?'–'+dmy(b.to):''} (${n} วัน)</div>${key?`<div class="k">${esc(key)}</div>`:''}${on?`<div style="margin-top:8px">${jobDetailHtml(b)}</div>`:''}</div></div>`; }).join('')
     :`<div class="empty" style="padding:26px 10px;text-align:center">เดือนนี้ยังไม่มีงาน Catering / Booth${canJobs?'<br>กด “⚙️ จัดการ” เพื่อเพิ่มงาน':''}</div>`;
 }
+/* ฟอร์มงานของ Plan → เอกสารงานของทะเบียนงาน (ใช้ต่อกับ P&L / สลิป / ยอดขายได้เลย) */
+const evUuid=()=>(window.crypto&&crypto.randomUUID)?crypto.randomUUID():String(Date.now())+Math.random().toString(36).slice(2);
+function jobToDeskDoc(x){
+  const cat=x.type!=='booth', ds=[]; for(let d=new Date(x.from+'T00:00:00'),end=new Date((x.to||x.from)+'T00:00:00'); d<=end&&ds.length<92; d.setDate(d.getDate()+1)) ds.push(d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'));
+  const now=new Date().toISOString();
+  return {format:cat?(/buffet|บุฟเฟ|บุฟเฟ่ต์/i.test(x.format||'')?'Catering B (Buffet)':'Catering A (Snack box)'):'Booth',formatNote:cat?(x.format||''):'',
+    customer:String(x.name||'').replace(/^(catering|booth)\s+/i,'').trim()||x.name,contact:cat?(x.contactName||''):'',phone:x.contactPhone||'',dates:ds,serveFrom:x.timeFrom||'',serveTo:x.timeTo||'',venue:x.place||'',mapUrl:'',
+    guests:cat?(Number(x.guests)||0):0,packages:cat?(x.menus||[]).filter(m=>m.n).map(m=>({menuId:'',name:m.n,price:Number(m.p)||0,qty:Number(m.q)||0})):[],
+    distributionNote:'',cateringFeePerDay:0,feas:cat?null:{salesPerDay:0,rent:Number(x.rent)||0,staff:0,stay:false},feasFc:null,
+    vatIncluded:true,status:'confirmed',note:'',paid:0,staff:x.staff||[],bzm:x.bzm||'',createdBy:HubMod.Hub.userCode()||'',createdAt:now,updatedAt:now,src:'plan'};
+}
+async function addDeskJobs(list){
+  if(!deskClient){ toast('ยังเชื่อมต่อทะเบียนงานไม่ได้ ลองใหม่อีกครั้ง'); return false; }
+  let ok=0;
+  for(const x of list){
+    const r=await deskClient.rpc('bc_set',{p_col:'b/jaedang/events',p_id:evUuid(),p_data:jobToDeskDoc(x),p_by:HubMod.Hub.userCode()||''});
+    if(r&&r.error){ toast('บันทึกไม่สำเร็จ: '+(r.error.message||'ลองใหม่อีกครั้ง')); break; } ok++;
+  }
+  if(ok) await pullDesk(deskClient);
+  if(ok) toast(ok>1?`เพิ่มงานแล้ว ${ok} งาน`:'เพิ่มงานแล้ว');
+  return ok===list.length;
+}
 async function addJobsFrom(r){
   const list=[r,...(r.__extra||[])].map(x=>{ const y={...x}; delete y.__extra; return y; });
   const dup=list.find(x=>booths.some(b=>b.name===x.name&&b.type===x.type)); if(dup){ toast('มีงานชื่อนี้แล้ว: '+dup.name); return false; }
+  if(deskReg) return addDeskJobs(list);
   const t0=Date.now(); await saveBooths([...booths,...list.map((x,i)=>({k:'j'+(t0+i).toString(36),...x}))]);
   toast(list.length>1?`เพิ่มงานแล้ว ${list.length} งาน`:'เพิ่มงานแล้ว'); return true;
 }
 async function tlAddJob(type){
-  if(deskReg){ goAdd(type); return; }
-  if(deskOn) return toast('ลงทะเบียนงานต้องมีสิทธิ์ “ลงทะเบียนงาน” ในส่วนทะเบียนงาน');
-  if(!canJobs) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
+  if(deskOn&&!deskReg) return toast('ลงทะเบียนงานต้องมีสิทธิ์ “ลงทะเบียนงาน” ในส่วนทะเบียนงาน');
+  if(!canJobs&&!deskReg) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   const r=await askJob(null,type); if(!r) return;
   if(!await addJobsFrom(r)) return;
   if(r.from&&r.from.slice(0,7)!==mkey()){ Y=+r.from.slice(0,4); M=+r.from.slice(5,7)-1; sel=+r.from.slice(8,10); mSel=sel; subscribeMonth(); }
@@ -1610,7 +1632,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#menuBtn,#menuBtnM')){ goDesk(null,'menus'); return; }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
-  if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); goAdd(ad?ad.dataset.addtype:'catering'); return; }
+  if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); const r=await askJob(null,ad?ad.dataset.addtype:'catering'); if(r) await addJobsFrom(r); return; }
   { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(evIdOf(bb.k)); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
   if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
