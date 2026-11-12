@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ffffff">
+<title>งานบูธ & Catering เจ๊แดง</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap">
+<link rel="stylesheet" href="hub-mod.css?v=20261112">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
+<script src="hub-docstore.js?v=20261030a"></script>
+<style>
+/* หน้ารวม: ทะเบียนงาน & P&L + Plan งาน ในการ์ดเดียวของฮับ · แถบบนและแท็บชุดเดียวกับโมดูลอื่น (hub-mod.css) */
+html,body{height:100%;overflow:hidden}
+body{display:flex;flex-direction:column;background:var(--bg)}
+.tabrow{display:flex;align-items:center;gap:12px;padding:10px 22px;background:var(--bg2);border-bottom:1px solid var(--border)}
+.tabrow .segbar{margin:0}
+.tabrow .hint{color:var(--text3);font-size:12.5px;margin-left:auto}
+.stage{position:relative;flex:1;min-height:0}
+.stage iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--bg)}
+.stage iframe[hidden]{display:none}
+@media(max-width:760px){.tabrow{padding:8px 14px}.tabrow .hint{display:none}}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
+    <div class="brand-text"><div class="t-title">งานบูธ &amp; Catering เจ๊แดง</div><div class="t-sub">FAB Operations &amp; Training Hub</div></div></div>
+  <div class="spacer"></div>
+  <span class="userchip admin" id="me">—</span>
+  <button class="btn-back" id="backBtn" title="กลับหน้าหลัก"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับหน้าหลัก</span></button>
+</div>
+
+<div class="tabrow">
+  <div class="segbar" role="tablist" id="tabs">
+    <button class="tab" id="tabPlan" role="tab" aria-selected="true" data-t="plan">📅 Plan งาน</button>
+    <button class="tab" id="tabDesk" role="tab" aria-selected="false" data-t="desk" hidden>🧾 ทะเบียนงาน &amp; P&amp;L</button>
+  </div>
+  <span class="hint" id="hint">วางแผนงานทีม · วันหยุด · ไปช่วยสาขา</span>
+</div>
+
+<div class="stage">
+  <iframe id="fPlan" title="Plan งาน" src="planner-booth.html?embed=1"></iframe>
+  <iframe id="fDesk" title="ทะเบียนงาน และ P&L" data-src="New/index.html?embed=1" hidden></iframe>
+</div>
+
+<script>
+(function () {
+  var H = window.HubMod, $ = function (id) { return document.getElementById(id); };
+  /* ต้องเข้าผ่านฮับ (ไม่มี session = กลับไปล็อกอินที่ฮับ) */
+  if (!H || !(H.Hub.role() && H.Hub.session())) { location.replace('../index.html'); return; }
+  $('me').textContent = H.Hub.fullName() || 'ผู้ใช้ฮับ';
+  $('backBtn').onclick = function () { H.Hub.back(); };
+
+  var DEF = { 'desk-view': ['admin', 'coo', 'support'], 'desk-register': ['admin', 'support'], 'desk-sales': ['admin', 'support'], 'desk-admin': ['admin'] };
+  var HINT = { plan: 'วางแผนงานทีม · วันหยุด · ไปช่วยสาขา', desk: 'ลงทะเบียนงาน · สลิปชำระเงิน · ยอดขายและ P&L · รายงาน' };
+  var canDesk = false, cur = 'plan';
+
+  function show(t) {
+    if (t === 'desk' && !canDesk) t = 'plan';
+    cur = t;
+    ['plan', 'desk'].forEach(function (k) {
+      var tab = $(k === 'plan' ? 'tabPlan' : 'tabDesk'), fr = $(k === 'plan' ? 'fPlan' : 'fDesk');
+      tab.setAttribute('aria-selected', k === t ? 'true' : 'false');
+      fr.hidden = k !== t;
+      if (k === t && !fr.getAttribute('src') && fr.dataset.src) fr.src = fr.dataset.src;   // โหลดแท็บทะเบียนงานตอนเปิดครั้งแรก
+    });
+    $('hint').textContent = HINT[t];
+    try { sessionStorage.setItem('bs_tab', t); } catch (e) {}
+  }
+  $('tabs').addEventListener('click', function (e) { var b = e.target.closest('[data-t]'); if (b && !b.hidden) show(b.dataset.t); });
+
+  /* แท็บทะเบียนงานโชว์เฉพาะคนที่มีสิทธิ์ข้อใดข้อหนึ่งของส่วนนี้ (หน้าสิทธิ์ของฮับ) */
+  function decide() {
+    canDesk = Object.keys(DEF).some(function (k) { return H.can('plannerbooth', k, DEF); });
+    $('tabDesk').hidden = !canDesk;
+    var want = new URLSearchParams(location.search).get('tab'), saved = null;
+    try { saved = sessionStorage.getItem('bs_tab'); } catch (e) {}
+    show(want || saved || 'plan');
+  }
+  var done = false, t = setTimeout(function () { if (!done) { done = true; decide(); } }, 4000);
+  H.Cfg.loadSb().then(function () { clearTimeout(t); if (!done) { done = true; decide(); } }, function () { clearTimeout(t); if (!done) { done = true; decide(); } });
+})();
+</script>
+</body>
+</html>

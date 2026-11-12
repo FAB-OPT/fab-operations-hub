@@ -9,16 +9,18 @@
 <script src="../hub-docstore.js"></script>
 <script>
 /* ประตูของฮับ — เปิดหน้านี้ได้เฉพาะผ่านฮับ และต้องมีสิทธิ์ใดสิทธิ์หนึ่งของ "Booth & Catering Desk" ในหน้าสิทธิ์ของฮับ
-   ไม่มีหน้าล็อกอินของแอปแล้ว: ตัวตนมาจากฮับ · บทบาทในแอปมาจากสิทธิ์ที่ติ๊กในฮับ
-     sysadmin (ตั้งค่าระบบ)            → role "sysadmin"
-     register + sales                   → role "admin"      (ทีมลงทะเบียน + ทีมลงยอด)
-     register (ลงทะเบียน/แก้งาน/สลิป)    → role "register"
-     sales (ลงยอดขายและต้นทุน)           → role "sales"
-     view อย่างเดียว                      → role "management" (ดูอย่างเดียว ทั้ง 2 แบรนด์ + ภาพรวม)
-   ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.boothdesk ใน index.html ของฮับ
+   ไม่มีหน้าล็อกอินของแอปแล้ว: ตัวตนมาจากฮับ · บทบาทในแอปมาจากสิทธิ์ที่ติ๊กในฮับ (ระบบ "งานบูธ & Catering เจ๊แดง" ส่วนทะเบียนงาน & P&L)
+     desk-admin (ตั้งค่าระบบ)           → role "sysadmin"
+     desk-register + desk-sales         → role "admin"      (ทีมลงทะเบียน + ทีมลงยอด)
+     desk-register (ลงทะเบียน/แก้งาน/สลิป) → role "register"
+     desk-sales (ลงยอดขายและต้นทุน)       → role "sales"
+     desk-view อย่างเดียว                 → role "management" (ดูอย่างเดียว ทั้ง 2 แบรนด์ + ภาพรวม)
+   ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.plannerbooth (desk-*) ใน index.html ของฮับ
    หมายเหตุ: สิทธิ์นี้ถูกบังคับที่ฝั่งหน้าเว็บ (เหมือนโมดูลการเงินอื่นของฮับ) ส่วนกฎล็อกงาน 7 วันบังคับที่ฐานข้อมูล */
 (function () {
-  var DEF = { view: ['admin', 'coo', 'support'], register: ['admin', 'support'], sales: ['admin', 'support'], sysadmin: ['admin'] };
+  var DEF = { 'desk-view': ['admin', 'coo', 'support'], 'desk-register': ['admin', 'support'], 'desk-sales': ['admin', 'support'], 'desk-admin': ['admin'] };
+  if (/[?&]embed=1/.test(location.search)) document.documentElement.classList.add('embed');   /* ฝังในหน้ารวม modules/booth.html */
+  document.documentElement.setAttribute('data-theme', 'light');                                 /* ธีมฮับ: สว่างเสมอ */
   var root = document.documentElement;
   root.classList.add('hg-lock');
   var css = document.createElement('style');
@@ -35,9 +37,9 @@
   if (!H) { paint('โหลดตัวตรวจสิทธิ์ของฮับไม่ได้', 'ตรวจสอบอินเทอร์เน็ตแล้วเปิดใหม่จากหน้าฮับ', true); return; }
   if (!(H.Hub.role() && H.Hub.session())) { location.replace('../../index.html'); return; }
   var decide = function () {
-    var can = function (k) { return H.can('boothdesk', k, DEF); };
-    if (!(can('view') || can('register') || can('sales') || can('sysadmin'))) { deny(); return; }
-    var role = can('sysadmin') ? 'sysadmin' : (can('register') && can('sales')) ? 'admin' : can('register') ? 'register' : can('sales') ? 'sales' : 'management';
+    var can = function (k) { return H.can('plannerbooth', 'desk-' + k, DEF); };
+    if (!(can('view') || can('register') || can('sales') || can('admin'))) { deny(); return; }
+    var role = can('admin') ? 'sysadmin' : (can('register') && can('sales')) ? 'admin' : can('register') ? 'register' : can('sales') ? 'sales' : 'management';
     var s = H.Hub.session() || {}, code = H.Hub.userCode() || String(s.nick || s.name || 'unknown');
     open({ uid: 'hub:' + code, code: code, name: H.Hub.fullName() || code, role: role, brands: ['jaedang', 'tsc'] });
   };
@@ -49,7 +51,7 @@
 <title>Booth &amp; Catering Desk</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Prompt:wght@500;600;700&family=IBM+Plex+Sans+Thai:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap">
 <style>
 /* Layout: brand gate → top bar with brand + tabs → single working column (list / form / event sheet / menu book) */
 :root{
@@ -411,6 +413,7 @@ tr.total td{background:var(--brand-soft)}
 .bp{border-radius:20px;text-align:left}
 .toast{border-radius:12px}
 </style>
+<link rel="stylesheet" href="hub-theme.css?v=20261112">
 </head>
 <body>
 

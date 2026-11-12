@@ -5199,21 +5199,9 @@ var DEFAULT_SYSTEMS = [{
   id: 'planner-booth',
   emoji: '🎪',
   icon: 'icons/storage.png',
-  name: 'Plan งานบูธเจ๊แดง',
-  desc: 'วางแผนงาน Catering และออกบูธเจ๊แดง · ลงวันหยุด พักร้อน Extra และไปช่วยสาขา · ดูเป็นปฏิทินรายเดือน แยกดูรายคนได้',
-  url: '',                       // internal route → modules/planner-booth.html
-  visibleBranches: [],
-  hideFromAllBranches: true,     // ของส่วนกลาง สาขาไม่ได้ใช้
-  startDate: '',
-  endDate: '',
-  builtIn: true
-}, {
-  id: 'booth-desk',
-  emoji: '🧾',
-  icon: 'icons/storage.png',
-  name: 'Booth & Catering Desk',
-  desc: 'ลงทะเบียนงาน Booth / Catering · สลิปชำระเงิน · ประเมินความคุ้มค่าบูธ · ยอดขายรายวันและ P&L · แดชบอร์ดและรายงาน PDF',
-  url: '',                       // internal route → modules/New/index.html (แอปแยก · ล็อกอินและฐานข้อมูลของตัวเอง)
+  name: 'งานบูธ & Catering เจ๊แดง',
+  desc: 'วางแผนงานทีม (ปฏิทิน · วันหยุด · ไปช่วยสาขา) และทะเบียนงาน Booth / Catering · สลิปชำระเงิน · ยอดขายและ P&L · รายงาน PDF',
+  url: '',                       // internal route → modules/booth.html (หน้ารวม: Plan งาน + ทะเบียนงาน & P&L)
   visibleBranches: [],
   hideFromAllBranches: true,     // ของส่วนกลาง สาขาไม่ได้ใช้
   startDate: '',
@@ -5226,7 +5214,7 @@ function _injectBuiltInSystems_() {
   /* silver-gold / training-test ไม่ใช่การ์ดของตัวเองแล้ว — เข้าจากในระบบแบบฟอร์มออนไลน์
      (เส้นทางเปิดโมดูลยังอยู่ ลิงก์เก่าจึงยังใช้ได้) */
   SYSTEMS = SYSTEMS.filter(function(x){ return x.id !== 'checklist' && x.id !== 'santafe-sales-report'
-    && x.id !== 'silver-gold' && x.id !== 'training-test'; });
+    && x.id !== 'silver-gold' && x.id !== 'training-test' && x.id !== 'booth-desk'; });
   // ensure ทุก built-in system ใน DEFAULT_SYSTEMS อยู่ใน SYSTEMS
   DEFAULT_SYSTEMS.forEach(function(def){
     var existing = SYSTEMS.find(function(x){ return x.id === def.id; });
@@ -5895,8 +5883,7 @@ function openSystem(systemId) {
   if (systemId === 'booth-equipment')   { goToHubModule('booth-equipment.html'); return; }
   if (systemId === 'customer-feedback') { goToHubModule('customer-feedback.html'); return; }
   if (systemId === 'planner-opt-tr')    { goToHubModule('planner.html'); return; }
-  if (systemId === 'planner-booth')     { goToHubModule('planner-booth.html'); return; }
-  if (systemId === 'booth-desk')        { goToHubModule('New/index.html'); return; }
+  if (systemId === 'planner-booth' || systemId === 'booth-desk') { goToHubModule('booth.html'); return; }
   if (systemId === 'santafe-sales-report') {
     // SSO: re-save session → navigate same-tab → Santa Fe Sales Report อ่าน fab_session
     try {
@@ -6988,33 +6975,24 @@ var PERM_SYSTEMS = {
   },
   /* ค่าตั้งต้นต้องตรงกับ PLANNER_PERM_DEFAULTS ใน modules/planner-booth.html (ชุดสิทธิ์แยกจาก Planner OPT-TR) */
   plannerbooth: {
-    label: '🎪 Plan งานบูธเจ๊แดง',
+    label: '🎪 งานบูธ & Catering เจ๊แดง',
     groups: [
-      { id: 'menu',   label: 'ดูและแก้ไขแผน' },
-      { id: 'manage', label: 'จัดการงาน ทีม และหมวดงาน' }
+      { id: 'menu',   label: 'Plan งาน · ดูและแก้ไขแผน' },
+      { id: 'manage', label: 'Plan งาน · จัดการงาน ทีม และหมวดงาน' },
+      { id: 'desk',   label: 'ทะเบียนงาน & P&L (มีข้อมูลการเงิน)' }
     ],
     actions: [
       { id: 'view-all',    group: 'menu',   label: '👀 เห็นแผนของทุกคน (ปกติเห็นเฉพาะของตัวเอง)', roles: ['admin','coo','support'] },
       { id: 'add-own',     group: 'menu',   label: '➕ เพิ่ม / แก้ไขแผนของตัวเอง',                 roles: ['admin','support'] },
       { id: 'edit-all',    group: 'menu',   label: '✏️ แก้ไข / ลบแผนของทุกคน',                    roles: ['admin'] },
       { id: 'manage-jobs', group: 'manage', label: '🍽️ เพิ่ม / แก้ / ลบงาน Catering / Booth',      roles: ['admin'] },
-      { id: 'manage-team', group: 'manage', label: '👥 เพิ่ม / แก้ / ลบทีมและหมวดงาน (จัดการงานได้ด้วย)', roles: ['admin'] }
-    ]
-  },
-  /* ค่าตั้งต้นต้องตรงกับ DEF ในประตูฮับของ modules/New/index.html · แอปใช้ตัวตนและสิทธิ์ของฮับทั้งหมด (ไม่มีล็อกอินแยก)
-     บทบาทในแอป: sysadmin > admin (ลงทะเบียน+ลงยอด) > register / sales > management (ดูอย่างเดียว ทั้ง 2 แบรนด์) */
-  boothdesk: {
-    label: '🧾 Booth & Catering Desk',
-    groups: [
-      { id: 'menu',   label: 'การเข้าใช้งาน' },
-      { id: 'work',   label: 'ลงทะเบียนและลงยอด' },
-      { id: 'manage', label: 'ตั้งค่าระบบ' }
-    ],
-    actions: [
-      { id: 'view',     group: 'menu',   label: '👀 เปิดระบบ / ดูอย่างเดียว (ทั้ง 2 แบรนด์ + ภาพรวม · มีข้อมูลการเงิน)', roles: ['admin','coo','support'] },
-      { id: 'register', group: 'work',   label: '➕ ลงทะเบียนงาน / แก้ไขงาน / บันทึกความคืบหน้า / แนบสลิป',          roles: ['admin','support'] },
-      { id: 'sales',    group: 'work',   label: '💰 ลงยอดขายรายวันและต้นทุน (P&L)',                                  roles: ['admin','support'] },
-      { id: 'sysadmin', group: 'manage', label: '⚙️ เมนู & BOM · ต้นทุนคงที่ · เปิดแก้ไขงานที่ล็อก',                  roles: ['admin'] }
+      { id: 'manage-team', group: 'manage', label: '👥 เพิ่ม / แก้ / ลบทีมและหมวดงาน (จัดการงานได้ด้วย)', roles: ['admin'] },
+      /* ทะเบียนงาน & P&L (modules/New) — ค่าตั้งต้นต้องตรงกับ DEF ในประตูของ modules/New/index.html และ modules/booth.html
+         บทบาทในแอป: desk-admin > admin (ลงทะเบียน+ลงยอด) > desk-register / desk-sales > ดูอย่างเดียว (ทั้ง 2 แบรนด์ + ภาพรวม) */
+      { id: 'desk-view',     group: 'desk', label: '👀 เปิดทะเบียนงาน & P&L / ดูอย่างเดียว (ทั้ง 2 แบรนด์ + ภาพรวม)', roles: ['admin','coo','support'] },
+      { id: 'desk-register', group: 'desk', label: '➕ ลงทะเบียนงาน / แก้ไขงาน / บันทึกความคืบหน้า / แนบสลิป',         roles: ['admin','support'] },
+      { id: 'desk-sales',    group: 'desk', label: '💰 ลงยอดขายรายวันและต้นทุน (P&L)',                                 roles: ['admin','support'] },
+      { id: 'desk-admin',    group: 'desk', label: '⚙️ เมนู & BOM · ต้นทุนคงที่ · เปิดแก้ไขงานที่ล็อก',                 roles: ['admin'] }
     ]
   }
 };
