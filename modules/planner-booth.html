@@ -12,6 +12,7 @@
 <script src="hub-docstore.js?v=20261030a"></script>
 <style>
 :root{--ink:#111827;--ink2:#4b5563;--ink3:#9ca3af;--line:#e5e7eb;--line2:#f1f3f6;--accent:#ff7a1a;--accent-soft:#fff3e8;--accent-ink:#c2530a;--red:#be123c;--red-soft:#fff1f2;--blue:#ff7a1a;--gold-ink:#d95f0e;--today:#fff7ed;--weekend:#fbfbfd}
+body.deskjobs .tl-j,body.deskjobs #addBoothSide,body.deskjobs [data-addtype]{display:none!important}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
 *{box-sizing:border-box}
@@ -1415,7 +1416,7 @@ document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAddMenu(); i
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
 function closeAddMenu(){ const m=$('addPop'); if(m) m.hidden=true; }
 document.addEventListener('click',e=>{
-  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('addPop').hidden=false; return; }
+  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); if(deskOn){ openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(sel||new Date().getDate()).padStart(2,'0')}`); return; } $('addPop').hidden=false; return; }
   if(e.target.id==='addPop'||e.target.closest('#apX')||e.target.closest('#addPop [data-tl]')) closeAddMenu();
   const jr=e.target.closest('[data-jr]'); if(jr){ const k=jr.dataset.jr; tlSel=(tlSel===k&&jr.classList.contains('mtl-c'))?null:k; paintTL(); paintMTl(); return; }
   if(e.target.closest('#toTl')){ setView('tl'); return; }
@@ -1682,7 +1683,7 @@ async function start(){
     /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
     deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
     deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
-    if(deskOn){ pullDesk(client); setInterval(()=>pullDesk(client),20000); }
+    if(deskOn){ document.body.classList.add('deskjobs'); pullDesk(client); setInterval(()=>pullDesk(client),20000); }   /* งาน Catering/Booth ลงทะเบียนที่แท็บทะเบียนงานที่เดียว: ซ่อนปุ่มเพิ่มงานใน Plan */
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
