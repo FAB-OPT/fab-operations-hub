@@ -8,11 +8,17 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="../hub-docstore.js"></script>
 <script>
-/* ประตูของฮับ — เปิดหน้านี้ได้เฉพาะผ่านฮับ และต้องมีสิทธิ์ "Booth & Catering Desk · เปิดระบบ" (หน้าสิทธิ์ของฮับ)
-   ตัวแอปยังล็อกอินและคุมข้อมูลด้วย Supabase ของมันเองต่อไป (Auth + RLS) — ประตูนี้คุมทางเข้าจากฮับ ไม่ได้แทนที่ระบบสิทธิ์ภายในแอป
-   ถ้าเปลี่ยนค่าตั้งต้นของสิทธิ์นี้ ต้องแก้ PERM_SYSTEMS.boothdesk ใน index.html ของฮับให้ตรงกัน */
+/* ประตูของฮับ — เปิดหน้านี้ได้เฉพาะผ่านฮับ และต้องมีสิทธิ์ใดสิทธิ์หนึ่งของ "Booth & Catering Desk" ในหน้าสิทธิ์ของฮับ
+   ไม่มีหน้าล็อกอินของแอปแล้ว: ตัวตนมาจากฮับ · บทบาทในแอปมาจากสิทธิ์ที่ติ๊กในฮับ
+     sysadmin (ตั้งค่าระบบ)            → role "sysadmin"
+     register + sales                   → role "admin"      (ทีมลงทะเบียน + ทีมลงยอด)
+     register (ลงทะเบียน/แก้งาน/สลิป)    → role "register"
+     sales (ลงยอดขายและต้นทุน)           → role "sales"
+     view อย่างเดียว                      → role "management" (ดูอย่างเดียว ทั้ง 2 แบรนด์ + ภาพรวม)
+   ค่าตั้งต้นต้องตรงกับ PERM_SYSTEMS.boothdesk ใน index.html ของฮับ
+   หมายเหตุ: สิทธิ์นี้ถูกบังคับที่ฝั่งหน้าเว็บ (เหมือนโมดูลการเงินอื่นของฮับ) ส่วนกฎล็อกงาน 7 วันบังคับที่ฐานข้อมูล */
 (function () {
-  var DEF = { view: ['admin', 'coo', 'support'] };
+  var DEF = { view: ['admin', 'coo', 'support'], register: ['admin', 'support'], sales: ['admin', 'support'], sysadmin: ['admin'] };
   var root = document.documentElement;
   root.classList.add('hg-lock');
   var css = document.createElement('style');
@@ -22,18 +28,24 @@
   var paint = function (h, p, btn) { ov.innerHTML = '<div class="c"><h2>' + h + '</h2><p>' + p + '</p>' + (btn ? '<a href="../../index.html">กลับหน้าฮับ</a>' : '') + '</div>'; };
   paint('กำลังตรวจสิทธิ์…', 'ตรวจสอบสิทธิ์การเข้าใช้งานจากฮับ');
   root.appendChild(ov);
+  var res; window.BC_GATE = new Promise(function (ok) { res = ok; });
   var H = window.HubMod, finished = false;
-  var open = function () { if (finished) return; finished = true; root.classList.remove('hg-lock'); ov.remove(); };
+  var open = function (acc) { if (finished) return; finished = true; window.BC_ACCESS = acc; root.classList.remove('hg-lock'); ov.remove(); res(acc); };
   var deny = function () { if (finished) return; finished = true; paint('ไม่มีสิทธิ์เข้าระบบนี้', 'บัญชีของคุณยังไม่ได้รับสิทธิ์ใช้งาน Booth & Catering Desk · ติดต่อผู้ดูแลฮับเพื่อขอสิทธิ์ (หน้าสิทธิ์ของฮับ)', true); };
   if (!H) { paint('โหลดตัวตรวจสิทธิ์ของฮับไม่ได้', 'ตรวจสอบอินเทอร์เน็ตแล้วเปิดใหม่จากหน้าฮับ', true); return; }
   if (!(H.Hub.role() && H.Hub.session())) { location.replace('../../index.html'); return; }
-  var decide = function () { if (H.can('boothdesk', 'view', DEF)) open(); else deny(); };
+  var decide = function () {
+    var can = function (k) { return H.can('boothdesk', k, DEF); };
+    if (!(can('view') || can('register') || can('sales') || can('sysadmin'))) { deny(); return; }
+    var role = can('sysadmin') ? 'sysadmin' : (can('register') && can('sales')) ? 'admin' : can('register') ? 'register' : can('sales') ? 'sales' : 'management';
+    var s = H.Hub.session() || {}, code = H.Hub.userCode() || String(s.nick || s.name || 'unknown');
+    open({ uid: 'hub:' + code, code: code, name: H.Hub.fullName() || code, role: role, brands: ['jaedang', 'tsc'] });
+  };
   var t = setTimeout(decide, 6000);                                   /* โหลดสิทธิ์ล่าสุดไม่ทัน ใช้ที่แคชไว้ (ไม่มีแคช = ค่าตั้งต้น) */
   H.Cfg.loadSb().then(function () { clearTimeout(t); decide(); }, function () { clearTimeout(t); decide(); });
 })();
 </script>
-<script src="js/config.js"></script>
-<script src="js/supabase-shim.js"></script>
+<script src="js/hub-shim.js"></script>
 <title>Booth &amp; Catering Desk</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -692,7 +704,7 @@ function subscribePL(){
 }
 async function write(fn,okMsg){
   try{await fn();if(okMsg)toast(okMsg);return true}
-  catch(e){toast(e?.code==="invalid_argument"?"บันทึกไม่ได้: บัญชีนี้มีสิทธิ์ดูอย่างเดียว":"บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");return false}
+  catch(e){toast((e?.code==="locked"||e?.code==="setup")?e.message:e?.code==="invalid_argument"?"บันทึกไม่ได้: บัญชีนี้มีสิทธิ์ดูอย่างเดียว":"บันทึกไม่สำเร็จ ลองใหม่อีกครั้ง");return false}
 }
 
 /* ---------- navigation ---------- */
@@ -1876,23 +1888,18 @@ const ROLE_LABEL={management:"Management (ดูภาพรวม + ทุก�
 const DEPT={marketing:"การตลาด",operations:"โอเปอเรชั่น",clevel:"C-level"};
 const DEPT_ROLE={marketing:"register",operations:"sales",clevel:"viewer"};
 function viewUsers(){
-  const ids=Object.keys(S.members);
-  return `<div><h1>ผู้ใช้ &amp; สิทธิ์</h1><p class="muted" style="margin:2px 0 0">ผู้ใช้เห็นเฉพาะแบรนด์ที่ได้รับสิทธิ์ ตอนเข้าระบบจะเข้าแบรนด์ของตัวเองทันที</p></div>
+  const role=myRole(),label=ROLE_LABEL[role]||role||"–";
+  return `<div><h1>ผู้ใช้ &amp; สิทธิ์</h1><p class="muted" style="margin:2px 0 0">สิทธิ์ของระบบนี้จัดที่ <b>หน้าสิทธิ์ของฮับ</b> (ระบบ “Booth &amp; Catering Desk”) ไม่ต้องล็อกอินแยกอีกต่อไป</p></div>
   <div class="panel" style="display:flex;flex-direction:column;gap:8px">
-    <label>เพิ่มผู้ใช้ (ค้นหาชื่อหรืออีเมลของคนที่สมัครแล้ว)<input id="uSearch" autocomplete="off" placeholder="พิมพ์ชื่อ…"></label>
-    <div id="uResults" style="display:flex;flex-direction:column;gap:4px"></div>
+    <div>บัญชีของคุณ: <b>${esc((window.BC_ACCESS||{}).name||"–")}</b></div>
+    <div>สิทธิ์ในระบบนี้: <b>${esc(label)}</b></div>
   </div>
-  ${ids.length?`<div class="tbl-wrap"><table class="rt"><thead><tr><th>ผู้ใช้</th><th>แผนก</th>${Object.keys(BRANDS).map(b=>`<th>${esc(BRANDS[b].name)}</th>`).join("")}<th>สิทธิ์</th><th></th></tr></thead><tbody>
-  ${ids.map(id=>{const m=S.members[id];if(m.role==="owner"||id===S.uid)return `<tr><td><span data-uname="${esc(id)}">…</span></td><td>${esc(DEPT[m.department]||"–")}</td>
-    ${Object.keys(BRANDS).map(b=>`<td>${m.role==="owner"||(m.brands||[]).includes(b)?"✓":"–"}</td>`).join("")}
-    <td class="muted">${m.role==="owner"?"เจ้าของระบบ":(ROLE_LABEL[m.role]||m.role)} · ${id===S.uid?"บัญชีของคุณ (แก้เองไม่ได้)":"แก้ได้ใน Supabase"}</td><td></td></tr>`;
-    return `<tr><td><span data-uname="${esc(id)}">…</span></td>
-    <td><select data-ud="${esc(id)}" aria-label="แผนก"><option value="">–</option>${Object.entries(DEPT).map(([k,l])=>`<option value="${k}" ${m.department===k?"selected":""}>${l}</option>`).join("")}</select></td>
-    ${Object.keys(BRANDS).map(b=>`<td><input type="checkbox" id="ub-${esc(id)}-${b}" data-ub="${esc(id)}" data-brand="${b}" ${(m.brands||[]).includes(b)?"checked":""} style="width:auto" aria-label="${esc(BRANDS[b].name)}"></td>`).join("")}
-    <td><select id="ur-${esc(id)}" data-ur="${esc(id)}">${Object.entries(ROLE_LABEL).map(([k,l])=>`<option value="${k}" ${m.role===k?"selected":""}>${l}</option>`).join("")}</select></td>
-    <td>${S.confirmDel==="u:"+id?`<button class="btn small" data-urmyes="${esc(id)}" type="button">ยืนยันลบ</button>`:`<button class="x" data-urm="${esc(id)}" type="button" aria-label="ลบผู้ใช้">×</button>`}</td></tr>`}).join("")}
-  </tbody></table></div>`:`<div class="empty">ยังไม่มีผู้ใช้ เพิ่มจากช่องค้นหาด้านบน</div>`}
-  <div class="notice info"><b>Admin</b>: ทำได้ทุกอย่าง และเห็นหมวด เมนู &amp; BOM กับ ผู้ใช้ &amp; สิทธิ์ · <b>ทีมลงทะเบียนงาน</b>: ลงทะเบียน/แก้ไขงาน โพสต์อัปเดต แนบสลิป · <b>Ops.Team</b>: กรอกยอดขายและค่าใช้จ่ายใน P&amp;L · <b>Management</b>: ดูภาพรวม 2 แบรนด์และทุกแบรนด์ แก้ไขไม่ได้ · <b>ดูอย่างเดียว</b>: ดูข้อมูลได้อย่างเดียว · ผู้ใช้ใหม่ต้องกด “สมัครใช้งาน” ในหน้าเข้าสู่ระบบก่อน แล้วจึงค้นหาชื่อเพื่อกำหนดสิทธิ์ที่นี่ได้<br><b>แผนกตอนสมัคร</b> (อีเมล @fabfood.co.th / @ktr.co.th ได้สิทธิ์อัตโนมัติ): การตลาด → ทีมลงทะเบียนงาน · โอเปอเรชั่น → Ops.Team (แบรนด์ตามที่เลือกตอนสมัคร) · C-level → ดูอย่างเดียว (ทั้ง 2 แบรนด์) · เปลี่ยนแผนกในตารางนี้ สิทธิ์จะเปลี่ยนตามอัตโนมัติ</div>`;
+  <div class="notice info"><b>วิธีให้สิทธิ์</b>: ฮับ → หน้าสิทธิ์ → เลือกระบบ <b>Booth &amp; Catering Desk</b> แล้วติ๊กตามบทบาท
+    · <b>เปิดระบบ / ดูอย่างเดียว</b>: ดูได้ทั้ง 2 แบรนด์ + ภาพรวม
+    · <b>ลงทะเบียน / แก้ไขงาน / แนบสลิป</b>
+    · <b>ลงยอดขายและต้นทุน (P&amp;L)</b>
+    · <b>ตั้งค่าระบบ</b>: เมนู &amp; BOM · ต้นทุนคงที่ · เปิดแก้ไขงานที่ล็อก
+    · ติ๊กรายบุคคลได้ในช่อง “ตั้งสิทธิ์รายบุคคล” ของหน้าสิทธิ์</div>`;
 }
 async function saveMembers(next,msg){
   if(await write(()=>S.db.doc("access/members").set({members:next,updatedAt:new Date().toISOString()}),msg)){S.members=next;S.confirmDel=null;render()}
@@ -2129,7 +2136,7 @@ function bind(){
   }
 
   /* users */
-  if(S.view==="users"&&S.isSys){
+  if(S.view==="users"&&S.isSys&&$("#uSearch")){
     fillNames();
     const clone=()=>JSON.parse(JSON.stringify(S.members));
     const box=$("#uResults"),inp=$("#uSearch");

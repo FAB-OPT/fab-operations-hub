@@ -1,0 +1,220 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ย้ายข้อมูล Booth & Catering → ฮับ</title>
+<style>
+  :root{--bg:#FAFAF8;--card:#fff;--line:#E2E8F0;--ink:#0F172A;--mute:#64748B;--accent:#D9822D;--ok:#15803D;--bad:#B91C1C}
+  @media (prefers-color-scheme:dark){:root{--bg:#0F1115;--card:#171A21;--line:#2A2F3A;--ink:#E8EAF0;--mute:#9AA3B2;--accent:#E89440}}
+  *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.6 system-ui,"Noto Sans Thai",sans-serif;padding:20px 16px 60px}
+  .w{max-width:760px;margin:0 auto}h1{font-size:22px;margin:0 0 4px}p.m{color:var(--mute);margin:0 0 16px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin:0 0 14px}
+  .card h2{font-size:16px;margin:0 0 8px}
+  label{display:block;font-size:13px;color:var(--mute);margin:8px 0 4px}
+  input{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--bg);color:var(--ink);font:inherit}
+  button{padding:10px 18px;border:0;border-radius:10px;background:var(--accent);color:#fff;font:inherit;font-weight:700;cursor:pointer;margin:12px 8px 0 0}
+  button.sec{background:transparent;color:var(--ink);border:1px solid var(--line)}button:disabled{opacity:.45;cursor:default}
+  #log{white-space:pre-wrap;font:13px/1.55 ui-monospace,Consolas,monospace;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:12px;max-height:320px;overflow:auto}
+  .ok{color:var(--ok)}.bad{color:var(--bad)}
+  ul{margin:6px 0 0 18px;padding:0}li{margin:2px 0}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="../hub-docstore.js"></script>
+</head>
+<body>
+<div class="w">
+  <h1>ย้ายข้อมูล Booth &amp; Catering เข้าฐานข้อมูลของฮับ</h1>
+  <p class="m">ใช้ครั้งเดียว · อ่านข้อมูลจากระบบเดิม (โปรเจกต์ Booth-Catering) แล้วคัดลอกเข้าตาราง <b>bc_docs</b> ของฮับ · <b>ไม่แก้ไขและไม่ลบข้อมูลในระบบเดิม</b> · รันซ้ำได้ (ทับเอกสารที่ id ตรงกัน)</p>
+
+  <div class="card" id="gate"><h2>ตรวจสิทธิ์</h2><div id="gateMsg">กำลังตรวจ…</div></div>
+
+  <div class="card">
+    <h2>1) ล็อกอินระบบเดิม</h2>
+    <p class="m" style="margin:0">ใช้อีเมลและรหัสผ่านของระบบ Booth &amp; Catering เดิมที่เป็น <b>owner</b> หรือ Admin (พิมพ์ที่หน้านี้เท่านั้น ใช้ล็อกอินเข้าระบบเดิมโดยตรงจากเบราว์เซอร์ ไม่ถูกบันทึกหรือส่งต่อ)</p>
+    <label for="em">อีเมล</label><input id="em" type="email" autocomplete="username">
+    <label for="pw">รหัสผ่าน</label><input id="pw" type="password" autocomplete="current-password">
+    <button id="bLogin">ล็อกอินและนับข้อมูล</button><span id="who" class="m"></span>
+  </div>
+
+  <div class="card">
+    <h2>2) ย้ายข้อมูล</h2>
+    <div id="counts" class="m">ยังไม่ได้นับ</div>
+    <button id="bRun" disabled>ย้ายข้อมูลทั้งหมด</button>
+    <button id="bFiles" class="sec" disabled>ย้ายไฟล์สลิป/เอกสาร</button>
+  </div>
+
+  <div class="card" id="usersCard" hidden>
+    <h2>สิทธิ์ของผู้ใช้เดิม → ติ๊กในหน้าสิทธิ์ของฮับ</h2>
+    <p class="m" style="margin:0 0 8px">สิทธิ์ล็อกอินเดิมย้ายตามอัตโนมัติไม่ได้ (ผู้ใช้เดิมเป็นอีเมล · สิทธิ์ของฮับผูกกับบทบาท/รหัสพนักงาน) ตารางนี้คือรายชื่อและสิทธิ์เดิม พร้อมช่องที่ควรติ๊กใน ฮับ → หน้าสิทธิ์ → <b>Booth &amp; Catering Desk</b> (ติ๊กตามบทบาท หรือรายบุคคลที่ช่อง “ตั้งสิทธิ์รายบุคคล”)</p>
+    <div id="users"></div>
+  </div>
+  <div class="card"><h2>ความคืบหน้า</h2><div id="log">—</div></div>
+  <div class="card"><h2>หลังย้ายเสร็จ</h2><ul>
+    <li>เปิดระบบจากฮับ แล้วเทียบจำนวนงาน/เมนู/ยอดรวมกับระบบเดิมสัก 2 ถึง 3 งาน</li>
+    <li>ยังไม่ต้องปิดระบบเดิมจนกว่าจะเทียบเสร็จ · ระบบเดิมกับระบบใหม่เป็นคนละฐาน งานที่ลงในระบบเดิมหลังย้ายจะไม่ตามมา (รันหน้านี้ซ้ำได้เพื่อดึงเพิ่ม)</li>
+    <li>ชื่อผู้ทำรายการเก่า (ผู้ใช้ระบบเดิม) ถูกคัดลอกเข้าทะเบียนชื่อด้วย จึงยังเห็นชื่อในประวัติ</li></ul></div>
+</div>
+
+<script>
+(function () {
+  var OLD = { url: "https://uibveomevwoclocpqlbo.supabase.co", key: null };
+  var $ = function (id) { return document.getElementById(id); };
+  var logEl = $("log"), oldSb = null, hubSb = null, data = null;
+  function log(t, cls) { var d = document.createElement("div"); if (cls) d.className = cls; d.textContent = t; if (logEl.textContent === "—") logEl.textContent = ""; logEl.appendChild(d); logEl.scrollTop = logEl.scrollHeight; }
+
+  /* ประตูฮับ: เฉพาะผู้มีสิทธิ์ตั้งค่าระบบ (sysadmin) */
+  var H = window.HubMod, DEF = { sysadmin: ["admin"] };
+  function deny(m) { $("gateMsg").innerHTML = '<span class="bad">' + m + '</span>'; }
+  if (!H || !(H.Hub.role() && H.Hub.session())) { deny("เปิดจากหน้าฮับก่อน (ต้องล็อกอินฮับ)"); return; }
+  H.Cfg.loadSb().catch(function () {}).then(function () {
+    if (!H.can("boothdesk", "sysadmin", DEF)) { deny("เฉพาะผู้มีสิทธิ์ ⚙️ ตั้งค่าระบบ (Booth & Catering Desk) ย้ายข้อมูลได้"); return; }
+    $("gateMsg").innerHTML = '<span class="ok">ผ่าน · ' + (H.Hub.fullName() || "") + '</span>';
+    start();
+  });
+
+  function start() {
+    /* คีย์สาธารณะของระบบเดิม (อยู่ใน js/config.js เดิมของแอป) */
+    fetch("js/config.js").then(function (r) { return r.text(); }).then(function (t) {
+      var m = /supabaseKey:\s*"([^"]+)"/.exec(t); if (m) OLD.key = m[1];
+      if (!OLD.key) log("ไม่พบ js/config.js (คีย์ระบบเดิม) — วางไฟล์นี้ไว้ในโฟลเดอร์ js/ ก่อน", "bad");
+    }, function () { log("ไม่พบ js/config.js (คีย์ระบบเดิม) — วางไฟล์นี้ไว้ในโฟลเดอร์ js/ ก่อน", "bad"); });
+    $("bLogin").onclick = login; $("bRun").onclick = runDocs; $("bFiles").onclick = runFiles;
+  }
+
+  async function login() {
+    if (!OLD.key) { log("ยังไม่มีคีย์ระบบเดิม", "bad"); return; }
+    $("bLogin").disabled = true;
+    try {
+      oldSb = window.supabase.createClient(OLD.url, OLD.key, { auth: { persistSession: false, autoRefreshToken: false } });
+      var r = await oldSb.auth.signInWithPassword({ email: $("em").value.trim(), password: $("pw").value });
+      $("pw").value = "";
+      if (r.error) throw r.error;
+      $("who").textContent = r.data.user.email;
+      hubSb = H.SB.client(); if (!(await H.SB.ready())) throw new Error("ต่อฐานข้อมูลของฮับไม่ได้");
+      var probe = await hubSb.from("bc_docs").select("id").limit(1);
+      if (probe.error) throw new Error("ฮับยังไม่มีตาราง bc_docs — รัน supabase/bc-docs.sql ที่ SQL Editor ของ FAB HUB ก่อน");
+      log("ล็อกอินระบบเดิมสำเร็จ · กำลังอ่านข้อมูล…");
+      data = await readOld();
+      var c = data.counts;
+      $("counts").innerHTML = "พบในระบบเดิม: งาน <b>" + c.events + "</b> · P&amp;L รายวัน <b>" + c.pl + "</b> · ความคืบหน้า <b>" + c.updates + "</b> · สลิป <b>" + c.payments + "</b> · เมนู <b>" + c.menus +
+        "</b> · ต้นทุนคงที่ <b>" + c.settings + "</b> · การแจ้งเตือน <b>" + c.activity + "</b> · ชื่อผู้ใช้ <b>" + c.people + "</b> · ไฟล์แนบ <b>" + data.files.length + "</b>";
+      showUsers(data.profiles);
+      $("bRun").disabled = false; $("bFiles").disabled = !data.files.length;
+    } catch (e) { log("ล็อกอิน/อ่านข้อมูลไม่สำเร็จ: " + (e.message || e), "bad"); $("bLogin").disabled = false; }
+  }
+
+  /* ───────── อ่านข้อมูลเดิม → เอกสารรูปแบบเดียวกับที่แอปใช้ (camelCase · ชื่อฟิลด์เดิมของแอป) ───────── */
+  var RENAME = {
+    event_updates: { by: "author", at: "posted_at" },
+    event_payments: { by: "author", at: "posted_at", assetId: "asset_path", date: "slip_date", time: "slip_time" },
+    menus: { order: "sort_order" },
+    activity: { by: "author", at: "posted_at", text: "detail" }
+  };
+  var ISO = /^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?(\+00:00|Z)$/;
+  function fromRow(t, row) {
+    var rr = {}, rn = RENAME[t] || {}; Object.keys(rn).forEach(function (k) { rr[rn[k]] = k; });
+    var out = {};
+    Object.keys(row).forEach(function (k) {
+      var ck = rr[k] || k.replace(/_([a-z])/g, function (_, c) { return c.toUpperCase(); });
+      var v = row[k]; out[ck] = typeof v === "string" && ISO.test(v) ? new Date(v).toISOString() : v;
+    });
+    return out;
+  }
+  async function all(table) {
+    var rows = [], from = 0;
+    for (;;) {
+      var r = await oldSb.from(table).select("*").range(from, from + 999);
+      if (r.error) throw new Error(table + ": " + r.error.message);
+      rows = rows.concat(r.data || []);
+      if (!r.data || r.data.length < 1000) break; from += 1000;
+    }
+    return rows;
+  }
+  async function readOld() {
+    var docs = [], files = [], counts = { events: 0, pl: 0, updates: 0, payments: 0, menus: 0, settings: 0, activity: 0, people: 0 };
+    var ev = await all("events"); counts.events = ev.length;
+    ev.forEach(function (r) {
+      docs.push({ col: "b/" + r.brand + "/events", id: String(r.id), data: fromRow("events", r), updated_at: r.updated_at });
+      (r.docs || []).forEach(function (d) { if (d && d.path) files.push(d.path); });
+    });
+    var pl = await all("event_pl"); counts.pl = pl.length;
+    pl.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/events/" + r.event_id + "/pl", id: String(r.day), data: fromRow("event_pl", r), updated_at: r.updated_at }); });
+    var up = await all("event_updates"); counts.updates = up.length;
+    up.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/events/" + r.event_id + "/updates", id: String(r.id), data: fromRow("event_updates", r), updated_at: r.posted_at }); });
+    var pay = await all("event_payments"); counts.payments = pay.length;
+    pay.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/events/" + r.event_id + "/payments", id: String(r.id), data: fromRow("event_payments", r), updated_at: r.posted_at }); if (r.asset_path) files.push(r.asset_path); });
+    var mn = await all("menus"); counts.menus = mn.length;
+    mn.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/menus", id: String(r.id), data: fromRow("menus", r), updated_at: r.updated_at }); });
+    var st = await all("booth_settings"); counts.settings = st.length;
+    st.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/settings", id: "booth", data: fromRow("booth_settings", r), updated_at: r.updated_at }); });
+    var ac = await all("activity"); counts.activity = ac.length;
+    ac.forEach(function (r) { docs.push({ col: "b/" + r.brand + "/activity", id: String(r.id), data: fromRow("activity", r), updated_at: r.posted_at }); });
+    var pr = await all("profiles"); counts.people = pr.length;
+    pr.forEach(function (p) { docs.push({ col: "people", id: String(p.id), data: { name: p.full_name || p.email || "", email: p.email || "" }, updated_at: null }); });
+    var uniq = {}; files.forEach(function (f) { uniq[f] = 1; });
+    return { docs: docs, files: Object.keys(uniq), counts: counts, profiles: pr };
+  }
+
+  /* ───────── รายชื่อสิทธิ์เดิม + ช่องที่ควรติ๊กในฮับ ───────── */
+  var ROLE_MAP = {
+    owner:      ["เปิดระบบ", "ลงทะเบียน", "ลงยอด", "ตั้งค่าระบบ"],
+    sysadmin:   ["เปิดระบบ", "ลงทะเบียน", "ลงยอด", "ตั้งค่าระบบ"],
+    admin:      ["เปิดระบบ", "ลงทะเบียน", "ลงยอด"],
+    register:   ["เปิดระบบ", "ลงทะเบียน"],
+    sales:      ["เปิดระบบ", "ลงยอด"],
+    management: ["เปิดระบบ (ดูอย่างเดียว)"],
+    viewer:     ["เปิดระบบ (ดูอย่างเดียว)"]
+  };
+  var BRAND_TH = { jaedang: "เจ๊แดง", tsc: "Top Secret Café" };
+  function esc(x) { return String(x == null ? "" : x).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function showUsers(list) {
+    var rows = (list || []).filter(function (p) { return p.role !== "viewer" || (p.brands || []).length; });
+    if (!rows.length) { $("users").textContent = "ไม่พบผู้ใช้ที่มีสิทธิ์ในระบบเดิม"; $("usersCard").hidden = false; return; }
+    var h = '<table style="width:100%;border-collapse:collapse;font-size:13px"><thead><tr><th align="left">ชื่อ / อีเมล</th><th align="left">สิทธิ์เดิม</th><th align="left">แบรนด์เดิม</th><th align="left">ติ๊กในฮับ</th></tr></thead><tbody>';
+    rows.forEach(function (p) {
+      h += '<tr style="border-top:1px solid var(--line)"><td style="padding:6px 8px 6px 0">' + esc(p.full_name || "") + '<br><span class="m">' + esc(p.email || "") + '</span></td>' +
+        '<td>' + esc(p.role || "-") + '</td><td>' + esc((p.brands || []).map(function (b) { return BRAND_TH[b] || b; }).join(", ") || "-") + '</td>' +
+        '<td>' + esc((ROLE_MAP[p.role] || ["เปิดระบบ (ดูอย่างเดียว)"]).join(" · ")) + '</td></tr>';
+    });
+    $("users").innerHTML = h + '</tbody></table><p class="m" style="margin:8px 0 0">หมายเหตุ: ในระบบใหม่ทุกคนที่มีสิทธิ์เห็นทั้ง 2 แบรนด์ (แยกแบรนด์รายคนยังไม่มี) · “ลงยอด” กับ “ลงทะเบียน” ติ๊กพร้อมกัน = บทบาท Admin เดิม</p>';
+    $("usersCard").hidden = false;
+  }
+
+  /* ───────── เขียนเข้าฮับเป็นชุด ๆ ละ 100 ผ่านฟังก์ชัน bc_import (ข้ามกฎล็อกงาน 7 วัน) ───────── */
+  async function runDocs() {
+    if (!data) return;
+    $("bRun").disabled = true; var done = 0, total = data.docs.length;
+    try {
+      for (var i = 0; i < total; i += 100) {
+        var chunk = data.docs.slice(i, i + 100);
+        var r = await hubSb.rpc("bc_import", { p_rows: chunk });
+        if (r.error) throw new Error(r.error.message);
+        done += chunk.length; if (done % 500 === 0 || done === total) log("เขียนแล้ว " + done + " / " + total);
+      }
+      var chk = await hubSb.from("bc_docs").select("id", { count: "exact", head: true }).eq("deleted", false);
+      log("เสร็จ: ย้ายเอกสาร " + total + " รายการ · ในฮับมีเอกสารทั้งหมด " + (chk.count == null ? "?" : chk.count) + " รายการ", "ok");
+    } catch (e) { log("ย้ายไม่สำเร็จที่รายการ " + done + ": " + (e.message || e), "bad"); $("bRun").disabled = false; }
+  }
+
+  /* ───────── ไฟล์สลิป/เอกสาร: ดาวน์โหลดจาก bucket เดิม (slips) → อัปโหลดเข้า bc-slips ของฮับ (path เดิม) ───────── */
+  async function runFiles() {
+    if (!data) return;
+    $("bFiles").disabled = true; var ok = 0, skip = 0, bad = 0;
+    for (var i = 0; i < data.files.length; i++) {
+      var path = data.files[i];
+      try {
+        var d = await oldSb.storage.from("slips").download(path);
+        if (d.error) throw d.error;
+        var up = await hubSb.storage.from("bc-slips").upload(path, d.data, { contentType: d.data.type || undefined, upsert: true });
+        if (up.error) throw up.error; ok++;
+      } catch (e) { bad++; log("ไฟล์ " + path + ": " + (e.message || e), "bad"); }
+      if ((i + 1) % 10 === 0 || i === data.files.length - 1) log("ไฟล์ " + (i + 1) + " / " + data.files.length + " (สำเร็จ " + ok + " · ไม่สำเร็จ " + bad + ")");
+    }
+    log("เสร็จ: ย้ายไฟล์สำเร็จ " + ok + " · ไม่สำเร็จ " + bad, bad ? "bad" : "ok");
+    $("bFiles").disabled = false;
+  }
+})();
+</script>
+</body>
+</html>
