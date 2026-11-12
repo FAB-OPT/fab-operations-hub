@@ -23,9 +23,15 @@
         el.style.cssText = "position:fixed;left:12px;right:12px;bottom:12px;z-index:2147483000;background:#7A1F10;color:#fff;padding:12px 16px;border-radius:12px;font:14px/1.5 system-ui,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,.3)";
         document.body.appendChild(el);
       }
-      el.textContent = msg;
+      el.textContent = msg + " ";
+      var b = document.createElement("button"); b.textContent = "ลองใหม่"; b.style.cssText = "margin-left:8px;border:0;border-radius:8px;padding:4px 12px;font:inherit;font-weight:700;cursor:pointer";
+      b.onclick = function () { location.reload(); }; el.appendChild(b);
     } catch (_) {}
   }
+  /* ขั้นที่กำลังทำ (ไว้บอกว่าค้างตรงไหน) + จำข้อความผิดพลาดให้หน้าแอปแสดงแทนข้อความ "ไม่ได้รับสิทธิ์" ที่เข้าใจผิด */
+  var step = "gate";
+  function withCap(p, ms, label) { return Promise.race([p, new Promise(function (_, no) { setTimeout(function () { no(new Error(label + " ช้าเกิน " + Math.round(ms / 1000) + " วินาที")); }, ms); })]); }
+  var wd = setTimeout(function () { fail("กำลังต่อฐานข้อมูลช้า (ขั้น: " + step + ")"); }, 12000);
 
   function err(e) {
     var m = String((e && e.message) || e || ""), c = e && e.code;
@@ -217,17 +223,18 @@
 
   /* ───────── เริ่มต้น: รอประตูฮับ → ต่อฐานของฮับ → ลงชื่อตัวเองในทะเบียนชื่อ ───────── */
   async function init() {
-    acc = await window.BC_GATE;                    // ประตูฮับตัดสินแล้วว่ามีสิทธิ์ (ไม่มีสิทธิ์ = ไม่ resolve)
+    step = "gate"; acc = await window.BC_GATE;    // ประตูฮับตัดสินแล้วว่ามีสิทธิ์ (ไม่มีสิทธิ์ = ไม่ resolve)
     if (!H || !H.SB) throw new Error("โหลดตัวเชื่อมฐานข้อมูลของฮับไม่ได้");
-    var ok = await H.SB.ready();
+    step = "sb"; var ok = await H.SB.ready();
     if (!ok) throw new Error("ต่อฐานข้อมูลของฮับไม่ได้ ลองรีเฟรชหน้า");
     sb = H.SB.client();
-    var probe = await sb.from(TABLE).select("id").limit(1);
+    step = "probe"; var probe = await withCap(Promise.resolve(sb.from(TABLE).select("id").limit(1)), 15000, "อ่านตาราง bc_docs");
     if (probe.error) throw err(probe.error);
     sb.rpc("bc_set", { p_col: PEOPLE_COL, p_id: acc.uid, p_data: { name: acc.name, code: acc.code || "" }, p_by: acc.uid }).then(function () {}, function () {});
+    clearTimeout(wd); var old = document.getElementById("bcFail"); if (old) old.remove();
     resolveReady(true);
   }
-  init().catch(function (e) { fail((e && e.message) || "เชื่อมต่อไม่สำเร็จ"); rejectReady(e); });
+  init().catch(function (e) { clearTimeout(wd); window.__bcInitErr = ((e && e.message) || "เชื่อมต่อไม่สำเร็จ") + " (ขั้น: " + step + ")"; fail(window.__bcInitErr); rejectReady(e); });
 
   /* ออกจากระบบ = กลับฮับ */
   document.addEventListener("DOMContentLoaded", function () {

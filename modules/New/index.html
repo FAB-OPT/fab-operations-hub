@@ -36,13 +36,16 @@
   var deny = function () { if (finished) return; finished = true; paint('ไม่มีสิทธิ์เข้าระบบนี้', 'บัญชีของคุณยังไม่ได้รับสิทธิ์ใช้งาน Booth & Catering Desk · ติดต่อผู้ดูแลฮับเพื่อขอสิทธิ์ (หน้าสิทธิ์ของฮับ)', true); };
   if (!H) { paint('โหลดตัวตรวจสิทธิ์ของฮับไม่ได้', 'ตรวจสอบอินเทอร์เน็ตแล้วเปิดใหม่จากหน้าฮับ', true); return; }
   if (!(H.Hub.role() && H.Hub.session())) { location.replace('../../index.html'); return; }
-  var decide = function () {
+  var decide0 = function () {
     var can = function (k) { return H.can('plannerbooth', 'desk-' + k, DEF); };
     if (!(can('view') || can('register') || can('sales') || can('admin'))) { deny(); return; }
     var role = can('admin') ? 'sysadmin' : (can('register') && can('sales')) ? 'admin' : can('register') ? 'register' : can('sales') ? 'sales' : 'management';
     var s = H.Hub.session() || {}, code = H.Hub.userCode() || String(s.nick || s.name || 'unknown');
     open({ uid: 'hub:' + code, code: code, name: H.Hub.fullName() || code, role: role, brands: ['jaedang', 'tsc'] });
   };
+  /* ถ้าตัดสินสิทธิ์พัง (ข้อมูลสิทธิ์ที่แคชผิดรูป) ต้องไม่ค้างที่หน้า "กำลังตรวจสิทธิ์" — ลองโหลดสิทธิ์ใหม่แล้วตัดสินอีกครั้ง */
+  var tried = false;
+  var decide = function () { try { decide0(); } catch (e) { console.error('[gate]', e); if (!tried) { tried = true; try { H.Cfg.loadSb().then(decide, decide); } catch (_) { deny(); } } else { deny(); } } };
   if (H.Cfg.fresh && H.Cfg.fresh(120000)) { decide(); return; }      /* หน้าแม่ (Plan งาน) เพิ่งโหลดสิทธิ์มาให้แล้ว ไม่ต้องรอซ้ำ */
   var t = setTimeout(decide, 6000);                                   /* โหลดสิทธิ์ล่าสุดไม่ทัน ใช้ที่แคชไว้ (ไม่มีแคช = ค่าตั้งต้น) */
   H.Cfg.loadSb().then(function () { clearTimeout(t); decide(); }, function () { clearTimeout(t); decide(); });
@@ -727,7 +730,7 @@ function showGate(){
   const al=S.accessReady?allowedBrands():[],msg=$("#gateMsg");
   $("#brandPick").innerHTML=al.map(b=>`<button class="bp ${b==="tsc"?"bp-tsc":"bp-jd"}" data-pick="${b}" type="button"><span class="unit">Catering · Booth</span><b>${esc(BRANDS[b].name)}</b></button>`).join("");
   msg.hidden=!!al.length;
-  msg.textContent=!S.accessReady?"กำลังตรวจสอบสิทธิ์ผู้ใช้…":!S.uid?"เข้าสู่ระบบ claude.ai ก่อน แล้วเปิดหน้านี้ใหม่":"บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าแบรนด์ใด แจ้งผู้ดูแลระบบให้เพิ่มสิทธิ์";
+  msg.textContent=!S.accessReady?"กำลังตรวจสอบสิทธิ์ผู้ใช้…":window.__bcInitErr?("ต่อฐานข้อมูลของฮับไม่ได้: "+window.__bcInitErr+" · ลองรีเฟรชหน้า"):!S.uid?"เข้าสู่ระบบ claude.ai ก่อน แล้วเปิดหน้านี้ใหม่":"บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าแบรนด์ใด แจ้งผู้ดูแลระบบให้เพิ่มสิทธิ์";
 }
 function enterBrand(b){
   if(!allowedBrands().includes(b))return;
