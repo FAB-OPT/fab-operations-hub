@@ -151,6 +151,9 @@ body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset
 /* gate */
 .gate{min-height:80vh;display:grid;place-items:center;padding-block:40px}
 .gate-in{max-width:640px;width:100%;display:flex;flex-direction:column;gap:20px}
+.gate.gwait .gate-in>:not(#gateMsg){display:none}
+.gate.gwait .gate-in{background:none!important;box-shadow:none!important;border:0!important;animation:gwin .25s .6s both}
+@keyframes gwin{from{opacity:0}to{opacity:1}}
 .brandpick{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px}
 .bp{border:0;border-radius:14px;padding:24px 20px;text-align:left;display:flex;flex-direction:column;gap:6px;min-height:140px;justify-content:flex-end}
 .bp b{font-family:var(--f-display);font-size:1.35rem}
@@ -729,6 +732,8 @@ function showGate(){
   S.brand=null;document.body.removeAttribute("data-brand");$("#gate").hidden=false;$("#app").hidden=true;
   const al=S.accessReady?allowedBrands():[],msg=$("#gateMsg");
   $("#brandPick").innerHTML=al.map(b=>`<button class="bp ${b==="tsc"?"bp-tsc":"bp-jd"}" data-pick="${b}" type="button"><span class="unit">Catering · Booth</span><b>${esc(BRANDS[b].name)}</b></button>`).join("");
+  /* หน้าต่างซ้อนในหน้า Plan: ระหว่างรอตรวจสิทธิ์ไม่โชว์หน้าเลือกแบรนด์ให้วาบ (จะเข้าเจ๊แดงเองอยู่แล้ว) — โชว์แค่ข้อความจาง ๆ หลังรอเกิน 0.6 วิ */
+  $("#gate").classList.toggle("gwait",document.documentElement.classList.contains("embed")&&!S.accessReady&&!window.__bcInitErr);
   msg.hidden=!!al.length;
   msg.textContent=!S.accessReady?"กำลังตรวจสอบสิทธิ์ผู้ใช้…":window.__bcInitErr?("ต่อฐานข้อมูลของฮับไม่ได้: "+window.__bcInitErr+" · ลองรีเฟรชหน้า"):!S.uid?"เข้าสู่ระบบ claude.ai ก่อน แล้วเปิดหน้านี้ใหม่":"บัญชีนี้ยังไม่ได้รับสิทธิ์เข้าแบรนด์ใด แจ้งผู้ดูแลระบบให้เพิ่มสิทธิ์";
 }
