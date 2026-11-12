@@ -1976,15 +1976,26 @@ const DB = (()=>{
       return false;
     }
   }
+  /* ประทับว่าใครบันทึก / เครื่องไหน ลงในใบ → ใช้ดูในปุ่ม "ประวัติ" (ว่าบันทึกซ้ำจากเครื่องไหน) */
+  function stamp(rec){
+    try{
+      rec.savedBy=Hub.fullName()||rec.savedBy||'';
+      let id=localStorage.getItem('fqa_dev_id'); if(!id){ id=Math.random().toString(36).slice(2,6); localStorage.setItem('fqa_dev_id',id); }
+      const ua=navigator.userAgent||'', os=/Android/i.test(ua)?'Android':/iPhone|iPad|iPod/i.test(ua)?'iOS':/Windows/i.test(ua)?'Windows':/Mac/i.test(ua)?'Mac':'อื่นๆ';
+      rec.dev=os+' '+id;
+    }catch(e){}
+  }
   return {
     all(){ return read().records; },
     save(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       rec.updatedAt=new Date().toISOString();   // ISO เสมอ — ดู _fqaIsoTime ว่าทำไม
+      stamp(rec);
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return write(d); },
     /* เหมือน save() แต่รอจนเขียนลงที่เก็บจริงเสร็จ แล้วคืน true/false ว่าลงจริงไหม
        ใช้กับ "กดบันทึกผลตรวจ" ซึ่งเป็นจังหวะเดียวที่พลาดแล้วงานทั้งใบหาย */
     saveNow(rec){ const d=read(); const i=d.records.findIndex(r=>r.id===rec.id);
       rec.updatedAt=new Date().toISOString();
+      stamp(rec);
       if(i>=0) d.records[i]=rec; else d.records.unshift(rec); return writeNow(d); },
     flushPending(){ return flushPending(); },
     /* upsert เฉพาะในเครื่อง โดยไม่แตะ updatedAt — ใช้ตอนซิงค์ (เช่น แทน base64 ด้วย URL รูป) */
@@ -5170,6 +5181,7 @@ const Rec = {
         <td class="rowact noprint">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
+          <button class="btn sm" title="ประวัติการบันทึก/แก้ไข" onclick="Hist.open('${r.id}')">🕘 ประวัติ</button>
           <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>`:''}
         </td></tr>`).join('')}</tbody></table>${moreBtn}`;
   },
@@ -5189,6 +5201,7 @@ const Rec = {
         </div>
         ${canEdit()?`<span class="rl-a" onclick="event.stopPropagation()">
           <button class="btn sm" title="แก้ไข" aria-label="แก้ไข" onclick="Rec.edit('${r.id}')"><span class="ic">✎</span></button>
+          <button class="btn sm" title="ประวัติการบันทึก" aria-label="ประวัติ" onclick="Hist.open('${r.id}')"><span class="ic">🕘</span></button>
           <button class="btn sm dgr" title="ลบ" aria-label="ลบ" onclick="Rec.del('${r.id}')"><span class="ic">🗑</span></button>
         </span>`:''}
       </div>`).join('')}</div>`;
@@ -5206,6 +5219,7 @@ const Rec = {
         <div class="rc-act">
           <button class="btn sm" onclick="Rec.view('${r.id}')">ดู</button>
           ${canEdit()?`<button class="btn sm" onclick="Rec.edit('${r.id}')">แก้ไข</button>
+          <button class="btn sm" onclick="Hist.open('${r.id}')">🕘 ประวัติ</button>
           <button class="btn sm dgr" onclick="Rec.del('${r.id}')">ลบ</button>`:''}
         </div></div>`; }).join('')}</div>`;
   },
@@ -8116,6 +8130,39 @@ const FullReport = {
    เปิดจากลิงก์ #report=<brand>~<id> · ไม่ต้องล็อกอิน · ดึงรายงานจากคลาวด์มาแสดง
    → เปิดได้ทุกเครื่อง/ทุกเบราว์เซอร์ แล้วผู้รับกด "บันทึกเป็น PDF" เองได้
    ======================================================================= */
+/* ประวัติการบันทึก/แก้ไขของใบตรวจ — อ่านจาก fqa_history (ทริกเกอร์ในฐานข้อมูล · supabase/fqa-history.sql)
+   ใช้ดูว่าใบถูกบันทึกซ้ำไหม: "บันทึกซ้ำ" = บันทึกแล้วเนื้อหาไม่เปลี่ยนเลย */
+const Hist = {
+  LABEL:{date:'วันที่',time:'เวลา',branch:'สาขา',bzm:'BZM',trainer:'ผู้ตรวจ',photos:'รูป',menus:'เมนู',issues:'ประเด็น',topics:'หัวข้อ',staff:'พนักงาน',verify:'ตรวจสอบ',type:'ชนิดใบ',note:'หมายเหตุ'},
+  ACT:{create:['🆕','สร้างใบ'],edit:['✏️','แก้ไข'],resave:['🔁','บันทึกซ้ำ (เนื้อหาไม่เปลี่ยน)'],delete:['🗑','ลบ'],restore:['♻️','ยกเลิกการลบ']},
+  fmt(iso){ const d=iso?new Date(iso):null; if(!d||isNaN(d.getTime())) return '—';
+    try{ return d.toLocaleString('th-TH',{timeZone:'Asia/Bangkok',day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit'}); }catch(e){ return iso; } },
+  open(id){
+    App.modal('ประวัติการบันทึก','<div style="padding:14px;color:var(--text3)">กำลังโหลดประวัติ…</div>');
+    const box=html=>{ const b=document.getElementById('mBody'); if(b) b.innerHTML=html; };
+    FqaSB.ready().then(ok=>ok?FqaSB._rpc('fqa_history',{p_id:String(id)}):null).then(j=>{
+      if(!j) return box('<div style="padding:14px">ยังต่อฐานข้อมูลไม่ได้ ลองใหม่อีกครั้ง</div>');
+      const rows=j.rows||[], cur=j.cur||{};
+      const dup=rows.filter(r=>r.action==='resave').length, devs=[...new Set(rows.map(r=>r.device).filter(Boolean))];
+      /* บันทึกถี่ผิดปกติ: สองครั้งติดกันห่างกันไม่เกิน 2 นาที */
+      const close=new Set(); rows.forEach((r,i)=>{ const nx=rows[i+1]; if(nx && Math.abs(new Date(r.at)-new Date(nx.at))<=120000){ close.add(i); close.add(i+1); } });
+      const head=`<div style="font-size:12.5px;line-height:1.8;padding:10px 12px;border-radius:10px;background:var(--soft,#f5f5f5);margin-bottom:10px">
+        สร้างเมื่อ <b>${esc(this.fmt(cur.created_at))}</b> · บันทึกล่าสุดที่เซิร์ฟเวอร์ <b>${esc(this.fmt(cur.server_at))}</b>${cur.deleted?' · <b style="color:var(--red)">ถูกลบอยู่</b>':''}
+        <div>จดประวัติไว้ <b>${rows.length}</b> รายการ · บันทึกซ้ำ <b style="color:${dup?'var(--red)':'inherit'}">${dup}</b> ครั้ง${devs.length>1?` · จาก <b>${devs.length}</b> เครื่อง`:''}</div></div>`;
+      if(!rows.length) return box(head+`<div style="padding:6px 2px;font-size:12.5px;color:var(--text2)">ยังไม่มีประวัติของใบนี้ — ประวัติเริ่มจดตั้งแต่เปิดระบบประวัติ ใบที่บันทึกก่อนหน้านั้นจึงเห็นแค่เวลาสร้างและเวลาล่าสุดด้านบน</div>`);
+      const li=rows.map((r,i)=>{ const a=this.ACT[r.action]||['•',r.action];
+        const ch=(r.changed||[]).map(k=>this.LABEL[k]||k).join(', ');
+        const who=[r.saved_by,r.device].filter(Boolean).join(' · ');
+        return `<div style="padding:8px 0;border-top:1px solid var(--border)">
+          <div><span>${a[0]}</span> <b>${esc(a[1])}</b>${close.has(i)?' <span class="pill p-fail" style="font-size:10.5px">ถี่ ≤ 2 นาที</span>':''}</div>
+          <div class="mono" style="font-size:11.5px;color:var(--text3)">${esc(this.fmt(r.at))}${who?' · '+esc(who):''}</div>
+          ${ch?`<div style="font-size:12px;color:var(--text2)">ช่องที่เปลี่ยน: ${esc(ch)}</div>`:''}
+        </div>`; }).join('');
+      box(head+li);
+    }).catch(e=>box(`<div style="padding:14px;font-size:12.5px">เปิดประวัติไม่ได้ — ${esc((e&&e.message)||String(e))}<br><span style="color:var(--text3)">ถ้าเพิ่งเพิ่มระบบนี้ ต้องรันไฟล์ supabase/fqa-history.sql ในฐานข้อมูลก่อน</span></div>`));
+  }
+};
+
 const ReportView = {
   _rec:null,
   parseHash(){
@@ -8125,6 +8172,10 @@ const ReportView = {
     catch(e){ return {brand:m[1], id:m[2]}; }
   },
   open(brand, id){
+    /* สองลิงก์ต่างกันแค่หลัง # (#report=...~id) เบราว์เซอร์ถือเป็นหน้าเดิม ไม่โหลดใหม่ → ถ้าเปิดลิงก์ที่สองในแท็บที่เปิดลิงก์แรกค้างอยู่
+       จะเห็นรายงานใบแรกต่อ · ดักการเปลี่ยน hash แล้วโหลดหน้าใหม่ให้ตรงกับใบที่กด */
+    this._id=String(id);
+    window.addEventListener('hashchange',()=>{ const n=ReportView.parseHash(); if(n && String(n.id)!==ReportView._id) location.reload(); });
     Brand.cur=brand||'jaedaeng';
     /* ทาสีตามแบรนด์ของใบที่แชร์มา ของเดิมตั้งแค่ค่าตัวแปรแล้วไม่ได้ทาสี
        ใบของซานตาเฟ่จึงเปิดมาเป็นสีแดงและขึ้นชื่อร้านส้มตำเจ๊แดง */
