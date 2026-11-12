@@ -759,7 +759,29 @@ const TH=['มกราคม','กุมภาพันธ์','มีนาค
 let db=null, unsubMonth=null, unsubTeam=null, unsubCats=null, unsubHol=null;
 let team=DEFAULT_TEAM.slice(), cats=DEFAULT_CATS.map(x=>({...x}));
 let helpBr=DEFAULT_HELP.slice();   /* สาขาที่พนักงานไปช่วย: เก็บที่ bconfig/helpbranches */
-let booths=[];   /* บูธ / งาน: [{k,name,place,from,to}] เก็บที่ bconfig/booths ทุกคนเห็นตรงกัน */
+let booths=[];   /* บูธ / งาน: [{k,name,place,from,to}] = legacyBooths (bconfig/booths ทุกคนเห็นตรงกัน) + deskJobs (ดึงจากทะเบียนงาน อ่านอย่างเดียว) */
+let legacyBooths=[], deskJobs=[], deskOn=false, deskReg=false, deskSig='';
+const DESK_DEF={'desk-view':['admin','coo','support'],'desk-register':['admin','support'],'desk-sales':['admin','support'],'desk-admin':['admin']};   /* ตรงกับ modules/booth.html */
+function mergeBooths(){ booths=legacyBooths.concat(deskJobs); if(boothSel&&!boothOf(boothSel)) boothSel=null; }
+function goDesk(){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'open-desk'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
+/* งานจากทะเบียนงาน & P&L (bc_docs · เจ๊แดง) → งานในปฏิทิน Plan · ไม่เก็บซ้ำ ไม่มีตัวเลขการเงิน · วันที่ไม่ติดกันแยกเป็นช่วงละงาน */
+async function pullDesk(client){
+  try{
+    const r=await client.from('bc_docs').select('id,data').eq('col','b/jaedang/events').eq('deleted',false);
+    if(r.error) return;
+    const out=[], dd=s=>Date.UTC(+s.slice(0,4),+s.slice(5,7)-1,+s.slice(8,10));
+    (r.data||[]).forEach(row=>{
+      const e=row.data||{}; if(e.status==='cancelled'||e.status==='tbd') return;
+      const ds=[...(e.dates||[])].filter(Boolean).sort(); if(!ds.length) return;
+      const runs=[[ds[0],ds[0]]]; for(let i=1;i<ds.length;i++){ const cur=runs[runs.length-1]; if(dd(ds[i])-dd(cur[1])===864e5) cur[1]=ds[i]; else runs.push([ds[i],ds[i]]); }
+      const cat=e.format!=='Booth';
+      runs.forEach((rg,i)=>out.push({k:'bc:'+row.id+(runs.length>1?':'+i:''),desk:true,type:cat?'catering':'booth',name:e.customer||'(ไม่มีชื่อลูกค้า)',place:e.venue||'',from:rg[0],to:rg[1],
+        timeFrom:e.serveFrom||'',timeTo:e.serveTo||'',format:e.format||'',guests:Number(e.guests)||0,contactName:e.customer||'',contactPhone:e.phone||'',
+        rent:Number(e.feas&&e.feas.rent)||0,menus:(e.packages||[]).map(p=>({n:p.name||'',q:p.qty,p:p.price})),staff:[],bzm:''}));
+    });
+    const sig=JSON.stringify(out); if(sig===deskSig) return; deskSig=sig; deskJobs=out; mergeBooths(); paintAll();
+  }catch(e){}
+}
 let boothSel=null;   /* กรองดูเฉพาะบูธนี้ */
 const boothOf=k=>booths.find(b=>b.k===k)||null;
 const boothTag=p=>{ const b=p&&p.booth?boothOf(p.booth):null; return b?b.name:''; };
@@ -964,7 +986,7 @@ function jobDetailHtml(b){
   rows.push(['พนักงานที่ออกงาน',(b.staff&&b.staff.length)?`<span class="stf">${b.staff.map(x=>`<i>${esc(x)}</i>`).join('')}</span>`:''],['BZM ที่ดูแล',b.bzm]);
   const dl=rows.filter(r=>r[1]).map(r=>`<dt>${r[0]}</dt><dd>${r[0]==='ผู้ติดต่อ'||r[0]==='เบอร์ติดต่อ'||r[0]==='พนักงานที่ออกงาน'?r[1]:esc(r[1])}</dd>`).join('');
   const menu=(b.type==='catering'&&(b.menus||[]).length)?`<table><thead><tr><th>เมนู</th><th>จำนวน</th><th>ราคา</th><th>รวม</th></tr></thead><tbody>${b.menus.map(m=>`<tr><td>${esc(m.n||'')}</td><td>${money(m.q)}</td><td>${money(m.p)}</td><td>${money((Number(m.q)||0)*(Number(m.p)||0))}</td></tr>`).join('')}</tbody><tfoot><tr><td colspan="3">ราคารวมทั้งหมด</td><td>${money(menuTotal(b))}</td></tr></tfoot></table>`:'';
-  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${canJobs?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
+  return `<div class="jobc" style="--c:${t.c}"><div class="jh"><span class="jt">${t.ic} ${t.l}</span>${b.desk?`<span class="jacts"><button class="jedit" data-opendesk="1">🧾 เปิดในทะเบียนงาน</button></span>`:canJobs?`<span class="jacts"><button class="jedit" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="jedit jdel" data-bdel="${esc(b.k)}">🗑 ลบ</button></span>`:''}<b>${esc(b.name)}</b></div><dl>${dl}</dl>${menu}</div>`;
 }
 function paintBooths(){
   const live=booths.slice().sort((a,b)=>String(b.from||'').localeCompare(String(a.from||'')));
@@ -1090,7 +1112,7 @@ function askBox({icon='❔',title,msg='',danger=false,input=null}){
   });
 }
 async function saveHelp(next){ helpBr=next; await db.doc('bconfig/helpbranches').set({items:next}); }
-async function saveBooths(next){ booths=next; await db.doc('bconfig/booths').set({items:next}); }
+async function saveBooths(next){ legacyBooths=next.filter(x=>!x.desk); mergeBooths(); await db.doc('bconfig/booths').set({items:legacyBooths}); }   /* งานจากทะเบียนงานไม่เก็บในนี้ */
 /* กล่องกรอกงาน Catering / Booth — ช่องที่ต้องกรอกต่างกันตามชนิด · จำนวนวันคิดจากวันที่เริ่ม-สิ้นสุดอัตโนมัติ */
 /* ───── วางข้อความจากไลน์ → ให้ AI อ่านแล้วกรอกฟอร์มงาน ─────
    เรียกฟังก์ชัน parse-job-text (Supabase) · ใช้ไม่ได้ (ไม่มีคีย์ AI / ออฟไลน์) = ตัวอ่านพื้นฐานในหน้านี้แทน
@@ -1221,7 +1243,7 @@ function jobCard(b){
   const who=[(b.staff&&b.staff.length)?`พนักงาน: ${b.staff.join(', ')}`:'',b.bzm?`BZM: ${b.bzm}`:''].filter(Boolean).join(' · ');
   return `<div class="jcard" style="--c:${t.c}"><div class="jc-h"><span class="jt">${t.ic} ${t.l}</span><b>${esc(b.name)}</b></div>
     <div class="jc-l">${esc(b.place||'-')} · ${when}${time}</div>${money1?`<div class="jc-l strong">${esc(money1)}</div>`:''}${who?`<div class="jc-l">${esc(who)}</div>`:''}
-    <div class="jc-a"><button class="mini" data-bgo="${esc(b.k)}">📅 ดูในปฏิทิน</button><button class="mini" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="mini dng" data-bdel="${esc(b.k)}">✕ ลบ</button>${used?`<small>${used} แผนในเดือนนี้</small>`:''}</div></div>`;
+    <div class="jc-a"><button class="mini" data-bgo="${esc(b.k)}">📅 ดูในปฏิทิน</button>${b.desk?`<button class="mini" data-bedit="${esc(b.k)}">🧾 แก้ที่ทะเบียนงาน</button>`:`<button class="mini" data-bedit="${esc(b.k)}">✎ แก้ไข</button><button class="mini dng" data-bdel="${esc(b.k)}">✕ ลบ</button>`}${used?`<small>${used} แผนในเดือนนี้</small>`:''}</div></div>`;
 }
 function paintMgr(){
   const teamRows=team.map(n=>{ const c=plans.filter(p=>p.person===n).length; return `<div class="mg-row"><div class="tx">${esc(n)}<small>${c} แผน</small></div><button class="ic" data-tedit="${esc(n)}" aria-label="แก้ไขชื่อ">✎</button><button class="ic danger" data-tdel="${esc(n)}" aria-label="ลบ">✕</button></div>`; }).join('');
@@ -1323,6 +1345,8 @@ async function addJobsFrom(r){
   toast(list.length>1?`เพิ่มงานแล้ว ${list.length} งาน`:'เพิ่มงานแล้ว'); return true;
 }
 async function tlAddJob(type){
+  if(deskReg){ toast('ลงทะเบียนงานที่แท็บ “ทะเบียนงาน & P&L” กรอกครั้งเดียว Plan ดึงมาแสดงเอง'); goDesk(); return; }
+  if(deskOn) return toast('ลงทะเบียนงานที่แท็บทะเบียนงาน (ต้องมีสิทธิ์ลงทะเบียนงาน)');
   if(!canJobs) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   const r=await askJob(null,type); if(!r) return;
   if(!await addJobsFrom(r)) return;
@@ -1383,6 +1407,7 @@ function openJobPop(k){ const b=boothOf(k); if(!b) return; $('jpBody').innerHTML
 function closeJobPop(){ $('jobPop').hidden=true; }
 document.addEventListener('click',e=>{
   const jp=e.target.closest('[data-jp]'); if(jp&&!e.target.closest('#jobPop')){ openJobPop(jp.dataset.jp); return; }
+  if(e.target.closest('[data-opendesk]')){ closeJobPop(); goDesk(); return; }
   if(e.target.closest('#jpX')||e.target.id==='jobPop'){ closeJobPop(); return; }
   if(e.target.closest('#jobPop [data-bedit],#jobPop [data-bdel]')) closeJobPop();   /* กดแก้ไข: ปิดป๊อปอัปแล้วเปิดฟอร์มแก้ไข */
 });
@@ -1574,6 +1599,8 @@ document.addEventListener('click',async e=>{
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
   if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
+  if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ toast('ลงทะเบียนงานที่แท็บ “ทะเบียนงาน & P&L” กรอกครั้งเดียว Plan ดึงมาแสดงเอง'); goDesk(); return; }
+  { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
   if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
   if(!canMgr && t.closest('[data-tdel],[data-tedit],[data-cedit],[data-cdel],[data-cup],[data-cdn],#addTeam,#addCat,#addHelp,[data-hedit],[data-hdel]')) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้');
   const ct=t.closest('[data-cup],[data-cdn]');
@@ -1652,6 +1679,10 @@ async function start(){
     canJobs=canMgr||HubMod.can('plannerbooth','manage-jobs',PLANNER_PERM_DEFAULTS);   /* จัดการทีมได้ = จัดการงานได้ด้วยเสมอ */
     db=makeDb(client);
     visitClient=client;
+    /* มีสิทธิ์ส่วนทะเบียนงาน → ดึงงานจากทะเบียนมาโชว์ในปฏิทิน (อ่านอย่างเดียว) */
+    deskOn=Object.keys(DESK_DEF).some(k=>HubMod.can('plannerbooth',k,DESK_DEF));
+    deskReg=HubMod.can('plannerbooth','desk-register',DESK_DEF)||HubMod.can('plannerbooth','desk-admin',DESK_DEF);
+    if(deskOn){ pullDesk(client); setInterval(()=>pullDesk(client),20000); }
     loadBranches();
     $('fType').addEventListener('change',()=>syncBranchField(null));
     $('fPerson').addEventListener('change',()=>syncBranchField(null));
@@ -1663,7 +1694,7 @@ async function start(){
   }
     unsubTeam=db.doc('bconfig/team').onSnapshot(s=>{ const m=s.exists&&Array.isArray(s.data().members)?s.data().members:null; if(m&&m.length){ team=m.slice(); paintAll(); } });
   db.doc('bconfig/helpbranches').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it){ helpBr=it.slice(); } });
-  db.doc('bconfig/booths').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:[]; booths=it.map(x=>({...x})); if(boothSel&&!boothOf(boothSel)) boothSel=null; paintAll(); });
+  db.doc('bconfig/booths').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:[]; legacyBooths=it.map(x=>({...x})); mergeBooths(); paintAll(); });
   unsubCats=db.doc('bconfig/cats').onSnapshot(s=>{ const it=s.exists&&Array.isArray(s.data().items)?s.data().items:null; if(it&&it.length){ cats=it.map(x=>({...x})); paintAll(); } });
   db.doc('bconfig/offskip').onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; offSkip={...it}; paintAll(); });
   unsubHol=db.doc(holDocId()).onSnapshot(s=>{ const it=s.exists&&s.data()&&s.data().items&&typeof s.data().items==='object'?s.data().items:{}; hols={...it}; paintAll(); });
