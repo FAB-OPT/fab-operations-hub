@@ -175,6 +175,16 @@ button{cursor:pointer;border:0;background:none;padding:0}
 .side-seg{display:flex;gap:3px;padding:3px;background:#e9ecf1;border-radius:12px;margin:0 0 10px}
 .side-seg button{flex:1;height:34px;border-radius:10px;background:transparent;font-weight:800;font-size:13px;color:var(--ink2);border:0;cursor:pointer}
 .side-seg button.on{background:#fff;box-shadow:0 1px 3px rgba(17,24,39,.12);color:var(--accent-ink)}
+.addwrap{display:flex;flex-direction:column}
+.add .chev{display:inline-block;margin-left:6px;font-size:12px;transition:transform .15s}
+.add[aria-expanded="true"] .chev{transform:rotate(180deg)}
+.addmenu{background:#fff;border:1px solid var(--line);border-radius:14px;box-shadow:0 14px 30px rgba(15,23,42,.12);padding:6px;margin:-6px 0 12px}
+.addmenu[hidden]{display:none}
+.addmenu button{display:flex;gap:12px;align-items:center;width:100%;text-align:left;padding:10px 12px;border-radius:10px;font-weight:800;font-size:15px;color:var(--ink);background:none}
+.addmenu button:hover{background:var(--accent-soft)}
+.addmenu .mi{font-size:22px;width:30px;text-align:center}
+.addmenu small{display:block;font-weight:500;color:var(--ink3);font-size:12px;line-height:1.3;margin-top:1px}
+.ro .addmenu{display:none!important}
 .side .add{height:42px;font-size:15px;border-radius:12px;margin-bottom:12px}
 .sj-all{display:flex;gap:6px;margin:2px 4px 8px}
 .sj-all button{height:32px;padding:0 12px;border-radius:999px;border:1.5px solid var(--line);background:#fff;font-weight:800;font-size:13px;cursor:pointer}.sj-all button.on{border-color:var(--accent);background:var(--accent-soft);color:var(--accent-ink)}
@@ -592,7 +602,14 @@ button{cursor:pointer;border:0;background:none;padding:0}
  <div class="app">
   <aside class="side">
     <div class="brand"><h1>Plan งานบูธเจ๊แดง</h1></div>
-    <button class="add" id="addMenuBtn">+ เพิ่ม</button>
+    <div class="addwrap">
+      <button class="add" id="addMenuBtn" aria-expanded="false" aria-haspopup="true">+ เพิ่ม <span class="chev">▾</span></button>
+      <div class="addmenu" id="addMenu" hidden>
+        <button data-tl="add-plan" class="tl-w"><span class="mi">📅</span><span>แผนพนักงาน<small>หยุด / พักร้อน / Extra / ไปช่วยสาขา</small></span></button>
+        <button data-tl="add-catering" class="tl-j"><span class="mi">🍽️</span><span>งาน Catering<small>วัน เวลา เมนู ผู้ติดต่อ</small></span></button>
+        <button data-tl="add-booth" class="tl-j"><span class="mi">🎪</span><span>งาน Booth<small>สถานที่ ค่าเช่า พนักงาน</small></span></button>
+      </div>
+    </div>
     <div class="scard"><h4>งาน Catering / Booth</h4><div id="booths"></div></div>
     <div class="scard sc-off"><h4>ทีม</h4><div id="team"></div></div>
     <div class="scard sc-off"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
@@ -1455,10 +1472,10 @@ document.addEventListener('click',e=>{
 });
 document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ closeAddMenu(); if(!$('jobPop').hidden) closeJobPop(); } });
 function setView(v){ document.body.classList.toggle('v-cal',v==='cal'); document.body.classList.toggle('v-staff',v==='staff'); try{ localStorage.setItem('pbview',v); }catch(e){} paintAll(); }
-function closeAddMenu(){ const m=$('addPop'); if(m) m.hidden=true; }
+function closeAddMenu(){ const m=$('addPop'); if(m) m.hidden=true; const d=$('addMenu'); if(d&&!d.hidden){ d.hidden=true; const b=$('addMenuBtn'); if(b) b.setAttribute('aria-expanded','false'); } }
 document.addEventListener('click',e=>{
-  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); $('addPop').hidden=false; return; }
-  if(e.target.id==='addPop'||e.target.closest('#apX')||e.target.closest('#addPop [data-tl]')) closeAddMenu();
+  if(e.target.closest('#addMenuBtn')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); const d=$('addMenu'), open=d.hidden; d.hidden=!open; $('addMenuBtn').setAttribute('aria-expanded',String(open)); return; }
+  if(!e.target.closest('.addwrap')||e.target.closest('#addMenu [data-tl]')||e.target.id==='addPop'||e.target.closest('#apX')||e.target.closest('#addPop [data-tl]')) closeAddMenu();
   const jr=e.target.closest('[data-jr]'); if(jr){ const k=jr.dataset.jr; tlSel=(tlSel===k&&jr.classList.contains('mtl-c'))?null:k; paintTL(); paintMTl(); return; }
   if(e.target.closest('#toTl')){ setView('tl'); return; }
   const a=e.target.closest('[data-tl]'); if(!a) return; const k=a.dataset.tl;
