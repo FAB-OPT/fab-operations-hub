@@ -22,6 +22,15 @@ body{display:flex;flex-direction:column;background:var(--bg)}
 .addhd .addx{border:1px solid var(--border);background:#fff;border-radius:999px;height:36px;padding:0 16px;font:inherit;font-size:14px;font-weight:800;cursor:pointer;white-space:nowrap}
 .addhd .addx:hover{border-color:var(--ink3,#94a3b8)}
 .addbox iframe{flex:1;min-height:0;border:0;width:100%;background:var(--bg)}
+.addov.tabpage .addhd{display:none}
+/* แถบบน: แท็บหลักของระบบ (ปฏิทิน · รายงาน & P&L · เมนู & BOM · ทีม / หมวด) */
+.topbar{flex-wrap:wrap}
+.nav{display:flex;gap:2px;margin-left:18px;align-self:stretch;align-items:stretch}
+.nav[hidden]{display:none}
+.nav .tab{background:none;border:0;border-radius:0;box-shadow:none;color:var(--text2);padding:0 12px;min-height:56px;border-bottom:2px solid transparent;font-weight:700;white-space:nowrap}
+.nav .tab:hover{background:none;color:var(--text)}
+.nav .tab[aria-selected="true"]{background:none;color:var(--text);border-bottom-color:var(--gold);box-shadow:none}
+@media(max-width:860px){.nav{order:9;width:100%;margin:0 -4px;overflow-x:auto;scrollbar-width:none}.nav .tab{min-height:44px;flex:none}}
 </style>
 </head>
 <body>
@@ -29,6 +38,7 @@ body{display:flex;flex-direction:column;background:var(--bg)}
 <div class="topbar">
   <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
     <div class="brand-text"><div class="t-title">งานบูธ &amp; Catering เจ๊แดง</div><div class="t-sub">FAB Operations &amp; Training Hub</div></div></div>
+  <nav class="nav" id="nav" role="tablist" hidden></nav>
   <div class="spacer"></div>
   <span class="userchip admin" id="me">—</span>
   <button class="btn-back" id="backBtn" title="กลับหน้าหลัก"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับหน้าหลัก</span></button>
@@ -53,36 +63,62 @@ body{display:flex;flex-direction:column;background:var(--bg)}
   var DEF = { 'desk-view': ['admin', 'coo', 'support'], 'desk-register': ['admin', 'support'], 'desk-sales': ['admin', 'support'], 'desk-admin': ['admin'] };
   var canDesk = false;
 
-  /* หน้าต่างซ้อน: แอปทะเบียนงาน (New/index.html) ฝังเป็น iframe — โหลดใหม่ทุกครั้งที่เปิด */
-  function showOv(title, src, wide) {
-    $('addTtl').textContent = title; $('addOv').classList.toggle('wide', !!wide);
+  var DEF_MGR = { 'manage-team': ['admin'] };
+  var canMgr = false, deskAdmin = false, activeTab = 'cal';
+
+  /* แท็บบนแถบ: ปฏิทิน (Plan งาน) · รายงาน & P&L · เมนู & BOM · ทีม / หมวด */
+  function paintNav() {
+    var items = [['cal', 'ปฏิทิน', true], ['dash', 'รายงาน & P&L', canDesk], ['menus', 'เมนู & BOM', deskAdmin], ['mgr', 'ทีม / หมวด', canMgr]].filter(function (x) { return x[2]; });
+    var nav = $('nav');
+    nav.hidden = items.length < 2;
+    nav.innerHTML = items.map(function (x) { return '<button class="tab" role="tab" data-k="' + x[0] + '" aria-selected="' + (x[0] === activeTab) + '">' + x[1].replace(/&/g, '&amp;') + '</button>'; }).join('');
+  }
+  function setActive(k) { activeTab = k; var b = $('nav').querySelectorAll('.tab'); for (var i = 0; i < b.length; i++) b[i].setAttribute('aria-selected', b[i].dataset.k === k); }
+  function toPlan(msg) { try { $('fPlan').contentWindow.postMessage(msg, location.origin); } catch (x) {} }
+  function goTab(k) {
+    if (k === 'cal') { closeOv(true); toPlan({ bs: 'close-mgr' }); setActive('cal'); return; }
+    if (k === 'mgr') { closeOv(false); toPlan({ bs: 'open-mgr' }); setActive('mgr'); return; }
+    toPlan({ bs: 'close-mgr' });
+    showOv(k === 'menus' ? 'เมนู & BOM' : 'รายงาน & P&L · ทะเบียนงาน', 'New/index.html?embed=1&view=' + k, true, true);
+    setActive(k);
+  }
+  $('nav').addEventListener('click', function (e) { var b = e.target.closest('.tab'); if (b) goTab(b.dataset.k); });
+
+  /* หน้าซ้อน: แอปทะเบียนงาน (New/index.html) ฝังเป็น iframe โหลดใหม่ทุกครั้งที่เปิด · tabpage = เป็นหน้าของแท็บ (ไม่มีแถบ ← กลับ) */
+  function showOv(title, src, wide, tabpage) {
+    $('addTtl').textContent = title; $('addOv').classList.toggle('wide', !!wide); $('addOv').classList.toggle('tabpage', !!tabpage);
     $('fAdd').src = src; $('addOv').hidden = false;
   }
   function closeOv(refresh) {
     $('addOv').hidden = true; $('fAdd').src = 'about:blank';
-    if (refresh) { try { $('fPlan').contentWindow.postMessage({ bs: 'refresh' }, location.origin); } catch (x) {} }   /* Plan ดึงงานที่เพิ่ม/แก้ใหม่ */
+    if (refresh) toPlan({ bs: 'refresh' });   /* Plan ดึงงานที่เพิ่ม/แก้ใหม่ */
+    if (activeTab === 'dash' || activeTab === 'menus') setActive('cal');
   }
   $('addX').onclick = function () { closeOv(true); };
   document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !$('addOv').hidden) closeOv(true); });
 
   window.addEventListener('message', function (e) {
-    if (e.origin !== location.origin || !e.data || !canDesk) return;
+    if (e.origin !== location.origin || !e.data) return;
     var d = e.data;
+    if (d.bs === 'mgr-closed') { if (activeTab === 'mgr') setActive('cal'); return; }
+    if (!canDesk) return;
     if (d.bs === 'add-job') {   /* + เพิ่ม → Catering/Booth: ฟอร์มลงทะเบียนงาน */
       var ty = d.type === 'booth' ? 'booth' : 'catering';
       showOv(ty === 'booth' ? 'ลงทะเบียนงาน Booth' : 'ลงทะเบียนงาน Catering', 'New/index.html?embed=1&add=' + ty);
     } else if (d.bs === 'open-event' && d.id) {   /* กดงานในปฏิทิน → หน้างาน: สลิป ยอดขาย P&L */
       showOv('งาน & P&L', 'New/index.html?embed=1&event=' + encodeURIComponent(d.id));
-    } else if (d.bs === 'open-desk') {   /* ปุ่มแยก: รายงาน & P&L (dash) · เมนู & BOM (menus) */
-      var vw = d.view === 'menus' ? 'menus' : 'dash';
-      showOv(vw === 'menus' ? 'เมนู & BOM' : 'รายงาน & P&L · ทะเบียนงาน', 'New/index.html?embed=1&view=' + vw, true);
+    } else if (d.bs === 'open-desk') {   /* รายงาน & P&L (dash) · เมนู & BOM (menus) */
+      goTab(d.view === 'menus' ? 'menus' : 'dash');
     } else if (d.bs === 'added') { closeOv(true); }
   });
 
   /* ส่วนทะเบียนงานเปิดให้เฉพาะคนที่มีสิทธิ์ข้อใดข้อหนึ่งของส่วนนี้ (หน้าสิทธิ์ของฮับ) */
   function decide() {
     canDesk = Object.keys(DEF).some(function (k) { return H.can('plannerbooth', k, DEF); });
-    if (canDesk && new URLSearchParams(location.search).get('tab') === 'desk') showOv('รายงาน & P&L · ทะเบียนงาน', 'New/index.html?embed=1&view=dash', true);
+    deskAdmin = H.can('plannerbooth', 'desk-admin', DEF);
+    canMgr = H.can('plannerbooth', 'manage-team', DEF_MGR);
+    paintNav();
+    if (canDesk && new URLSearchParams(location.search).get('tab') === 'desk') goTab('dash');
   }
   var done = false, t = setTimeout(function () { if (!done) { done = true; decide(); } }, 4000);
   H.Cfg.loadSb().then(function () { clearTimeout(t); if (!done) { done = true; decide(); } }, function () { clearTimeout(t); if (!done) { done = true; decide(); } });

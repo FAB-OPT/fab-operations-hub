@@ -15,6 +15,33 @@
 .mdesk{padding:0 14px 8px;display:flex;flex-direction:column;gap:6px}.mdesk[hidden]{display:none}.mdesk .addbtn{width:100%}
 html.embed .goHome,html.embed .goOut,html.embed .mlinks{display:none!important}
 html.embed .desk{padding:16px}
+/* ฝังในหน้ารวม: แถบข้าง = ปุ่มเพิ่มรายการ · แสดงในปฏิทิน (ตัวกรอง + จำนวน) · วันนี้/ถัดไป · ส่วนเมนูหลักย้ายไปแท็บบนของหน้ารวม */
+html.embed .side .brand,html.embed .side .side-foot,html.embed .mdesk{display:none!important}
+html.embed .side .scard:not(#fltCard){display:none!important}
+html.embed .right{display:none!important}
+html.embed .app{grid-template-columns:268px 1fr}
+html.embed .desk .app{background:linear-gradient(to right,#f6f7f9 0 267px,var(--line) 267px 268px,#fff 268px)}
+html.embed .side .add{margin:2px 0 14px;height:46px;font-size:15.5px;border-radius:14px}
+html.embed .side .right-in{position:static;overflow:visible;padding:0;margin-top:2px;display:flex;flex-direction:column;gap:6px}
+html.embed .side .right-in .lab{font-size:14px;font-weight:800;margin:10px 4px 2px}
+html.embed .side #selLab,html.embed .side #selLab.isToday{background:none!important;color:var(--ink)!important;padding:0 4px!important;box-shadow:none!important;border-radius:0!important}
+#fltCard{display:none}
+html.embed #fltCard{display:block}
+#fltCard h4:before{display:none}
+#fltCard h4{font-size:12px;letter-spacing:.06em;color:var(--ink3);margin:6px 8px 6px}
+.fl{display:flex;align-items:center;gap:10px;height:36px;padding:0 8px;cursor:pointer;font-size:14.5px;font-weight:600;color:var(--ink2);border-radius:10px;position:relative}
+.fl:hover{background:#f6f7f9}
+.fl input{position:absolute;opacity:0;pointer-events:none}
+.fl .fb{width:18px;height:18px;border-radius:5px;border:2px solid var(--c);flex:none;display:grid;place-items:center;color:#fff;font-size:12px;line-height:1;font-weight:800}
+.fl input:checked + .fb{background:var(--c)}
+.fl input:checked + .fb::after{content:"✓"}
+.fl input:focus-visible + .fb{outline:2px solid #ffd2ac;outline-offset:2px}
+.fl .fn{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.fl em{font-style:normal;font-size:12.5px;color:var(--ink3);font-variant-numeric:tabular-nums}
+.vseg{display:inline-flex;gap:2px;background:#ececea;border-radius:11px;padding:3px;margin-left:10px}
+.vseg button{padding:6px 14px;border-radius:8px;font-size:13.5px;font-weight:700;color:var(--ink2)}
+.vseg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 4px rgba(0,0,0,.1)}
+html:not(.embed) .vseg{display:none}
 /* ฝังในหน้ารวม: จัดการทีม/หมวด เป็นอีกหน้าเต็ม ไม่ใช่ป๊อปอัป */
 html.embed .mgr{display:block;padding:0;background:#f6f7f9;overflow:auto;backdrop-filter:none;-webkit-backdrop-filter:none}
 html.embed .mgr[hidden]{display:none}
@@ -608,13 +635,14 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <aside class="side">
     <div class="brand"><h1>Plan งานบูธเจ๊แดง</h1></div>
     <div class="addwrap">
-      <button class="add" id="addMenuBtn" aria-expanded="false" aria-haspopup="true">+ เพิ่ม <span class="chev">▾</span></button>
+      <button class="add" id="addMenuBtn" aria-expanded="false" aria-haspopup="true">+ เพิ่มรายการ <span class="chev">▾</span></button>
       <div class="addmenu" id="addMenu" hidden>
         <button data-tl="add-plan" class="tl-w"><span class="mi">📅</span><span>แผนพนักงาน<small>หยุด · พักร้อน · Extra</small></span></button>
         <button data-tl="add-catering" class="tl-j sep"><span class="mi">🍽️</span><span>งาน Catering<small>วัน เวลา เมนู</small></span></button>
         <button data-tl="add-booth" class="tl-j"><span class="mi">🎪</span><span>งาน Booth<small>สถานที่ ค่าเช่า</small></span></button>
       </div>
     </div>
+    <div class="scard" id="fltCard"><h4>แสดงในปฏิทิน</h4><div id="fltBody"></div></div>
     <div class="scard"><h4>งาน Catering / Booth</h4><div id="booths"></div></div>
     <div class="scard sc-off"><h4>ทีม</h4><div id="team"></div></div>
     <div class="scard sc-off"><h4>ขั้นตอน (หมวด)</h4><div id="cats"></div></div>
@@ -632,6 +660,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
       <h2 id="title"></h2>
       <button class="iconb" id="next" aria-label="เดือนถัดไป">›</button>
       <button class="btn" id="today" style="margin-left:auto">วันนี้</button>
+      <div class="vseg" id="vseg"><button class="on" data-v="cal">เดือน</button><button data-v="tl">ไทม์ไลน์</button><button data-v="staff">พนักงาน</button></div>
     </div>
     <div class="pfil" id="pfil" hidden></div>
     <div class="wd" id="wd"></div>
@@ -798,7 +827,10 @@ const DESK_DEF={'desk-view':['admin','coo','support'],'desk-register':['admin','
 function mergeBooths(){ booths=legacyBooths.concat(deskJobs); if(boothSel&&!boothOf(boothSel)) boothSel=null; }
 /* เพิ่มงาน Catering/Booth: เปิดฟอร์มลงทะเบียนของทะเบียนงานเป็นหน้าต่างซ้อนในหน้า Plan (หน้ารวม booth.html) · ถ้าเปิดหน้านี้เดี่ยวๆ พาไปแท็บทะเบียนงาน */
 function goAdd(type){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage({bs:'add-job',type:type==='booth'?'booth':'catering'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
-window.addEventListener('message',e=>{ if(e.origin===location.origin&&e.data&&e.data.bs==='refresh'&&deskClient) pullDesk(deskClient); });
+window.addEventListener('message',e=>{ if(e.origin!==location.origin||!e.data) return; const b=e.data.bs;
+  if(b==='refresh'&&deskClient) pullDesk(deskClient);
+  else if(b==='open-mgr'){ if(canMgr){ $('mgr').hidden=false; paintMgr(); } }
+  else if(b==='close-mgr'){ $('mgr').hidden=true; } });
 /* goDesk(รหัสงาน) = เปิดหน้างาน & P&L ของงานนั้น · goDesk() = เปิดรายงาน & ตั้งค่า (Dashboard · งานทั้งหมด · Feasibility · เมนู & BOM) — เป็นหน้าต่างซ้อนในหน้ารวม */
 const evIdOf=k=>String(k||'').split(':')[1]||'';
 function goDesk(id,view){ try{ if(window.parent&&window.parent!==window){ window.parent.postMessage(id?{bs:'open-event',id}:{bs:'open-desk',view:view||'dash'},location.origin); return; } }catch(e){} location.href='booth.html?tab=desk'; }
@@ -821,6 +853,7 @@ async function pullDesk(client){
   }catch(e){}
 }
 let boothSel=null;   /* กรองดูเฉพาะบูธนี้ */
+(function(){ try{ if(document.documentElement.classList.contains('embed')){ const rin=document.querySelector('.right-in'), side=document.querySelector('.side'); if(rin&&side) side.appendChild(rin); } }catch(e){} })();
 const boothOf=k=>booths.find(b=>b.k===k)||null;
 const boothTag=p=>{ const b=p&&p.booth?boothOf(p.booth):null; return b?b.name:''; };
 const ptitle=p=>{ const t=boothTag(p); return t?(t+' · '+p.title):p.title; };
@@ -1038,6 +1071,21 @@ function paintBooths(){
   $('mbooths').hidden=!booths.length;
   $('mbooths').innerHTML=booths.length?`<button class="pill all ${!boothSel?'on':''}" data-b="">ทุกงาน</button>`+booths.map(b=>`<button class="pill ${boothSel===b.k?'on':''}" data-b="${esc(b.k)}">${jtype(b).ic} ${esc(b.name)}</button>`).join(''):'';
 }
+function paintFilters(){
+  const host=$('fltBody'); if(!host) return;
+  const first=`${mkey()}-01`, last=`${mkey()}-${String(nDays()).padStart(2,'0')}`;
+  const nJob=t=>booths.filter(b=>jt(b)===t&&b.from&&b.from<=last&&(b.to||b.from)>=first).length;
+  const rows=[{k:'job:catering',l:JTYPE.catering.l,c:JTYPE.catering.c,on:!jobOff.has('catering'),n:nJob('catering')},{k:'job:booth',l:JTYPE.booth.l,c:JTYPE.booth.c,on:!jobOff.has('booth'),n:nJob('booth')}]
+    .concat(cats.map(c=>({k:'cat:'+c.k,l:c.l,c:c.c,on:!catOff.has(c.k),n:plans.filter(p=>p.type===c.k&&String(p.date).startsWith(mkey())).length})));
+  host.innerHTML=rows.map(r=>`<label class="fl" style="--c:${r.c}"><input type="checkbox" data-f="${esc(r.k)}" ${r.on?'checked':''}><span class="fb"></span><span class="fn">${esc(r.l)}</span><em>${r.n}</em></label>`).join('');
+}
+document.addEventListener('change',e=>{
+  const c=e.target.closest&&e.target.closest('#fltBody input[data-f]'); if(!c) return;
+  const [kind,key]=c.dataset.f.split(':'); const set=kind==='job'?jobOff:catOff;
+  if(c.checked) set.delete(key); else set.add(key);
+  paintAll();
+});
+document.addEventListener('click',e=>{ const v=e.target.closest&&e.target.closest('#vseg [data-v]'); if(v) setView(v.dataset.v); });
 function paintCats(){
   $('cats').innerHTML=cats.map(c=>`<label class="cat" style="--c:${c.c}"><input type="checkbox" data-c="${esc(c.k)}" ${catOff.has(c.k)?'':'checked'}><span class="cn">${esc(c.l)}</span></label>`).join('');
 }
@@ -1046,7 +1094,7 @@ function evHtml(p,iso){ const c=catOf(p.type);
 /* งานหลายวันเป็นแท่งยาวต่อเนื่องข้ามช่องวัน (ตัดเป็นท่อนตามสัปดาห์) · แท่งซ้อนกันเรียงเป็นชั้น */
 function bandPlan(){
   const off=mon(), n=nDays(), first=`${mkey()}-01`, last=`${mkey()}-${String(n).padStart(2,'0')}`, segs=[], lanes={};
-  const jobs=booths.filter(b=>b.from&&b.from<=last&&(b.to||b.from)>=first&&(!boothSel||boothSel===b.k)).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  const jobs=booths.filter(b=>b.from&&b.from<=last&&(b.to||b.from)>=first&&(!boothSel||boothSel===b.k)&&!jobOff.has(jt(b))).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
   const byWeek={};
   jobs.forEach(b=>{ const bar=tlBar(b); const w0=Math.floor((off+bar.s-1)/7), w1=Math.floor((off+bar.e-1)/7);
     for(let w=w0; w<=w1; w++){ const ds=Math.max(bar.s,w*7-off+1), de=Math.min(bar.e,w*7+6-off+1);
@@ -1319,6 +1367,8 @@ function paintAgenda(){
 /* Day Off อัตโนมัติของทุกคนในทีม ทุกเสาร์-อาทิตย์ (ไม่บันทึกลงฐาน)
    ลบของใครคนนั้นจะถูกจำไว้ใน offSkip ไม่กระทบคนอื่น */
 let offSkip={};
+const jobOff=new Set();   /* ประเภทงานที่ปิดการแสดง (catering | booth) */
+const jt=b=>b&&b.type==="catering"?"catering":"booth";
 let catOff=new Set();   /* หมวดที่ผู้ใช้ปิดการแสดงผลจากแถบหมวด */
 function offKey(person,iso){ return person+'|'+iso; }
 function weekendOffs(){
@@ -1338,12 +1388,12 @@ function weekendOffs(){
 }
 function allPlans(){ return dbPlans.slice(); }   /* ไม่มีแผน Visit / Day Off อัตโนมัติ */
 async function saveOffSkip(key){ offSkip={...offSkip,[key]:true}; paintAll(); await db.doc('bconfig/offskip').set({items:offSkip}); }
-function paintAll(){ plans=allPlans(); paintHead(); paintTL(); paintMTl(); paintStaff(); paintMStaff(); paintBooths(); paintTeam(); paintCats(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); $('mob').classList.toggle('tl',mView==='tl'); $('mob').classList.toggle('stf',mView==='stf'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); document.body.classList.toggle('nojobs',!canJobs); }
+function paintAll(){ plans=allPlans(); paintHead(); paintTL(); paintMTl(); paintStaff(); paintMStaff(); paintBooths(); paintTeam(); paintCats(); paintFilters(); paintGrid(); paintRight(); paintStrip(); paintAgenda(); $('mob').classList.toggle('list',mView==='list'); $('mob').classList.toggle('tl',mView==='tl'); $('mob').classList.toggle('stf',mView==='stf'); if(!$('mgr').hidden) paintMgr(); document.body.classList.toggle('ro',!canWrite); document.body.classList.toggle('nomgr',!canMgr); document.body.classList.toggle('nojobs',!canJobs); }
 
 /* ───── ไทม์ไลน์ทั้งเดือน (แท่งต่อ 1 งาน) ───── */
 function tlJobs(){
   const n=nDays(), first=`${mkey()}-01`, last=`${mkey()}-${String(n).padStart(2,'0')}`;
-  return booths.filter(b=>b.from&&b.from<=last&&(b.to||b.from)>=first).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
+  return booths.filter(b=>b.from&&b.from<=last&&(b.to||b.from)>=first&&!jobOff.has(jt(b))).slice().sort((a,b)=>String(a.from).localeCompare(String(b.from)));
 }
 function tlBar(b){ const n=nDays(), first=`${mkey()}-01`, last=`${mkey()}-${String(n).padStart(2,'0')}`;
   const s0=b.from<first?1:+b.from.slice(8,10), e0=(b.to||b.from)>last?n:+(b.to||b.from).slice(8,10); return {s:s0,e:e0,n:e0-s0+1}; }
@@ -1664,7 +1714,7 @@ document.addEventListener('click',async e=>{
   if(t.closest('#deskBtn,#deskBtnM')){ goDesk(null,'dash'); return; }
   if(t.closest('#menuBtn,#menuBtnM')){ goDesk(null,'menus'); return; }
   if(t.closest('#addOne')||t.closest('#tabs [data-tab="team"]')){ if(!canMgr) return toast('เฉพาะแอดมินที่จัดการทีมและหมวดงานได้'); $('mgr').hidden=false; paintMgr(); return; }
-  if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; return; }
+  if(t.closest('#mgrX')||t.id==='mgr'){ $('mgr').hidden=true; try{ if(window.parent&&window.parent!==window) window.parent.postMessage({bs:'mgr-closed'},location.origin); }catch(x){} return; }
   if(deskReg && t.closest('#addBoothSide,[data-addtype]')){ const ad=t.closest('[data-addtype]'); const r=await askJob(null,ad?ad.dataset.addtype:'catering'); if(r) await addJobsFrom(r); return; }
   { const dk=t.closest('[data-bedit],[data-bdel]'); if(dk){ const bb=boothOf(dk.dataset.bedit||dk.dataset.bdel); if(bb&&bb.desk){ goDesk(evIdOf(bb.k)); return; } } }   /* งานจากทะเบียนงาน: แก้/ลบที่ทะเบียนเท่านั้น */
   if(!canJobs && t.closest('#addBoothSide,[data-addtype],[data-bedit],[data-bdel]')) return toast('ไม่มีสิทธิ์จัดการงาน Catering / Booth');
