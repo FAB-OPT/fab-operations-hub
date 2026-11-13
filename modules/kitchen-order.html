@@ -57,6 +57,22 @@
 .seg2 .bd{display:inline-block;background:var(--gold);color:#fff;font-size:11px;border-radius:99px;padding:0 6px;margin-left:5px;font-variant-numeric:tabular-nums}
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:560px){.frow{grid-template-columns:1fr}}
+.infocard{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin:0 0 14px}
+.ifields{display:grid;grid-template-columns:1fr 1fr 1.4fr;gap:12px}
+.infocard .field{margin:0}
+.infocard label{font-size:12.5px;font-weight:700;color:var(--text2);display:block;margin-bottom:5px}
+.isum{display:none;align-items:center;gap:10px;font-size:14px;min-height:36px}
+.isum .lnk{margin:0 0 0 auto}
+@media(max-width:760px){.ifields{grid-template-columns:1fr}.infocard.collapsed .ifields{display:none}.infocard.collapsed .isum{display:flex}}
+.restrip{margin:0 0 14px}
+.restrip .rh2{font-size:12.5px;font-weight:800;color:var(--text2);margin-bottom:6px}
+.restrip .rl{display:flex;gap:8px;overflow-x:auto;padding-bottom:4px;scrollbar-width:none}
+.restrip .rl::-webkit-scrollbar{display:none}
+.restrip .ro{flex:none;min-width:220px;max-width:260px;border:1px solid var(--border);background:var(--bg2);border-radius:12px;padding:10px 12px}
+.restrip .rh{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.restrip .rh span{font-size:12px;color:var(--text3)}
+.restrip .rs{font-size:12.5px;color:var(--text2);margin-top:2px}
+.restrip .rn{font-size:13px;margin:4px 0 8px}
 .recent{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px;align-self:start}
 @media(min-width:960px){.recent{position:sticky;top:78px}}
 .recent .st{font-weight:800;font-size:15px;margin-bottom:6px}
@@ -208,87 +224,80 @@ function modal(title, body, foot){
 
 /* ═══════════ สั่งของ: 3 ขั้น ข้อมูล → เลือกของ → ตรวจสอบ ═══════════ */
 const DRAFT_KEY = "ko_draft_v1";
-let cart = {}, fOrderer = "", fNote = "", fDate = "", fBranch = "", catSel = "", q = "", step = 1, saving = false;
+let cart = {}, fOrderer = "", fNote = "", fDate = "", fBranch = "", catSel = "", q = "", step = 1, saving = false, infoOpen = false;
 function loadDraft(){ try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (d) { cart = d.cart || {}; fNote = d.note || ""; fOrderer = d.orderer || ""; } } catch (e) {}
   try { if (!fOrderer) fOrderer = localStorage.getItem("ko_orderer") || ""; } catch (e) {} }
 function saveDraft(){ try { localStorage.setItem(DRAFT_KEY, JSON.stringify({cart, note: fNote, orderer: fOrderer})); } catch (e) {} }
 const cartCount = () => Object.keys(cart).filter(k => Number(cart[k]) > 0).length;
 function addDays(iso, n){ const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return HubMod.localDate(d); }
 const curBranch = () => isBranch() ? branchLabel() : fBranch;
-const STEPS = ["ข้อมูล", "เลือกของ", "ตรวจสอบ"];
+const STEPS = ["เลือกของ", "ตรวจสอบ"];
 
 function stepsHtml(){
   return `<div class="steps">${STEPS.map((t, i) => { const n = i + 1, cls = n < step ? "dn" : n === step ? "on" : "";
-    return `<button class="st ${cls}" data-s="${n}" ${n >= step ? "disabled" : ""}><i>${n < step ? "✓" : n}</i><span>${t}</span></button>${i < 2 ? '<span class="ln"></span>' : ""}`; }).join("")}</div>`;
+    return `<button class="st ${cls}" data-s="${n}" ${n >= step ? "disabled" : ""}><i>${n < step ? "✓" : n}</i><span>${t}</span></button>${i < STEPS.length - 1 ? '<span class="ln"></span>' : ""}`; }).join("")}</div>`;
 }
 function renderOrder(){
   const v = $("#viewOrder"); if (!v) return;
   if (!fDate) fDate = today();
-  const main = step === 1 ? step1Html() : step === 2 ? step2Html() : step3Html();
-  v.innerHTML = stepsHtml() + `<div class="wiz ${step < 3 ? "" : "noside"}"><div class="wmain">${main}</div>${step === 1 ? recentHtml() : step === 2 ? sideHtml() : ""}</div>`;
+  const main = step === 1 ? step1Html() : step3Html();
+  v.innerHTML = stepsHtml() + `<div class="wiz ${step === 1 ? "" : "noside"}"><div class="wmain">${main}</div>${step === 1 ? sideHtml() : ""}</div>`;
   $("#viewOrder .steps").onclick = e => { const b = e.target.closest(".st.dn"); if (b) goStep(+b.dataset.s); };
-  if (step === 1) bindStep1(); else if (step === 2) bindStep2(); else bindStep3();
+  if (step === 1) { bindInfo(); bindStep2(); } else bindStep3();
   paintBar();
 }
 function goStep(n){ step = n; renderOrder(); window.scrollTo(0, 0); }
 
-/* ขั้น 1: ข้อมูลใบสั่ง */
-function step1Html(){
+/* ขั้น 1: ข้อมูลใบสั่ง (แถบด้านบน) + สั่งซ้ำ + เลือกของ */
+function step1Html(){ return infoHtml() + reorderStrip() + itemsHtml(); }
+function infoHtml(){
   const bsel = isBranch()
     ? `<div class="fixed">${esc(branchLabel())}</div>`
-    : `<select id="fBr"><option value="">เลือกสาขา</option>${jdBranches().map(b => `<option ${String(b.name).trim() === fBranch ? "selected" : ""}>${esc(String(b.name).trim())}</option>`).join("")}</select>`;
-  return `<h3>ข้อมูลใบสั่ง</h3><div class="sub">ตรวจวันที่และสาขา แล้วใส่ชื่อผู้สั่ง</div>
-    <div class="fcard">
-      <div class="frow">
-        <div class="field"><label>วันที่สั่ง</label><input type="date" id="fDt" value="${esc(fDate)}" max="${esc(addDays(today(), 60))}" min="${esc(addDays(today(), -60))}"></div>
-        <div class="field"><label>สาขา</label>${bsel}${isBranch() ? "" : '<div class="hint">เลือกสาขาที่จะสั่งแทน</div>'}</div>
-      </div>
-      <div class="field" style="margin:0"><label>ชื่อผู้สั่ง <b style="color:var(--red)">*</b></label><input id="fOr" value="${esc(fOrderer)}" placeholder="พิมพ์ชื่อผู้สั่ง" autocomplete="name"></div>
-    </div>`;
+    : `<select id="fBr"><option value="">เลือกสาขาที่จะสั่ง</option>${jdBranches().map(b => `<option ${String(b.name).trim() === fBranch ? "selected" : ""}>${esc(String(b.name).trim())}</option>`).join("")}</select>`;
+  const complete = !!(curBranch() && fDate && fOrderer.trim());
+  return `<div class="infocard ${complete && !infoOpen ? "collapsed" : ""}">
+    <div class="isum"><span><b>${esc(dmy(fDate))}</b> · ${esc(curBranch())} · ผู้สั่ง ${esc(fOrderer)}</span><button class="lnk" id="infoEdit">แก้</button></div>
+    <div class="ifields">
+      <div class="field"><label>วันที่สั่ง</label><input type="date" id="fDt" value="${esc(fDate)}" max="${esc(addDays(today(), 60))}" min="${esc(addDays(today(), -60))}"></div>
+      <div class="field"><label>สาขา</label>${bsel}</div>
+      <div class="field"><label>ชื่อผู้สั่ง <b style="color:var(--red)">*</b></label><input id="fOr" value="${esc(fOrderer)}" placeholder="พิมพ์ชื่อผู้สั่ง" autocomplete="name"></div>
+    </div></div>`;
 }
-function bindStep1(){
-  $("#fDt").onchange = e => { fDate = e.target.value || today(); };
-  $("#fOr").oninput = e => { fOrderer = e.target.value; saveDraft(); };
-  $("#fOr").onkeydown = e => { if (e.key === "Enter") nextStep(); };
-  const br = $("#fBr"); if (br) br.onchange = e => { fBranch = e.target.value; renderOrder(); };
-  const rc = $("#recent"); if (rc) rc.onclick = e => { const b = e.target.closest("[data-re]"); if (b) reorder(b.dataset.re); };
+function bindInfo(){
+  const ed = $("#infoEdit"); if (ed) ed.onclick = () => { infoOpen = true; renderOrder(); };
+  $("#fDt").onchange = e => { fDate = e.target.value || today(); infoOpen = true; };
+  $("#fOr").oninput = e => { fOrderer = e.target.value; saveDraft(); infoOpen = true; };
+  const br = $("#fBr"); if (br) br.onchange = e => { fBranch = e.target.value; infoOpen = true; renderOrder(); };
+  const rs = $("#reStrip"); if (rs) rs.onclick = e => { const b = e.target.closest("[data-re]"); if (b) reorder(b.dataset.re); };
 }
-/* ใบสั่งล่าสุดของสาขานี้ · กด "สั่งซ้ำ" ใส่รายการเดิมให้ แล้วปรับจำนวนต่อได้ */
-function recentHtml(){
-  const bn = curBranch();
-  const list = bn ? visibleOrders().filter(o => String(o.branchName).trim() === bn).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 4) : [];
-  let h = `<aside class="recent" id="recent"><div class="st">${bn ? "ใบสั่งล่าสุดของ " + esc(bn) : "ใบสั่งล่าสุด"}</div>`;
-  if (!bn) h += `<div class="hint">เลือกสาขาก่อน แล้วจะเห็นใบสั่งล่าสุดของสาขานั้นที่นี่</div>`;
-  else if (!list.length) h += `<div class="hint">ยังไม่มีประวัติการสั่งของสาขานี้<br>ใบสั่งแรกที่ยืนยันจะขึ้นที่นี่ ให้กด “สั่งซ้ำ” ได้ในครั้งต่อไป</div>`;
-  list.forEach(o => {
+/* สั่งซ้ำ: แสดงเมื่อตะกร้ายังว่าง · ใส่รายการจากใบสั่งเดิมให้แล้วปรับจำนวนต่อได้ */
+function reorderStrip(){
+  const bn = curBranch(); if (!bn || cartCount()) return "";
+  const list = visibleOrders().filter(o => String(o.branchName).trim() === bn).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 4);
+  if (!list.length) return "";
+  return `<div class="restrip" id="reStrip"><div class="rh2">สั่งซ้ำจากใบสั่งล่าสุดของ ${esc(bn)}</div><div class="rl">` + list.map(o => {
     const names = (o.items || []).map(i => i.name);
-    h += `<div class="ro"><div class="rh"><b>${esc(dmy(o.orderDate))}</b><span>${esc(o.no)}</span></div>
+    return `<div class="ro"><div class="rh"><b>${esc(dmy(o.orderDate))}</b><span>${esc(o.no)}</span></div>
       <div class="rs">${(o.items || []).length} รายการ · ผู้สั่ง ${esc(o.orderer)}</div>
       <div class="rn">${esc(names.slice(0, 3).join(", "))}${names.length > 3 ? " +" + (names.length - 3) : ""}</div>
-      <button class="btn sm ghost" data-re="${esc(o.id)}">สั่งซ้ำ</button></div>`;
-  });
-  return h + `</aside>`;
+      <button class="btn sm ghost" data-re="${esc(o.id)}">สั่งซ้ำ</button></div>`; }).join("") + `</div></div>`;
 }
 function reorder(id){
   const o = S.get("orders", id); if (!o) return;
   const active = {}; ITEMS().forEach(x => { if (x.active !== false) active[x.id] = 1; });
   let ok = 0, skip = 0; cart = {};
   (o.items || []).forEach(l => { if (active[l.id]) { cart[l.id] = Number(l.qty) || 0; ok++; } else skip++; });
-  saveDraft();
-  if (!ok) { renderOrder(); return toast("รายการในใบสั่งนั้นถูกปิดหรือลบไปแล้ว"); }
-  toast(`ใส่ ${ok} รายการจากใบสั่ง ${o.no} แล้ว${skip ? " (ข้าม " + skip + " รายการที่ไม่มีแล้ว)" : ""}`);
-  if (curBranch() && fDate && fOrderer.trim()) goStep(2);
-  else { renderOrder(); toast(`ใส่ ${ok} รายการแล้ว กรอกชื่อผู้สั่งแล้วกดถัดไป`); }
+  saveDraft(); renderOrder();
+  toast(ok ? `ใส่ ${ok} รายการจากใบสั่ง ${o.no} แล้ว${skip ? " (ข้าม " + skip + " รายการที่ไม่มีแล้ว)" : ""}` : "รายการในใบสั่งนั้นถูกปิดหรือลบไปแล้ว");
 }
 
-/* ขั้น 2: เลือกของ */
-function step2Html(){
+/* เลือกของ */
+function itemsHtml(){
   const items = sortedItems().filter(x => x.active !== false);
-  const sub = `${esc(dmy(fDate))} · ${esc(curBranch())} · ผู้สั่ง ${esc(fOrderer)}`;
-  if (!items.length) return `<h3>เลือกของที่จะสั่ง</h3><div class="sub">${sub}</div><div class="empty">ยังไม่มีรายการสินค้า${can("manage-items") ? "<br>เปิดแท็บ “รายการสินค้า” เพื่อเพิ่มรายการและตั้งตัวคูณหน่วย" : "<br>แจ้งผู้ดูแลระบบให้เพิ่มรายการสินค้า"}</div>`;
+  if (!items.length) return `<h3>เลือกของที่จะสั่ง</h3><div class="empty">ยังไม่มีรายการสินค้า${can("manage-items") ? "<br>เปิดแท็บ “รายการสินค้า” เพื่อเพิ่มรายการและตั้งตัวคูณหน่วย" : "<br>แจ้งผู้ดูแลระบบให้เพิ่มรายการสินค้า"}</div>`;
   const used = groupByCat(items).map(g => g.cat);
   if (catSel && !used.includes(catSel)) catSel = "";
-  return `<h3>เลือกของที่จะสั่ง</h3><div class="sub">${sub}</div>
+  return `<h3 style="margin-bottom:10px">เลือกของที่จะสั่ง</h3>
     <div class="tools"><input id="fQ" type="search" placeholder="ค้นหารายการ เช่น น้ำปลา" value="${esc(q)}"></div>
     <div class="seg2" id="catBar"></div><div id="itemList"></div>`;
 }
@@ -329,7 +338,7 @@ function paintItems(){
 function setQty(id, val, row){
   const n = Math.max(0, Number(val) || 0);
   if (n > 0) cart[id] = n; else delete cart[id];
-  row.classList.toggle("on", n > 0); saveDraft(); paintBar(); paintCatBar(); paintSide();
+  row.classList.toggle("on", n > 0); saveDraft(); paintBar(); paintCatBar(); paintSide(); const rs = $("#reStrip"); if (rs && cartCount()) rs.remove();
 }
 function sideHtml(){
   const o = buildOrder();
@@ -349,7 +358,7 @@ function step3Html(){
   return `<h3>ตรวจสอบใบสั่ง</h3><div class="sub">เช็กจำนวนให้ครบแล้วกดยืนยัน</div>
     <div class="fcard" style="margin-bottom:12px"><div class="kv" style="margin:0"><b>วันที่สั่ง</b><span>${esc(dmy(o.orderDate))}</span><b>สาขา</b><span>${esc(o.branchName)}</span><b>ผู้สั่ง</b><span>${esc(o.orderer)}</span>${o.bzm ? `<b>BZM</b><span>${esc(o.bzm)}</span>` : ""}</div>
       <button class="lnk" data-s="1">แก้ข้อมูล</button></div>
-    ${orderTable(o)}<div style="margin:8px 0 12px"><button class="lnk" data-s="2">แก้รายการ</button></div>
+    ${orderTable(o)}<div style="margin:8px 0 12px"><button class="lnk" data-s="1">แก้รายการ</button></div>
     <div class="field"><label style="font-size:12.5px;font-weight:700;color:var(--text2)">หมายเหตุถึงครัวกลาง (ถ้ามี)</label><textarea id="fNt" class="ta" placeholder="เช่น ขอส่งก่อน 10:00">${esc(fNote)}</textarea></div>
     <div class="hint">บันทึกแล้วจะเก็บเป็นประวัติ${willMail ? " และส่งอีเมลถึงครัวกลางพร้อมไฟล์ PDF" : ""}</div>`;
 }
@@ -364,23 +373,22 @@ function paintBar(){
   if (TAB !== "order") return;
   const n = cartCount();
   $("#barBack").classList.toggle("hide", step === 1);
-  $("#barSum").innerHTML = step === 1 ? `ขั้น 1 จาก 3<small>ข้อมูลใบสั่ง</small>`
-    : step === 2 ? (n ? `เลือกแล้ว ${n} รายการ<small>ครัวกลางได้รับเป็นหน่วยครัวกลางอัตโนมัติ</small>` : `ยังไม่ได้เลือกรายการ<small>กรอกตามหน่วยของสาขาได้เลย</small>`)
+  $("#barSum").innerHTML = step === 1
+    ? (n ? `เลือกแล้ว ${n} รายการ<small>ครัวกลางได้รับเป็นหน่วยครัวกลางอัตโนมัติ</small>` : `ยังไม่ได้เลือกรายการ<small>กรอกตามหน่วยของสาขาได้เลย</small>`)
     : `รวม ${n} รายการ<small>ตรวจแล้วกดยืนยันเพื่อบันทึก</small>`;
   const go = $("#barGo");
-  go.textContent = saving ? "กำลังบันทึก…" : step === 1 ? "ถัดไป: เลือกของ" : step === 2 ? "ถัดไป: ตรวจสอบ" : "ยืนยันและบันทึก";
-  go.disabled = saving || (step === 2 && !n);
+  go.textContent = saving ? "กำลังบันทึก…" : step === 1 ? "ถัดไป: ตรวจสอบ" : "ยืนยันและบันทึก";
+  go.disabled = saving || (step === 1 && !n);
 }
 function nextStep(){
   if (saving) return;
   if (step === 1) {
-    if (!curBranch()) return toast("เลือกสาขาก่อน");
-    if (!fDate) return toast("ระบุวันที่สั่ง");
-    if (!fOrderer.trim()) { toast("กรอกชื่อผู้สั่ง"); const i = $("#fOr"); if (i) i.focus(); return; }
+    if (!cartCount()) return toast("ยังไม่ได้เลือกรายการ");
+    const miss = !curBranch() ? "เลือกสาขาก่อน" : !fDate ? "ระบุวันที่สั่ง" : !fOrderer.trim() ? "กรอกชื่อผู้สั่ง" : "";
+    if (miss) { infoOpen = true; renderOrder(); window.scrollTo(0, 0); toast(miss); const i = !curBranch() ? $("#fBr") : !fDate ? $("#fDt") : $("#fOr"); if (i && i.focus) i.focus(); return; }
     try { localStorage.setItem("ko_orderer", fOrderer.trim()); } catch (e) {}
     return goStep(2);
   }
-  if (step === 2) { if (!cartCount()) return toast("ยังไม่ได้เลือกรายการ"); return goStep(3); }
   confirmOrder();
 }
 function prevStep(){ if (!saving && step > 1) goStep(step - 1); }
@@ -419,7 +427,7 @@ async function confirmOrder(){
   saving = true; paintBar();
   try {
     const rec = await saveOrder(o);
-    cart = {}; fNote = ""; saveDraft(); step = 1; q = ""; catSel = "";
+    cart = {}; fNote = ""; saveDraft(); step = 1; q = ""; catSel = ""; infoOpen = false;
     renderOrder(); renderHist(); window.scrollTo(0, 0);
     await afterSave(rec, willMail);
   } catch (e) { toast(e.message || "บันทึกไม่สำเร็จ"); }
