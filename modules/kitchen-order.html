@@ -1,0 +1,584 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>สั่งของครัวกลาง · FAB Operations Hub</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="hub-mod.css?v=20261112">
+<style>
+/* เฉพาะระบบสั่งของครัวกลาง: สาขากรอกเป็นหน่วยของสาขา ระบบแปลงเป็นหน่วยครัวกลางตามตัวคูณที่ตั้งไว้ */
+.head{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:16px 18px;margin:0 0 14px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+.head .field{margin:0}
+.head label{font-size:12.5px;font-weight:700;color:var(--text2);display:block;margin-bottom:5px}
+.head .fixed{min-height:44px;display:flex;align-items:center;padding:10px 12px;border:1px solid var(--border);border-radius:10px;background:var(--bg3);font-weight:700}
+@media(max-width:760px){.head{grid-template-columns:1fr}}
+.tools{display:flex;gap:10px;align-items:center;margin:0 0 10px;flex-wrap:wrap}
+.tools input{flex:1;min-width:180px}
+.cats{display:flex;gap:6px;overflow-x:auto;padding:2px 0 10px;scrollbar-width:none;margin:0 -2px}
+.cats::-webkit-scrollbar{display:none}
+.cat{flex:none;border:1px solid var(--border);background:var(--bg2);border-radius:999px;padding:7px 14px;font-size:13.5px;font-weight:700;color:var(--text2);min-height:36px}
+.cat[aria-pressed="true"]{background:var(--text);border-color:var(--text);color:#fff}
+.catn{font-size:11px;opacity:.7;margin-left:4px;font-variant-numeric:tabular-nums}
+.panel{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2px 14px;margin:0 0 12px}
+.it{display:flex;gap:10px;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)}
+.panel .it:last-child{border-bottom:0}
+.it.on .nm{color:var(--gold-ink)}
+.it .nm{font-weight:700;font-size:15px;line-height:1.35}
+.it .un{font-size:12.5px;color:var(--text3)}
+.qs{display:flex;align-items:center;gap:4px;flex:none}
+.qb{width:40px;height:40px;border-radius:11px;border:1px solid var(--border);background:var(--bg2);color:var(--text2);font-size:20px;font-weight:700;line-height:1}
+.qb:hover{border-color:var(--gold-line);background:var(--gold-soft);color:var(--gold)}
+.qs input{width:58px!important;text-align:center;font-weight:800;font-variant-numeric:tabular-nums;padding:8px 4px!important;min-height:40px}
+.it.on .qs input{border-color:var(--gold);background:var(--gold-soft)}
+.bar{position:fixed;left:0;right:0;bottom:0;z-index:40;background:rgba(255,255,255,.96);backdrop-filter:blur(8px);border-top:1px solid var(--border);padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.bar .in{max-width:980px;margin:0 auto;display:flex;gap:12px;align-items:center}
+.bar .sum{flex:1;font-weight:700}
+.bar .sum small{display:block;color:var(--text3);font-weight:500;font-size:12.5px}
+.tbl{width:100%;border-collapse:collapse;font-size:14px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden}
+.tbl th{background:var(--bg3);text-align:left;font-size:12px;color:var(--text2);padding:8px 10px;border-bottom:1px solid var(--border)}
+.tbl td{padding:8px 10px;border-bottom:1px solid var(--border);vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .cg td{background:var(--gold-soft);color:var(--gold-ink);font-weight:800;font-size:13px}
+.tbl .r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0 0 12px;font-size:14px}
+.kv b{color:var(--text2);font-weight:600}
+.ord{background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius-lg);padding:14px 16px;margin:0 0 10px;cursor:pointer;transition:border-color .15s}
+.ord:hover{border-color:var(--gold-line)}
+.ord h3{font-size:15.5px;font-weight:800;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.ord .sub{font-size:13px;color:var(--text2);margin-top:3px}
+.p-ok{background:var(--green-soft);color:var(--green-ink);border-color:var(--green-line)}
+.p-no{background:var(--bg3);color:var(--text3);border-color:var(--border)}
+.p-bad{background:var(--red-soft);color:var(--red-ink);border-color:var(--red-line)}
+.hint{font-size:12.5px;color:var(--text3);margin-top:5px}
+.ta{min-height:76px;resize:vertical}
+.flt{display:flex;gap:10px;flex-wrap:wrap;margin:0 0 12px}
+.flt .field{margin:0;min-width:150px;flex:1}
+.mi{display:flex;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--border)}
+.mi:last-child{border-bottom:0}
+.mi .grow b{font-size:14.5px}
+.pdfhost{position:fixed;left:-99999px;top:0;width:794px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand"><div class="logo-wrap"><img src="../logo.png" alt="FAB"></div>
+    <div class="brand-text"><div class="t-title">สั่งของครัวกลาง</div><div class="t-sub">FAB Operations &amp; Training Hub</div></div></div>
+  <div class="spacer"></div>
+  <span class="userchip admin" id="me">...</span>
+  <button class="btn-back" id="backBtn" title="กลับหน้าหลัก"><svg viewBox="0 0 24 24" width="15" height="15"><path d="M15 18l-6-6 6-6"/></svg><span class="bt-label">กลับหน้าหลัก</span></button>
+</div>
+
+<div class="shell">
+  <div class="pagehead">
+    <div class="ph-eyebrow">ครัวกลาง · เจ๊แดง</div>
+    <div class="ph-title">สั่งของครัวกลาง</div>
+    <div class="ph-sub" id="note">กำลังเชื่อมต่อ…</div>
+  </div>
+  <div class="segbar" role="tablist" id="tabs">
+    <button class="tab hide" id="tabOrder" role="tab" aria-selected="false">สั่งของ</button>
+    <button class="tab hide" id="tabHist" role="tab" aria-selected="false">ประวัติการสั่ง</button>
+    <button class="tab hide" id="tabItems" role="tab" aria-selected="false">รายการสินค้า</button>
+  </div>
+  <div id="viewOrder" class="hide"></div>
+  <div id="viewHist" class="hide"></div>
+  <div id="viewItems" class="hide"></div>
+</div>
+
+<div class="bar hide" id="bar"><div class="in"><div class="sum" id="barSum"></div><button class="btn" id="barGo">ตรวจสอบรายการ</button></div></div>
+<div id="modalHost"></div>
+<div class="pdfhost" id="pdfHost"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.53.0/dist/umd/supabase.js"></script>
+<script src="hub-docstore.js?v=20261112a"></script>
+<script>
+"use strict";
+const {Hub, Cfg, Branches} = HubMod;
+const S = new HubMod.Store("ko");
+const $ = (s, r = document) => r.querySelector(s);
+const esc = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+const today = () => HubMod.localDate();
+const dmy = HubMod.fmtDMY;
+function toast(t){ document.querySelectorAll(".toast").forEach(x => x.remove());
+  const e = document.createElement("div"); e.className = "toast"; e.textContent = t; document.body.appendChild(e); setTimeout(() => e.remove(), 3000); }
+const fmtN = n => (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString("en-US", {maximumFractionDigits: 3});
+
+/* ── ตั้งค่าระบบ ── */
+const BRAND = "jaedaeng";                    /* เปิดเฉพาะเจ๊แดงก่อน (ตัวเลือกแบรนด์อื่นเพิ่มทีหลังได้) */
+const PERM_KEY = "kitchenorder";
+const PERM_DEFAULTS = {                      /* ต้องตรงกับ PERM_SYSTEMS.kitchenorder ในฮับ */
+  "order": ["branch", "admin", "support"],
+  "view-own": ["branch", "bzm"],
+  "view-all": ["admin", "coo", "vp", "support"],
+  "manage-items": ["admin", "support"],
+  "send-mail": ["branch", "admin", "support"]
+};
+const can = a => HubMod.can(PERM_KEY, a, PERM_DEFAULTS);
+const SES = () => Hub.session() || {};
+const isBranch = () => Hub.isBranch();
+const norm = s => String(s || "").replace(/^(พี่|น้อง|คุณ)\s*/, "").replace(/\s+/g, "").toLowerCase();
+
+/* ── ข้อมูล ── */
+const ITEMS = () => S.all("items");
+const ORDERS = () => S.all("orders");
+const CATS = () => ((S.get("meta", "categories") || {}).items) || [];
+const SETTINGS = () => S.get("meta", "settings") || {};
+/* ทะเบียนสาขาเจ๊แดงเต็ม (มีชื่อ BZM) อ่านจาก hub_config · ถ้าอ่านไม่ได้ใช้รายชื่ออย่างเดียวจากการตั้งค่าของฮับ */
+let JD_FULL = null;
+const jdBranches = () => JD_FULL || ((Cfg.data && Cfg.data.jaedaengBranches) || []).map(b => typeof b === "string" ? {name: b} : b).filter(b => b && b.name);
+async function loadJd(){
+  try { await HubMod.SB.ready(); const r = await HubMod.SB.client().from("hub_config").select("key,value").eq("key", "jaedaengBranches");
+    const v = r && r.data && r.data[0] && r.data[0].value;
+    if (Array.isArray(v) && v.length) JD_FULL = v.map(x => typeof x === "string" ? {name: x} : x).filter(x => x && x.name); } catch (e) {}
+}
+function bzmOfBranch(name){ const b = jdBranches().find(x => String(x.name).trim() === String(name || "").trim()); return b ? String(b.managerNick || b.manager || "").trim() : ""; }
+function myBranchNames(){ const n = norm(SES().nick); return n ? jdBranches().filter(b => norm(b.managerNick || b.manager) === n).map(b => String(b.name).trim()) : []; }
+function branchLabel(){ return String(SES().branchName || SES().name || "").trim(); }
+
+function sortedItems(){
+  const cats = CATS(), idx = c => { const i = cats.indexOf(c); return i < 0 ? 999 : i; };
+  return ITEMS().slice().sort((a, b) => idx(a.cat) - idx(b.cat) || (a.sort || 0) - (b.sort || 0) || String(a.name).localeCompare(String(b.name), "th"));
+}
+function groupByCat(list){
+  const out = [], map = {};
+  list.forEach(x => { const c = x.cat || "อื่น ๆ"; if (!map[c]) { map[c] = {cat: c, rows: []}; out.push(map[c]); } map[c].rows.push(x); });
+  return out;
+}
+
+/* ── หน้าต่างย่อย ── */
+function modal(title, body, foot){
+  const m = document.createElement("div"); m.className = "mask";
+  const box = document.createElement("div"); box.className = "modal";
+  box.innerHTML = `<div class="modal-head"><h3>${esc(title)}</h3><button class="modal-x" type="button" aria-label="ปิด">×</button></div>`;
+  const bd = document.createElement("div"); bd.className = "modal-body"; if (typeof body === "string") bd.innerHTML = body; else bd.appendChild(body); box.appendChild(bd);
+  const ft = document.createElement("div"); ft.className = "modal-foot actions"; box.appendChild(ft);
+  const close = () => m.remove();
+  $(".modal-x", box).onclick = close;
+  m.onclick = e => { if (e.target === m) close(); };
+  (foot || []).forEach(f => { const b = Object.assign(document.createElement("button"), {className: "btn " + (f.cls || ""), textContent: f.t}); b.onclick = () => f.fn(b, close); ft.appendChild(b); });
+  m.appendChild(box); $("#modalHost").appendChild(m); m.close = close; return m;
+}
+
+/* ═══════════ สั่งของ ═══════════ */
+const DRAFT_KEY = "ko_draft_v1";
+let cart = {}, fOrderer = "", fNote = "", fDate = "", fBranch = "", catSel = "", q = "";
+function loadDraft(){ try { const d = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); if (d) { cart = d.cart || {}; fNote = d.note || ""; fOrderer = d.orderer || ""; } } catch (e) {}
+  try { if (!fOrderer) fOrderer = localStorage.getItem("ko_orderer") || ""; } catch (e) {} }
+function saveDraft(){ try { localStorage.setItem(DRAFT_KEY, JSON.stringify({cart, note: fNote, orderer: fOrderer})); } catch (e) {} }
+const cartCount = () => Object.keys(cart).filter(k => Number(cart[k]) > 0).length;
+
+function renderOrder(){
+  const v = $("#viewOrder"), keepScroll = window.scrollY;
+  const items = sortedItems().filter(x => x.active !== false);
+  const cats = CATS();
+  if (!fDate) fDate = today();
+  const bl = isBranch() ? branchLabel() : fBranch;
+  const bsel = isBranch()
+    ? `<div class="fixed" id="fBr">${esc(bl)}</div>`
+    : `<select id="fBr"><option value="">เลือกสาขา</option>${jdBranches().map(b => `<option ${String(b.name).trim() === fBranch ? "selected" : ""}>${esc(String(b.name).trim())}</option>`).join("")}</select>`;
+  let h = `<div class="head">
+    <div class="field"><label>วันที่สั่ง</label><input type="date" id="fDt" value="${esc(fDate)}" max="${esc(addDays(today(), 60))}" min="${esc(addDays(today(), -60))}"></div>
+    <div class="field"><label>สาขา</label>${bsel}</div>
+    <div class="field"><label>ชื่อผู้สั่ง <b style="color:var(--red)">*</b></label><input id="fOr" value="${esc(fOrderer)}" placeholder="พิมพ์ชื่อผู้สั่ง" autocomplete="name"></div>
+  </div>`;
+  if (!items.length) { v.innerHTML = h + `<div class="empty">ยังไม่มีรายการสินค้า${can("manage-items") ? "<br>เปิดแท็บ “รายการสินค้า” เพื่อเพิ่มรายการและตั้งตัวคูณหน่วย" : "<br>แจ้งผู้ดูแลระบบให้เพิ่มรายการสินค้า"}</div>`; bindOrderHead(v); return; }
+  const used = groupByCat(items).map(g => g.cat);
+  h += `<div class="tools"><input id="fQ" type="search" placeholder="ค้นหารายการ เช่น น้ำปลา" value="${esc(q)}"></div>
+    <div class="cats" id="catBar"><button class="cat" data-c="" aria-pressed="${catSel === ""}">ทั้งหมด</button>${used.map(c => `<button class="cat" data-c="${esc(c)}" aria-pressed="${catSel === c}">${esc(c)}<span class="catn">${items.filter(x => (x.cat || "อื่น ๆ") === c).length}</span></button>`).join("")}</div>
+    <div id="itemList"></div>
+    <div class="field" style="margin-top:6px"><label style="font-size:12.5px;font-weight:700;color:var(--text2)">หมายเหตุถึงครัวกลาง (ถ้ามี)</label><textarea id="fNt" class="ta" placeholder="เช่น ขอส่งก่อน 10:00">${esc(fNote)}</textarea></div>`;
+  v.innerHTML = h;
+  bindOrderHead(v); paintItems(); paintBar();
+  $("#fQ").oninput = e => { q = e.target.value; paintItems(); };
+  $("#catBar").onclick = e => { const b = e.target.closest(".cat"); if (!b) return; catSel = b.dataset.c; document.querySelectorAll("#catBar .cat").forEach(x => x.setAttribute("aria-pressed", x === b)); paintItems(); };
+  $("#fNt").oninput = e => { fNote = e.target.value; saveDraft(); };
+  window.scrollTo(0, keepScroll);
+}
+function bindOrderHead(v){
+  $("#fDt").onchange = e => { fDate = e.target.value || today(); };
+  $("#fOr").oninput = e => { fOrderer = e.target.value; saveDraft(); };
+  const br = $("#fBr"); if (br && br.tagName === "SELECT") br.onchange = e => { fBranch = e.target.value; };
+}
+function addDays(iso, n){ const d = new Date(iso + "T00:00:00"); d.setDate(d.getDate() + n); return HubMod.localDate(d); }
+function paintItems(){
+  const host = $("#itemList"); if (!host) return;
+  const term = q.trim().toLowerCase();
+  const list = sortedItems().filter(x => x.active !== false)
+    .filter(x => !catSel || (x.cat || "อื่น ๆ") === catSel)
+    .filter(x => !term || String(x.name).toLowerCase().includes(term));
+  if (!list.length) { host.innerHTML = `<div class="empty">ไม่พบรายการที่ค้นหา</div>`; return; }
+  host.innerHTML = "";
+  groupByCat(list).forEach(g => {
+    host.insertAdjacentHTML("beforeend", `<div class="sec"><b>${esc(g.cat)}</b><span>${g.rows.length} รายการ</span></div>`);
+    const p = document.createElement("div"); p.className = "panel";
+    g.rows.forEach(x => {
+      const n = Number(cart[x.id]) || 0;
+      const r = document.createElement("div"); r.className = "it" + (n > 0 ? " on" : ""); r.dataset.id = x.id;
+      r.innerHTML = `<div class="grow"><div class="nm">${esc(x.name)}</div><div class="un">หน่วย: ${esc(x.bu)}</div></div>
+        <div class="qs"><button class="qb" data-d="-1" aria-label="ลด">−</button><input type="number" inputmode="decimal" min="0" step="any" value="${n || ""}" placeholder="0" aria-label="จำนวน ${esc(x.name)}"><button class="qb" data-d="1" aria-label="เพิ่ม">+</button></div>`;
+      p.appendChild(r);
+    });
+    host.appendChild(p);
+  });
+  host.oninput = e => { const r = e.target.closest(".it"); if (!r || e.target.tagName !== "INPUT") return; setQty(r.dataset.id, e.target.value, r, false); };
+  host.onclick = e => { const b = e.target.closest(".qb"); if (!b) return; const r = b.closest(".it"), inp = $("input", r);
+    const cur = Number(inp.value) || 0, nx = Math.max(0, Math.round((cur + Number(b.dataset.d)) * 1000) / 1000); inp.value = nx || ""; setQty(r.dataset.id, nx, r, true); };
+}
+function setQty(id, val, row, fromBtn){
+  const n = Math.max(0, Number(val) || 0);
+  if (n > 0) cart[id] = n; else delete cart[id];
+  row.classList.toggle("on", n > 0); saveDraft(); paintBar();
+}
+function paintBar(){
+  const bar = $("#bar"), n = cartCount();
+  bar.classList.toggle("hide", TAB !== "order");
+  $("#barSum").innerHTML = n ? `เลือกแล้ว ${n} รายการ<small>ครัวกลางได้รับเป็นหน่วยของครัวกลางอัตโนมัติ</small>` : `ยังไม่ได้เลือกรายการ<small>กรอกจำนวนตามหน่วยของสาขาได้เลย</small>`;
+  $("#barGo").disabled = !n;
+}
+
+function buildOrder(){
+  const lines = [];
+  sortedItems().forEach(x => { const n = Number(cart[x.id]) || 0; if (n > 0) lines.push({id: x.id, name: x.name, cat: x.cat || "อื่น ๆ", qty: n, bu: x.bu, ku: x.ku, f: Number(x.f) || 1, kq: Math.round(n * (Number(x.f) || 1) * 1000) / 1000}); });
+  const bn = isBranch() ? branchLabel() : fBranch;
+  const bz = isBranch() ? (String(SES().bzm || "").trim() || bzmOfBranch(bn)) : bzmOfBranch(bn);
+  return {brand: BRAND, branchCode: String(SES().branchCode || ""), branchName: bn, bzm: bz, orderDate: fDate || today(), orderer: fOrderer.trim(), note: fNote.trim(), items: lines};
+}
+function validateOrder(o){
+  if (!o.branchName) return "เลือกสาขาก่อน";
+  if (!o.orderDate) return "ระบุวันที่สั่ง";
+  if (!o.orderer) return "กรอกชื่อผู้สั่ง";
+  if (!o.items.length) return "ยังไม่ได้เลือกรายการ";
+  return "";
+}
+/* ตารางสรุป: จัดกลุ่มตามหมวด · หน่วยสาขา → หน่วยครัวกลาง */
+function orderTable(o){
+  let h = `<table class="tbl"><thead><tr><th>รายการ</th><th class="r">สั่ง (สาขา)</th><th class="r">ครัวกลางจัด</th></tr></thead><tbody>`;
+  groupByCat(o.items).forEach(g => {
+    h += `<tr class="cg"><td colspan="3">${esc(g.cat)}</td></tr>`;
+    g.rows.forEach(l => { h += `<tr><td>${esc(l.name)}</td><td class="r"><b>${fmtN(l.qty)}</b> ${esc(l.bu)}</td><td class="r">${fmtN(l.kq)} ${esc(l.ku)}</td></tr>`; });
+  });
+  return h + `</tbody></table>`;
+}
+function metaBlock(o, no){
+  return `<div class="kv">${no ? `<b>เลขที่</b><span>${esc(no)}</span>` : ""}<b>วันที่สั่ง</b><span>${esc(dmy(o.orderDate))}</span><b>สาขา</b><span>${esc(o.branchName)}</span><b>ผู้สั่ง</b><span>${esc(o.orderer)}</span>${o.bzm ? `<b>BZM</b><span>${esc(o.bzm)}</span>` : ""}${o.note ? `<b>หมายเหตุ</b><span>${esc(o.note)}</span>` : ""}</div>`;
+}
+
+function reviewOrder(){
+  const o = buildOrder(), err = validateOrder(o);
+  if (err) return toast(err);
+  try { localStorage.setItem("ko_orderer", o.orderer); } catch (e) {}
+  const mailTo = parseMails(SETTINGS().mailTo), willMail = can("send-mail") && mailTo.length && SETTINGS().autoMail !== false;
+  const b = document.createElement("div");
+  b.innerHTML = metaBlock(o) + orderTable(o) + `<div class="hint">ตรวจรายการและจำนวนให้ครบก่อนกดยืนยัน · บันทึกแล้วจะเก็บเป็นประวัติ${willMail ? " และส่งอีเมลถึงครัวกลาง (พร้อมไฟล์ PDF)" : ""}</div>`;
+  modal("สรุปรายการสั่งของ", b, [
+    {t: "← แก้ไข", cls: "ghost", fn: (_, close) => close()},
+    {t: "✓ ยืนยันและบันทึก", fn: async (btn, close) => {
+      btn.disabled = true; btn.textContent = "กำลังบันทึก…";
+      try { const rec = await saveOrder(o); close(); cart = {}; fNote = ""; saveDraft(); renderOrder(); renderHist(); await afterSave(rec, willMail); }
+      catch (e) { toast(e.message || "บันทึกไม่สำเร็จ"); btn.disabled = false; btn.textContent = "✓ ยืนยันและบันทึก"; }
+    }}
+  ]);
+}
+function nextNo(date){
+  const ymd = date.replace(/-/g, "").slice(2), pre = "KO-" + ymd + "-";
+  const n = ORDERS().filter(x => String(x.no || "").startsWith(pre)).length + 1;
+  return pre + String(n).padStart(3, "0");
+}
+async function saveOrder(o){
+  try { await S.refresh(); } catch (e) {}
+  const no = nextNo(o.orderDate), id = no + "-" + Math.random().toString(36).slice(2, 5);
+  const rec = Object.assign({no, status: "sent", createdAt: new Date().toISOString(), createdBy: Hub.fullName(), createdRole: Hub.userRole(), mail: null}, o);
+  await S.set("orders", id, rec);
+  return Object.assign({id}, rec);
+}
+async function afterSave(rec, willMail){
+  let mailNote = "";
+  if (willMail) {
+    const m = modal("กำลังส่ง", `<div class="empty" style="border:0;background:none">กำลังสร้างไฟล์ PDF และส่งอีเมลถึงครัวกลาง…</div>`, []);
+    try { await mailOrder(rec); mailNote = "ส่งอีเมลถึงครัวกลางแล้ว"; }
+    catch (e) { mailNote = "บันทึกใบสั่งแล้ว แต่ส่งอีเมลไม่สำเร็จ: " + (e.message || "ลองกดส่งซ้ำในประวัติ"); }
+    m.close();
+  }
+  const cur = S.get("orders", rec.id) || rec;
+  renderHist();
+  const b = document.createElement("div");
+  b.innerHTML = `<div style="text-align:center;padding:6px 0 14px"><div style="font-size:40px">✅</div><div style="font-weight:800;font-size:18px">บันทึกใบสั่งแล้ว</div><div class="muted" style="margin-top:4px">เลขที่ ${esc(cur.no)}</div>${mailNote ? `<div class="hint" style="margin-top:8px">${esc(mailNote)}</div>` : ""}</div>`;
+  const foot = [{t: "ปิด", cls: "ghost", fn: (_, c) => c()}, {t: "ดูรายละเอียด / PDF", fn: (_, c) => { c(); detail(cur.id); }}];
+  modal("เรียบร้อย", b, foot);
+}
+
+/* ═══════════ PDF ═══════════ */
+const LIBS = ["https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js", "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"];
+let libsP = null;
+function loadLibs(){
+  if (window.html2canvas && window.jspdf) return Promise.resolve();
+  if (!libsP) libsP = Promise.all(LIBS.map(src => new Promise((res, rej) => { const s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = () => rej(new Error("โหลดตัวสร้าง PDF ไม่ได้ (ตรวจอินเทอร์เน็ต)")); document.head.appendChild(s); }))).catch(e => { libsP = null; throw e; });
+  return libsP;
+}
+function pdfPages(o){
+  /* แบ่งหน้า A4 เอง เพื่อไม่ให้ตัดกลางแถว */
+  const rows = [];
+  groupByCat(o.items).forEach(g => { rows.push({t: "c", cat: g.cat}); g.rows.forEach(l => rows.push({t: "i", l, cat: g.cat})); });
+  const first = 21, rest = 28, pages = []; let cur = [], cap = first;
+  const flush = () => { pages.push(cur); cur = []; cap = rest; };
+  rows.forEach((r, i) => {
+    if (r.t === "c" && cur.length >= cap - 1) flush();
+    if (cur.length >= cap) { flush(); if (r.t === "i") cur.push({t: "c", cat: r.cat + " (ต่อ)"}); }
+    cur.push(r);
+  });
+  if (cur.length || !pages.length) pages.push(cur);
+  return pages;
+}
+function pdfPageEl(o, no, rows, pi, total){
+  const el = document.createElement("div");
+  el.style.cssText = "width:794px;height:1123px;background:#fff;color:#111827;font-family:Sarabun,sans-serif;padding:44px 48px;box-sizing:border-box;position:relative;font-size:14px;line-height:1.45";
+  let h = "";
+  if (pi === 0) {
+    h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ff7a1a;padding-bottom:12px;margin-bottom:14px">
+      <div><div style="font-size:26px;font-weight:800">ใบสั่งของ ครัวกลาง</div><div style="color:#6b7280;font-size:14px">เจ๊แดง · FAB Operations Hub</div></div>
+      <div style="text-align:right"><div style="font-size:12px;color:#6b7280">เลขที่</div><div style="font-size:19px;font-weight:800">${esc(no)}</div></div></div>
+      <div style="display:grid;grid-template-columns:90px 1fr 90px 1fr;gap:5px 10px;margin-bottom:14px;font-size:14px">
+        <b style="color:#6b7280;font-weight:600">วันที่สั่ง</b><span>${esc(dmy(o.orderDate))}</span><b style="color:#6b7280;font-weight:600">สาขา</b><span style="font-weight:700">${esc(o.branchName)}</span>
+        <b style="color:#6b7280;font-weight:600">ผู้สั่ง</b><span>${esc(o.orderer)}</span><b style="color:#6b7280;font-weight:600">BZM</b><span>${esc(o.bzm || "-")}</span>
+        ${o.note ? `<b style="color:#6b7280;font-weight:600">หมายเหตุ</b><span style="grid-column:2/5">${esc(o.note)}</span>` : ""}</div>`;
+  } else {
+    h += `<div style="display:flex;justify-content:space-between;color:#6b7280;font-size:13px;border-bottom:1px solid #e5e7eb;padding-bottom:8px;margin-bottom:10px"><span>ใบสั่งของ ครัวกลาง · ${esc(no)}</span><span>${esc(o.branchName)} · ${esc(dmy(o.orderDate))}</span></div>`;
+  }
+  h += `<table style="width:100%;border-collapse:collapse;font-size:14px"><thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:8px 10px;border:1px solid #e5e7eb;width:46px">ที่</th><th style="text-align:left;padding:8px 10px;border:1px solid #e5e7eb">รายการ</th><th style="text-align:right;padding:8px 10px;border:1px solid #e5e7eb;width:150px">สั่ง (หน่วยสาขา)</th><th style="text-align:right;padding:8px 10px;border:1px solid #e5e7eb;width:170px">ครัวกลางจัด</th></tr></thead><tbody>`;
+  rows.forEach(r => {
+    if (r.t === "c") h += `<tr><td colspan="4" style="padding:7px 10px;background:#fff1e4;color:#b23a10;font-weight:800;border:1px solid #e5e7eb;height:34px">${esc(r.cat)}</td></tr>`;
+    else h += `<tr><td style="padding:7px 10px;border:1px solid #e5e7eb;color:#6b7280;height:34px">${r.n}</td><td style="padding:7px 10px;border:1px solid #e5e7eb">${esc(r.l.name)}</td><td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:right"><b>${fmtN(r.l.qty)}</b> ${esc(r.l.bu)}</td><td style="padding:7px 10px;border:1px solid #e5e7eb;text-align:right">${fmtN(r.l.kq)} ${esc(r.l.ku)}</td></tr>`;
+  });
+  h += `</tbody></table>`;
+  if (pi === total - 1) h += `<div style="margin-top:14px;font-size:13px;color:#6b7280">รวม ${o.items.length} รายการ</div>`;
+  h += `<div style="position:absolute;left:48px;right:48px;bottom:26px;display:flex;justify-content:space-between;font-size:11.5px;color:#9ca3af"><span>ออกโดยระบบสั่งของครัวกลาง · ${esc(new Date().toLocaleString("th-TH"))}</span><span>หน้า ${pi + 1}/${total}</span></div>`;
+  el.innerHTML = h; return el;
+}
+async function makePdf(o, no){
+  await loadLibs();
+  try { await Promise.all([document.fonts.load("400 14px Sarabun"), document.fonts.load("700 14px Sarabun"), document.fonts.load("800 14px Sarabun")]); await document.fonts.ready; } catch (e) {}
+  const pages = pdfPages(o); let n = 0;
+  pages.forEach(p => p.forEach(r => { if (r.t === "i") r.n = ++n; }));
+  const host = $("#pdfHost"); host.innerHTML = "";
+  const {jsPDF} = window.jspdf, pdf = new jsPDF({unit: "mm", format: "a4", orientation: "portrait", compress: true});
+  for (let i = 0; i < pages.length; i++) {
+    const el = pdfPageEl(o, no, pages[i], i, pages.length); host.appendChild(el);
+    const cv = await html2canvas(el, {scale: 2, backgroundColor: "#ffffff", useCORS: true, logging: false});
+    if (i) pdf.addPage();
+    pdf.addImage(cv.toDataURL("image/jpeg", 0.92), "JPEG", 0, 0, 210, 297);
+    host.innerHTML = "";
+  }
+  const fname = no + "_" + String(o.branchName || "").replace(/[\\/:*?"<>|\s]+/g, "-").slice(0, 40) + ".pdf";
+  return {pdf, fname};
+}
+async function downloadPdf(rec, btn){
+  const old = btn && btn.textContent; if (btn) { btn.disabled = true; btn.textContent = "กำลังสร้าง PDF…"; }
+  try { const {pdf, fname} = await makePdf(rec, rec.no); pdf.save(fname); }
+  catch (e) { toast(e.message || "สร้าง PDF ไม่สำเร็จ"); }
+  finally { if (btn) { btn.disabled = false; btn.textContent = old; } }
+}
+
+/* ═══════════ อีเมล ═══════════ */
+const parseMails = s => String(s || "").split(/[,;\s]+/).map(x => x.trim()).filter(x => /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(x));
+function mailHtml(o){
+  const rows = groupByCat(o.items).map(g => `<tr><td colspan="3" style="background:#fff1e4;color:#b23a10;font-weight:700;padding:6px 8px">${esc(g.cat)}</td></tr>` + g.rows.map(l => `<tr><td style="padding:5px 8px;border-bottom:1px solid #eee">${esc(l.name)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right">${fmtN(l.qty)} ${esc(l.bu)}</td><td style="padding:5px 8px;border-bottom:1px solid #eee;text-align:right"><b>${fmtN(l.kq)} ${esc(l.ku)}</b></td></tr>`).join("")).join("");
+  return `<div style="font-family:Sarabun,Arial,sans-serif;font-size:14px;color:#111827"><p><b>ใบสั่งของครัวกลาง ${esc(o.no)}</b></p>
+    <p>สาขา: <b>${esc(o.branchName)}</b><br>วันที่สั่ง: ${esc(dmy(o.orderDate))}<br>ผู้สั่ง: ${esc(o.orderer)}${o.bzm ? "<br>BZM: " + esc(o.bzm) : ""}${o.note ? "<br>หมายเหตุ: " + esc(o.note) : ""}</p>
+    <table style="border-collapse:collapse;width:100%;max-width:640px"><thead><tr style="background:#f3f4f6"><th style="text-align:left;padding:6px 8px">รายการ</th><th style="text-align:right;padding:6px 8px">สั่ง (สาขา)</th><th style="text-align:right;padding:6px 8px">ครัวกลางจัด</th></tr></thead><tbody>${rows}</tbody></table>
+    <p style="color:#6b7280;font-size:12px">ไฟล์ PDF แนบมาพร้อมอีเมลนี้ · ส่งจากระบบสั่งของครัวกลาง FAB Operations Hub</p></div>`;
+}
+async function mailOrder(rec, toOverride){
+  const st = SETTINGS(), to = toOverride || parseMails(st.mailTo), cc = parseMails(st.mailCc);
+  if (!to.length) throw new Error("ยังไม่ได้ตั้งอีเมลครัวกลาง (แจ้งแอดมินตั้งที่แท็บ รายการสินค้า)");
+  const {pdf, fname} = await makePdf(rec, rec.no);
+  const b64 = pdf.output("datauristring").split(",")[1];
+  const res = await fetch(HubMod.SCRIPT_URL, {method: "POST", redirect: "follow", headers: {"Content-Type": "text/plain;charset=utf-8"},
+    body: JSON.stringify({type: "ko-mail", to, cc, subject: `ใบสั่งของครัวกลาง ${rec.no} · ${rec.branchName} · ${dmy(rec.orderDate)}`, html: mailHtml(rec), filename: fname, pdf: b64, by: Hub.fullName()})}).then(r => r.json());
+  const mail = {at: new Date().toISOString(), to, by: Hub.fullName(), ok: !!(res && res.ok), err: res && !res.ok ? String(res.error || "") : ""};
+  try { await S.update("orders", rec.id, {mail}); } catch (e) {}
+  if (!res || !res.ok) throw new Error(res && res.error === "unknown type" ? "หลังบ้านฮับยังไม่ได้อัปเดตตัวส่งอีเมล (แจ้งผู้ดูแลระบบ)" : (res && res.error) || "ส่งไม่สำเร็จ");
+}
+
+/* ═══════════ ประวัติ ═══════════ */
+let hMonth = "", hBranch = "", hQ = "";
+function visibleOrders(){
+  const all = ORDERS();
+  if (can("view-all")) return all;
+  if (!can("view-own")) return [];
+  if (isBranch()) { const n = branchLabel(); return all.filter(o => String(o.branchName).trim() === n); }
+  const names = myBranchNames(), nk = norm(SES().nick);
+  return all.filter(o => names.includes(String(o.branchName).trim()) || (nk && norm(o.bzm) === nk));
+}
+function renderHist(){
+  const v = $("#viewHist"); if (!v) return;
+  if (!hMonth) hMonth = today().slice(0, 7);
+  const base = visibleOrders();
+  const branches = [...new Set(base.map(o => String(o.branchName).trim()))].sort((a, b) => a.localeCompare(b, "th"));
+  let list = base.filter(o => !hMonth || String(o.orderDate).startsWith(hMonth)).filter(o => !hBranch || o.branchName === hBranch);
+  const term = hQ.trim().toLowerCase();
+  if (term) list = list.filter(o => [o.no, o.orderer, o.branchName, ...(o.items || []).map(i => i.name)].join(" ").toLowerCase().includes(term));
+  list.sort((a, b) => String(b.orderDate).localeCompare(String(a.orderDate)) || String(b.createdAt).localeCompare(String(a.createdAt)));
+  const scope = can("view-all") ? "ทุกสาขา" : isBranch() ? "สาขาของคุณ" : "สาขาที่คุณดูแล";
+  let h = `<div class="flt"><div class="field"><label class="muted">เดือน</label><input type="month" id="hM" value="${esc(hMonth)}"></div>
+    ${branches.length > 1 ? `<div class="field"><label class="muted">สาขา</label><select id="hB"><option value="">ทุกสาขา (${branches.length})</option>${branches.map(b => `<option ${b === hBranch ? "selected" : ""}>${esc(b)}</option>`).join("")}</select></div>` : ""}
+    <div class="field" style="flex:2"><label class="muted">ค้นหา</label><input id="hQ" type="search" placeholder="เลขที่ · ผู้สั่ง · ชื่อรายการ" value="${esc(hQ)}"></div></div>
+    <div class="sec"><b>ใบสั่งของ</b><span>${list.length} ใบ · ${scope}</span></div>`;
+  if (!list.length) h += `<div class="empty">ไม่มีใบสั่งในเดือนนี้${base.length ? "<br>ลองเปลี่ยนเดือนหรือตัวกรอง" : ""}</div>`;
+  list.forEach(o => {
+    const m = o.mail && o.mail.ok ? `<span class="pill p-ok">ส่งอีเมลแล้ว</span>` : o.mail ? `<span class="pill p-bad">ส่งอีเมลไม่สำเร็จ</span>` : `<span class="pill p-no">ยังไม่ส่งอีเมล</span>`;
+    h += `<div class="ord" data-id="${esc(o.id)}"><h3>${esc(o.no)} ${m}</h3><div class="sub">${esc(dmy(o.orderDate))} · ${esc(o.branchName)} · ผู้สั่ง ${esc(o.orderer)} · ${(o.items || []).length} รายการ</div></div>`;
+  });
+  v.innerHTML = h;
+  $("#hM").onchange = e => { hMonth = e.target.value; renderHist(); };
+  if ($("#hB")) $("#hB").onchange = e => { hBranch = e.target.value; renderHist(); };
+  $("#hQ").oninput = e => { hQ = e.target.value; clearTimeout(renderHist._t); renderHist._t = setTimeout(() => { renderHist(); const i = $("#hQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  v.onclick = e => { const c = e.target.closest(".ord"); if (c) detail(c.dataset.id); };
+}
+function detail(id){
+  const o = S.get("orders", id); if (!o) return toast("ไม่พบใบสั่งนี้");
+  if (!visibleOrders().some(x => x.id === id)) return toast("ไม่มีสิทธิ์ดูใบสั่งนี้");
+  const b = document.createElement("div");
+  const ms = o.mail ? (o.mail.ok ? `ส่งอีเมลแล้ว ${new Date(o.mail.at).toLocaleString("th-TH")} · ถึง ${(o.mail.to || []).join(", ")}` : `ส่งอีเมลไม่สำเร็จ (${o.mail.err || "ไม่ทราบสาเหตุ"})`) : "ยังไม่ได้ส่งอีเมล";
+  b.innerHTML = metaBlock(o, o.no) + orderTable(o) + `<div class="hint">บันทึกโดย ${esc(o.createdBy || "-")} · ${esc(new Date(o.createdAt).toLocaleString("th-TH"))}<br>${esc(ms)}</div>`;
+  const foot = [{t: "ปิด", cls: "ghost", fn: (_, c) => c()}, {t: "ดาวน์โหลด PDF", cls: "ghost", fn: (btn) => downloadPdf(o, btn)}];
+  if (can("send-mail")) foot.push({t: o.mail && o.mail.ok ? "ส่งอีเมลซ้ำ" : "ส่งอีเมลถึงครัวกลาง", fn: async (btn) => {
+    if (!parseMails(SETTINGS().mailTo).length) return toast("ยังไม่ได้ตั้งอีเมลครัวกลาง (แอดมินตั้งที่แท็บ รายการสินค้า)");
+    if (o.mail && o.mail.ok && !confirm("ใบสั่งนี้ส่งอีเมลไปแล้ว ส่งซ้ำอีกครั้ง?")) return;
+    const old = btn.textContent; btn.disabled = true; btn.textContent = "กำลังส่ง…";
+    try { await mailOrder(o); toast("ส่งอีเมลแล้ว"); $("#modalHost").innerHTML = ""; detail(id); renderHist(); }
+    catch (e) { toast(e.message || "ส่งไม่สำเร็จ"); btn.disabled = false; btn.textContent = old; renderHist(); }
+  }});
+  modal("ใบสั่งของ " + o.no, b, foot);
+}
+
+/* ═══════════ รายการสินค้า (ตั้งตัวคูณหน่วย) ═══════════ */
+function renderItems(){
+  const v = $("#viewItems"); if (!v) return;
+  const mg = can("manage-items"), items = sortedItems(), cats = CATS();
+  let h = `<div class="row" style="margin:6px 2px 4px;flex-wrap:wrap"><div class="grow muted">${items.length} รายการ · ${cats.length} หมวด · หน่วยสาขา → หน่วยครัวกลาง แปลงตามตัวคูณที่ตั้งไว้</div>`;
+  if (mg) h += `<button class="btn sm" id="iAdd">+ เพิ่มรายการ</button><button class="btn sm ghost" id="iImp">นำเข้าจากตาราง</button><button class="btn sm ghost" id="iCat">จัดการหมวด</button><button class="btn sm ghost" id="iSet">อีเมลครัวกลาง</button>`;
+  h += `</div>`;
+  if (!items.length) h += `<div class="empty">ยังไม่มีรายการสินค้า${mg ? "<br>กด “+ เพิ่มรายการ” หรือ “นำเข้าจากตาราง” (วางจาก Excel ได้)" : ""}</div>`;
+  groupByCat(items).forEach(g => {
+    h += `<div class="sec"><b>${esc(g.cat)}</b><span>${g.rows.length} รายการ</span></div><div class="panel">`;
+    g.rows.forEach(x => { h += `<div class="mi" data-id="${esc(x.id)}" ${mg ? 'style="cursor:pointer"' : ""}><div class="grow"><b>${esc(x.name)}</b><div class="muted">1 ${esc(x.bu)} = ${fmtN(x.f)} ${esc(x.ku)}</div></div>${x.active === false ? `<span class="pill p-no">ปิดใช้งาน</span>` : ""}</div>`; });
+    h += `</div>`;
+  });
+  v.innerHTML = h;
+  if (!mg) return;
+  $("#iAdd").onclick = () => itemForm(null); $("#iImp").onclick = importForm; $("#iCat").onclick = catForm; $("#iSet").onclick = settingsForm;
+  v.onclick = e => { const r = e.target.closest(".mi"); if (r) itemForm(S.get("items", r.dataset.id)); };
+}
+function itemForm(x){
+  const cats = CATS(), b = document.createElement("div");
+  b.innerHTML = `<div class="field"><label>ชื่อรายการ</label><input id="xN" value="${esc(x ? x.name : "")}" placeholder="เช่น น้ำปลา"></div>
+    <div class="field"><label>หมวด</label><select id="xC"><option value="">เลือกหมวด</option>${cats.map(c => `<option ${x && x.cat === c ? "selected" : ""}>${esc(c)}</option>`).join("")}</select></div>
+    <div class="f2"><div class="field"><label>หน่วยที่สาขาสั่ง</label><input id="xB" value="${esc(x ? x.bu : "")}" placeholder="เช่น ขวด"></div>
+      <div class="field"><label>หน่วยของครัวกลาง</label><input id="xK" value="${esc(x ? x.ku : "")}" placeholder="เช่น มล."></div></div>
+    <div class="field"><label>1 หน่วยสาขา เท่ากับกี่หน่วยครัวกลาง</label><input id="xF" type="number" min="0" step="any" inputmode="decimal" value="${x ? esc(x.f) : ""}" placeholder="เช่น 700"><div class="hint" id="xH"></div></div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="xA" ${!x || x.active !== false ? "checked" : ""} style="width:auto"> เปิดให้สาขาสั่ง</label>`;
+  const upd = () => { const bu = $("#xB", b).value.trim(), ku = $("#xK", b).value.trim(), f = Number($("#xF", b).value); $("#xH", b).textContent = bu && ku && f > 0 ? `ตัวอย่าง: สาขาสั่ง 1 ${bu} → ครัวกลางจัด ${fmtN(f)} ${ku}` : ""; };
+  b.oninput = upd; upd();
+  const foot = [{t: "ยกเลิก", cls: "ghost", fn: (_, c) => c()}];
+  if (x) foot.push({t: "ลบ", cls: "danger", fn: async (btn, c) => { if (!confirm("ลบ “" + x.name + "” ? ใบสั่งเก่ายังเก็บชื่อและหน่วยตอนสั่งไว้ครบ")) return; try { await S.remove("items", x.id); c(); renderItems(); renderOrder(); } catch (e) { toast(e.message); } }});
+  foot.push({t: "บันทึก", fn: async (btn, c) => {
+    const o = {name: $("#xN", b).value.trim(), cat: $("#xC", b).value, bu: $("#xB", b).value.trim(), ku: $("#xK", b).value.trim(), f: Number($("#xF", b).value), active: $("#xA", b).checked, sort: x ? x.sort || 0 : Date.now() % 1e9};
+    if (!o.name) return toast("ใส่ชื่อรายการ"); if (!o.cat) return toast("เลือกหมวด"); if (!o.bu || !o.ku) return toast("ใส่หน่วยทั้งสองฝั่ง"); if (!(o.f > 0)) return toast("ตัวคูณต้องมากกว่า 0");
+    btn.disabled = true;
+    try { await S.set("items", x ? x.id : "i" + uid(), o); c(); renderItems(); renderOrder(); } catch (e) { toast(e.message || "บันทึกไม่สำเร็จ"); btn.disabled = false; }
+  }});
+  modal(x ? "แก้ไขรายการ" : "เพิ่มรายการสินค้า", b, foot);
+}
+function catForm(){
+  const b = document.createElement("div");
+  b.innerHTML = `<div class="field"><label>หมวดสินค้า (หนึ่งบรรทัดต่อหนึ่งหมวด · ลำดับตามที่เรียง)</label><textarea id="cT" class="ta" style="min-height:200px">${esc(CATS().join("\n"))}</textarea></div><div class="hint">เปลี่ยนชื่อหมวดที่มีรายการอยู่แล้ว รายการเดิมจะไปอยู่ท้ายสุดจนกว่าจะแก้หมวดในรายการ</div>`;
+  modal("จัดการหมวด", b, [{t: "ยกเลิก", cls: "ghost", fn: (_, c) => c()}, {t: "บันทึก", fn: async (btn, c) => {
+    const items = [...new Set($("#cT", b).value.split("\n").map(x => x.trim()).filter(Boolean))];
+    btn.disabled = true; try { await S.set("meta", "categories", {items}); c(); renderItems(); renderOrder(); } catch (e) { toast(e.message); btn.disabled = false; } }}]);
+}
+function settingsForm(){
+  const st = SETTINGS(), b = document.createElement("div");
+  b.innerHTML = `<div class="field"><label>อีเมลครัวกลาง (ผู้รับ · คั่นหลายอีเมลด้วย , )</label><input id="sT" value="${esc(st.mailTo || "")}" placeholder="kitchen@fabfood.co.th"></div>
+    <div class="field"><label>สำเนาถึง (CC)</label><input id="sC" value="${esc(st.mailCc || "")}"></div>
+    <label style="display:flex;gap:8px;align-items:center"><input type="checkbox" id="sA" ${st.autoMail !== false ? "checked" : ""} style="width:auto"> ส่งอีเมลให้อัตโนมัติทันทีที่สาขายืนยันใบสั่ง</label>
+    <div class="hint">ส่งผ่านหลังบ้านของฮับ (Apps Script) จากบัญชีของผู้ดูแลระบบ · ผู้รับต้องเป็นโดเมนที่อนุญาตไว้ในหลังบ้าน</div>`;
+  modal("อีเมลครัวกลาง", b, [{t: "ยกเลิก", cls: "ghost", fn: (_, c) => c()}, {t: "บันทึก", fn: async (btn, c) => {
+    const mailTo = $("#sT", b).value.trim(), mailCc = $("#sC", b).value.trim();
+    const bad = [...String(mailTo + "," + mailCc).split(/[,;\s]+/).filter(Boolean)].filter(x => !parseMails(x).length);
+    if (bad.length) return toast("อีเมลไม่ถูกต้อง: " + bad[0]);
+    btn.disabled = true; try { await S.set("meta", "settings", {mailTo, mailCc, autoMail: $("#sA", b).checked}); c(); toast("บันทึกแล้ว"); } catch (e) { toast(e.message); btn.disabled = false; } }}]);
+}
+function importForm(){
+  const b = document.createElement("div");
+  b.innerHTML = `<div class="field"><label>วางจาก Excel (คอลัมน์: ชื่อรายการ · หมวด · หน่วยสาขา · หน่วยครัวกลาง · ตัวคูณ)</label><textarea id="mT" class="ta" style="min-height:190px" placeholder="น้ำปลา&#9;เครื่องปรุง&#9;ขวด&#9;มล.&#9;700"></textarea></div>
+    <div class="hint">ชื่อรายการซ้ำกับของเดิม = อัปเดตของเดิม · หมวดใหม่ถูกเพิ่มให้เอง · แยกคอลัมน์ด้วย Tab หรือ ,</div><div id="mR" class="hint"></div>`;
+  const parse = () => {
+    const ok = [], bad = [];
+    $("#mT", b).value.split("\n").map(l => l.trim()).filter(Boolean).forEach((l, i) => {
+      const c = (l.includes("\t") ? l.split("\t") : l.split(",")).map(x => x.trim());
+      const f = Number(String(c[4] || "").replace(/,/g, ""));
+      if (c.length >= 5 && c[0] && c[1] && c[2] && c[3] && f > 0) ok.push({name: c[0], cat: c[1], bu: c[2], ku: c[3], f}); else if (i || !/ชื่อ/.test(c[0])) bad.push(i + 1);
+    });
+    return {ok, bad};
+  };
+  b.oninput = () => { const {ok, bad} = parse(); $("#mR", b).textContent = `อ่านได้ ${ok.length} รายการ${bad.length ? " · ข้ามบรรทัดที่ผิดรูปแบบ: " + bad.slice(0, 8).join(", ") : ""}`; };
+  modal("นำเข้ารายการสินค้า", b, [{t: "ยกเลิก", cls: "ghost", fn: (_, c) => c()}, {t: "นำเข้า", fn: async (btn, c) => {
+    const {ok} = parse(); if (!ok.length) return toast("ไม่มีบรรทัดที่อ่านได้");
+    btn.disabled = true; btn.textContent = "กำลังนำเข้า…";
+    try {
+      const have = {}; ITEMS().forEach(x => { have[String(x.name).trim()] = x; });
+      const cats = CATS().slice(); ok.forEach(x => { if (!cats.includes(x.cat)) cats.push(x.cat); });
+      await S.set("meta", "categories", {items: cats});
+      for (let i = 0; i < ok.length; i += 6) await Promise.all(ok.slice(i, i + 6).map((x, j) => { const old = have[x.name]; return S.set("items", old ? old.id : "i" + uid() + (i + j), Object.assign({active: true, sort: old ? old.sort || 0 : Date.now() % 1e9 + i + j}, old || {}, x)); }));
+      c(); toast("นำเข้า " + ok.length + " รายการแล้ว"); renderItems(); renderOrder();
+    } catch (e) { toast(e.message || "นำเข้าไม่สำเร็จ"); btn.disabled = false; btn.textContent = "นำเข้า"; }
+  }}]);
+}
+
+/* ═══════════ เปลือกหน้า ═══════════ */
+let TAB = "";
+function setTab(t){
+  TAB = t;
+  [["order", "tabOrder", "viewOrder"], ["hist", "tabHist", "viewHist"], ["items", "tabItems", "viewItems"]].forEach(([k, tb, vw]) => { $("#" + tb).setAttribute("aria-selected", k === t); $("#" + vw).classList.toggle("hide", k !== t); });
+  paintBar(); window.scrollTo(0, 0);
+}
+function gate(title, msg){
+  const g = document.createElement("div"); g.className = "gate";
+  g.innerHTML = `<div class="box"><div class="em-ic">🔒</div><h2>${esc(title)}</h2><p>${msg}</p><button class="btn full">กลับหน้าหลัก</button></div>`;
+  $("button", g).onclick = () => Hub.back(); document.body.appendChild(g);
+}
+function renderAll(){ renderOrder(); renderHist(); renderItems(); paintBar();
+  const at = S.loadedAt ? new Date(S.loadedAt) : null;
+  $("#note").textContent = "สาขากรอกเป็นหน่วยของสาขา ระบบแปลงเป็นหน่วยครัวกลางให้อัตโนมัติ" + (at ? " · อัปเดต " + String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0") : ""); }
+$("#backBtn").onclick = () => Hub.back();
+$("#tabOrder").onclick = () => setTab("order"); $("#tabHist").onclick = () => setTab("hist"); $("#tabItems").onclick = () => setTab("items");
+$("#barGo").onclick = reviewOrder;
+
+(async () => {
+  if (!Hub.guard()) return;
+  $("#me").textContent = Hub.fullName();
+  loadDraft();
+  await Cfg.load().catch(() => {});
+  await loadJd();
+  const okBackend = await S.checkBackend().catch(() => null);
+  const co = can("order"), ch = can("view-own") || can("view-all"), cm = can("manage-items");
+  if (!co && !ch && !cm) return gate("ไม่มีสิทธิ์เข้าระบบนี้", "บัญชีนี้ยังไม่ได้รับสิทธิ์ในระบบสั่งของครัวกลาง แจ้งผู้ดูแลระบบให้เพิ่มสิทธิ์ที่หน้าสิทธิ์ของฮับ");
+  if (isBranch() && SES().brand && SES().brand !== BRAND) return gate("ยังไม่เปิดให้สาขานี้", "ระบบสั่งของครัวกลางเปิดให้เฉพาะสาขาเจ๊แดงในขณะนี้");
+  if (okBackend === false) return gate("ระบบกำลังเปิดใช้งาน", "ฐานข้อมูลของฮับยังไม่ได้ตั้งค่าสำหรับระบบนี้ แจ้งผู้ดูแลระบบ");
+  $("#tabOrder").classList.toggle("hide", !co); $("#tabHist").classList.toggle("hide", !ch); $("#tabItems").classList.toggle("hide", !cm);
+  setTab(co ? "order" : ch ? "hist" : "items");
+  if (S.hasCache()) renderAll();
+  try { await S.refresh(); }
+  catch (e) { if (!S.hasCache()) { $("#note").textContent = "เชื่อมต่อไม่สำเร็จ"; $("#viewOrder").innerHTML = `<div class="empty">โหลดข้อมูลไม่ได้ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง<br>(ถ้าเพิ่งติดตั้งระบบ ต้องรันไฟล์ supabase/kitchen-order.sql ก่อน)</div>`; return; } toast("ใช้ข้อมูลที่โหลดไว้ล่าสุด"); }
+  renderAll();
+  S.onChange(() => { if (!document.querySelector(".mask") && !(document.activeElement && /INPUT|TEXTAREA/.test(document.activeElement.tagName))) renderAll(); });
+  S.startPolling(60000);
+})();
+</script>
+<script src="view-as.js"></script>
+</body>
+</html>

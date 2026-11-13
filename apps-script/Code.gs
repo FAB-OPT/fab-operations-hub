@@ -78,6 +78,7 @@ function doPost(e) {
     if (data.type === 'mod-update')         return jsonOut(saveModDoc(data.app, data.col, data.id, data.data, true, data.by, data.expect));
     if (data.type === 'mod-delete')         return jsonOut(deleteModDoc(data.app, data.col, data.id, data.expect));
     if (data.type === 'upload-mod-photo')   return jsonOut(uploadModPhoto(data.app, data.base64, data.filename));
+    if (data.type === 'ko-mail')            return jsonOut(sendKitchenOrderMail_(data));
     if (data.type === 'clear-cache')        return jsonOut(clearAllCacheReturn());
     if (data.type === 'ocr-image')          return ocrImage(data.imageBase64, data.filename, data.mimeType);
     return jsonOut({ ok: false, error: 'unknown type: ' + data.type });
@@ -1313,7 +1314,8 @@ function uploadFqaPhoto(base64, filename) {
    รูปไม่เก็บในชีต อัปขึ้น Drive แล้วเก็บเป็นลิงก์ (แบบเดียวกับระบบตรวจสาขา) */
 var MOD_APPS = {
   mx: { sheet: 'MeetExpense',    folder: 'Meeting Expense Photos', cols: ['config', 'rounds', 'claims', 'payees', 'payeeReq'] },
-  bt: { sheet: 'BoothEquipment', folder: 'Booth Equipment Photos', cols: ['equipment', 'loans', 'meta'] }
+  bt: { sheet: 'BoothEquipment', folder: 'Booth Equipment Photos', cols: ['equipment', 'loans', 'meta'] },
+  ko: { sheet: 'KitchenOrder',   folder: 'Kitchen Order Files',    cols: ['items', 'orders', 'meta'] }
 };
 var MOD_HEADERS = ['col', 'id', 'updatedAt', 'updatedBy', 'json'];
 var MOD_CACHE_SEC = 600;
@@ -2189,3 +2191,32 @@ function inventorySheet() {
   Logger.log(out.join('\n'));
   return out;
 }
+
+/* ───────── ส่งอีเมลใบสั่งของครัวกลาง (ระบบ modules/kitchen-order.html) ─────────
+   ส่งจากบัญชีเจ้าของสคริปต์ · แนบ PDF ที่หน้าเว็บสร้างไว้
+   กันถูกเอาไปส่งสแปม: ผู้รับต้องเป็นโดเมนที่อนุญาต (ค่าเริ่มต้น fabfood.co.th)
+   เพิ่มโดเมนอื่นได้ที่ Project Settings > Script properties > KO_MAIL_DOMAINS (คั่นด้วย ,)
+   ต้องอนุญาตสิทธิ์ส่งอีเมลหนึ่งครั้งหลัง Deploy ใหม่ (รันฟังก์ชันนี้จากตัวแก้ไข แล้วกด Review permissions) */
+function sendKitchenOrderMail_(d) {
+  try {
+    var allow = String(PropertiesService.getScriptProperties().getProperty('KO_MAIL_DOMAINS') || 'fabfood.co.th')
+      .split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(Boolean);
+    var ok = function (m) { var x = String(m || '').toLowerCase(); var at = x.lastIndexOf('@'); return at > 0 && allow.indexOf(x.slice(at + 1)) >= 0; };
+    var to = (d.to || []).map(String), cc = (d.cc || []).map(String);
+    if (!to.length || to.length > 10 || cc.length > 10) return { ok: false, error: 'ผู้รับไม่ถูกต้อง' };
+    var bad = to.concat(cc).filter(function (m) { return !ok(m); });
+    if (bad.length) return { ok: false, error: 'โดเมนอีเมลไม่ได้รับอนุญาต: ' + bad[0] };
+    var b64 = String(d.pdf || '');
+    if (!b64 || b64.length > 4000000) return { ok: false, error: 'ไฟล์ PDF ไม่ถูกต้องหรือใหญ่เกินไป' };
+    var fname = String(d.filename || 'order.pdf').replace(/[^\w.\-ก-๙ ]+/g, '_').slice(0, 80);
+    var blob = Utilities.newBlob(Utilities.base64Decode(b64), 'application/pdf', fname);
+    MailApp.sendEmail({
+      to: to.join(','), cc: cc.join(','),
+      subject: String(d.subject || 'ใบสั่งของครัวกลาง').slice(0, 200),
+      htmlBody: String(d.html || ''), body: 'ใบสั่งของครัวกลาง (ดูไฟล์ PDF ที่แนบ)',
+      name: 'FAB Hub · สั่งของครัวกลาง', attachments: [blob]
+    });
+    return { ok: true };
+  } catch (err) { return { ok: false, error: String(err && err.message || err) }; }
+}
+
