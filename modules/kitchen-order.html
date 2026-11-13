@@ -74,7 +74,7 @@
 
 <div class="shell">
   <div class="pagehead">
-    <div class="ph-eyebrow">ครัวกลาง · เจ๊แดง</div>
+    <div class="ph-eyebrow" id="eyebrow">ครัวกลาง</div>
     <div class="ph-title">สั่งของครัวกลาง</div>
     <div class="ph-sub" id="note">กำลังเชื่อมต่อ…</div>
   </div>
@@ -82,10 +82,12 @@
     <button class="tab hide" id="tabOrder" role="tab" aria-selected="false">สั่งของ</button>
     <button class="tab hide" id="tabHist" role="tab" aria-selected="false">ประวัติการสั่ง</button>
     <button class="tab hide" id="tabItems" role="tab" aria-selected="false">รายการสินค้า</button>
+    <button class="tab hide" id="tabTrash" role="tab" aria-selected="false">ถังขยะ</button>
   </div>
   <div id="viewOrder" class="hide"></div>
   <div id="viewHist" class="hide"></div>
   <div id="viewItems" class="hide"></div>
+  <div id="viewTrash" class="hide"></div>
 </div>
 
 <div class="bar hide" id="bar"><div class="in"><div class="sum" id="barSum"></div><button class="btn" id="barGo">ตรวจสอบรายการ</button></div></div>
@@ -108,14 +110,17 @@ function toast(t){ document.querySelectorAll(".toast").forEach(x => x.remove());
 const fmtN = n => (Math.round((Number(n) || 0) * 1000) / 1000).toLocaleString("en-US", {maximumFractionDigits: 3});
 
 /* ── ตั้งค่าระบบ ── */
-const BRAND = "jaedaeng";                    /* เปิดเฉพาะเจ๊แดงก่อน (ตัวเลือกแบรนด์อื่นเพิ่มทีหลังได้) */
+const BRAND = "jaedaeng";                    /* แบรนด์ตั้งต้นของใบสั่ง · ใครเห็นการ์ดนี้ตั้งที่การ์ดของฮับ (ไม่ล็อกในโมดูล) */
+const brandTh = k => Branches.brandName(k || BRAND);
 const PERM_KEY = "kitchenorder";
 const PERM_DEFAULTS = {                      /* ต้องตรงกับ PERM_SYSTEMS.kitchenorder ในฮับ */
   "order": ["branch", "admin", "support"],
   "view-own": ["branch", "bzm"],
   "view-all": ["admin", "coo", "vp", "support"],
   "manage-items": ["admin", "support"],
-  "send-mail": ["branch", "admin", "support"]
+  "send-mail": ["branch", "admin", "support"],
+  "delete-order": ["admin"],
+  "view-trash": ["admin"]
 };
 const can = a => HubMod.can(PERM_KEY, a, PERM_DEFAULTS);
 const SES = () => Hub.session() || {};
@@ -245,7 +250,7 @@ function buildOrder(){
   sortedItems().forEach(x => { const n = Number(cart[x.id]) || 0; if (n > 0) lines.push({id: x.id, name: x.name, cat: x.cat || "อื่น ๆ", qty: n, bu: x.bu, ku: x.ku, f: Number(x.f) || 1, kq: Math.round(n * (Number(x.f) || 1) * 1000) / 1000}); });
   const bn = isBranch() ? branchLabel() : fBranch;
   const bz = isBranch() ? (String(SES().bzm || "").trim() || bzmOfBranch(bn)) : bzmOfBranch(bn);
-  return {brand: BRAND, branchCode: String(SES().branchCode || ""), branchName: bn, bzm: bz, orderDate: fDate || today(), orderer: fOrderer.trim(), note: fNote.trim(), items: lines};
+  return {brand: (isBranch() && SES().brand) || BRAND, branchCode: String(SES().branchCode || ""), branchName: bn, bzm: bz, orderDate: fDate || today(), orderer: fOrderer.trim(), note: fNote.trim(), items: lines};
 }
 function validateOrder(o){
   if (!o.branchName) return "เลือกสาขาก่อน";
@@ -339,7 +344,7 @@ function pdfPageEl(o, no, rows, pi, total){
   let h = "";
   if (pi === 0) {
     h += `<div style="display:flex;justify-content:space-between;align-items:flex-start;border-bottom:3px solid #ff7a1a;padding-bottom:12px;margin-bottom:14px">
-      <div><div style="font-size:26px;font-weight:800">ใบสั่งของ ครัวกลาง</div><div style="color:#6b7280;font-size:14px">เจ๊แดง · FAB Operations Hub</div></div>
+      <div><div style="font-size:26px;font-weight:800">ใบสั่งของ ครัวกลาง</div><div style="color:#6b7280;font-size:14px">${esc(brandTh(o.brand))} · FAB Operations Hub</div></div>
       <div style="text-align:right"><div style="font-size:12px;color:#6b7280">เลขที่</div><div style="font-size:19px;font-weight:800">${esc(no)}</div></div></div>
       <div style="display:grid;grid-template-columns:90px 1fr 90px 1fr;gap:5px 10px;margin-bottom:14px;font-size:14px">
         <b style="color:#6b7280;font-weight:600">วันที่สั่ง</b><span>${esc(dmy(o.orderDate))}</span><b style="color:#6b7280;font-weight:600">สาขา</b><span style="font-weight:700">${esc(o.branchName)}</span>
@@ -406,7 +411,7 @@ async function mailOrder(rec, toOverride){
 /* ═══════════ ประวัติ ═══════════ */
 let hMonth = "", hBranch = "", hQ = "";
 function visibleOrders(){
-  const all = ORDERS();
+  const all = ORDERS().filter(o => !o.trash);
   if (can("view-all")) return all;
   if (!can("view-own")) return [];
   if (isBranch()) { const n = branchLabel(); return all.filter(o => String(o.branchName).trim() === n); }
@@ -438,13 +443,24 @@ function renderHist(){
   $("#hQ").oninput = e => { hQ = e.target.value; clearTimeout(renderHist._t); renderHist._t = setTimeout(() => { renderHist(); const i = $("#hQ"); i.focus(); i.setSelectionRange(i.value.length, i.value.length); }, 250); };
   v.onclick = e => { const c = e.target.closest(".ord"); if (c) detail(c.dataset.id); };
 }
-function detail(id){
+function detail(id, inTrash){
   const o = S.get("orders", id); if (!o) return toast("ไม่พบใบสั่งนี้");
-  if (!visibleOrders().some(x => x.id === id)) return toast("ไม่มีสิทธิ์ดูใบสั่งนี้");
+  if (inTrash ? !can("view-trash") : !visibleOrders().some(x => x.id === id)) return toast("ไม่มีสิทธิ์ดูใบสั่งนี้");
   const b = document.createElement("div");
   const ms = o.mail ? (o.mail.ok ? `ส่งอีเมลแล้ว ${new Date(o.mail.at).toLocaleString("th-TH")} · ถึง ${(o.mail.to || []).join(", ")}` : `ส่งอีเมลไม่สำเร็จ (${o.mail.err || "ไม่ทราบสาเหตุ"})`) : "ยังไม่ได้ส่งอีเมล";
   b.innerHTML = metaBlock(o, o.no) + orderTable(o) + `<div class="hint">บันทึกโดย ${esc(o.createdBy || "-")} · ${esc(new Date(o.createdAt).toLocaleString("th-TH"))}<br>${esc(ms)}</div>`;
+  if (inTrash && o.trash) b.insertAdjacentHTML("beforeend", `<div class="hint" style="color:var(--red-ink)">ย้ายไปถังขยะโดย ${esc(o.trash.by || "-")} · ${esc(new Date(o.trash.at).toLocaleString("th-TH"))}</div>`);
   const foot = [{t: "ปิด", cls: "ghost", fn: (_, c) => c()}, {t: "ดาวน์โหลด PDF", cls: "ghost", fn: (btn) => downloadPdf(o, btn)}];
+  if (inTrash) {
+    foot.push({t: "ลบถาวร", cls: "danger", fn: async (btn, c) => {
+      if (!confirm("ลบใบสั่ง " + o.no + " ถาวร? กู้คืนไม่ได้อีก")) return;
+      btn.disabled = true; try { await S.remove("orders", id); c(); toast("ลบถาวรแล้ว"); renderTrash(); } catch (e) { toast(e.message || "ลบไม่สำเร็จ"); btn.disabled = false; } }});
+    foot.push({t: "กู้คืน", fn: async (btn, c) => { btn.disabled = true; try { await S.update("orders", id, {trash: null}); c(); toast("กู้คืนใบสั่งแล้ว"); renderTrash(); renderHist(); } catch (e) { toast(e.message || "กู้คืนไม่สำเร็จ"); btn.disabled = false; } }});
+    return modal("ใบสั่งในถังขยะ " + o.no, b, foot);
+  }
+  if (can("delete-order")) foot.splice(1, 0, {t: "ลบ", cls: "danger", fn: async (btn, c) => {
+    if (!confirm("ย้ายใบสั่ง " + o.no + " ไปถังขยะ? แอดมินกู้คืนได้จากแท็บ ถังขยะ")) return;
+    btn.disabled = true; try { await S.update("orders", id, {trash: {at: new Date().toISOString(), by: Hub.fullName(), role: Hub.userRole()}}); c(); toast("ย้ายไปถังขยะแล้ว"); renderHist(); renderTrash(); } catch (e) { toast(e.message || "ลบไม่สำเร็จ"); btn.disabled = false; } }});
   if (can("send-mail")) foot.push({t: o.mail && o.mail.ok ? "ส่งอีเมลซ้ำ" : "ส่งอีเมลถึงครัวกลาง", fn: async (btn) => {
     if (!parseMails(SETTINGS().mailTo).length) return toast("ยังไม่ได้ตั้งอีเมลครัวกลาง (แอดมินตั้งที่แท็บ รายการสินค้า)");
     if (o.mail && o.mail.ok && !confirm("ใบสั่งนี้ส่งอีเมลไปแล้ว ส่งซ้ำอีกครั้ง?")) return;
@@ -453,6 +469,17 @@ function detail(id){
     catch (e) { toast(e.message || "ส่งไม่สำเร็จ"); btn.disabled = false; btn.textContent = old; renderHist(); }
   }});
   modal("ใบสั่งของ " + o.no, b, foot);
+}
+
+/* ═══════════ ถังขยะ (เฉพาะผู้มีสิทธิ์ view-trash · ค่าตั้งต้นแอดมิน) ═══════════ */
+function renderTrash(){
+  const v = $("#viewTrash"); if (!v) return;
+  const list = ORDERS().filter(o => o.trash).sort((a, b) => String(b.trash.at).localeCompare(String(a.trash.at)));
+  let h = `<div class="sec"><b>ใบสั่งที่ลบ</b><span>${list.length} ใบ · กู้คืนหรือลบถาวรได้</span></div>`;
+  if (!list.length) h += `<div class="empty">ถังขยะว่าง</div>`;
+  list.forEach(o => { h += `<div class="ord" data-id="${esc(o.id)}"><h3>${esc(o.no)} <span class="pill p-bad">ในถังขยะ</span></h3><div class="sub">${esc(dmy(o.orderDate))} · ${esc(o.branchName)} · ผู้สั่ง ${esc(o.orderer)} · ${(o.items || []).length} รายการ<br>ลบโดย ${esc(o.trash.by || "-")} · ${esc(new Date(o.trash.at).toLocaleString("th-TH"))}</div></div>`; });
+  v.innerHTML = h;
+  v.onclick = e => { const c = e.target.closest(".ord"); if (c) detail(c.dataset.id, true); };
 }
 
 /* ═══════════ รายการสินค้า (ตั้งตัวคูณหน่วย) ═══════════ */
@@ -543,7 +570,7 @@ function importForm(){
 let TAB = "";
 function setTab(t){
   TAB = t;
-  [["order", "tabOrder", "viewOrder"], ["hist", "tabHist", "viewHist"], ["items", "tabItems", "viewItems"]].forEach(([k, tb, vw]) => { $("#" + tb).setAttribute("aria-selected", k === t); $("#" + vw).classList.toggle("hide", k !== t); });
+  [["order", "tabOrder", "viewOrder"], ["hist", "tabHist", "viewHist"], ["items", "tabItems", "viewItems"], ["trash", "tabTrash", "viewTrash"]].forEach(([k, tb, vw]) => { $("#" + tb).setAttribute("aria-selected", k === t); $("#" + vw).classList.toggle("hide", k !== t); });
   paintBar(); window.scrollTo(0, 0);
 }
 function gate(title, msg){
@@ -551,25 +578,25 @@ function gate(title, msg){
   g.innerHTML = `<div class="box"><div class="em-ic">🔒</div><h2>${esc(title)}</h2><p>${msg}</p><button class="btn full">กลับหน้าหลัก</button></div>`;
   $("button", g).onclick = () => Hub.back(); document.body.appendChild(g);
 }
-function renderAll(){ renderOrder(); renderHist(); renderItems(); paintBar();
+function renderAll(){ renderOrder(); renderHist(); renderItems(); if (can("view-trash")) renderTrash(); paintBar();
   const at = S.loadedAt ? new Date(S.loadedAt) : null;
   $("#note").textContent = "สาขากรอกเป็นหน่วยของสาขา ระบบแปลงเป็นหน่วยครัวกลางให้อัตโนมัติ" + (at ? " · อัปเดต " + String(at.getHours()).padStart(2, "0") + ":" + String(at.getMinutes()).padStart(2, "0") : ""); }
 $("#backBtn").onclick = () => Hub.back();
-$("#tabOrder").onclick = () => setTab("order"); $("#tabHist").onclick = () => setTab("hist"); $("#tabItems").onclick = () => setTab("items");
+$("#tabOrder").onclick = () => setTab("order"); $("#tabHist").onclick = () => setTab("hist"); $("#tabItems").onclick = () => setTab("items"); $("#tabTrash").onclick = () => setTab("trash");
 $("#barGo").onclick = reviewOrder;
 
 (async () => {
   if (!Hub.guard()) return;
   $("#me").textContent = Hub.fullName();
+  $("#eyebrow").textContent = "ครัวกลาง · " + brandTh(isBranch() ? SES().brand : "");
   loadDraft();
   await Cfg.load().catch(() => {});
   await loadJd();
   const okBackend = await S.checkBackend().catch(() => null);
   const co = can("order"), ch = can("view-own") || can("view-all"), cm = can("manage-items");
   if (!co && !ch && !cm) return gate("ไม่มีสิทธิ์เข้าระบบนี้", "บัญชีนี้ยังไม่ได้รับสิทธิ์ในระบบสั่งของครัวกลาง แจ้งผู้ดูแลระบบให้เพิ่มสิทธิ์ที่หน้าสิทธิ์ของฮับ");
-  if (isBranch() && SES().brand && SES().brand !== BRAND) return gate("ยังไม่เปิดให้สาขานี้", "ระบบสั่งของครัวกลางเปิดให้เฉพาะสาขาเจ๊แดงในขณะนี้");
   if (okBackend === false) return gate("ระบบกำลังเปิดใช้งาน", "ฐานข้อมูลของฮับยังไม่ได้ตั้งค่าสำหรับระบบนี้ แจ้งผู้ดูแลระบบ");
-  $("#tabOrder").classList.toggle("hide", !co); $("#tabHist").classList.toggle("hide", !ch); $("#tabItems").classList.toggle("hide", !cm);
+  $("#tabOrder").classList.toggle("hide", !co); $("#tabHist").classList.toggle("hide", !ch); $("#tabItems").classList.toggle("hide", !cm); $("#tabTrash").classList.toggle("hide", !can("view-trash"));
   setTab(co ? "order" : ch ? "hist" : "items");
   if (S.hasCache()) renderAll();
   try { await S.refresh(); }
