@@ -55,6 +55,16 @@
 .seg2 button{flex:none;border-radius:9px;padding:8px 14px;font-size:13.5px;font-weight:700;color:var(--text2);min-height:38px}
 .seg2 button[aria-pressed="true"]{background:#fff;color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.1)}
 .seg2 .bd{display:inline-block;background:var(--gold);color:#fff;font-size:11px;border-radius:99px;padding:0 6px;margin-left:5px;font-variant-numeric:tabular-nums}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:560px){.frow{grid-template-columns:1fr}}
+.recent{background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px;align-self:start}
+@media(min-width:960px){.recent{position:sticky;top:78px}}
+.recent .st{font-weight:800;font-size:15px;margin-bottom:6px}
+.recent .ro{border:1px solid var(--border);border-radius:12px;padding:11px 12px;margin-top:8px}
+.recent .rh{display:flex;justify-content:space-between;gap:8px;font-size:14px}
+.recent .rh span{font-size:12px;color:var(--text3)}
+.recent .rs{font-size:12.5px;color:var(--text2);margin-top:2px}
+.recent .rn{font-size:13px;color:var(--text);margin:4px 0 8px}
 .sidecard{display:none;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:16px;flex-direction:column;gap:6px;align-self:start;position:sticky;top:78px}
 @media(min-width:960px){.sidecard{display:flex}}
 .sidecard .st{font-weight:800;font-size:15px;margin-bottom:4px}
@@ -215,7 +225,7 @@ function renderOrder(){
   const v = $("#viewOrder"); if (!v) return;
   if (!fDate) fDate = today();
   const main = step === 1 ? step1Html() : step === 2 ? step2Html() : step3Html();
-  v.innerHTML = stepsHtml() + `<div class="wiz ${step < 3 ? "" : "noside"}"><div class="wmain">${main}</div>${step < 3 ? sideHtml() : ""}</div>`;
+  v.innerHTML = stepsHtml() + `<div class="wiz ${step < 3 ? "" : "noside"}"><div class="wmain">${main}</div>${step === 1 ? recentHtml() : step === 2 ? sideHtml() : ""}</div>`;
   $("#viewOrder .steps").onclick = e => { const b = e.target.closest(".st.dn"); if (b) goStep(+b.dataset.s); };
   if (step === 1) bindStep1(); else if (step === 2) bindStep2(); else bindStep3();
   paintBar();
@@ -229,8 +239,10 @@ function step1Html(){
     : `<select id="fBr"><option value="">เลือกสาขา</option>${jdBranches().map(b => `<option ${String(b.name).trim() === fBranch ? "selected" : ""}>${esc(String(b.name).trim())}</option>`).join("")}</select>`;
   return `<h3>ข้อมูลใบสั่ง</h3><div class="sub">ตรวจวันที่และสาขา แล้วใส่ชื่อผู้สั่ง</div>
     <div class="fcard">
-      <div class="field"><label>วันที่สั่ง</label><input type="date" id="fDt" value="${esc(fDate)}" max="${esc(addDays(today(), 60))}" min="${esc(addDays(today(), -60))}"></div>
-      <div class="field"><label>สาขา</label>${bsel}${isBranch() ? "" : '<div class="hint">เลือกสาขาที่จะสั่งแทน</div>'}</div>
+      <div class="frow">
+        <div class="field"><label>วันที่สั่ง</label><input type="date" id="fDt" value="${esc(fDate)}" max="${esc(addDays(today(), 60))}" min="${esc(addDays(today(), -60))}"></div>
+        <div class="field"><label>สาขา</label>${bsel}${isBranch() ? "" : '<div class="hint">เลือกสาขาที่จะสั่งแทน</div>'}</div>
+      </div>
       <div class="field" style="margin:0"><label>ชื่อผู้สั่ง <b style="color:var(--red)">*</b></label><input id="fOr" value="${esc(fOrderer)}" placeholder="พิมพ์ชื่อผู้สั่ง" autocomplete="name"></div>
     </div>`;
 }
@@ -238,7 +250,35 @@ function bindStep1(){
   $("#fDt").onchange = e => { fDate = e.target.value || today(); };
   $("#fOr").oninput = e => { fOrderer = e.target.value; saveDraft(); };
   $("#fOr").onkeydown = e => { if (e.key === "Enter") nextStep(); };
-  const br = $("#fBr"); if (br) br.onchange = e => { fBranch = e.target.value; };
+  const br = $("#fBr"); if (br) br.onchange = e => { fBranch = e.target.value; renderOrder(); };
+  const rc = $("#recent"); if (rc) rc.onclick = e => { const b = e.target.closest("[data-re]"); if (b) reorder(b.dataset.re); };
+}
+/* ใบสั่งล่าสุดของสาขานี้ · กด "สั่งซ้ำ" ใส่รายการเดิมให้ แล้วปรับจำนวนต่อได้ */
+function recentHtml(){
+  const bn = curBranch();
+  const list = bn ? visibleOrders().filter(o => String(o.branchName).trim() === bn).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 4) : [];
+  let h = `<aside class="recent" id="recent"><div class="st">${bn ? "ใบสั่งล่าสุดของ " + esc(bn) : "ใบสั่งล่าสุด"}</div>`;
+  if (!bn) h += `<div class="hint">เลือกสาขาก่อน แล้วจะเห็นใบสั่งล่าสุดของสาขานั้นที่นี่</div>`;
+  else if (!list.length) h += `<div class="hint">ยังไม่มีประวัติการสั่งของสาขานี้<br>ใบสั่งแรกที่ยืนยันจะขึ้นที่นี่ ให้กด “สั่งซ้ำ” ได้ในครั้งต่อไป</div>`;
+  list.forEach(o => {
+    const names = (o.items || []).map(i => i.name);
+    h += `<div class="ro"><div class="rh"><b>${esc(dmy(o.orderDate))}</b><span>${esc(o.no)}</span></div>
+      <div class="rs">${(o.items || []).length} รายการ · ผู้สั่ง ${esc(o.orderer)}</div>
+      <div class="rn">${esc(names.slice(0, 3).join(", "))}${names.length > 3 ? " +" + (names.length - 3) : ""}</div>
+      <button class="btn sm ghost" data-re="${esc(o.id)}">สั่งซ้ำ</button></div>`;
+  });
+  return h + `</aside>`;
+}
+function reorder(id){
+  const o = S.get("orders", id); if (!o) return;
+  const active = {}; ITEMS().forEach(x => { if (x.active !== false) active[x.id] = 1; });
+  let ok = 0, skip = 0; cart = {};
+  (o.items || []).forEach(l => { if (active[l.id]) { cart[l.id] = Number(l.qty) || 0; ok++; } else skip++; });
+  saveDraft();
+  if (!ok) { renderOrder(); return toast("รายการในใบสั่งนั้นถูกปิดหรือลบไปแล้ว"); }
+  toast(`ใส่ ${ok} รายการจากใบสั่ง ${o.no} แล้ว${skip ? " (ข้าม " + skip + " รายการที่ไม่มีแล้ว)" : ""}`);
+  if (curBranch() && fDate && fOrderer.trim()) goStep(2);
+  else { renderOrder(); toast(`ใส่ ${ok} รายการแล้ว กรอกชื่อผู้สั่งแล้วกดถัดไป`); }
 }
 
 /* ขั้น 2: เลือกของ */
