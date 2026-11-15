@@ -839,6 +839,17 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
 <style>
+.qsec{border-left:4px solid #ff7a1a!important;background:#fffaf5!important}
+.fill-steps{display:flex;gap:4px;margin:0 2px 12px}
+.fill-steps span{flex:1;height:5px;border-radius:9px;background:#e5e7eb}
+.fill-steps .on{background:#ff7a1a}.fill-steps .dn{background:#10b981}
+.fs-no{font-size:12px;font-weight:700;color:#ff7a1a;letter-spacing:.02em}
+.fill-sec{margin-bottom:12px}
+.fill-sec .fs-t{font-size:19px;font-weight:800;margin-top:2px}
+.imp-auto{display:grid;gap:6px;margin-top:10px}
+.imp-auto label{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;font-weight:600;margin:0}
+.imp-auto input{width:auto;margin-top:4px}
+.imp-prev tr.sec td{background:#fff7ef;font-weight:700}
 textarea.ag{resize:none;overflow:hidden;min-height:46px;line-height:1.5}
 .opts{display:grid;gap:6px;margin:6px 0 8px}
 .opt{display:flex;align-items:center;gap:6px}
@@ -1015,10 +1026,13 @@ const Q_TYPES = [
   { id:'scale',  label:'สเกลให้คะแนน',     icon:'⭐' },
   { id:'number', label:'ตัวเลข',           icon:'🔢' },
   { id:'date',   label:'วันที่',            icon:'📅' },
-  { id:'yesno',  label:'ใช่ / ไม่ใช่',       icon:'✅' }
+  { id:'yesno',  label:'ใช่ / ไม่ใช่',       icon:'✅' },
+  { id:'section', label:'ส่วน (หัวข้อ)',     icon:'📑' }
 ];
 const qTypeLabel = t => (Q_TYPES.find(x => x.id === t) || {}).label || t;
 const hasOptions = t => t === 'single' || t === 'multi';
+/* ส่วน (หัวข้อ) ไม่ใช่คำถาม: ไม่มีคำตอบ ไม่นับเป็นข้อ */
+const answerQs = f => ((f && f.questions) || []).filter(q => q.type !== 'section');
 
 /* ── สถานะรวมของหน้า ───────────────────────────────────────────── */
 let forms = [], responses = [], myAnswered = new Set(), myResp = [];
@@ -1522,7 +1536,7 @@ const myDate = key => { const r = (myResp || []).find(x => x.form_key === key); 
 
 function formItemHtml(f){
   const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
-  const nq = (f.questions || []).length;
+  const nq = answerQs(f).length;
   const staff = ofCan('view-followup');
   const status = lock ? `<span class="ok">ตอบแล้ว ${esc(myDate(f.key))}</span>`
     : !isOpen(f) ? (f.status === 'draft' ? 'ร่าง' : 'ปิดรับแล้ว') : dueHtml(f);
@@ -1631,7 +1645,7 @@ window.startFill = function(key){
   if (!form) return;
   if (!canFill(form)) return msg('แบบฟอร์มนี้ไม่ได้เปิดให้คุณตอบ', 'warn');
   if (form.once_per_user && myAnswered.has(key)) return msg('คุณตอบแบบฟอร์มนี้ไปแล้ว', 'warn');
-  fill = { form, answers:{} };
+  fill = { form, answers:{}, page:0 };
   tab = 'fill'; renderNav();
   renderFill();
 };
@@ -1673,17 +1687,20 @@ function grabTyped(){
 }
 const isAnswered = v => !(v == null || v === '' || (Array.isArray(v) && !v.length));
 /* เงื่อนไขแสดงข้อ: q.cond = { q:'รหัสข้อก่อนหน้า', mode:'in'|'notin', values:[คำตอบ...] } · ข้อต้นทางยังไม่ตอบ/ถูกซ่อน = ซ่อนข้อนี้ */
+function secOf(q, all){ const i = all.indexOf(q); for (let k = i - 1; k >= 0; k--) if (all[k].type === 'section') return all[k]; return null; }
 function qVisible(q, answers, all, depth){
+  depth = depth || 0; if (depth > 20) return true;
+  if (q && q.type !== 'section') { const sec = secOf(q, all); if (sec && !qVisible(sec, answers, all, depth + 1)) return false; }
   const c = q && q.cond; if (!c || !c.q) return true;
-  if ((depth || 0) > 20) return true;
   const src = all.find(x => x.id === c.q); if (!src) return true;
-  if (!qVisible(src, answers, all, (depth || 0) + 1)) return false;
+  if (!qVisible(src, answers, all, depth + 1)) return false;
   const v = answers[c.q], vals = Array.isArray(v) ? v.map(String) : (v == null || v === '' ? [] : [String(v)]);
   if (!vals.length) return false;
   const hit = (c.values || []).some(x => vals.includes(String(x)));
   return c.mode === 'notin' ? !hit : hit;
 }
-const visQs = () => { const all = fill.form.questions || []; return all.filter(q => qVisible(q, fill.answers, all)); };
+const visItems = () => { const all = fill.form.questions || []; return all.filter(q => qVisible(q, fill.answers, all)); };
+const visQs = () => visItems().filter(q => q.type !== 'section');
 /* นับข้อที่ตอบแล้ว · อัปเดตแถบล่างสด ๆ ระหว่างพิมพ์ โดยไม่วาดทั้งหน้าใหม่ */
 function fillProgress(){
   const qs = visQs();
@@ -1705,36 +1722,64 @@ function paintFillProgress(){
     if (ok) c.classList.remove('miss');
   });
 }
+/* แบ่งหน้าตามส่วน: ข้อที่อยู่ก่อนส่วนแรก (ถ้ามี) เป็นหน้าแรก · ฟอร์มที่ไม่มีส่วน = หน้าเดียวเหมือนเดิม */
+function fillPages(){
+  const pages = []; let cur = null;
+  visItems().forEach(it => {
+    if (it.type === 'section') { cur = { sec: it, qs: [] }; pages.push(cur); }
+    else { if (!cur) { cur = { sec: null, qs: [] }; pages.push(cur); } cur.qs.push(it); }
+  });
+  return pages.filter(pg => pg.qs.length);
+}
 function renderFill(){
   grabTyped();
-  const f = fill.form, p = fillProgress();
+  const f = fill.form, p = fillProgress(), pages = fillPages(), multi = pages.length > 1;
+  if (!(fill.page >= 0)) fill.page = 0;
+  if (fill.page >= pages.length) fill.page = Math.max(0, pages.length - 1);
+  const pg = pages[fill.page] || { sec: null, qs: [] }, last = fill.page >= pages.length - 1;
+  const numOf = {}; visQs().forEach((q, i) => { numOf[q.id] = i + 1; });
   $('#view').innerHTML = `
     <div class="card fill-card">
       <div class="tk-h">
-        <div class="tk-no"><span>${p.total} ข้อ</span><span>${dueHtml(f)}</span></div>
+        <div class="tk-no"><span>${p.total} ข้อ${multi ? ' · ' + pages.length + ' ส่วน' : ''}</span><span>${dueHtml(f)}</span></div>
         <div class="tk-t" style="font-size:20px"><span>${esc(f.emoji || '📋')}</span>${esc(f.title)}</div>
         ${f.description ? `<div class="tk-d">${esc(f.description)}</div>` : ''}
       </div>
       <div class="fill-prog"><span id="fillBar" style="width:${p.total ? p.done / p.total * 100 : 0}%"></span></div>
     </div>
-    ${visQs().map((q, i) => {
+    ${multi ? `<div class="fill-steps">${pages.map((x, i) => `<span class="${i === fill.page ? 'on' : i < fill.page ? 'dn' : ''}"></span>`).join('')}</div>` : ''}
+    ${pg.sec ? `<div class="card fill-sec"><div class="fs-no">ส่วนที่ ${fill.page + 1} จาก ${pages.length}</div><div class="fs-t">${esc(pg.sec.label)}</div>${pg.sec.help ? `<div class="tk-d">${esc(pg.sec.help)}</div>` : ''}</div>`
+      : (multi ? `<div class="fs-no" style="margin:0 4px 8px">ส่วนที่ ${fill.page + 1} จาก ${pages.length}</div>` : '')}
+    ${pg.qs.map(q => {
       const ok = isAnswered(fill.answers[q.id]);
       const miss = fill.tried && q.required && !ok;
       return `<div class="qcard ${ok ? 'done' : ''} ${miss ? 'miss' : ''}" id="qc_${q.id}">
-        <div class="qlab"><span class="qno">${i + 1}</span><span>${esc(q.label)}${q.required ? '<span class="qreq">*</span>' : ''}</span></div>
+        <div class="qlab"><span class="qno">${numOf[q.id]}</span><span>${esc(q.label)}${q.required ? '<span class="qreq">*</span>' : ''}</span></div>
         ${q.help ? `<p class="qhelp">${esc(q.help)}</p>` : ''}
         ${qInput(q, fill.answers[q.id])}
         <div class="qhint">ข้อนี้ต้องตอบ</div>
       </div>`;
     }).join('')}
     <div class="actbar">
-      <button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>
+      ${multi && fill.page > 0 ? `<button class="btn btn-secondary" onclick="fillPrev()">← ย้อนกลับ</button>` : `<button class="btn btn-secondary" onclick="go('list')">ยกเลิก</button>`}
       <div class="grow ab-note" id="fillNote"></div>
-      <button class="btn btn-primary" onclick="submitFill()">ส่งคำตอบ</button>
+      ${multi && !last ? `<button class="btn btn-primary" onclick="fillNext()">ถัดไป →</button>` : `<button class="btn btn-primary" onclick="submitFill()">ส่งคำตอบ</button>`}
     </div>`;
   $('#view').querySelectorAll('input[data-q],textarea[data-q]').forEach(el => el.addEventListener('input', paintFillProgress));
   paintFillProgress();
 }
+window.fillNext = function(){
+  grabTyped();
+  const pg = fillPages()[fill.page]; if (!pg) return;
+  const miss = pg.qs.filter(q => q.required && !isAnswered(fill.answers[q.id]));
+  if (miss.length) {
+    fill.tried = true; renderFill();
+    const first = document.getElementById('qc_' + miss[0].id); if (first && first.scrollIntoView) first.scrollIntoView({ behavior:'smooth', block:'start' });
+    return msg(`ยังตอบไม่ครบในส่วนนี้ — เหลือ ${miss.length} ข้อที่ต้องตอบ (ข้อที่มี <span style="color:var(--red)">*</span>)`, 'warn');
+  }
+  clearMsg(); fill.tried = false; fill.page++; renderFill(); window.scrollTo({ top:0 });
+};
+window.fillPrev = function(){ grabTyped(); if (fill.page > 0) { fill.tried = false; fill.page--; renderFill(); window.scrollTo({ top:0 }); } };
 
 window.submitFill = async function(){
   grabTyped();
@@ -1746,8 +1791,10 @@ window.submitFill = async function(){
     return v == null || v === '' || (Array.isArray(v) && !v.length);
   });
   if (miss.length){
-    /* ทำกรอบแดงข้อที่ขาด แล้วพาไปข้อแรกที่ยังไม่ตอบ */
-    fill.tried = true; renderFill();
+    /* ทำกรอบแดงข้อที่ขาด แล้วพาไปข้อแรกที่ยังไม่ตอบ (ข้ามไปหน้าของส่วนนั้น) */
+    fill.tried = true;
+    { const pi = fillPages().findIndex(pg => pg.qs.some(q => q.id === miss[0].id)); if (pi >= 0) fill.page = pi; }
+    renderFill();
     const first = document.getElementById('qc_' + miss[0].id);
     if (first && first.scrollIntoView) first.scrollIntoView({ behavior:'smooth', block:'start' });
     return msg(`ยังตอบไม่ครบ — เหลือ ${miss.length} ข้อที่ต้องตอบ (ข้อที่มี <span style="color:var(--red)">*</span>)`, 'warn');
@@ -1816,7 +1863,7 @@ function optHtml(all, items, cur, label){
 function paintResults(){
   const list = filteredResponses();
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? (form.questions || []) : [];
+  const qs = form ? answerQs(form) : [];
   $('#rStats').innerHTML = `
     <span><b>${list.length}</b>คำตอบ</span>
     <span><b>${new Set(list.map(r => r.respondent_code)).size}</b>ผู้ตอบ</span>
@@ -1863,7 +1910,7 @@ function paintResults(){
 window.detail = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const qs = form ? (form.questions || []) : [];
+  const qs = form ? answerQs(form) : [];
   const rows = qs.length
     ? qs.map((q, i) => `<tr><td>${i + 1}. ${esc(q.label)}</td><td><b>${esc(ansText((r.answers || {})[q.id]))}</b></td></tr>`).join('')
     : Object.keys(r.answers || {}).map(k => `<tr><td>${esc(k)}</td><td><b>${esc(ansText(r.answers[k]))}</b></td></tr>`).join('');
@@ -1907,7 +1954,7 @@ window.csvResults = function(){
   const list = filteredResponses();
   if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? (form.questions || []) : [];
+  const qs = form ? answerQs(form) : [];
   const head = ['วันที่','เวลา','ผู้ตอบ','ตำแหน่ง','สาขา','แบรนด์','แบบฟอร์ม']
     .concat(qs.length ? qs.map(q => q.label) : ['คำตอบ']);
   const body = list.map(r => [fmtD(r.created_at), r.created_at ? new Date(r.created_at).toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', hour12:false }) : '', r.respondent_name, r.respondent_role, r.respondent_branch, r.respondent_brand, r.form_title || r.form_key]
@@ -2026,7 +2073,7 @@ const pctOf = (n, d) => d ? Math.round(n / d * 1000) / 10 + '%' : '—';
 
 function reportSumHtml(f){
   const list = responses.filter(r => r.form_key === f.key);
-  const qs = f.questions || [];
+  const qs = answerQs(f);
   const blocks = qs.map((q, i) => {
     const vals = list.map(r => (r.answers || {})[q.id]).filter(v => v != null && v !== '' && !(Array.isArray(v) && !v.length));
     const head = `<h3>${i + 1}. ${esc(q.label)} <span style="font-weight:400;color:#666">· ${esc(qTypeLabel(q.type))} · ตอบ ${vals.length} คน</span></h3>`;
@@ -2086,7 +2133,7 @@ function ofScoreOf(r, qs){
   return nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
 }
 function reportAllHtml(f){
-  const qs = f.questions || [];
+  const qs = answerQs(f);
   const scored = qs.some(q => q.type === 'scale' || q.type === 'number');
   /* เรียงคะแนนมากไปน้อย — รายงานเปิดมาเห็นสาขาที่ทำได้ดีสุดก่อน ตามด้วยตัวที่ต้องตาม */
   const list = responses.filter(r => r.form_key === f.key)
@@ -2108,7 +2155,7 @@ function reportAllHtml(f){
 
 function renderReport(){ return renderKind('report', renderReportGen); }
 function renderReportGen(){
-  const list = forms.filter(f => (f.questions || []).length);
+  const list = forms.filter(f => answerQs(f).length);
   if (!list.length){ $('#view').innerHTML = '<div class="card"><div class="empty">ยังไม่มีแบบฟอร์ม</div></div>'; return; }
   if (!rpo.form || !list.some(f => f.key === rpo.form)) rpo.form = list[0].key;
   const f = list.find(x => x.key === rpo.form);
@@ -2160,7 +2207,7 @@ window.printResults = function(){
   const list = filteredResponses();
   if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? (form.questions || []) : [];
+  const qs = form ? answerQs(form) : [];
   printDoc(`
     ${prHead(form ? form.title : 'คำตอบแบบฟอร์มออนไลน์', [rf.branch && 'สาขา: ' + rf.branch, rf.q && 'ค้นหา: ' + rf.q].filter(Boolean).join(' · ') || 'ทั้งหมด')}
     <div class="pr-stats">
@@ -2179,7 +2226,7 @@ window.printResults = function(){
 window.printResp = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const qs = form ? (form.questions || []) : [];
+  const qs = form ? answerQs(form) : [];
   const rows = (qs.length ? qs.map((q, i) => [`${i + 1}. ${q.label}`, ansText((r.answers || {})[q.id])])
                           : Object.keys(r.answers || {}).map(k => [k, ansText(r.answers[k])]))
     .map(([a, b]) => `<tr><td>${esc(a)}</td><td><b>${esc(b)}</b></td></tr>`).join('');
@@ -2199,7 +2246,7 @@ function genMfHtml(f){
   return `<div class="mf">
     <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
       <div class="mf-t"><b>${esc(f.title)}</b>
-        ${lineHtml([typeChip('gen'), (f.questions || []).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
+        ${lineHtml([typeChip('gen'), answerQs(f).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
       ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
     <div class="mf-acts">
       <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
@@ -2372,7 +2419,7 @@ function condHtml(i){
   const c = q.cond && q.cond.q ? q.cond : null, sq = c ? editing.questions.find(x => x.id === c.q) : null;
   let h = `<div class="qcond"><label>แสดงข้อนี้เมื่อ <span class="muted">(ไม่เลือก = แสดงให้ทุกคน)</span></label>
     <select onchange="grabEditor();setCondQ(${i},this.value)"><option value="">แสดงเสมอ</option>${src.map(x =>
-      `<option value="${esc(x.q.id)}" ${c && c.q === x.q.id ? 'selected' : ''}>ข้อ ${x.j + 1} · ${esc((x.q.label || '(ยังไม่มีคำถาม)').slice(0, 60))}</option>`).join('')}</select>`;
+      `<option value="${esc(x.q.id)}" ${c && c.q === x.q.id ? 'selected' : ''}>ข้อ ${qNos()[x.j]} · ${esc((x.q.label || '(ยังไม่มีคำถาม)').slice(0, 60))}</option>`).join('')}</select>`;
   if (c && sq) h += `<div class="qcond-row"><select onchange="grabEditor();setCondMode(${i},this.value)">
       <option value="in" ${c.mode !== 'notin' ? 'selected' : ''}>ตอบเป็น</option><option value="notin" ${c.mode === 'notin' ? 'selected' : ''}>ตอบไม่ใช่</option></select>
       <div class="seg qcond-vals">${condVals(sq).map(v => `<button type="button" class="${(c.values || []).includes(v) ? 'on' : ''}" onclick="grabEditor();togCond(${i},'${esc(v).replace(/'/g, "\\'")}')">${esc(v)}</button>`).join('')}</div></div>
@@ -2407,8 +2454,19 @@ function grabEditor(){
   Object.keys(optBuf).forEach(i => { editing.questions[i].options = optBuf[i]; });
 }
 
+function qNos(){ let n = 0; return editing.questions.map(q => q.type === 'section' ? 0 : ++n); }
+function secHtml(q, i){
+  const nSec = editing.questions.slice(0, i + 1).filter(x => x.type === 'section').length;
+  return `<div class="qe qsec"><div class="qe-top"><b>📑 ส่วนที่ ${nSec}</b><span class="muted" style="flex:1;font-size:12px">ข้อถัดไปอยู่ในส่วนนี้ · ผู้ตอบเห็นทีละส่วน</span>
+    <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
+    <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < editing.questions.length - 1 ? '' : 'disabled'}>↓</button>
+    <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบส่วนนี้ (คำถามในส่วนไม่ถูกลบ)">✕</button></div>
+    <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="ชื่อส่วน เช่น ส่วนที่ 1 ข้อมูลผู้ตอบและสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
+    <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายส่วน (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
+    ${condHtml(i)}</div>`;
+}
 function renderEditor(){
-  const e = editing;
+  const e = editing, NOS = qNos(), nQ = NOS.filter(Boolean).length, nS = e.questions.length - nQ;
   $('#view').innerHTML = `<div class="ed-grid"><div class="ed-side">
     <div class="card">
       <h2>${e.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
@@ -2460,12 +2518,12 @@ function renderEditor(){
 
     </div><div class="ed-main">
     <div class="card">
-      <div class="imp-top"><h2>คำถาม (${e.questions.length} ข้อ)</h2><button type="button" class="btn btn-secondary btn-sm" onclick="grabEditor();openImportQ()">📥 นำเข้าคำถามจากไฟล์ / Excel</button></div>
-      ${e.questions.map((q, i) => `
+      <div class="imp-top"><h2>คำถาม (${nQ} ข้อ${nS ? ' · ' + nS + ' ส่วน' : ''})</h2><button type="button" class="btn btn-secondary btn-sm" onclick="grabEditor();openImportQ()">📥 นำเข้าคำถามจากไฟล์ / Excel</button></div>
+      ${e.questions.map((q, i) => q.type === 'section' ? secHtml(q, i) : `
         <div class="qe">
           <div class="qe-top">
-            <b>ข้อ ${i + 1}</b>
-            <select class="qtype" onchange="grabEditor();setQType(${i},this.value)" title="เปลี่ยนชนิดคำถาม">${Q_TYPES.map(t => `<option value="${t.id}" ${q.type === t.id ? 'selected' : ''}>${t.icon} ${esc(t.label)}</option>`).join('')}</select>
+            <b>ข้อ ${NOS[i]}</b>
+            <select class="qtype" onchange="grabEditor();setQType(${i},this.value)" title="เปลี่ยนชนิดคำถาม">${Q_TYPES.filter(t => t.id !== 'section').map(t => `<option value="${t.id}" ${q.type === t.id ? 'selected' : ''}>${t.icon} ${esc(t.label)}</option>`).join('')}</select>
             <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
             <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < e.questions.length - 1 ? '' : 'disabled'}>↓</button>
             <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบข้อนี้">✕</button>
@@ -2484,19 +2542,27 @@ function renderEditor(){
         </div>`).join('')}
       <label style="margin:${e.questions.length ? 14 : 0}px 0 8px">${e.questions.length ? 'เพิ่มคำถามอีกข้อ' : 'เริ่มจากเลือกชนิดคำถามข้อแรก'}</label>
       <div class="qtypes">
-        ${Q_TYPES.map(t => `<button type="button" onclick="addQTyped('${t.id}')"><span>${t.icon}</span>${esc(t.label)}</button>`).join('')}
+        ${Q_TYPES.filter(t => t.id !== 'section').map(t => `<button type="button" onclick="addQTyped('${t.id}')"><span>${t.icon}</span>${esc(t.label)}</button>`).join('')}
       </div>
+      <div style="margin-top:10px"><button type="button" class="btn btn-secondary btn-sm" onclick="addSection()">📑 เพิ่มส่วน (แบ่งฟอร์มเป็นหน้า ๆ)</button></div>
     </div>
 
     <div class="actbar">
       <button class="btn btn-secondary" onclick="cancelEdit()">ยกเลิก</button>
-      <div class="grow ab-note">${e.questions.length} ข้อ</div>
+      <div class="grow ab-note">${nQ} ข้อ${nS ? ' · ' + nS + ' ส่วน' : ''}</div>
       <button class="btn btn-primary" onclick="saveForm()">บันทึกแบบฟอร์ม</button>
     </div>
     </div></div>`;
 }
 const _renderEditor = renderEditor;
 renderEditor = function(){ _renderEditor(); document.querySelectorAll('#view textarea.ag').forEach(autoGrow); };
+window.addSection = function(){
+  grabEditor();
+  editing.questions.push({ id:'s' + Date.now().toString(36) + editing.questions.length, type:'section', label:'', help:'', required:false, options:[], min:1, max:5 });
+  renderEditor();
+  const el = document.querySelector(`[data-qi="${editing.questions.length - 1}"][data-qk="label"]`);
+  if (el) { el.scrollIntoView && el.scrollIntoView({ block:'center' }); try { el.focus({ preventScroll:true }); } catch (e) {} }
+};
 window.setOnce = function(v){ grabEditor(); editing.once_per_user = v; renderEditor(); };
 window.addQTyped = function(t){
   grabEditor(); addQ(t);
@@ -2527,14 +2593,14 @@ window.saveForm = async function(){
   grabEditor(); fixConds();
   const e = editing;
   if (!String(e.title || '').trim()) return msg('ใส่ชื่อแบบฟอร์มก่อน', 'warn');
-  if (!e.questions.length) return msg('ต้องมีคำถามอย่างน้อย 1 ข้อ', 'warn');
+  if (!answerQs(e).length) return msg('ต้องมีคำถามอย่างน้อย 1 ข้อ', 'warn');
   const bad = e.questions.findIndex(q => !String(q.label || '').trim());
-  if (bad >= 0) return msg(`ข้อ ${bad + 1} ยังไม่มีคำถาม`, 'warn');
+  if (bad >= 0) return msg(e.questions[bad].type === 'section' ? 'มีส่วนที่ยังไม่ได้ตั้งชื่อ' : `ข้อ ${qNos()[bad]} ยังไม่มีคำถาม`, 'warn');
   e.questions.forEach(q => { if (hasOptions(q.type)) q.options = [...new Set((q.options || []).map(x => String(x).trim()).filter(Boolean))]; });
   const fewOpt = e.questions.findIndex(q => hasOptions(q.type) && q.options.length < 2);
-  if (fewOpt >= 0) return msg(`ข้อ ${fewOpt + 1} ต้องมีตัวเลือกอย่างน้อย 2 ข้อ`, 'warn');
+  if (fewOpt >= 0) return msg(`ข้อ ${qNos()[fewOpt]} ต้องมีตัวเลือกอย่างน้อย 2 ข้อ`, 'warn');
   const nov = e.questions.findIndex(q => q.cond && !(q.cond.values || []).length);
-  if (nov >= 0) return msg(`ข้อ ${nov + 1} ตั้งให้แสดงตามคำตอบ แต่ยังไม่ได้เลือกคำตอบ`, 'warn');
+  if (nov >= 0) return msg(`${e.questions[nov].type === 'section' ? 'ส่วน' : 'ข้อ ' + qNos()[nov]} ตั้งให้แสดงตามคำตอบ แต่ยังไม่ได้เลือกคำตอบ`, 'warn');
 
   const row = {
     key: e.key, title: e.title.trim(), description: e.description || '', emoji: e.emoji || '📋',
@@ -2563,7 +2629,8 @@ const IMP_TYPE_NAMES = {
   scale:  ['scale', 'สเกลให้คะแนน', 'สเกล', 'คะแนน', 'rating'],
   number: ['number', 'ตัวเลข', 'เลข'],
   date:   ['date', 'วันที่'],
-  yesno:  ['yesno', 'ใช่/ไม่ใช่', 'ใช่ไม่ใช่', 'ใช่หรือไม่']
+  yesno:  ['yesno', 'ใช่/ไม่ใช่', 'ใช่ไม่ใช่', 'ใช่หรือไม่'],
+  section: ['section', 'ส่วน', 'ส่วน(หัวข้อ)', 'หัวข้อส่วน']
 };
 const impType = v => { const k = String(v || '').trim().toLowerCase().replace(/\s+/g, '');
   if (!k) return ''; for (const id in IMP_TYPE_NAMES) if (IMP_TYPE_NAMES[id].map(x => x.toLowerCase().replace(/\s+/g, '')).includes(k)) return id; return null; };
@@ -2634,17 +2701,55 @@ function impConds(rows){
 }
 function impPreview(){
   const host = $('#impPrev'), btn = $('#impGo'); if (!host) return;
-  const rows = impBuild(impParse($('#impText').value));
+  const txt = $('#impText').value;
+  if (!impAutoSet && txt.trim()) { impAutoSet = true; if (/ส่วนที่\s*\d+/.test(txt)) { $('#impSec').checked = true; if (/ไม่เคย/.test(txt)) $('#impGate').checked = true; } }
+  const rows = impRowsNow();
   impRows = rows; const ok = rows.filter(r => !r.errs.length);
   if (!rows.length) { host.innerHTML = ''; btn.disabled = true; btn.textContent = 'นำเข้า'; $('#impNote').textContent = ''; return; }
   host.innerHTML = `<div class="imp-prev"><table><thead><tr><th>#</th><th>ชนิด</th><th>คำถาม</th><th>ตัวเลือก / สเกล</th><th>ตอบ</th><th>แสดงเมื่อ</th><th>ผล</th></tr></thead><tbody>` +
-    rows.map(r => `<tr class="${r.errs.length ? 'bad' : ''}"><td>${r.n}</td><td>${esc(qTypeLabel(r.type))}</td><td>${esc(r.label) || '-'}</td>
-      <td>${r.type === 'scale' ? r.min + ' - ' + r.max : esc(r.options.join(' | '))}</td><td>${r.required ? 'บังคับ' : ''}</td><td>${r.cond ? 'ข้อ ' + r.cond.ref + (r.cond.mode === 'notin' ? ' ≠ ' : ' = ') + esc(r.cond.values.join(' | ')) : ''}</td>
+    rows.map(r => `<tr class="${r.errs.length ? 'bad' : ''}${r.type === 'section' ? ' sec' : ''}"><td>${r.n == null ? '📑' : r.n}</td><td>${esc(qTypeLabel(r.type))}</td><td>${esc(r.label) || '-'}</td>
+      <td>${r.type === 'scale' ? r.min + ' - ' + r.max : esc(r.options.join(' | '))}</td><td>${r.required ? 'บังคับ' : ''}</td><td>${r.cond ? 'ข้อ ' + r.cond.ref + (r.cond.mode === 'notin' ? ' ≠ ' : ' = ') + esc(r.cond.values.join(' | ')) + (r.cond.auto ? ' (อัตโนมัติ)' : '') : ''}</td>
       <td>${r.errs.length ? `<span class="imp-err">${esc(r.errs.join(' · '))}</span>` : '<span class="imp-ok">พร้อม</span>'}</td></tr>`).join('') + `</tbody></table></div>`;
   $('#impNote').textContent = `อ่านได้ ${rows.length} แถว · พร้อมนำเข้า ${ok.length}${rows.length - ok.length ? ' · ข้ามแถวที่ผิด ' + (rows.length - ok.length) : ''}`;
-  btn.disabled = !ok.length; btn.textContent = ok.length ? `นำเข้า ${ok.length} ข้อ` : 'นำเข้า';
+  btn.disabled = !ok.length; btn.textContent = ok.length ? `นำเข้า ${ok.filter(r => r.type !== 'section').length} ข้อ${ok.some(r => r.type === 'section') ? ' · ' + ok.filter(r => r.type === 'section').length + ' ส่วน' : ''}` : 'นำเข้า';
+}
+/* จัดส่วนอัตโนมัติ: อ่าน "ส่วนที่ N …" จากคำอธิบาย และ "หลักสูตรที่ N: …" จากหัวคำถาม (คั่นด้วย —) · ตั้งเงื่อนไขอัตโนมัติ: ข้อ เคย/ไม่เคย แรกของแต่ละหลักสูตรคุมข้อที่ตามมา */
+function impAuto(rows, o){
+  if (!o.sec && !o.gate) return rows;
+  const out = []; let lastTitle = null, lastCourse = '', gate = null;
+  rows.forEach(r0 => {
+    if (r0.type === 'section' || r0.errs.length) { out.push(r0); return; }
+    const r = Object.assign({}, r0);
+    const hm = /^(ส่วนที่\s*\d+[^—–]*?)\s*(?:—|–)\s*([\s\S]*)$/.exec(r.help || '');
+    const cm = /^(หลักสูตรที่\s*\d+[^—–]*?)\s*(?:—|–)\s*([\s\S]+)$/.exec(r.label || '');
+    const part = hm ? hm[1].replace(/\s*\([ก-ฮ]\)\s*$/, '').trim() : '', course = cm ? cm[1].trim() : '';
+    const rawHelp = r.help || '', rawLabel = r.label || '';
+    if (o.sec) {
+      if (hm) r.help = hm[2].trim();
+      if (cm) r.label = cm[2].trim();
+      const title = [part, course].filter(Boolean).join(' · ');
+      if (title && title !== lastTitle) { out.push({ n:null, type:'section', label:title, help:'', options:[], required:false, min:1, max:5, errs:[], cond:null, auto:true }); }
+      if (title) lastTitle = title;
+    }
+    if (o.gate) {
+      if (course !== lastCourse) { gate = null; lastCourse = course; }
+      if (course) {
+        const opts = r.options || [];
+        if (!gate && r.type === 'single' && opts.includes('เคย') && opts.includes('ไม่เคย')) gate = r;
+        else if (gate && !r.cond && !/แม้ยัง\s*ไม่เคย/.test(rawHelp + ' ' + rawLabel)) r.cond = { ref: gate.n, mode: 'in', values: ['เคย'], auto: true };
+      }
+    }
+    out.push(r);
+  });
+  return out;
+}
+let impAutoSet = false;
+function impRowsNow(){
+  const o = { sec: !!($('#impSec') && $('#impSec').checked), gate: !!($('#impGate') && $('#impGate').checked) };
+  return impAuto(impBuild(impParse($('#impText').value)), o);
 }
 window.openImportQ = function(){
+  impAutoSet = false;
   $('#modalBox').innerHTML = `
     <div class="modal-head"><div><h2>นำเข้าคำถาม</h2><p class="sub" style="margin:0">วางจาก Excel หรืออัปโหลดไฟล์ CSV / XLSX แล้วตรวจตัวอย่างก่อนนำเข้า</p></div>
       <div class="row-btns"><button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div></div>
@@ -2652,7 +2757,7 @@ window.openImportQ = function(){
       <div class="imp-step"><i>1</i><div><b>ดาวน์โหลดแบบฟอร์มนำเข้า</b> แล้วกรอกคำถามในไฟล์ (เปิดด้วย Excel ได้)
         <div style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="impTemplate()">⬇ ดาวน์โหลดแบบฟอร์ม (.csv)</button></div>
         <table class="imp-cols"><tr><th>คอลัมน์</th><th>ใส่อะไร</th></tr>
-          <tr><td>ชนิด</td><td>${Q_TYPES.map(t => esc(t.label)).join(' · ')} (เว้นว่าง = ถ้ามีตัวเลือกเป็น เลือกได้ 1 ข้อ ไม่มีเป็น ข้อความสั้น)</td></tr>
+          <tr><td>ชนิด</td><td>${Q_TYPES.map(t => esc(t.label)).join(' · ')} (เว้นว่าง = ถ้ามีตัวเลือกเป็น เลือกได้ 1 ข้อ ไม่มีเป็น ข้อความสั้น) · แถวชนิด <b>ส่วน (หัวข้อ)</b> ใช้แบ่งฟอร์มเป็นหน้า ๆ: ชื่อส่วนอยู่ในคอลัมน์ คำถาม</td></tr>
           <tr><td>คำถาม</td><td>ข้อความคำถาม (จำเป็น)</td></tr>
           <tr><td>คำอธิบาย</td><td>คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)</td></tr>
           <tr><td>ตัวเลือก</td><td>เฉพาะชนิดเลือกข้อ · คั่นแต่ละตัวเลือกด้วย | เช่น ดีมาก | ดี | พอใช้</td></tr>
@@ -2661,11 +2766,15 @@ window.openImportQ = function(){
           <tr><td>แสดงเมื่อ</td><td>ให้ข้อนี้โผล่เฉพาะเมื่อข้อก่อนหน้าตอบตามที่กำหนด เช่น <b>ข้อ 1 = เคย</b> (เลขข้อ = ลำดับแถวข้อมูลในไฟล์ ไม่นับหัวคอลัมน์) · หลายคำตอบคั่นด้วย | · ใช้ <b>!=</b> แปลว่า ตอบไม่ใช่ · เว้นว่าง = แสดงให้ทุกคน</td></tr></table></div></div>
       <div class="imp-step"><i>2</i><div style="flex:1;min-width:0"><b>นำข้อมูลเข้า</b> อัปโหลดไฟล์ หรือคัดลอกตารางจาก Excel (รวมหัวคอลัมน์ได้) มาวางด้านล่าง
         <div style="margin:8px 0"><input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,.xls"></div>
-        <textarea id="impText" placeholder="วางแถวจาก Excel ที่นี่"></textarea></div></div>
+        <textarea id="impText" placeholder="วางแถวจาก Excel ที่นี่"></textarea>
+        <div class="imp-auto">
+          <label><input type="checkbox" id="impSec"> จัดเป็นส่วนอัตโนมัติ <span class="muted">อ่านจากคำอธิบายที่ขึ้นต้น “ส่วนที่ N …” และชื่อในคำถามที่ขึ้นต้น “หลักสูตรที่ N: … —” แล้วแยกเป็นหน้า ๆ</span></label>
+          <label><input type="checkbox" id="impGate"> ตั้งเงื่อนไขอัตโนมัติ <span class="muted">ถ้าตอบ “ไม่เคย” ซ่อนข้อที่ตามหลังในหลักสูตรเดียวกัน (ยกเว้นข้อที่ระบุว่า “ตอบได้แม้ยังไม่เคยอบรม”)</span></label>
+        </div></div></div>
     </div>
     <div id="impPrev"></div>
     <div class="imp-foot">
-      <label><input type="radio" name="impMode" value="append" checked> ต่อท้ายคำถามเดิม (${editing.questions.length} ข้อ)</label>
+      <label><input type="radio" name="impMode" value="append" checked> ต่อท้ายคำถามเดิม (${answerQs(editing).length} ข้อ)</label>
       <label><input type="radio" name="impMode" value="replace"> แทนที่คำถามทั้งหมด</label>
       <div class="grow" id="impNote"></div>
       <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
@@ -2673,21 +2782,25 @@ window.openImportQ = function(){
     </div>`;
   $('#modal').classList.add('show');
   $('#impText').oninput = impPreview;
+  $('#impSec').onchange = $('#impGate').onchange = impPreview;
   $('#impFile').onchange = impFile;
 };
 window.impTemplate = function(){
   const q = v => '"' + String(v).replace(/"/g, '""') + '"';
   const rows = [['ชนิด', 'คำถาม', 'คำอธิบาย', 'ตัวเลือก', 'ต้องตอบ', 'ต่ำสุด', 'สูงสุด', 'แสดงเมื่อ'],
-    ['เลือกได้ 1 ข้อ', 'เคยเข้ารับการอบรมหลักสูตรนี้หรือไม่', '', 'เคย | ไม่เคย | ไม่แน่ใจ', 'ใช่', '', '', ''],
-    ['เลือกได้ 1 ข้อ', 'นำไปใช้งานจริงได้หรือไม่', 'ตอบเมื่อเคยอบรมเท่านั้น', 'ใช้ได้จริง | ใช้ได้บางส่วน | ใช้ไม่ได้', 'ใช่', '', '', 'ข้อ 1 = เคย'],
-    ['ข้อความยาว', 'ควรปรับปรุงอะไร', '', '', '', '', '', 'ข้อ 1 = เคย'],
-    ['สเกลให้คะแนน', 'หลักสูตรนี้จำเป็นต่องานแค่ไหน', '1 = ไม่จำเป็น ถึง 5 = จำเป็นมาก (ตอบได้ทุกคน)', '', 'ใช่', '1', '5', ''],
+    ['ส่วน (หัวข้อ)', 'ส่วนที่ 1 ข้อมูลผู้ตอบและสาขา', 'กรอกให้ครบก่อนไปส่วนถัดไป', '', '', '', '', ''],
     ['ข้อความสั้น', 'ชื่อผู้ตอบ', '', '', 'ใช่', '', '', ''],
+    ['ส่วน (หัวข้อ)', 'ส่วนที่ 2 ทบทวนหลักสูตร', 'ตอบให้ครบทุกข้อที่แสดง', '', '', '', '', ''],
+    ['เลือกได้ 1 ข้อ', 'เคยเข้ารับการอบรมหลักสูตรนี้หรือไม่', '', 'เคย | ไม่เคย | ไม่แน่ใจ', 'ใช่', '', '', ''],
+    ['เลือกได้ 1 ข้อ', 'นำไปใช้งานจริงได้หรือไม่', 'ตอบเมื่อเคยอบรมเท่านั้น', 'ใช้ได้จริง | ใช้ได้บางส่วน | ใช้ไม่ได้', 'ใช่', '', '', 'ข้อ 4 = เคย'],
+    ['ข้อความยาว', 'ควรปรับปรุงอะไร', '', '', '', '', '', 'ข้อ 4 = เคย'],
+    ['สเกลให้คะแนน', 'หลักสูตรนี้จำเป็นต่องานแค่ไหน', '1 = ไม่จำเป็น ถึง 5 = จำเป็นมาก (ตอบได้ทุกคน)', '', 'ใช่', '1', '5', ''],
+    ['ส่วน (หัวข้อ)', 'ส่วนที่ 3 ตรวจร้าน', '', '', '', '', '', ''],
     ['เลือกได้หลายข้อ', 'ปัญหาที่พบ', 'เลือกได้หลายข้อ', 'อุปกรณ์ | วัตถุดิบ | คน | อื่น ๆ', '', '', '', ''],
     ['ตัวเลข', 'จำนวนลูกค้าเฉลี่ยต่อวัน', '', '', '', '', '', ''],
     ['วันที่', 'วันที่ตรวจ', '', '', '', '', '', ''],
     ['ใช่ / ไม่ใช่', 'มีป้ายราคาครบหรือไม่', '', '', 'ใช่', '', '', ''],
-    ['ข้อความสั้น', 'ระบุป้ายที่ขาด', '', '', '', '', '', 'ข้อ 9 = ไม่ใช่']];
+    ['ข้อความสั้น', 'ระบุป้ายที่ขาด', '', '', '', '', '', 'ข้อ 12 = ไม่ใช่']];
   const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
   const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
   a.download = 'แบบฟอร์มนำเข้าแบบสอบถาม.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
@@ -2713,9 +2826,9 @@ async function impFile(e){
 window.impCommit = function(){
   const ok = impRows.filter(r => !r.errs.length); if (!ok.length) return;
   const replace = (document.querySelector('input[name="impMode"]:checked') || {}).value === 'replace';
-  if (replace && editing.questions.length && !confirm('แทนที่คำถามเดิม ' + editing.questions.length + ' ข้อ ด้วยที่นำเข้า ' + ok.length + ' ข้อ?')) return;
+  if (replace && editing.questions.length && !confirm('แทนที่คำถามเดิม ' + editing.questions.length + ' รายการ ด้วยที่นำเข้า ' + ok.length + ' รายการ?')) return;
   const base = Date.now().toString(36);
-  const idByN = {}; ok.forEach((r, i) => { idByN[r.n] = 'q' + base + i; });
+  const idByN = {}; ok.forEach((r, i) => { if (r.n != null) idByN[r.n] = 'q' + base + i; });
   const qs = ok.map((r, i) => ({ id:'q' + base + i, type:r.type, label:r.label, help:r.help, required:r.required, options:r.options, min:r.min, max:r.max, cond: r.cond && idByN[r.cond.ref] ? { q:idByN[r.cond.ref], mode:r.cond.mode, values:r.cond.values } : null }));
   editing.questions = replace ? qs : editing.questions.concat(qs);
   closeModal(); renderEditor(); msg('นำเข้าคำถาม ' + qs.length + ' ข้อแล้ว ตรวจและกด "บันทึกแบบฟอร์ม" เพื่อยืนยัน');
