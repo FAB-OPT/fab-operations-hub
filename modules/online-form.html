@@ -839,6 +839,8 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
 <style>
+.qtype{width:auto!important;max-width:230px;margin-right:auto;padding:6px 32px 6px 10px!important;font-weight:700;font-size:13.5px;min-height:0!important;border-radius:9px}
+.qe-top b{flex:none!important}
 .qcond{margin-top:12px;padding:10px 12px;border:1px dashed #cfd4dc;border-radius:12px;background:#fbfcfd}
 .qcond label{font-size:12.5px}
 .qcond-row{display:flex;gap:8px;align-items:flex-start;margin-top:8px;flex-wrap:wrap}
@@ -2289,6 +2291,21 @@ window.addQ = function(type){
 };
 window.setQ = function(i, k, v){ editing.questions[i][k] = v; };
 window.setQOpts = function(i, v){ editing.questions[i].options = v.split('\n').map(x => x.trim()).filter(Boolean); };
+/* เปลี่ยนชนิดคำถาม: คงคำถาม/คำอธิบาย/ตัวเลือกเดิมไว้ · ชนิดที่ต้องมีตัวเลือกจะใส่ตัวอย่างให้ถ้ายังไม่มี · ข้อที่อ้างอิงข้อนี้เป็นเงื่อนไขอาจถูกล้าง */
+window.setQType = function(i, t){
+  const q = editing.questions[i]; if (!q || q.type === t) return;
+  const had = editing.questions.filter(x => x.cond).length;
+  q.type = t;
+  if (hasOptions(t) && !(q.options && q.options.length)) q.options = ['ตัวเลือก 1', 'ตัวเลือก 2'];
+  if (t === 'scale') { q.min = Number(q.min) || 1; q.max = Number(q.max) || 5; }
+  fixConds(); renderEditor();
+  const lost = had - editing.questions.filter(x => x.cond).length;
+  const used = editing.key ? responses.filter(r => r.form_key === editing.key).length : 0;
+  const notes = [];
+  if (lost > 0) notes.push(`ล้างเงื่อนไขแสดงข้อของ ${lost} ข้อที่อ้างอิงข้อนี้ (ชนิดใหม่ใช้เป็นเงื่อนไขไม่ได้)`);
+  if (used) notes.push(`แบบฟอร์มนี้มีคำตอบแล้ว ${used} รายการ การเปลี่ยนชนิดข้ออาจทำให้คำตอบเก่าของข้อนี้อ่านไม่ตรงชนิดใหม่`);
+  if (notes.length) msg(notes.join('<br>'), 'warn');
+};
 window.delQ = function(i){ editing.questions.splice(i, 1); fixConds(); renderEditor(); };
 
 /* ── เงื่อนไขแสดงข้อ ── */
@@ -2407,7 +2424,8 @@ function renderEditor(){
       ${e.questions.map((q, i) => `
         <div class="qe">
           <div class="qe-top">
-            <b>ข้อ ${i + 1} · ${esc(qTypeLabel(q.type))}</b>
+            <b>ข้อ ${i + 1}</b>
+            <select class="qtype" onchange="grabEditor();setQType(${i},this.value)" title="เปลี่ยนชนิดคำถาม">${Q_TYPES.map(t => `<option value="${t.id}" ${q.type === t.id ? 'selected' : ''}>${t.icon} ${esc(t.label)}</option>`).join('')}</select>
             <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
             <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < e.questions.length - 1 ? '' : 'disabled'}>↓</button>
             <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบข้อนี้">✕</button>
