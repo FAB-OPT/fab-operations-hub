@@ -839,6 +839,49 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
 <style>
+.ed2{max-width:980px;margin:0 auto}
+.ed-top{padding:14px 16px;margin-bottom:12px}
+.et-row{display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+.et-emoji{width:56px!important;text-align:center;font-size:22px;padding:8px 4px!important;flex:none}
+.et-title{flex:1;min-width:220px;font-size:17px;font-weight:700}
+.et-status{width:auto!important;min-width:180px;flex:none}
+.et-sum{font-size:13px;color:#6b7280;margin-top:8px}
+.ed-panel{margin-top:14px;padding-top:14px;border-top:1px dashed #e5e7eb}
+.qbar{position:sticky;top:6px;z-index:8;display:flex;gap:8px;align-items:center;flex-wrap:wrap;background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:8px 10px;margin:0 0 12px;box-shadow:0 4px 14px rgba(15,23,42,.07)}
+.qbar input[type=search]{flex:1;min-width:150px;max-width:340px;min-height:38px;padding:7px 12px}
+.qb-n{font-size:14px;margin-right:4px;white-space:nowrap}
+.addwrap2{position:relative;display:inline-block}
+.addm{position:absolute;right:0;top:calc(100% + 6px);z-index:20;background:#fff;border:1px solid #e5e7eb;border-radius:14px;box-shadow:0 14px 30px rgba(15,23,42,.14);padding:6px;min-width:230px}
+.addm[hidden]{display:none}
+.addm button{display:flex;gap:10px;align-items:center;width:100%;text-align:left;padding:9px 10px;border-radius:9px;font-weight:700;font-size:14px;background:none}
+.addm button:hover{background:#fff4ec}
+.addm hr{border:0;border-top:1px solid #eef0f3;margin:4px 0}
+.qr{background:#fff;border:1px solid #e5e7eb;border-radius:12px;margin:0 0 6px}
+.qr.open{border-color:#ffb27a;box-shadow:0 4px 18px rgba(255,122,26,.13)}
+.qr.warn:not(.open){border-color:#f2d9a0}
+.qr-h,.sr-h{display:flex;align-items:center;gap:10px;padding:8px 10px;cursor:pointer;min-height:50px}
+.qr-no{width:26px;height:26px;border-radius:8px;background:#f3f4f6;font-size:12.5px;font-weight:800;display:grid;place-items:center;flex:none}
+.qr.open .qr-no{background:#ff7a1a;color:#fff}
+.qr-ic{font-size:16px;flex:none}
+.qr-lb,.sr-t{flex:1;min-width:0;font-size:14.5px;font-weight:600;line-height:1.35}
+.qr-lb{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.qr-lb em,.sr-t em{color:#c0362c;font-style:normal;font-weight:500}
+.qr-cd{display:block;font-size:11.5px;color:#0b7e8c;font-weight:700}
+.qr-bd{display:flex;gap:4px;flex:none;flex-wrap:wrap;justify-content:flex-end}
+.bd{font-style:normal;font-size:11px;font-weight:700;padding:1px 8px;border-radius:99px;background:#f3f4f6;color:#4b5563;white-space:nowrap}
+.bd.req{background:#fff1f0;color:#c0362c}.bd.bad{background:#fff8e6;color:#8a6100}
+.qr-act{display:flex;gap:3px;flex:none}
+.qr-chev{color:#9ca3af;font-size:12px;width:14px;text-align:center;flex:none}
+.qr-b{padding:10px 14px 14px;border-top:1px solid #f1f3f6}
+.qb-top{display:flex;align-items:center;gap:10px;margin-bottom:8px;flex-wrap:wrap}
+.qb-top label{margin:0}
+.sr{background:#fff7ef;border:1px solid #ffd9bd;border-left:4px solid #ff7a1a;border-radius:12px;margin:16px 0 6px}
+.sr-no{font-size:12px;font-weight:800;color:#c2530a;white-space:nowrap}
+.sr-t{font-weight:800;font-size:15px}
+.fold{width:28px;height:28px;border-radius:8px;font-size:14px;color:#c2530a;flex:none}
+.fold:hover{background:#ffe9d6}
+.opts{grid-template-columns:repeat(auto-fill,minmax(300px,1fr))}
+@media(max-width:700px){.qr-bd{display:none}.et-status{width:100%!important}.qbar input[type=search]{max-width:none;flex-basis:100%;order:9}}
 .qsec{border-left:4px solid #ff7a1a!important;background:#fffaf5!important}
 .fill-steps{display:flex;gap:4px;margin:0 2px 12px}
 .fill-steps span{flex:1;height:5px;border-radius:9px;background:#e5e7eb}
@@ -2309,12 +2352,14 @@ const newKey = () => 'form-' + Date.now().toString(36);
 window.newForm = function(){
   editing = { key:newKey(), title:'', description:'', emoji:'📋', status:'draft', questions:[],
     visible_brands:[], visible_branches:[], once_per_user:true, open_at:null, close_at:null, sort_order:(forms.length + 1) };
+  openQ = null; setOpen = null; edFilter = ''; foldSec.clear();
   renderNav(); renderEditor(); window.scrollTo({ top:0 });
 };
 window.editForm = function(id){
   const f = forms.find(x => x.id === id); if (!f) return;
   editing = clone(f);
   editing.questions = editing.questions || [];
+  openQ = null; setOpen = null; edFilter = ''; foldSec.clear();
   renderNav(); renderEditor(); window.scrollTo({ top:0 });
 };
 window.dupForm = async function(id){
@@ -2455,120 +2500,186 @@ function grabEditor(){
 }
 
 function qNos(){ let n = 0; return editing.questions.map(q => q.type === 'section' ? 0 : ++n); }
-function secHtml(q, i){
-  const nSec = editing.questions.slice(0, i + 1).filter(x => x.type === 'section').length;
-  return `<div class="qe qsec"><div class="qe-top"><b>📑 ส่วนที่ ${nSec}</b><span class="muted" style="flex:1;font-size:12px">ข้อถัดไปอยู่ในส่วนนี้ · ผู้ตอบเห็นทีละส่วน</span>
-    <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
-    <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < editing.questions.length - 1 ? '' : 'disabled'}>↓</button>
-    <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบส่วนนี้ (คำถามในส่วนไม่ถูกลบ)">✕</button></div>
-    <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="ชื่อส่วน เช่น ส่วนที่ 1 ข้อมูลผู้ตอบและสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
-    <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายส่วน (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
-    ${condHtml(i)}</div>`;
+/* ═════ ตัวสร้างฟอร์มแบบใหม่: รายการข้อแบบย่อ กดเปิดทีละข้อ · แบ่งตามส่วน พับได้ · ค้นหา · ตั้งค่าซ่อนไว้ ═════ */
+var openQ = null, setOpen = null, edFilter = '';
+const foldSec = new Set();
+const Q_ICON = id => (Q_TYPES.find(t => t.id === id) || {}).icon || '❓';
+const nOpts = q => (q.options || []).map(x => String(x).trim()).filter(Boolean).length;
+function condText(q){
+  const c = q.cond; if (!c || !c.q) return '';
+  const si = editing.questions.findIndex(x => x.id === c.q); if (si < 0) return '';
+  return `ข้อ ${qNos()[si]} ${c.mode === 'notin' ? '≠' : '='} ${(c.values || []).join(' | ') || '?'}`;
+}
+function qProblem(q){
+  if (!String(q.label || '').trim()) return q.type === 'section' ? 'ยังไม่มีชื่อส่วน' : 'ยังไม่มีคำถาม';
+  if (hasOptions(q.type) && nOpts(q) < 2) return 'ตัวเลือกไม่ถึง 2 ข้อ';
+  if (q.cond && !(q.cond.values || []).length) return 'ยังไม่เลือกคำตอบของเงื่อนไข';
+  return '';
+}
+function actHtml(i, sec){
+  const n = editing.questions.length, mv = sec ? 'moveSec' : 'moveQ';
+  return `<span class="qr-act" onclick="event.stopPropagation()">
+    <button type="button" class="ib sm" title="เลื่อนขึ้น" onclick="grabEditor();${mv}(${i},-1)" ${i ? '' : 'disabled'}>↑</button>
+    <button type="button" class="ib sm" title="เลื่อนลง" onclick="grabEditor();${mv}(${i},1)" ${i < n - 1 ? '' : 'disabled'}>↓</button>
+    ${sec ? '' : `<button type="button" class="ib sm" title="ทำสำเนาข้อนี้" onclick="grabEditor();dupQ(${i})">⧉</button>`}
+    <button type="button" class="ib del sm" title="${sec ? 'ลบส่วนนี้ (คำถามในส่วนไม่ถูกลบ)' : 'ลบข้อนี้'}" onclick="grabEditor();delQ(${i})">✕</button></span>`;
+}
+function qBody(q, i){
+  return `<div class="qb-top"><label>ชนิดคำถาม</label><select class="qtype" onchange="grabEditor();setQType(${i},this.value)">${Q_TYPES.filter(t => t.id !== 'section').map(t => `<option value="${t.id}" ${q.type === t.id ? 'selected' : ''}>${t.icon} ${esc(t.label)}</option>`).join('')}</select>
+      <label class="qe-req" style="margin:0 0 0 auto"><input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''}>ต้องตอบข้อนี้</label></div>
+    <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="คำถาม" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
+    <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
+    ${hasOptions(q.type) ? optsHtml(q, i) : ''}
+    ${q.type === 'scale' ? `<div class="grid2" style="margin-top:10px"><div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div><div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div></div>` : ''}
+    ${condHtml(i)}`;
+}
+function qRowHtml(q, i, NOS){
+  const open = openQ === q.id, pr = qProblem(q), ct = condText(q);
+  return `<div class="qr ${open ? 'open' : ''} ${pr ? 'warn' : ''}" id="qr_${q.id}"><div class="qr-h" onclick="toggleQ('${q.id}')">
+    <span class="qr-no">${NOS[i]}</span><span class="qr-ic">${Q_ICON(q.type)}</span>
+    <span class="qr-lb">${q.label ? esc(q.label) : '<em>(ยังไม่มีคำถาม)</em>'}${ct ? `<small class="qr-cd">↳ แสดงเมื่อ ${esc(ct)}</small>` : ''}</span>
+    <span class="qr-bd">${q.required ? '<i class="bd req">บังคับ</i>' : ''}${hasOptions(q.type) ? `<i class="bd">${nOpts(q)} ตัวเลือก</i>` : ''}${pr ? `<i class="bd bad">${pr}</i>` : ''}</span>
+    ${actHtml(i, false)}<span class="qr-chev">${open ? '▴' : '▾'}</span></div>
+    ${open ? `<div class="qr-b">${qBody(q, i)}</div>` : ''}</div>`;
+}
+function secRowHtml(q, i, count, nSec){
+  const open = openQ === q.id, folded = foldSec.has(q.id), ct = condText(q), pr = qProblem(q);
+  return `<div class="sr ${open ? 'open' : ''}" id="qr_${q.id}"><div class="sr-h" onclick="toggleQ('${q.id}')">
+    <button type="button" class="fold" title="${folded ? 'แสดงข้อในส่วนนี้' : 'ซ่อนข้อในส่วนนี้'}" onclick="event.stopPropagation();foldS('${q.id}')">${folded ? '▸' : '▾'}</button>
+    <span class="sr-no">📑 ส่วนที่ ${nSec}</span><span class="sr-t">${q.label ? esc(q.label) : '<em>(ยังไม่มีชื่อส่วน)</em>'}${ct ? `<small class="qr-cd">↳ แสดงเมื่อ ${esc(ct)}</small>` : ''}</span>
+    <span class="muted" style="font-size:12px;white-space:nowrap">${count} ข้อ</span>${pr ? `<i class="bd bad">${pr}</i>` : ''}${actHtml(i, true)}<span class="qr-chev">${open ? '▴' : '▾'}</span></div>
+    ${open ? `<div class="qr-b"><textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="ชื่อส่วน เช่น ส่วนที่ 1 ข้อมูลผู้ตอบและสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
+      <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายส่วน (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
+      ${condHtml(i)}<div class="hint" style="margin-top:8px">ข้อที่อยู่ถัดจากแถบนี้ จนถึงส่วนถัดไป เป็นของส่วนนี้ · ผู้ตอบเห็นทีละส่วน</div></div>` : ''}</div>`;
+}
+function qListHtml(){
+  const qs = editing.questions, NOS = qNos(), f = edFilter.trim().toLowerCase();
+  if (!qs.length) return `<div class="empty">ยังไม่มีคำถาม กด “＋ เพิ่ม” ด้านบน หรือ “นำเข้าจากไฟล์ / Excel”</div>`;
+  const hit = q => !f || [q.label, q.help, ...(q.options || [])].join(' ').toLowerCase().includes(f);
+  /* จัดกลุ่มตามส่วน */
+  const groups = []; let cur = { sec: null, idx: -1, items: [] }; groups.push(cur);
+  qs.forEach((q, i) => { if (q.type === 'section') { cur = { sec: q, idx: i, items: [] }; groups.push(cur); } else cur.items.push({ q, i }); });
+  let nSec = 0, out = '';
+  groups.forEach(g => {
+    if (g.sec) nSec++;
+    const shown = g.sec && f && hit(g.sec) ? g.items : g.items.filter(x => hit(x.q));   /* ชื่อส่วนตรงกับที่ค้นหา = แสดงทุกข้อในส่วนนั้น */
+    if (f && !shown.length && !(g.sec && hit(g.sec))) return;
+    if (g.sec) out += secRowHtml(g.sec, g.idx, g.items.length, nSec);
+    if (g.sec && foldSec.has(g.sec.id) && !f) return;
+    out += shown.map(x => qRowHtml(x.q, x.i, NOS)).join('');
+  });
+  return out || `<div class="empty">ไม่พบคำถามที่ตรงกับ “${esc(edFilter)}”</div>`;
+}
+function setPanelHtml(e){
+  return `<div class="ed-panel">
+    <div><label>คำอธิบายสั้น</label><textarea class="ag" rows="2" data-f="description" placeholder="บอกผู้ตอบว่าแบบฟอร์มนี้เพื่ออะไร" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.description || '')}</textarea></div>
+    <div class="grid2" style="margin-top:12px">
+      <div><label>เปิดรับตั้งแต่ (ไม่ใส่ = ทันที)</label><input type="datetime-local" data-f="open_at" value="${dtLocal(e.open_at)}"></div>
+      <div><label>ปิดรับเมื่อ (ไม่ใส่ = ไม่จำกัด)</label><input type="datetime-local" data-f="close_at" value="${dtLocal(e.close_at)}"></div>
+    </div>
+    <div style="margin-top:12px"><label>ตอบซ้ำได้ไหม</label>
+      <div class="seg"><button type="button" class="${e.once_per_user ? 'on' : ''}" onclick="setOnce(true)">ตอบได้ครั้งเดียว</button><button type="button" class="${e.once_per_user ? '' : 'on'}" onclick="setOnce(false)">ตอบได้หลายครั้ง</button></div></div>
+    <div style="margin-top:14px"><label style="font-size:14px;font-weight:800">ใครเห็นแบบฟอร์มนี้</label><p class="sub" style="margin:2px 0 8px">ไม่เลือกอะไรเลย = ทุกคนเห็น</p>
+      <div class="grid2">
+        <div><label>เฉพาะแบรนด์</label><div class="seg">${BRANDS.map(([,b]) => `<button type="button" class="${(e.visible_brands||[]).includes(b)?'on':''}" onclick="togBrand('${esc(b).replace(/'/g,"\\'")}')">${esc(b)}</button>`).join('')}</div></div>
+        <div><label>เฉพาะสาขา (${(e.visible_branches||[]).length} สาขา)</label>
+          <select id="edBranchPick" onchange="addBranch(this.value)"><option value="">+ เพิ่มสาขา…</option>${HUB_BRANCHES.filter(b => {
+            if ((e.visible_branches||[]).includes(b.name)) return false;
+            const vb = e.visible_brands || []; if (!vb.length) return true;
+            return vb.includes(brandOfCode(b.code) || (b.jd ? 'เจ๊แดง จุ่มนัวร์' : ''));
+          }).map(b => `<option value="${esc(b.name)}">${esc(b.label)}</option>`).join('')}</select>
+          <div class="seg" style="margin-top:8px">${(e.visible_branches||[]).map(b => `<button type="button" class="on" onclick="rmBranch('${esc(b).replace(/'/g,"\\'")}')">${esc(b)} ✕</button>`).join('')}</div></div>
+      </div></div></div>`;
 }
 function renderEditor(){
-  const e = editing, NOS = qNos(), nQ = NOS.filter(Boolean).length, nS = e.questions.length - nQ;
-  $('#view').innerHTML = `<div class="ed-grid"><div class="ed-side">
-    <div class="card">
-      <h2>${e.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
-      <div style="display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;margin-top:10px">
-        <div><label>ไอคอน</label><input data-f="emoji" value="${esc(e.emoji)}" maxlength="4" style="text-align:center;font-size:20px;padding:8px 4px"></div>
-        <div><label>ชื่อแบบฟอร์ม</label><textarea class="ag" rows="1" data-f="title" placeholder="เช่น แบบสำรวจความพร้อมสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.title)}</textarea></div>
+  const e = editing, NOS = qNos(), nQ = NOS.filter(Boolean).length, nS = e.questions.length - nQ, y = window.scrollY;
+  if (setOpen === null) setOpen = !e.id;
+  const aud = (e.visible_brands || []).concat(e.visible_branches || []).length ? 'เฉพาะกลุ่มที่เลือก' : 'ทุกคนเห็น';
+  $('#view').innerHTML = `<div class="ed2">
+    <div class="card ed-top">
+      <div class="et-row">
+        <input data-f="emoji" class="et-emoji" value="${esc(e.emoji)}" maxlength="4" title="ไอคอน">
+        <textarea class="ag et-title" rows="1" data-f="title" placeholder="ชื่อแบบฟอร์ม เช่น แบบสำรวจความพร้อมสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.title)}</textarea>
+        <select data-f="status" class="et-status">${['draft','open','closed'].map(s => `<option value="${s}" ${e.status===s?'selected':''}>${s==='draft'?'ร่าง (ยังไม่ให้ใครเห็น)':s==='open'?'เปิดให้ตอบ':'ปิดรับคำตอบ'}</option>`).join('')}</select>
+        <button type="button" class="btn btn-secondary btn-sm" onclick="toggleSet()">⚙ ตั้งค่า ${setOpen ? '▴' : '▾'}</button>
       </div>
-      <div style="margin-top:12px"><label>คำอธิบายสั้น</label><textarea class="ag" rows="2" data-f="description" placeholder="บอกผู้ตอบว่าแบบฟอร์มนี้เพื่ออะไร" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.description || '')}</textarea></div>
-      <div class="grid3" style="margin-top:12px">
-        <div><label>สถานะ</label><select data-f="status">
-          ${['draft','open','closed'].map(s => `<option value="${s}" ${e.status===s?'selected':''}>${
-            s==='draft'?'ร่าง (ยังไม่ให้ใครเห็น)':s==='open'?'เปิดให้ตอบ':'ปิดรับคำตอบ'}</option>`).join('')}</select></div>
-        <div><label>เปิดรับตั้งแต่ (ไม่ใส่ = ทันที)</label><input type="datetime-local" data-f="open_at" value="${dtLocal(e.open_at)}"></div>
-        <div><label>ปิดรับเมื่อ (ไม่ใส่ = ไม่จำกัด)</label><input type="datetime-local" data-f="close_at" value="${dtLocal(e.close_at)}"></div>
-      </div>
-      <div style="margin-top:12px">
-        <label>ตอบซ้ำได้ไหม</label>
-        <div class="seg">
-          <button type="button" class="${e.once_per_user ? 'on' : ''}" onclick="setOnce(true)">ตอบได้ครั้งเดียว</button>
-          <button type="button" class="${e.once_per_user ? '' : 'on'}" onclick="setOnce(false)">ตอบได้หลายครั้ง</button>
-        </div>
-      </div>
+      ${setOpen ? setPanelHtml(e) : `<div class="et-sum">${e.description ? esc(String(e.description).slice(0, 110)) + (String(e.description).length > 110 ? '…' : '') + ' · ' : ''}${e.once_per_user ? 'ตอบได้ครั้งเดียว' : 'ตอบได้หลายครั้ง'} · ${aud}</div>`}
     </div>
-
-    <div class="card">
-      <h2>ใครเห็นแบบฟอร์มนี้</h2>
-      <p class="sub">ไม่เลือกอะไรเลย = ทุกคนเห็น</p>
-      <div class="grid2">
-        <div><label>เฉพาะแบรนด์</label>
-          <div class="seg">${BRANDS.map(([,b]) =>
-            `<button type="button" class="${(e.visible_brands||[]).includes(b)?'on':''}" onclick="togBrand('${esc(b).replace(/'/g,"\\'")}')">${esc(b)}</button>`).join('')}</div>
-        </div>
-        <div><label>เฉพาะสาขา (${(e.visible_branches||[]).length} สาขา)</label>
-          <select id="edBranchPick" onchange="addBranch(this.value)">
-            <option value="">+ เพิ่มสาขา…</option>
-            ${HUB_BRANCHES.filter(b => {
-              if ((e.visible_branches||[]).includes(b.name)) return false;
-              const vb = e.visible_brands || [];
-              if (!vb.length) return true;                       // ไม่เลือกแบรนด์ = แสดงทุกสาขา
-              return vb.includes(brandOfCode(b.code) || (b.jd ? 'เจ๊แดง จุ่มนัวร์' : ''));
-            }).map(b =>
-              `<option value="${esc(b.name)}">${esc(b.label)}</option>`).join('')}
-          </select>
-          <div class="seg" style="margin-top:8px">${(e.visible_branches||[]).map(b =>
-            `<button type="button" class="on" onclick="rmBranch('${esc(b).replace(/'/g,"\\'")}')">${esc(b)} ✕</button>`).join('')}</div>
-        </div>
-      </div>
+    <div class="qbar">
+      <b class="qb-n">${nQ} ข้อ${nS ? ' · ' + nS + ' ส่วน' : ''}</b>
+      <input type="search" id="edF" placeholder="ค้นหาคำถาม…" value="${esc(edFilter)}" oninput="edFind(this.value)">
+      <button type="button" class="btn btn-secondary btn-sm" onclick="collapseAll()" title="ปิดทุกข้อที่เปิดอยู่ และแสดงทุกส่วน">ยุบทั้งหมด</button>
+      <span class="addwrap2"><button type="button" class="btn btn-primary btn-sm" onclick="toggleAddMenu(event)">＋ เพิ่ม ▾</button>
+        <div class="addm" id="addM" hidden>${Q_TYPES.filter(t => t.id !== 'section').map(t => `<button type="button" onclick="addQTyped('${t.id}')"><span>${t.icon}</span>${esc(t.label)}</button>`).join('')}<hr><button type="button" onclick="addSection()"><span>📑</span>ส่วน (แบ่งฟอร์มเป็นหน้า ๆ)</button></div></span>
+      <button type="button" class="btn btn-secondary btn-sm" onclick="grabEditor();openImportQ()">📥 นำเข้า</button>
     </div>
-
-    </div><div class="ed-main">
-    <div class="card">
-      <div class="imp-top"><h2>คำถาม (${nQ} ข้อ${nS ? ' · ' + nS + ' ส่วน' : ''})</h2><button type="button" class="btn btn-secondary btn-sm" onclick="grabEditor();openImportQ()">📥 นำเข้าคำถามจากไฟล์ / Excel</button></div>
-      ${e.questions.map((q, i) => q.type === 'section' ? secHtml(q, i) : `
-        <div class="qe">
-          <div class="qe-top">
-            <b>ข้อ ${NOS[i]}</b>
-            <select class="qtype" onchange="grabEditor();setQType(${i},this.value)" title="เปลี่ยนชนิดคำถาม">${Q_TYPES.filter(t => t.id !== 'section').map(t => `<option value="${t.id}" ${q.type === t.id ? 'selected' : ''}>${t.icon} ${esc(t.label)}</option>`).join('')}</select>
-            <button class="ib" onclick="grabEditor();moveQ(${i},-1)" title="เลื่อนขึ้น" ${i ? '' : 'disabled'}>↑</button>
-            <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < e.questions.length - 1 ? '' : 'disabled'}>↓</button>
-            <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบข้อนี้">✕</button>
-          </div>
-          <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="คำถาม" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
-          <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
-          ${hasOptions(q.type) ? optsHtml(q, i) : ''}
-          ${q.type === 'scale' ? `<div class="grid2" style="margin-top:10px">
-            <div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div>
-            <div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div>
-          </div>` : ''}
-          ${condHtml(i)}
-          <label class="qe-req">
-            <input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''}>ต้องตอบข้อนี้
-          </label>
-        </div>`).join('')}
-      <label style="margin:${e.questions.length ? 14 : 0}px 0 8px">${e.questions.length ? 'เพิ่มคำถามอีกข้อ' : 'เริ่มจากเลือกชนิดคำถามข้อแรก'}</label>
-      <div class="qtypes">
-        ${Q_TYPES.filter(t => t.id !== 'section').map(t => `<button type="button" onclick="addQTyped('${t.id}')"><span>${t.icon}</span>${esc(t.label)}</button>`).join('')}
-      </div>
-      <div style="margin-top:10px"><button type="button" class="btn btn-secondary btn-sm" onclick="addSection()">📑 เพิ่มส่วน (แบ่งฟอร์มเป็นหน้า ๆ)</button></div>
-    </div>
-
+    <div id="qlist">${qListHtml()}</div>
     <div class="actbar">
       <button class="btn btn-secondary" onclick="cancelEdit()">ยกเลิก</button>
       <div class="grow ab-note">${nQ} ข้อ${nS ? ' · ' + nS + ' ส่วน' : ''}</div>
       <button class="btn btn-primary" onclick="saveForm()">บันทึกแบบฟอร์ม</button>
-    </div>
     </div></div>`;
+  document.querySelectorAll('#view textarea.ag').forEach(autoGrow);
+  window.scrollTo(0, y);
 }
-const _renderEditor = renderEditor;
-renderEditor = function(){ _renderEditor(); document.querySelectorAll('#view textarea.ag').forEach(autoGrow); };
-window.addSection = function(){
+function condCount(){ return editing.questions.filter(x => x.cond).length; }
+function warnLost(had){ const lost = had - condCount(); if (lost > 0) msg(`ล้างเงื่อนไขแสดงข้อ ${lost} ข้อ เพราะข้อที่อ้างอิงต้องอยู่ก่อนข้อนั้น ตรวจเงื่อนไขอีกครั้ง`, 'warn'); }
+window.toggleQ = function(id){
+  grabEditor(); openQ = openQ === id ? null : id; renderEditor();
+  const el = document.getElementById('qr_' + id); if (el && openQ === id && el.scrollIntoView) el.scrollIntoView({ block:'nearest' });
+};
+window.foldS = function(id){ grabEditor(); if (foldSec.has(id)) foldSec.delete(id); else foldSec.add(id); renderEditor(); };
+window.collapseAll = function(){ grabEditor(); openQ = null; foldSec.clear(); edFilter = ''; renderEditor(); };
+window.toggleSet = function(){ grabEditor(); setOpen = !setOpen; renderEditor(); };
+window.edFind = function(v){ grabEditor(); edFilter = v; $('#qlist').innerHTML = qListHtml(); document.querySelectorAll('#qlist textarea.ag').forEach(autoGrow); };
+window.toggleAddMenu = function(ev){ if (ev) ev.stopPropagation(); const m = $('#addM'); if (m) m.hidden = !m.hidden; };
+document.addEventListener('click', e => { const m = document.getElementById('addM'); if (m && !m.hidden && !e.target.closest('.addwrap2')) m.hidden = true; });
+function newQ(type){
+  return { id:'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type, label:'', help:'', required:false, options: hasOptions(type) ? ['ตัวเลือก 1', 'ตัวเลือก 2'] : [], min:1, max:5 };
+}
+/* เพิ่มต่อจากข้อที่เปิดอยู่ (ถ้ามี) ไม่งั้นต่อท้ายสุด แล้วเปิดให้พิมพ์ทันที */
+function insertQ(o){
   grabEditor();
-  editing.questions.push({ id:'s' + Date.now().toString(36) + editing.questions.length, type:'section', label:'', help:'', required:false, options:[], min:1, max:5 });
+  let at = editing.questions.length; const oi = editing.questions.findIndex(x => x.id === openQ); if (oi >= 0) at = oi + 1;
+  editing.questions.splice(at, 0, o); openQ = o.id; edFilter = '';
+  const m = $('#addM'); if (m) m.hidden = true;
   renderEditor();
-  const el = document.querySelector(`[data-qi="${editing.questions.length - 1}"][data-qk="label"]`);
+  const el = document.querySelector(`#qr_${o.id} [data-qk="label"]`);
   if (el) { el.scrollIntoView && el.scrollIntoView({ block:'center' }); try { el.focus({ preventScroll:true }); } catch (e) {} }
+}
+window.addQTyped = function(t){ insertQ(newQ(t)); };
+window.addSection = function(){ insertQ({ id:'s' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), type:'section', label:'', help:'', required:false, options:[], min:1, max:5 }); };
+window.dupQ = function(i){
+  const q = clone(editing.questions[i]); q.id = 'q' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); q.label = q.label ? q.label + ' (สำเนา)' : '';
+  editing.questions.splice(i + 1, 0, q); openQ = q.id; renderEditor();
+};
+window.moveQ = function(i, d){
+  const j = i + d; if (j < 0 || j >= editing.questions.length) return;
+  const had = condCount(); const q = editing.questions.splice(i, 1)[0]; editing.questions.splice(j, 0, q);
+  fixConds(); warnLost(had); renderEditor();
+};
+window.delQ = function(i){
+  const had = condCount(); const q = editing.questions[i];
+  if (q.type === 'section' && !confirm('ลบส่วนนี้? คำถามในส่วนจะไม่ถูกลบ แต่ไปอยู่ในส่วนก่อนหน้า')) return;
+  editing.questions.splice(i, 1); fixConds(); warnLost(had); renderEditor();
+};
+/* ย้ายทั้งส่วน (แถบส่วน + ข้อทั้งหมดในส่วน) ขึ้น/ลงทีละส่วน */
+window.moveSec = function(i, d){
+  const a = editing.questions, had = condCount();
+  const secIdx = a.map((q, k) => q.type === 'section' ? k : -1).filter(k => k >= 0);
+  const pos = secIdx.indexOf(i), end = pos + 1 < secIdx.length ? secIdx[pos + 1] : a.length;
+  const len = end - i;
+  if (d < 0) {
+    const start = pos > 0 ? secIdx[pos - 1] : 0; if (i <= start) return;
+    const seg = a.splice(i, len); a.splice(start, 0, ...seg);
+  } else {
+    if (end >= a.length) return;
+    const pos2 = secIdx.indexOf(end), end2 = pos2 >= 0 && pos2 + 1 < secIdx.length ? secIdx[pos2 + 1] : a.length;
+    const seg = a.splice(i, len); a.splice(end2 - len, 0, ...seg);
+  }
+  fixConds(); warnLost(had); renderEditor();
 };
 window.setOnce = function(v){ grabEditor(); editing.once_per_user = v; renderEditor(); };
-window.addQTyped = function(t){
-  grabEditor(); addQ(t);
-  const el = document.querySelector(`[data-qi="${editing.questions.length - 1}"][data-qk="label"]`);
-  if (el){ el.scrollIntoView && el.scrollIntoView({ block:'center' }); try{ el.focus({ preventScroll:true }); }catch(e){} }
-};
 window.togBrand = function(b){
   grabEditor();
   const cur = editing.visible_brands || [];
