@@ -839,6 +839,13 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
 <style>
+textarea.ag{resize:none;overflow:hidden;min-height:46px;line-height:1.5}
+.opts{display:grid;gap:6px;margin:6px 0 8px}
+.opt{display:flex;align-items:center;gap:6px}
+.opt-mk{width:20px;text-align:center;color:#9aa3af;font-size:15px;flex:none}
+.opt input{flex:1;min-width:0}
+.ib.sm{width:32px;height:32px;font-size:14px}
+.opt-add{margin-top:2px}
 .qtype{width:auto!important;max-width:230px;margin-right:auto;padding:6px 32px 6px 10px!important;font-weight:700;font-size:13.5px;min-height:0!important;border-radius:9px}
 .qe-top b{flex:none!important}
 .qcond{margin-top:12px;padding:10px 12px;border:1px dashed #cfd4dc;border-radius:12px;background:#fbfcfd}
@@ -2291,6 +2298,35 @@ window.addQ = function(type){
   renderEditor();
 };
 window.setQ = function(i, k, v){ editing.questions[i][k] = v; };
+function optsHtml(q, i){
+  const o = q.options || [], n = o.filter(x => String(x).trim()).length, mk = q.type === 'multi' ? '☐' : '○';
+  return `<div class="opts-h"><label>ตัวเลือก <span class="muted">(${n} ข้อ${q.type === 'multi' ? ' · เลือกได้หลายข้อ' : ' · เลือกได้ 1 ข้อ'})</span></label></div>
+    <div class="opts">${o.map((v, k) => `<div class="opt"><span class="opt-mk">${mk}</span>
+      <input data-qi="${i}" data-qk="opt" data-oi="${k}" value="${esc(v)}" placeholder="ตัวเลือกที่ ${k + 1}" autocomplete="off" onkeydown="optKey(event,${i},${k})" onpaste="optPaste(event,${i},${k})">
+      <button type="button" class="ib sm" onclick="grabEditor();moveOpt(${i},${k},-1)" title="เลื่อนขึ้น" ${k ? '' : 'disabled'}>↑</button>
+      <button type="button" class="ib sm" onclick="grabEditor();moveOpt(${i},${k},1)" title="เลื่อนลง" ${k < o.length - 1 ? '' : 'disabled'}>↓</button>
+      <button type="button" class="ib del sm" onclick="grabEditor();delOpt(${i},${k})" title="ลบตัวเลือกนี้">✕</button></div>`).join('')}</div>
+    <button type="button" class="btn btn-secondary btn-sm opt-add" onclick="grabEditor();addOpt(${i})">+ เพิ่มตัวเลือก</button>
+    <span class="muted" style="font-size:12px;margin-left:8px">กด Enter เพิ่มข้อถัดไป · วางหลายบรรทัดจาก Excel ได้เลย</span>`;
+}
+const focusOpt = (i, k) => { const el = document.querySelector(`[data-qi="${i}"][data-qk="opt"][data-oi="${k}"]`); if (el) { el.focus(); try { el.setSelectionRange(el.value.length, el.value.length); } catch (e) {} } };
+window.addOpt = function(i, at){ const q = editing.questions[i]; q.options = q.options || []; const k = at == null ? q.options.length : at; q.options.splice(k, 0, ''); renderEditor(); focusOpt(i, k); };
+window.delOpt = function(i, k){ const q = editing.questions[i]; (q.options || []).splice(k, 1); fixConds(); renderEditor(); if ((q.options || []).length) focusOpt(i, Math.max(0, k - 1)); };
+window.moveOpt = function(i, k, d){ const o = editing.questions[i].options, j = k + d; if (j < 0 || j >= o.length) return; const x = o.splice(k, 1)[0]; o.splice(j, 0, x); renderEditor(); };
+window.optKey = function(e, i, k){
+  if (e.key === 'Enter') { e.preventDefault(); grabEditor(); addOpt(i, k + 1); }
+  else if (e.key === 'Backspace' && !e.target.value && (editing.questions[i].options || []).length > 1) { e.preventDefault(); grabEditor(); delOpt(i, k); }
+};
+window.optPaste = function(e, i, k){
+  const t = (e.clipboardData || window.clipboardData).getData('text') || '';
+  const lines = t.split(/\r?\n|\t/).map(x => x.trim()).filter(Boolean);
+  if (lines.length < 2) return;
+  e.preventDefault(); grabEditor();
+  const o = editing.questions[i].options; const blank = !String(o[k] || '').trim();
+  o.splice(blank ? k : k + 1, blank ? 1 : 0, ...lines); renderEditor(); focusOpt(i, (blank ? k : k + 1) + lines.length - 1);
+};
+window.autoGrow = function(el){ el.style.height = 'auto'; el.style.height = (el.scrollHeight + 2) + 'px'; };
+window.noEnter = function(e){ if (e.key === 'Enter') e.preventDefault(); };
 window.setQOpts = function(i, v){ editing.questions[i].options = v.split('\n').map(x => x.trim()).filter(Boolean); };
 /* เปลี่ยนชนิดคำถาม: คงคำถาม/คำอธิบาย/ตัวเลือกเดิมไว้ · ชนิดที่ต้องมีตัวเลือกจะใส่ตัวอย่างให้ถ้ายังไม่มี · ข้อที่อ้างอิงข้อนี้เป็นเงื่อนไขอาจถูกล้าง */
 window.setQType = function(i, t){
@@ -2314,7 +2350,7 @@ const COND_TYPES = ['single', 'multi', 'yesno', 'scale'];
 function condVals(q){
   if (q.type === 'yesno') return ['ใช่', 'ไม่ใช่'];
   if (q.type === 'scale'){ const a = Number(q.min) || 1, b = Number(q.max) || 5, o = []; for (let k = a; k <= b && o.length < 20; k++) o.push(String(k)); return o; }
-  return (q.options || []).slice();
+  return (q.options || []).map(x => String(x).trim()).filter(Boolean);
 }
 /* ข้อต้นทางต้องอยู่ก่อนข้อนี้ · ค่าที่เลือกไว้แต่ตัวเลือกถูกแก้/ลบไปแล้วจะถูกตัดออก */
 function fixConds(){
@@ -2361,11 +2397,14 @@ function grabEditor(){
     const k = el.dataset.f;
     editing[k] = el.type === 'checkbox' ? el.checked : el.value;
   });
+  const optBuf = {};
   document.querySelectorAll('#view [data-qi]').forEach(el => {
     const i = +el.dataset.qi, k = el.dataset.qk;
-    if (k === 'options') setQOpts(i, el.value);
+    if (k === 'opt') (optBuf[i] = optBuf[i] || []).push(el.value);
+    else if (k === 'options') setQOpts(i, el.value);
     else editing.questions[i][k] = el.type === 'checkbox' ? el.checked : el.value;
   });
+  Object.keys(optBuf).forEach(i => { editing.questions[i].options = optBuf[i]; });
 }
 
 function renderEditor(){
@@ -2375,9 +2414,9 @@ function renderEditor(){
       <h2>${e.id ? 'แก้ไขแบบฟอร์ม' : 'สร้างแบบฟอร์มใหม่'}</h2>
       <div style="display:grid;grid-template-columns:64px minmax(0,1fr);gap:10px;margin-top:10px">
         <div><label>ไอคอน</label><input data-f="emoji" value="${esc(e.emoji)}" maxlength="4" style="text-align:center;font-size:20px;padding:8px 4px"></div>
-        <div><label>ชื่อแบบฟอร์ม</label><input data-f="title" value="${esc(e.title)}" placeholder="เช่น แบบสำรวจความพร้อมสาขา"></div>
+        <div><label>ชื่อแบบฟอร์ม</label><textarea class="ag" rows="1" data-f="title" placeholder="เช่น แบบสำรวจความพร้อมสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.title)}</textarea></div>
       </div>
-      <div style="margin-top:12px"><label>คำอธิบายสั้น</label><input data-f="description" value="${esc(e.description || '')}"></div>
+      <div style="margin-top:12px"><label>คำอธิบายสั้น</label><textarea class="ag" rows="2" data-f="description" placeholder="บอกผู้ตอบว่าแบบฟอร์มนี้เพื่ออะไร" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(e.description || '')}</textarea></div>
       <div class="grid3" style="margin-top:12px">
         <div><label>สถานะ</label><select data-f="status">
           ${['draft','open','closed'].map(s => `<option value="${s}" ${e.status===s?'selected':''}>${
@@ -2431,10 +2470,9 @@ function renderEditor(){
             <button class="ib" onclick="grabEditor();moveQ(${i},1)" title="เลื่อนลง" ${i < e.questions.length - 1 ? '' : 'disabled'}>↓</button>
             <button class="ib del" onclick="grabEditor();delQ(${i})" title="ลบข้อนี้">✕</button>
           </div>
-          <input data-qi="${i}" data-qk="label" value="${esc(q.label)}" placeholder="คำถาม">
-          <input data-qi="${i}" data-qk="help" value="${esc(q.help || '')}" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px">
-          ${hasOptions(q.type) ? `<label style="margin-top:10px">ตัวเลือก (บรรทัดละ 1 ข้อ)</label>
-            <textarea data-qi="${i}" data-qk="options">${esc((q.options || []).join('\n'))}</textarea>` : ''}
+          <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="คำถาม" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
+          <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
+          ${hasOptions(q.type) ? optsHtml(q, i) : ''}
           ${q.type === 'scale' ? `<div class="grid2" style="margin-top:10px">
             <div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div>
             <div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div>
@@ -2457,6 +2495,8 @@ function renderEditor(){
     </div>
     </div></div>`;
 }
+const _renderEditor = renderEditor;
+renderEditor = function(){ _renderEditor(); document.querySelectorAll('#view textarea.ag').forEach(autoGrow); };
 window.setOnce = function(v){ grabEditor(); editing.once_per_user = v; renderEditor(); };
 window.addQTyped = function(t){
   grabEditor(); addQ(t);
@@ -2490,6 +2530,9 @@ window.saveForm = async function(){
   if (!e.questions.length) return msg('ต้องมีคำถามอย่างน้อย 1 ข้อ', 'warn');
   const bad = e.questions.findIndex(q => !String(q.label || '').trim());
   if (bad >= 0) return msg(`ข้อ ${bad + 1} ยังไม่มีคำถาม`, 'warn');
+  e.questions.forEach(q => { if (hasOptions(q.type)) q.options = [...new Set((q.options || []).map(x => String(x).trim()).filter(Boolean))]; });
+  const fewOpt = e.questions.findIndex(q => hasOptions(q.type) && q.options.length < 2);
+  if (fewOpt >= 0) return msg(`ข้อ ${fewOpt + 1} ต้องมีตัวเลือกอย่างน้อย 2 ข้อ`, 'warn');
   const nov = e.questions.findIndex(q => q.cond && !(q.cond.values || []).length);
   if (nov >= 0) return msg(`ข้อ ${nov + 1} ตั้งให้แสดงตามคำตอบ แต่ยังไม่ได้เลือกคำตอบ`, 'warn');
 
