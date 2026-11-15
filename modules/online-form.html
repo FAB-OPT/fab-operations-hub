@@ -838,6 +838,30 @@ input,select,textarea,.btn-back,.tk-go .btn-line,.tk-fs:not(.ok):not(.now) .dot{
 </main>
 <nav class="tabbar" id="tabbar" aria-label="เมนู"></nav>
 
+<style>
+.imp-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.imp-top h2{margin:0}
+.imp-steps{display:grid;grid-template-columns:minmax(0,1fr);gap:10px;margin:0 0 14px}
+.imp-step{display:flex;gap:12px;align-items:flex-start;background:#f8fafc;border:1px solid #e5e7eb;border-radius:12px;padding:12px 14px;font-size:14px;line-height:1.55}
+.imp-step>i{font-style:normal;flex:none;width:24px;height:24px;border-radius:50%;background:#ff7a1a;color:#fff;font-weight:800;font-size:13px;display:grid;place-items:center;margin-top:1px}
+.imp-step>div{min-width:0;flex:1}
+.imp-cols{width:100%!important;min-width:0!important;max-width:100%;display:table;table-layout:fixed;border-collapse:collapse;font-size:12.5px;margin-top:8px;word-break:break-word}
+.imp-cols td:first-child,.imp-cols th:first-child{width:96px}
+#impText,#impFile{width:100%;max-width:100%}
+.imp-cols td,.imp-cols th{border:1px solid #e5e7eb;padding:5px 8px;text-align:left;vertical-align:top}
+.imp-cols th{background:#f3f4f6;font-weight:700}
+.imp-prev{margin-top:12px;max-height:280px;overflow:auto;border:1px solid #e5e7eb;border-radius:12px}
+.imp-prev table{width:100%;border-collapse:collapse;font-size:13.5px}
+.imp-prev th{position:sticky;top:0;background:#f3f4f6;text-align:left;padding:7px 10px;font-size:12px;color:#4b5563}
+.imp-prev td{padding:7px 10px;border-top:1px solid #eef0f3;vertical-align:top}
+.imp-prev tr.bad td{background:#fff5f4}
+.imp-ok{color:#146c43;font-weight:700}.imp-err{color:#c0362c;font-weight:700}
+.imp-foot{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:14px}
+.imp-foot .grow{flex:1;min-width:140px;font-size:13.5px;color:#4b5563}
+.imp-foot label{display:inline-flex;gap:6px;align-items:center;font-weight:600;font-size:13.5px;margin:0}
+.imp-foot input[type=radio]{width:auto}
+#impText{min-height:120px;font-size:13.5px}
+</style>
 <div class="modal" id="modal"><div class="modal-box" id="modalBox"></div></div>
 
 <!-- ตรึงเวอร์ชันไว้ที่ 2.53.0 — ของเดิมตรึงไว้ที่ 2.39.7 ซึ่งยังไม่มี signInAnonymously
@@ -2320,7 +2344,7 @@ function renderEditor(){
 
     </div><div class="ed-main">
     <div class="card">
-      <h2 style="margin-bottom:12px">คำถาม (${e.questions.length} ข้อ)</h2>
+      <div class="imp-top"><h2>คำถาม (${e.questions.length} ข้อ)</h2><button type="button" class="btn btn-secondary btn-sm" onclick="grabEditor();openImportQ()">📥 นำเข้าคำถามจากไฟล์ / Excel</button></div>
       ${e.questions.map((q, i) => `
         <div class="qe">
           <div class="qe-top">
@@ -2404,6 +2428,148 @@ window.saveForm = async function(){
   editing = null; renderNav();
   msg('บันทึกแบบฟอร์มแล้ว');
   await loadForms(); renderForms();
+};
+
+/* ── นำเข้าคำถาม: วางจาก Excel หรืออัปโหลด CSV / XLSX ───────────────────── */
+const IMP_TYPE_NAMES = {
+  short:  ['short', 'ข้อความสั้น', 'สั้น', 'text'],
+  long:   ['long', 'ข้อความยาว', 'ยาว', 'paragraph'],
+  single: ['single', 'เลือกได้1ข้อ', 'เลือก1ข้อ', 'เลือกข้อเดียว', 'ตัวเลือกเดียว', 'radio'],
+  multi:  ['multi', 'เลือกได้หลายข้อ', 'เลือกหลายข้อ', 'หลายข้อ', 'checkbox'],
+  scale:  ['scale', 'สเกลให้คะแนน', 'สเกล', 'คะแนน', 'rating'],
+  number: ['number', 'ตัวเลข', 'เลข'],
+  date:   ['date', 'วันที่'],
+  yesno:  ['yesno', 'ใช่/ไม่ใช่', 'ใช่ไม่ใช่', 'ใช่หรือไม่']
+};
+const impType = v => { const k = String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+  if (!k) return ''; for (const id in IMP_TYPE_NAMES) if (IMP_TYPE_NAMES[id].map(x => x.toLowerCase().replace(/\s+/g, '')).includes(k)) return id; return null; };
+const IMP_HEAD = {
+  type: ['ชนิด', 'ประเภท', 'type'], label: ['คำถาม', 'หัวข้อ', 'question', 'label'], help: ['คำอธิบาย', 'คำอธิบายเพิ่มเติม', 'help', 'hint'],
+  options: ['ตัวเลือก', 'options', 'choices'], required: ['ต้องตอบ', 'บังคับ', 'บังคับตอบ', 'required'], min: ['ต่ำสุด', 'min'], max: ['สูงสุด', 'max']
+};
+const IMP_ORDER = ['type', 'label', 'help', 'options', 'required', 'min', 'max'];
+let impRows = [];
+
+/* ตัวแยก CSV/TSV (รองรับเครื่องหมายคำพูดและขึ้นบรรทัดใหม่ในช่อง) */
+function impParse(text){
+  text = String(text || '').replace(/^\uFEFF/, '');
+  const first = text.split('\n')[0] || '';
+  const d = first.includes('\t') ? '\t' : (first.split(';').length > first.split(',').length ? ';' : ',');
+  const rows = []; let row = [], cur = '', q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) { if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; } else cur += c; }
+    else if (c === '"' && !cur) q = true;
+    else if (c === d) { row.push(cur); cur = ''; }
+    else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cur); cur = ''; rows.push(row); row = []; }
+    else cur += c;
+  }
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows.filter(r => r.some(x => String(x).trim()));
+}
+function impBuild(rows){
+  if (!rows.length) return [];
+  let map = {}; const h = rows[0].map(x => String(x).trim().toLowerCase());
+  const looksHead = h.some(x => IMP_HEAD.label.includes(x));
+  if (looksHead) { IMP_ORDER.forEach(k => { const i = h.findIndex(x => IMP_HEAD[k].includes(x)); if (i >= 0) map[k] = i; }); rows = rows.slice(1); }
+  else IMP_ORDER.forEach((k, i) => { map[k] = i; });
+  const get = (r, k) => map[k] == null ? '' : String(r[map[k]] == null ? '' : r[map[k]]).trim();
+  return rows.map((r, n) => {
+    const label = get(r, 'label'), tRaw = get(r, 'type'), opts = get(r, 'options').split(/\||;|\n/).map(x => x.trim()).filter(Boolean);
+    let type = impType(tRaw); const errs = [];
+    if (type === null) { errs.push('ไม่รู้จักชนิด "' + tRaw + '"'); type = ''; }
+    if (!type) type = opts.length ? 'single' : 'short';
+    if (!label) errs.push('ไม่มีคำถาม');
+    if (hasOptions(type) && opts.length < 2) errs.push('ต้องมีตัวเลือกอย่างน้อย 2 ข้อ (คั่นด้วย | )');
+    let min = Number(get(r, 'min')), max = Number(get(r, 'max'));
+    if (type === 'scale') { if (!get(r, 'min') || isNaN(min)) min = 1; if (!get(r, 'max') || isNaN(max)) max = 5; if (min >= max) errs.push('สเกลต่ำสุดต้องน้อยกว่าสูงสุด'); }
+    const req = /^(ใช่|y|yes|true|1|✓|✔|ต้องตอบ|บังคับ|x)$/i.test(get(r, 'required'));
+    return { n: n + 1, type, label, help: get(r, 'help'), options: hasOptions(type) ? opts : [], required: req, min: type === 'scale' ? min : 1, max: type === 'scale' ? max : 5, errs };
+  });
+}
+function impPreview(){
+  const host = $('#impPrev'), btn = $('#impGo'); if (!host) return;
+  const rows = impBuild(impParse($('#impText').value));
+  impRows = rows; const ok = rows.filter(r => !r.errs.length);
+  if (!rows.length) { host.innerHTML = ''; btn.disabled = true; btn.textContent = 'นำเข้า'; $('#impNote').textContent = ''; return; }
+  host.innerHTML = `<div class="imp-prev"><table><thead><tr><th>#</th><th>ชนิด</th><th>คำถาม</th><th>ตัวเลือก / สเกล</th><th>ตอบ</th><th>ผล</th></tr></thead><tbody>` +
+    rows.map(r => `<tr class="${r.errs.length ? 'bad' : ''}"><td>${r.n}</td><td>${esc(qTypeLabel(r.type))}</td><td>${esc(r.label) || '-'}</td>
+      <td>${r.type === 'scale' ? r.min + ' - ' + r.max : esc(r.options.join(' | '))}</td><td>${r.required ? 'บังคับ' : ''}</td>
+      <td>${r.errs.length ? `<span class="imp-err">${esc(r.errs.join(' · '))}</span>` : '<span class="imp-ok">พร้อม</span>'}</td></tr>`).join('') + `</tbody></table></div>`;
+  $('#impNote').textContent = `อ่านได้ ${rows.length} แถว · พร้อมนำเข้า ${ok.length}${rows.length - ok.length ? ' · ข้ามแถวที่ผิด ' + (rows.length - ok.length) : ''}`;
+  btn.disabled = !ok.length; btn.textContent = ok.length ? `นำเข้า ${ok.length} ข้อ` : 'นำเข้า';
+}
+window.openImportQ = function(){
+  $('#modalBox').innerHTML = `
+    <div class="modal-head"><div><h2>นำเข้าคำถาม</h2><p class="sub" style="margin:0">วางจาก Excel หรืออัปโหลดไฟล์ CSV / XLSX แล้วตรวจตัวอย่างก่อนนำเข้า</p></div>
+      <div class="row-btns"><button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div></div>
+    <div class="imp-steps">
+      <div class="imp-step"><i>1</i><div><b>ดาวน์โหลดแบบฟอร์มนำเข้า</b> แล้วกรอกคำถามในไฟล์ (เปิดด้วย Excel ได้)
+        <div style="margin-top:8px"><button class="btn btn-secondary btn-sm" onclick="impTemplate()">⬇ ดาวน์โหลดแบบฟอร์ม (.csv)</button></div>
+        <table class="imp-cols"><tr><th>คอลัมน์</th><th>ใส่อะไร</th></tr>
+          <tr><td>ชนิด</td><td>${Q_TYPES.map(t => esc(t.label)).join(' · ')} (เว้นว่าง = ถ้ามีตัวเลือกเป็น เลือกได้ 1 ข้อ ไม่มีเป็น ข้อความสั้น)</td></tr>
+          <tr><td>คำถาม</td><td>ข้อความคำถาม (จำเป็น)</td></tr>
+          <tr><td>คำอธิบาย</td><td>คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)</td></tr>
+          <tr><td>ตัวเลือก</td><td>เฉพาะชนิดเลือกข้อ · คั่นแต่ละตัวเลือกด้วย | เช่น ดีมาก | ดี | พอใช้</td></tr>
+          <tr><td>ต้องตอบ</td><td>ใส่ ใช่ ถ้าบังคับตอบ</td></tr>
+          <tr><td>ต่ำสุด / สูงสุด</td><td>เฉพาะสเกลให้คะแนน (ไม่ใส่ = 1 ถึง 5)</td></tr></table></div></div>
+      <div class="imp-step"><i>2</i><div style="flex:1;min-width:0"><b>นำข้อมูลเข้า</b> อัปโหลดไฟล์ หรือคัดลอกตารางจาก Excel (รวมหัวคอลัมน์ได้) มาวางด้านล่าง
+        <div style="margin:8px 0"><input type="file" id="impFile" accept=".csv,.tsv,.txt,.xlsx,.xls"></div>
+        <textarea id="impText" placeholder="วางแถวจาก Excel ที่นี่"></textarea></div></div>
+    </div>
+    <div id="impPrev"></div>
+    <div class="imp-foot">
+      <label><input type="radio" name="impMode" value="append" checked> ต่อท้ายคำถามเดิม (${editing.questions.length} ข้อ)</label>
+      <label><input type="radio" name="impMode" value="replace"> แทนที่คำถามทั้งหมด</label>
+      <div class="grow" id="impNote"></div>
+      <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
+      <button class="btn btn-primary" id="impGo" disabled onclick="impCommit()">นำเข้า</button>
+    </div>`;
+  $('#modal').classList.add('show');
+  $('#impText').oninput = impPreview;
+  $('#impFile').onchange = impFile;
+};
+window.impTemplate = function(){
+  const q = v => '"' + String(v).replace(/"/g, '""') + '"';
+  const rows = [['ชนิด', 'คำถาม', 'คำอธิบาย', 'ตัวเลือก', 'ต้องตอบ', 'ต่ำสุด', 'สูงสุด'],
+    ['ข้อความสั้น', 'ชื่อผู้ตอบ', '', '', 'ใช่', '', ''],
+    ['ข้อความยาว', 'ข้อเสนอแนะเพิ่มเติม', 'เล่าได้เต็มที่', '', '', '', ''],
+    ['เลือกได้ 1 ข้อ', 'ความพึงพอใจโดยรวม', '', 'ดีมาก | ดี | พอใช้ | ควรปรับปรุง', 'ใช่', '', ''],
+    ['เลือกได้หลายข้อ', 'ปัญหาที่พบ', 'เลือกได้หลายข้อ', 'อุปกรณ์ | วัตถุดิบ | คน | อื่น ๆ', '', '', ''],
+    ['สเกลให้คะแนน', 'ให้คะแนนความสะอาดของร้าน', '1 = น้อยที่สุด', '', 'ใช่', '1', '5'],
+    ['ตัวเลข', 'จำนวนลูกค้าเฉลี่ยต่อวัน', '', '', '', '', ''],
+    ['วันที่', 'วันที่ตรวจ', '', '', '', '', ''],
+    ['ใช่ / ไม่ใช่', 'มีป้ายราคาครบหรือไม่', '', '', 'ใช่', '', '']];
+  const csv = '\uFEFF' + rows.map(r => r.map(q).join(',')).join('\r\n');
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+  a.download = 'แบบฟอร์มนำเข้าแบบสอบถาม.csv'; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+};
+function impLoadXlsx(){
+  if (window.XLSX) return Promise.resolve();
+  return new Promise((res, rej) => { const sc = document.createElement('script'); sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = res; sc.onerror = () => rej(new Error('โหลดตัวอ่านไฟล์ Excel ไม่ได้ (ตรวจอินเทอร์เน็ต) ลองบันทึกเป็น CSV แล้ววางแทน')); document.head.appendChild(sc); });
+}
+async function impFile(e){
+  const f = e.target.files && e.target.files[0]; if (!f) return;
+  try {
+    let text;
+    if (/\.xlsx?$/i.test(f.name)) {
+      await impLoadXlsx();
+      const wb = XLSX.read(await f.arrayBuffer(), { type:'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header:1, raw:false, defval:'' });
+      text = rows.map(r => r.map(c => '"' + String(c).replace(/"/g, '""') + '"').join('\t')).join('\n');
+    } else text = await f.text();
+    $('#impText').value = text; impPreview();
+  } catch (err) { msg(esc(err.message || 'อ่านไฟล์ไม่สำเร็จ'), 'err'); }
+}
+window.impCommit = function(){
+  const ok = impRows.filter(r => !r.errs.length); if (!ok.length) return;
+  const replace = (document.querySelector('input[name="impMode"]:checked') || {}).value === 'replace';
+  if (replace && editing.questions.length && !confirm('แทนที่คำถามเดิม ' + editing.questions.length + ' ข้อ ด้วยที่นำเข้า ' + ok.length + ' ข้อ?')) return;
+  const base = Date.now().toString(36);
+  const qs = ok.map((r, i) => ({ id:'q' + base + i, type:r.type, label:r.label, help:r.help, required:r.required, options:r.options, min:r.min, max:r.max }));
+  editing.questions = replace ? qs : editing.questions.concat(qs);
+  closeModal(); renderEditor(); msg('นำเข้าคำถาม ' + qs.length + ' ข้อแล้ว ตรวจและกด "บันทึกแบบฟอร์ม" เพื่อยืนยัน');
 };
 
 boot();
