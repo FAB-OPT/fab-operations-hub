@@ -1917,11 +1917,12 @@ let ff = { form:'', show:'miss' };
 function followupForms(){ return forms.filter(f => isOpen(f)); }
 
 function followupRows(form){
-  /* สาขาที่อยู่ในกลุ่มเป้าหมายของฟอร์มนี้ — ไม่ระบุ = ทุกสาขาในทะเบียนฮับ */
-  const want = form.visible_branches || [];
-  const list = want.length
-    ? HUB_BRANCHES.filter(b => want.includes(b.name) || want.includes(b.label) || want.includes(b.code))
-    : HUB_BRANCHES.slice();
+  /* สาขาที่อยู่ในกลุ่มเป้าหมายของฟอร์มนี้ — ไม่ระบุ = ทุกสาขาในทะเบียนฮับ
+     กติกาเดียวกับ visibleTo(): เลือกแบรนด์ = เฉพาะสาขาของแบรนด์นั้น · เลือกสาขา = เฉพาะสาขาที่เลือก · เลือกทั้งสองอย่าง = ต้องเข้าทั้งคู่ */
+  const want = form.visible_brands || [], wantBr = form.visible_branches || [];
+  let list = HUB_BRANCHES.slice();
+  if (want.length) list = list.filter(b => want.includes(brandOfCode(b.code) || (b.jd ? 'เจ๊แดง จุ่มนัวร์' : '')));
+  if (wantBr.length) list = list.filter(b => wantBr.includes(b.name) || wantBr.includes(b.label) || wantBr.includes(b.code));
   const done = new Set(responses.filter(r => r.form_key === form.key)
     .map(r => String(r.respondent_branch || '') + '|' + String(r.respondent_code || '')));
   const answered = b => [...done].some(k => k.includes(b.name) || k.endsWith('|' + b.code));
