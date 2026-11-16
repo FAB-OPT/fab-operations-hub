@@ -483,6 +483,12 @@ async function loadCov() {
   } catch (e) { panel.innerHTML = `<div class="warn">โหลดตารางความครบของข้อมูลไม่ได้: ${esc(e.message)}</div>`; }
 }
 
+/* BZM / Owner ของสาขา: FS ใช้ตารางเขตของระบบนำเข้า · อื่น ๆ ใช้การแมปที่เคยเรียนรู้จากไฟล์ (ไม่มี = ว่าง) */
+function zoneOf(code) {
+  const f = (I.FS_ZONE || {})[code];
+  if (f) return f.o || f.z || "";
+  return bzmMap()[code] || "";
+}
 /* CSAT / NPS รายสาขา จากไฟล์ Ranking (ตาราง fb_branch_csat) — เลือกเดือนได้ */
 async function loadRankPanel(month) {
   const box = $("#rkPanel");
@@ -496,8 +502,8 @@ async function loadRankPanel(month) {
         <select id="rkSel">${months.map(x => `<option value="${x.month}" ${x.month === m ? "selected" : ""}>${MON[+x.month.slice(5) - 1]} ${x.month.slice(0, 4)} · ${x.n} สาขา</option>`).join("")}</select></div></div>
       <div class="note">${fmt(rows.length)} สาขา · ค่าเฉลี่ย CSAT ${avg("csat")} · NPS ${avg("nps")}</div>
       <div style="max-height:55vh;overflow:auto;border:1px solid var(--line);border-radius:8px;margin-top:8px">
-      <table class="mtab" style="margin:0"><thead><tr><th>#</th><th>รหัส</th><th>สาขา</th><th class="r">CSAT</th><th class="r">NPS</th></tr></thead><tbody>
-      ${rows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td class="r">${x.csat}</td><td class="r">${x.nps == null ? "–" : x.nps}</td></tr>`).join("")}
+      <table class="mtab" style="margin:0"><thead><tr><th>#</th><th>รหัส</th><th>สาขา</th><th>BZM / Owner</th><th class="r">CSAT</th><th class="r">NPS</th></tr></thead><tbody>
+      ${rows.map((x, i) => `<tr><td>${i + 1}</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc(zoneOf(x.code))}</td><td class="r">${x.csat}</td><td class="r">${x.nps == null ? "–" : x.nps}</td></tr>`).join("")}
       </tbody></table></div>`;
     $("#rkSel").onchange = e => loadRankPanel(e.target.value);
   } catch (e) { box.innerHTML = `<div class="warn">โหลด CSAT รายสาขาไม่ได้: ${esc(e.message)}</div>`; }
