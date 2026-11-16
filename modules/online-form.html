@@ -1075,7 +1075,34 @@ const Q_TYPES = [
 const qTypeLabel = t => (Q_TYPES.find(x => x.id === t) || {}).label || t;
 const hasOptions = t => t === 'single' || t === 'multi';
 /* ส่วน (หัวข้อ) ไม่ใช่คำถาม: ไม่มีคำตอบ ไม่นับเป็นข้อ */
-const answerQs = f => ((f && f.questions) || []).filter(q => q.type !== 'section');
+const baseQs = f => ((f && f.questions) || []).filter(q => q.type !== 'section');
+/* ส่วนที่ทำซ้ำตามคำตอบ: sec.repeat = { q:'ข้อต้นทาง' } · ผู้ตอบตอบข้อในส่วนนั้นซ้ำทีละตัวเลือกที่เลือกไว้ในข้อต้นทาง
+   คำตอบเก็บด้วยรหัส  ข้อ@กุญแจตัวเลือก  (กุญแจ = แฮชของข้อความตัวเลือก คงที่แม้เรียงลำดับใหม่) · ข้อที่ดึงตัวเลือกจากข้อต้นทางเดียวกันถูกข้าม (รู้อยู่แล้วว่าตอบเรื่องอะไร) */
+function optKey(o){ let h = 5381; for (const c of String(o)) h = ((h << 5) + h + c.codePointAt(0)) >>> 0; return h.toString(36); }
+const vId = (id, o) => id + '@' + optKey(o);
+function repBlock(questions, secIdx){
+  const sec = questions[secIdx]; let j = secIdx + 1; while (j < questions.length && questions[j].type !== 'section') j++;
+  const items = questions.slice(secIdx + 1, j).filter(x => !(x.from && x.from.q && x.from.q === sec.repeat.q));
+  return { items, end: j };
+}
+function answerQs(f, list){
+  const qs = (f && f.questions) || [], out = [];
+  for (let i = 0; i < qs.length; ) {
+    const q = qs[i];
+    if (q.type === 'section' && q.repeat && q.repeat.q) {
+      const { items, end } = repBlock(qs, i), src = qs.find(x => x.id === q.repeat.q);
+      ((src && src.options) || []).map(x => String(x).trim()).filter(Boolean).forEach(o => items.forEach(x => {
+        const id = vId(x.id, o);
+        if (list && !list.some(r => isAnswered((r.answers || {})[id]))) return;
+        out.push(Object.assign({}, x, { id, label: x.label + ' [' + o + ']', _base: x.id, _opt: o }));
+      }));
+      i = end; continue;
+    }
+    if (q.type !== 'section') out.push(q);
+    i++;
+  }
+  return out;
+}
 
 /* ── สถานะรวมของหน้า ───────────────────────────────────────────── */
 let forms = [], responses = [], myAnswered = new Set(), myResp = [];
@@ -1579,7 +1606,7 @@ const myDate = key => { const r = (myResp || []).find(x => x.form_key === key); 
 
 function formItemHtml(f){
   const open = canFill(f), done = myAnswered.has(f.key), lock = done && f.once_per_user;
-  const nq = answerQs(f).length;
+  const nq = baseQs(f).length;
   const staff = ofCan('view-followup');
   const status = lock ? `<span class="ok">ตอบแล้ว ${esc(myDate(f.key))}</span>`
     : !isOpen(f) ? (f.status === 'draft' ? 'ร่าง' : 'ปิดรับแล้ว') : dueHtml(f);
@@ -1732,6 +1759,33 @@ function grabTyped(){
 const isAnswered = v => !(v == null || v === '' || (Array.isArray(v) && !v.length));
 /* ตัวเลือกมาจากข้อก่อนหน้า: q.from = { q:'รหัสข้อต้นทาง' } · ข้อนี้โชว์เฉพาะตัวเลือกที่ผู้ตอบเลือกไว้ในข้อต้นทาง (เรียงตามข้อต้นทาง)
    ต้นทางยังไม่เลือกอะไร/ถูกซ่อน = ไม่มีตัวเลือกให้โชว์ → ซ่อนข้อนี้ (ไม่นับบังคับ ไม่เก็บคำตอบ) */
+function repeatSel(src, answers, questions){
+  if (!src || !qVisible(src, answers, questions)) return [];
+  const v = answers[src.id], sel = Array.isArray(v) ? v.map(String) : (v == null || v === '' ? [] : [String(v)]);
+  return (src.options || []).map(x => String(x).trim()).filter(x => x && sel.includes(x));
+}
+/* รายการข้อตอนตอบ: ส่วนที่ทำซ้ำถูกแตกเป็นหนึ่งชุดต่อหนึ่งตัวเลือกที่เลือกไว้ (หน้าละชุด ชื่อส่วน · ชื่อตัวเลือก) */
+function expandFill(questions, answers){
+  const out = [];
+  for (let i = 0; i < questions.length; ) {
+    const q = questions[i];
+    if (q.type === 'section' && q.repeat && q.repeat.q) {
+      const { items, end } = repBlock(questions, i), ids = new Set(items.map(x => x.id));
+      const src = questions.find(x => x.id === q.repeat.q);
+      repeatSel(src, answers, questions).forEach(o => {
+        const m = id => ids.has(id) ? vId(id, o) : id;   // อ้างข้อในชุดเดียวกัน = ข้อของชุดนี้
+        out.push(Object.assign({}, q, { id: vId(q.id, o), label: q.label + ' · ' + o, repeat: null, _base: q.id, _opt: o }));
+        items.forEach(x => out.push(Object.assign({}, x, { id: vId(x.id, o), _base: x.id, _opt: o,
+          cond: x.cond ? Object.assign({}, x.cond, { q: m(x.cond.q) }) : null,
+          from: x.from && x.from.q ? { q: m(x.from.q) } : null })));
+      });
+      i = end; continue;
+    }
+    out.push(q); i++;
+  }
+  return out;
+}
+const fillAll = () => expandFill(fill.form.questions || [], fill.answers);
 function carried(q, answers, all){
   if (!q || !q.from || !q.from.q) return null;
   const src = all.find(x => x.id === q.from.q); if (!src) return null;
@@ -1755,7 +1809,7 @@ function qVisible(q, answers, all, depth){
   const hit = (c.values || []).some(x => vals.includes(String(x)));
   return c.mode === 'notin' ? !hit : hit;
 }
-const visItems = () => { const all = fill.form.questions || []; return all.filter(q => qVisible(q, fill.answers, all)); };
+const visItems = () => { const all = fillAll(); return all.filter(q => qVisible(q, fill.answers, all)); };
 const visQs = () => visItems().filter(q => q.type !== 'section');
 /* นับข้อที่ตอบแล้ว · อัปเดตแถบล่างสด ๆ ระหว่างพิมพ์ โดยไม่วาดทั้งหน้าใหม่ */
 function fillProgress(){
@@ -1788,7 +1842,7 @@ function fillPages(){
   return pages.filter(pg => pg.qs.length);
 }
 function pruneCarried(){
-  const all = fill.form.questions || [];
+  const all = fillAll();
   all.forEach(q => {
     const c = carried(q, fill.answers, all); if (!c) return;
     const v = fill.answers[q.id]; if (!isAnswered(v)) return;
@@ -1803,6 +1857,7 @@ function renderFill(){
   if (fill.page >= pages.length) fill.page = Math.max(0, pages.length - 1);
   const pg = pages[fill.page] || { sec: null, qs: [] }, last = fill.page >= pages.length - 1;
   const numOf = {}; visQs().forEach((q, i) => { numOf[q.id] = i + 1; });
+  const ALL = fillAll();
   $('#view').innerHTML = `
     <div class="card fill-card">
       <div class="tk-h">
@@ -1821,7 +1876,7 @@ function renderFill(){
       return `<div class="qcard ${ok ? 'done' : ''} ${miss ? 'miss' : ''}" id="qc_${q.id}">
         <div class="qlab"><span class="qno">${numOf[q.id]}</span><span>${esc(q.label)}${q.required ? '<span class="qreq">*</span>' : ''}</span></div>
         ${q.help ? `<p class="qhelp">${esc(q.help)}</p>` : ''}
-        ${qInput(q, fill.answers[q.id], carried(q, fill.answers, fill.form.questions || []))}
+        ${qInput(q, fill.answers[q.id], carried(q, fill.answers, ALL))}
         ${q.from && q.from.q ? '<p class="qhelp" style="margin-top:6px">แสดงเฉพาะที่คุณเลือกไว้ในข้อก่อนหน้า</p>' : ''}
         <div class="qhint">ข้อนี้ต้องตอบ</div>
       </div>`;
@@ -1929,7 +1984,7 @@ function optHtml(all, items, cur, label){
 function paintResults(){
   const list = filteredResponses();
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? answerQs(form) : [];
+  const qs = form ? answerQs(form, list) : [];
   $('#rStats').innerHTML = `
     <span><b>${list.length}</b>คำตอบ</span>
     <span><b>${new Set(list.map(r => r.respondent_code)).size}</b>ผู้ตอบ</span>
@@ -1976,7 +2031,7 @@ function paintResults(){
 window.detail = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const qs = form ? answerQs(form) : [];
+  const qs = form ? answerQs(form, [r]) : [];
   const rows = qs.length
     ? qs.map((q, i) => `<tr><td>${i + 1}. ${esc(q.label)}</td><td><b>${esc(ansText((r.answers || {})[q.id]))}</b></td></tr>`).join('')
     : Object.keys(r.answers || {}).map(k => `<tr><td>${esc(k)}</td><td><b>${esc(ansText(r.answers[k]))}</b></td></tr>`).join('');
@@ -2020,7 +2075,7 @@ window.csvResults = function(){
   const list = filteredResponses();
   if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? answerQs(form) : [];
+  const qs = form ? answerQs(form, list) : [];
   const head = ['วันที่','เวลา','ผู้ตอบ','ตำแหน่ง','สาขา','แบรนด์','แบบฟอร์ม']
     .concat(qs.length ? qs.map(q => q.label) : ['คำตอบ']);
   const body = list.map(r => [fmtD(r.created_at), r.created_at ? new Date(r.created_at).toLocaleTimeString('th-TH', { hour:'2-digit', minute:'2-digit', hour12:false }) : '', r.respondent_name, r.respondent_role, r.respondent_branch, r.respondent_brand, r.form_title || r.form_key]
@@ -2139,7 +2194,7 @@ const pctOf = (n, d) => d ? Math.round(n / d * 1000) / 10 + '%' : '—';
 
 function reportSumHtml(f){
   const list = responses.filter(r => r.form_key === f.key);
-  const qs = answerQs(f);
+  const qs = answerQs(f, list);
   const blocks = qs.map((q, i) => {
     const vals = list.map(r => (r.answers || {})[q.id]).filter(v => v != null && v !== '' && !(Array.isArray(v) && !v.length));
     const head = `<h3>${i + 1}. ${esc(q.label)} <span style="font-weight:400;color:#666">· ${esc(qTypeLabel(q.type))} · ตอบ ${vals.length} คน</span></h3>`;
@@ -2199,7 +2254,7 @@ function ofScoreOf(r, qs){
   return nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
 }
 function reportAllHtml(f){
-  const qs = answerQs(f);
+  const qs = answerQs(f, responses.filter(r => r.form_key === f.key));
   const scored = qs.some(q => q.type === 'scale' || q.type === 'number');
   /* เรียงคะแนนมากไปน้อย — รายงานเปิดมาเห็นสาขาที่ทำได้ดีสุดก่อน ตามด้วยตัวที่ต้องตาม */
   const list = responses.filter(r => r.form_key === f.key)
@@ -2273,7 +2328,7 @@ window.printResults = function(){
   const list = filteredResponses();
   if (!list.length) return msg('ยังไม่มีคำตอบตามเงื่อนไขนี้', 'warn');
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
-  const qs = form ? answerQs(form) : [];
+  const qs = form ? answerQs(form, list) : [];
   printDoc(`
     ${prHead(form ? form.title : 'คำตอบแบบฟอร์มออนไลน์', [rf.branch && 'สาขา: ' + rf.branch, rf.q && 'ค้นหา: ' + rf.q].filter(Boolean).join(' · ') || 'ทั้งหมด')}
     <div class="pr-stats">
@@ -2292,7 +2347,7 @@ window.printResults = function(){
 window.printResp = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
-  const qs = form ? answerQs(form) : [];
+  const qs = form ? answerQs(form, [r]) : [];
   const rows = (qs.length ? qs.map((q, i) => [`${i + 1}. ${q.label}`, ansText((r.answers || {})[q.id])])
                           : Object.keys(r.answers || {}).map(k => [k, ansText(r.answers[k])]))
     .map(([a, b]) => `<tr><td>${esc(a)}</td><td><b>${esc(b)}</b></td></tr>`).join('');
@@ -2312,7 +2367,7 @@ function genMfHtml(f){
   return `<div class="mf">
     <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
       <div class="mf-t"><b>${esc(f.title)}</b>
-        ${lineHtml([typeChip('gen'), answerQs(f).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
+        ${lineHtml([typeChip('gen'), baseQs(f).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
       ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
     <div class="mf-acts">
       <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
@@ -2503,8 +2558,28 @@ function condVals(q){
   return (q.options || []).map(x => String(x).trim()).filter(Boolean);
 }
 /* ข้อต้นทางต้องอยู่ก่อนข้อนี้ · ค่าที่เลือกไว้แต่ตัวเลือกถูกแก้/ลบไปแล้วจะถูกตัดออก */
+function fixRepeat(){
+  const seen = [];
+  editing.questions.forEach(q => {
+    if (q.type === 'section' && q.repeat) {
+      const src = editing.questions.find(x => x.id === q.repeat.q);
+      if (!src || !seen.includes(src.id) || !hasOptions(src.type)) q.repeat = null;
+    }
+    seen.push(q.id);
+  });
+}
+window.setRepeat = function(i, id){ editing.questions[i].repeat = id ? { q: id } : null; renderEditor(); };
+function repeatHtml(q, i){
+  const cand = editing.questions.slice(0, i).map((x, j) => ({ x, j })).filter(o => hasOptions(o.x.type));
+  if (!cand.length) return '';
+  const r = q.repeat && q.repeat.q ? q.repeat : null;
+  return `<div class="qcond" style="margin-top:10px"><label>ทำซ้ำส่วนนี้ <span class="muted">(ผู้ตอบตอบซ้ำทีละตัวเลือกที่เลือกไว้ในข้อก่อนหน้า)</span></label>
+    <select onchange="grabEditor();setRepeat(${i},this.value)"><option value="">ไม่ทำซ้ำ (ตอบครั้งเดียว)</option>${cand.map(o =>
+      `<option value="${esc(o.x.id)}" ${r && r.q === o.x.id ? 'selected' : ''}>ทำซ้ำตามที่เลือกไว้ในข้อ ${qNos()[o.j]} · ${esc((o.x.label || '(ยังไม่มีคำถาม)').slice(0, 60))}</option>`).join('')}</select>
+    ${r ? '<div class="hint" style="margin-top:6px">ผู้ตอบจะเห็นข้อในส่วนนี้ทีละชุด ชุดละหนึ่งตัวเลือกที่เลือกไว้ (ชื่อตัวเลือกต่อท้ายชื่อส่วน) · ข้อที่ดึงตัวเลือกจากข้อต้นทางเดียวกันจะถูกข้ามให้ · ยังไม่เลือกอะไรเลย ส่วนนี้จะถูกซ่อน</div>' : ''}</div>`;
+}
 function fixConds(){
-  fixFrom();
+  fixRepeat(); fixFrom();
   const seen = [];
   editing.questions.forEach(q => {
     if (q.cond) {
@@ -2606,11 +2681,11 @@ function secRowHtml(q, i, count, nSec){
   const open = openQ === q.id, folded = foldSec.has(q.id), ct = condText(q), pr = qProblem(q);
   return `<div class="sr ${open ? 'open' : ''}" id="qr_${q.id}"><div class="sr-h" onclick="toggleQ('${q.id}')">
     <button type="button" class="fold" title="${folded ? 'แสดงข้อในส่วนนี้' : 'ซ่อนข้อในส่วนนี้'}" onclick="event.stopPropagation();foldS('${q.id}')">${folded ? '▸' : '▾'}</button>
-    <span class="sr-no">📑 ส่วนที่ ${nSec}</span><span class="sr-t">${q.label ? esc(q.label) : '<em>(ยังไม่มีชื่อส่วน)</em>'}${ct ? `<small class="qr-cd">↳ แสดงเมื่อ ${esc(ct)}</small>` : ''}</span>
+    <span class="sr-no">📑 ส่วนที่ ${nSec}</span><span class="sr-t">${q.label ? esc(q.label) : '<em>(ยังไม่มีชื่อส่วน)</em>'}${ct ? `<small class="qr-cd">↳ แสดงเมื่อ ${esc(ct)}</small>` : ''}${q.repeat && q.repeat.q ? `<small class="qr-cd">↻ ทำซ้ำตามข้อ ${qNos()[editing.questions.findIndex(x => x.id === q.repeat.q)] || '?'}</small>` : ''}</span>
     <span class="muted" style="font-size:12px;white-space:nowrap">${count} ข้อ</span>${pr ? `<i class="bd bad">${pr}</i>` : ''}${actHtml(i, true)}<span class="qr-chev">${open ? '▴' : '▾'}</span></div>
     ${open ? `<div class="qr-b"><textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="ชื่อส่วน เช่น ส่วนที่ 1 ข้อมูลผู้ตอบและสาขา" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
       <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายส่วน (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
-      ${condHtml(i)}<div class="hint" style="margin-top:8px">ข้อที่อยู่ถัดจากแถบนี้ จนถึงส่วนถัดไป เป็นของส่วนนี้ · ผู้ตอบเห็นทีละส่วน</div></div>` : ''}</div>`;
+      ${condHtml(i)}${repeatHtml(q, i)}<div class="hint" style="margin-top:8px">ข้อที่อยู่ถัดจากแถบนี้ จนถึงส่วนถัดไป เป็นของส่วนนี้ · ผู้ตอบเห็นทีละส่วน</div></div>` : ''}</div>`;
 }
 function qListHtml(){
   const qs = editing.questions, NOS = qNos(), f = edFilter.trim().toLowerCase();
@@ -2945,7 +3020,7 @@ window.openImportQ = function(){
     </div>
     <div id="impPrev"></div>
     <div class="imp-foot">
-      <label><input type="radio" name="impMode" value="append" checked> ต่อท้ายคำถามเดิม (${answerQs(editing).length} ข้อ)</label>
+      <label><input type="radio" name="impMode" value="append" checked> ต่อท้ายคำถามเดิม (${baseQs(editing).length} ข้อ)</label>
       <label><input type="radio" name="impMode" value="replace"> แทนที่คำถามทั้งหมด</label>
       <div class="grow" id="impNote"></div>
       <button class="btn btn-secondary" onclick="closeModal()">ยกเลิก</button>
