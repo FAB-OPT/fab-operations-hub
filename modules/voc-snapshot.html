@@ -505,6 +505,19 @@ const inScope = r => SCOPE.all || SCOPE.codes.has(rowCode(r));
    จับคู่ไม่ได้/สาขาไม่อยู่ในทะเบียน = คงค่าตามไฟล์ */
 const HUBCFG = (()=>{ try{ return (JSON.parse(localStorage.getItem('hubmod_config_v1')||'null')||{}).branches||{}; }catch(e){ return {}; } })();
 const nickKey = nickNorm;
+/* รหัสสาขาเดียวกันแต่ป้ายชื่อสะกดต่างกัน (เว้นวรรค/ไม่เว้นวรรค ต่างไฟล์ต่างชุด) → ใช้ป้ายเดียว ตัวกรองสาขาจะไม่ซ้ำ
+   ชื่อตามทะเบียนฮับถ้ามีรหัสนั้น · ไม่มี = ป้ายที่พบบ่อยที่สุดในข้อมูล */
+function canonBranch(rows){
+  const code = r => (String(r.br||'').match(/^(\d{4})/)||[])[1];
+  const cnt = {};
+  for(const r of rows){ const c=code(r); if(!c) continue; const o=cnt[c]||(cnt[c]={}); o[r.br]=(o[r.br]||0)+1; }
+  const names = HUBCFG.branches||{}, canon = {};
+  for(const c in cnt){
+    const e = Object.entries(cnt[c]); if(e.length<2) continue;
+    canon[c] = names[c] ? c+' '+String(names[c]).trim() : e.sort((a,b)=>b[1]-a[1]||a[0].localeCompare(b[0],'th'))[0][0];
+  }
+  for(const r of rows){ const c=code(r); if(c && canon[c]) r.br = canon[c]; }
+}
 function hubRows(rows){
   const names=HUBCFG.branches||{}, bz=HUBCFG.bzmMap||{};
   if(!Object.keys(names).length) return rows;
@@ -538,7 +551,8 @@ function index(){
   /* ประเภทมีแค่ พอใจ / ไม่พอใจ ตัดจากคะแนน: 0–4 = ไม่พอใจ · 5–10 = พอใจ (แถวที่ลงระบบไปก่อนหน้านี้ด้วยเกณฑ์เก่าก็แสดงตามเกณฑ์นี้) */
   for(const r of DATA.rows){ if(typeof r.s==='number' && isFinite(r.s)) r.ty = r.s<=4 ? 'ไม่พอใจ' : 'พอใจ'; }
   byBrand = {};
-  for(const r of hubRows(DATA.rows)){ if(inScope(r)) (byBrand[r.b] ||= []).push(r); }
+  const hr = hubRows(DATA.rows); canonBranch(hr);
+  for(const r of hr){ if(inScope(r)) (byBrand[r.b] ||= []).push(r); }
   // fill missing main from sub when another row knows it
   const map = {};
   for(const r of DATA.rows) if(r.sub && MAINS.some(m=>m[0]===r.main)) map[r.sub]=r.main;
