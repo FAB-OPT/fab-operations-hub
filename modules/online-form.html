@@ -1693,8 +1693,9 @@ window.startFill = function(key){
   renderFill();
 };
 
-function qInput(q, val){
+function qInput(q, val, opts){
   const id = 'q_' + q.id;
+  const OPTS = opts || q.options || [];
   if (q.type === 'long')   return `<textarea id="${id}" data-q="${q.id}">${esc(val || '')}</textarea>`;
   if (q.type === 'number') return `<input id="${id}" data-q="${q.id}" type="number" value="${esc(val ?? '')}">`;
   if (q.type === 'date')   return `<input id="${id}" data-q="${q.id}" type="date" value="${esc(val || '')}">`;
@@ -1707,11 +1708,11 @@ function qInput(q, val){
     for (let i = min; i <= max; i++) out.push(`<button type="button" class="${String(val) === String(i) ? 'on' : ''}" onclick="pickOne('${q.id}',${i})">${i}</button>`);
     return `<div class="seg scale" data-q="${q.id}">${out.join('')}</div>`;
   }
-  if (q.type === 'single') return `<div class="seg choice" data-q="${q.id}">${(q.options || []).map(o =>
+  if (q.type === 'single') return `<div class="seg choice" data-q="${q.id}">${OPTS.map(o =>
       `<button type="button" class="${val === o ? 'on' : ''}" onclick="pickOne('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
   if (q.type === 'multi'){
     const cur = Array.isArray(val) ? val : [];
-    return `<div class="seg choice multi" data-q="${q.id}">${(q.options || []).map(o =>
+    return `<div class="seg choice multi" data-q="${q.id}">${OPTS.map(o =>
       `<button type="button" class="${cur.includes(o) ? 'on' : ''}" onclick="pickMany('${q.id}','${esc(o).replace(/'/g,"\\'")}')">${esc(o)}</button>`).join('')}</div>`;
   }
   return `<input id="${id}" data-q="${q.id}" value="${esc(val || '')}">`;
@@ -1729,11 +1730,23 @@ function grabTyped(){
   });
 }
 const isAnswered = v => !(v == null || v === '' || (Array.isArray(v) && !v.length));
+/* ตัวเลือกมาจากข้อก่อนหน้า: q.from = { q:'รหัสข้อต้นทาง' } · ข้อนี้โชว์เฉพาะตัวเลือกที่ผู้ตอบเลือกไว้ในข้อต้นทาง (เรียงตามข้อต้นทาง)
+   ต้นทางยังไม่เลือกอะไร/ถูกซ่อน = ไม่มีตัวเลือกให้โชว์ → ซ่อนข้อนี้ (ไม่นับบังคับ ไม่เก็บคำตอบ) */
+function carried(q, answers, all){
+  if (!q || !q.from || !q.from.q) return null;
+  const src = all.find(x => x.id === q.from.q); if (!src) return null;
+  const v = answers[src.id], sel = Array.isArray(v) ? v.map(String) : (v == null || v === '' ? [] : [String(v)]);
+  return (src.options || []).map(x => String(x).trim()).filter(x => x && sel.includes(x));
+}
 /* เงื่อนไขแสดงข้อ: q.cond = { q:'รหัสข้อก่อนหน้า', mode:'in'|'notin', values:[คำตอบ...] } · ข้อต้นทางยังไม่ตอบ/ถูกซ่อน = ซ่อนข้อนี้ */
 function secOf(q, all){ const i = all.indexOf(q); for (let k = i - 1; k >= 0; k--) if (all[k].type === 'section') return all[k]; return null; }
 function qVisible(q, answers, all, depth){
   depth = depth || 0; if (depth > 20) return true;
   if (q && q.type !== 'section') { const sec = secOf(q, all); if (sec && !qVisible(sec, answers, all, depth + 1)) return false; }
+  if (q && q.from && q.from.q) {
+    const fs = all.find(x => x.id === q.from.q);
+    if (fs && (!qVisible(fs, answers, all, depth + 1) || !(carried(q, answers, all) || []).length)) return false;
+  }
   const c = q && q.cond; if (!c || !c.q) return true;
   const src = all.find(x => x.id === c.q); if (!src) return true;
   if (!qVisible(src, answers, all, depth + 1)) return false;
@@ -1774,8 +1787,17 @@ function fillPages(){
   });
   return pages.filter(pg => pg.qs.length);
 }
+function pruneCarried(){
+  const all = fill.form.questions || [];
+  all.forEach(q => {
+    const c = carried(q, fill.answers, all); if (!c) return;
+    const v = fill.answers[q.id]; if (!isAnswered(v)) return;
+    if (Array.isArray(v)) { const k = v.filter(x => c.includes(String(x))); if (k.length) fill.answers[q.id] = k; else delete fill.answers[q.id]; }
+    else if (!c.includes(String(v))) delete fill.answers[q.id];
+  });
+}
 function renderFill(){
-  grabTyped();
+  grabTyped(); pruneCarried();
   const f = fill.form, p = fillProgress(), pages = fillPages(), multi = pages.length > 1;
   if (!(fill.page >= 0)) fill.page = 0;
   if (fill.page >= pages.length) fill.page = Math.max(0, pages.length - 1);
@@ -1799,7 +1821,8 @@ function renderFill(){
       return `<div class="qcard ${ok ? 'done' : ''} ${miss ? 'miss' : ''}" id="qc_${q.id}">
         <div class="qlab"><span class="qno">${numOf[q.id]}</span><span>${esc(q.label)}${q.required ? '<span class="qreq">*</span>' : ''}</span></div>
         ${q.help ? `<p class="qhelp">${esc(q.help)}</p>` : ''}
-        ${qInput(q, fill.answers[q.id])}
+        ${qInput(q, fill.answers[q.id], carried(q, fill.answers, fill.form.questions || []))}
+        ${q.from && q.from.q ? '<p class="qhelp" style="margin-top:6px">แสดงเฉพาะที่คุณเลือกไว้ในข้อก่อนหน้า</p>' : ''}
         <div class="qhint">ข้อนี้ต้องตอบ</div>
       </div>`;
     }).join('')}
@@ -1825,7 +1848,7 @@ window.fillNext = function(){
 window.fillPrev = function(){ grabTyped(); if (fill.page > 0) { fill.tried = false; fill.page--; renderFill(); window.scrollTo({ top:0 }); } };
 
 window.submitFill = async function(){
-  grabTyped();
+  grabTyped(); pruneCarried();
   const f = fill.form;
   const vq = visQs();
   const miss = vq.filter(q => {
@@ -2390,7 +2413,42 @@ window.addQ = function(type){
   renderEditor();
 };
 window.setQ = function(i, k, v){ editing.questions[i][k] = v; };
+/* ข้อต้นทางที่ดึงตัวเลือกมาได้: ข้อ เลือก 1 ข้อ/หลายข้อ ที่อยู่ก่อนข้อนี้ */
+function fromHtml(q, i){
+  const cand = editing.questions.slice(0, i).map((x, j) => ({ x, j })).filter(o => hasOptions(o.x.type));
+  if (!cand.length) return '';
+  const c = q.from && q.from.q ? q.from : null;
+  return `<div class="qcond" style="margin-top:10px"><label>ตัวเลือกของข้อนี้ <span class="muted">(ดึงจากข้อที่ผู้ตอบเลือกไว้ก่อนหน้า)</span></label>
+    <select onchange="grabEditor();setFromQ(${i},this.value)"><option value="">กำหนดตัวเลือกเอง</option>${cand.map(o =>
+      `<option value="${esc(o.x.id)}" ${c && c.q === o.x.id ? 'selected' : ''}>เฉพาะที่เลือกไว้ในข้อ ${qNos()[o.j]} · ${esc((o.x.label || '(ยังไม่มีคำถาม)').slice(0, 60))}</option>`).join('')}</select>
+    ${c ? '<div class="hint" style="margin-top:6px">ผู้ตอบจะเห็นเฉพาะตัวเลือกที่เลือกไว้ในข้อต้นทาง · ถ้ายังไม่เลือกอะไรเลย ข้อนี้จะถูกซ่อน</div>' : ''}</div>`;
+}
+window.setFromQ = function(i, id){
+  const q = editing.questions[i];
+  if (!id) { q.from = null; renderEditor(); return; }
+  const src = editing.questions.find(x => x.id === id); if (!src) return;
+  q.from = { q: id };
+  q.options = (src.options || []).map(x => String(x).trim()).filter(Boolean);   // เก็บรายการเต็มไว้เป็นรายการอ้างอิง (สถิติ/ส่งออก)
+  renderEditor();
+};
+/* ข้อต้นทางต้องอยู่ก่อนและยังเป็นชนิดมีตัวเลือก · รายการอ้างอิงตามข้อต้นทางเสมอ */
+function fixFrom(){
+  const seen = [];
+  editing.questions.forEach(q => {
+    if (q.from) {
+      const src = editing.questions.find(x => x.id === q.from.q);
+      if (!src || !seen.includes(src.id) || !hasOptions(src.type) || !hasOptions(q.type)) q.from = null;
+      else q.options = (src.options || []).map(x => String(x).trim()).filter(Boolean);
+    }
+    seen.push(q.id);
+  });
+}
 function optsHtml(q, i){
+  if (q.from && q.from.q) {
+    const src = editing.questions.find(x => x.id === q.from.q), no = src ? qNos()[editing.questions.indexOf(src)] : '?';
+    return `<div class="opts-h"><label>ตัวเลือก <span class="muted">(ดึงจากข้อ ${no} · ${(q.options || []).length} รายการ)</span></label></div>
+      <div class="hint" style="margin-bottom:6px">${(q.options || []).map(esc).join(' · ') || '(ข้อต้นทางยังไม่มีตัวเลือก)'}</div>`;
+  }
   const o = q.options || [], n = o.filter(x => String(x).trim()).length, mk = q.type === 'multi' ? '☐' : '○';
   return `<div class="opts-h"><label>ตัวเลือก <span class="muted">(${n} ข้อ${q.type === 'multi' ? ' · เลือกได้หลายข้อ' : ' · เลือกได้ 1 ข้อ'})</span></label></div>
     <div class="opts">${o.map((v, k) => `<div class="opt"><span class="opt-mk">${mk}</span>
@@ -2446,6 +2504,7 @@ function condVals(q){
 }
 /* ข้อต้นทางต้องอยู่ก่อนข้อนี้ · ค่าที่เลือกไว้แต่ตัวเลือกถูกแก้/ลบไปแล้วจะถูกตัดออก */
 function fixConds(){
+  fixFrom();
   const seen = [];
   editing.questions.forEach(q => {
     if (q.cond) {
@@ -2497,6 +2556,7 @@ function grabEditor(){
     else editing.questions[i][k] = el.type === 'checkbox' ? el.checked : el.value;
   });
   Object.keys(optBuf).forEach(i => { editing.questions[i].options = optBuf[i]; });
+  fixFrom();   // ข้อที่ดึงตัวเลือกจากข้อก่อนหน้า ให้รายการอ้างอิงตามข้อต้นทางที่เพิ่งแก้
 }
 
 function qNos(){ let n = 0; return editing.questions.map(q => q.type === 'section' ? 0 : ++n); }
@@ -2529,7 +2589,7 @@ function qBody(q, i){
       <label class="qe-req" style="margin:0 0 0 auto"><input type="checkbox" data-qi="${i}" data-qk="required" ${q.required ? 'checked' : ''}>ต้องตอบข้อนี้</label></div>
     <textarea class="ag" rows="1" data-qi="${i}" data-qk="label" placeholder="คำถาม" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.label)}</textarea>
     <textarea class="ag" rows="1" data-qi="${i}" data-qk="help" placeholder="คำอธิบายเพิ่มเติม (ไม่ใส่ก็ได้)" style="margin-top:8px" oninput="autoGrow(this)" onkeydown="noEnter(event)">${esc(q.help || '')}</textarea>
-    ${hasOptions(q.type) ? optsHtml(q, i) : ''}
+    ${hasOptions(q.type) ? optsHtml(q, i) + fromHtml(q, i) : ''}
     ${q.type === 'scale' ? `<div class="grid2" style="margin-top:10px"><div><label>ต่ำสุด</label><input type="number" data-qi="${i}" data-qk="min" value="${esc(q.min ?? 1)}"></div><div><label>สูงสุด</label><input type="number" data-qi="${i}" data-qk="max" value="${esc(q.max ?? 5)}"></div></div>` : ''}
     ${condHtml(i)}`;
 }
