@@ -707,18 +707,24 @@ async function importFile(file, hold) {
     const wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), {type: "array", dense: true});
     const toAoa = n => XLSX.utils.sheet_to_json(wb.Sheets[n], {header: 1, raw: true, defval: null});
     const rawName = wb.SheetNames.find(n => /raw\s*data/i.test(n));
-    const csName = rawName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
+    const rkName = wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta2") && (r || []).includes("csat_score") && (r || []).includes("nps_score")));   // ไฟล์ Ranking: CSAT/NPS รายสาขา
+    const csName = rawName || rkName ? null : wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("Location_Meta6") && (r || []).includes("csat_score")));
     /* ชื่อชีตอาจถูกเปลี่ยนตอนดาวน์โหลด — หาจากหัวคอลัมน์ (complain + แบรนด์) แทนถ้าชื่อไม่ตรง */
     const fbName = wb.SheetNames.find(n => /รายละเอียด\s*complaint/i.test(n))
       || (!rawName && !csName ? wb.SheetNames.find(n => toAoa(n).slice(0, 8).some(r => (r || []).includes("complain") && ((r || []).includes("แบรนด์") || (r || []).includes("รหัส")))) : null);   // ไฟล์ .xls รุ่นเก่า (ม.ค.-มิ.ย. 2026) ไม่มีคอลัมน์แบรนด์ ชีตชื่อ "รายละเอียด_…"
     /* ไฟล์สรุป "Complain Voc" — ชีตที่จัดหัวข้อแล้วหรือชีตรายละเอียด (ไม่มีเคส Facebook/rawdata/CSAT) */
     const volParts = (rawName || csName || fbName) ? [] : wb.SheetNames.map(n => { const a = toAoa(n), k = I.vsKind(a); return k ? {kind: k, aoa: a} : null; }).filter(Boolean);
-    if (csName) { kind = "csat"; aoa = toAoa(csName); }
+    if (rkName) { kind = "ranking"; aoa = toAoa(rkName); }
+    else if (csName) { kind = "csat"; aoa = toAoa(csName); }
     else if (rawName) { kind = "voc"; aoa = toAoa(rawName); }
     else if (fbName) { kind = "facebook"; aoa = toAoa(fbName); const bn = wb.SheetNames.find(n => n.trim() === "สาขา"); branchAoa = bn ? toAoa(bn) : null; learnBzm(branchAoa); }
     else if (volParts.length) { kind = "vocsum"; vsParts = volParts; }
     else { const n = wb.SheetNames.find(x => !/dictionary/i.test(x)); kind = "voc"; aoa = toAoa(n); }
   } catch (e) { busy(false); return toast("อ่านไฟล์ไม่ได้ ต้องเป็น .xlsx หรือ .xls"); }
+  if (kind === "ranking") {                    // ไฟล์ Ranking: CSAT/NPS รายสาขา (ไม่มีเดือนในไฟล์)
+    let r; try { r = parseRanking(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
+    busy(false); return previewRanking(file.name, r);
+  }
   if (kind === "csat") {                       // ไฟล์สรุป CSAT/NPS ตามป้าย (เช่น csat 6.69.xlsx)
     let r; try { r = I.parseCsatSummary(aoa); } catch (e) { busy(false); return modal("ไฟล์นี้นำเข้าไม่ได้", `<div class="warn">${esc(e.message)}</div>`); }
     busy(false); return previewCsat(file.name, r);
@@ -739,6 +745,50 @@ async function importFile(file, hold) {
 }
 
 /* ไฟล์สรุป CSAT/NPS ตามป้าย: เลือกเดือนของข้อมูล → สร้างชุดตรวจสอบเฉพาะ CSAT/NPS (ไม่มีคอมเมนต์) */
+/* ไฟล์ Ranking: หัวคอลัมน์ Location_Meta2 (รหัสสาขา) · csat_score · nps_score — ไม่มีเดือนในไฟล์ */
+function parseRanking(aoa) {
+  const txt = x => String(x == null ? "" : x).trim();
+  const hi = aoa.findIndex(r => (r || []).map(txt).includes("Location_Meta2"));
+  if (hi < 0) throw new Error("ไม่พบหัวคอลัมน์ Location_Meta2");
+  const H = aoa[hi].map(txt), ix = n => H.indexOf(n);
+  const iC = ix("Location_Meta2"), iN = ix("Location_Meta3"), iCs = ix("csat_score"), iNp = ix("nps_score"), iR = ix("rank");
+  const rows = [], bad = [];
+  for (let r = hi + 1; r < aoa.length; r++) {
+    const a = aoa[r]; if (!a) continue;
+    const code = txt(a[iC]).replace(/\.0$/, "");
+    if (!/^\d{4}$/.test(code)) continue;
+    const cs = Number(a[iCs]);
+    if (a[iCs] == null || txt(a[iCs]) === "" || isNaN(cs)) { bad.push(code); continue; }
+    const np = Number(a[iNp]);
+    rows.push({code, name: txt(a[iN]), cs, np: a[iNp] == null || txt(a[iNp]) === "" || isNaN(np) ? null : np,
+      rank: iR >= 0 && txt(a[iR]) !== "" && !isNaN(Number(a[iR])) ? Number(a[iR]) : null});
+  }
+  if (!rows.length) throw new Error("ไม่พบแถวสาขาที่มีคะแนนในไฟล์นี้");
+  return {rows, bad};
+}
+function previewRanking(fileName, r) {
+  const guess = I.monthFromName(fileName);
+  const body = document.createElement("div");
+  body.innerHTML = `
+    <div class="note" style="margin-bottom:8px">${esc(fileName)} · CSAT / NPS รายสาขา ${fmt(r.rows.length)} สาขา</div>
+    <div style="margin:8px 0"><label><b>ข้อมูลเดือนไหน</b> <input type="month" id="rkMonth" value="${esc(guess)}" style="width:auto;max-width:200px"></label>${guess ? "" : ` <span class="note">เดาจากชื่อไฟล์ไม่ได้ — เลือกเอง</span>`}</div>
+    <table class="mtab"><tr><th>รหัส</th><th>สาขา</th><th class="r">CSAT</th><th class="r">NPS</th></tr>
+      ${r.rows.slice(0, 8).map(x => `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td class="r">${x.cs}</td><td class="r">${x.np == null ? "–" : x.np}</td></tr>`).join("")}
+    </table>
+    <div class="note">แสดง 8 สาขาแรกจาก ${fmt(r.rows.length)} สาขา</div>
+    ${r.bad.length ? `<div class="warn">ข้ามสาขาที่ไม่มีคะแนน: <b>${r.bad.map(esc).join(" · ")}</b></div>` : ""}
+    <ul class="note" style="padding-left:18px">
+      <li>เก็บรายสาขาแยกของเดือนนั้น · ถ้าเดือนเดียวกันเคยบันทึกไว้ จะถูกแทนที่ด้วยไฟล์นี้</li>
+      <li>บันทึกแล้วลงระบบทันที ไม่ผ่านขั้นตรวจ/อนุมัติ</li>
+    </ul>`;
+  modal("ตรวจไฟล์ CSAT / NPS รายสาขา", body, [{text: "บันทึกรายสาขา", fn: async () => {
+    const ym = $("#rkMonth", body).value;
+    if (!/^\d{4}-\d{2}$/.test(ym)) { toast("เลือกเดือนก่อน"); return false; }
+    busy(true, "กำลังบันทึกรายสาขา…");
+    try { const res = await FBStore.rankSave(ym, fileName, r.rows); busy(false); toast(`บันทึก ${res.n} สาขา · ${ym}`); notifyParent(); return true; }
+    catch (e) { busy(false); toast("บันทึกไม่สำเร็จ: " + (e.message || e)); return false; }
+  }}]);
+}
 function previewCsat(fileName, res) {
   const guess = I.monthFromName(fileName);
   const BN = {KT: "KT", FS: "FS", JD: "เจ๊แดง"};

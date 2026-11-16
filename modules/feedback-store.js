@@ -155,6 +155,17 @@
     approveCsat: function (batchId, by) {
       return sb().rpc('fb_approve_csat', { p_batch: batchId, p_by: by || '' }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
     },
+    /* CSAT/NPS รายสาขา (ไฟล์ Ranking) — ลงระบบทันที เดือนเดียวกันถูกแทนที่ · ดู supabase/feedback-ranking.sql */
+    rankSave: function (month, file, rows) {
+      return sb().rpc('fb_ranking_save', { p_month: month, p_file: file || '', p_rows: rows }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
+    },
+    /* เดือนที่มีข้อมูล Ranking แล้ว + จำนวนสาขา (ใหม่สุดก่อน) */
+    rankMonths: function () {
+      return sb().from('fb_branch_csat').select('month').then(ok).then(function (a) {
+        var s = {}; a.forEach(function (x) { s[x.month] = (s[x.month] || 0) + 1; });
+        return Object.keys(s).sort().reverse().map(function (m) { return { month: m, n: s[m] }; });
+      });
+    },
     removeBatch: function (batchId) {
       return sb().from('fb_batches').delete().eq('id', batchId).eq('status', 'staging').then(ok);
     }
