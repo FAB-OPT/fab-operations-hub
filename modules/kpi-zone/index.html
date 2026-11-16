@@ -96,15 +96,29 @@ body.present .pnav{display:flex}
 .pnav button{font:inherit;font-size:14px;font-weight:700;border:0;border-radius:8px;padding:7px 12px;background:rgba(255,255,255,.12);color:#fff;cursor:pointer}
 .pnav span{color:#fff;font-size:14px;font-weight:700;padding:0 8px}
 .toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#1E2230;color:#fff;padding:10px 16px;border-radius:10px;font-size:13px;display:none;z-index:20}
-.login{position:fixed;inset:0;z-index:999;background:#fff;display:flex;align-items:center;justify-content:center;padding:20px}
+.login{position:fixed;inset:0;z-index:999;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:radial-gradient(900px 520px at 50% -8%,#FFE3CF 0%,rgba(255,227,207,0) 70%),var(--bg)}
 .login[hidden]{display:none}
-.lbox{width:min(360px,100%);text-align:center}
-.lbox img{width:200px;max-width:70%;margin-bottom:18px}
-.lbox h2{margin:0 0 6px;font-size:20px}
-.lbox p{margin:0 0 16px;color:#666;font-size:14px}
-.lbox input{width:100%;font-size:26px;letter-spacing:10px;text-align:center;padding:12px;border:1px solid #ddd;border-radius:12px}
-.lbox button{width:100%;margin-top:12px;padding:12px;font-size:16px}
-#lerr{color:#c0362c;font-size:13px;margin-top:10px;min-height:18px}
+.lbox{width:min(400px,100%);background:#FFFDFB;border:1px solid var(--line);border-radius:24px;padding:32px 28px 24px;text-align:center;
+  box-shadow:0 1px 0 #fff inset,0 24px 60px -24px rgba(120,60,20,.28),0 2px 6px rgba(120,60,20,.06)}
+.lbox img{width:148px;max-width:60%;margin:0 auto 18px;display:block}
+.lbox .eyebrow{font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--or);font-weight:700;margin-bottom:6px}
+.lbox h2{margin:0 0 6px;font-size:24px;font-weight:800;color:var(--ink)}
+.lbox p{margin:0 0 22px;color:var(--ink2);font-size:14.5px;line-height:1.5}
+/* ช่องรหัส 6 หลัก: input จริงตัวเดียวโปร่งใสซ้อนทับ (วาง/ลบ/คีย์บอร์ดมือถือทำงานเอง) ช่องที่เห็นเป็นแค่ภาพ */
+.pin{position:relative;display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:0 auto}
+.pin input{position:absolute;inset:0;width:100%;height:100%;opacity:0;font-size:16px;cursor:text;border:0;padding:0}
+.pin i{height:58px;border:1.5px solid #E4DCD3;border-radius:14px;background:#fff;display:flex;align-items:center;justify-content:center;font-style:normal;font-size:26px;font-weight:700;color:var(--ink);transition:border-color .12s,box-shadow .12s,background .12s}
+.pin i.on{border-color:var(--or);box-shadow:0 0 0 4px rgba(246,107,33,.16)}
+.pin i.fill{background:var(--or-soft);border-color:#F9C9A8;font-size:16px}
+.pin.busy i{opacity:.55}
+.pin.shake{animation:lshake .38s}
+@keyframes lshake{20%{transform:translateX(-7px)}40%{transform:translateX(7px)}60%{transform:translateX(-5px)}80%{transform:translateX(5px)}}
+#lerr{font-size:13.5px;margin-top:14px;min-height:20px;color:var(--bad);font-weight:600}
+#lerr.ok{color:var(--ink2);font-weight:500}
+.lfoot{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);font-size:12.5px;color:var(--mute);line-height:1.5}
+@media (max-width:420px){.lbox{padding:26px 18px 20px}.pin{gap:6px}.pin i{height:54px;font-size:24px}}
+@media (prefers-reduced-motion:reduce){.pin.shake{animation:none}}
 .who{font-size:12px;color:#555;white-space:nowrap}
 .bar img.blogo{height:40px;width:auto;display:block}
 </style>
@@ -128,11 +142,15 @@ body.present .pnav{display:flex}
 <div id="login" class="login" hidden>
   <div class="lbox">
     <img src="logo.png" alt="Santa Fe Happy Steak">
-    <h2>Zone KPI Presentation</h2>
-    <p>กรอกรหัสพนักงาน 6 หลัก</p>
-    <input id="lcode" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="••••••">
-    <button class="btn pri" id="lgo">เข้าสู่ระบบ</button>
-    <div id="lerr"></div>
+    <div class="eyebrow">Zone KPI Presentation</div>
+    <h2>เข้าสู่ระบบ</h2>
+    <p>กรอกรหัสพนักงาน 6 หลัก ครบแล้วเข้าให้อัตโนมัติ ไม่ต้องกดปุ่ม</p>
+    <div class="pin" id="pin">
+      <i></i><i></i><i></i><i></i><i></i><i></i>
+      <input id="lcode" type="text" inputmode="numeric" pattern="[0-9]*" autocomplete="one-time-code" aria-label="รหัสพนักงาน 6 หลัก">
+    </div>
+    <div id="lerr" role="status" aria-live="polite"></div>
+    <div class="lfoot">BZM เห็นเฉพาะข้อมูลของตัวเอง · VP และ Admin เห็นทุกชุด</div>
   </div>
 </div>
 <div id="viewport"><div id="stageWrap"><div id="stage"></div></div></div>
@@ -549,10 +567,26 @@ let OWNER_NAMES = {};      // uid -> ชื่อ (สำหรับ admin/VP)
 function b64FromBuf(buf){ let s='',b=new Uint8Array(buf); for(let i=0;i<b.length;i+=0x8000) s+=String.fromCharCode.apply(null,b.subarray(i,i+0x8000)); return btoa(s); }
 function bufFromB64(b64){ const s=atob(b64), b=new Uint8Array(s.length); for(let i=0;i<s.length;i++) b[i]=s.charCodeAt(i); return b.buffer; }
 
+const lcode = () => document.getElementById('lcode');
+let logging = false;
+/* วาดช่อง 6 ช่องตามค่าในช่องกรอก: กรอกแล้ว = จุดทึบ · ช่องถัดไป = ขอบส้ม */
+function paintPin(){
+  const v = lcode().value, focused = document.activeElement === lcode();
+  document.querySelectorAll('#pin i').forEach((c, i) => {
+    c.className = i < v.length ? 'fill' : (focused && i === Math.min(v.length, 5) ? 'on' : '');
+    c.textContent = i < v.length ? '●' : '';
+  });
+}
 function showLogin(msg){
   document.getElementById('login').hidden = false;
-  document.getElementById('lerr').textContent = msg || '';
-  setTimeout(()=>document.getElementById('lcode').focus(), 50);
+  const e = document.getElementById('lerr'); e.textContent = msg || ''; e.className = '';
+  setTimeout(() => { lcode().focus(); paintPin(); }, 50);
+}
+/* รหัสผิด: ช่องสั่น ล้างรหัส พร้อมให้กรอกใหม่ทันที */
+function failLogin(msg){
+  const pin = document.getElementById('pin');
+  pin.classList.remove('busy', 'shake'); void pin.offsetWidth; pin.classList.add('shake');
+  lcode().value = ''; showLogin(msg);
 }
 async function loadProfile(){
   const { data: { user } } = await sb.auth.getUser();
@@ -562,17 +596,20 @@ async function loadProfile(){
   return { uid: user.id, name: data.name || '', role: data.role, branches: data.branches || [] };
 }
 async function doLogin(){
-  const code = document.getElementById('lcode').value.trim();
+  if (logging) return;
+  const code = lcode().value.trim();
   if (!/^\d{6}$/.test(code)) return showLogin('กรอกรหัส 6 หลัก');
-  document.getElementById('lgo').disabled = true;
+  logging = true;
+  document.getElementById('pin').classList.add('busy');
+  const e = document.getElementById('lerr'); e.textContent = 'กำลังตรวจสอบ…'; e.className = 'ok';
   const { error } = await sb.auth.signInWithPassword({ email: code + '@kpi.local', password: code });
-  document.getElementById('lgo').disabled = false;
-  if (error) return showLogin('รหัสไม่ถูกต้อง หรือบัญชียังไม่ได้เปิดใช้');
+  logging = false; document.getElementById('pin').classList.remove('busy');
+  if (error) return failLogin('รหัสไม่ถูกต้อง หรือบัญชียังไม่ได้เปิดใช้');
   await afterLogin();
 }
 async function afterLogin(){
   const p = await loadProfile();
-  if (!p) { await sb.auth.signOut(); return showLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์ แจ้ง admin'); }
+  if (!p) { await sb.auth.signOut(); return failLogin('บัญชีนี้ยังไม่ได้รับสิทธิ์ แจ้ง admin'); }
   ME = p;
   document.getElementById('login').hidden = true;
   document.getElementById('who').textContent = (p.name || '') + ' · ' + p.role.toUpperCase();
@@ -621,8 +658,16 @@ async function saveDataset(buf, fileName){
   }
   await loadDatasets();
 }
-document.getElementById('lgo').addEventListener('click', doLogin);
-document.getElementById('lcode').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+/* กรอกครบ 6 หลักแล้วเข้าเลย (พิมพ์ วาง หรือให้เบราว์เซอร์เติมให้ก็ได้) */
+lcode().addEventListener('input', () => {
+  const v = lcode().value.replace(/\D/g, '').slice(0, 6);
+  lcode().value = v; paintPin();
+  if (!logging) { const e = document.getElementById('lerr'); e.textContent = ''; e.className = ''; }
+  if (v.length === 6) doLogin();
+});
+lcode().addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+['focus', 'blur'].forEach(ev => lcode().addEventListener(ev, paintPin));
+document.getElementById('pin').addEventListener('click', () => lcode().focus());
 document.getElementById('logout').addEventListener('click', async () => { await sb.auth.signOut(); location.reload(); });
 
 (async function boot(){
