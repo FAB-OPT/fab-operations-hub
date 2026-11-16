@@ -160,8 +160,11 @@
       return sb().rpc('fb_ranking_save', { p_month: month, p_file: file || '', p_rows: rows }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
     },
     /* เดือนที่มีข้อมูล Ranking แล้ว + จำนวนสาขา (ใหม่สุดก่อน) */
+    rankRows: function (month) {
+      return sb().from('fb_branch_csat').select('code,name,csat,nps,rank').eq('month', month).order('csat', { ascending: false }).then(ok);
+    },
     rankMonths: function () {
-      return sb().from('fb_branch_csat').select('month').then(ok).then(function (a) {
+      return sb().from('fb_branch_csat').select('month').range(0, 9999).then(ok).then(function (a) {
         var s = {}; a.forEach(function (x) { s[x.month] = (s[x.month] || 0) + 1; });
         return Object.keys(s).sort().reverse().map(function (m) { return { month: m, n: s[m] }; });
       });
