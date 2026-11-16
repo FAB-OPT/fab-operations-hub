@@ -474,7 +474,32 @@ summary{font-weight:700;cursor:pointer}
 .rc-qa i{font-style:normal;color:var(--muted);flex:0 0 42%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rc-qa em{font-style:normal;font-weight:700;min-width:0;overflow-wrap:anywhere}
 .rc-more{font-size:12px;color:var(--orange);font-weight:700;margin-top:6px}
+/* คำตอบ · ตาราง: ผู้ตอบ+สาขารวมช่องเดียว · คอลัมน์ข้อมีความกว้างพอ หัวข้อยาวขึ้นบรรทัดใหม่ได้ · ล็อกวันที่/ชื่อไว้ซ้ายตอนเลื่อนดูข้ออื่น */
+#rTable{min-width:0}
+#rTable th{white-space:normal;line-height:1.4;font-size:13px;vertical-align:bottom;min-width:170px;max-width:260px}
+#rTable td{vertical-align:top;line-height:1.55;min-width:170px;max-width:260px;overflow-wrap:anywhere}
+#rTable th:first-child,#rTable td:first-child{min-width:118px;width:118px;max-width:118px;white-space:nowrap;position:sticky;left:0;z-index:2;background:#fff}
+#rTable th:nth-child(2),#rTable td:nth-child(2){min-width:170px;width:170px;max-width:170px;position:sticky;left:118px;z-index:2;background:#fff;box-shadow:1px 0 0 var(--line)}
+#rTable th:first-child,#rTable th:nth-child(2){background:#fafbfc;z-index:3}
+#rTable th:last-child,#rTable td:last-child{min-width:0;width:1%;max-width:none;white-space:nowrap}
+#rTable .rb{font-size:12.5px;color:var(--muted);font-weight:400;margin-top:2px}
+.rview{display:inline-flex;gap:2px;background:#e9ebef;border-radius:10px;padding:3px;margin-left:auto;align-self:center}
+.rview button{border:0;background:transparent;border-radius:8px;padding:6px 14px;font-weight:700;font-size:13px;color:#5b616b;font-family:inherit;cursor:pointer}
+.rview button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(16,24,40,.12)}
+/* คำตอบ · รายคน: การ์ดต่อคน ไล่อ่านทีละข้อ (คำถามเล็กอยู่บน คำตอบตัวใหญ่ชัดอยู่ล่าง) */
+.ppl{display:grid;gap:14px}
+.pc{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 20px 18px}
+.pc-h{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding-bottom:12px;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.pc-h .who{flex:1;min-width:200px}
+.pc-h .who b{font-size:16px}
+.pc-h .who span{display:block;font-size:13px;color:var(--muted);margin-top:1px}
+.pc-d{font-size:13px;color:var(--muted);white-space:nowrap}
+.pc-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px 28px}
+.pc-q i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.4;margin-bottom:3px}
+.pc-q em{display:block;font-style:normal;font-weight:700;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
+.pc-q em.nil{color:#c0c5cc;font-weight:400}
 @media(max-width:820px){
+  .ppl{display:none}
   .flt{grid-template-columns:1fr 1fr}
   .flt>div:first-child{grid-column:1/-1}
   .tools .btn{flex:1;white-space:nowrap}
@@ -2031,6 +2056,7 @@ function renderResultsGen(){
     </div>
     <div class="strip" id="rStats"></div>
     <div class="rcards" id="rCards"></div>
+    <div class="ppl" id="rPeople"></div>
     <div class="card rtable-card" style="padding:0;overflow:hidden">
       <div class="table-wrap" style="border:0;border-radius:0"><table id="rTable"></table></div>
     </div>
@@ -2048,12 +2074,32 @@ function paintResults(){
   const list = filteredResponses();
   const form = rf.form ? forms.find(f => f.key === rf.form) : null;
   const qs = form ? answerQs(form, list) : [];
+  /* เลือกฟอร์มแล้วมีสองมุมมอง: รายคน (อ่านทีละข้อ · ค่าเริ่มต้น) / ตาราง (เทียบข้ามคน) · ไม่ได้เลือกฟอร์มใช้ตารางสรุป */
+  const view = form ? (rf.view || 'people') : 'table';
   $('#rStats').innerHTML = `
     <span><b>${list.length}</b>คำตอบ</span>
     <span><b>${new Set(list.map(r => r.respondent_code)).size}</b>ผู้ตอบ</span>
-    <span><b>${new Set(list.map(r => r.form_key)).size}</b>แบบฟอร์ม</span>`;
+    <span><b>${new Set(list.map(r => r.form_key)).size}</b>แบบฟอร์ม</span>
+    ${form ? `<span class="rview"><button type="button" class="${view === 'people' ? 'on' : ''}" onclick="setRView('people')">รายคน</button><button type="button" class="${view === 'table' ? 'on' : ''}" onclick="setRView('table')">ตาราง</button></span>` : ''}`;
   $('#rEmpty').style.display = list.length ? 'none' : '';
   $('.rtable-card').style.visibility = list.length ? '' : 'hidden';
+  $('.rtable-card').style.display = view === 'table' ? '' : 'none';
+  $('#rPeople').style.display = view === 'people' ? '' : 'none';
+  $('#rPeople').innerHTML = view !== 'people' ? '' : list.map(r => {
+    const a = r.answers || {};
+    const same = !r.respondent_branch || r.respondent_branch === r.respondent_name;
+    return `<div class="pc">
+      <div class="pc-h">
+        <div class="who"><b>${esc(r.respondent_name || '—')}</b>${same ? '' : `<span>${esc(r.respondent_branch)}</span>`}</div>
+        <span class="pc-d">${fmtDT(r.created_at)}</span>
+        <div class="row-btns">
+          <button class="btn btn-secondary btn-sm" onclick="detail(${r.id})">ดู / พิมพ์</button>
+          ${ofCan('delete-response') ? `<button class="btn btn-danger btn-sm" onclick="delResp(${r.id})">ลบ</button>` : ''}
+        </div>
+      </div>
+      <div class="pc-g">${qs.map((q, i) => { const t = ansText(a[q.id]); return `<div class="pc-q"><i>${i + 1}. ${esc(q.label)}</i><em class="${t === '—' ? 'nil' : ''}">${esc(t)}</em></div>`; }).join('')}</div>
+    </div>`;
+  }).join('');
   /* มือถือ: คำตอบละการ์ด · โชว์ 3 ข้อแรก กดเพื่อดูครบ */
   $('#rCards').innerHTML = list.map(r => {
     const a = r.answers || {};
@@ -2070,8 +2116,8 @@ function paintResults(){
   }).join('');
   /* เลือกฟอร์มแล้ว = กางคำตอบเป็นคอลัมน์รายข้อ · ยังไม่เลือก = ดูรวม */
   const head = form
-    ? ['วันที่ · เวลา','ผู้ตอบ','สาขา', ...qs.map(q => q.label), '']
-    : ['วันที่ · เวลา','ผู้ตอบ','สาขา','แบบฟอร์ม','ตอบไปแล้ว',''];
+    ? ['วันที่ · เวลา','ผู้ตอบ · สาขา', ...qs.map(q => q.label), '']
+    : ['วันที่ · เวลา','ผู้ตอบ · สาขา','แบบฟอร์ม','ตอบไปแล้ว',''];
   $('#rTable').innerHTML = `
     <thead><tr>${head.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>
     <tbody>${list.map(r => {
@@ -2081,8 +2127,7 @@ function paintResults(){
            <td>${Object.keys(r.answers || {}).length} ข้อ</td>`;
       return `<tr>
         <td class="muted" style="white-space:nowrap">${fmtDT(r.created_at)}</td>
-        <td><b>${esc(r.respondent_name || '—')}</b></td>
-        <td>${esc(r.respondent_branch || '')}</td>
+        <td><b>${esc(r.respondent_name || '—')}</b>${r.respondent_branch && r.respondent_branch !== r.respondent_name ? `<div class="rb">${esc(r.respondent_branch)}</div>` : ''}</td>
         ${cells}
         <td class="row-btns">
           <button class="btn btn-secondary btn-sm" onclick="detail(${r.id})">ดู</button>
@@ -2090,6 +2135,8 @@ function paintResults(){
         </td></tr>`;
     }).join('')}</tbody>`;
 }
+
+window.setRView = function(v){ rf.view = v; paintResults(); };
 
 window.detail = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
