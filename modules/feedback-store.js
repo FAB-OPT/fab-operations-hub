@@ -72,7 +72,7 @@
     },
     /* ตัวระบุความเปลี่ยนแปลง — ใช้ตัดสินว่าต้องโหลดใหม่ไหม */
     liveStamp: function (channel) {
-      return sb().from('fb_batches').select('id,approved_at').eq('channel', channel).eq('status', 'approved').then(ok).then(function (a) {
+      return sb().from('fb_batches').select('id,approved_at').eq('channel', channel).in('status', ['approved', 'partial']).then(ok).then(function (a) {
         return a.map(function (x) { return x.id + '@' + x.approved_at; }).sort().join(',');
       });
     },
@@ -146,6 +146,13 @@
     },
     setExtra: function (rowId, extra, by) {
       return sb().rpc('fb_row_extra', { p_id: rowId, p_extra: extra, p_by: by || '' }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
+    },
+    /* ถอน/อนุมัติ เฉพาะ CSAT/NPS ของชุด (คอมเมนต์ยังอยู่) — ดู supabase/feedback-csat-revoke.sql */
+    revokeCsat: function (batchId) {
+      return sb().rpc('fb_revoke_csat', { p_batch: batchId }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
+    },
+    approveCsat: function (batchId, by) {
+      return sb().rpc('fb_approve_csat', { p_batch: batchId, p_by: by || '' }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
     },
     removeBatch: function (batchId) {
       return sb().from('fb_batches').delete().eq('id', batchId).eq('status', 'staging').then(ok);

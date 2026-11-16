@@ -473,7 +473,7 @@ async function loadCov() {
     Object.entries(agg.ck).forEach(([m, v]) => { ck[m] = {}; Object.entries(v).forEach(([b, x]) => { ck[m][b] = new Set(Array.isArray(x) ? x : Object.keys(x)); }); });
     // เดือนที่มีไฟล์สรุป Facebook อนุมัติแล้ว
     const fb = new Set();
-    (S.batches || []).filter(b => b.channel === "facebook" && b.status === "approved" && b.d_from).forEach(b => {
+    (S.batches || []).filter(b => b.channel === "facebook" && (b.status === "approved" || b.status === "partial") && b.d_from).forEach(b => {
       const a = new Date(b.d_from + "T00:00:00"), z = new Date((b.d_to || b.d_from) + "T00:00:00");
       for (let d = new Date(a.getFullYear(), a.getMonth(), 1); d <= z; d.setMonth(d.getMonth() + 1)) fb.add(mkey(d.getFullYear(), d.getMonth() + 1)); });
     COV.data = {cm, ck, fb};
@@ -603,16 +603,16 @@ async function showList() {
   loadCov();   // ตารางความครบของข้อมูล (เดือน × ชนิดข้อมูล)
   if (!S.batches.length) { box.innerHTML = `<div class="gatebox" style="margin:0;max-width:none">ยังไม่มีชุดข้อมูล — นำเข้าไฟล์ดิบจากแพลตฟอร์มแบบสำรวจด้านบนเพื่อเริ่ม</div>`; return; }
   const card = b => {
-    const live = b.status === "approved", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
+    const live = b.status === "approved", partial = b.status === "partial", per = b.d_from ? `${fmtD(b.d_from)} – ${fmtD(b.d_to)}` : "";
     let sv = null; try { sv = !live && JSON.parse(localStorage.getItem(viewKey(b.id))); } catch (e) {}
     const svChip = sv && sv.at ? `<span class="chip info" title="ตรวจค้างไว้ในเครื่องนี้ — เปิดชุดแล้วจะกลับไปตำแหน่งเดิม">ตรวจค้างไว้ที่แถว ${fmt(sv.at_row || 1)} · ${esc(new Date(sv.at).toLocaleString("th-TH", {dateStyle: "short", timeStyle: "short"}))}</span>` : "";
     return `<div class="bcard" data-id="${b.id}">
       <div><div class="nm">${esc(b.file_name || "(ไม่มีชื่อไฟล์)")}</div>
         <div class="mt">${per ? "ข้อมูลช่วง " + esc(per) + " · " : ""}นำเข้า ${esc(new Date(b.created_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(b.created_by || "—")}${live ? " · อนุมัติ " + esc(new Date(b.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"})) + " โดย " + esc(b.approved_by || "—") : ""}</div>
-        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว" : "รอตรวจสอบ/อนุมัติ"}</span>${svChip}${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
-      <div class="ac"><button class="btn sm" data-a="open">${live ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
+        <div class="ct"><span class="chip ${b.channel === "facebook" ? "info" : "vio"}">${b.channel === "facebook" ? "Facebook" : "VOC"}</span><span class="chip ${live ? "live" : partial ? "wait" : "wait"}">${live ? "ลงระบบแล้ว" : partial ? "คอมเมนต์ลงแล้ว · CSAT/NPS ถอนออก" : "รอตรวจสอบ/อนุมัติ"}</span>${svChip}${b.mode === "replace" ? `<span class="chip bad" title="เมื่ออนุมัติ ข้อมูลเดิมช่วงเดียวกันถูกแทนที่">แทนที่ช่วงนี้</span>` : ""}<span class="chip num">${fmt(b.n_rows)} ${b.channel === "facebook" ? "เคส" : "คอมเมนต์"}</span>${b.n_csat ? `<span class="chip num">${fmt(b.n_csat)} รายการ CSAT/NPS</span>` : ""}</div></div>
+      <div class="ac"><button class="btn sm" data-a="open">${live || partial ? "ดูชุดนี้" : "ตรวจสอบ"}</button>${live && b.n_csat ? `<button class="btn sm ghost" data-a="csat-revoke" title="ถอนเฉพาะ CSAT/NPS — คอมเมนต์ยังอยู่">ถอนเฉพาะ CSAT/NPS</button>` : ""}${partial ? `<button class="btn sm" data-a="csat-approve" title="นำ CSAT/NPS กลับเข้าระบบ">อนุมัติ CSAT/NPS</button>` : ""}${live || partial ? `<button class="btn sm ghost" data-a="revoke">ถอนการอนุมัติ</button>` : `<button class="btn sm no" data-a="del">ลบชุด</button>`}</div></div>`;
   };
-  const waits = S.batches.filter(b => b.status !== "approved"), lives = S.batches.filter(b => b.status === "approved");
+  const waits = S.batches.filter(b => b.status !== "approved" && b.status !== "partial"), lives = S.batches.filter(b => b.status === "approved" || b.status === "partial");
   const boxL = $("#bcardsLive");
   box.innerHTML = waits.length ? waits.map(card).join("") : `<div class="muted">ไม่มีชุดที่รอตรวจ</div>`;
   boxL.innerHTML = lives.length ? lives.map(card).join("") : `<div class="muted">ยังไม่มีชุดที่ลงระบบ</div>`;
@@ -622,11 +622,14 @@ async function showList() {
     const bt = e.target.closest("[data-a]"); if (!bt) return;
     const b = S.batches.find(x => x.id === bt.closest(".bcard").dataset.id);
     if (bt.dataset.a === "open") openBatch(b);
+    if (bt.dataset.a === "csat-revoke") confirmBox("ถอนเฉพาะ CSAT/NPS?", `ถอน CSAT/NPS ของ “${esc(b.file_name)}” ออกจากระบบ · <b>คอมเมนต์ยังอยู่ทั้งหมด</b> · กดอนุมัติ CSAT/NPS เพื่อนำกลับได้`, "ถอน CSAT/NPS", async () => { busy(true, "กำลังถอน CSAT/NPS…"); try { await FBStore.revokeCsat(b.id); toast("ถอน CSAT/NPS แล้ว"); await showList(); } catch (e) { toast("ถอนไม่สำเร็จ: " + e.message, 5000); } finally { busy(false); } });
+    if (bt.dataset.a === "csat-approve") confirmBox("อนุมัติ CSAT/NPS กลับเข้าระบบ?", `นำ CSAT/NPS ของ “${esc(b.file_name)}” กลับเข้าแดชบอร์ด`, "อนุมัติ CSAT/NPS", async () => { busy(true, "กำลังอนุมัติ CSAT/NPS…"); try { await FBStore.approveCsat(b.id, Hub.fullName()); toast("อนุมัติ CSAT/NPS แล้ว"); await showList(); } catch (e) { toast("อนุมัติไม่สำเร็จ: " + e.message, 5000); } finally { busy(false); } });
     if (bt.dataset.a === "del") confirmBox("ลบชุดนี้?", `ลบ “${esc(b.file_name)}” พร้อมแถวทั้งหมด (${fmt(b.n_rows)} คอมเมนต์) — ยังไม่เคยลงระบบ ลบได้ และนำเข้าไฟล์เดิมใหม่ได้`, "ลบชุด", async () => { await FBStore.removeBatch(b.id); toast("ลบชุดแล้ว"); showList(); });
     if (bt.dataset.a === "revoke") confirmBox("ถอนการอนุมัติ?", `ข้อมูลของ “${esc(b.file_name)}” จะ<b>ออกจากระบบ</b> (ทุกคนจะไม่เห็นในแดชบอร์ด) และกลับไปเป็นชุดรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(b.id); } finally { busy(false); } toast("ถอนแล้ว — ข้อมูลออกจากระบบ"); notifyParent(); showList(); });
   };
   box.onclick = onBox; boxL.onclick = onBox;
 }
+const isLive = b => !!b && (b.status === "approved" || b.status === "partial");
 function confirmBox(title, html, okText, fn) { modal(title, `<div style="line-height:1.8">${html}</div>`, [{text: okText, cls: "no", fn}]); }
 
 /* ═════════ นำเข้าไฟล์ ═════════ */
@@ -962,7 +965,7 @@ function setTab(t) {
   if (t === "rows") renderRows(); else renderCsat();
 }
 function renderHead() {
-  const live = S.cur.status === "approved";
+  const live = isLive(S.cur);
   $("#bchip").innerHTML = `<span class="chip ${live ? "live" : "wait"}">${live ? "ลงระบบแล้ว (ดูอย่างเดียว — ถอนการอนุมัติก่อนจึงแก้ได้)" : "รอตรวจสอบ/อนุมัติ"}</span>`;
   const step = live ? 4 : 2;
   $("#bsteps").innerHTML = ["นำเข้าไฟล์ดิบ", "กรอง / แก้ไขโดยแอดมิน", "แอดมินอนุมัติ", "ข้อมูลลงในระบบ"].map((t, i) => `<div class="st ${i + 1 < step ? "done" : i + 1 === step ? "on" : ""}"><b>${i + 1 < step ? "✓" : i + 1}</b><span>${t}</span></div>`).join("");
@@ -978,7 +981,7 @@ function counts() {
   return c;
 }
 function renderKpi() {
-  const c = counts(), live = S.cur.status === "approved", cs = S.csat.filter(x => x.state !== "drop").length;
+  const c = counts(), live = isLive(S.cur), cs = S.csat.filter(x => x.state !== "drop").length;
   $("#kp").innerHTML = `
     <div class="k"><div class="l">${S.cur.channel === "facebook" ? "เคสในชุด" : "คอมเมนต์ในชุด"}</div><div class="n num">${fmt(c.all)}</div><div class="d">${S.cur.channel === "facebook" ? "Facebook" : fmt(S.csat.length) + " รายการ CSAT/NPS"}</div></div>
     <div class="k go"><div class="l">${live ? "อยู่ในระบบ" : "จะลงระบบเมื่ออนุมัติ"}</div><div class="n num">${fmt(live ? c.live : c.go)}</div><div class="d">${S.cur.channel === "facebook" ? "&nbsp;" : "CSAT/NPS " + fmt(cs) + " รายการ"}</div></div>
@@ -987,7 +990,7 @@ function renderKpi() {
     <div class="k"><div class="l">ข้อมูลช่วง</div><div class="n" style="font-size:16px;padding-top:6px">${esc(fmtD(S.cur.d_from))} – ${esc(fmtD(S.cur.d_to))}</div><div class="d">&nbsp;</div></div>`;
 }
 function renderBar() {
-  const c = counts(), live = S.cur.status === "approved";
+  const c = counts(), live = isLive(S.cur);
   if (live) { $("#bar").innerHTML = `<div class="tx">ชุดนี้อนุมัติแล้ว เมื่อ ${esc(new Date(S.cur.approved_at).toLocaleString("th-TH", {dateStyle: "medium", timeStyle: "short"}))} โดย ${esc(S.cur.approved_by || "—")}</div><button class="btn ghost" id="bRevoke">ถอนการอนุมัติ</button>`; $("#bRevoke").onclick = () => confirmBox("ถอนการอนุมัติ?", `ข้อมูลของชุดนี้จะ<b>ออกจากระบบ</b> และกลับไปรอตรวจสอบ`, "ถอนการอนุมัติ", async () => { busy(true, "กำลังถอน…"); try { await FBStore.revoke(S.cur.id); } finally { busy(false); } toast("ถอนแล้ว"); notifyParent(); const bs = await FBStore.batches(); S.batches = bs; await openBatch(bs.find(x => x.id === S.cur.id)); }); return; }
   $("#bar").innerHTML = `<div class="tx">พร้อมลงระบบ <b>${fmt(c.go)}</b> ${S.cur.channel === "facebook" ? "เคส" : "คอมเมนต์"} · ข้าม <b>${fmt(c.skip)}</b>${S.cur.channel === "facebook" ? "" : ` · CSAT/NPS <b>${fmt(S.csat.filter(x => x.state !== "drop").length)}</b> รายการ`}</div><button class="btn" id="bSave" title="การแก้ไขบันทึกลงฐานข้อมูลทุกครั้งอยู่แล้ว — ปุ่มนี้จำตำแหน่งที่ตรวจค้างไว้ แล้วกลับไปรายการชุด">💾 บันทึกไว้ · ตรวจต่อภายหลัง</button><button class="btn ok" id="bApprove" ${c.go + S.csat.length ? "" : "disabled"}>อนุมัติ → ข้อมูลลงในระบบ</button>`;
   $("#bApprove").onclick = approveDialog;
@@ -1126,7 +1129,7 @@ function renderRows() {
   _view = null;
   syncFilterOptions();   /* ตัวเลือกของช่องถัดไปขึ้นกับช่องก่อนหน้า จึงต้องสร้างใหม่ทุกครั้งที่กรอง */
   renderChips();
-  const v = filtered(), rows = pageRows(), live = S.cur.status === "approved";
+  const v = filtered(), rows = pageRows(), live = isLive(S.cur);
   const no0 = S.page * PAGE;
   _OPT = subOptionsHtml();
   $("#tbody").innerHTML = rows.map((r, i) => rowHtml(r, fmt(no0 + i + 1), live)).join("") || `<tr><td colspan="10" class="empty" style="padding:30px;text-align:center;color:var(--text3)">ไม่มีแถวตามตัวกรอง</td></tr>`;
