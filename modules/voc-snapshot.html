@@ -407,15 +407,6 @@ h1 .mtsub{font-weight:800;color:var(--ink)}
   </div>
 
   <section class="cmp" id="cmpCard" hidden></section>
-  <section class="detcard" id="rankBox" hidden>
-    <div class="dethead"><h2>CSAT / NPS รายสาขา</h2><span class="sub" id="rankMeta"></span></div>
-    <div class="tw">
-      <table class="det">
-        <thead><tr><th>#</th><th>รหัส</th><th>สาขา</th><th>BZM / Owner</th><th>CSAT</th><th>NPS</th></tr></thead>
-        <tbody id="rankBody"></tbody>
-      </table>
-    </div>
-  </section>
   <div class="cats">
     <section class="cat q"><div class="chead"><i class="cdot"></i><h2>หมวดคุณภาพอาหาร</h2><span class="cpills" id="catQh"></span></div><div id="catQ"></div></section>
     <section class="cat s"><div class="chead"><i class="cdot"></i><h2>หมวดพนักงานและบริการ</h2><span class="cpills" id="catSh"></span></div><div id="catS"></div></section>
@@ -807,16 +798,6 @@ function rankView(){
   const list=all.filter(x=>{ const c=codes[x.code]; return c && (!z||c.z===z) && (ui.brand!=='FS'||!o||c.o===o) && (!br||String(br).startsWith(x.code)); });
   return {month:m, list, codes};
 }
-function renderRankTable(){
-  const box=$('rankBox'), rv=rankView();
-  if(!rv){ box.hidden=true; return; }
-  box.hidden=false;
-  $('rankMeta').textContent=`${TH_MF[+rv.month.slice(5)-1]} ${rv.month.slice(0,4)} · ${rv.list.length} สาขา`;
-  const sorted=rv.list.slice().sort((a,b)=>b.cs-a.cs||a.code.localeCompare(b.code));
-  $('rankBody').innerHTML = sorted.length ? sorted.map((x,i)=>{ const c=rv.codes[x.code]||{};
-    return `<tr><td>${i+1}</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc((ui.brand==='FS'?c.o:c.z)||'')}</td><td><b>${x.cs.toFixed(2)}</b></td><td>${x.np==null?'–':x.np.toFixed(2)}</td></tr>`; }).join('')
-    : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีสาขาในกลุ่มนี้</td></tr>';
-}
 function csatNps(){
   const rv=rankView();
   if(rv){
@@ -853,7 +834,7 @@ function renderAll(){
   $('kAll').textContent=fmtN(rows.length); $('kPos').textContent=fmtN(pos); $('kNeg').textContent=fmtN(neg);
   $('kPosP').textContent = rows.length ? (pos/rows.length*100).toFixed(2)+'%' : '–';
   $('kNegP').textContent = rows.length ? (neg/rows.length*100).toFixed(2)+'%' : '–';
-  const [cs,np]=csatNps(); $('kCsat').textContent=cs; $('kNps').textContent=np; renderRankTable();
+  const [cs,np]=csatNps(); $('kCsat').textContent=cs; $('kNps').textContent=np;
   $('barG').style.width = rows.length ? (pos/rows.length*100)+'%' : '0%';
   $('barR').style.width = rows.length ? (neg ? Math.max(1.2, neg/rows.length*100) : 0)+'%' : '0%';
   const zoneLevel = SCOPE.csat && !SCOPE.all;
