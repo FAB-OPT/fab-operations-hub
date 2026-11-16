@@ -787,7 +787,7 @@ function parseRanking(aoa) {
   const hi = aoa.findIndex(r => (r || []).map(txt).includes("Location_Meta2"));
   if (hi < 0) throw new Error("ไม่พบหัวคอลัมน์ Location_Meta2");
   const H = aoa[hi].map(txt), ix = n => H.indexOf(n);
-  const iC = ix("Location_Meta2"), iN = ix("Location_Meta3"), iCs = ix("csat_score"), iNp = ix("nps_score"), iR = ix("rank");
+  const iC = ix("Location_Meta2"), iN = ix("Location_Meta3"), iCs = ix("csat_score"), iNp = ix("nps_score"), iR = ix("rank"), iNn = ix("n");
   const rows = [], bad = [];
   for (let r = hi + 1; r < aoa.length; r++) {
     const a = aoa[r]; if (!a) continue;
@@ -796,11 +796,25 @@ function parseRanking(aoa) {
     const cs = Number(a[iCs]);
     if (a[iCs] == null || txt(a[iCs]) === "" || isNaN(cs)) { bad.push(code); continue; }
     const np = Number(a[iNp]);
-    rows.push({code, name: txt(a[iN]), cs, np: a[iNp] == null || txt(a[iNp]) === "" || isNaN(np) ? null : np,
+    const n = iNn >= 0 && txt(a[iNn]) !== "" && !isNaN(Number(a[iNn])) ? Number(a[iNn]) : null;   // จำนวนใบสำรวจ (ไฟล์บางเดือนมี)
+    rows.push({code, name: txt(a[iN]), cs, np: a[iNp] == null || txt(a[iNp]) === "" || isNaN(np) ? null : np, n,
       rank: iR >= 0 && txt(a[iR]) !== "" && !isNaN(Number(a[iR])) ? Number(a[iR]) : null});
   }
   if (!rows.length) throw new Error("ไม่พบแถวสาขาที่มีคะแนนในไฟล์นี้");
-  return {rows, bad};
+  /* รหัสสาขาซ้ำในไฟล์ (เช่น ชื่ออังกฤษ/ไทย 2 แถว) → รวมเป็นแถวเดียว ถ่วงน้ำหนักด้วยจำนวนใบสำรวจ (ไม่มี n = น้ำหนักเท่ากัน) · ชื่อใช้ของแถวที่ใบสำรวจมากกว่า */
+  const r1 = v => Math.round(v * 10) / 10, by = new Map(), dup = [];
+  rows.forEach(x => {
+    const p = by.get(x.code);
+    if (!p) { by.set(x.code, Object.assign({}, x)); return; }
+    dup.push(x.code);
+    const w1 = p.n || 1, w2 = x.n || 1, w = w1 + w2;
+    p.cs = r1((p.cs * w1 + x.cs * w2) / w);
+    p.np = p.np == null ? x.np : x.np == null ? p.np : r1((p.np * w1 + x.np * w2) / w);
+    if ((x.n || 0) > (p.n || 0) && x.name) p.name = x.name;
+    p.n = (p.n || 0) + (x.n || 0) || null;
+    if (x.rank != null && (p.rank == null || x.rank < p.rank)) p.rank = x.rank;
+  });
+  return {rows: Array.from(by.values()), bad, dup};
 }
 function previewRanking(fileName, r) {
   const guess = I.monthFromName(fileName);
@@ -814,6 +828,7 @@ function previewRanking(fileName, r) {
     </tbody></table></div>
     <div class="note">ทั้งหมด ${fmt(r.rows.length)} สาขา (เลื่อนดูในตาราง)</div>
     ${r.bad.length ? `<div class="warn">ข้ามสาขาที่ไม่มีคะแนน: <b>${r.bad.map(esc).join(" · ")}</b></div>` : ""}
+    ${(r.dup || []).length ? `<div class="note" style="margin-top:6px">รหัสซ้ำในไฟล์ รวมเป็นแถวเดียว (ถ่วงตามจำนวนใบสำรวจ): <b>${r.dup.map(esc).join(" · ")}</b></div>` : ""}
     <ul class="note" style="padding-left:18px">
       <li>เก็บรายสาขาแยกของเดือนนั้น · ถ้าเดือนเดียวกันเคยบันทึกไว้ จะถูกแทนที่ด้วยไฟล์นี้</li>
       <li>บันทึกแล้วลงระบบทันที ไม่ผ่านขั้นตรวจ/อนุมัติ</li>
