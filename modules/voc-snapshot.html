@@ -407,6 +407,15 @@ h1 .mtsub{font-weight:800;color:var(--ink)}
   </div>
 
   <section class="cmp" id="cmpCard" hidden></section>
+  <section class="detcard" id="rankBox" hidden>
+    <div class="dethead"><h2>CSAT / NPS รายสาขา</h2><span class="sub" id="rankMeta"></span></div>
+    <div class="tw">
+      <table class="det">
+        <thead><tr><th>#</th><th>รหัส</th><th>สาขา</th><th>BZM / Owner</th><th>CSAT</th><th>NPS</th></tr></thead>
+        <tbody id="rankBody"></tbody>
+      </table>
+    </div>
+  </section>
   <div class="cats">
     <section class="cat q"><div class="chead"><i class="cdot"></i><h2>หมวดคุณภาพอาหาร</h2><span class="cpills" id="catQh"></span></div><div id="catQ"></div></section>
     <section class="cat s"><div class="chead"><i class="cdot"></i><h2>หมวดพนักงานและบริการ</h2><span class="cpills" id="catSh"></span></div><div id="catS"></div></section>
@@ -520,6 +529,7 @@ function hubRows(rows){
 /* ---------- state ---------- */
 let DATA = {rows:[], csat:[], meta:{source:'sample', updated:null, files:[]}};
 let byBrand = {};
+let RANK = {};   // CSAT/NPS รายสาขาจากฐานกลาง (ไฟล์ Ranking): {'YYYY-MM': [{code,name,cs,np,rank}]}
 const ui = {brand:'KT', sub:'', sortKey:'d', sortDir:-1, page:0};
 
 function loadSample(){
@@ -784,7 +794,36 @@ function refreshDropdowns(){
   const z=$('fBzm').value, o=$('fOwner').value;
   opts($('fBranch'), uniq(rows.filter(r=>(!z||r.z===z)&&(!o||ui.brand!=='FS'||r.o===o)).map(r=>r.br)));
 }
+/* CSAT/NPS รายสาขาของ "เดือนที่เลือก" (ไฟล์ Ranking) · ไม่มีข้อมูลเดือนนั้น/เลือกช่วงเอง = null → ใช้ค่าระดับเขตแบบเดิม
+   กรองตามแบรนด์ + BZM/Owner/สาขาที่เลือก (สาขาที่เห็นได้ตามสิทธิ์ = สาขาที่มีแถวคอมเมนต์ใน byBrand) */
+function rankView(){
+  if(!SCOPE.csat) return null;
+  const m=$('fMonth').value;
+  const all=/^\d{4}-\d{2}$/.test(m) ? RANK[m] : null;
+  if(!all||!all.length) return null;
+  const codes={};
+  for(const r of (byBrand[ui.brand]||[])){ const c=String(r.br||'').slice(0,4); if(/^\d{4}$/.test(c) && !codes[c]) codes[c]={z:r.z,o:r.o}; }
+  const z=$('fBzm').value, o=$('fOwner').value, br=$('fBranch').value;
+  const list=all.filter(x=>{ const c=codes[x.code]; return c && (!z||c.z===z) && (ui.brand!=='FS'||!o||c.o===o) && (!br||String(br).startsWith(x.code)); });
+  return {month:m, list, codes};
+}
+function renderRankTable(){
+  const box=$('rankBox'), rv=rankView();
+  if(!rv){ box.hidden=true; return; }
+  box.hidden=false;
+  $('rankMeta').textContent=`${TH_MF[+rv.month.slice(5)-1]} ${rv.month.slice(0,4)} · ${rv.list.length} สาขา`;
+  const sorted=rv.list.slice().sort((a,b)=>b.cs-a.cs||a.code.localeCompare(b.code));
+  $('rankBody').innerHTML = sorted.length ? sorted.map((x,i)=>{ const c=rv.codes[x.code]||{};
+    return `<tr><td>${i+1}</td><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td>${esc((ui.brand==='FS'?c.o:c.z)||'')}</td><td><b>${x.cs.toFixed(2)}</b></td><td>${x.np==null?'–':x.np.toFixed(2)}</td></tr>`; }).join('')
+    : '<tr><td colspan="6" style="text-align:center;color:var(--muted)">ไม่มีสาขาในกลุ่มนี้</td></tr>';
+}
 function csatNps(){
+  const rv=rankView();
+  if(rv){
+    if(!rv.list.length) return ['–','–'];
+    const nn=rv.list.filter(x=>x.np!=null);
+    return [(rv.list.reduce((s,x)=>s+x.cs,0)/rv.list.length).toFixed(2), nn.length ? (nn.reduce((s,x)=>s+x.np,0)/nn.length).toFixed(2) : '–'];
+  }
   const f=$('dFrom').value, t=$('dTo').value;
   const key = ui.brand==='FS' ? $('fOwner').value : $('fBzm').value;
   /* CSAT/NPS ในไฟล์เป็นค่าระดับเขต (BZM/Owner): สาขาไม่เห็น · BZM เห็นเฉพาะเขตตัวเอง */
@@ -814,7 +853,7 @@ function renderAll(){
   $('kAll').textContent=fmtN(rows.length); $('kPos').textContent=fmtN(pos); $('kNeg').textContent=fmtN(neg);
   $('kPosP').textContent = rows.length ? (pos/rows.length*100).toFixed(2)+'%' : '–';
   $('kNegP').textContent = rows.length ? (neg/rows.length*100).toFixed(2)+'%' : '–';
-  const [cs,np]=csatNps(); $('kCsat').textContent=cs; $('kNps').textContent=np;
+  const [cs,np]=csatNps(); $('kCsat').textContent=cs; $('kNps').textContent=np; renderRankTable();
   $('barG').style.width = rows.length ? (pos/rows.length*100)+'%' : '0%';
   $('barR').style.width = rows.length ? (neg ? Math.max(1.2, neg/rows.length*100) : 0)+'%' : '0%';
   const zoneLevel = SCOPE.csat && !SCOPE.all;
@@ -936,7 +975,9 @@ function daysBetween(from,to){ const out=[]; for(let t=Date.parse(from+'T00:00:0
 function applyCentral(){
   const m=CENTRAL; if(!BASEDATA) return;
   if(!m || m.off){ CENTRALNOTE = m&&m.off ? ' · <span style="color:var(--bad)">ยังเชื่อมฐานข้อมูลกลางไม่ได้'+(m.off==='nosql'?' (ยังไม่ได้สร้างตาราง)':'')+' — แสดงข้อมูลในเครื่อง</span>' : ''; renderStatus(); return; }
-  if(!m.rows.length && !m.csat.length){ CENTRALNOTE=''; renderStatus(); return; }
+  /* CSAT/NPS รายสาขา (ไฟล์ Ranking) จากฐานกลาง */
+  RANK={}; for(const x of (m.rank||[])){ (RANK[x.month] ||= []).push({code:String(x.code), name:x.name||'', cs:+x.csat, np:x.nps==null?null:+x.nps, rank:x.rank}); }
+  if(!m.rows.length && !m.csat.length && !(m.rank&&m.rank.length)){ CENTRALNOTE=''; renderStatus(); return; }
   CENTRALNOTE='';
   const mk=(b,d)=>b+'|'+String(d).slice(0,7);
   const cov=new Set(m.rows.map(r=>mk(r.b,r.d)));

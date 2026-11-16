@@ -160,6 +160,10 @@
       return sb().rpc('fb_ranking_save', { p_month: month, p_file: file || '', p_rows: rows }).then(ok).then(function (r) { if (!r.ok) throw new Error(r.error); return r; });
     },
     /* เดือนที่มีข้อมูล Ranking แล้ว + จำนวนสาขา (ใหม่สุดก่อน) */
+    /* ทุกเดือน ทุกสาขา — ส่งให้แดชบอร์ด VOC */
+    rankAll: function () {
+      return sb().from('fb_branch_csat').select('month,code,name,csat,nps,rank').range(0, 9999).then(ok);
+    },
     rankRows: function (month) {
       return sb().from('fb_branch_csat').select('code,name,csat,nps,rank').eq('month', month).order('csat', { ascending: false }).then(ok);
     },
