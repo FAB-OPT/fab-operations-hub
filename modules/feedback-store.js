@@ -72,8 +72,9 @@
     },
     /* ตัวระบุความเปลี่ยนแปลง — ใช้ตัดสินว่าต้องโหลดใหม่ไหม */
     liveStamp: function (channel) {
-      return sb().from('fb_batches').select('id,approved_at').eq('channel', channel).in('status', ['approved', 'partial']).then(ok).then(function (a) {
-        return a.map(function (x) { return x.id + '@' + x.approved_at; }).sort().join(',');
+      /* ต้องรวม status ด้วย — ถอน CSAT (approved → partial) ไม่เปลี่ยน approved_at จึงต้องให้สแตมป์เปลี่ยนเอง */
+      return sb().from('fb_batches').select('id,status,approved_at').eq('channel', channel).in('status', ['approved', 'partial']).then(ok).then(function (a) {
+        return a.map(function (x) { return x.id + '@' + x.status + '@' + x.approved_at; }).sort().join(',');
       });
     },
 
