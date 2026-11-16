@@ -408,7 +408,7 @@ function wire() {
   $("#toList").onclick = showList;
   $("#vList").addEventListener("click", e => {
     const y = e.target.closest("[data-cy]"); if (y){ COV.year = +y.dataset.cy; return renderCov(); }
-    const c = e.target.closest("[data-cell]"); if (c){ const [id, m] = c.dataset.cell.split("|"); const x = COV.rowsDef.find(d => d.id === id); if (x){ const st = covCell(x, m).st; if (st === "miss" || (st === "ok" && x.kind === "set")) covDetail(id, m); } return; }
+    const c = e.target.closest("[data-cell]"); if (c){ const [id, m] = c.dataset.cell.split("|"); const x = COV.rowsDef.find(d => d.id === id); if (x){ const cc = covCell(x, m), st = cc.st; if (st === "miss" || (st === "ok" && x.kind === "set" && !cc.rk)) covDetail(id, m); } return; }
     const t = e.target.closest("[data-todo]"); if (t){ const [id, m] = t.dataset.todo.split("|"); covDetail(id, m); }
   });
   $("#tRows").onclick = () => setTab("rows"); $("#tCsat").onclick = () => setTab("csat");
@@ -477,7 +477,10 @@ async function loadCov() {
     (S.batches || []).filter(b => b.channel === "facebook" && (b.status === "approved" || b.status === "partial") && b.d_from).forEach(b => {
       const a = new Date(b.d_from + "T00:00:00"), z = new Date((b.d_to || b.d_from) + "T00:00:00");
       for (let d = new Date(a.getFullYear(), a.getMonth(), 1); d <= z; d.setMonth(d.getMonth() + 1)) fb.add(mkey(d.getFullYear(), d.getMonth() + 1)); });
-    COV.data = {cm, ck, fb};
+    /* CSAT/NPS รายสาขา (ไฟล์ Ranking) — นับจำนวนสาขาต่อแบรนด์ต่อเดือน ให้ช่อง CSAT/NPS ของเดือนนั้นขึ้นว่ามีข้อมูล */
+    const rk = {};
+    try { (await FBStore.rankAll()).forEach(x => { const b = {"5": "KT", "8": "FS", "4": "JD"}[String(x.code)[0]]; if (!b) return; const o = rk[x.month] = rk[x.month] || {}; o[b] = (o[b] || 0) + 1; }); } catch (e) {}
+    COV.data = {cm, ck, fb, rk};
     buildCovRows();
     renderCov();
   } catch (e) { panel.innerHTML = `<div class="warn">โหลดตารางความครบของข้อมูลไม่ได้: ${esc(e.message)}</div>`; }
@@ -512,7 +515,7 @@ async function loadRankPanel(month) {
   } catch (e) { box.innerHTML = `<div class="warn">โหลด CSAT รายสาขาไม่ได้: ${esc(e.message)}</div>`; }
 }
 function buildCovRows() {
-  const {cm, ck} = COV.data, months = Object.keys(cm).sort();
+  const {cm, ck, rk} = COV.data, months = Object.keys(cm).sort();
   const hubKT = (() => { try { return HubMod.Branches.list().filter(b => b.brand === "santafe" && !b.closed).map(b => b.code); } catch (e) { return []; } })();
   // สาขา/BZM ที่ "ควรมี" = KT ตามทะเบียนฮับ · อื่น ๆ = ที่เคยพบใน 3 เดือนล่าสุดที่มีข้อมูล
   /* "ควรมี" ของ FS/เจ๊แดง = สาขาที่พบอย่างน้อยครึ่งหนึ่งของ 6 เดือนล่าสุดที่มีข้อมูล (ตัดสาขาที่เพิ่งเปิด/ปิดออก) */
@@ -529,7 +532,8 @@ function buildCovRows() {
   const brn = b => ({id: "b" + b, g: "VOC · คอมเมนต์", name: BN[b] + " · สาขาที่มีคอมเมนต์", src: b === "KT" ? "เทียบกับสาขาที่เปิดอยู่ในทะเบียนฮับ" : "เทียบกับสาขาที่มีคอมเมนต์อย่างน้อย 3 ใน 6 เดือนล่าสุด", kind: "set",
     exp: expBr[b], get: m => (cm[m] && cm[m][b] ? [...cm[m][b].br] : [])});
   const ckk = b => ({id: "k" + b, g: "VOC · CSAT / NPS", name: BN[b] + " · " + (b === "FS" ? "Owner" : "BZM"), src: "ไฟล์ csat / Looker / rawdata", kind: "set",
-    exp: expKey[b], get: m => (ck[m] && ck[m][b] ? [...ck[m][b]] : []), noun: b === "FS" ? "Owner" : "BZM"});
+    exp: expKey[b], get: m => (ck[m] && ck[m][b] ? [...ck[m][b]] : []), noun: b === "FS" ? "Owner" : "BZM",
+    rkn: m => (rk && rk[m] && rk[m][b]) || 0});   // จำนวนสาขาที่มีใน Ranking ของเดือนนั้น
   defs.push(cnt("KT"), brn("KT"), cnt("FS"), brn("FS"), cnt("JD"), ckk("KT"), ckk("FS"), ckk("JD"));
   defs.push({id: "fb", g: "Facebook", name: "ข้อร้องเรียน", src: "ไฟล์ สรุป_Complain_FB", kind: "flag", get: m => COV.data.fb.has(m) ? 1 : 0});
   COV.rowsDef = defs;
@@ -545,6 +549,8 @@ function covCell(d, m) {
     else { st = "ok"; txt = fmt(v); }
   } else if (d.kind === "set") {
     const seen = new Set(v); miss = d.exp.filter(x => !seen.has(x));
+    const rn = !v.length && d.rkn ? d.rkn(m) : 0;
+    if (rn) return {st: "ok", txt: fmt(rn), miss: [], v, rk: true};   // ไม่มีค่าระดับ BZM/Owner แต่มี Ranking รายสาขาของเดือนนี้ = มีข้อมูล (ตัวเลข = จำนวนสาขา)
     if (!v.length) st = isCur || future ? "open" : "miss";
     else { st = "ok"; txt = fmt(v.length); }
   } else { st = v ? "ok" : (isCur || future ? "open" : "miss"); }
@@ -552,8 +558,8 @@ function covCell(d, m) {
 }
 
 function renderCov() {
-  const {cm, ck, fb} = COV.data, T = COV.rowsDef, cur = nowKey();
-  const all = new Set([...Object.keys(cm), ...Object.keys(ck), ...fb]);
+  const {cm, ck, fb, rk} = COV.data, T = COV.rowsDef, cur = nowKey();
+  const all = new Set([...Object.keys(cm), ...Object.keys(ck), ...fb, ...Object.keys(rk || {})]);
   const years = [...new Set([...all].map(m => +m.slice(0, 4)).concat([+cur.slice(0, 4)]))].sort((a, b) => b - a);
   if (!COV.year || !years.includes(COV.year)) COV.year = +cur.slice(0, 4);
   const Y = COV.year, ms = Array.from({length: 12}, (_, i) => mkey(Y, i + 1));
@@ -816,7 +822,7 @@ function previewRanking(fileName, r) {
     const ym = $("#rkMonth", body).value;
     if (!/^\d{4}-\d{2}$/.test(ym)) { toast("เลือกเดือนก่อน"); return false; }
     busy(true, "กำลังบันทึกรายสาขา…");
-    try { const res = await FBStore.rankSave(ym, fileName, r.rows); busy(false); toast(`บันทึก ${res.n} สาขา · ${ym}`); notifyParent(); return true; }
+    try { const res = await FBStore.rankSave(ym, fileName, r.rows); busy(false); toast(`บันทึก ${res.n} สาขา · ${ym}`); notifyParent(); COV.cells = {}; loadCov(); loadRankPanel(ym); return true; }
     catch (e) { busy(false); toast("บันทึกไม่สำเร็จ: " + (e.message || e)); return false; }
   }}]);
 }
