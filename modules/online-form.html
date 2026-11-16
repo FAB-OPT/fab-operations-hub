@@ -432,6 +432,28 @@ summary{font-weight:700;cursor:pointer}
 @media(max-width:820px){
   .seg button{min-height:46px;font-size:14.5px}
   .qcard{padding:14px 13px}
+  /* ตัวเลือกบนมือถือ: เรียงทีละแถวเต็มความกว้าง ปุ่มสูง 56px ตัวอักษร 16px ข้อความยาวขึ้นบรรทัดใหม่ได้
+     วงกลม (เลือก 1 ข้อ) / ช่องสี่เหลี่ยม (เลือกได้หลายข้อ) นำหน้า บอกชัดว่าแตะเลือกได้ */
+  .seg.choice{display:grid;grid-template-columns:1fr;gap:9px}
+  .seg.choice button{
+    display:flex;align-items:center;gap:12px;width:100%;min-height:56px;padding:12px 14px;text-align:left;
+    font-size:16px;font-weight:600;line-height:1.35;color:var(--ink);background:#fff;border:1.5px solid #d9dde4;border-radius:14px;
+    white-space:normal;word-break:break-word}
+  .seg.choice button::before{
+    content:"";flex:none;width:22px;height:22px;border:2px solid #b9c0ca;border-radius:50%;background:#fff;
+    transition:border-color .12s,background .12s,box-shadow .12s}
+  .seg.choice.multi button::before{border-radius:7px}
+  .seg.choice button.on{background:var(--orange-soft);border-color:var(--orange);color:var(--ink)}
+  .seg.choice button.on::before{border-color:var(--orange);background:var(--orange);box-shadow:inset 0 0 0 4px #fff}
+  .seg.choice.multi button.on::before{content:"✓";display:grid;place-items:center;color:#fff;font-size:15px;font-weight:800;box-shadow:none}
+  .seg.multi button.on::before{content:"✓"}
+  .seg.choice button:active{transform:scale(.99)}
+  /* ใช่ / ไม่ใช่ : สองปุ่มคู่กัน ใหญ่ ไม่ต้องมีวงกลม */
+  .seg.choice.yn{grid-template-columns:1fr 1fr}
+  .seg.choice.yn button{justify-content:center;text-align:center}
+  .seg.choice.yn button::before{display:none}
+  /* สเกลคะแนน: ปุ่มสูงขึ้น แตะง่าย */
+  .seg.scale button{min-height:52px;font-size:17px;font-weight:700}
 }
 
 /* ── คำตอบ ── */
@@ -1363,7 +1385,7 @@ async function loadResponses(){
 /* ฟอร์มไหนที่ "ฉัน" ตอบไปแล้ว — ใช้ปิดไม่ให้ตอบซ้ำ และขึ้นป้ายในรายการ */
 async function loadMine(){
   await sbReady();
-  const { data } = await SB.from('fm_responses').select('form_key,created_at').eq('respondent_code', ME.code);
+  const { data } = await SB.from('fm_responses').select('*').eq('respondent_code', ME.code);
   myResp = (data || []).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
   myAnswered = new Set(myResp.map(r => r.form_key));
 }
@@ -1418,6 +1440,7 @@ function renderWho(){
 /* ไอคอนแถบเมนูล่าง */
 const TAB_ICON = {
   list:     '<svg viewBox="0 0 24 24"><rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M9 8.5h6M9 12h6M9 15.5h4"/></svg>',
+  mine:     '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   results:  '<svg viewBox="0 0 24 24"><path d="M5 20V11M12 20V5M19 20v-7"/></svg>',
   followup: '<svg viewBox="0 0 24 24"><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/></svg>',
   forms:    '<svg viewBox="0 0 24 24"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg>',
@@ -1501,7 +1524,7 @@ function renderKind(t, genFn){
 }
 
 function renderNav(){
-  const tabs = [['list','แบบฟอร์ม','แบบฟอร์ม']];
+  const tabs = [['list','แบบฟอร์ม','แบบฟอร์ม'], ['mine','ประวัติของฉัน','ประวัติ']];
   if (tabAllowed('results'))  tabs.push(['results','คำตอบ','คำตอบ']);
   if (tabAllowed('report'))   tabs.push(['report','ออกรายงาน','รายงาน']);
   if (tabAllowed('followup')) tabs.push(['followup','ติดตามที่ยังไม่ตอบ','ติดตาม']);
@@ -1521,6 +1544,7 @@ window.go = async function(t){
   if (t !== 'forms') editing = null;
   tab = t; clearMsg(); renderNav(); window.scrollTo({ top:0 });
   if (t === 'list'){ await loadForms(); await Promise.all([loadMine(), loadSgForms(), loadTt(), ofCan('view-followup') ? loadResponses().then(() => HUB_READY) : null, HUB_READY]); return renderList(); }
+  if (t === 'mine'){ $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>'; await Promise.all([loadForms(), loadMine()]); return renderMine(); }
   /* คำตอบ / รายงาน / ติดตาม: มีให้เลือกชนิดฟอร์ม — ชนิดอื่นฝังหน้าของระบบนั้นมาแสดงในนี้เลย (ไม่ต้องกดเข้าไปอีกชั้น) */
   if (t === 'results' || t === 'followup' || t === 'report'){
     $('#view').innerHTML = '<div class="loading">กำลังโหลด…</div>';
@@ -1704,6 +1728,45 @@ function renderList(){
     </div>`;
 }
 
+/* ── ประวัติการตอบของฉัน (สาขา/ผู้ใช้ทุกคนเห็นเฉพาะคำตอบที่ตัวเองส่ง) ───────────────── */
+const isSurveyRow = r => !r.form_kind || r.form_kind === 'survey';
+function renderMine(){
+  const list = (myResp || []).filter(isSurveyRow);
+  const byForm = {}; list.forEach(r => { byForm[r.form_key] = (byForm[r.form_key] || 0) + 1; });
+  if (!list.length){
+    $('#view').innerHTML = `<div class="hero"><h1>ประวัติการตอบ</h1><p>${esc(ME.name || '')}</p></div>
+      <div class="card"><div class="empty">ยังไม่เคยส่งคำตอบ<br><span class="sub">เมื่อตอบแบบฟอร์มแล้ว จะขึ้นที่นี่ให้กลับมาดูได้</span><br>
+      <button class="btn btn-primary" style="margin-top:12px" onclick="go('list')">ไปหน้าแบบฟอร์ม</button></div></div>`;
+    return;
+  }
+  $('#view').innerHTML = `<div class="hero"><div class="hero-k">${esc(ME.name || '')}</div><h1>ตอบไปแล้ว <em>${list.length} ครั้ง</em></h1><p>แตะรายการเพื่อดูคำตอบที่ส่งไป</p></div>
+    <div class="tks">${list.map(r => {
+      const f = forms.find(x => x.key === r.form_key), n = Object.keys(r.answers || {}).length;
+      return `<div class="form-item tk clickable" onclick="mineDetail(${r.id})">
+        <div class="tk-h">
+          <div class="tk-no"><span><em class="tk-k">แบบสอบถาม</em>${byForm[r.form_key] > 1 ? `<i class="tk-x">ตอบ ${byForm[r.form_key]} ครั้ง</i>` : ''}</span><span>${esc(fmtDT(r.created_at))}</span></div>
+          <div class="tk-t"><span>${esc((f && f.emoji) || '📋')}</span>${esc(r.form_title || (f && f.title) || r.form_key)}</div>
+          <div class="tk-d">ส่งคำตอบไป ${n} ข้อ</div>
+        </div>
+        <div class="tk-b"><div class="tk-go"><button class="btn btn-line">ดูคำตอบ ›</button></div></div>
+      </div>`;
+    }).join('')}</div>`;
+}
+window.mineDetail = function(id){
+  const r = (myResp || []).find(x => x.id === id); if (!r) return;
+  const form = forms.find(f => f.key === r.form_key);
+  const qs = form ? answerQs(form, [r]) : [];
+  const rows = qs.length
+    ? qs.map((q, i) => `<tr><td>${i + 1}. ${esc(q.label)}</td><td><b>${esc(ansText((r.answers || {})[q.id]))}</b></td></tr>`).join('')
+    : Object.keys(r.answers || {}).map(k => `<tr><td>${esc(k)}</td><td><b>${esc(ansText(r.answers[k]))}</b></td></tr>`).join('');
+  $('#modalBox').innerHTML = `
+    <div class="modal-head"><div><h2>${esc(r.form_title || (form && form.title) || r.form_key)}</h2>
+      <p class="sub" style="margin:0">คำตอบของคุณ · ส่งเมื่อ ${fmtDT(r.created_at)}</p></div>
+      <div class="row-btns"><button class="btn btn-secondary btn-sm" onclick="printResp(${r.id})">🖨 พิมพ์ / PDF</button>
+      <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button></div></div>
+    <table class="qtable">${rows || '<tr><td>—</td></tr>'}</table>`;
+  $('#modal').classList.add('show');
+};
 const fmtDT = v => v ? new Date(v).toLocaleString('th-TH', { day:'2-digit', month:'short', year:'2-digit', hour:'2-digit', minute:'2-digit', hour12:false }) : '';
 const fmtD  = v => v ? new Date(v).toLocaleDateString('th-TH', { day:'2-digit', month:'short', year:'2-digit' }) : '—';
 
@@ -1726,7 +1789,7 @@ function qInput(q, val, opts){
   if (q.type === 'long')   return `<textarea id="${id}" data-q="${q.id}">${esc(val || '')}</textarea>`;
   if (q.type === 'number') return `<input id="${id}" data-q="${q.id}" type="number" value="${esc(val ?? '')}">`;
   if (q.type === 'date')   return `<input id="${id}" data-q="${q.id}" type="date" value="${esc(val || '')}">`;
-  if (q.type === 'yesno')  return `<div class="seg choice" data-q="${q.id}">
+  if (q.type === 'yesno')  return `<div class="seg choice yn" data-q="${q.id}">
       <button type="button" class="${val === 'ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ใช่')">ใช่</button>
       <button type="button" class="${val === 'ไม่ใช่' ? 'on' : ''}" onclick="pickOne('${q.id}','ไม่ใช่')">ไม่ใช่</button>
     </div>`;
@@ -2345,7 +2408,7 @@ window.printResults = function(){
     </table>`, `คำตอบแบบฟอร์ม-${stamp()}`);
 };
 window.printResp = function(id){
-  const r = responses.find(x => x.id === id); if (!r) return;
+  const r = responses.find(x => x.id === id) || (myResp || []).find(x => x.id === id); if (!r) return;
   const form = forms.find(f => f.key === r.form_key);
   const qs = form ? answerQs(form, [r]) : [];
   const rows = (qs.length ? qs.map((q, i) => [`${i + 1}. ${q.label}`, ansText((r.answers || {})[q.id])])
