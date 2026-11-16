@@ -802,7 +802,7 @@ function previewRanking(fileName, r) {
   body.innerHTML = `
     <div class="note" style="margin-bottom:8px">${esc(fileName)} · CSAT / NPS รายสาขา ${fmt(r.rows.length)} สาขา</div>
     <div style="margin:8px 0"><label><b>ข้อมูลเดือนไหน</b> <input type="month" id="rkMonth" value="${esc(guess)}" style="width:auto;max-width:200px"></label>${guess ? "" : ` <span class="note">เดาจากชื่อไฟล์ไม่ได้ — เลือกเอง</span>`}</div>
-    <div style="height:55vh;min-height:300px;overflow:auto;border:1px solid var(--line);border-radius:8px">
+    <div style="height:calc(var(--vh,100vh) - 340px);min-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px">
     <table class="mtab" style="margin:0"><thead><tr><th>รหัส</th><th>สาขา</th><th class="r">CSAT</th><th class="r">NPS</th></tr></thead><tbody>
       ${r.rows.map(x => `<tr><td>${esc(x.code)}</td><td>${esc(x.name)}</td><td class="r">${x.cs}</td><td class="r">${x.np == null ? "–" : x.np}</td></tr>`).join("")}
     </tbody></table></div>
@@ -1501,11 +1501,15 @@ boot();
   const measure = () => {
     const sh = document.querySelector(".shell");
     const c = sh ? Math.ceil(sh.getBoundingClientRect().bottom + window.scrollY) : 0;   /* ก้นเนื้อหาจริง */
-    return Math.max(160, Math.min(c || document.body.scrollHeight, document.body.scrollHeight));
+    let h = Math.max(160, Math.min(c || document.body.scrollHeight, document.body.scrollHeight));
+    /* มีหน้าต่างเปิดอยู่: ขยายกรอบให้สูงเท่าจอ ไม่งั้นหน้าต่างถูกบีบให้เตี้ยเท่าเนื้อหาข้างหลัง (ใต้กรอบเป็นที่ว่างเปล่า) */
+    if (document.querySelector(".mask")) { try { h = Math.max(h, parent.innerHeight); } catch (e) {} }
+    return h;
   };
   const send = () => { q = 0; try { const h = measure(); if (Math.abs(h - last) < 2) return; last = h; parent.postMessage({type: "fr-height", h}, location.origin); } catch (e) {} };
   const ping = () => { if (!q) q = setTimeout(send, 16); };   /* rAF ถูกหยุดเมื่อกรอบอยู่นอกจอ จึงใช้ timer */
   try { new ResizeObserver(ping).observe(document.body); } catch (e) {}
+  try { new MutationObserver(ping).observe(document.body, {childList: true}); } catch (e) {}   /* หน้าต่างเปิด/ปิด = วัดความสูงใหม่ทันที */
   window.addEventListener("load", send);
   setInterval(send, 1000);   /* กันพลาด: ถ้า ResizeObserver ไม่ทำงาน กรอบยังหดกลับเองได้ */
   send();
@@ -1518,6 +1522,7 @@ boot();
   } catch (e) {} };
   try { parent.addEventListener("scroll", fit, {passive: true, capture: true}); parent.addEventListener("resize", fit); } catch (e) {}
   try { new ResizeObserver(fit).observe(document.body); } catch (e) {}
+  window.addEventListener("resize", fit);   /* กรอบถูกขยายเพราะมีหน้าต่างเปิด → คำนวณส่วนที่มองเห็นใหม่ */
   fit();
 })();
 </script>
