@@ -498,6 +498,30 @@ summary{font-weight:700;cursor:pointer}
 .pc-q i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.4;margin-bottom:3px}
 .pc-q em{display:block;font-style:normal;font-weight:700;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .pc-q em.nil{color:#c0c5cc;font-weight:400}
+/* คำตอบ · กราฟ: สรุปรายข้อ (แท่งแนวนอน ล้วน CSS) */
+.chs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
+.ch{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px 18px}
+.ch-h{display:flex;gap:10px;align-items:flex-start;margin-bottom:12px}
+.ch-no{flex:none;min-width:26px;height:26px;border-radius:8px;background:var(--orange-soft);color:#b33a05;font-size:12.5px;font-weight:800;display:grid;place-items:center;margin-top:1px}
+.ch-h b{display:block;font-size:14.5px;line-height:1.45;overflow-wrap:anywhere}
+.ch-h small{display:block;font-size:12.5px;color:var(--muted);margin-top:2px}
+.ch-avg{margin-left:auto;flex:none;text-align:right;line-height:1.1}
+.ch-avg b{font-size:24px;font-weight:800;color:var(--orange);font-variant-numeric:tabular-nums}
+.ch-avg small{margin:0}
+.br{display:grid;grid-template-columns:minmax(90px,38%) minmax(0,1fr) 62px;gap:10px;align-items:center;padding:4px 0;font-size:13.5px}
+.br .bl{line-height:1.35;overflow-wrap:anywhere}
+.br .bt{height:12px;background:#f0f1f4;border-radius:99px;overflow:hidden}
+.br .bt i{display:block;height:100%;background:linear-gradient(90deg,#ff8a3c,var(--orange));border-radius:99px;min-width:0}
+.br .bn{text-align:right;font-weight:800;font-variant-numeric:tabular-nums;white-space:nowrap}
+.br .bn small{font-weight:400;color:var(--muted);margin-left:3px;font-size:12px}
+.br.zero .bl,.br.zero .bn{color:#a3a9b3}
+.br.top .bl{font-weight:700}
+.tx{margin:0;padding:0;list-style:none;display:grid;gap:8px}
+.tx li{font-size:14px;line-height:1.5;padding:8px 10px;background:#f8f9fb;border-radius:10px;overflow-wrap:anywhere;white-space:pre-wrap}
+.tx li span{display:block;font-size:12px;color:var(--muted);margin-bottom:1px}
+.ch details summary{cursor:pointer;color:var(--orange);font-weight:700;font-size:13px;margin-top:8px}
+.ch .nil{color:#a3a9b3;font-size:13.5px;margin:0}
+@media(max-width:1100px){.chs{grid-template-columns:1fr}}
 @media(max-width:820px){
   .ppl{display:none}
   .flt{grid-template-columns:1fr 1fr}
@@ -2057,6 +2081,7 @@ function renderResultsGen(){
     <div class="strip" id="rStats"></div>
     <div class="rcards" id="rCards"></div>
     <div class="ppl" id="rPeople"></div>
+    <div class="chs" id="rCharts"></div>
     <div class="card rtable-card" style="padding:0;overflow:hidden">
       <div class="table-wrap" style="border:0;border-radius:0"><table id="rTable"></table></div>
     </div>
@@ -2080,11 +2105,14 @@ function paintResults(){
     <span><b>${list.length}</b>คำตอบ</span>
     <span><b>${new Set(list.map(r => r.respondent_code)).size}</b>ผู้ตอบ</span>
     <span><b>${new Set(list.map(r => r.form_key)).size}</b>แบบฟอร์ม</span>
-    ${form ? `<span class="rview"><button type="button" class="${view === 'people' ? 'on' : ''}" onclick="setRView('people')">รายคน</button><button type="button" class="${view === 'table' ? 'on' : ''}" onclick="setRView('table')">ตาราง</button></span>` : ''}`;
+    ${form ? `<span class="rview"><button type="button" class="${view === 'people' ? 'on' : ''}" onclick="setRView('people')">รายคน</button><button type="button" class="${view === 'charts' ? 'on' : ''}" onclick="setRView('charts')">กราฟ</button><button type="button" class="${view === 'table' ? 'on' : ''}" onclick="setRView('table')">ตาราง</button></span>` : ''}`;
   $('#rEmpty').style.display = list.length ? 'none' : '';
   $('.rtable-card').style.visibility = list.length ? '' : 'hidden';
   $('.rtable-card').style.display = view === 'table' ? '' : 'none';
   $('#rPeople').style.display = view === 'people' ? '' : 'none';
+  $('#rCharts').style.display = view === 'charts' && list.length ? '' : 'none';
+  $('#rCards').style.display = view === 'charts' ? 'none' : '';   // มือถือ: โหมดกราฟไม่ต้องโชว์การ์ดรายคน
+  $('#rCharts').innerHTML = (view === 'charts' && list.length) ? chartsHtml(qs, list) : '';
   $('#rPeople').innerHTML = view !== 'people' ? '' : list.map(r => {
     const a = r.answers || {};
     const same = !r.respondent_branch || r.respondent_branch === r.respondent_name;
@@ -2137,6 +2165,56 @@ function paintResults(){
 }
 
 window.setRView = function(v){ rf.view = v; paintResults(); };
+
+/* สรุปรายข้อเป็นกราฟแท่ง: ตัวเลือก/ใช่ไม่ใช่/หลายตัวเลือก/สเกล → แท่งตามจำนวนคน (% ของคนที่ตอบข้อนั้น)
+   ตัวเลือกที่ขึ้นต้นด้วยเลข (เช่น "5 = มากที่สุด") → เรียงตามเลขและคิดค่าเฉลี่ยให้ · ข้อความ/วันที่ → รายการคำตอบ */
+function chartsHtml(qs, list){
+  const numPre = o => { const m = /^\s*(\d+(?:\.\d+)?)/.exec(String(o)); return m ? Number(m[1]) : null; };
+  const bar = (label, n, total, cls) => {
+    const p = total ? n / total * 100 : 0;
+    return `<div class="br ${n ? '' : 'zero'} ${cls || ''}"><span class="bl">${esc(label)}</span>
+      <span class="bt"><i style="width:${p.toFixed(1)}%"></i></span>
+      <span class="bn">${n}<small>${Math.round(p)}%</small></span></div>`;
+  };
+  return qs.map((q, i) => {
+    const vals = list.map(r => (r.answers || {})[q.id]).filter(v => v != null && v !== '' && !(Array.isArray(v) && !v.length));
+    const head = (avg, avgSub) => `<div class="ch-h"><span class="ch-no">${i + 1}</span>
+      <div><b>${esc(q.label)}</b><small>${esc(qTypeLabel(q.type))} · ตอบ ${vals.length} คน</small></div>
+      ${avg != null ? `<div class="ch-avg"><b>${avg.toFixed(2)}</b><small>${esc(avgSub)}</small></div>` : ''}</div>`;
+    if (!vals.length) return `<div class="ch">${head()}<p class="nil">— ยังไม่มีคำตอบ —</p></div>`;
+
+    if (['single', 'multi', 'yesno', 'scale'].includes(q.type)){
+      let opts = q.type === 'yesno' ? ['ใช่', 'ไม่ใช่']
+        : q.type === 'scale' ? (() => { const a = Number(q.min) || 1, b = Number(q.max) || 5, o = []; for (let k = b; k >= a; k--) o.push(String(k)); return o; })()
+        : (q.options || []).map(String);
+      const flat = vals.flatMap(v => Array.isArray(v) ? v : [v]).map(String);
+      const other = [...new Set(flat.filter(v => !opts.includes(v)))];
+      opts = [...opts, ...other];
+      const rows = opts.map(o => ({ o, n: flat.filter(v => v === o).length }));
+      const scored = q.type === 'scale' || (q.type === 'single' && opts.length > 1 && opts.every(o => numPre(o) != null));
+      if (scored) rows.sort((a, b) => numPre(b.o) - numPre(a.o));
+      else if (q.type !== 'yesno') rows.sort((a, b) => b.n - a.n);
+      const max = Math.max(...rows.map(x => x.n));
+      let avg = null, sub = '';
+      if (scored){
+        const nums = flat.map(numPre).filter(x => x != null);
+        if (nums.length){ avg = nums.reduce((s, x) => s + x, 0) / nums.length;
+          const hi = Math.max(...opts.map(numPre).filter(x => x != null)); sub = `เฉลี่ย / ${hi}`; }
+      }
+      return `<div class="ch">${head(avg, sub)}${rows.map(x => bar(x.o, x.n, vals.length, x.n && x.n === max ? 'top' : '')).join('')}</div>`;
+    }
+    if (q.type === 'number'){
+      const nums = vals.map(Number).filter(v => !isNaN(v));
+      const avg = nums.length ? nums.reduce((s, x) => s + x, 0) / nums.length : null;
+      return `<div class="ch">${head(avg, 'ค่าเฉลี่ย')}<p class="nil" style="color:var(--ink)">ต่ำสุด <b>${Math.min(...nums)}</b> · สูงสุด <b>${Math.max(...nums)}</b> · รวม <b>${nums.reduce((s, x) => s + x, 0)}</b></p></div>`;
+    }
+    /* ข้อความ / วันที่ */
+    const rowsT = list.filter(r => { const v = (r.answers || {})[q.id]; return v != null && v !== '' && !(Array.isArray(v) && !v.length); });
+    const li = r => `<li><span>${esc(r.respondent_branch || r.respondent_name || '')}</span>${esc(ansText((r.answers || {})[q.id]))}</li>`;
+    return `<div class="ch">${head()}<ul class="tx">${rowsT.slice(0, 5).map(li).join('')}</ul>
+      ${rowsT.length > 5 ? `<details><summary>ดูทั้งหมด ${rowsT.length} คำตอบ</summary><ul class="tx" style="margin-top:8px">${rowsT.slice(5).map(li).join('')}</ul></details>` : ''}</div>`;
+  }).join('');
+}
 
 window.detail = function(id){
   const r = responses.find(x => x.id === id); if (!r) return;
