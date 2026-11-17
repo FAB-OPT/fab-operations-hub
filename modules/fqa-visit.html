@@ -1594,6 +1594,10 @@ html[data-brand="santafe"] .btn.pri:hover{box-shadow:0 6px 16px color-mix(in srg
         </div>
 
         <div class="dsec"><span>ออกรายงานรายครั้ง (เจาะแต่ละใบ)</span></div>
+        <label class="noprint" style="display:flex;align-items:center;gap:9px;margin:-4px 2px 12px;font-size:13.5px;font-weight:700;cursor:pointer;width:fit-content">
+          <input type="checkbox" id="repNoPhoto" onchange="Report.setNoPhoto(this.checked)" style="width:18px;height:18px;accent-color:var(--accent);margin:0">
+          ไม่เอารูป <span style="font-weight:400;color:var(--text2)">· ออกรายงานเฉพาะตัวหนังสือ ไฟล์เล็ก เร็วกว่า (ใช้กับ PDF รายใบและรวมไฟล์เดียว)</span>
+        </label>
         <!-- ติ๊กหลายใบแล้วรวมเป็น PDF ไฟล์เดียว — กดเซฟรอบเดียวได้ครบ -->
         <div class="repselbar noprint" id="repSelBar">
           <span id="repSelTxt"></span>
@@ -7313,7 +7317,7 @@ const PDF = {
           </div>`).join('')+legend);
       }
     }
-    if((r.photos||[]).length)
+    if((r.photos||[]).length && !Report.noPhoto)
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
         `<figure><img src="${p.data}" alt=""><figcaption>${esc(p.caption||'')}</figcaption></figure>`).join('')}</div>`);
 
@@ -7585,6 +7589,9 @@ const Report = {
     this.renderList();
   },
   selClear(){ this.sel={}; this.renderList(); },
+  /* ตัวเลือก 'ไม่เอารูป' ในรายงานรายใบ — จำค่าไว้ในเครื่อง */
+  noPhoto: (function(){ try{ return localStorage.getItem('fqa_report_nophoto')==='1'; }catch(e){ return false; } })(),
+  setNoPhoto(v){ this.noPhoto=!!v; try{ localStorage.setItem('fqa_report_nophoto', this.noPhoto?'1':'0'); }catch(e){} },
   /* ล้างรายการที่เลือกซึ่งหลุดจากตัวกรองไปแล้ว — กันเผลอโหลดใบที่ไม่ได้เห็นอยู่ */
   pruneSel(){
     const live={}; this.filtered().forEach(r=>{ if(this.sel[r.id]) live[r.id]=1; });
@@ -7608,6 +7615,7 @@ const Report = {
 
   render(){
     this.renderList();
+    const nb=document.getElementById('repNoPhoto'); if(nb) nb.checked=!!this.noPhoto;
     const host=document.getElementById('reportFilter'); if(!host) return;
     const f=this.f;
     const sel=(k,arr,ph)=>`<select class="inp" onchange="Report.set('${k}',this.value)">
