@@ -498,6 +498,37 @@ summary{font-weight:700;cursor:pointer}
 .pc-q i{display:block;font-style:normal;font-size:12.5px;color:var(--muted);line-height:1.4;margin-bottom:3px}
 .pc-q em{display:block;font-style:normal;font-weight:700;font-size:15px;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere}
 .pc-q em.nil{color:#c0c5cc;font-weight:400}
+/* รายคน (จัดตามส่วน): ชุดคำถามที่ถามซ้ำต่อระบบ/หลักสูตร = ตาราง แถวละหัวข้อ · ส่วนอื่น = แถวคำถาม-คำตอบ · ข้อที่ไม่ได้ตอบไม่แสดง */
+.pv{display:grid;gap:20px}
+.pv-blk{min-width:0}
+.pv-h{display:inline-block;font-size:13px;font-weight:800;color:#b33a05;background:var(--orange-soft);padding:4px 12px;border-radius:8px;margin-bottom:6px}
+.pv-ls{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(460px,100%),1fr));column-gap:36px}
+.pv-r{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.35fr);gap:14px;padding:10px 0;border-bottom:1px solid #eff1f4;align-items:baseline}
+.pv-q{font-size:13px;color:var(--muted);line-height:1.45}
+.pv-a{font-size:15px;font-weight:700;line-height:1.5;overflow-wrap:anywhere;white-space:pre-wrap;min-width:0}
+.pv-chips{display:flex;flex-wrap:wrap;gap:6px;white-space:normal}
+.pv-chip{font-size:13px;font-weight:700;background:#f2f4f7;border-radius:999px;padding:3px 11px;line-height:1.5}
+.pv-sc{display:inline-grid;place-items:center;min-width:30px;height:30px;padding:0 7px;box-sizing:border-box;border-radius:9px;font-weight:800;font-size:14.5px;font-variant-numeric:tabular-nums;vertical-align:middle}
+.pv-sc.g5{background:#d1fadf;color:#05603a}.pv-sc.g4{background:#ecfdf3;color:#027a48;box-shadow:inset 0 0 0 1px #abefc6}
+.pv-sc.g3{background:#fef0c7;color:#93370d}.pv-sc.g2{background:#fee4e2;color:#b42318}
+.pv-sct{margin-left:8px;vertical-align:middle}
+.pv-nil{color:#c0c5cc;font-weight:400}
+.pv-mx{overflow-x:auto;border:1px solid var(--line);border-radius:12px;background:#fff}
+.pv-mx table{border-collapse:separate;border-spacing:0;width:100%;font-size:13.5px}
+.pv-mx th,.pv-mx td{padding:10px 12px;border-bottom:1px solid #eff1f4;text-align:left;vertical-align:middle}
+.pv-mx thead th{background:#fafbfc;font-size:12.5px;color:var(--muted);font-weight:600;line-height:1.4;white-space:normal;width:150px;min-width:130px;max-width:190px;vertical-align:bottom}
+.pv-mx thead th:first-child,.pv-mx tbody th{position:sticky;left:0;z-index:1;box-shadow:1px 0 0 var(--line)}
+.pv-mx thead th:first-child{background:#fafbfc;color:#b33a05;font-weight:800}
+.pv-mx tbody th{background:#fff;font-weight:800;font-size:14px;white-space:normal;min-width:170px;max-width:240px;line-height:1.4}
+.pv-mx td{font-weight:700;white-space:normal;min-width:130px;max-width:260px;overflow-wrap:anywhere;line-height:1.45}
+.pv-mx td .pv-t{font-weight:600}
+.pv-mx tbody tr:last-child>*{border-bottom:0}
+.pv-mx tbody tr:hover>*{background:#fcfcfd}
+.pv-lg{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:8px;font-size:12.5px;color:var(--muted)}
+.pv-lg>span{display:inline-flex;align-items:center;gap:6px}
+.pv-lg .pv-sc{min-width:24px;height:24px;font-size:12px;border-radius:7px}
+.pv-skip{font-size:12.5px;color:var(--muted)}
+@media(max-width:600px){ .pv-r{grid-template-columns:1fr;gap:3px} }
 /* คำตอบ · กราฟ: สรุปรายข้อ (แท่งแนวนอน ล้วน CSS) */
 .chs{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:start}
 .ch{background:#fff;border:1px solid var(--line);border-radius:16px;padding:16px 18px 18px}
@@ -1149,8 +1180,11 @@ const hasOptions = t => t === 'single' || t === 'multi';
 const baseQs = f => ((f && f.questions) || []).filter(q => q.type !== 'section');
 /* ส่วนที่ทำซ้ำตามคำตอบ: sec.repeat = { q:'ข้อต้นทาง' } · ผู้ตอบตอบข้อในส่วนนั้นซ้ำทีละตัวเลือกที่เลือกไว้ในข้อต้นทาง
    คำตอบเก็บด้วยรหัส  ข้อ@กุญแจตัวเลือก  (กุญแจ = แฮชของข้อความตัวเลือก คงที่แม้เรียงลำดับใหม่) · ข้อที่ดึงตัวเลือกจากข้อต้นทางเดียวกันถูกข้าม (รู้อยู่แล้วว่าตอบเรื่องอะไร) */
-function optKey(o){ let h = 5381; for (const c of String(o)) h = ((h << 5) + h + c.codePointAt(0)) >>> 0; return h.toString(36); }
-const vId = (id, o) => id + '@' + optKey(o);
+/* ชื่อต้องไม่ซ้ำกับ window.optKey (ตัวจัดการปุ่มในช่องตัวเลือกของหน้าแก้ฟอร์ม) — เดิมใช้ชื่อเดียวกัน ฟังก์ชันนี้จึงถูกทับ
+   ทุกชุดได้รหัสเดียวกัน "ข้อ@undefined" (คำตอบของทุกระบบทับกัน) · คำตอบที่บันทึกไว้แบบนั้นแสดงเป็น "บันทึกรวม ไม่แยกระบบ" */
+function repHash(o){ let h = 5381; for (const c of String(o)) h = ((h << 5) + h + c.codePointAt(0)) >>> 0; return h.toString(36); }
+const vId = (id, o) => id + '@' + repHash(o);
+const LEGACY_REP = '@undefined';
 function repBlock(questions, secIdx){
   const sec = questions[secIdx]; let j = secIdx + 1; while (j < questions.length && questions[j].type !== 'section') j++;
   const items = questions.slice(secIdx + 1, j).filter(x => !(x.from && x.from.q && x.from.q === sec.repeat.q));
@@ -1167,6 +1201,9 @@ function answerQs(f, list){
         if (list && !list.some(r => isAnswered((r.answers || {})[id]))) return;
         out.push(Object.assign({}, x, { id, label: x.label + ' [' + o + ']', _base: x.id, _opt: o }));
       }));
+      items.forEach(x => { const id = x.id + LEGACY_REP;
+        if (list && list.some(r => isAnswered((r.answers || {})[id])))
+          out.push(Object.assign({}, x, { id, label: x.label + ' [บันทึกรวม ไม่แยกระบบ]', _base: x.id, _opt: '' })); });
       i = end; continue;
     }
     if (q.type !== 'section') out.push(q);
@@ -2125,7 +2162,7 @@ function paintResults(){
           ${ofCan('delete-response') ? `<button class="btn btn-danger btn-sm" onclick="delResp(${r.id})">ลบ</button>` : ''}
         </div>
       </div>
-      <div class="pc-g">${qs.map((q, i) => { const t = ansText(a[q.id]); return `<div class="pc-q"><i>${i + 1}. ${esc(q.label)}</i><em class="${t === '—' ? 'nil' : ''}">${esc(t)}</em></div>`; }).join('')}</div>
+      ${personBody(form, r)}
     </div>`;
   }).join('');
   /* มือถือ: คำตอบละการ์ด · โชว์ 3 ข้อแรก กดเพื่อดูครบ */
@@ -2165,6 +2202,69 @@ function paintResults(){
 }
 
 window.setRView = function(v){ rf.view = v; paintResults(); };
+
+/* รายคน: จัดคำตอบตามส่วนของฟอร์ม
+   · ส่วนที่ทำซ้ำตามตัวเลือก (เช่น ถามชุดเดิมต่อระบบที่เลือก) หรือหลายส่วนติดกันที่มีคำถามชุดเดียวกัน (เช่น ต่อหลักสูตร) → ตาราง แถว = ระบบ/หลักสูตร คอลัมน์ = คำถาม
+   · ส่วนอื่น → แถวคำถาม-คำตอบ ใต้ชื่อส่วน · ข้อที่ไม่ได้ตอบ (ถูกข้ามตามเงื่อนไข) ไม่แสดง บอกเป็นจำนวน
+   · คำตอบแบบคะแนน ("5 = มากที่สุด" หรือสเกล) เป็นตัวเลขสีตามระดับ · หลายตัวเลือกเป็นชิป */
+function personGroups(f, r){
+  const qs = (f && f.questions) || [], a = r.answers || {}, groups = [];
+  let cur = { title: '', items: [] }; groups.push(cur);
+  for (let i = 0; i < qs.length; ) {
+    const q = qs[i];
+    if (q.type === 'section' && q.repeat && q.repeat.q) {
+      const { items, end } = repBlock(qs, i), src = qs.find(x => x.id === q.repeat.q);
+      ((src && src.options) || []).map(x => String(x).trim()).filter(Boolean).forEach(o =>
+        groups.push({ title: o, fam: q.label || '', items: items.map(x => ({ label: x.label, type: x.type, v: a[vId(x.id, o)] })) }));
+      if (items.some(x => isAnswered(a[x.id + LEGACY_REP])))   // ตอบก่อนแก้ไข: ทุกระบบถูกบันทึกทับเป็นชุดเดียว
+        groups.push({ title: 'บันทึกรวม ไม่แยกระบบ', note: 'ตอบก่อนวันที่ระบบแก้ไข คำตอบของแต่ละระบบถูกบันทึกทับกันเหลือชุดเดียว',
+          fam: q.label || '', items: items.map(x => ({ label: x.label, type: x.type, v: a[x.id + LEGACY_REP] })) });
+      cur = { title: '', items: [] }; groups.push(cur); i = end; continue;
+    }
+    if (q.type === 'section') { cur = { title: q.label || '', items: [] }; groups.push(cur); i++; continue; }
+    cur.items.push({ label: q.label, type: q.type, v: a[q.id] }); i++;
+  }
+  return groups.filter(g => g.items.some(t => isAnswered(t.v)));
+}
+const pvScore = s => { const m = /^\s*(\d+(?:\.\d+)?)\s*(?:=|$)/.exec(String(s)); return m ? Number(m[1]) : null; };
+const pvCls = n => n >= 4.5 ? 'g5' : n >= 3.5 ? 'g4' : n >= 2.5 ? 'g3' : 'g2';
+function pvCell(t, compact){
+  if (!isAnswered(t.v)) return '<span class="pv-nil">—</span>';
+  if (Array.isArray(t.v) && t.v.length > 1) return `<span class="pv-chips">${t.v.map(x => `<span class="pv-chip">${esc(x)}</span>`).join('')}</span>`;
+  const s = ansText(t.v), n = pvScore(s);
+  if (n != null && (t.type === 'scale' || /=/.test(s))) {
+    const rest = s.replace(/^\s*\d+(?:\.\d+)?\s*=?\s*/, '');
+    return `<span class="pv-sc ${pvCls(n)}">${n}</span>${rest && !compact ? `<span class="pv-sct">${esc(rest)}</span>` : ''}`;
+  }
+  return `<span class="pv-t">${esc(s)}</span>`;
+}
+function pvMatrix(gs){
+  const cols = gs[0].items.map((_, c) => c).filter(c => gs.some(g => isAnswered(g.items[c].v)));
+  const legend = new Map();
+  gs.forEach(g => cols.forEach(c => { const t = g.items[c]; if (!isAnswered(t.v) || Array.isArray(t.v)) return;
+    const s = ansText(t.v), n = pvScore(s), rest = s.replace(/^\s*\d+(?:\.\d+)?\s*=?\s*/, '');
+    if (n != null && rest && /=/.test(s)) legend.set(n, rest); }));
+  return `<div class="pv-blk"><div class="pv-mx"><table>
+    <thead><tr><th>${esc(gs[0].fam || 'หัวข้อ')}</th>${cols.map(c => `<th>${esc(gs[0].items[c].label)}</th>`).join('')}</tr></thead>
+    <tbody>${gs.map(g => `<tr><th>${esc(g.title || '—')}</th>${cols.map(c => `<td>${pvCell(g.items[c], true)}</td>`).join('')}</tr>`).join('')}</tbody>
+  </table></div>${legend.size ? `<div class="pv-lg">${[...legend].sort((x, y) => y[0] - x[0]).map(([n, t]) => `<span><span class="pv-sc ${pvCls(n)}">${n}</span>${esc(t)}</span>`).join('')}</div>` : ''}</div>`;
+}
+function personBody(f, r){
+  if (!f) return `<div class="pv-ls">${Object.keys(r.answers || {}).map(k => `<div class="pv-r"><div class="pv-q">${esc(k)}</div><div class="pv-a">${pvCell({ v: r.answers[k] })}</div></div>`).join('')}</div>`;
+  const gs = personGroups(f, r), sig = g => (g.fam || '') + '\u0001' + g.items.map(t => t.label).join('\u0001');
+  let html = '', skipped = 0;
+  for (let i = 0; i < gs.length; ) {
+    let j = i + 1;
+    while (j < gs.length && gs[i].items.length > 1 && sig(gs[j]) === sig(gs[i])) j++;
+    if (j - i >= 2) { html += pvMatrix(gs.slice(i, j)); i = j; continue; }
+    const g = gs[i], its = g.items.filter(t => isAnswered(t.v));
+    skipped += g.items.length - its.length;
+    html += `<div class="pv-blk">${g.title ? `<div class="pv-h">${esc(g.fam ? g.fam + ' · ' + g.title : g.title)}</div>` : ''}${g.note ? `<div class="pv-skip" style="margin:-2px 0 4px">${esc(g.note)}</div>` : ''}<div class="pv-ls">${its.map(t =>
+      `<div class="pv-r"><div class="pv-q">${esc(t.label)}</div><div class="pv-a">${pvCell(t)}</div></div>`).join('')}</div></div>`;
+    i++;
+  }
+  return `<div class="pv">${html || '<p class="pv-skip">ยังไม่มีคำตอบ</p>'}${skipped ? `<div class="pv-skip">ข้อที่ไม่ได้ตอบ ${skipped} ข้อ ไม่แสดง</div>` : ''}</div>`;
+}
 
 /* สรุปรายข้อเป็นกราฟแท่ง: ตัวเลือก/ใช่ไม่ใช่/หลายตัวเลือก/สเกล → แท่งตามจำนวนคน (% ของคนที่ตอบข้อนั้น)
    ตัวเลือกที่ขึ้นต้นด้วยเลข (เช่น "5 = มากที่สุด") → เรียงตามเลขและคิดค่าเฉลี่ยให้ · ข้อความ/วันที่ → รายการคำตอบ */
@@ -2235,7 +2335,7 @@ window.detail = function(id){
         <button class="btn btn-secondary btn-sm" onclick="closeModal()">ปิด</button>
       </div>
     </div>
-    <table class="qtable">${rows || '<tr><td>—</td></tr>'}</table>`;
+    ${form ? personBody(form, r) : `<table class="qtable">${rows || '<tr><td>—</td></tr>'}</table>`}`;
   $('#modal').classList.add('show');
 };
 
