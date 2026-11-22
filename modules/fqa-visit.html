@@ -7144,7 +7144,9 @@ const PDF = {
   },
 
   /* สร้าง HTML เอกสารใบตรวจจากเรคคอร์ด — ใช้ทั้งตอนบันทึกเป็นไฟล์ PDF และหน้าดูรายงานผ่านลิงก์แชร์ */
-  recordDoc(r){
+  /* opt.noPhoto: ไม่ใส่รูป — ใช้เฉพาะตอนออกรายงานจากหน้า ออกรายงาน ที่ติ๊ก 'ไม่เอารูป' ไว้
+     (ดู/บันทึก PDF รายใบ และลิงก์แชร์รายงาน ต้องเห็นรูปเสมอ) */
+  recordDoc(r, opt){
     const kv=(k,v)=>`<div class="kv"><span>${esc(k)}</span><b>${esc(v||'—')}</b></div>`;
     const sec=(t,b)=>`<div class="pdfsec"><h2>${esc(t)}</h2>${b}</div>`;
     const pill=v=>`<span class="pd-pill ${v==='ผ่าน'?'ok':v==='ไม่ผ่าน'?'no':'na'}">${esc(v||'—')}</span>`;
@@ -7317,7 +7319,7 @@ const PDF = {
           </div>`).join('')+legend);
       }
     }
-    if((r.photos||[]).length && !Report.noPhoto)
+    if((r.photos||[]).length && !(opt && opt.noPhoto))
       b+=sec('รูปประกอบการตรวจ',`<div class="pdfphotos">${r.photos.map(p=>
         `<figure><img src="${p.data}" alt=""><figcaption>${esc(p.caption||'')}</figcaption></figure>`).join('')}</div>`);
 
@@ -7325,25 +7327,25 @@ const PDF = {
   },
 
   /* ---------- 1) ใบตรวจรายฉบับ → บันทึกเป็นไฟล์ PDF ---------- */
-  record(id){
+  record(id, opt){
     const r=DB.all().find(x=>x.id===id);
     if(!r) return App.toast('ไม่พบรายการตรวจนี้');
-    return this.render(this.recordDoc(r), this.recordFile(r));
+    return this.render(this.recordDoc(r, opt), this.recordFile(r));
   },
 
   /* ---------- หลายใบพร้อมกัน → รวมเป็น PDF ไฟล์เดียว ----------
      ระบบสร้าง PDF ด้วยหน้าต่างพิมพ์ของเบราว์เซอร์ ซึ่งเปิดได้ทีละหน้าต่าง
      จะยิงพร้อมกันหลายอันไม่ได้ (เบราว์เซอร์บล็อก และผู้ใช้ต้องกดเซฟทีละครั้ง)
      จึงต่อทุกใบเป็นเอกสารเดียวแล้วพิมพ์ครั้งเดียว — กดเซฟรอบเดียวได้ครบ */
-  records(ids){
+  records(ids, opt){
     const want = Array.isArray(ids) ? ids : [];
     const all = DB.all();
     /* เรียงตามวันที่ให้เหมือนที่เห็นบนหน้าจอ ไม่ใช่ตามลำดับที่ติ๊ก */
     const list = want.map(id => all.find(x => x.id === id)).filter(Boolean)
       .sort((a,b) => ((a.date||'')+(a.time||'')).localeCompare((b.date||'')+(b.time||'')));
     if(!list.length) return App.toast('ยังไม่ได้เลือกใบตรวจ');
-    if(list.length === 1) return this.record(list[0].id);
-    const body = list.map(r => this.recordDoc(r)).join('<div class="pdfbreak"></div>');
+    if(list.length === 1) return this.record(list[0].id, opt);
+    const body = list.map(r => this.recordDoc(r, opt)).join('<div class="pdfbreak"></div>');
     const file = `ผล visit รวม ${list.length} ใบ ${this._fileDate(new Date().toISOString().slice(0,10))}.pdf`;
     return this.render(body, file);
   },
@@ -7574,7 +7576,7 @@ const Report = {
         <td>${esc(r.branch)}<div style="font-size:11px;color:var(--text3)">${esc(r.bzm||'')}</div></td>
         <td style="font-size:12.5px">${esc(r.trainer||'—')}</td>
         <td style="max-width:280px;color:var(--text2)">${summaryHTML(r)}</td>
-        <td class="rowact noprint"><button class="btn sm pri" onclick="PDF.record('${r.id}')">PDF ใบนี้</button></td></tr>`).join('')}
+        <td class="rowact noprint"><button class="btn sm pri" onclick="PDF.record('${r.id}',{noPhoto:Report.noPhoto})">PDF ใบนี้</button></td></tr>`).join('')}
     </tbody></table>${moreN>0?`<div class="recmore"><button class="btn" onclick="Report.showMore()">แสดงเพิ่ม · เหลืออีก ${moreN.toLocaleString('th-TH')} ใบ</button></div>`:''}`;
     this.syncBar();
   },
@@ -7589,7 +7591,8 @@ const Report = {
     this.renderList();
   },
   selClear(){ this.sel={}; this.renderList(); },
-  /* ตัวเลือก 'ไม่เอารูป' ในรายงานรายใบ — จำค่าไว้ในเครื่อง */
+  /* ตัวเลือก 'ไม่เอารูป' ในรายงานรายใบ — จำค่าไว้ในเครื่อง · มีผลเฉพาะปุ่ม PDF ในหน้าออกรายงานนี้ (ส่งเป็น opt ให้ PDF.record/records)
+     เดิมใช้ค่าเดียวกันทั้งระบบ ติ๊กครั้งเดียวแล้วรูปหายจากหน้า ดู/บันทึก PDF และลิงก์แชร์รายงานด้วย */
   noPhoto: (function(){ try{ return localStorage.getItem('fqa_report_nophoto')==='1'; }catch(e){ return false; } })(),
   setNoPhoto(v){ this.noPhoto=!!v; try{ localStorage.setItem('fqa_report_nophoto', this.noPhoto?'1':'0'); }catch(e){} },
   /* ล้างรายการที่เลือกซึ่งหลุดจากตัวกรองไปแล้ว — กันเผลอโหลดใบที่ไม่ได้เห็นอยู่ */
@@ -7610,7 +7613,7 @@ const Report = {
   downloadSelected(){
     const ids=Object.keys(this.sel).filter(k=>this.sel[k]);
     if(!ids.length) return App.toast('ยังไม่ได้เลือกใบตรวจ');
-    PDF.records(ids);
+    PDF.records(ids, {noPhoto:this.noPhoto});
   },
 
   render(){
