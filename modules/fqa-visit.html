@@ -6708,8 +6708,20 @@ const Plan = {
     this.render();
   },
 
+  /* ผู้ตรวจของแผน: Planner OPT-TR จับแผนเข้าคนจากชื่อผู้ตรวจ · แผนที่ไม่ได้ระบุผู้ตรวจจึงไม่ขึ้นใน Planner
+     ค่าเริ่มต้น = ผู้ตรวจที่เลือกครั้งล่าสุดของแบรนด์นี้ (จำในเครื่อง) หรือชื่อคนที่ล็อกอินถ้าอยู่ในรายชื่อผู้ตรวจ */
+  _trainerKey(){ return 'fqa_plan_trainer_'+Brand.cur; },
+  setTrainer(v){ this.pTrainer=v; try{ localStorage.setItem(this._trainerKey(), v||''); }catch(e){} },
+  defaultTrainer(ts){
+    if(this.pTrainer && ts.includes(this.pTrainer)) return;
+    let v=''; try{ v=localStorage.getItem(this._trainerKey())||''; }catch(e){}
+    if(!ts.includes(v)){ const ss=Hub.session()||{}, nm=String(ss.name||'').trim();
+      v=nm ? (ts.find(t=>t===nm || t.indexOf(nm)>=0 || nm.indexOf(t)>=0) || '') : ''; }
+    this.pTrainer=v;
+  },
   render(){
     const bs=M.branches(), zs=M.bzms(), ts=M.trainers();
+    this.defaultTrainer(ts);
     const all=plans();
     const bt={FQA:0,FSQ:0,VISIT:0}; all.forEach(p=>bt[planType(p.ptype)]++);
     const byZone = this.selBzm? bs.filter(b=>b.bzm===this.selBzm) : bs;
@@ -6756,7 +6768,7 @@ const Plan = {
           </div>
           <div style="margin-top:12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
             <div class="fld" style="flex:1;min-width:200px"><label class="lbl">ผู้ตรวจ</label>
-              <select class="inp" id="plTrainer" onchange="Plan.pTrainer=this.value"><option value="">— ยังไม่ระบุ —</option>${ts.map(t=>`<option ${t===this.pTrainer?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
+              <select class="inp" id="plTrainer" onchange="Plan.setTrainer(this.value)"><option value="">— ยังไม่ระบุ —</option>${ts.map(t=>`<option ${t===this.pTrainer?'selected':''}>${esc(t)}</option>`).join('')}</select></div>
             <button class="btn pri" onclick="Plan.addToDraft()">＋ เพิ่มลงรายการ</button>
           </div>
           ${this.draft.length?`
@@ -6800,8 +6812,12 @@ const Plan = {
      รายการไหนเขียนลงเครื่องไม่สำเร็จให้คาไว้ในตารางเหมือนเดิม อย่าล้างทิ้ง
      ของเดิมล้างทั้งตารางทุกครั้งไม่ว่าจะสำเร็จกี่รายการ แล้วขึ้นว่า "บันทึกแผน 0 รายการแล้ว"
      ซึ่งอ่านผ่าน ๆ เหมือนบันทึกเสร็จแล้ว ทั้งที่ของหายไปหมดตั้งแต่ตอนนั้น */
-  saveDraft(){
+  saveDraft(force){
     if(!this.draft.length) return;
+    const noT=this.draft.filter(d=>!String(d.trainer||'').trim()).length;
+    if(noT && force!==true) return App.confirm({icon:'👤', title:'ยังไม่ระบุผู้ตรวจ', danger:false, okText:'บันทึกต่อ', cancelText:'กลับไปเลือก',
+      msg:`มี ${noT} แผนที่ยังไม่ระบุผู้ตรวจ
+แผนที่ไม่ระบุผู้ตรวจจะไม่ขึ้นใน Planner ของผู้ตรวจ`, onOk:()=>Plan.saveDraft(true)});
     const firstDate=this.draft[0].date||todayISO();
     const failed=[];
     let n=0;

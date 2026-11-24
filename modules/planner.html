@@ -647,7 +647,9 @@ async function refreshVisit(){
     const r=await visitClient.from('fqa_records').select('id,brand,date,branch,data').eq('type','PLAN').eq('deleted',false).gte('date',s).lte('date',e);
     if(r.error){ $('notice').hidden=false; $('notice').textContent='โหลดแผน Visit ไม่ได้: '+r.error.message; return; }
     /* แผนทุกชนิดของเจ๊แดง (FQA / FSQ / VISIT) และ Santa Fe (STA) นับเป็นหมวด Visit ทั้งหมด */
-    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand,ptype:(x.data||{}).ptype||''}));
+    /* แผนที่ไม่ได้ระบุผู้ตรวจ: แบรนด์ที่มีผู้ตรวจคนเดียวในทีม (Santa Fe = กาย) ให้เป็นของคนนั้น · แบรนด์ที่มีหลายคน (เจ๊แดง) ยังเป็น "ไม่ระบุ" */
+    const soleOwner=b=>{ const ns=Object.keys(VISIT_OWNER).filter(n=>VISIT_OWNER[n].brand===b); return ns.length===1?ns[0]:null; };
+    visitPlans=(r.data||[]).map(x=>({id:'v:'+x.id,person:VISIT_TRAINER[String((x.data||{}).trainer||'').trim()]||(!String((x.data||{}).trainer||'').trim()&&soleOwner(x.brand))||'ไม่ระบุ',date:x.date,month:String(x.date).slice(0,7),type:'visit',title:`${VISIT_PTYPE[(x.data||{}).ptype]||'Visit'} · ${x.branch||''}`,branch:x.branch||'',place:VISIT_BRAND[x.brand]||x.brand||'',src:'visit',brand:x.brand,ptype:(x.data||{}).ptype||''}));
     plans=allPlans();
     paintAll();
   }catch(err){}
