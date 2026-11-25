@@ -848,6 +848,14 @@ summary{font-weight:700;cursor:pointer}
 .rp table.ovm td{text-align:center;white-space:nowrap}
 .rp table.ovm td.t{text-align:left;white-space:normal;font-weight:700}
 .rp table.ovm td small{display:block;color:#666;font-size:9.5px;white-space:normal}
+.rp table.ovm th,.rp table.ovm td{padding:5px 7px}
+.rp table.ovm td.sc{font-weight:700;font-size:12.5px;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+.rp table.ovm td.h5{background:#d1fadf}.rp table.ovm td.h4{background:#ecfdf3}.rp table.ovm td.h3{background:#fef0c7}.rp table.ovm td.h2{background:#fee4e2}
+.rp table.ovm td.avg{font-weight:800}
+.rp table.ovm th small{display:block;font-weight:400;color:#555;font-size:9.5px;margin-top:1px}
+.rp table.ovm td.pc{font-weight:700}
+.rp p.ovl{margin:3px 0 4px;font-size:10.5px;color:#444;line-height:1.55}
+.rp p.ovl b{color:#111}
 .rp table.qa tr.sec td{background:#e9e9e9;font-weight:800}
 .rp table.pmx th{font-size:10.5px;line-height:1.3}
 .rp table.pmx td{text-align:center}
@@ -2529,24 +2537,37 @@ function rpFamilies(groups){
 const rpNumPre = o => { const m = /^\s*(\d+(?:\.\d+)?)\s*(?:=|$)/.exec(String(o)); return m ? Number(m[1]) : null; };
 const rpScored = q => q.type === 'scale' || (q.type === 'single' && (q.options || []).length > 1 && (q.options || []).every(o => rpNumPre(o) != null));
 const rpVals = (q, list) => list.map(r => (r.answers || {})[q.id]).filter(v => isAnswered(v));
-/* ช่องในตารางเปรียบเทียบ: ข้อคะแนน = ค่าเฉลี่ย · ตัวเลือก = คำตอบที่มากสุด + ร้อยละ · ข้อความ = จำนวนคำตอบ */
-function rpCell(q, list){
+/* ตารางภาพรวม (เทียบทุกระบบ/หลักสูตร): หัวคอลัมน์สั้นเป็น "ข้อ n" (ตรงกับเลขข้อในหัวข้อด้านล่าง) + คำอธิบายใต้ตาราง
+   ข้อคะแนน = ค่าเฉลี่ยตัวเดียว ระบายสีตามระดับ · ข้อตัวเลือก = คำตอบที่มากสุด + ร้อยละ · ข้อความ/วันที่ไม่ใส่ (ดูในหัวข้อของแต่ละรายการ) */
+const rpHeat = v => v == null ? '' : v >= 4.5 ? 'h5' : v >= 4 ? 'h4' : v >= 3 ? 'h3' : 'h2';
+function rpAvg(q, list){
+  const nums = rpVals(q, list).flatMap(v => Array.isArray(v) ? v : [v]).map(v => q.type === 'scale' ? Number(v) : rpNumPre(v)).filter(x => x != null && !isNaN(x));
+  return nums.length ? nums.reduce((a, b) => a + b, 0) / nums.length : null;
+}
+/* ข้อตัวเลือก: คำตอบที่ตอบมากที่สุดของทั้งคอลัมน์ (ทุกรายการรวมกัน) ใส่ไว้ที่หัวคอลัมน์ ช่องในตาราง = ร้อยละของคำตอบนั้น เทียบกันได้ทุกแถว */
+function rpColTop(qs, list){
+  const c = {}; qs.forEach(q => rpVals(q, list).flatMap(v => Array.isArray(v) ? v : [v]).forEach(v => { c[v] = (c[v] || 0) + 1; }));
+  const t = Object.entries(c).sort((a, b) => b[1] - a[1])[0]; return t ? t[0] : null;
+}
+function rpCell(q, list, top){
   const vals = rpVals(q, list); if (!vals.length) return '<td>—</td>';
-  if (rpScored(q)){ const nums = vals.flatMap(v => Array.isArray(v) ? v : [v]).map(v => q.type === 'scale' ? Number(v) : rpNumPre(v)).filter(x => x != null && !isNaN(x));
-    const hi = q.type === 'scale' ? (q.max || 5) : Math.max(...(q.options || []).map(rpNumPre));
-    return `<td><b>${nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '—'}</b><small>/ ${hi} · ${vals.length} คน</small></td>`; }
-  if (['single','multi','yesno'].includes(q.type)){ const c = {}; vals.flatMap(v => Array.isArray(v) ? v : [v]).forEach(v => { c[v] = (c[v] || 0) + 1; });
-    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
-    return `<td>${esc(top[0])}<small>${pctOf(top[1], vals.length)} · ${vals.length} คน</small></td>`; }
-  return `<td>${vals.length} คำตอบ</td>`;
+  if (rpScored(q)){ const v = rpAvg(q, list); return `<td class="sc ${rpHeat(v)}">${v == null ? '—' : v.toFixed(2)}</td>`; }
+  const n = vals.filter(v => Array.isArray(v) ? v.includes(top) : v === top).length;
+  return `<td class="pc">${pctOf(n, vals.length)}<small>${n}/${vals.length}</small></td>`;
 }
 function rpOverview(fams, list){
   return fams.filter(F => F.length >= 2).map(F => {
-    const cols = F[0].qs.map((q, k) => k);
+    const cols = F[0].qs.map((q, k) => k).filter(k => rpScored(F[0].qs[k]) || ['single','multi','yesno'].includes(F[0].qs[k].type));
+    if (!cols.length) return '';
+    const scoredCols = cols.filter(k => rpScored(F[0].qs[k]));
+    const tops = {}; cols.filter(k => !rpScored(F[0].qs[k])).forEach(k => { tops[k] = rpColTop(F.map(g => g.qs[k]), list); });
     const who = g => list.filter(r => g.qs.some(q => isAnswered((r.answers || {})[q.id]))).length;
+    const rowAvg = g => { const v = scoredCols.map(k => rpAvg(g.qs[k], list)).filter(x => x != null); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : null; };
+    const hi = scoredCols.length ? (F[0].qs[scoredCols[0]].type === 'scale' ? (F[0].qs[scoredCols[0]].max || 5) : Math.max(...(F[0].qs[scoredCols[0]].options || []).map(rpNumPre))) : null;
     return `<h3 class="ov">ภาพรวม${F[0].fam ? ' · ' + esc(F[0].fam) : 'รายหัวข้อ'} (${F.length} ${F[0].rep ? 'รายการ' : 'หัวข้อ'})</h3>
-      <table class="ovm"><thead><tr><th style="width:22%">${F[0].rep ? 'รายการ' : 'หัวข้อ'}</th><th>ตอบ (คน)</th>${cols.map(k => `<th>${esc(F[0].qs[k].label)}</th>`).join('')}</tr></thead>
-      <tbody>${F.map(g => `<tr><td class="t">${esc(g.title || '—')}</td><td>${who(g)}</td>${cols.map(k => rpCell(g.qs[k], list)).join('')}</tr>`).join('')}</tbody></table>`;
+      <table class="ovm"><thead><tr><th style="width:24%">${F[0].rep ? 'รายการ' : 'หัวข้อ'}</th><th>ตอบ<br>(คน)</th>${cols.map(k => `<th>ข้อ ${k + 1}${k in tops && tops[k] != null ? `<small>% ${esc(tops[k])}</small>` : ''}</th>`).join('')}${scoredCols.length > 1 ? '<th>เฉลี่ย</th>' : ''}</tr></thead>
+      <tbody>${F.map(g => { const ra = rowAvg(g); return `<tr><td class="t">${esc(g.title || '—')}</td><td>${who(g)}</td>${cols.map(k => rpCell(g.qs[k], list, tops[k])).join('')}${scoredCols.length > 1 ? `<td class="sc avg ${rpHeat(ra)}">${ra == null ? '—' : ra.toFixed(2)}</td>` : ''}</tr>`; }).join('')}</tbody></table>
+      <p class="ovl">${cols.map(k => `<b>ข้อ ${k + 1}</b> ${esc(F[0].qs[k].label)}`).join(' · ')}${hi ? ` · คะแนนเต็ม ${hi} (สีเขียว ≥ 4.5 · เขียวอ่อน 4.0–4.49 · เหลือง 3.0–3.99 · แดง < 3.0)` : ''}</p>`;
   }).join('');
 }
 /* สรุปผลรายข้อ (หนึ่งข้อ) */
