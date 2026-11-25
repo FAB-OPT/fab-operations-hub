@@ -1347,6 +1347,7 @@ async function boot(){
   await loadAttempts();
   renderNav();
   if (okLoad) await go('list');
+  if (okLoad) autoSyncTR();   /* ไม่รอ: รายชื่อจาก Training Record ปรับตามใบล่าสุดเบื้องหลัง */
 
   /* เข้ามาจากหน้าแบบฟอร์มทั่วไป — แบบทดสอบเป็นฟอร์มชนิดหนึ่งในนั้น
      ?run=<key>&phase=pre|post เริ่มทำเลย · ?tab=results|followup|trainings เปิดแท็บนั้น
@@ -2684,8 +2685,35 @@ window.openRosters = async function(){
   renderEditor();
 };
 
-/* ดึงรายชื่อเข้าการอบรมนี้ — รวมกับของเดิมด้วยรหัสคน ไม่ลบใครทิ้ง
-   ผลที่ทำไปแล้วผูกกับรหัสคน (participant_id) ถ้าลบแล้วสร้างใหม่ผลจะหลุด */
+/* รายชื่อจาก Training Record → รายชื่อของการอบรมนี้ (ซิงก์ตามต้นทาง)
+   · คนที่อยู่ในใบ Training Record = อยู่ในการอบรม (รหัสเดิม 'trr-…' จึงไม่หลุดผลที่ทำไปแล้ว · ชื่อ/สาขา/ตำแหน่งอัปเดตตามต้นทาง)
+   · คนที่เคยดึงมาแต่ถูกเอาออกจากใบแล้ว = เอาออก — ยกเว้นคนที่ทำแบบทดสอบไปแล้ว เก็บไว้ไม่ให้ผลหาย
+   · คนที่เพิ่มเองในหน้านี้ (ไม่ได้มาจาก Training Record) อยู่เหมือนเดิม
+   เดิมดึงได้แค่เพิ่มคน ใครถูกเอาออกจากใบยังค้างอยู่ จำนวนคน (ตัวหาร "x / 29 คน") จึงไม่ลดตาม */
+function syncFromTR(t, r, onlyCame){
+  const src = (r.people || []).filter(p => !onlyCame || p.attended);
+  const cur = (t.participants || []), byId = new Map(cur.map(p => [String(p.id), p]));
+  const did = pid => attempts.some(a => a.training_key === t.key && String(a.participant_id) === String(pid));
+  const fromTR = new Set(), out = [];
+  let added = 0, removed = 0, kept = 0;
+  src.forEach(p => {
+    const id = 'trr-' + (p.id || p.empCode || p.name); if (fromTR.has(id)) return; fromTR.add(id);
+    const old = byId.get(id);
+    if (!old) added++;
+    out.push(Object.assign({}, old || {}, { id, name: p.name || (old && old.name) || '', branch: branchLabel(p.branchId) || (old && old.branch) || '',
+      position: p.position || (old && old.position) || '', empCode: p.empCode || (old && old.empCode) || '' }));
+  });
+  cur.forEach(p => {
+    const id = String(p.id);
+    if (fromTR.has(id)) return;
+    if (!/^trr-/.test(id)) { out.push(p); return; }            // เพิ่มเองในหน้านี้
+    if (did(id)) { out.push(p); kept++; return; }              // ไม่อยู่ในใบแล้ว แต่ทำแบบทดสอบไปแล้ว
+    removed++;
+  });
+  return { participants: out, added, removed, kept, n: src.length };
+}
+const sameList = (a, b) => a.length === b.length && a.every((p, i) => b[i] && String(p.id) === String(b[i].id) && p.name === b[i].name && (p.branch || '') === (b[i].branch || '') && (p.position || '') === (b[i].position || ''));
+
 window.pullRoster = function(){
   grabEditor();
   const r = (ROSTERS || []).find(x => x.id === $('#trrPick').value);
@@ -2700,20 +2728,36 @@ window.pullRoster = function(){
   if (!e.place && r.place) e.place = r.place;
   if (!e.trainer && r.trainer) e.trainer = r.trainer;
 
-  const have = new Set((e.participants || []).map(p => String(p.id)));
-  let added = 0;
-  src.forEach(p => {
-    const id = 'trr-' + (p.id || p.empCode || p.name);
-    if (have.has(id)) return;
-    e.participants.push({ id, name: p.name || '', branch: branchLabel(p.branchId),
-      position: p.position || '', empCode: p.empCode || '' });
-    have.add(id); added++;
-  });
+  const x = syncFromTR(e, r, onlyCame);
+  e.participants = x.participants;
   e.source = { system:'training-record', id:r.id, course:r.course || '', batch:r.batch || '',
-    train_date:r.train_date || '', synced_at:new Date().toISOString() };
+    train_date:r.train_date || '', synced_at:new Date().toISOString(), only_came: !!onlyCame };
   renderEditor();
-  msg(added ? `ดึงรายชื่อเพิ่ม ${added} คน (รวม ${e.participants.length} คน)` : 'รายชื่อตรงกับ Training Record แล้ว ไม่มีคนใหม่');
+  const parts = [x.added ? `เพิ่ม ${x.added} คน` : '', x.removed ? `เอาออก ${x.removed} คน (ไม่อยู่ในใบ Training Record แล้ว)` : '',
+    x.kept ? `เก็บไว้ ${x.kept} คนที่ไม่อยู่ในใบแล้วแต่ทำแบบทดสอบไปแล้ว` : ''].filter(Boolean);
+  msg((parts.length ? parts.join(' · ') : 'รายชื่อตรงกับ Training Record แล้ว') + ` — รวม ${e.participants.length} คน · กดบันทึกเพื่อใช้จริง`);
 };
+
+/* ซิงก์อัตโนมัติ: ผู้ดูแลเปิดหน้านี้ → การอบรมที่ดึงรายชื่อจาก Training Record และยังไม่ปิด ปรับรายชื่อตามใบล่าสุด แล้วบันทึกให้
+   (แก้รายชื่อใน Training Record ทีหลังก็ไม่ต้องกลับมากดดึงใหม่ จำนวนคนบนการ์ดตรงกับใบเสมอ) · ทำครั้งเดียวต่อการเปิดหน้า */
+let _trAutoDone = false;
+async function autoSyncTR(){
+  if (_trAutoDone || !ttCan('manage-trainings')) return; _trAutoDone = true;
+  const linked = trainings.filter(t => t.source && t.source.system === 'training-record' && t.source.id && !isSelf(t) && t.status !== 'closed');
+  if (!linked.length) return;
+  try{ await Promise.all([ROSTERS ? null : loadRosters(), Object.keys(HUB_BRANCHES).length ? null : loadHubBranches()]); }catch(e){ return; }
+  let changed = 0;
+  for (const t of linked){
+    const r = (ROSTERS || []).find(x => x.id === t.source.id); if (!r) continue;
+    const x = syncFromTR(t, r, !!t.source.only_came);
+    if (!x.n || sameList(x.participants, t.participants || [])) continue;
+    const source = Object.assign({}, t.source, { synced_at: new Date().toISOString() });
+    const { error } = await SB.from(TT_TRAIN_T).update(trainOut({ participants: x.participants, source, updated_at: new Date().toISOString() })).eq('id', t.id);
+    if (!error){ t.participants = x.participants; t.source = source; changed++; }
+  }
+  if (changed && !editing && (tab === 'list' || tab === 'trainings')){ if (tab === 'list') renderList(); else renderTrainings(); }
+  if (changed) msg(`ปรับรายชื่อผู้เข้าอบรม ${changed} การอบรม ตาม Training Record ล่าสุดแล้ว`);
+}
 
 /* ── แบบประเมินอบรม (ขั้น 3) — ชุดเดียวใช้ทุกการอบรม · หัวข้อหลัก → ข้อย่อย ──
    แก้แล้วกด "บันทึกแบบประเมิน" แยกจากปุ่มบันทึกการอบรม */
@@ -2837,10 +2881,10 @@ function renderEditor(){
                 (r.issued_at ? '' : ' · แบบร่าง'))}</option>`).join('')}
         </select>
         <label style="margin-top:10px;font-weight:600">
-          <input type="checkbox" id="trrOnlyCame" style="width:auto;margin-right:7px">เอาเฉพาะคนที่เช็คชื่อว่ามาอบรมแล้ว
+          <input type="checkbox" id="trrOnlyCame" ${e.source && e.source.only_came ? 'checked' : ''} style="width:auto;margin-right:7px">เอาเฉพาะคนที่เช็คชื่อว่ามาอบรมแล้ว
         </label>
         <div class="row-btns" style="margin-top:10px">
-          <button class="btn btn-primary btn-sm" onclick="pullRoster()">${e.source ? 'ดึงรายชื่อล่าสุดอีกครั้ง' : 'ดึงรายชื่อ'}</button>
+          <button class="btn btn-primary btn-sm" onclick="pullRoster()">${e.source ? 'ซิงก์รายชื่อตาม Training Record' : 'ดึงรายชื่อ'}</button>
         </div>`
         : `<div class="empty" style="padding:16px">ยังไม่มีรอบอบรมที่มีรายชื่อในระบบ Training Record</div>`}
     </div>` : ''}
