@@ -839,6 +839,19 @@ summary{font-weight:700;cursor:pointer}
 .rp .sign div{min-width:200px}
 .rp .sign .ln{border-bottom:1px dotted #333;height:26px;margin-bottom:4px}
 .rp .foot{margin-top:18px;color:#666;font-size:10.5px;text-align:right}
+/* รายงานแยกตามส่วนของฟอร์ม (ระบบ / หลักสูตร) */
+.rp h2.grp{font-size:15px;margin:22px 0 4px;padding:6px 10px;background:#111;color:#fff;border-radius:4px;break-after:avoid;page-break-after:avoid}
+.rp h2.grp small{font-weight:400;opacity:.8;margin-left:6px;font-size:11.5px}
+.rp p.grp-note{margin:2px 0 6px;color:#666;font-size:11px}
+.rp h3.ov{border-bottom:0;margin:14px 0 4px}
+.rp table.ovm th{font-size:10.5px;line-height:1.3;vertical-align:bottom}
+.rp table.ovm td{text-align:center;white-space:nowrap}
+.rp table.ovm td.t{text-align:left;white-space:normal;font-weight:700}
+.rp table.ovm td small{display:block;color:#666;font-size:9.5px;white-space:normal}
+.rp table.qa tr.sec td{background:#e9e9e9;font-weight:800}
+.rp table.pmx th{font-size:10.5px;line-height:1.3}
+.rp table.pmx td{text-align:center}
+.rp table.pmx td.t{text-align:left;font-weight:700}
 @media print{ #printhost .paper{width:auto;min-height:0;box-shadow:none;padding:0;margin:0} }
 
 /* ── ออกรายงาน: เลือกฟอร์ม + ปุ่มพิมพ์ · ชนิดรายงาน ── */
@@ -2480,46 +2493,104 @@ function rpInfo(f, list){
 }
 const pctOf = (n, d) => d ? Math.round(n / d * 1000) / 10 + '%' : '—';
 
+/* คำถามของฟอร์มจัดเป็นกลุ่มตามส่วน: ส่วนปกติ = หัวข้อ (เช่น หลักสูตร) · ส่วนที่ทำซ้ำตามตัวเลือก = หนึ่งกลุ่มต่อตัวเลือก (เช่น ระบบ)
+   คำตอบรวมทุกระบบที่บันทึกก่อนแก้ไข (…@undefined) เป็นกลุ่ม "บันทึกรวม ไม่แยกระบบ" · กลุ่มทำซ้ำที่ไม่มีใครตอบไม่แสดง */
+function rpGroups(f, list){
+  const qs = (f && f.questions) || [], groups = [];
+  const answered = id => list.some(r => isAnswered((r.answers || {})[id]));
+  let cur = { title:'', fam:'', qs:[] }; groups.push(cur);
+  for (let i = 0; i < qs.length; ){
+    const q = qs[i];
+    if (q.type === 'section' && q.repeat && q.repeat.q){
+      const { items, end } = repBlock(qs, i), src = qs.find(x => x.id === q.repeat.q);
+      ((src && src.options) || []).map(x => String(x).trim()).filter(Boolean).forEach(o => {
+        const g = { title:o, fam:q.label || '', rep:true, qs: items.map(x => Object.assign({}, x, { id: vId(x.id, o), _base: x.id, _opt: o })) };
+        if (g.qs.some(x => answered(x.id))) groups.push(g);
+      });
+      const lg = { title:'บันทึกรวม ไม่แยกระบบ', fam:q.label || '', rep:true, note:'ตอบก่อนวันที่ระบบแก้ไข คำตอบของแต่ละระบบถูกบันทึกทับกันเหลือชุดเดียว',
+        qs: items.map(x => Object.assign({}, x, { id: x.id + LEGACY_REP, _base: x.id })) };
+      if (lg.qs.some(x => answered(x.id))) groups.push(lg);
+      cur = { title:'', fam:'', qs:[] }; groups.push(cur); i = end; continue;
+    }
+    if (q.type === 'section'){ cur = { title:q.label || '', fam:'', qs:[] }; groups.push(cur); i++; continue; }
+    cur.qs.push(q); i++;
+  }
+  return groups.filter(g => g.qs.length);
+}
+/* กลุ่มที่ติดกันและมีคำถามชุดเดียวกัน (≥ 2 กลุ่ม) = ชุดเปรียบเทียบ เช่น ทุกระบบ / ทุกหลักสูตร */
+function rpFamilies(groups){
+  const sig = g => (g.fam || '') + '\u0001' + g.qs.map(q => q.label).join('\u0001'), out = [];
+  for (let i = 0; i < groups.length; ){
+    let j = i + 1; while (j < groups.length && groups[i].qs.length > 1 && sig(groups[j]) === sig(groups[i])) j++;
+    out.push(groups.slice(i, j)); i = j;
+  }
+  return out;
+}
+const rpNumPre = o => { const m = /^\s*(\d+(?:\.\d+)?)\s*(?:=|$)/.exec(String(o)); return m ? Number(m[1]) : null; };
+const rpScored = q => q.type === 'scale' || (q.type === 'single' && (q.options || []).length > 1 && (q.options || []).every(o => rpNumPre(o) != null));
+const rpVals = (q, list) => list.map(r => (r.answers || {})[q.id]).filter(v => isAnswered(v));
+/* ช่องในตารางเปรียบเทียบ: ข้อคะแนน = ค่าเฉลี่ย · ตัวเลือก = คำตอบที่มากสุด + ร้อยละ · ข้อความ = จำนวนคำตอบ */
+function rpCell(q, list){
+  const vals = rpVals(q, list); if (!vals.length) return '<td>—</td>';
+  if (rpScored(q)){ const nums = vals.flatMap(v => Array.isArray(v) ? v : [v]).map(v => q.type === 'scale' ? Number(v) : rpNumPre(v)).filter(x => x != null && !isNaN(x));
+    const hi = q.type === 'scale' ? (q.max || 5) : Math.max(...(q.options || []).map(rpNumPre));
+    return `<td><b>${nums.length ? (nums.reduce((a, b) => a + b, 0) / nums.length).toFixed(2) : '—'}</b><small>/ ${hi} · ${vals.length} คน</small></td>`; }
+  if (['single','multi','yesno'].includes(q.type)){ const c = {}; vals.flatMap(v => Array.isArray(v) ? v : [v]).forEach(v => { c[v] = (c[v] || 0) + 1; });
+    const top = Object.entries(c).sort((a, b) => b[1] - a[1])[0];
+    return `<td>${esc(top[0])}<small>${pctOf(top[1], vals.length)} · ${vals.length} คน</small></td>`; }
+  return `<td>${vals.length} คำตอบ</td>`;
+}
+function rpOverview(fams, list){
+  return fams.filter(F => F.length >= 2).map(F => {
+    const cols = F[0].qs.map((q, k) => k);
+    const who = g => list.filter(r => g.qs.some(q => isAnswered((r.answers || {})[q.id]))).length;
+    return `<h3 class="ov">ภาพรวม${F[0].fam ? ' · ' + esc(F[0].fam) : 'รายหัวข้อ'} (${F.length} ${F[0].rep ? 'รายการ' : 'หัวข้อ'})</h3>
+      <table class="ovm"><thead><tr><th style="width:22%">${F[0].rep ? 'รายการ' : 'หัวข้อ'}</th><th>ตอบ (คน)</th>${cols.map(k => `<th>${esc(F[0].qs[k].label)}</th>`).join('')}</tr></thead>
+      <tbody>${F.map(g => `<tr><td class="t">${esc(g.title || '—')}</td><td>${who(g)}</td>${cols.map(k => rpCell(g.qs[k], list)).join('')}</tr>`).join('')}</tbody></table>`;
+  }).join('');
+}
+/* สรุปผลรายข้อ (หนึ่งข้อ) */
+function rpQBlock(q, i, list){
+  const vals = rpVals(q, list);
+  const head = `<h3>${i + 1}. ${esc(q.label)} <span style="font-weight:400;color:#666">· ${esc(qTypeLabel(q.type))} · ตอบ ${vals.length} คน</span></h3>`;
+  if (q.type === 'single' || q.type === 'multi' || q.type === 'yesno'){
+    const opts = q.type === 'yesno' ? ['ใช่','ไม่ใช่'] : (q.options || []);
+    const cnt = o => vals.filter(v => Array.isArray(v) ? v.includes(o) : v === o).length;
+    const other = [...new Set(vals.flat().filter(v => !opts.includes(v)))];
+    /* เรียงจากตัวเลือกที่ตอบมากไปน้อย — อ่านรายงานแล้วรู้ทันทีว่าคำตอบส่วนใหญ่คืออะไร */
+    /* ตัวเลือกแบบคะแนน ("5 = มากที่สุด") เรียงตามคะแนน 5 → 1 · ตัวเลือกอื่นเรียงตามจำนวนที่ตอบ */
+    const sc = rpScored(q);
+    const rowsC = [...opts, ...other].map(o => ({ o, n: cnt(o) }))
+      .sort((a, b) => sc ? ((rpNumPre(b.o) ?? -1) - (rpNumPre(a.o) ?? -1)) : (b.n - a.n || String(a.o).localeCompare(String(b.o), 'th')));
+    return head + `<table><thead><tr><th>ตัวเลือก</th><th style="width:90px">จำนวน</th><th style="width:90px">ร้อยละ</th></tr></thead><tbody>
+      ${rowsC.map(x => `<tr><td>${esc(x.o)}</td><td class="c">${x.n}</td><td class="c">${pctOf(x.n, vals.length)}</td></tr>`).join('')}
+    </tbody></table>`;
+  }
+  if (q.type === 'scale' || q.type === 'number'){
+    const nums = vals.map(Number).filter(v => !isNaN(v));
+    const avg = nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
+    if (q.type === 'scale'){
+      const lo = q.min ?? 1, hi = q.max ?? 5, cols = [];
+      for (let v = hi; v >= lo; v--) cols.push(v);
+      return head + `<table><thead><tr>${cols.map(v => `<th>${v}</th>`).join('')}<th>ค่าเฉลี่ย</th></tr></thead><tbody><tr>
+        ${cols.map(v => `<td class="c">${nums.filter(x => x === v).length}</td>`).join('')}<td class="c"><b>${avg == null ? '—' : avg.toFixed(2)}</b> / ${hi}</td></tr></tbody></table>`;
+    }
+    return head + `<table><thead><tr><th>ค่าเฉลี่ย</th><th>ต่ำสุด</th><th>สูงสุด</th><th>รวม</th></tr></thead><tbody><tr>
+      <td class="c"><b>${avg == null ? '—' : +avg.toFixed(2)}</b></td><td class="c">${nums.length ? Math.min(...nums) : '—'}</td>
+      <td class="c">${nums.length ? Math.max(...nums) : '—'}</td><td class="c">${nums.reduce((a, v) => a + v, 0)}</td></tr></tbody></table>`;
+  }
+  /* ข้อความ / วันที่: รวมทุกคำตอบพร้อมสาขา */
+  const rowsT = list.filter(r => isAnswered((r.answers || {})[q.id]));
+  return head + (rowsT.length ? `<table><thead><tr><th style="width:36%">สาขา / ผู้ตอบ</th><th>คำตอบ</th></tr></thead><tbody>
+    ${rowsT.map(r => `<tr><td>${esc(r.respondent_branch || r.respondent_name || '')}</td><td>${esc(ansText((r.answers || {})[q.id]))}</td></tr>`).join('')}
+  </tbody></table>` : '<p style="color:#666;margin:0">— ยังไม่มีคำตอบ —</p>');
+}
+const rpGrpHead = g => g.title ? `<h2 class="grp">${esc(g.title)}${g.fam ? `<small>${esc(g.fam)}</small>` : ''}</h2>${g.note ? `<p class="grp-note">${esc(g.note)}</p>` : ''}` : '';
+
 function reportSumHtml(f){
   const list = responses.filter(r => r.form_key === f.key);
-  const qs = answerQs(f, list);
-  const blocks = qs.map((q, i) => {
-    const vals = list.map(r => (r.answers || {})[q.id]).filter(v => v != null && v !== '' && !(Array.isArray(v) && !v.length));
-    const head = `<h3>${i + 1}. ${esc(q.label)} <span style="font-weight:400;color:#666">· ${esc(qTypeLabel(q.type))} · ตอบ ${vals.length} คน</span></h3>`;
-    if (q.type === 'single' || q.type === 'multi' || q.type === 'yesno'){
-      const opts = q.type === 'yesno' ? ['ใช่','ไม่ใช่'] : (q.options || []);
-      const cnt = o => vals.filter(v => Array.isArray(v) ? v.includes(o) : v === o).length;
-      const other = [...new Set(vals.flat().filter(v => !opts.includes(v)))];
-      /* เรียงจากตัวเลือกที่ตอบมากไปน้อย — อ่านรายงานแล้วรู้ทันทีว่าคำตอบส่วนใหญ่คืออะไร
-         ของเดิมเรียงตามลำดับตัวเลือกในฟอร์ม ต้องกวาดตาหาเลขมากสุดเอง */
-      const rowsC = [...opts, ...other].map(o => ({ o, n: cnt(o) }))
-        .sort((a, b) => b.n - a.n || String(a.o).localeCompare(String(b.o), 'th'));
-      return head + `<table><thead><tr><th>ตัวเลือก</th><th style="width:90px">จำนวน</th><th style="width:90px">ร้อยละ</th></tr></thead><tbody>
-        ${rowsC.map(x => `<tr><td>${esc(x.o)}</td><td class="c">${x.n}</td><td class="c">${pctOf(x.n, vals.length)}</td></tr>`).join('')}
-      </tbody></table>`;
-    }
-    if (q.type === 'scale' || q.type === 'number'){
-      const nums = vals.map(Number).filter(v => !isNaN(v));
-      const avg = nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
-      let dist = '';
-      if (q.type === 'scale'){
-        const lo = q.min ?? 1, hi = q.max ?? 5, cols = [];
-        for (let v = hi; v >= lo; v--) cols.push(v);
-        dist = `<table><thead><tr>${cols.map(v => `<th>${v}</th>`).join('')}<th>ค่าเฉลี่ย</th></tr></thead><tbody><tr>
-          ${cols.map(v => `<td class="c">${nums.filter(x => x === v).length}</td>`).join('')}<td class="c"><b>${avg == null ? '—' : avg.toFixed(2)}</b> / ${hi}</td></tr></tbody></table>`;
-      } else {
-        dist = `<table><thead><tr><th>ค่าเฉลี่ย</th><th>ต่ำสุด</th><th>สูงสุด</th><th>รวม</th></tr></thead><tbody><tr>
-          <td class="c"><b>${avg == null ? '—' : +avg.toFixed(2)}</b></td><td class="c">${nums.length ? Math.min(...nums) : '—'}</td>
-          <td class="c">${nums.length ? Math.max(...nums) : '—'}</td><td class="c">${nums.reduce((a, v) => a + v, 0)}</td></tr></tbody></table>`;
-      }
-      return head + dist;
-    }
-    /* ข้อความ / วันที่: รวมทุกคำตอบพร้อมสาขา */
-    const rowsT = list.filter(r => { const v = (r.answers || {})[q.id]; return v != null && v !== ''; });
-    return head + (rowsT.length ? `<table><thead><tr><th style="width:36%">สาขา / ผู้ตอบ</th><th>คำตอบ</th></tr></thead><tbody>
-      ${rowsT.map(r => `<tr><td>${esc(r.respondent_branch || r.respondent_name || '')}</td><td>${esc(ansText((r.answers || {})[q.id]))}</td></tr>`).join('')}
-    </tbody></table>` : '<p style="color:#666;margin:0">— ยังไม่มีคำตอบ —</p>');
-  }).join('');
+  const groups = rpGroups(f, list), fams = rpFamilies(groups);
+  const blocks = rpOverview(fams, list) + groups.map(g => rpGrpHead(g) + g.qs.map((q, i) => rpQBlock(q, i, list)).join('')).join('');
   const miss = followupRows(f).filter(r => !r.done);
   return `<div class="rp">
     ${rpHead('รายงานสรุปผลแบบฟอร์ม')}
@@ -2541,6 +2612,19 @@ function ofScoreOf(r, qs){
   });
   return nums.length ? nums.reduce((a, v) => a + v, 0) / nums.length : null;
 }
+/* คำตอบรายสาขา (หนึ่งคน): ชุดที่ถามซ้ำต่อระบบ/หลักสูตร = ตาราง แถวละรายการ · ส่วนอื่น = แถวคำถาม-คำตอบใต้ชื่อส่วน */
+function rpPersonHtml(f, r){
+  const fams = rpFamilies(rpGroups(f, [r]));
+  return fams.map(F => {
+    if (F.length >= 2){
+      const cols = F[0].qs.map((q, k) => k).filter(k => F.some(g => isAnswered((r.answers || {})[g.qs[k].id])));
+      return `<table class="pmx"><thead><tr><th style="width:22%">${esc(F[0].fam || 'หัวข้อ')}</th>${cols.map(k => `<th>${esc(F[0].qs[k].label)}</th>`).join('')}</tr></thead>
+        <tbody>${F.map(g => `<tr><td class="t">${esc(g.title || '—')}</td>${cols.map(k => `<td>${esc(ansText((r.answers || {})[g.qs[k].id]))}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    }
+    const g = F[0];
+    return `<table class="qa"><tbody>${g.title ? `<tr class="sec"><td colspan="2">${esc(g.fam ? g.fam + ' · ' + g.title : g.title)}</td></tr>` : ''}${g.qs.map((q, k) => `<tr><td>${k + 1}. ${esc(q.label)}</td><td>${esc(ansText((r.answers || {})[q.id]))}</td></tr>`).join('')}</tbody></table>`;
+  }).join('');
+}
 function reportAllHtml(f){
   const qs = answerQs(f, responses.filter(r => r.form_key === f.key));
   const scored = qs.some(q => q.type === 'scale' || q.type === 'number');
@@ -2556,7 +2640,7 @@ function reportAllHtml(f){
     ${scored ? '<p style="color:#666;margin:0 0 8px">เรียงจากคะแนนเฉลี่ยมากไปน้อย</p>' : ''}
     ${list.map((r, i) => `<div class="resp"><h4>${i + 1}. ${esc(r.respondent_branch || r.respondent_name || '')} <span style="font-weight:400;color:#666">· ส่งเมื่อ ${esc(fmtDT(r.created_at))}${
       r._sc == null ? '' : ' · คะแนนเฉลี่ย ' + (Math.round(r._sc * 10) / 10) + (scored ? '%' : '')}</span></h4>
-      <table class="qa"><tbody>${qs.map((q, k) => `<tr><td>${k + 1}. ${esc(q.label)}</td><td>${esc(ansText((r.answers || {})[q.id]))}</td></tr>`).join('')}</tbody></table></div>`).join('')
+      ${rpPersonHtml(f, r)}</div>`).join('')
       || '<p style="color:#666">— ยังไม่มีคำตอบ —</p>'}
     ${rpSign()}
   </div>`;
