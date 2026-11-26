@@ -777,9 +777,11 @@ summary{font-weight:700;cursor:pointer}
 .tt-go{width:100%;margin-top:12px;max-width:520px;display:block}
 
 /* ── ผลก่อน–หลัง: ตัวกรอง + ปุ่มพิมพ์แถวเดียว ── */
-.rf-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:12px;align-items:end}
+.rf-row{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto auto;gap:12px;align-items:end}
+.rf-refresh{white-space:nowrap;height:44px}
+.rf-stamp{font-size:12px;color:var(--ink3,#94a3b8);margin-top:8px;text-align:right}
 .rf-print{white-space:nowrap;height:44px}
-@media(max-width:820px){ .rf-row{grid-template-columns:1fr} .rf-print{width:100%} }
+@media(max-width:820px){ .rf-row{grid-template-columns:1fr} .rf-print,.rf-refresh{width:100%} .rf-stamp{text-align:left} }
 
 /* ── ผลประเมินบนมือถือ: รายการแทนตาราง ── */
 .evm{display:none}
@@ -1920,8 +1922,10 @@ function renderResults(){
              ['post-new','เวลาทำหลังเรียน (ใหม่ → เก่า)'],['post-old','เวลาทำหลังเรียน (เก่า → ใหม่)']]
             .map(([v, l]) => `<option value="${v}" ${rf.sort===v?'selected':''}>${l}</option>`).join('')}
         </select></div>
+        <button class="btn btn-secondary rf-refresh" id="rfRefresh" onclick="refreshResults(this)" title="ดึงคำตอบล่าสุดโดยไม่ต้องโหลดหน้าใหม่">⟳ รีเฟรช</button>
         <button class="btn btn-secondary rf-print" onclick="printResults()">🖨 พิมพ์รายงาน / PDF</button>
       </div>
+      <div class="rf-stamp" id="rfStamp">ข้อมูล ณ ${new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} น.</div>
     </div>
     <div class="card" id="rHint" style="display:none"><div class="empty"><p class="sub" style="margin:0">เลือกการอบรมหรือสาขาด้านบน เพื่อดูผลก่อน–หลังอบรม</p></div></div>
     <div id="rWrap">
@@ -1941,6 +1945,20 @@ function renderResults(){
   $('#rfSort').onchange = () => { rf.sort = $('#rfSort').value; paintResults(); };
   $('#rfQ').oninput = () => { rf.q = $('#rfQ').value; if (rf.q.trim()) rf.show = true; paintResults(); };
   paintResults();
+}
+
+/* ปุ่มรีเฟรช: ดึงคำตอบล่าสุดแล้ววาดตารางใหม่ ตัวกรอง/ค้นหา/การเรียงที่เลือกไว้คงเดิม */
+async function refreshResults(btn){
+  if (!btn || btn.disabled) return;
+  const old = btn.innerHTML, before = attempts.length;
+  btn.disabled = true; btn.innerHTML = '⟳ กำลังโหลด…';
+  try { await loadAttempts(); }
+  finally { btn.disabled = false; btn.innerHTML = old; }
+  if (!$('#rBody')) return;                     // ระหว่างโหลดผู้ใช้เปลี่ยนแท็บไปแล้ว
+  paintResults();
+  const add = attempts.length - before, st = $('#rfStamp');
+  if (st) st.textContent = 'ข้อมูล ณ ' + new Date().toLocaleTimeString('th-TH',{hour:'2-digit',minute:'2-digit',second:'2-digit'}) + ' น.'
+    + (add > 0 ? ' · คำตอบใหม่ ' + add + ' รายการ' : ' · ไม่มีคำตอบใหม่');
 }
 
 const pctCell = a => a ? `<b>${a.pct}%</b> <span class="muted">(${a.score}/${a.total})</span>` : '<span class="muted">ยังไม่ทำ</span>';
