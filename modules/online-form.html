@@ -591,6 +591,32 @@ summary{font-weight:700;cursor:pointer}
 .mf-t b{display:block;font-size:15px;line-height:1.35}
 .mf-acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 .mf-acts .btn{flex:1 1 auto}
+/* จัดการฟอร์ม: แยกตามประเภท · แถวละฟอร์ม (ไอคอน · ชื่อ + รายละเอียด · สถานะ · ปุ่ม) · เปิดอยู่ก่อน ปิดแล้วจางลง */
+.mg-sec{margin-bottom:20px}
+.mg-sec h3{display:flex;align-items:center;gap:8px;font-size:15.5px;margin:0 2px 8px}
+.mg-sec h3 .n{font-size:12px;font-weight:800;background:#eef0f4;border-radius:99px;padding:1px 9px;color:#5b6472}
+.mg-list{background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.mg-row{display:grid;grid-template-columns:42px minmax(0,1fr) auto auto;gap:14px;align-items:center;padding:12px 16px}
+.mg-row + .mg-row{border-top:1px solid var(--line)}
+.mg-row.off{background:#fafbfc}
+.mg-row.off .mg-main b{color:#667085;font-weight:700}
+.mg-ic{font-size:20px;width:42px;height:42px;border-radius:12px;background:var(--orange-soft);display:grid;place-items:center}
+.mg-row.off .mg-ic{background:#eef0f4;filter:grayscale(.7);opacity:.8}
+.mg-main{min-width:0}
+.mg-main b{display:block;font-size:15px;line-height:1.35;overflow-wrap:anywhere}
+.mg-meta{display:flex;flex-wrap:wrap;align-items:center;gap:3px 14px;margin-top:3px;font-size:13px;color:var(--muted)}
+.mg-meta > span{white-space:nowrap}
+.mg-meta b{display:inline;font-size:13px;color:var(--ink);font-weight:800}
+.mg-acts{display:flex;gap:6px;justify-content:flex-end}
+.mg-acts .btn{white-space:nowrap}
+@media(max-width:820px){
+  .mg-row{grid-template-columns:38px minmax(0,1fr) auto;row-gap:10px;padding:12px 13px}
+  .mg-ic{width:38px;height:38px;font-size:18px}
+  .mg-acts{grid-column:1 / -1;justify-content:flex-start;flex-wrap:wrap}
+  .mh{flex-direction:column;align-items:stretch}
+  .mh .mh-new{display:grid !important;grid-template-columns:1fr 1fr;gap:8px}
+  .mh .mh-new .btn{white-space:nowrap;font-size:14px;padding:10px 8px;min-width:0}
+}
 .sg-tiles{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin-top:4px}
 .sg-tiles button{border:1px solid var(--line);background:#fafbfc;border-radius:12px;padding:10px 8px;font-weight:700;font-size:13px;color:#333;min-height:46px}
 .sg-tiles button.pri{background:var(--orange);border-color:var(--orange);color:#fff}
@@ -2758,58 +2784,56 @@ window.printResp = function(id){
    จัดการฟอร์ม
    ══════════════════════════════════════════════════════════════════ */
 const statusPill = st => `<span class="pill ${st === 'open' ? 'open' : st === 'draft' ? 'draft' : 'closed'}">${st === 'open' ? 'เปิด' : st === 'draft' ? 'ร่าง' : 'ปิด'}</span>`;
-/* การ์ดจัดการ แยกตามประเภท — หน้าตาเดียวกัน ต่างกันที่ป้ายประเภทกับปุ่ม */
-function genMfHtml(f){
+/* แถวจัดการฟอร์ม — หน้าตาเดียวกันทุกประเภท ต่างกันที่รายละเอียดกับปุ่ม */
+const mgRank = st => st === 'open' ? 0 : st === 'draft' ? 1 : 2;
+function mgRowHtml(o){
+  return `<div class="mg-row${o.st === 'open' ? '' : ' off'}">
+    <span class="mg-ic">${esc(o.emoji)}</span>
+    <div class="mg-main"><b>${esc(o.title)}</b><div class="mg-meta">${o.meta.filter(Boolean).map(m => `<span>${m}</span>`).join('')}</div></div>
+    ${statusPill(o.st)}
+    <div class="mg-acts">${o.acts}</div>
+  </div>`;
+}
+function genMg(f){
   const n = responses.filter(r => r.form_key === f.key).length;
-  return `<div class="mf">
-    <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '📋')}</span>
-      <div class="mf-t"><b>${esc(f.title)}</b>
-        ${lineHtml([typeChip('gen'), baseQs(f).length + ' ข้อ', n ? 'ตอบแล้ว ' + n : '', audienceLabel(f)])}</div>
-      ${statusPill(isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed')}</div>
-    <div class="mf-acts">
-      <button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">✎ แก้ไข</button>
+  return { st: isOpen(f) ? 'open' : f.status === 'draft' ? 'draft' : 'closed', emoji: f.emoji || '📋', title: f.title,
+    meta: [`<b>${baseQs(f).length}</b> ข้อ`, `ตอบแล้ว <b>${n}</b>`, f.close_at ? 'ปิดรับ ' + esc(fmtD(f.close_at)) : '', audienceLabel(f)],
+    acts: `<button class="btn btn-secondary btn-sm" onclick="editForm(${f.id})">แก้ไข</button>
       <button class="btn btn-secondary btn-sm" onclick="dupForm(${f.id})">ทำสำเนา</button>
-      ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}
-    </div>
-  </div>`;
+      ${ofCan('delete-form') ? `<button class="btn btn-danger btn-sm" onclick="delForm(${f.id})">ลบ</button>` : ''}` };
 }
-function sgMfHtml(f){
+function sgMg(f){
   const nq = (f.sections || []).reduce((x, sec) => x + (sec.q || []).length, 0);
-  return `<div class="mf">
-    <div class="mf-top"><span class="fr-emoji">${esc(f.emoji || '🥇')}</span>
-      <div class="mf-t"><b>${esc(f.title)}</b>${lineHtml([typeChip('sg'), f.round ? esc(f.round) : '', (f.sections || []).length + ' หมวด', nq + ' ข้อ'])}</div>
-      ${statusPill(f.status)}</div>
-    <div class="mf-acts">
-      ${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
-      ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}
-    </div>
-  </div>`;
+  return { st: f.status, emoji: f.emoji || '🥇', title: f.title,
+    meta: [f.round ? esc(f.round) : '', `<b>${(f.sections || []).length}</b> หมวด`, `<b>${nq}</b> ข้อ`],
+    acts: `${sgCan('manage-forms') ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('tab=forms&edit=${f.id}')">แก้เกณฑ์</button>` : ''}
+      ${f.status === 'open' ? `<button class="btn btn-secondary btn-sm" onclick="sgGo('fill=${f.id}')">ประเมิน</button>` : ''}` };
 }
-function ttMfHtml(t){
-  return `<div class="mf">
-    <div class="mf-top"><span class="fr-emoji">${esc(t.emoji || '🎓')}</span>
-      <div class="mf-t"><b>${esc(t.title)}</b>${lineHtml([typeChip('tt'), t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', (t.questions || []).length + ' ข้อ', ttTarget(t) + ' คน'])}</div>
-      ${statusPill(t.status)}</div>
-    <div class="mf-acts">
-      ${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
-      ${t.status === 'open' && ttCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=followup')">ติดตาม</button>` : ''}
-    </div>
-  </div>`;
+function ttMg(t){
+  return { st: t.status, emoji: t.emoji || '🎓', title: t.title,
+    meta: [t.train_date ? 'อบรม ' + esc(fmtD(t.train_date)) : '', `<b>${(t.questions || []).length}</b> ข้อ`, `<b>${ttTarget(t)}</b> คน`],
+    acts: `${ttCan('manage-trainings') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=trainings&edit=${t.id}')">แก้ไข</button>` : ''}
+      ${t.status === 'open' && ttCan('view-followup') ? `<button class="btn btn-secondary btn-sm" onclick="ttGo('tab=followup')">ติดตาม</button>` : ''}` };
 }
 
-/* จัดการฟอร์ม — รายการเดียวรวมทุกประเภท · ปุ่มสร้างเลือกประเภทได้ · ปุ่มลัดของแต่ละประเภทอยู่ท้ายหน้า */
+/* จัดการฟอร์ม — แยกเป็นกลุ่มตามประเภท (แบบสอบถาม · ประเมินพนักงาน · ทดสอบอบรม) · ในกลุ่มเรียง เปิดอยู่ → ร่าง → ปิดแล้ว */
 function renderForms(){
   if (editing) return renderEditor();
   const canGen = ofCan('manage-forms');
   const canSg  = sgCan('manage-forms') || sgCan('view-results') || sgCan('manage-people');
   const canTt  = ttCan('manage-trainings') || ttCan('view-results') || ttCan('view-followup');
-  const items = { gen: canGen ? forms : [], sg: canSg ? SG_FORMS : [], tt: canTt ? TT_LIST : [] };
-  const have = ['gen','sg','tt'].map(k => [k, items[k].length]).filter(x => x[1]);
-  if (!have.some(x => x[0] === mgType)) mgType = 'all';
-  const show = () => true;
-  const total = have.reduce((a, x) => a + x[1], 0);
-  const cards = (show('gen') ? items.gen.map(genMfHtml) : [])
-    .concat(show('sg') ? items.sg.map(sgMfHtml) : [], show('tt') ? items.tt.map(ttMfHtml) : []);
+  const groups = [
+    ['📋 แบบสอบถาม', canGen ? forms.map(genMg) : []],
+    ['🥇 ประเมินพนักงาน', canSg ? SG_FORMS.map(sgMg) : []],
+    ['🎓 ทดสอบอบรม', canTt ? TT_LIST.map(ttMg) : []],
+  ].filter(g => g[1].length);
+  const total = groups.reduce((a, g) => a + g[1].length, 0);
+  const secs = groups.map(([name, rows]) => {
+    const sorted = rows.slice().sort((a, b) => mgRank(a.st) - mgRank(b.st));
+    const open = rows.filter(r => r.st === 'open').length;
+    return `<section class="mg-sec"><h3>${name}<span class="n">${rows.length}</span>${open ? `<span class="muted" style="font-size:12.5px;font-weight:600">เปิดอยู่ ${open}</span>` : ''}</h3>
+      <div class="mg-list">${sorted.map(mgRowHtml).join('')}</div></section>`;
+  }).join('');
   $('#view').innerHTML = `
     <div class="mh">
       <h2>จัดการฟอร์ม <span class="muted" style="font-size:13px;font-weight:600">${total} ฟอร์ม</span></h2>
@@ -2820,7 +2844,7 @@ function renderForms(){
         ${sgCan('manage-people') ? `<button class="btn btn-line" onclick="sgGo('tab=people')">👥 รายชื่อพนักงาน</button>` : ''}
       </div>
     </div>
-    <div class="mf-grid">${cards.join('') || '<div class="card empty">ยังไม่มีแบบฟอร์ม กดปุ่ม "+" ด้านบนเพื่อเริ่ม</div>'}</div>`;
+    ${secs || '<div class="card empty">ยังไม่มีแบบฟอร์ม กดปุ่ม "+" ด้านบนเพื่อเริ่ม</div>'}`;
 }
 
 const newKey = () => 'form-' + Date.now().toString(36);
