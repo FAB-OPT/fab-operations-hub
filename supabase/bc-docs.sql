@@ -88,7 +88,8 @@ begin
   elsif new.col ~ '^b/[^/]+/events$' then
     if tg_op = 'INSERT' then return new; end if;
     if (old.data->>'unlockUntil') is distinct from (new.data->>'unlockUntil') then return new; end if;   -- แอดมินเปิด/ปิดการล็อก
-    ev := old.data;                                           -- ตัดสินจากงานที่บันทึกอยู่ก่อนแก้
+    if new.deleted and not old.deleted then return new; end if;   -- ลบงาน: ปุ่มลบมีเฉพาะ Admin ในแอป ลบได้แม้ปิดงานแล้ว
+    ev := old.data;                                          -- ตัดสินจากงานที่บันทึกอยู่ก่อนแก้
   else
     return new;
   end if;
