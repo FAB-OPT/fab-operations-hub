@@ -1953,11 +1953,12 @@ function planBomImport(rows){
   S.menus.forEach(m=>(m.bom||[]).forEach(b=>{if(!hasCost(b.unitCost))return;const c=+b.unitCost;
     if(b.code&&!known.has(ingKey(b)))known.set(ingKey(b),c);const nk="n:"+String(b.ingredient||"").trim().toLowerCase();if(!known.has(nk))known.set(nk,c)}));
   return rows.map(r=>{
-    const ex=S.menus.find(m=>r.code&&m.code===r.code)||S.menus.find(m=>String(m.name||"").trim()===r.name);
+    const ex=S.menus.find(m=>r.code&&m.code===r.code)||S.menus.find(m=>String(m.name||"").trim()===r.name)||S.menus.find(m=>looseName(m.name)===looseName(r.name));
     const bom=r.bom.map(b=>{if(hasCost(b.unitCost))return b;const nk="n:"+b.ingredient.toLowerCase();
       const c=known.has(ingKey(b))?known.get(ingKey(b)):known.has(nk)?known.get(nk):"";return {...b,unitCost:c}});
     return {row:r,ex,bom,price:hasCost(r.price)?n(r.price):ex?n(ex.price):0}});
 }
+function looseName(t){return String(t||"").toLowerCase().replace(/เช็ต/g,"เซ็ต").replace(/[\s()（）\[\]._\-+]/g,"")}
 function bomImportPanel(){
   const P=S.bomImp;if(!P||!S.isAdmin)return "";
   const nNew=P.filter(p=>!p.ex).length,ings=new Set(P.flatMap(p=>p.bom.map(ingKey))),noCost=new Set(P.flatMap(p=>p.bom.filter(b=>!hasCost(b.unitCost)).map(ingKey))),noPrice=P.filter(p=>!n(p.price)).length;
@@ -1966,9 +1967,12 @@ function bomImportPanel(){
     <div class="row" style="gap:8px">
       <span class="pill">${P.length} เมนู</span><span class="pill">ใหม่ ${nNew}</span><span class="pill">อัปเดต BOM ${P.length-nNew}</span><span class="pill">วัตถุดิบ ${ings.size} รายการ</span>
       ${noCost.size?`<span class="pill cx">ยังไม่มีต้นทุน ${noCost.size} รายการ</span>`:""}${noPrice?`<span class="pill cx">ยังไม่มีราคาขาย ${noPrice} เมนู</span>`:""}</div>
-    <div class="tbl-wrap"><table class="rt"><thead><tr><th>เมนู</th><th>รหัส</th><th class="r">วัตถุดิบ</th><th>จะทำอะไร</th></tr></thead><tbody>
-    ${P.map(p=>`<tr><td><b>${esc(p.row.name)}</b></td><td class="muted">${esc(p.row.code||"–")}</td><td class="r num">${p.bom.length}</td><td>${p.ex?"แทนที่ BOM · ราคาขายเดิมคงไว้":"เพิ่มเมนูใหม่"}</td></tr>`).join("")}
+    <div class="tbl-wrap"><table class="rt"><thead><tr><th>เมนูในไฟล์</th><th>รหัส</th><th class="r">วัตถุดิบ</th><th>ใส่ BOM ให้เมนูในระบบ</th></tr></thead><tbody>
+    ${P.map((p,i)=>{const dup=p.ex&&P.some((q,j)=>j!==i&&q.ex&&q.ex.id===p.ex.id);return `<tr><td><b>${esc(p.row.name)}</b></td><td class="muted">${esc(p.row.code||"–")}</td><td class="r num">${p.bom.length}</td>
+      <td>${S.menus.length?`<select data-impmap="${i}" aria-label="เมนูในระบบสำหรับ ${esc(p.row.name)}" style="width:100%;min-width:200px"><option value="">+ เพิ่มเป็นเมนูใหม่</option>${[...S.menus].sort((a,b)=>String(a.name).localeCompare(String(b.name),"th")).map(m=>`<option value="${esc(m.id)}" ${p.ex&&p.ex.id===m.id?"selected":""}>${esc(m.name)} · ฿${fmt(m.price)}</option>`).join("")}</select>`:"เพิ่มเมนูใหม่"}
+      ${dup?`<div class="flag" style="font-size:.75rem">เลือกเมนูนี้ซ้ำกับอีกแถว</div>`:p.ex?`<div class="muted" style="font-size:.75rem">แทนที่ BOM · ราคาขายเดิมคงไว้</div>`:""}</td></tr>`}).join("")}
     </tbody></table></div>
+    ${(()=>{const left=S.menus.filter(m=>!P.some(p=>p.ex&&p.ex.id===m.id));return left.length?`<div class="notice warn" style="margin:0"><b>เมนูในระบบที่ไฟล์นี้ไม่มี BOM (${left.length})</b>: ${left.map(m=>esc(m.name)+(bomMissing(m)||!(m.bom||[]).length?"":" ✓มี BOM เดิม")).join(" · ")}<br><span style="font-size:.85rem">ถ้าชื่อต่างกันแต่เป็นเมนูเดียวกัน เลือกจับคู่ในช่องด้านบน · ที่ไม่มีในไฟล์จะคง BOM เดิมไว้</span></div>`:""})()}
     <p class="muted" style="margin:0;font-size:.85rem">ไฟล์มีแค่ปริมาณ ไม่มีราคา · ต้นทุนต่อหน่วยที่เคยใส่ไว้จะดึงมาใช้ต่อตามรหัสวัตถุดิบ ที่เหลือใส่ได้ในตาราง “ต้นทุนวัตถุดิบ” หลังนำเข้า${noPrice?" · ราคาขายของเมนูใหม่ใส่ได้ที่ปุ่มแก้ไขของแต่ละเมนู":""}</p>
     <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn sec" id="bomImpNo" type="button">ยกเลิก</button><button class="btn" id="bomImpYes" type="button">นำเข้า ${P.length} เมนู</button></div></section>`;
 }
@@ -2275,7 +2279,10 @@ function bind(){
       try{toast("กำลังอ่านไฟล์…");const rows=await readBomXlsx(f);S.bomImp=planBomImport(rows);S.bomImpName=f.name;render();scrollTo({top:0,behavior:"smooth"})}
       catch(e){toast(e?.message&&/อ่านไฟล์/.test(e.message)?e.message:"อ่านไฟล์ไม่ได้ ต้องเป็น .xlsx")}};
     if($("#bomImpNo"))$("#bomImpNo").onclick=()=>{S.bomImp=null;render()};
-    if($("#bomImpYes"))$("#bomImpYes").onclick=async ev=>{const btn=ev.currentTarget,P=S.bomImp;if(!P)return;btn.disabled=true;$("#bomImpNo").disabled=true;let ok=0;
+    on("[data-impmap]","change",ev=>{const p=S.bomImp[+ev.currentTarget.dataset.impmap],id=ev.currentTarget.value;p.ex=id?S.menus.find(m=>m.id===id)||null:null;
+      if(!hasCost(p.row.price))p.price=p.ex?n(p.ex.price):0;render()});
+    if($("#bomImpYes"))$("#bomImpYes").onclick=async ev=>{const btn=ev.currentTarget,P=S.bomImp;if(!P)return;
+      if(P.some((p,i)=>p.ex&&P.some((q,j)=>j!==i&&q.ex&&q.ex.id===p.ex.id))){toast("มีเมนูในระบบถูกเลือกซ้ำ 2 แถว แก้ก่อนนำเข้า");return}btn.disabled=true;$("#bomImpNo").disabled=true;let ok=0;
       for(const p of P){btn.textContent=`กำลังนำเข้า ${ok+1}/${P.length}…`;const now=new Date().toISOString();let ref,body;
         if(p.ex){const {id:_id,...keep}=p.ex;ref=S.db.doc(base+"/menus/"+p.ex.id);body={...keep,code:p.row.code||keep.code||"",bom:p.bom,updatedAt:now};if(hasCost(p.row.price))body.price=n(p.row.price)}
         else{ref=S.db.collection(base+"/menus").doc();body={name:p.row.name,code:p.row.code||"",price:n(p.price),bom:p.bom,updatedAt:now}}
