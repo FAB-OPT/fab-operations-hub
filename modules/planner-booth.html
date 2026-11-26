@@ -380,6 +380,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
 /* วันนี้: พื้นส้มเข้มตัวขาว ให้เด่นกว่าวันอื่น */
 .isToday{background:var(--accent)!important;color:#fff!important;box-shadow:0 6px 14px rgba(255,122,26,.3)}
 .isToday small,.isToday span{color:#fff!important}
+.dshol{display:flex;flex-wrap:wrap;gap:8px;margin:-4px 16px 4px}.dshol .mini{height:36px}
 .hol2{font-style:normal;font-size:12.5px;font-weight:800;color:#fff;background:#c8364b;border-radius:999px;padding:2px 9px;white-space:nowrap}
 .agh small{margin-left:auto;font-size:13px;font-weight:800;color:var(--accent-ink);background:var(--accent-soft);border-radius:999px;padding:3px 10px;white-space:nowrap}
 .dc{margin-bottom:12px}
@@ -703,6 +704,7 @@ button{cursor:pointer;border:0;background:none;padding:0}
   <div class="dsgr"></div>
   <button class="dsx" id="dsClose" aria-label="ปิด">✕</button>
   <div class="dayh" id="dayh"></div>
+  <div class="dshol" id="dsHol"></div>
   <div class="mlist" id="cards"></div>
   <button class="btn pri" id="dsAdd" style="margin:0 16px">+ เพิ่มแผน</button>
 </div></div>
@@ -1020,7 +1022,8 @@ const OFFICIAL_HOL={
   '2027-08-12':'วันแม่ · วันเฉลิมฯ พระราชินี','2027-10-13':'วันนวมินทรมหาราช','2027-10-25':'ชดเชยวันปิยมหาราช',
   '2027-12-06':'ชดเชยวันพ่อ','2027-12-10':'วันรัฐธรรมนูญ','2027-12-31':'วันสิ้นปี'
 };
-function holLabel(iso){ return OFFICIAL_HOL[iso]||''; }
+/* วันหยุดที่แอดมินเพิ่ม/แก้/เอาออกเอง ใช้ร่วมกันทุกคน (hols: {iso: ชื่อ | '__none__'}) ทับตารางด้านบน */
+function holLabel(iso){ const v=hols[iso]; if(typeof v==='string'&&v) return v==='__none__'?'':v; return OFFICIAL_HOL[iso]||''; }
 /* แผนทุกหมวดต้องขึ้นในปฏิทิน (หมวดที่ไม่มีในรายการจะขึ้นเป็นสีเทา) ไม่ให้จำนวนนับแล้วแต่มองไม่เห็น */
 /* ผู้จัดการทีมเห็นแผนของทีมด้วย (เพิ่มให้คนอื่นได้จึงต้องเห็นที่บันทึกไป) */
 function visible(){ return plans.filter(p=>(mode==='team'||!person||p.person===person)&&(seeAll||canMgr||p.person===owner)&&!catOff.has(p.type)&&(!boothSel||p.booth===boothSel)); }
@@ -1168,6 +1171,9 @@ function paintStrip(){
   $('dayh').style.setProperty('--c',WEEK_COLOR[dow]);
   $('dayh').classList.toggle('isToday',hd===todayISO());
   $('dayh').innerHTML=`<b>${DOW[dow]} ${d0} ${TH[M]}</b>${hd===todayISO()?'<span>วันนี้</span>':''}${hl?`<em class="hol2">${esc(hl)}</em>`:''}`;
+  $('dsHol').innerHTML=canMgr?(hl?`<button class="mini ghost" data-holedit="${hd}">✎ แก้ชื่อวันหยุด</button><button class="mini danger" data-holdel="${hd}">ไม่ใช่วันหยุด</button>`
+    :`<button class="mini" data-holadd="${hd}">+ ตั้งเป็นวันหยุดนักขัตฤกษ์</button>`):'';
+  $('dsHol').hidden=!canMgr;
   const iso=`${Y}-${String(M+1).padStart(2,'0')}-${String(d0).padStart(2,'0')}`;
   const list=visible().filter(p=>p.date===iso);
   $('dsAdd').hidden=!canWrite;
@@ -1547,9 +1553,12 @@ document.body.classList.add('v-cal');   /* ใช้มุมมองปฏิ�
 async function saveTeam(next){ team=next; await db.doc('bconfig/team').set({members:next}); }
 async function saveCats(next){ cats=next; await db.doc('bconfig/cats').set({items:next}); }
 /* ป้ายวันหยุดเป็นของใครของมัน: เก็บแยกตามชื่อผู้ใช้ที่ล็อกอิน */
-function holDocId(){ return 'bconfig/holidays_'+(owner||'guest'); }
+/* วันหยุดนักขัตฤกษ์ของบริษัท: เอกสารเดียวใช้ร่วมกันทั้งแผนงานขายและแผนบูธ (หน้าบูธโหลดเฉพาะ col ที่ขึ้นต้นด้วย b) */
+function holDocId(){ return 'bconfig/pubhol'; }
 async function saveHol(next){
-  const out={}; Object.keys(next).forEach(k=>{ out[k]=next[k]||'__none__'; });
+  const out={}; Object.keys(next).forEach(k=>{ const v=String(next[k]||'').trim();
+    if(!v||v==='__none__'){ if(OFFICIAL_HOL[k]) out[k]='__none__'; }   /* เอาออก: จำไว้เฉพาะวันที่มีในตารางบริษัท */
+    else if(v!==OFFICIAL_HOL[k]) out[k]=v; });
   const prev=hols; hols=out; paintAll();
   try{ await db.doc(holDocId()).set({items:out}); }
   catch(e){ console.error('[holidays] save failed', holDocId(), e); hols=prev; paintAll(); toast('บันทึกป้ายไม่สำเร็จ: '+((e&&e.message)||e)); throw e; }
@@ -1709,6 +1718,13 @@ document.addEventListener('click',async e=>{
   const pp=t.closest('[data-p]'); if(pp){ const v2=pp.dataset.p||null; person=(person===v2)?null:v2; paintAll(); return; }
   const md=t.closest('[data-md]'); if(md){ mSel=+md.dataset.md; sel=mSel; paintStrip(); paintGrid(); paintRight(); $('dsheet').hidden=false; return; }
   if(t.closest('#dsClose')||t.id==='dsheet'){ $('dsheet').hidden=true; return; }
+  const hEd=t.closest('[data-holadd],[data-holedit]'); if(hEd){ if(!canMgr) return toast('เฉพาะแอดมินที่ตั้งวันหยุดได้');
+    const iso=hEd.dataset.holadd||hEd.dataset.holedit, dd=new Date(iso+'T00:00:00');
+    const r=await askBox({icon:'🎌',title:hEd.dataset.holadd?'ตั้งเป็นวันหยุดนักขัตฤกษ์':'แก้ชื่อวันหยุด',msg:`${DOW[(dd.getDay()+6)%7]} ${dd.getDate()} ${TH[dd.getMonth()]} ${dd.getFullYear()+543} · ทุกคนจะเห็นป้ายนี้ในปฏิทิน`,input:{label:'ชื่อวันหยุด',value:holLabel(iso)}});
+    if(!r||!r.name) return; try{ await saveHol({...hols,[iso]:r.name}); toast('บันทึกวันหยุดแล้ว'); }catch(e){} return; }
+  const hDel=t.closest('[data-holdel]'); if(hDel){ if(!canMgr) return toast('เฉพาะแอดมินที่ตั้งวันหยุดได้');
+    const iso=hDel.dataset.holdel; if(!await askBox({icon:'🗓',title:'เอาป้าย "'+holLabel(iso)+'" ออก?',msg:'วันนี้จะกลับเป็นวันทำงานปกติในปฏิทินของทุกคน',danger:true})) return;
+    try{ await saveHol({...hols,[iso]:''}); toast('เอาป้ายวันหยุดออกแล้ว'); }catch(e){} return; }
   if(t.closest('#dsAdd')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#fab')){ if(!canWrite) return toast('สิทธิ์ดูอย่างเดียว'); return openPlanDlg(null,`${Y}-${String(M+1).padStart(2,'0')}-${String(mSel||1).padStart(2,'0')}`); }
   if(t.closest('#deskBtn,#deskBtnM')){ goDesk(null,'dash'); return; }
