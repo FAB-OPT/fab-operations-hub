@@ -693,6 +693,7 @@ function leaveBrand(){S.unsub.forEach(u=>u());S.unsub=[];if(S.plUnsub)S.plUnsub(
 function rerender(){
   if(S.view==="new"&&$("#evForm"))readForm();
   else if(S.view==="menus"&&$("#m-name"))readMenu();
+  else if(S.view==="menus"&&document.activeElement&&document.activeElement.closest("#ingPanel"))return;
   else if(S.view==="event"){if($("#pl-fee"))readPL();readUp();readPay()}
   else if(S.view==="feas"&&$("#fzForm")){readFz();if(document.activeElement&&document.activeElement.closest("#fzForm"))return}
   render();
@@ -1869,16 +1870,16 @@ function fcPanel(atEnd){
 /* menus & BOM */
 function viewMenus(){
   const head=`<div class="row" style="justify-content:space-between"><div><h1>เมนู &amp; BOM</h1><p class="muted" style="margin:2px 0 0">ต้นทุนต่อหน่วยคิดจาก BOM ใช้คำนวณ COGS ใน P&amp;L (ใส่ต้นทุนวัตถุดิบไม่รวม VAT)</p></div>
-    ${S.isAdmin&&S.editMenu===null?`<button class="btn" id="newMenu" type="button">+ เพิ่มเมนู</button>`:""}</div>`;
+    ${S.isAdmin&&S.editMenu===null?`<div class="row" style="gap:8px"><button class="btn sec" id="bomImpBtn" type="button">นำเข้า BOM จาก Excel</button><input type="file" id="bomImpFile" accept=".xlsx" hidden><button class="btn" id="newMenu" type="button">+ เพิ่มเมนู</button></div>`:""}</div>`;
   if(S.editMenu!==null)return head+menuEditor();
   if(!S.mnReady)return head+`<div class="empty">กำลังโหลดเมนู…</div>`;
-  if(!S.menus.length)return head+`<div class="empty">ยังไม่มีเมนู${S.isAdmin?"<br>เพิ่มเมนูพร้อม BOM เพื่อให้ P&amp;L คำนวณต้นทุนได้":""}</div>`+(inlineFc()?"":fcPanel());
-  return head+(inlineFc()?"":fcPanel(true))+`<div class="tbl-wrap"><table class="rt"><thead><tr><th>เมนู / ชุด</th><th class="r">ราคาขาย</th><th class="r">ราคาไม่รวม VAT</th><th class="r">ต้นทุน BOM</th><th class="r">Food cost %</th><th class="r">วัตถุดิบ</th><th></th></tr></thead><tbody>
+  if(!S.menus.length)return head+bomImportPanel()+`<div class="empty">ยังไม่มีเมนู${S.isAdmin?"<br>เพิ่มเมนูพร้อม BOM หรือกด “นำเข้า BOM จาก Excel” เพื่อให้ P&amp;L คำนวณต้นทุนได้":""}</div>`+(inlineFc()?"":fcPanel());
+  return head+bomImportPanel()+(inlineFc()?"":fcPanel(true))+`<div class="tbl-wrap"><table class="rt"><thead><tr><th>เมนู / ชุด</th><th class="r">ราคาขาย</th><th class="r">ราคาไม่รวม VAT</th><th class="r">ต้นทุน BOM</th><th class="r">Food cost %</th><th class="r">วัตถุดิบ</th><th></th></tr></thead><tbody>
   ${[...S.menus].sort((a,b)=>a.name.localeCompare(b.name,"th")).map(m=>{const c=menuCost(m),ex=n(m.price)/(1+VAT);return `<tr>
     <td><b>${esc(m.name)}</b></td><td class="r num">${fmt(m.price,2)}</td><td class="r num">${fmt(ex,2)}</td>
-    <td class="r num">${c?fmt(c,2):`<span class="flag">ยังไม่ใส่ต้นทุน</span>`}</td><td class="r num">${c?pct(c,ex):"–"}</td>
+    <td class="r num">${c?fmt(c,2):`<span class="flag">ยังไม่ใส่ต้นทุน</span>`}${c&&bomMissing(m)?`<div class="flag" style="font-size:.75rem">ขาดต้นทุน ${bomMissing(m)} รายการ</div>`:""}</td><td class="r num">${c?pct(c,ex):"–"}</td>
     <td class="r num">${(m.bom||[]).length}</td><td><button class="btn sec small" data-editmenu="${esc(m.id)}" type="button">${S.isAdmin?"แก้ไข":"ดู"}</button></td></tr>`}).join("")}
-  </tbody></table></div>`;
+  </tbody></table></div>`+ingCostPanel();
 }
 function menuEditor(){
   if(!S.draft){const src=S.editMenu==="new"?{name:"",price:"",bom:[{ingredient:"",qty:1,unit:"",unitCost:""}]}:S.menus.find(m=>m.id===S.editMenu);
@@ -1907,7 +1908,82 @@ function menuEditor(){
 function readMenu(){
   const m=S.draft;if(!m||!$("#m-name"))return;
   m.name=$("#m-name").value.trim();m.price=$("#m-price").value;
-  m.bom=m.bom.map((_,i)=>({ingredient:$("#m-b-i-"+i).value.trim(),qty:n($("#m-b-q-"+i).value),unit:$("#m-b-u-"+i).value.trim(),unitCost:n($("#m-b-c-"+i).value)}));
+  m.bom=m.bom.map((b,i)=>({...b,ingredient:$("#m-b-i-"+i).value.trim(),qty:n($("#m-b-q-"+i).value),unit:$("#m-b-u-"+i).value.trim(),unitCost:n($("#m-b-c-"+i).value)}));
+}
+
+/* ---- นำเข้า BOM จาก Excel (ไฟล์ส่งออกจากระบบ: prodCode · ItemDesc · matDesc · matCode · MaterialAmount · ItemUnitName)
+   + ตารางต้นทุนวัตถุดิบ: ใส่ต้นทุนต่อหน่วยครั้งเดียว แล้วอัปเดตทุกเมนูที่ใช้วัตถุดิบนั้น (จับคู่ด้วยรหัสวัตถุดิบ ถ้าไม่มีรหัสใช้ชื่อ) ---- */
+const ingKey=b=>String(b.code||"").trim()?"c:"+String(b.code).trim().toLowerCase():"n:"+String(b.ingredient||"").trim().toLowerCase();
+const hasCost=v=>v!==""&&v!==null&&v!==undefined&&isFinite(parseFloat(v));
+function bomMissing(m){return (m.bom||[]).filter(b=>b.ingredient&&!hasCost(b.unitCost)).length}
+function parseCost(v){const t=String(v??"").replace(/[,฿\s]/g,"");if(!t)return "";const d=t.match(/^([\d.]+)\/([\d.]+)$/);
+  if(d){const b=parseFloat(d[2]);return b?+(parseFloat(d[1])/b).toFixed(6):""}const x=parseFloat(t);return isFinite(x)&&/^[\d.]+$/.test(t)?x:""}
+function ingList(){
+  const M=new Map();
+  S.menus.forEach(m=>(m.bom||[]).forEach(b=>{if(!b.ingredient)return;const k=ingKey(b);let r=M.get(k);
+    if(!r){r={k,code:b.code||"",name:b.ingredient,unit:b.unit||"",costs:{},menus:new Set()};M.set(k,r)}
+    r.menus.add(m.id);if(hasCost(b.unitCost)){const c=String(+b.unitCost);r.costs[c]=(r.costs[c]||0)+1}}));
+  return [...M.values()].map(r=>{const cs=Object.entries(r.costs).sort((a,b)=>b[1]-a[1]);return {...r,cost:cs.length?+cs[0][0]:"",mixed:cs.length>1,used:r.menus.size}})
+    .sort((a,b)=>(a.cost===""?0:1)-(b.cost===""?0:1)||String(a.name).localeCompare(String(b.name),"th"));
+}
+async function readBomXlsx(file){
+  if(!window.ExcelJS)await loadScript("https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js");
+  const wb=new ExcelJS.Workbook();await wb.xlsx.load(await file.arrayBuffer());
+  const txt=v=>{if(v==null)return "";if(typeof v==="object"){if(v.richText)return v.richText.map(t=>t.text).join("");if("result" in v)return v.result??"";if(v.text)return v.text;return ""}return v};
+  const want={prod:/^(prodcode|รหัสเมนู|รหัสสินค้า|menucode)$/i,menu:/^(itemdesc|เมนู|ชื่อเมนู|menu)$/i,mat:/^(matdesc|วัตถุดิบ|ชื่อวัตถุดิบ|ingredient)$/i,code:/^(matcode|รหัสวัตถุดิบ)$/i,
+    qty:/^(materialamount|ปริมาณ|qty)$/i,unit:/^(itemunitname|หน่วย|unit)$/i,cost:/^(unitcost|cost|ต้นทุน\/หน่วย|ต้นทุนต่อหน่วย)$/i,price:/^(price|saleprice|ราคาขาย)$/i};
+  for(const ws of wb.worksheets){
+    let hdr=0,col={};
+    for(let r=1;r<=Math.min(ws.rowCount,15)&&!hdr;r++){const c={};ws.getRow(r).eachCell((cell,i)=>{const t=String(txt(cell.value)).replace(/\s+/g,"");for(const k in want)if(!c[k]&&want[k].test(t))c[k]=i});
+      if(c.menu&&c.mat&&c.qty){hdr=r;col=c}}
+    if(!hdr)continue;
+    const menus=new Map();
+    for(let r=hdr+1;r<=ws.rowCount;r++){const row=ws.getRow(r),g=k=>col[k]?String(txt(row.getCell(col[k]).value)).trim():"";
+      const name=g("menu"),mat=g("mat");if(!name||!mat)continue;
+      const key=g("prod")||name;let m=menus.get(key);
+      if(!m){m={code:g("prod"),name,price:col.price?parseCost(g("price")):"",bom:[]};menus.set(key,m)}
+      m.bom.push({code:g("code"),ingredient:mat,qty:n(g("qty")),unit:g("unit"),unitCost:col.cost?parseCost(g("cost")):""});
+    }
+    if(menus.size)return [...menus.values()];
+  }
+  throw new Error("อ่านไฟล์ไม่ได้: ไม่พบคอลัมน์ ItemDesc, matDesc และ MaterialAmount");
+}
+function planBomImport(rows){
+  const known=new Map();
+  S.menus.forEach(m=>(m.bom||[]).forEach(b=>{if(!hasCost(b.unitCost))return;const c=+b.unitCost;
+    if(b.code&&!known.has(ingKey(b)))known.set(ingKey(b),c);const nk="n:"+String(b.ingredient||"").trim().toLowerCase();if(!known.has(nk))known.set(nk,c)}));
+  return rows.map(r=>{
+    const ex=S.menus.find(m=>r.code&&m.code===r.code)||S.menus.find(m=>String(m.name||"").trim()===r.name);
+    const bom=r.bom.map(b=>{if(hasCost(b.unitCost))return b;const nk="n:"+b.ingredient.toLowerCase();
+      const c=known.has(ingKey(b))?known.get(ingKey(b)):known.has(nk)?known.get(nk):"";return {...b,unitCost:c}});
+    return {row:r,ex,bom,price:hasCost(r.price)?n(r.price):ex?n(ex.price):0}});
+}
+function bomImportPanel(){
+  const P=S.bomImp;if(!P||!S.isAdmin)return "";
+  const nNew=P.filter(p=>!p.ex).length,ings=new Set(P.flatMap(p=>p.bom.map(ingKey))),noCost=new Set(P.flatMap(p=>p.bom.filter(b=>!hasCost(b.unitCost)).map(ingKey))),noPrice=P.filter(p=>!n(p.price)).length;
+  return `<section class="panel" style="display:flex;flex-direction:column;gap:12px;border:2px solid var(--brand)">
+    <div><h2 style="margin:0">ตรวจก่อนนำเข้า</h2><div class="muted" style="font-size:.85rem;overflow-wrap:anywhere">${esc(S.bomImpName||"")}</div></div>
+    <div class="row" style="gap:8px">
+      <span class="pill">${P.length} เมนู</span><span class="pill">ใหม่ ${nNew}</span><span class="pill">อัปเดต BOM ${P.length-nNew}</span><span class="pill">วัตถุดิบ ${ings.size} รายการ</span>
+      ${noCost.size?`<span class="pill cx">ยังไม่มีต้นทุน ${noCost.size} รายการ</span>`:""}${noPrice?`<span class="pill cx">ยังไม่มีราคาขาย ${noPrice} เมนู</span>`:""}</div>
+    <div class="tbl-wrap"><table class="rt"><thead><tr><th>เมนู</th><th>รหัส</th><th class="r">วัตถุดิบ</th><th>จะทำอะไร</th></tr></thead><tbody>
+    ${P.map(p=>`<tr><td><b>${esc(p.row.name)}</b></td><td class="muted">${esc(p.row.code||"–")}</td><td class="r num">${p.bom.length}</td><td>${p.ex?"แทนที่ BOM · ราคาขายเดิมคงไว้":"เพิ่มเมนูใหม่"}</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="muted" style="margin:0;font-size:.85rem">ไฟล์มีแค่ปริมาณ ไม่มีราคา · ต้นทุนต่อหน่วยที่เคยใส่ไว้จะดึงมาใช้ต่อตามรหัสวัตถุดิบ ที่เหลือใส่ได้ในตาราง “ต้นทุนวัตถุดิบ” หลังนำเข้า${noPrice?" · ราคาขายของเมนูใหม่ใส่ได้ที่ปุ่มแก้ไขของแต่ละเมนู":""}</p>
+    <div class="row" style="justify-content:flex-end;gap:8px"><button class="btn sec" id="bomImpNo" type="button">ยกเลิก</button><button class="btn" id="bomImpYes" type="button">นำเข้า ${P.length} เมนู</button></div></section>`;
+}
+function ingCostPanel(){
+  const L=ingList();if(!L.length)return "";
+  const E=S.ingEdit||{},miss=L.filter(x=>!hasCost(E[x.k]!==undefined?parseCost(E[x.k]):x.cost)).length,dis=S.isAdmin?"":"disabled";
+  return `<details class="panel" id="ingPanel" ${(S.ingOpen??!!miss)?"open":""} style="display:block">
+    <summary style="cursor:pointer"><h2 style="display:inline;margin:0">ต้นทุนวัตถุดิบ</h2> <span class="muted" style="font-size:.85rem">· ${L.length} รายการ${miss?` · <span class="flag">ยังไม่ใส่ ${miss} รายการ</span>`:" · ใส่ครบแล้ว"}</span></summary>
+    <p class="muted" style="margin:10px 0;font-size:.85rem">บาทต่อ 1 หน่วยตามคอลัมน์หน่วย ไม่รวม VAT · ใส่ครั้งเดียว ใช้กับทุกเมนูที่มีวัตถุดิบนี้ · พิมพ์เป็นราคาแพ็ค/ขนาดได้ เช่น แพ็คละ 85 บาท 500 กรัม พิมพ์ <b>85/500</b></p>
+    <div class="tbl-wrap"><table class="rt"><thead><tr><th>วัตถุดิบ</th><th>รหัส</th><th>หน่วย</th><th class="r">ใช้ใน</th><th class="r">ต้นทุน/หน่วย (฿)</th></tr></thead><tbody>
+    ${L.map(x=>{const raw=E[x.k]!==undefined?E[x.k]:x.cost===""?"":String(x.cost),pv=parseCost(raw);return `<tr><td>${esc(x.name)}</td><td class="muted">${esc(x.code||"–")}</td><td>${esc(x.unit||"–")}</td><td class="r num">${x.used} เมนู</td>
+      <td class="r"><input data-ing="${esc(x.k)}" inputmode="decimal" value="${esc(raw)}" placeholder="ยังไม่ใส่" aria-label="ต้นทุนต่อหน่วย ${esc(x.name)}" style="width:120px;text-align:right" ${dis}>
+      ${/\//.test(raw)&&pv!==""?`<div class="muted num" style="font-size:.75rem">= ${fmt(pv,4)}</div>`:""}${x.mixed&&E[x.k]===undefined?`<div class="flag" style="font-size:.75rem">แต่ละเมนูใส่ไว้ไม่เท่ากัน</div>`:""}</td></tr>`}).join("")}
+    </tbody></table></div>
+    ${S.isAdmin?`<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn" id="saveIng" type="button">บันทึกต้นทุนวัตถุดิบ</button></div>`:""}</details>`;
 }
 
 /* users & access (owner only) */
@@ -2194,6 +2270,29 @@ function bind(){
       body.updatedAt=new Date().toISOString();
       if(await write(()=>S.db.doc(base+"/settings/booth").set(body),"บันทึก Fixed cost แล้ว")){S.fc=body;render()}};
     on("[data-editmenu]","click",ev=>{S.draft=null;S.editMenu=ev.currentTarget.dataset.editmenu;render()});
+    if($("#bomImpBtn"))$("#bomImpBtn").onclick=()=>$("#bomImpFile").click();
+    if($("#bomImpFile"))$("#bomImpFile").onchange=async ev=>{const f=ev.target.files[0];ev.target.value="";if(!f)return;
+      try{toast("กำลังอ่านไฟล์…");const rows=await readBomXlsx(f);S.bomImp=planBomImport(rows);S.bomImpName=f.name;render();scrollTo({top:0,behavior:"smooth"})}
+      catch(e){toast(e?.message&&/อ่านไฟล์/.test(e.message)?e.message:"อ่านไฟล์ไม่ได้ ต้องเป็น .xlsx")}};
+    if($("#bomImpNo"))$("#bomImpNo").onclick=()=>{S.bomImp=null;render()};
+    if($("#bomImpYes"))$("#bomImpYes").onclick=async ev=>{const btn=ev.currentTarget,P=S.bomImp;if(!P)return;btn.disabled=true;$("#bomImpNo").disabled=true;let ok=0;
+      for(const p of P){btn.textContent=`กำลังนำเข้า ${ok+1}/${P.length}…`;const now=new Date().toISOString();let ref,body;
+        if(p.ex){const {id:_id,...keep}=p.ex;ref=S.db.doc(base+"/menus/"+p.ex.id);body={...keep,code:p.row.code||keep.code||"",bom:p.bom,updatedAt:now};if(hasCost(p.row.price))body.price=n(p.row.price)}
+        else{ref=S.db.collection(base+"/menus").doc();body={name:p.row.name,code:p.row.code||"",price:n(p.price),bom:p.bom,updatedAt:now}}
+        if(!await write(()=>ref.set(body)))break;ok++}
+      S.bomImp=null;S.ingOpen=true;if(ok===P.length)toast(`นำเข้าแล้ว ${ok} เมนู · ใส่ต้นทุนวัตถุดิบต่อได้ด้านล่าง`);render()};
+    if($("#ingPanel"))$("#ingPanel").addEventListener("toggle",ev=>{S.ingOpen=ev.currentTarget.open});
+    on("[data-ing]","input",ev=>{(S.ingEdit||(S.ingEdit={}))[ev.currentTarget.dataset.ing]=ev.currentTarget.value});
+    on("[data-ing]","change",()=>render());
+    if($("#saveIng"))$("#saveIng").onclick=async ev=>{const btn=ev.currentTarget,E=S.ingEdit||{},map=new Map();
+      for(const k in E){const v=parseCost(E[k]);if(v!=="")map.set(k,v);else if(String(E[k]).trim()){toast("ตัวเลขไม่ถูกต้อง: "+E[k]);return}}
+      const todo=S.menus.map(m=>{let ch=false;const bom=(m.bom||[]).map(b=>{const k=ingKey(b);if(map.has(k)&&(!hasCost(b.unitCost)||+b.unitCost!==map.get(k))){ch=true;return {...b,unitCost:map.get(k)}}return b});return ch?{m,bom}:null}).filter(Boolean);
+      if(!todo.length){toast("ไม่มีต้นทุนที่เปลี่ยน");return}
+      btn.disabled=true;let ok=0;
+      for(const t of todo){btn.textContent=`กำลังบันทึก ${ok+1}/${todo.length}…`;const {id,...keep}=t.m;
+        if(!await write(()=>S.db.doc(base+"/menus/"+id).set({...keep,bom:t.bom,updatedAt:new Date().toISOString()})))break;
+        t.m.bom=t.bom;ok++}
+      if(ok===todo.length){S.ingEdit={};toast(`อัปเดตต้นทุนแล้ว ${ok} เมนู`)}render()};
     if($("#newMenu"))$("#newMenu").onclick=()=>{S.draft=null;S.editMenu="new";render()};
     if($("#m-name")){
       on(".panel input","change",()=>{readMenu();render()});
@@ -2205,7 +2304,8 @@ function bind(){
       if($("#mDelYes"))$("#mDelYes").onclick=async()=>{if(await write(()=>S.db.doc(base+"/menus/"+S.editMenu).delete(),"ลบเมนูแล้ว")){S.draft=null;S.editMenu=null;S.confirmDel=null;render()}};
       if($("#saveMenu"))$("#saveMenu").onclick=async()=>{readMenu();const m=S.draft;
         if(!m.name){toast("ใส่ชื่อเมนูก่อนบันทึก");return}
-        const body={name:m.name,price:n(m.price),bom:m.bom.filter(b=>b.ingredient),updatedAt:new Date().toISOString()};
+        const {id:_id,...keep}=m;
+        const body={...keep,name:m.name,price:n(m.price),bom:m.bom.filter(b=>b.ingredient),updatedAt:new Date().toISOString()};
         const ref=S.editMenu==="new"?S.db.collection(base+"/menus").doc():S.db.doc(base+"/menus/"+S.editMenu);
         if(await write(()=>ref.set(body),"บันทึกเมนูแล้ว")){S.draft=null;S.editMenu=null;render()}};
     }
