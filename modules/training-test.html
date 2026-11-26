@@ -2717,6 +2717,15 @@ function syncFromTR(t, r, onlyCame){
   });
   return { participants: out, added, removed, kept, n: src.length };
 }
+/* สาขาที่เห็นการอบรม (เฉพาะสาขา) ต้องตามรายชื่อด้วย — คนย้ายรุ่นใน Training Record แล้วสาขาของเขาต้องเห็นรุ่นใหม่ และไม่เห็นรุ่นเดิมที่ไม่มีคนของตัวเองแล้ว
+   ไม่ได้จำกัดสาขา (ว่าง) = คงเดิม · มีคนที่ไม่ระบุสาขา (ทุกสาขาเห็นคนนั้น) = เพิ่มสาขาที่ขาดอย่างเดียว ไม่ตัดออก */
+function fitVisible(t){
+  const vb = t.visible_branches || []; if (!vb.length || isSelf(t)) return vb;
+  const r = pplBranches(t);
+  if (r.none) return vb.concat(r.labels.filter(x => !vb.includes(x)));
+  return r.labels;
+}
+const sameSet = (a, b) => a.length === b.length && a.every(x => b.includes(x));
 const sameList = (a, b) => a.length === b.length && a.every((p, i) => b[i] && String(p.id) === String(b[i].id) && p.name === b[i].name && (p.branch || '') === (b[i].branch || '') && (p.position || '') === (b[i].position || ''));
 
 window.pullRoster = function(){
@@ -2735,6 +2744,7 @@ window.pullRoster = function(){
 
   const x = syncFromTR(e, r, onlyCame);
   e.participants = x.participants;
+  e.visible_branches = fitVisible(e);
   e.source = { system:'training-record', id:r.id, course:r.course || '', batch:r.batch || '',
     train_date:r.train_date || '', synced_at:new Date().toISOString(), only_came: !!onlyCame };
   renderEditor();
@@ -2755,10 +2765,12 @@ async function autoSyncTR(){
   for (const t of linked){
     const r = (ROSTERS || []).find(x => x.id === t.source.id); if (!r) continue;
     const x = syncFromTR(t, r, !!t.source.only_came);
-    if (!x.n || sameList(x.participants, t.participants || [])) continue;
+    if (!x.n) continue;
+    const vb = fitVisible(Object.assign({}, t, { participants: x.participants }));
+    if (sameList(x.participants, t.participants || []) && sameSet(vb, t.visible_branches || [])) continue;
     const source = Object.assign({}, t.source, { synced_at: new Date().toISOString() });
-    const { error } = await SB.from(TT_TRAIN_T).update(trainOut({ participants: x.participants, source, updated_at: new Date().toISOString() })).eq('id', t.id);
-    if (!error){ t.participants = x.participants; t.source = source; changed++; }
+    const { error } = await SB.from(TT_TRAIN_T).update(trainOut({ participants: x.participants, visible_branches: vb, source, updated_at: new Date().toISOString() })).eq('id', t.id);
+    if (!error){ t.participants = x.participants; t.visible_branches = vb; t.source = source; changed++; }
   }
   if (changed && !editing && (tab === 'list' || tab === 'trainings')){ if (tab === 'list') renderList(); else renderTrainings(); }
   if (changed) msg(`ปรับรายชื่อผู้เข้าอบรม ${changed} การอบรม ตาม Training Record ล่าสุดแล้ว`);
