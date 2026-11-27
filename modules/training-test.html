@@ -342,8 +342,6 @@ tbody tr:hover{background:#fcfcfd}
 .sc-tb td{padding:10px;border-bottom:1px solid var(--line)}
 .sc-tb tr:last-child td{border-bottom:0}
 .sc-tb .c{text-align:center}
-.sc-tb .sc-key{white-space:nowrap;min-height:36px}
-.sc-tb .sc-wait{display:inline-block;font-size:11.5px;line-height:1.3;color:var(--muted)}
 .sc-tb b{font-size:17px}
 .sc-tb small{color:var(--muted);font-size:12px}
 .sc-n{font-weight:700}
@@ -1555,23 +1553,13 @@ function scoresHtml(t, bare){
   }).sort((a, b) => ttRank(a.post && a.post.pct, a.d, a.p.name, b.post && b.post.pct, b.d, b.p.name))
     .map(({ p, pre, post, d }) => {
     return `<tr><td class="sc-n">${esc(p.name)}</td><td class="c">${cell(pre)}</td><td class="c">${cell(post)}</td>
-      <td class="c">${d == null ? '<span class="muted">—</span>' : `<span class="sc-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}</span>`}</td>
-      <td class="c">${post ? `<button type="button" class="btn btn-line btn-sm sc-key" data-k="${esc(t.key)}" data-p="${esc(p.id)}" onclick="showKey(this)">เฉลย ›</button>`
-        : pre ? '<span class="sc-wait">หลังเรียน<br>แล้วเฉลย</span>' : ''}</td></tr>`;
+      <td class="c">${d == null ? '<span class="muted">—</span>' : `<span class="sc-d ${d > 0 ? 'up' : d < 0 ? 'down' : ''}">${d > 0 ? '▲ +' + d : d < 0 ? '▼ ' + d : '0'}</span>`}</td></tr>`;
   }).join('');
-  const table = `<table class="sc-tb"><thead><tr><th>ชื่อ</th><th class="c">ก่อนเรียน</th><th class="c">หลังเรียน</th><th class="c">เปลี่ยนแปลง</th><th class="c">เฉลย</th></tr></thead>
+  const table = `<table class="sc-tb"><thead><tr><th>ชื่อ</th><th class="c">ก่อนเรียน</th><th class="c">หลังเรียน</th><th class="c">เปลี่ยนแปลง</th></tr></thead>
     <tbody>${rows}</tbody></table>`;
   if (bare) return table;
   return `<div class="card sc-card"><h2>คะแนนผู้เข้าอบรม</h2>${table}</div>`;
 }
-/* เฉลยรายข้อของคนนี้ ดูย้อนหลังได้เมื่อทำหลังเรียนแล้ว (ก่อนเรียนยังไม่เฉลย เพราะใช้ข้อสอบชุดเดียวกัน) */
-window.showKey = function(btn){
-  const t = trainings.find(x => x.key === btn.dataset.k); if (!t) return;
-  const p = participantsFor(t).find(x => String(x.id) === String(btn.dataset.p));
-  const a = p && attemptOf(t.key, 'post', p.id); if (!a) return;
-  tab = 'run'; renderNav();
-  renderResult({ t, phase:'post', person:p, answers:a.answers || {}, score:Number(a.score), total:Number(a.total), pct:Number(a.pct), review:true });
-};
 window.showScores = function(key){
   const t = trainings.find(x => x.key === key); if (!t) return;
   tab = 'run'; renderNav(); window.scrollTo({ top:0 });
@@ -1874,10 +1862,9 @@ function renderResult(d, extra){
     ${extra || ''}
     <div class="card">
       <div class="row-btns sub-go">
-        ${d.review ? `<button class="btn btn-secondary" onclick="showScores('${esc(t.key)}')">‹ กลับหน้าคะแนน</button>` : `
         ${d.phase === 'post' && evalOn(t) ? `<button class="btn btn-primary" onclick="startRun('${esc(t.key)}','eval')">ประเมินอบรมต่อ ›</button>` : ''}
         ${left ? `<button class="btn ${d.phase === 'post' ? 'btn-secondary' : 'btn-primary'}" onclick="startRun('${esc(t.key)}','${d.phase}')">ทำคนถัดไป (เหลือ ${left} คน)</button>` : ''}
-        <button class="btn btn-secondary" onclick="go('list')">กลับหน้าการอบรม</button>`}
+        <button class="btn btn-secondary" onclick="go('list')">กลับหน้าการอบรม</button>
       </div>
     </div>`;
   window.scrollTo({ top:0 });
